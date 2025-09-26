@@ -1,4 +1,5 @@
 import { forwardRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { FormContainer } from '@/components/ui/Form'
 import Button from '@/components/ui/Button'
 import hooks from '@/components/ui/hooks'
@@ -60,14 +61,16 @@ type ProductForm = {
 
 const { useUniqueId } = hooks
 
-const validationSchema = Yup.object().shape({
-    name: Yup.string().required('Product Name Required'),
-    price: Yup.number().required('Price Required'),
-    stock: Yup.number().required('SKU Required'),
-    category: Yup.string().required('Category Required'),
-})
+const validationSchema = (t: (k: string) => string) =>
+    Yup.object().shape({
+        name: Yup.string().required(t('text.validation.productNameRequired')),
+        price: Yup.number().required(t('text.validation.priceRequired')),
+        stock: Yup.number().required(t('text.validation.skuRequired')),
+        category: Yup.string().required(t('text.validation.categoryRequired')),
+    })
 
 const DeleteProductButton = ({ onDelete }: { onDelete: OnDelete }) => {
+    const { t } = useTranslation()
     const [dialogOpen, setDialogOpen] = useState(false)
 
     const onConfirmDialogOpen = () => {
@@ -92,23 +95,19 @@ const DeleteProductButton = ({ onDelete }: { onDelete: OnDelete }) => {
                 type="button"
                 onClick={onConfirmDialogOpen}
             >
-                Delete
+                {t('text.actions.delete')}
             </Button>
             <ConfirmDialog
                 isOpen={dialogOpen}
                 type="danger"
-                title="Delete product"
+                title={t('text.titles.deleteProduct')}
                 confirmButtonColor="red-600"
                 onClose={onConfirmDialogClose}
                 onRequestClose={onConfirmDialogClose}
                 onCancel={onConfirmDialogClose}
                 onConfirm={handleConfirm}
             >
-                <p>
-                    Are you sure you want to delete this product? All record
-                    related to this product will be deleted as well. This action
-                    cannot be undone.
-                </p>
+                <p>{t('text.messages.deleteProductConfirm')}</p>
             </ConfirmDialog>
         </>
     )
@@ -142,6 +141,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
 
     const newId = useUniqueId('product-')
 
+    const { t } = useTranslation()
     return (
         <>
             <Formik
@@ -155,7 +155,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                           }))
                         : [],
                 }}
-                validationSchema={validationSchema}
+                validationSchema={validationSchema(t)}
                 onSubmit={(values: FormModel, { setSubmitting }) => {
                     const formData = cloneDeep(values)
                     formData.tags = formData.tags.map((tag) => {
@@ -214,7 +214,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                         type="button"
                                         onClick={() => onDiscard?.()}
                                     >
-                                        Discard
+                                        {t('text.actions.discard')}
                                     </Button>
                                     <Button
                                         size="sm"
@@ -223,7 +223,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                         icon={<AiOutlineSave />}
                                         type="submit"
                                     >
-                                        Save
+                                        {t('text.actions.save')}
                                     </Button>
                                 </div>
                             </StickyFooter>

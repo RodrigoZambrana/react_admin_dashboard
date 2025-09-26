@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import Card from '@/components/ui/Card'
 import Segment from '@/components/ui/Segment'
 import Badge from '@/components/ui/Badge'
@@ -52,6 +53,7 @@ const ChartLegend = ({
 
 const TaskOverview = ({ data = {}, className }: TaskOverviewProps) => {
     const [timeRange, setTimeRange] = useState(['weekly'])
+    const { t } = useTranslation()
 
     const [repaint, setRepaint] = useState(false)
 
@@ -71,7 +73,7 @@ const TaskOverview = ({ data = {}, className }: TaskOverviewProps) => {
     return (
         <Card className={className}>
             <div className="flex sm:flex-row flex-col md:items-center justify-between mb-6 gap-4">
-                <h4>Task Overview</h4>
+                <h4>{t('project.dashboard.taskOverview')}</h4>
                 <Segment
                     value={timeRange}
                     size="sm"
@@ -79,9 +81,9 @@ const TaskOverview = ({ data = {}, className }: TaskOverviewProps) => {
                         setTimeRange(val as string[])
                     }
                 >
-                    <Segment.Item value="monthly">Monthly</Segment.Item>
-                    <Segment.Item value="weekly">Weekly</Segment.Item>
-                    <Segment.Item value="daily">Daily</Segment.Item>
+                    <Segment.Item value="monthly">{t('project.dashboard.ranges.monthly')}</Segment.Item>
+                    <Segment.Item value="weekly">{t('project.dashboard.ranges.weekly')}</Segment.Item>
+                    <Segment.Item value="daily">{t('project.dashboard.ranges.daily')}</Segment.Item>
                 </Segment>
             </div>
             {!isEmpty(data) && !repaint && data.chart && (

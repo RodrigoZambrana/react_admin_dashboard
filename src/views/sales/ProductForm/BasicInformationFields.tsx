@@ -3,6 +3,7 @@ import RichTextEditor from '@/components/shared/RichTextEditor'
 import Input from '@/components/ui/Input'
 import { FormItem } from '@/components/ui/Form'
 import { Field, FormikErrors, FormikTouched, FieldProps } from 'formik'
+import { useTranslation } from 'react-i18next'
 
 type FormFieldsName = {
     name: string
@@ -17,13 +18,14 @@ type BasicInformationFields = {
 
 const BasicInformationFields = (props: BasicInformationFields) => {
     const { touched, errors } = props
+    const { t } = useTranslation()
 
     return (
         <AdaptableCard divider className="mb-4">
-            <h5>Basic Information</h5>
-            <p className="mb-6">Section to config basic product information</p>
+            <h5>{t('text.titles.basicInformation')}</h5>
+            <p className="mb-6">{t('text.descriptions.basicProductInfo')}</p>
             <FormItem
-                label="Product Name"
+                label={t('text.labels.productName')}
                 invalid={(errors.name && touched.name) as boolean}
                 errorMessage={errors.name}
             >
@@ -31,12 +33,12 @@ const BasicInformationFields = (props: BasicInformationFields) => {
                     type="text"
                     autoComplete="off"
                     name="name"
-                    placeholder="Name"
+                    placeholder={t('text.placeholders.name')}
                     component={Input}
                 />
             </FormItem>
             <FormItem
-                label="Code"
+                label={t('text.labels.code')}
                 invalid={(errors.productCode && touched.productCode) as boolean}
                 errorMessage={errors.productCode}
             >
@@ -44,12 +46,12 @@ const BasicInformationFields = (props: BasicInformationFields) => {
                     type="text"
                     autoComplete="off"
                     name="productCode"
-                    placeholder="Code"
+                    placeholder={t('text.placeholders.code')}
                     component={Input}
                 />
             </FormItem>
             <FormItem
-                label="Description"
+                label={t('text.labels.description')}
                 labelClass="justify-start!"
                 invalid={(errors.description && touched.description) as boolean}
                 errorMessage={errors.description}

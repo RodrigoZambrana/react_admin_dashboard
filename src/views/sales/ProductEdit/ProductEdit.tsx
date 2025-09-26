@@ -11,6 +11,7 @@ import reducer, {
     useAppDispatch,
 } from './store'
 import { injectReducer } from '@/store'
+import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import ProductForm, {
@@ -63,14 +64,18 @@ const ProductEdit = () => {
         }
     }
 
-    const popNotification = (keyword: string) => {
+    const { t } = useTranslation()
+
+    const popNotification = (keyword: 'updated' | 'deleted') => {
+        const titleKey = `sales.productEdit.toast.${keyword}.title`
+        const descKey = `sales.productEdit.toast.${keyword}.desc`
         toast.push(
             <Notification
-                title={`Successfuly ${keyword}`}
+                title={t(titleKey)}
                 type="success"
                 duration={2500}
             >
-                Product successfuly {keyword}
+                {t(descKey)}
             </Notification>,
             {
                 placement: 'top-center',
@@ -108,9 +113,9 @@ const ProductEdit = () => {
                     <DoubleSidedImage
                         src="/img/others/img-2.png"
                         darkModeSrc="/img/others/img-2-dark.png"
-                        alt="No product found!"
+                        alt={t('common.notFound.product')}
                     />
-                    <h3 className="mt-8">No product found!</h3>
+                    <h3 className="mt-8">{t('common.notFound.product')}</h3>
                 </div>
             )}
         </>

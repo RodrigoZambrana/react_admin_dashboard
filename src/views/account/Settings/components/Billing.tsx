@@ -14,6 +14,7 @@ import { Field, Form, Formik } from 'formik'
 import { HiPlus } from 'react-icons/hi'
 import isLastChild from '@/utils/isLastChild'
 import { apiGetAccountSettingBillingData } from '@/services/AccountServices'
+import { useTranslation } from 'react-i18next'
 import type { FieldProps, FieldInputProps, FormikProps } from 'formik'
 
 type CreditCard = {
@@ -51,19 +52,19 @@ type BillingFormModel = BillingData
 
 type GetAccountSettingBillingDataResponse = BillingData
 
-const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
+const monthsKey = [
+    'jan',
+    'feb',
+    'mar',
+    'apr',
+    'may',
+    'jun',
+    'jul',
+    'aug',
+    'sep',
+    'oct',
+    'nov',
+    'dec',
 ]
 
 const Billing = () => {
@@ -83,13 +84,15 @@ const Billing = () => {
         setData(response.data)
     }
 
+    const { t } = useTranslation()
+
     const onFormSubmit = (
         _: BillingFormModel,
         setSubmitting: (isSubmitting: boolean) => void,
     ) => {
         toast.push(
             <Notification
-                title={'Billing information updated'}
+                title={t('text.messages.billingUpdated')}
                 type="success"
             />,
             {
@@ -184,13 +187,13 @@ const Billing = () => {
                     <Form>
                         <FormContainer>
                             <FormDesription
-                                title="Payment Method"
-                                desc="You can update your cards information here"
+                                title={t('account.settings.billing.paymentMethod')}
+                                desc={t('account.settings.billing.paymentMethodDesc')}
                             />
                             <FormRow
                                 name="paymentMethods"
                                 alignCenter={false}
-                                label="Credit Cards"
+                                label={t('account.settings.billing.creditCards')}
                                 {...validatorProps}
                             >
                                 <div className="rounded-lg border border-gray-200 dark:border-gray-600">
@@ -236,21 +239,22 @@ const Billing = () => {
                                                             {card.primary && (
                                                                 <Tag className="bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-100 rounded-md border-0 mx-2">
                                                                     <span className="capitalize">
-                                                                        {' '}
-                                                                        Primary{' '}
+                                                                        {t('text.labels.primary')}
                                                                     </span>
                                                                 </Tag>
                                                             )}
                                                         </div>
                                                         <span>
-                                                            Expired{' '}
-                                                            {
-                                                                months[
-                                                                    parseInt(
-                                                                        card.expMonth,
-                                                                    ) - 1
-                                                                ]
-                                                            }{' '}
+                                                            {t('text.labels.expired')}{' '}
+                                                            {t(
+                                                                `date.monthsShort.${
+                                                                    monthsKey[
+                                                                        parseInt(
+                                                                            card.expMonth,
+                                                                        ) - 1
+                                                                    ]
+                                                                }`,
+                                                            )}{' '}
                                                             20
                                                             {card.expYear}
                                                         </span>
@@ -267,7 +271,7 @@ const Billing = () => {
                                                             )
                                                         }
                                                     >
-                                                        Edit
+                                                        {t('text.actions.edit')}
                                                     </Button>
                                                 </div>
                                             </div>
@@ -285,7 +289,7 @@ const Billing = () => {
                                         }
                                     >
                                         <span className="font-semibold">
-                                            Add new card
+                                            {t('text.actions.addNewCard')}
                                         </span>
                                     </Button>
                                 </div>
@@ -294,7 +298,7 @@ const Billing = () => {
                                 border={false}
                                 name="otherMethod"
                                 alignCenter={false}
-                                label="Other payment methods"
+                                label={t('text.labels.otherPaymentMethods')}
                                 {...validatorProps}
                             >
                                 <div className="rounded-lg border border-gray-200 dark:border-gray-600">
@@ -332,9 +336,7 @@ const Billing = () => {
                                                                 method.redirect,
                                                             )
                                                         }
-                                                    >
-                                                        Edit
-                                                    </Button>
+                                                    >{t('text.actions.edit')}</Button>
                                                 </div>
                                             </div>
                                         ),
@@ -349,7 +351,7 @@ const Billing = () => {
                                 onClose={onCreditCardDialogClose}
                                 onRequestClose={onCreditCardDialogClose}
                             >
-                                <h5 className="mb-4">Edit Credit Card</h5>
+                                <h5 className="mb-4">{t('text.titles.editCreditCard')}</h5>
                                 <Field name="paymentMethods">
                                     {({
                                         field,
@@ -379,20 +381,22 @@ const Billing = () => {
                                     type="button"
                                     onClick={() => resetForm()}
                                 >
-                                    Reset
+                                    {t('text.actions.reset')}
                                 </Button>
                                 <Button
                                     variant="solid"
                                     loading={isSubmitting}
                                     type="submit"
                                 >
-                                    {isSubmitting ? 'Updating' : 'Update'}
+                                    {isSubmitting
+                                        ? t('text.actions.updating')
+                                        : t('text.actions.update')}
                                 </Button>
                             </div>
                             <FormDesription
                                 className="mt-6"
-                                title="Billing History"
-                                desc="View your previos billing"
+                                title={t('text.titles.billingHistory')}
+                                desc={t('text.descriptions.viewPreviousBilling')}
                             />
                             <BillingHistory
                                 className="mt-4 rounded-lg border border-gray-200 dark:border-gray-600"

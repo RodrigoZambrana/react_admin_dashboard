@@ -6,6 +6,7 @@ import Tag from '@/components/ui/Tag'
 import { useNavigate } from 'react-router-dom'
 import UsersAvatarGroup from '@/components/shared/UsersAvatarGroup'
 import ActionLink from '@/components/shared/ActionLink'
+import { useTranslation } from 'react-i18next'
 import {
     useReactTable,
     getCoreRowModel,
@@ -32,23 +33,24 @@ type MyTasksProps = {
 const { Tr, Th, Td, THead, TBody } = Table
 
 const PriorityTag = ({ priority }: { priority: number }) => {
+    const { t } = useTranslation()
     switch (priority) {
         case 0:
             return (
                 <Tag className="text-red-600 bg-red-100 dark:text-red-100 dark:bg-red-500/20 rounded-sm border-0">
-                    High
+                    {t('text.priority.high')}
                 </Tag>
             )
         case 1:
             return (
                 <Tag className="text-amber-600 bg-amber-100 dark:text-amber-100 dark:bg-amber-500/20 rounded-sm border-0">
-                    Medium
+                    {t('text.priority.medium')}
                 </Tag>
             )
         case 2:
             return (
                 <Tag className="bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-100 rounded-sm border-0">
-                    Low
+                    {t('text.priority.low')}
                 </Tag>
             )
         default:
@@ -58,11 +60,12 @@ const PriorityTag = ({ priority }: { priority: number }) => {
 
 const MyTasks = ({ data = [] }: MyTasksProps) => {
     const navigate = useNavigate()
+    const { t } = useTranslation()
 
     const columns: ColumnDef<Task>[] = useMemo(
         () => [
             {
-                header: 'Task ID',
+                header: t('text.columns.taskId'),
                 accessorKey: 'taskId',
                 cell: (props) => {
                     const { taskId } = props.row.original
@@ -78,11 +81,11 @@ const MyTasks = ({ data = [] }: MyTasksProps) => {
                 },
             },
             {
-                header: 'Subject',
+                header: t('text.columns.subject'),
                 accessorKey: 'taskSubject',
             },
             {
-                header: 'Priority',
+                header: t('text.columns.priority'),
                 accessorKey: 'priority',
                 cell: (props) => {
                     const { priority } = props.row.original
@@ -90,7 +93,7 @@ const MyTasks = ({ data = [] }: MyTasksProps) => {
                 },
             },
             {
-                header: 'Assignees',
+                header: t('text.columns.assignees'),
                 accessorKey: 'Assignees',
                 cell: (props) => {
                     const { assignees } = props.row.original
@@ -98,7 +101,7 @@ const MyTasks = ({ data = [] }: MyTasksProps) => {
                 },
             },
         ],
-        [],
+        [t],
     )
 
     const table = useReactTable({
@@ -114,9 +117,9 @@ const MyTasks = ({ data = [] }: MyTasksProps) => {
     return (
         <Card>
             <div className="flex items-center justify-between mb-6">
-                <h4>My Tasks</h4>
+                <h4>{t('text.titles.myTasks')}</h4>
                 <Button size="sm" onClick={onViewAllTask}>
-                    View All
+                    {t('text.actions.viewAll')}
                 </Button>
             </div>
             <Table>

@@ -15,6 +15,7 @@ import {
     HiOutlineDeviceTablet,
 } from 'react-icons/hi'
 import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
 import * as Yup from 'yup'
 
 type LoginHistory = {
@@ -43,24 +44,27 @@ const LoginHistoryIcon = ({ type }: { type: string }) => {
     }
 }
 
-const validationSchema = Yup.object().shape({
-    password: Yup.string().required('Password Required'),
-    newPassword: Yup.string()
-        .required('Enter your new password')
-        .min(8, 'Too Short!')
-        .matches(/^[A-Za-z0-9_-]*$/, 'Only Letters & Numbers Allowed'),
-    confirmNewPassword: Yup.string().oneOf(
-        [Yup.ref('newPassword'), ''],
-        'Password not match',
-    ),
-})
+const useValidationSchema = (t: (k: string) => string) =>
+    Yup.object().shape({
+        password: Yup.string().required(t('text.validation.passwordRequired')),
+        newPassword: Yup.string()
+            .required(t('text.validation.enterNewPassword'))
+            .min(8, t('text.validation.tooShort'))
+            .matches(/^[A-Za-z0-9_-]*$/, t('text.validation.lettersNumbersOnly')),
+        confirmNewPassword: Yup.string().oneOf(
+            [Yup.ref('newPassword'), ''],
+            t('text.validation.passwordNotMatch'),
+        ),
+    })
 
 const Password = ({ data }: { data?: LoginHistory[] }) => {
+    const { t } = useTranslation()
+
     const onFormSubmit = (
         values: PasswordFormModel,
         setSubmitting: (isSubmitting: boolean) => void,
     ) => {
-        toast.push(<Notification title={'Password updated'} type="success" />, {
+        toast.push(<Notification title={t('text.messages.passwordUpdated')} type="success" />, {
             placement: 'top-center',
         })
         setSubmitting(false)
@@ -75,7 +79,7 @@ const Password = ({ data }: { data?: LoginHistory[] }) => {
                     newPassword: '',
                     confirmNewPassword: '',
                 }}
-                validationSchema={validationSchema}
+                validationSchema={useValidationSchema(t)}
                 onSubmit={(values, { setSubmitting }) => {
                     setSubmitting(true)
                     setTimeout(() => {
@@ -89,45 +93,45 @@ const Password = ({ data }: { data?: LoginHistory[] }) => {
                         <Form>
                             <FormContainer>
                                 <FormDesription
-                                    title="Password"
-                                    desc="Enter your current & new password to reset your password"
+                                    title={t('text.titles.password')}
+                                    desc={t('text.descriptions.passwordDesc')}
                                 />
                                 <FormRow
                                     name="password"
-                                    label="Current Password"
+                                    label={t('text.labels.currentPassword')}
                                     {...validatorProps}
                                 >
                                     <Field
                                         type="password"
                                         autoComplete="off"
                                         name="password"
-                                        placeholder="Current Password"
+                                        placeholder={t('text.placeholders.currentPassword')}
                                         component={Input}
                                     />
                                 </FormRow>
                                 <FormRow
                                     name="newPassword"
-                                    label="New Password"
+                                    label={t('text.labels.newPassword')}
                                     {...validatorProps}
                                 >
                                     <Field
                                         type="password"
                                         autoComplete="off"
                                         name="newPassword"
-                                        placeholder="New Password"
+                                        placeholder={t('text.placeholders.newPassword')}
                                         component={Input}
                                     />
                                 </FormRow>
                                 <FormRow
                                     name="confirmNewPassword"
-                                    label="Confirm Password"
+                                    label={t('text.labels.confirmPassword')}
                                     {...validatorProps}
                                 >
                                     <Field
                                         type="password"
                                         autoComplete="off"
                                         name="confirmNewPassword"
-                                        placeholder="Confirm Password"
+                                        placeholder={t('text.placeholders.confirmPassword')}
                                         component={Input}
                                     />
                                 </FormRow>
@@ -137,7 +141,7 @@ const Password = ({ data }: { data?: LoginHistory[] }) => {
                                         type="button"
                                         onClick={() => resetForm()}
                                     >
-                                        Reset
+                                        {t('text.actions.reset')}
                                     </Button>
                                     <Button
                                         variant="solid"
@@ -145,8 +149,8 @@ const Password = ({ data }: { data?: LoginHistory[] }) => {
                                         type="submit"
                                     >
                                         {isSubmitting
-                                            ? 'Updating'
-                                            : 'Update Password'}
+                                            ? t('text.actions.updating')
+                                            : t('text.actions.updatePassword')}
                                     </Button>
                                 </div>
                             </FormContainer>
@@ -156,8 +160,8 @@ const Password = ({ data }: { data?: LoginHistory[] }) => {
             </Formik>
             <div className="mt-6">
                 <FormDesription
-                    title="Where you're signed in"
-                    desc="You're signed in to your account on these devices."
+                    title={t('text.titles.whereSignedIn')}
+                    desc={t('text.descriptions.signedInDevices')}
                 />
                 {data && (
                     <div className="rounded-lg border border-gray-200 dark:border-gray-600 mt-6">
@@ -182,8 +186,7 @@ const Password = ({ data }: { data?: LoginHistory[] }) => {
                                             {index === 0 && (
                                                 <Tag className="bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-100 rounded-md border-0 mx-2">
                                                     <span className="capitalize">
-                                                        {' '}
-                                                        Current{' '}
+                                                        {t('text.labels.current')}
                                                     </span>
                                                 </Tag>
                                             )}

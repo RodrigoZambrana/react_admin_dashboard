@@ -27,6 +27,7 @@ import {
 import requiredFieldValidation from '@/utils/requiredFieldValidation'
 import type { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd'
 import type { Columns } from '../types'
+import { useTranslation } from 'react-i18next'
 
 type BoardTitleProps = {
     dragHandleProps?: DraggableProvidedDragHandleProps | null
@@ -86,7 +87,7 @@ const RenameForm = ({
                             <Field
                                 type="text"
                                 name="title"
-                                placeholder="Please enter board title"
+                                placeholder={useTranslation().t('text.placeholders.boardTitle')}
                                 component={Input}
                                 validate={requiredFieldValidation}
                                 suffix={
@@ -108,6 +109,7 @@ const RenameForm = ({
 
 const BoardTitle = (props: BoardTitleProps) => {
     const { dragHandleProps, title } = props
+    const { t } = useTranslation()
 
     const columns = useAppSelector((state) => state.scrumBoard.data.columns)
     const ordered = useAppSelector((state) => state.scrumBoard.data.ordered)
@@ -180,7 +182,7 @@ const BoardTitle = (props: BoardTitleProps) => {
                             <span className="text-lg">
                                 <HiOutlinePencil />
                             </span>
-                            <span className="ml-2 rtl:mr-2">Rename</span>
+                            <span className="ml-2 rtl:mr-2">{t('text.actions.rename')}</span>
                         </Dropdown.Item>
                         <Dropdown.Item
                             eventKey="addTicket"
@@ -189,7 +191,7 @@ const BoardTitle = (props: BoardTitleProps) => {
                             <span className="text-lg">
                                 <HiOutlinePlusCircle />
                             </span>
-                            <span className="ml-2 rtl:mr-2">Add Ticket</span>
+                            <span className="ml-2 rtl:mr-2">{t('text.actions.addTicket')}</span>
                         </Dropdown.Item>
                         <Dropdown.Item
                             eventKey="deleteBoard"
@@ -198,7 +200,7 @@ const BoardTitle = (props: BoardTitleProps) => {
                             <span className="text-lg">
                                 <HiOutlineTrash />
                             </span>
-                            <span className="ml-2 rtl:mr-2">Delete Board</span>
+                            <span className="ml-2 rtl:mr-2">{t('text.actions.deleteBoard')}</span>
                         </Dropdown.Item>
                     </Dropdown>
                 </>
@@ -221,11 +223,9 @@ const BoardTitle = (props: BoardTitleProps) => {
                         </Avatar>
                     </div>
                     <div className="ml-4 rtl:mr-4">
-                        <h5 className="mb-2">Delete Board</h5>
+                        <h5 className="mb-2">{t('text.titles.deleteBoard')}</h5>
                         <p>
-                            Are you sure you want to delete this board? All the
-                            tickets under this board will be deleted as well.
-                            This action cannot be undone.
+                            {t('text.messages.deleteBoardConfirm')}
                         </p>
                     </div>
                 </div>
@@ -235,7 +235,7 @@ const BoardTitle = (props: BoardTitleProps) => {
                         className="ltr:mr-2 rtl:ml-2"
                         onClick={onConfirmDeleteClose}
                     >
-                        Cancel
+                        {t('text.actions.cancel')}
                     </Button>
                     <Button
                         size="sm"
@@ -243,7 +243,7 @@ const BoardTitle = (props: BoardTitleProps) => {
                         color="red-600"
                         onClick={onDelete}
                     >
-                        Delete
+                        {t('text.actions.delete')}
                     </Button>
                 </div>
             </Dialog>

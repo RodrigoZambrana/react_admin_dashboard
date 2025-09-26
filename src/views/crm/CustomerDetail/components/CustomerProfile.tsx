@@ -20,6 +20,7 @@ import {
     Customer,
 } from '../store'
 import EditCustomerProfile from './EditCustomerProfile'
+import { useTranslation } from 'react-i18next'
 
 type CustomerInfoFieldProps = {
     title?: string
@@ -46,6 +47,7 @@ const CustomerProfileAction = ({ id }: { id?: string }) => {
     const [dialogOpen, setDialogOpen] = useState(false)
 
     const navigate = useNavigate()
+    const { t } = useTranslation()
 
     const onDialogClose = () => {
         setDialogOpen(false)
@@ -62,8 +64,8 @@ const CustomerProfileAction = ({ id }: { id?: string }) => {
         }
         navigate('/app/crm/customers')
         toast.push(
-            <Notification title={'Successfuly Deleted'} type="success">
-                Customer successfuly deleted
+            <Notification title={t('text.titles.customerDeleted')} type="success">
+                {t('text.messages.customerDeleted')}
             </Notification>,
         )
     }
@@ -75,7 +77,7 @@ const CustomerProfileAction = ({ id }: { id?: string }) => {
     return (
         <>
             <Button block icon={<HiOutlineTrash />} onClick={onDialogOpen}>
-                Delete
+                {t('text.actions.delete')}
             </Button>
             <Button
                 block
@@ -83,23 +85,19 @@ const CustomerProfileAction = ({ id }: { id?: string }) => {
                 variant="solid"
                 onClick={onEdit}
             >
-                Edit
+                {t('text.actions.edit')}
             </Button>
             <ConfirmDialog
                 isOpen={dialogOpen}
                 type="danger"
-                title="Delete customer"
+                title={t('text.titles.deleteCustomer')}
                 confirmButtonColor="red-600"
                 onClose={onDialogClose}
                 onRequestClose={onDialogClose}
                 onCancel={onDialogClose}
                 onConfirm={onDelete}
             >
-                <p>
-                    Are you sure you want to delete this customer? All record
-                    related to this customer will be deleted as well. This
-                    action cannot be undone.
-                </p>
+                <p>{t('text.messages.deleteCustomerConfirm')}</p>
             </ConfirmDialog>
             <EditCustomerProfile />
         </>
@@ -107,6 +105,7 @@ const CustomerProfileAction = ({ id }: { id?: string }) => {
 }
 
 const CustomerProfile = ({ data = {} }: CustomerProfileProps) => {
+    const { t } = useTranslation()
     return (
         <Card>
             <div className="flex flex-col xl:justify-between h-full 2xl:min-w-[360px] mx-auto">
@@ -115,25 +114,25 @@ const CustomerProfile = ({ data = {} }: CustomerProfileProps) => {
                     <h4 className="font-bold">{data.name}</h4>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-y-7 gap-x-4 mt-8">
-                    <CustomerInfoField title="Email" value={data.email} />
+                    <CustomerInfoField title={t('text.labels.email')} value={data.email} />
                     <CustomerInfoField
-                        title="Phone"
+                        title={t('text.labels.phone')}
                         value={data.personalInfo?.phoneNumber}
                     />
                     <CustomerInfoField
-                        title="Location"
+                        title={t('text.labels.location')}
                         value={data.personalInfo?.location}
                     />
                     <CustomerInfoField
-                        title="Date of birth"
+                        title={t('text.labels.dateOfBirth')}
                         value={data.personalInfo?.birthday}
                     />
                     <CustomerInfoField
-                        title="Title"
+                        title={t('text.labels.title')}
                         value={data.personalInfo?.title}
                     />
                     <div className="mb-7">
-                        <span>Social</span>
+                        <span>{t('text.labels.social')}</span>
                         <div className="flex mt-4">
                             <Button
                                 className="mr-2"

@@ -24,6 +24,7 @@ import {
 } from 'react-icons/hi'
 import isEmpty from 'lodash/isEmpty'
 import { createUID, taskLabelColors, labelList } from '../utils'
+import { useTranslation } from 'react-i18next'
 import { Ticket, Comment, Member } from '../types'
 import type { ElementType, PropsWithChildren, ReactNode } from 'react'
 
@@ -78,8 +79,9 @@ const TicketSection = ({
 }
 
 const AddMoreMember = () => {
+    const { t } = useTranslation()
     return (
-        <Tooltip title="Add More">
+        <Tooltip title={t('text.actions.addMore')}>
             <Avatar className="cursor-pointer" shape="circle" size={30}>
                 <HiOutlinePlus />
             </Avatar>
@@ -95,6 +97,7 @@ const TicketContent = ({ onTicketClose }: { onTicketClose: () => void }) => {
     )
 
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const [ticketData, setTicketData] = useState<
         Partial<Omit<Ticket, 'comments'> & { comments: TransformedComment[] }>
@@ -301,7 +304,7 @@ const TicketContent = ({ onTicketClose }: { onTicketClose: () => void }) => {
                         </TicketSection>
                         {ticketData.description && (
                             <TicketSection
-                                title="Description"
+                                title={t('text.titles.description')}
                                 icon={<HiOutlineClipboardList />}
                             >
                                 <div className="mt-2">
@@ -315,7 +318,7 @@ const TicketContent = ({ onTicketClose }: { onTicketClose: () => void }) => {
                         {ticketData.attachments &&
                             ticketData?.attachments?.length > 0 && (
                                 <TicketSection
-                                    title="Attachments"
+                                    title={t('text.titles.attachments')}
                                     icon={<HiOutlinePaperClip />}
                                 >
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
@@ -339,7 +342,7 @@ const TicketContent = ({ onTicketClose }: { onTicketClose: () => void }) => {
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center">
-                                                        <Tooltip title="Download">
+                                                        <Tooltip title={t('text.actions.download')}>
                                                             <Button
                                                                 className="mr-1 rtl:ml-1"
                                                                 variant="plain"
@@ -349,7 +352,7 @@ const TicketContent = ({ onTicketClose }: { onTicketClose: () => void }) => {
                                                                 }
                                                             />
                                                         </Tooltip>
-                                                        <Tooltip title="Delete">
+                                                        <Tooltip title={t('text.actions.delete')}>
                                                             <Button
                                                                 variant="plain"
                                                                 size="xs"
@@ -367,7 +370,7 @@ const TicketContent = ({ onTicketClose }: { onTicketClose: () => void }) => {
                             )}
 
                         <TicketSection
-                            title="Comments"
+                            title={t('text.titles.comments')}
                             icon={<HiOutlineChatAlt />}
                         >
                             <div className="mt-2 w-full">
@@ -426,7 +429,7 @@ const TicketContent = ({ onTicketClose }: { onTicketClose: () => void }) => {
                                     <div className="ml-2 rtl:mr-2 px-3 rounded-sm w-full">
                                         <Input
                                             ref={commentInput}
-                                            placeholder="Write comment"
+                                            placeholder={t('text.placeholders.writeComment')}
                                             suffix={
                                                 <div
                                                     className="cursor-pointer font-weight-semibold text-primary"
@@ -434,7 +437,7 @@ const TicketContent = ({ onTicketClose }: { onTicketClose: () => void }) => {
                                                         submitComment()
                                                     }
                                                 >
-                                                    Send
+                                                    {t('text.actions.send')}
                                                 </div>
                                             }
                                         />
@@ -450,14 +453,14 @@ const TicketContent = ({ onTicketClose }: { onTicketClose: () => void }) => {
                             variant="plain"
                             onClick={() => handleTicketClose()}
                         >
-                            Cancel
+                            {t('text.actions.cancel')}
                         </Button>
                         <Button
                             variant="solid"
                             size="sm"
                             onClick={() => handleTicketClose()}
                         >
-                            Change
+                            {t('text.actions.change')}
                         </Button>
                     </div>
                 </>

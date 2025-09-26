@@ -4,6 +4,7 @@ import Badge from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
 import isLastChild from '@/utils/isLastChild'
 import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
 
 type Event = {
     time: number
@@ -19,9 +20,10 @@ type ActivityProps = {
 }
 
 const Activity = ({ data = [] }: ActivityProps) => {
+    const { t } = useTranslation()
     return (
         <Card className="mb-4">
-            <h5 className="mb-4">Activity</h5>
+            <h5 className="mb-4">{t('text.titles.activity')}</h5>
             {data.map((activity, i) => (
                 <div
                     key={activity.date}
@@ -56,7 +58,7 @@ const Activity = ({ data = [] }: ActivityProps) => {
                                 </div>
                                 {event.recipient && (
                                     <div className="mb-1">
-                                        Recipient: {event.recipient}
+                                        {t('text.labels.recipient')}: {event.recipient}
                                     </div>
                                 )}
                                 <div>

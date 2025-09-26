@@ -9,6 +9,7 @@ import {
     useAppSelector,
 } from '../store'
 import type { MouseEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 
 type DrawerFooterProps = {
     onSaveClick: (event: MouseEvent<HTMLButtonElement>) => void
@@ -16,13 +17,14 @@ type DrawerFooterProps = {
 }
 
 const DrawerFooter = ({ onSaveClick, onCancel }: DrawerFooterProps) => {
+    const { t } = useTranslation()
     return (
         <div className="text-right w-full">
             <Button size="sm" className="mr-2" onClick={onCancel}>
-                Cancel
+                {t('text.actions.cancel')}
             </Button>
             <Button size="sm" variant="solid" onClick={onSaveClick}>
-                Save
+                {t('text.actions.save')}
             </Button>
         </div>
     )

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import Avatar from '@/components/ui/Avatar'
 import Badge from '@/components/ui/Badge'
 import DataTable from '@/components/shared/DataTable'
@@ -106,6 +107,7 @@ const ProductColumn = ({ row }: { row: Product }) => {
 }
 
 const ProductTable = () => {
+    const { t } = useTranslation()
     const tableRef = useRef<DataTableResetHandle>(null)
 
     const dispatch = useAppDispatch()
@@ -149,7 +151,7 @@ const ProductTable = () => {
     const columns: ColumnDef<Product>[] = useMemo(
         () => [
             {
-                header: 'Name',
+                header: t('text.columns.name'),
                 accessorKey: 'name',
                 cell: (props) => {
                     const row = props.row.original
@@ -157,7 +159,7 @@ const ProductTable = () => {
                 },
             },
             {
-                header: 'Category',
+                header: t('text.columns.category'),
                 accessorKey: 'category',
                 cell: (props) => {
                     const row = props.row.original
@@ -165,12 +167,12 @@ const ProductTable = () => {
                 },
             },
             {
-                header: 'Quantity',
+                header: t('text.columns.quantity'),
                 accessorKey: 'stock',
                 sortable: true,
             },
             {
-                header: 'Status',
+                header: t('text.columns.status'),
                 accessorKey: 'status',
                 cell: (props) => {
                     const { status } = props.row.original
@@ -184,14 +186,18 @@ const ProductTable = () => {
                             <span
                                 className={`capitalize font-semibold ${inventoryStatusColor[status].textClass}`}
                             >
-                                {inventoryStatusColor[status].label}
+                                {status === 0
+                                    ? t('text.status.inStock')
+                                    : status === 1
+                                    ? t('text.status.limited')
+                                    : t('text.status.outOfStock')}
                             </span>
                         </div>
                     )
                 },
             },
             {
-                header: 'Price',
+                header: t('text.columns.price'),
                 accessorKey: 'price',
                 cell: (props) => {
                     const { price } = props.row.original
@@ -204,7 +210,7 @@ const ProductTable = () => {
                 cell: (props) => <ActionColumn row={props.row.original} />,
             },
         ],
-        [],
+        [t],
     )
 
     const onPaginationChange = (page: number) => {

@@ -9,6 +9,7 @@ import {
 import { useAppDispatch } from '@/store'
 import { HiOutlineFilter } from 'react-icons/hi'
 import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
 
 const dateFormat = 'MMM DD, YYYY'
 
@@ -31,11 +32,12 @@ const SalesDashboardHeader = () => {
         dispatch(getSalesDashboardData())
     }
 
+    const { t } = useTranslation()
     return (
         <div className="lg:flex items-center justify-between mb-4 gap-3">
             <div className="mb-4 lg:mb-0">
-                <h3>Sales Overview</h3>
-                <p>View your current sales & summary</p>
+                <h3>{t('sales.dashboard.overview.title')}</h3>
+                <p>{t('sales.dashboard.overview.subtitle')}</p>
             </div>
             <div className="flex flex-col lg:flex-row lg:items-center gap-3">
                 <DatePickerRange
@@ -48,7 +50,7 @@ const SalesDashboardHeader = () => {
                     onChange={handleDateChange}
                 />
                 <Button size="sm" icon={<HiOutlineFilter />} onClick={onFilter}>
-                    Filter
+                    {t('text.actions.filter')}
                 </Button>
             </div>
         </div>

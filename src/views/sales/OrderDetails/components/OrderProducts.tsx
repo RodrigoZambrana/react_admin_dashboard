@@ -1,4 +1,5 @@
 import { Fragment } from 'react'
+import { useTranslation } from 'react-i18next'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Table from '@/components/ui/Table'
 import Avatar from '@/components/ui/Avatar'
@@ -65,26 +66,26 @@ const PriceAmount = ({ amount }: { amount: number }) => {
     )
 }
 
-const columns = [
+const columns = (t: (k: string) => string) => [
     columnHelper.accessor('name', {
-        header: 'Product',
+        header: t('text.columns.product'),
         cell: (props) => {
             const row = props.row.original
             return <ProductColumn row={row} />
         },
     }),
     columnHelper.accessor('price', {
-        header: 'Price',
+        header: t('text.columns.price'),
         cell: (props) => {
             const row = props.row.original
             return <PriceAmount amount={row.price} />
         },
     }),
     columnHelper.accessor('quantity', {
-        header: 'Quantity',
+        header: t('text.columns.quantity'),
     }),
     columnHelper.accessor('total', {
-        header: 'Total',
+        header: t('text.columns.total'),
         cell: (props) => {
             const row = props.row.original
             return <PriceAmount amount={row.price} />
@@ -93,9 +94,10 @@ const columns = [
 ]
 
 const OrderProducts = ({ data = [] }: OrderProductsProps) => {
+    const { t } = useTranslation()
     const table = useReactTable({
         data,
-        columns,
+        columns: columns(t),
         getCoreRowModel: getCoreRowModel(),
     })
 

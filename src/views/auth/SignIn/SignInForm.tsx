@@ -10,6 +10,7 @@ import useAuth from '@/utils/hooks/useAuth'
 import { Field, Form, Formik } from 'formik'
 import * as Yup from 'yup'
 import type { CommonProps } from '@/@types/common'
+import { useTranslation } from 'react-i18next'
 
 interface SignInFormProps extends CommonProps {
     disableSubmit?: boolean
@@ -24,8 +25,8 @@ type SignInFormSchema = {
 }
 
 const validationSchema = Yup.object().shape({
-    userName: Yup.string().required('Please enter your user name'),
-    password: Yup.string().required('Please enter your password'),
+    userName: Yup.string().required('text.validation.userNameRequired'),
+    password: Yup.string().required('text.validation.passwordRequired'),
     rememberMe: Yup.bool(),
 })
 
@@ -40,6 +41,8 @@ const SignInForm = (props: SignInFormProps) => {
     const [message, setMessage] = useTimeOutMessage()
 
     const { signIn } = useAuth()
+
+    const { t } = useTranslation()
 
     const onSignIn = async (
         values: SignInFormSchema,
@@ -83,33 +86,33 @@ const SignInForm = (props: SignInFormProps) => {
                     <Form>
                         <FormContainer>
                             <FormItem
-                                label="User Name"
+                                label={t('text.labels.userName')}
                                 invalid={
                                     (errors.userName &&
                                         touched.userName) as boolean
                                 }
-                                errorMessage={errors.userName}
+                                errorMessage={t(errors.userName as string)}
                             >
                                 <Field
                                     type="text"
                                     autoComplete="off"
                                     name="userName"
-                                    placeholder="User Name"
+                                    placeholder={t('text.labels.userName')}
                                     component={Input}
                                 />
                             </FormItem>
                             <FormItem
-                                label="Password"
+                                label={t('text.labels.password')}
                                 invalid={
                                     (errors.password &&
                                         touched.password) as boolean
                                 }
-                                errorMessage={errors.password}
+                                errorMessage={t(errors.password as string)}
                             >
                                 <Field
                                     autoComplete="off"
                                     name="password"
-                                    placeholder="Password"
+                                    placeholder={t('text.labels.password')}
                                     component={PasswordInput}
                                 />
                             </FormItem>
@@ -119,10 +122,10 @@ const SignInForm = (props: SignInFormProps) => {
                                     name="rememberMe"
                                     component={Checkbox}
                                 >
-                                    Remember Me
+                                    {t('auth.signIn.rememberMe')}
                                 </Field>
                                 <ActionLink to={forgotPasswordUrl}>
-                                    Forgot Password?
+                                    {t('auth.signIn.forgotPassword')}
                                 </ActionLink>
                             </div>
                             <Button
@@ -131,11 +134,15 @@ const SignInForm = (props: SignInFormProps) => {
                                 variant="solid"
                                 type="submit"
                             >
-                                {isSubmitting ? 'Signing in...' : 'Sign In'}
+                                {isSubmitting
+                                    ? t('auth.signIn.submitting')
+                                    : t('auth.signIn.submit')}
                             </Button>
                             <div className="mt-4 text-center">
-                                <span>{`Don't have an account yet?`} </span>
-                                <ActionLink to={signUpUrl}>Sign up</ActionLink>
+                                <span>{t('auth.signIn.noAccount')} </span>
+                                <ActionLink to={signUpUrl}>
+                                    {t('auth.common.signUp')}
+                                </ActionLink>
                             </div>
                         </FormContainer>
                     </Form>

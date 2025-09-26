@@ -10,6 +10,7 @@ import { Field, Form, Formik } from 'formik'
 import * as Yup from 'yup'
 import type { CommonProps } from '@/@types/common'
 import type { AxiosError } from 'axios'
+import { useTranslation } from 'react-i18next'
 
 interface ForgotPasswordFormProps extends CommonProps {
     disableSubmit?: boolean
@@ -21,11 +22,13 @@ type ForgotPasswordFormSchema = {
 }
 
 const validationSchema = Yup.object().shape({
-    email: Yup.string().required('Please enter your email'),
+    email: Yup.string().required('text.validation.emailRequired'),
 })
 
 const ForgotPasswordForm = (props: ForgotPasswordFormProps) => {
     const { disableSubmit = false, className, signInUrl = '/sign-in' } = props
+
+    const { t } = useTranslation()
 
     const [emailSent, setEmailSent] = useState(false)
 
@@ -56,19 +59,13 @@ const ForgotPasswordForm = (props: ForgotPasswordFormProps) => {
             <div className="mb-6">
                 {emailSent ? (
                     <>
-                        <h3 className="mb-1">Check your email</h3>
-                        <p>
-                            We have sent a password recovery instruction to your
-                            email
-                        </p>
+                        <h3 className="mb-1">{t('auth.forgotPassword.emailSent.title')}</h3>
+                        <p>{t('auth.forgotPassword.emailSent.subtitle')}</p>
                     </>
                 ) : (
                     <>
-                        <h3 className="mb-1">Forgot Password</h3>
-                        <p>
-                            Please enter your email address to receive a
-                            verification code
-                        </p>
+                        <h3 className="mb-1">{t('auth.forgotPassword.title')}</h3>
+                        <p>{t('auth.forgotPassword.subtitle')}</p>
                     </>
                 )}
             </div>
@@ -102,7 +99,7 @@ const ForgotPasswordForm = (props: ForgotPasswordFormProps) => {
                                         type="email"
                                         autoComplete="off"
                                         name="email"
-                                        placeholder="Email"
+                                        placeholder={t('text.labels.email')}
                                         component={Input}
                                     />
                                 </FormItem>
@@ -113,11 +110,15 @@ const ForgotPasswordForm = (props: ForgotPasswordFormProps) => {
                                 variant="solid"
                                 type="submit"
                             >
-                                {emailSent ? 'Resend Email' : 'Send Email'}
+                                {emailSent
+                                    ? t('auth.forgotPassword.resendEmail')
+                                    : t('auth.forgotPassword.sendEmail')}
                             </Button>
                             <div className="mt-4 text-center">
-                                <span>Back to </span>
-                                <ActionLink to={signInUrl}>Sign in</ActionLink>
+                                <span>{t('auth.common.backToSignIn')}</span>
+                                <ActionLink to={signInUrl}>
+                                    {t('auth.common.signIn')}
+                                </ActionLink>
                             </div>
                         </FormContainer>
                     </Form>

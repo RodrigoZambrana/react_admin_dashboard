@@ -11,9 +11,11 @@ import debounce from 'lodash/debounce'
 import cloneDeep from 'lodash/cloneDeep'
 import type { TableQueries } from '@/@types/common'
 import type { ChangeEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const ProductTableSearch = () => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const searchInput = useRef(null)
 
@@ -50,7 +52,7 @@ const ProductTableSearch = () => {
             ref={searchInput}
             className="max-w-md md:w-52 md:mb-0 mb-4"
             size="sm"
-            placeholder="Search product"
+            placeholder={t('text.placeholders.searchProduct')}
             prefix={<HiOutlineSearch className="text-lg" />}
             onChange={onEdit}
         />

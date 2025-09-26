@@ -8,6 +8,7 @@ import { Field, Form, Formik } from 'formik'
 import get from 'lodash/get'
 import { countryList } from '@/constants/countries.constant'
 import * as Yup from 'yup'
+import { useTranslation } from 'react-i18next'
 import type { Address } from '../store'
 import type { FieldProps, FormikTouched, FormikErrors } from 'formik'
 
@@ -88,18 +89,19 @@ const AddressForm = (props: AddressFormProps) => {
         [touched],
     )
 
+    const { t } = useTranslation()
     return (
         <>
             <div className="md:grid grid-cols-2 gap-4">
                 <FormItem
-                    label="Country"
+                    label={t('text.labels.country')}
                     invalid={getError(countryName) && getTouched(countryName)}
                     errorMessage={getError(countryName)}
                 >
                     <Field name={countryName}>
                         {({ field, form }: FieldProps) => (
                             <Select
-                                placeholder="Country"
+                                placeholder={t('text.placeholders.country')}
                                 field={field}
                                 form={form}
                                 options={countryList}
@@ -114,7 +116,7 @@ const AddressForm = (props: AddressFormProps) => {
                     </Field>
                 </FormItem>
                 <FormItem
-                    label="Address Line 1"
+                    label={t('text.labels.addressLine1')}
                     invalid={
                         getError(addressLine1Name) &&
                         getTouched(addressLine1Name)
@@ -125,14 +127,14 @@ const AddressForm = (props: AddressFormProps) => {
                         type="text"
                         autoComplete="off"
                         name={addressLine1Name}
-                        placeholder="Address Line 1"
+                        placeholder={t('text.placeholders.addressLine1')}
                         component={Input}
                     />
                 </FormItem>
             </div>
             <div className="md:grid grid-cols-2 gap-4">
                 <FormItem
-                    label="Address Line 2"
+                    label={t('text.labels.addressLine2')}
                     invalid={
                         getError(addressLine2Name) &&
                         getTouched(addressLine2Name)
@@ -143,12 +145,12 @@ const AddressForm = (props: AddressFormProps) => {
                         type="text"
                         autoComplete="off"
                         name={addressLine2Name}
-                        placeholder="Address Line 2"
+                        placeholder={t('text.placeholders.addressLine2')}
                         component={Input}
                     />
                 </FormItem>
                 <FormItem
-                    label="City"
+                    label={t('text.labels.city')}
                     invalid={getError(cityName) && getTouched(cityName)}
                     errorMessage={getError(cityName)}
                 >
@@ -156,14 +158,14 @@ const AddressForm = (props: AddressFormProps) => {
                         type="text"
                         autoComplete="off"
                         name={cityName}
-                        placeholder="City"
+                        placeholder={t('text.placeholders.city')}
                         component={Input}
                     />
                 </FormItem>
             </div>
             <div className="md:grid grid-cols-2 gap-4">
                 <FormItem
-                    label="State"
+                    label={t('text.labels.state')}
                     invalid={getError(stateName) && getTouched(stateName)}
                     errorMessage={getError(stateName)}
                 >
@@ -171,12 +173,12 @@ const AddressForm = (props: AddressFormProps) => {
                         type="text"
                         autoComplete="off"
                         name={stateName}
-                        placeholder="State"
+                        placeholder={t('text.placeholders.state')}
                         component={Input}
                     />
                 </FormItem>
                 <FormItem
-                    label="Zip Code"
+                    label={t('text.labels.zipCode')}
                     invalid={getError(zipCodeName) && getTouched(zipCodeName)}
                     errorMessage={getError(zipCodeName)}
                 >
@@ -184,7 +186,7 @@ const AddressForm = (props: AddressFormProps) => {
                         type="text"
                         autoComplete="off"
                         name={zipCodeName}
-                        placeholder="Zip Code"
+                        placeholder={t('text.placeholders.zipCode')}
                         component={Input}
                     />
                 </FormItem>
@@ -226,14 +228,12 @@ const AddressInfomation = ({
         onBackChange?.()
     }
 
+    const { t } = useTranslation()
     return (
         <>
             <div className="mb-8">
-                <h3 className="mb-2">Address Information</h3>
-                <p>
-                    Enter your address information help us to speed up the
-                    verication process.
-                </p>
+                <h3 className="mb-2">{t('text.titles.addressInformation')}</h3>
+                <p>{t('text.descriptions.addressInformation')}</p>
             </div>
             <Formik
                 enableReinitialize
@@ -251,7 +251,7 @@ const AddressInfomation = ({
                     return (
                         <Form>
                             <FormContainer>
-                                <h5 className="mb-4">Permanent Address</h5>
+                                <h5 className="mb-4">{t('text.titles.permanentAddress')}</h5>
                                 <AddressForm
                                     countryName="country"
                                     addressLine1Name="addressLine1"
@@ -275,17 +275,14 @@ const AddressInfomation = ({
                                                     )
                                                 }
                                             >
-                                                Correspondence address is same
-                                                as above
+                                                {t('text.labels.correspondenceSameAsAbove')}
                                             </Checkbox>
                                         )}
                                     </Field>
                                 </FormItem>
                                 {!values.sameCorrespondenceAddress && (
                                     <>
-                                        <h5 className="mb-4">
-                                            Correspondence Address
-                                        </h5>
+                                        <h5 className="mb-4">{t('text.titles.correspondenceAddress')}</h5>
                                         <AddressForm
                                             countryName="correspondenceAddress.country"
                                             addressLine1Name="correspondenceAddress.addressLine1"
@@ -299,7 +296,7 @@ const AddressInfomation = ({
                                 )}
                                 <div className="flex justify-end gap-2">
                                     <Button type="button" onClick={onBack}>
-                                        Back
+                                        {t('text.actions.back')}
                                     </Button>
                                     <Button
                                         loading={isSubmitting}
@@ -307,8 +304,8 @@ const AddressInfomation = ({
                                         type="submit"
                                     >
                                         {currentStepStatus === 'complete'
-                                            ? 'Save'
-                                            : 'Next'}
+                                            ? t('text.actions.save')
+                                            : t('text.actions.next')}
                                     </Button>
                                 </div>
                             </FormContainer>

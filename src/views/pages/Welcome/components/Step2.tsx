@@ -5,30 +5,34 @@ import Input from '@/components/ui/Input'
 import { Field, Form, Formik } from 'formik'
 import { HiArrowSmLeft } from 'react-icons/hi'
 import * as Yup from 'yup'
+import { useTranslation } from 'react-i18next'
 import type { CallbackSetBack } from '../types'
 import type { FieldProps } from 'formik'
 
 type Step2Props = CallbackSetBack
 
 const validationSchema = Yup.object().shape({
-    organizationName: Yup.string().required('Organization name is required'),
+    organizationName: Yup.string().required(
+        'welcome.step2.validation.orgNameRequired',
+    ),
     organizationSize: Yup.string().required(
-        'Please select your organization size',
+        'welcome.step2.validation.orgSizeRequired',
     ),
 })
 
 const sizes = [
-    { label: 'Solo', value: 'solo' },
-    { label: '2 ~ 10 members', value: '2~10' },
-    { label: '11 ~ 50 members', value: '11~50' },
-    { label: '51 ~ 200 members', value: '51~200' },
-    { label: '201 ~ 500 members', value: '201~500' },
+    { key: 'solo', value: 'solo' },
+    { key: '2_10', value: '2~10' },
+    { key: '11_50', value: '11~50' },
+    { key: '51_200', value: '51~200' },
+    { key: '201_500', value: '201~500' },
 ]
 
 const Step2 = ({ onNext, onBack }: Step2Props) => {
+    const { t } = useTranslation()
     return (
         <div className="text-center">
-            <h3 className="mb-2">Tell us about your organization</h3>
+            <h3 className="mb-2">{t('welcome.step2.title')}</h3>
             <div className="mt-8 max-w-[600px] lg:min-w-[600px] mx-auto">
                 <Formik
                     initialValues={{
@@ -45,36 +49,49 @@ const Step2 = ({ onNext, onBack }: Step2Props) => {
                             <Form>
                                 <FormContainer>
                                     <FormItem
-                                        label="Name of your organization"
+                                        label={t('welcome.step2.labels.orgName')}
                                         invalid={
                                             errors.organizationName &&
                                             touched.organizationName
                                         }
-                                        errorMessage={errors.organizationName}
+                                        errorMessage={t(
+                                            errors.organizationName as string,
+                                        )}
                                     >
                                         <Field
                                             type="text"
                                             autoComplete="off"
                                             name="organizationName"
-                                            placeholder="Organization Name..."
+                                            placeholder={t(
+                                                'welcome.step2.placeholders.orgName',
+                                            )}
                                             component={Input}
                                         />
                                     </FormItem>
                                     <FormItem
-                                        label="Size of your organization"
+                                        label={t('welcome.step2.labels.orgSize')}
                                         invalid={
                                             errors.organizationSize &&
                                             touched.organizationSize
                                         }
-                                        errorMessage={errors.organizationSize}
+                                        errorMessage={t(
+                                            errors.organizationSize as string,
+                                        )}
                                     >
                                         <Field name="organizationSize">
                                             {({ field, form }: FieldProps) => (
                                                 <Select
-                                                    placeholder="Organization Size..."
+                                                    placeholder={t(
+                                                        'welcome.step2.placeholders.orgSize',
+                                                    )}
                                                     field={field}
                                                     form={form}
-                                                    options={sizes}
+                                                    options={sizes.map((s) => ({
+                                                        label: t(
+                                                            `welcome.step2.sizes.${s.key}`,
+                                                        ),
+                                                        value: s.value,
+                                                    }))}
                                                     value={sizes.filter(
                                                         (size) =>
                                                             size.value ===
@@ -96,7 +113,7 @@ const Step2 = ({ onNext, onBack }: Step2Props) => {
                                             variant="solid"
                                             type="submit"
                                         >
-                                            Continue
+                                            {t('text.actions.next')}
                                         </Button>
                                         <Button
                                             block
@@ -106,7 +123,7 @@ const Step2 = ({ onNext, onBack }: Step2Props) => {
                                             icon={<HiArrowSmLeft />}
                                             onClick={onBack}
                                         >
-                                            Back
+                                            {t('text.actions.back')}
                                         </Button>
                                     </FormItem>
                                 </FormContainer>

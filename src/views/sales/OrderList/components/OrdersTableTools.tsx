@@ -2,9 +2,11 @@ import Button from '@/components/ui/Button'
 import { HiDownload, HiOutlineTrash } from 'react-icons/hi'
 import OrderTableSearch from './OrderTableSearch'
 import { setDeleteMode, useAppDispatch, useAppSelector } from '../store'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
 const BatchDeleteButton = () => {
+    const { t } = useTranslation()
     const dispatch = useAppDispatch()
 
     const onBatchDelete = () => {
@@ -19,12 +21,13 @@ const BatchDeleteButton = () => {
             icon={<HiOutlineTrash />}
             onClick={onBatchDelete}
         >
-            Batch Delete
+            {t('text.actions.batchDelete')}
         </Button>
     )
 }
 
 const OrdersTableTools = () => {
+    const { t } = useTranslation()
     const selectedRows = useAppSelector(
         (state) => state.salesOrderList.data.selectedRows,
     )
@@ -33,7 +36,7 @@ const OrdersTableTools = () => {
             {selectedRows.length > 0 && <BatchDeleteButton />}
             <Link download to="/data/order-list.csv" target="_blank">
                 <Button block size="sm" icon={<HiDownload />}>
-                    Export
+                    {t('text.actions.export')}
                 </Button>
             </Link>
             <OrderTableSearch />

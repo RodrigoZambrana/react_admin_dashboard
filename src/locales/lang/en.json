@@ -9,7 +9,7 @@
             "issue": "Issue"
         },
         "appsCrm": {
-            "crm": "CRM",
+            "crm": "Clients",
             "dashboard": "Dashboard",
             "calendar": "Calendar",
             "customers": "Customers",
@@ -132,6 +132,707 @@
             "sharedComponentDoc": "Shared Component",
             "utilsDoc": "Utilities",
             "changeLog": "Changelog"
+        },
+        "signOut": "Sign out"
+    },
+    "user": {
+        "menu": {
+            "profile": "Profile",
+            "accountSetting": "Account Setting",
+            "activityLog": "Activity Log",
+            "signOut": "Sign Out"
+        }
+    },
+    "theme": {
+        "config": {
+            "title": "Theme Config",
+            "darkMode": {
+                "title": "Dark Mode",
+                "desc": "Switch theme to dark mode"
+            },
+            "direction": {
+                "title": "Direction",
+                "desc": "Select a direction"
+            },
+            "navMode": {
+                "title": "Nav Mode",
+                "default": "Default",
+                "themed": "Themed"
+            },
+            "theme": {
+                "title": "Theme"
+            },
+            "layout": {
+                "title": "Layout"
+            }
+        }
+    },
+    "pages": {
+        "accessDenied": {
+            "title": "Access Denied!",
+            "message": "You have no permission to visit this page"
+        }
+    },
+    "auth": {
+        "common": {
+            "backToSignIn": "Back to ",
+            "signIn": "Sign in",
+            "signUp": "Sign up"
+        },
+        "resetPassword": {
+            "setNewPassword": {
+                "title": "Set new password",
+                "subtitle": "Your new password must be different from the previous password"
+            },
+            "success": {
+                "title": "Password reset",
+                "subtitle": "Your password has been successfully reset"
+            },
+            "continue": "Continue"
+        },
+        "forgotPassword": {
+            "title": "Forgot Password",
+            "subtitle": "Please enter your email address to receive a verification code",
+            "emailSent": {
+                "title": "Check your email",
+                "subtitle": "We have sent password recovery instructions to your email"
+            },
+            "sendEmail": "Send Email",
+            "resendEmail": "Resend Email"
+        }
+        ,
+        "signIn": {
+            "title": "Welcome back!",
+            "subtitle": "Please enter your credentials to sign in!",
+            "rememberMe": "Remember Me",
+            "forgotPassword": "Forgot Password?",
+            "submit": "Sign In",
+            "submitting": "Signing in...",
+            "noAccount": "Don't have an account yet?"
+        },
+        "signUp": {
+            "title": "Sign Up",
+            "subtitle": "And let's get started with your free trial",
+            "submit": "Sign Up",
+            "submitting": "Creating Account...",
+            "hasAccount": "Already have an account?"
+        }
+    },
+    "project": {
+        "dashboard": {
+            "greeting": "Hello, {{name}}!",
+            "tasksOnHand": "You have {{count}} tasks on hand.",
+            "taskOverview": "Task Overview",
+            "projects": "Projects",
+            "ranges": {
+                "monthly": "Monthly",
+                "weekly": "Weekly",
+                "daily": "Daily"
+            }
+        }
+    },
+    "text": {
+        "titles": {
+            "products": "Products",
+            "shipping": "Shipping",
+            "paymentSummary": "Payment Summary",
+            "paymentHistory": "Payment History",
+            "addEvent": "Add New Event",
+            "editEvent": "Edit Event",
+            "deleteCustomer": "Delete customer",
+            "customerDeleted": "Successfully Deleted",
+            "editCreditCard": "Edit Credit Card",
+            "schedule": "Schedule",
+            "myTasks": "My Tasks",
+            "addNewProject": "Add new project",
+            "basicInformation": "Basic Information",
+            "pricing": "Pricing",
+            "deleteProduct": "Delete product",
+            "paymentMethods": "Payment Methods",
+            "activityLog": "Activity Log",
+            "filterActivity": "Filter Activity"
+        },
+        "columns": {
+            "order": "Order",
+            "date": "Date",
+            "customer": "Customer",
+            "status": "Status",
+            "paymentMethod": "Payment Method",
+            "total": "Total",
+            "name": "Name",
+            "category": "Category",
+            "quantity": "Quantity",
+            "price": "Price",
+            "product": "Product",
+            "reference": "Reference",
+            "amount": "Amount",
+            "createdTime": "Created Time",
+            "assignee": "Assignee",
+            "sold": "Sold",
+            "email": "Email",
+            "lastOnline": "Last online",
+            "taskId": "Task ID",
+            "subject": "Subject",
+            "priority": "Priority",
+            "assignees": "Assignees"
+        },
+        "priority": {
+            "high": "High",
+            "medium": "Medium",
+            "low": "Low"
+        },
+        "actions": {
+            "view": "View",
+            "delete": "Delete",
+            "export": "Export",
+            "addProduct": "Add Product",
+            "batchDelete": "Batch Delete",
+            "viewCarrierDetails": "View Carrier Details",
+            "save": "Save",
+            "discard": "Discard",
+            "cancel": "Cancel",
+            "update": "Update",
+            "edit": "Edit",
+            "clearAll": "Clear All",
+            "viewAll": "View All",
+            "loadMore": "Load More",
+            "submit": "Submit",
+            "done": "Done",
+            "comment": "Comment",
+            "remove": "Remove",
+            "add": "Add",
+            "addMore": "Add More",
+            "download": "Download",
+            "send": "Send",
+            "change": "Change",
+            "rename": "Rename",
+            "filter": "Filter",
+            "query": "Query",
+            "addTicket": "Add Ticket",
+            "deleteBoard": "Delete Board",
+            "viewIntegration": "View Integration",
+            "install": "Install",
+            "installed": "Installed",
+            "updating": "Updating",
+            "reset": "Reset",
+            "addNewCard": "Add new card",
+            "back": "Back",
+            "next": "Next",
+            "print": "Print",
+            "updatePassword": "Update Password",
+            "assigned": "assigned",
+            "addedAComment": "added a comment"
+        },
+        "placeholders": {
+            "search": "Search",
+            "searchProduct": "Search product",
+            "date": "Date",
+            "name": "Name",
+            "code": "Code",
+            "stock": "Stock",
+            "url": "URL",
+            "eventTitle": "Please enter title",
+            "leaveComment": "Leave a comment",
+            "quickSearchMember": "Quick search member",
+            "ticketTitle": "Please enter ticket title",
+            "writeComment": "Write comment",
+            "boardTitle": "Please enter board title",
+            "country": "Country",
+            "currentPassword": "Current Password",
+            "newPassword": "New Password",
+            "confirmPassword": "Confirm Password"
+        },
+        "status": {
+            "paid": "Paid",
+            "pending": "Pending",
+            "failed": "Failed",
+            "inStock": "In Stock",
+            "limited": "Limited",
+            "outOfStock": "Out of Stock",
+            "active": "Active",
+            "blocked": "Blocked",
+            "unpaid": "Unpaid",
+            "fulfilled": "Fulfilled",
+            "unfulfilled": "Unfulfilled",
+            "new": "New",
+            "sold": "Sold",
+            "notInterested": "Not Interested",
+            "inProgress": "In Progress",
+            "published": "Published",
+            "disabled": "Disabled",
+            "archive": "Archive"
+        },
+        "labels": {
+            "deliveryIn": "Delivery in",
+            "days": "days",
+            "subtotal": "Subtotal",
+            "deliveryFee": "Delivery fee",
+            "tax6": "Tax(6%)",
+            "productName": "Product Name",
+            "code": "Code",
+            "description": "Description",
+            "sku": "SKU",
+            "bulkDiscountPrice": "Bulk Discount Price",
+            "taxRatePercent": "Tax Rate(%)",
+            "taxRate": "Tax Rate",
+            "name": "Name",
+            "email": "Email",
+            "userName": "User Name",
+            "password": "Password",
+            "location": "Location",
+            "phoneNumber": "Phone Number",
+            "title": "Title",
+            "birthday": "Birthday",
+            "phone": "Phone",
+            "dateOfBirth": "Date of birth",
+            "social": "Social",
+            "facebookLink": "Facebook link",
+            "twitterLink": "Twitter link",
+            "pinterestLink": "Pinterest link",
+            "linkedInLink": "LinkedIn link",
+            "eventTitle": "Event Title",
+            "startDate": "Start Date",
+            "endDate": "End Date",
+            "preferredColor": "Preferred Color",
+            "cardHolderName": "Card holder name",
+            "creditCardNumber": "Credit Card Number",
+            "expirationDate": "Expiration date",
+            "cvv": "CVV",
+            "totalCustomers": "Total Customers",
+            "activeCustomers": "Active Customers",
+            "newCustomers": "New Customers",
+            "createdBy": "created by",
+            "inProgress": "In Progress",
+            "linkedTickets": "Linked tickets",
+            "recipient": "Recipient",
+            "storyPoint": "{{count}} story point",
+            "createdOn": "Created on",
+            "assignees": "Assignees",
+            "tags": "Tags",
+            "membersAvailable": "members available",
+            "otherPaymentMethods": "Other payment methods",
+            "primary": "Primary",
+            "expired": "Expired",
+            "about": "About",
+            "keyFeatures": "Key Features",
+            "date": "Date",
+            "phone": "Phone",
+            "to": "To",
+            "grandTotal": "Grand Total",
+            "previousOrders": "previous orders",
+            "setAsPrimary": "Set this card as primary",
+            "country": "Country",
+            "addressLine1": "Address Line 1",
+            "addressLine2": "Address Line 2",
+            "city": "City",
+            "state": "State",
+            "zipCode": "Zip Code",
+            "current": "Current",
+            "language": "Language",
+            "timeZone": "Time Zone",
+            "syncData": "Sync Data",
+            "category": "Category",
+            "tags": "Tags",
+            "brand": "Brand",
+            "vendor": "Vendor"
+        },
+        "date": {
+            "monthsShort": {
+                "jan": "Jan",
+                "feb": "Feb",
+                "mar": "Mar",
+                "apr": "Apr",
+                "may": "May",
+                "jun": "Jun",
+                "jul": "Jul",
+                "aug": "Aug",
+                "sep": "Sep",
+                "oct": "Oct",
+                "nov": "Nov",
+                "dec": "Dec"
+            }
+        },
+        "tooltips": {
+            "cvv": "The CVV/CVC code is located on the back of your credit/debit card on the right side of the white signature strip"
+        },
+        "titles": {
+            "products": "Products",
+            "shipping": "Shipping",
+            "paymentSummary": "Payment Summary",
+            "paymentHistory": "Payment History",
+            "addEvent": "Add New Event",
+            "editEvent": "Edit Event",
+            "deleteCustomer": "Delete customer",
+            "customerDeleted": "Successfully Deleted",
+            "editCreditCard": "Edit Credit Card",
+            "activity": "Activity",
+            "details": "Details",
+            "addPeople": "Add people",
+            "addNewTicket": "Add New Ticket",
+            "deleteBoard": "Delete Board",
+            "installed": "Installed",
+            "available": "Available",
+            "password": "Password",
+            "invoice": "Invoice",
+            "shippingAddress": "Shipping Address",
+            "billingAddress": "Billing address",
+            "comments": "Comments",
+            "description": "Description",
+            "attachments": "Attachments",
+            "whereSignedIn": "Where you're signed in",
+            "addressInformation": "Address Information",
+            "permanentAddress": "Permanent Address",
+            "correspondenceAddress": "Correspondence Address",
+            "basicInformation": "Basic Information",
+            "pricing": "Pricing",
+            "deleteProduct": "Delete product"
+        },
+        "descriptions": {
+            "basicProductInfo": "Section to config basic product information",
+            "productSalesInfo": "Section to config product sales information"
+        },
+        "messages": {
+            "deleteProductConfirm": "Are you sure you want to delete this product? All record related to this product will be deleted as well. This action cannot be undone.",
+            "customerDeleted": "Customer successfully deleted",
+            "deleteCustomerConfirm": "Are you sure you want to delete this customer? All record related to this customer will be deleted as well. This action cannot be undone.",
+            "noActivities": "No Activities",
+            "noMoreActivity": "No more activity to load",
+            "deleteBoardConfirm": "Are you sure you want to delete this board? All the tickets under this board will be deleted as well. This action cannot be undone.",
+            "billingUpdated": "Billing information updated",
+            "appInstalled": "App installed",
+            "invoiceNote": "Invoice was created on a computer and is valid without the signature and seal.",
+            "passwordUpdated": "Password updated",
+            "viewPreviousBilling": "View your previous billing"
+        },
+        "validation": {
+            "titleRequired": "Title Required",
+            "receiverRequired": "Receiver Required",
+            "productNameRequired": "Product Name Required",
+            "priceRequired": "Price Required",
+            "skuRequired": "SKU Required",
+            "categoryRequired": "Category Required",
+            "invalidEmail": "Invalid email",
+            "emailRequired": "Email Required",
+            "userNameRequired": "User Name Required",
+            "invalidPhoneNumber": "Phone number is not valid",
+            "eventTitleRequired": "Event title Required",
+            "startDateRequired": "Start Date Required",
+            "colorRequired": "Color Required",
+            "passwordRequired": "Password Required",
+            "enterNewPassword": "Enter your new password",
+            "tooShort": "Too Short!",
+            "tooLong": "Too Long!",
+            "lettersNumbersOnly": "Only Letters & Numbers Allowed",
+            "passwordNotMatch": "Password not match",
+            "selectCountry": "Please select country",
+            "enterAddress": "Please enter your address",
+            "enterCity": "Please enter your city",
+            "enterState": "Please enter your state",
+            "enterZipCode": "Please enter zip code",
+            "ticketTitleRequired": "Ticket title is required!",
+            "cardHolderNameRequired": "Card holder name required",
+            "creditCardNumberRequired": "Credit card number required",
+            "invalidCreditCardNumber": "Invalid credit card number",
+            "cardExpiryRequired": "Expiry date required",
+            "invalidDate": "Invalid date",
+            "cvvRequired": "CVV required",
+            "invalidCvv": "Invalid CVV"
+        },
+        "tabs": {
+            "personalInfo": "Personal Info",
+            "social": "Social"
+        },
+        "filters": {
+            "all": "All",
+            "commentOnPost": "Comment on post",
+            "mentionedYou": "Mentioned you",
+            "ticketStatus": "Ticket status",
+            "assignTicket": "Assign ticket",
+            "newTicket": "New ticket",
+            "addTags": "Add tags",
+            "addFiles": "Add files"
+        },
+        "labels": {
+            
+        }
+    }
+    ,
+    "account": {
+        "settings": {
+            "tabs": {
+                "profile": "Profile",
+                "password": "Password",
+                "notification": "Notification",
+                "integration": "Integration",
+                "billing": "Billing"
+            },
+            "profile": {
+                "profileUpdated": "Profile updated",
+                "general": "General",
+                "generalDesc": "Basic info, like your name and address that will be displayed in public",
+                "preferences": "Preferences",
+                "preferencesDesc": "Your personalized preferences displayed in your account"
+            },
+            "billing": {
+                "paymentMethod": "Payment Method",
+                "paymentMethodDesc": "You can update your cards information here",
+                "creditCards": "Credit Cards"
+            },
+            "integration": {
+                "aboutText": "This is where you can learn more about this integration and how it helps your workflow.",
+                "features": {
+                    "0": "Simple setup and configuration",
+                    "1": "Secure data synchronization",
+                    "2": "Seamless team collaboration",
+                    "3": "Actionable insights and analytics"
+                }
+            },
+            "notification": {
+                "updated": "Notification setting updated",
+                "channels": {
+                    "email": "Email",
+                    "browser": "Browser",
+                    "app": "App"
+                },
+                "general": {
+                    "title": "General Notification",
+                    "desc": "Select how you'll be notified when the following changes occur.",
+                    "news": "News",
+                    "accountActivity": "Account activity",
+                    "signIn": "New device used to sign in",
+                    "reminders": "Reminders"
+                },
+                "project": {
+                    "title": "Project Notification",
+                    "desc": "Select how you'll be notified when the project related events happened.",
+                    "mentioned": "Someone mentions you",
+                    "replies": "Someone replies to your message",
+                    "taskUpdate": "Task status updated",
+                    "assigned": "Task assigned to you"
+                },
+                "sales": {
+                    "title": "Sales Notification",
+                    "desc": "Select how you'll be notified when any products & order updated.",
+                    "newProduct": "New product",
+                    "newOrder": "New order placed"
+                }
+            }
+        }
+    },
+    "welcome": {
+        "step1": {
+            "title": "Welcome on board, let's get started with Elstar",
+            "subtitle": "Tell us a bit about yourself to get the best experience. This will only take a minute or two.",
+            "getStarted": "Get started",
+            "skipNow": "Skip now"
+        },
+        "step2": {
+            "title": "Tell us about your organization",
+            "labels": {
+                "orgName": "Name of your organization",
+                "orgSize": "Size of your organization"
+            },
+            "placeholders": {
+                "orgName": "Organization Name...",
+                "orgSize": "Organization Size..."
+            },
+            "validation": {
+                "orgNameRequired": "Organization name is required",
+                "orgSizeRequired": "Please select your organization size"
+            },
+            "sizes": {
+                "solo": "Solo",
+                "2_10": "2 ~ 10 members",
+                "11_50": "11 ~ 50 members",
+                "51_200": "51 ~ 200 members",
+                "201_500": "201 ~ 500 members"
+            }
+        },
+        "step3": {
+            "title": "What is your role in the organization?",
+            "roles": {
+                "softwareEngineer": "Software Engineer",
+                "productManager": "Product Manager",
+                "designer": "Designer",
+                "qaTester": "QA Tester",
+                "stakeholder": "Stakeholder",
+                "other": "Others"
+            }
+        },
+        "step4": {
+            "title": "What is your main objective with Elstar?",
+            "items": {
+                "startScratch": "Start project from scratch",
+                "automateTasks": "Automate time-consuming tasks",
+                "enhanceWorkflow": "Enhance current workflow",
+                "other": "Others"
+            }
+        },
+        "quickStart": {
+            "title": "🚀 Let's get you set up with {{app}}",
+            "items": {
+                "completeAccount": {
+                    "title": "Complete your Account Information",
+                    "desc": "Fill in your information to complete your account",
+                    "btn": "Fill now"
+                },
+                "createWorkspace": {
+                    "title": "Create your first workspace",
+                    "desc": "We recommend one project per workspace",
+                    "btn": "Create Workspace"
+                },
+                "inviteTeam": {
+                    "title": "Invite team members",
+                    "desc": "Show the team what you have completed so far.",
+                    "btn": "Invite"
+                }
+            }
+        }
+    },
+    "sales": {
+        "productEdit": {
+            "toast": {
+                "updated": {
+                    "title": "Successfully updated",
+                    "desc": "Product successfully updated"
+                },
+                "deleted": {
+                    "title": "Successfully deleted",
+                    "desc": "Product successfully deleted"
+                }
+            }
+        },
+        "dashboard": {
+            "overview": {
+                "title": "Sales Overview",
+                "subtitle": "View your current sales & summary"
+            },
+            "stat": {
+                "revenue": "Revenue",
+                "orders": "Orders",
+                "purchases": "Purchases",
+                "vsMonths": "vs. {{months}} months prior to {{date}}"
+            },
+            "categories": {
+                "title": "Categories",
+                "donutText": "Product Sold"
+            },
+            "latestOrders": {
+                "title": "Latest Orders",
+                "viewOrders": "View Orders"
+            },
+            "topProduct": {
+                "title": "Top Selling",
+                "viewProducts": "View Products"
+            },
+            "salesReport": {
+                "title": "Sales Report",
+                "export": "Export Report"
+            }
+        },
+        "orders": {
+            "title": "Orders"
+        },
+        "orders": {
+            "title": "Orders",
+            "delete": {
+                "title": "Delete order",
+                "confirm": "Are you sure you want to delete this order? All record related to this order will be deleted as well. This action cannot be undone.",
+                "titleSuccess": "Successfully Deleted",
+                "single": "Order successfully deleted",
+                "batch": "{{count}} orders successfully deleted"
+            }
+        },
+        "productForm": {
+            "organizations": {
+                "title": "Organizations",
+                "desc": "Section to config the product attribute"
+            },
+            "images": {
+                "title": "Product Image",
+                "desc": "Add or change image for the product",
+                "removeConfirm": "Are you sure you want to remove this image?",
+                "upload": "Upload",
+                "dropHere": "Drop your image here, or",
+                "browse": "browse",
+                "support": "Support: jpeg, png",
+                "invalidType": "Please upload a .jpeg or .png file!",
+                "invalidSize": "Upload image cannot be more than 500kb!"
+            }
+        }
+        ,
+        "productList": {
+            "deleted": {
+                "title": "Successfully Deleted",
+                "desc": "Product successfully deleted"
+            }
+        }
+    },
+    "crm": {
+        "mail": {
+            "newMessage": "New Message",
+            "mailbox": "Mailbox",
+            "title": "Mail",
+            "labels": "Labels",
+            "sent": "Mail Sent",
+            "categories": {
+                "inbox": "Inbox",
+                "sentItem": "Sent Item",
+                "draft": "Draft",
+                "starred": "Starred",
+                "deleted": "Deleted"
+            },
+            "labelsList": {
+                "work": "Work",
+                "private": "Private",
+                "important": "Important"
+            }
+        },
+        "dashboard": {
+            "thisMonth": "this month",
+            "stat": {
+                "newLeads": "New Leads",
+                "emailResponse": "Email",
+                "proposals": "Proposals",
+                "appointment": "Appointment"
+            }
+        },
+        "customerDetail": {
+            "noUserFound": "No user found!",
+            "removePaymentMethod": "Remove payment method",
+            "removePaymentMethodConfirm": "Are you sure you want to remove this payment method?",
+            "subscription": {
+                "title": "Subscription",
+                "billing": "Billing",
+                "nextPaymentOn": "Next payment on",
+                "for": "for",
+                "cancelPlan": "Cancel plan",
+                "update": "Update",
+                "subscribe": "Subscribe",
+                "plan": "Plan"
+            }
+        },
+        "dashboard": {
+            "leadByCountries": {
+                "title": "Lead By Countries"
+            }
+        },
+        "leads": {
+            "title": "Leads",
+            "viewAll": "View All Leads"
+        },
+        "emailSent": {
+            "title": "Email Sent",
+            "opened": "Opened",
+            "performance": "Performance",
+            "average": "Average"
+        }
+    },
+    "common": {
+        "notFound": {
+            "product": "No product found!",
+            "order": "No order found!",
+            "user": "No user found!"
         }
     }
 }

@@ -11,6 +11,7 @@ import reducer, { getCustomer, useAppDispatch, useAppSelector } from './store'
 
 import { injectReducer } from '@/store'
 import isEmpty from 'lodash/isEmpty'
+import { useTranslation } from 'react-i18next'
 import useQuery from '@/utils/hooks/useQuery'
 
 injectReducer('crmCustomerDetails', reducer)
@@ -39,6 +40,7 @@ const CustomerDetail = () => {
         }
     }
 
+    const { t } = useTranslation()
     return (
         <Container className="h-full">
             <Loading loading={loading}>
@@ -62,9 +64,9 @@ const CustomerDetail = () => {
                     <DoubleSidedImage
                         src="/img/others/img-2.png"
                         darkModeSrc="/img/others/img-2-dark.png"
-                        alt="No user found!"
+                        alt={t('common.notFound.user')}
                     />
-                    <h3 className="mt-8">No user found!</h3>
+                    <h3 className="mt-8">{t('common.notFound.user')}</h3>
                 </div>
             )}
         </Container>

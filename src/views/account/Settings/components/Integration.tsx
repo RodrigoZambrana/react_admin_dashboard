@@ -9,6 +9,7 @@ import Card from '@/components/ui/Card'
 import isEmpty from 'lodash/isEmpty'
 import { apiGetAccountSettingIntegrationData } from '@/services/AccountServices'
 import cloneDeep from 'lodash/cloneDeep'
+import { useTranslation } from 'react-i18next'
 
 type IntegrationDetail = {
     name: string
@@ -93,15 +94,16 @@ const Integration = () => {
             })
             setInstalling(false)
             onViewIntegrationClose()
-            toast.push(<Notification title="App installed" type="success" />, {
+            toast.push(<Notification title={t('text.messages.appInstalled')} type="success" />, {
                 placement: 'top-center',
             })
         }, 1000)
     }
 
+    const { t } = useTranslation()
     return (
         <>
-            <h5>Installed</h5>
+            <h5>{t('text.titles.installed')}</h5>
             <div className="grid lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 mt-4">
                 {data?.installed?.map((app) => (
                     <Card
@@ -114,7 +116,7 @@ const Integration = () => {
                                 size="sm"
                                 onClick={() => onViewIntegrationOpen(app, true)}
                             >
-                                View Intergration
+                                {t('text.actions.viewIntegration')}
                             </Button>
                         }
                     >
@@ -142,7 +144,7 @@ const Integration = () => {
                 ))}
             </div>
             <div className="mt-10">
-                <h5>Available</h5>
+                <h5>{t('text.titles.available')}</h5>
                 <div className="grid lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 mt-4">
                     {data?.available?.map((app) => (
                         <Card
@@ -157,8 +159,8 @@ const Integration = () => {
                                         onViewIntegrationOpen(app, false)
                                     }
                                 >
-                                    View Intergration
-                                </Button>
+                                {t('text.actions.viewIntegration')}
+                            </Button>
                             }
                         >
                             <div className="p-6">
@@ -195,35 +197,17 @@ const Integration = () => {
                 </div>
                 <div className="mt-6">
                     <span className="font-semibold text-gray-900 dark:text-gray-100">
-                        About {intergrationDetails.name}
+                        {t('text.labels.about')} {intergrationDetails.name}
                     </span>
-                    <p className="mt-2 mb-4">
-                        Wings medium plunger pot, redeye doppio siphon froth
-                        iced. Latte, and, barista cultivar fair trade grinder
-                        caramelization spoon. Whipped, grinder to go brewed est
-                        single shot half and half. Plunger pot blue mountain et
-                        blue mountain grinder carajillo, saucer half and half
-                        milk instant strong.
-                    </p>
+                    <p className="mt-2 mb-4">{t('account.settings.integration.aboutText')}</p>
                     <span className="font-semibold text-gray-900 dark:text-gray-100">
-                        Key Features
+                        {t('text.labels.keyFeatures')}
                     </span>
                     <ul className="list-disc mt-2 ltr:ml-4 rtl:mr-4">
-                        <li className="mb-1">
-                            Fair trade, cortado con panna, crema foam cinnamon
-                            aged.{' '}
-                        </li>
-                        <li className="mb-1">
-                            Mug saucer acerbic, caffeine organic kopi-luwak
-                            galão siphon.{' '}
-                        </li>
-                        <li className="mb-1">
-                            To go half and half cultivar single origin ut,
-                            french press.{' '}
-                        </li>
-                        <li className="mb-1">
-                            Mocha latte flavour cortado cup kopi-luwak.{' '}
-                        </li>
+                        <li className="mb-1">{t('account.settings.integration.features.0')}</li>
+                        <li className="mb-1">{t('account.settings.integration.features.1')}</li>
+                        <li className="mb-1">{t('account.settings.integration.features.2')}</li>
+                        <li className="mb-1">{t('account.settings.integration.features.3')}</li>
                     </ul>
                 </div>
                 <div className="text-right mt-6">
@@ -232,11 +216,11 @@ const Integration = () => {
                         variant="plain"
                         onClick={onViewIntegrationClose}
                     >
-                        Cancel
+                        {t('text.actions.cancel')}
                     </Button>
                     {intergrationDetails?.installed ? (
                         <Button disabled variant="solid">
-                            Installed
+                            {t('text.actions.installed')}
                         </Button>
                     ) : (
                         <Button
@@ -248,7 +232,7 @@ const Integration = () => {
                                 )
                             }
                         >
-                            Install
+                            {t('text.actions.install')}
                         </Button>
                     )}
                 </div>
@@ -258,3 +242,4 @@ const Integration = () => {
 }
 
 export default Integration
+    const { t } = useTranslation()

@@ -1,10 +1,12 @@
 import Button from '@/components/ui/Button'
+import { useTranslation } from 'react-i18next'
 import { HiDownload, HiPlusCircle } from 'react-icons/hi'
 import ProductTableSearch from './ProductTableSearch'
 import ProductFilter from './ProductFilter'
 import { Link } from 'react-router-dom'
 
 const ProductTableTools = () => {
+    const { t } = useTranslation()
     return (
         <div className="flex flex-col lg:flex-row lg:items-center">
             <ProductTableSearch />
@@ -16,7 +18,7 @@ const ProductTableTools = () => {
                 target="_blank"
             >
                 <Button block size="sm" icon={<HiDownload />}>
-                    Export
+                    {t('text.actions.export')}
                 </Button>
             </Link>
             <Link
@@ -24,7 +26,7 @@ const ProductTableTools = () => {
                 to="/app/sales/product-new"
             >
                 <Button block variant="solid" size="sm" icon={<HiPlusCircle />}>
-                    Add Product
+                    {t('text.actions.addProduct')}
                 </Button>
             </Link>
         </div>

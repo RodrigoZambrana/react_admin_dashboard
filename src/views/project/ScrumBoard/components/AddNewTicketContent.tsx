@@ -12,9 +12,11 @@ import {
 import cloneDeep from 'lodash/cloneDeep'
 import requiredFieldValidation from '@/utils/requiredFieldValidation'
 import { createCardObject } from '../utils'
+import { useTranslation } from 'react-i18next'
 
 const AddNewColumnContent = () => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const columns = useAppSelector((state) => state.scrumBoard.data.columns)
     const board = useAppSelector((state) => state.scrumBoard.data.board)
@@ -33,7 +35,7 @@ const AddNewColumnContent = () => {
 
     return (
         <div>
-            <h5>Add New Ticket</h5>
+            <h5>{t('text.titles.addNewTicket')}</h5>
             <div className="mt-8">
                 <Formik
                     initialValues={{ title: '' }}
@@ -43,26 +45,26 @@ const AddNewColumnContent = () => {
                         <Form>
                             <FormContainer layout="inline">
                                 <FormItem
-                                    label="Ticket title"
+                                    label={t('text.labels.ticketTitle')}
                                     invalid={errors.title && touched.title}
                                     errorMessage={errors.title}
                                 >
                                     <Field
                                         type="text"
                                         name="title"
-                                        placeholder="Please enter ticket title"
+                                        placeholder={t('text.placeholders.ticketTitle')}
                                         component={Input}
                                         validate={(value: string) =>
                                             requiredFieldValidation(
                                                 value,
-                                                'Ticket title is required!',
+                                                t('text.validation.ticketTitleRequired'),
                                             )
                                         }
                                     />
                                 </FormItem>
                                 <FormItem>
                                     <Button variant="solid" type="submit">
-                                        Add
+                                        {t('text.actions.add')}
                                     </Button>
                                 </FormItem>
                             </FormContainer>

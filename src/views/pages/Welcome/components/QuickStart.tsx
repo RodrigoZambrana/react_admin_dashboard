@@ -5,11 +5,10 @@ import useThemeClass from '@/utils/hooks/useThemeClass'
 import { APP_NAME } from '@/constants/app.constant'
 import { useNavigate } from 'react-router-dom'
 import { HiOutlineLockClosed } from 'react-icons/hi'
+import { useTranslation } from 'react-i18next'
 
 type QuickStartType = {
-    label: string
-    desc: string
-    btnText: string
+    key: 'completeAccount' | 'createWorkspace' | 'inviteTeam'
     id: string
     disabled: boolean
     callBack?: () => void
@@ -27,25 +26,19 @@ type QuickStartItemProps = Omit<QuickStartType, 'id' | 'label' | 'disabled'> & {
 
 const quickStartList: QuickStartType[] = [
     {
-        label: 'Complete your Account Information',
-        desc: 'Fill in your information to complete your account',
-        btnText: 'Fill now',
+        key: 'completeAccount',
         id: '0',
         disabled: false,
         navigate: '/app/account/kyc-form',
     },
     {
-        label: 'Create your first workspace',
-        desc: 'We recommend one project per workspace',
-        btnText: 'Create Workspace',
+        key: 'createWorkspace',
         id: '1',
         disabled: true,
         callBack: () => ({}),
     },
     {
-        label: 'Invite team members',
-        desc: 'Show the team what you have completed so far.',
-        btnText: 'Invite',
+        key: 'inviteTeam',
         id: '2',
         disabled: true,
     },
@@ -111,6 +104,7 @@ const QuickStartItem = (props: QuickStartItemProps) => {
 
 const QuickStart = () => {
     const { textTheme, borderTheme } = useThemeClass()
+    const { t } = useTranslation()
 
     const [completion] = useState([
         { value: '0', completed: false, current: true },
@@ -121,8 +115,9 @@ const QuickStart = () => {
     return (
         <div>
             <h3 className="mb-2 text-center">
-                <span>🚀 Let&apos;s get you set up with </span>
-                <span className={textTheme}>{APP_NAME}</span>
+                <span className={textTheme}>
+                    {t('welcome.quickStart.title', { app: APP_NAME })}
+                </span>
             </h3>
             <div className="mt-8 max-w-[800px] lg:min-w-[800px]">
                 {quickStartList.map((item, index) => (
@@ -131,9 +126,9 @@ const QuickStart = () => {
                         index={index}
                         textTheme={textTheme}
                         borderTheme={borderTheme}
-                        title={item.label}
-                        btnText={item.btnText}
-                        desc={item.desc}
+                        title={t(`welcome.quickStart.items.${item.key}.title`)}
+                        btnText={t(`welcome.quickStart.items.${item.key}.btn`)}
+                        desc={t(`welcome.quickStart.items.${item.key}.desc`)}
                         available={completion.some(
                             (c) =>
                                 c.value === item.id &&

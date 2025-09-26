@@ -7,6 +7,7 @@ import {
     createColumnHelper,
 } from '@tanstack/react-table'
 import { NumericFormat } from 'react-number-format'
+import { useTranslation } from 'react-i18next'
 import isLastChild from '@/utils/isLastChild'
 
 export type Product = {
@@ -97,26 +98,26 @@ const PriceAmount = ({ amount = 0 }: { amount?: number }) => {
 
 const columnHelper = createColumnHelper<Product>()
 
-const columns = [
+const columns = (t: (k: string) => string) => [
     columnHelper.accessor('name', {
-        header: 'Product',
+        header: t('text.columns.product'),
         cell: (props) => {
             const row = props.row.original
             return <ProductColumn row={row} />
         },
     }),
     columnHelper.accessor('price', {
-        header: 'Price',
+        header: t('text.columns.price'),
         cell: (props) => {
             const row = props.row.original
             return <PriceAmount amount={row.price} />
         },
     }),
     columnHelper.accessor('quantity', {
-        header: 'Quantity',
+        header: t('text.columns.quantity'),
     }),
     columnHelper.accessor('total', {
-        header: 'Total',
+        header: t('text.columns.total'),
         cell: (props) => {
             const row = props.row.original
             return <PriceAmount amount={row.price} />
@@ -125,9 +126,10 @@ const columns = [
 ]
 
 const ContentTable = ({ products = [], summary = {} }: ContentTableProps) => {
+    const { t } = useTranslation()
     const table = useReactTable({
         data: products,
-        columns,
+        columns: columns(t),
         getCoreRowModel: getCoreRowModel(),
     })
 
@@ -168,12 +170,12 @@ const ContentTable = ({ products = [], summary = {} }: ContentTableProps) => {
                 })}
             </TBody>
             <TFoot>
-                <TFootRows label="Subtotal" value={summary.subTotal} />
-                <TFootRows label="Delivery fee" value={summary.deliveryFees} />
-                <TFootRows label="Tax(6%)" value={summary.tax} />
+                <TFootRows label={t('text.labels.subtotal')} value={summary.subTotal} />
+                <TFootRows label={t('text.labels.deliveryFee')} value={summary.deliveryFees} />
+                <TFootRows label={t('text.labels.tax6')} value={summary.tax} />
                 <Tr>
                     <Td className="border-t-0!" colSpan={2}></Td>
-                    <Td className="font-semibold text-base">Grand Total</Td>
+                    <Td className="font-semibold text-base">{t('text.labels.grandTotal')}</Td>
                     <Td className="font-semibold text-base py-5!">
                         <PriceAmount amount={summary.total} />
                     </Td>

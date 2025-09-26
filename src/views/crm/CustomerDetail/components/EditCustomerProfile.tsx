@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import Button from '@/components/ui/Button'
+import { useTranslation } from 'react-i18next'
 import Drawer from '@/components/ui/Drawer'
 import {
     closeEditCustomerDetailDialog,
@@ -19,13 +20,14 @@ type DrawerFooterProps = {
 }
 
 const DrawerFooter = ({ onSaveClick, onCancel }: DrawerFooterProps) => {
+    const { t } = useTranslation()
     return (
         <div className="text-right w-full">
             <Button size="sm" className="mr-2" onClick={onCancel}>
-                Cancel
+                {t('text.actions.cancel')}
             </Button>
             <Button size="sm" variant="solid" onClick={onSaveClick}>
-                Save
+                {t('text.actions.save')}
             </Button>
         </div>
     )

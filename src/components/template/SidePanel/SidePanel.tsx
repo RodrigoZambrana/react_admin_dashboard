@@ -5,6 +5,7 @@ import SidePanelContent, { SidePanelContentProps } from './SidePanelContent'
 import withHeaderItem from '@/utils/hoc/withHeaderItem'
 import { setPanelExpand, useAppSelector, useAppDispatch } from '@/store'
 import type { CommonProps } from '@/@types/common'
+import { useTranslation } from 'react-i18next'
 
 type SidePanelProps = SidePanelContentProps & CommonProps
 
@@ -29,6 +30,7 @@ const _SidePanel = (props: SidePanelProps) => {
         }
     }
 
+    const { t } = useTranslation()
     return (
         <>
             <div
@@ -39,7 +41,7 @@ const _SidePanel = (props: SidePanelProps) => {
                 <HiOutlineCog />
             </div>
             <Drawer
-                title="Theme Config"
+                title={t('theme.config.title')}
                 isOpen={panelExpand}
                 placement={direction === 'rtl' ? 'left' : 'right'}
                 width={375}

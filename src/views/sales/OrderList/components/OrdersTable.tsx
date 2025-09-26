@@ -17,6 +17,7 @@ import {
 } from '../store'
 import useThemeClass from '@/utils/hooks/useThemeClass'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import cloneDeep from 'lodash/cloneDeep'
 import dayjs from 'dayjs'
 import type {
@@ -39,22 +40,19 @@ type Order = {
 const orderStatusColor: Record<
     number,
     {
-        label: string
         dotClass: string
         textClass: string
     }
 > = {
     0: {
-        label: 'Paid',
         dotClass: 'bg-emerald-500',
         textClass: 'text-emerald-500',
     },
     1: {
-        label: 'Pending',
         dotClass: 'bg-amber-500',
         textClass: 'text-amber-500',
     },
-    2: { label: 'Failed', dotClass: 'bg-red-500', textClass: 'text-red-500' },
+    2: { dotClass: 'bg-red-500', textClass: 'text-red-500' },
 }
 
 const PaymentMethodImage = ({
@@ -116,6 +114,7 @@ const ActionColumn = ({ row }: { row: Order }) => {
     const dispatch = useAppDispatch()
     const { textTheme } = useThemeClass()
     const navigate = useNavigate()
+    const { t } = useTranslation()
 
     const onDelete = () => {
         dispatch(setDeleteMode('single'))
@@ -128,7 +127,7 @@ const ActionColumn = ({ row }: { row: Order }) => {
 
     return (
         <div className="flex justify-end text-lg">
-            <Tooltip title="View">
+            <Tooltip title={t('text.actions.view')}>
                 <span
                     className={`cursor-pointer p-2 hover:${textTheme}`}
                     onClick={onView}
@@ -136,7 +135,7 @@ const ActionColumn = ({ row }: { row: Order }) => {
                     <HiOutlineEye />
                 </span>
             </Tooltip>
-            <Tooltip title="Delete">
+            <Tooltip title={t('text.actions.delete')}>
                 <span
                     className="cursor-pointer p-2 hover:text-red-500"
                     onClick={onDelete}
@@ -152,6 +151,7 @@ const OrdersTable = () => {
     const tableRef = useRef<DataTableResetHandle>(null)
 
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const { pageIndex, pageSize, sort, query, total } = useAppSelector(
         (state) => state.salesOrderList.data.tableData,
@@ -189,12 +189,12 @@ const OrdersTable = () => {
     const columns: ColumnDef<Order>[] = useMemo(
         () => [
             {
-                header: 'Order',
+                header: t('text.columns.order'),
                 accessorKey: 'id',
                 cell: (props) => <OrderColumn row={props.row.original} />,
             },
             {
-                header: 'Date',
+                header: t('text.columns.date'),
                 accessorKey: 'date',
                 cell: (props) => {
                     const row = props.row.original
@@ -204,11 +204,11 @@ const OrdersTable = () => {
                 },
             },
             {
-                header: 'Customer',
+                header: t('text.columns.customer'),
                 accessorKey: 'customer',
             },
             {
-                header: 'Status',
+                header: t('text.columns.status'),
                 accessorKey: 'status',
                 cell: (props) => {
                     const { status } = props.row.original
@@ -220,14 +220,18 @@ const OrdersTable = () => {
                             <span
                                 className={`ml-2 rtl:mr-2 capitalize font-semibold ${orderStatusColor[status].textClass}`}
                             >
-                                {orderStatusColor[status].label}
+                                {status === 0
+                                    ? t('text.status.paid')
+                                    : status === 1
+                                    ? t('text.status.pending')
+                                    : t('text.status.failed')}
                             </span>
                         </div>
                     )
                 },
             },
             {
-                header: 'Payment Method',
+                header: t('text.columns.paymentMethod'),
                 accessorKey: 'paymentMehod',
                 cell: (props) => {
                     const { paymentMehod, paymentIdendifier } =
@@ -246,7 +250,7 @@ const OrdersTable = () => {
                 },
             },
             {
-                header: 'Total',
+                header: t('text.columns.total'),
                 accessorKey: 'totalAmount',
                 cell: (props) => {
                     const { totalAmount } = props.row.original
@@ -268,7 +272,7 @@ const OrdersTable = () => {
                 cell: (props) => <ActionColumn row={props.row.original} />,
             },
         ],
-        [],
+        [t],
     )
 
     const onPaginationChange = (page: number) => {

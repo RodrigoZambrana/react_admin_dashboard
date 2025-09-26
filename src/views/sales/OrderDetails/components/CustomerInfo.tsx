@@ -3,6 +3,7 @@ import Avatar from '@/components/ui/Avatar'
 import IconText from '@/components/shared/IconText'
 import { HiMail, HiPhone, HiExternalLink } from 'react-icons/hi'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 type CustomerInfoProps = {
     data?: {
@@ -27,9 +28,10 @@ type CustomerInfoProps = {
 }
 
 const CustomerInfo = ({ data }: CustomerInfoProps) => {
+    const { t } = useTranslation()
     return (
         <Card>
-            <h5 className="mb-4">Customer</h5>
+            <h5 className="mb-4">{t('text.columns.customer')}</h5>
             <Link
                 className="group flex items-center justify-between"
                 to="/app/crm/customer-details?id=11"
@@ -41,10 +43,8 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
                             {data?.name}
                         </div>
                         <span>
-                            <span className="font-semibold">
-                                {data?.previousOrder}{' '}
-                            </span>
-                            previous orders
+                            <span className="font-semibold">{data?.previousOrder} </span>
+                            {t('text.labels.previousOrders')}
                         </span>
                     </div>
                 </div>
@@ -61,7 +61,7 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
                 <span className="font-semibold">{data?.phone}</span>
             </IconText>
             <hr className="my-5" />
-            <h6 className="mb-4">Shipping Address</h6>
+            <h6 className="mb-4">{t('text.titles.shippingAddress')}</h6>
             <address className="not-italic">
                 <div className="mb-1">{data?.shippingAddress.line1}</div>
                 <div className="mb-1">{data?.shippingAddress.line2}</div>
@@ -69,7 +69,7 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
                 <div>{data?.shippingAddress.line4}</div>
             </address>
             <hr className="my-5" />
-            <h6 className="mb-4">Billing address</h6>
+            <h6 className="mb-4">{t('text.titles.billingAddress')}</h6>
             <address className="not-italic">
                 <div className="mb-1">{data?.billingAddress.line1}</div>
                 <div className="mb-1">{data?.billingAddress.line2}</div>

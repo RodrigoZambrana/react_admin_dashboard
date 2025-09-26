@@ -8,9 +8,11 @@ import {
     useAppDispatch,
     useAppSelector,
 } from '../store'
+import { useTranslation } from 'react-i18next'
 
 const MainCompose = () => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const mailEditorRef = useRef<MailEditorRef>(null)
 
@@ -38,14 +40,14 @@ const MainCompose = () => {
                 icon={<HiOutlinePencilAlt />}
                 onClick={onDialogOpen}
             >
-                New Message
+                {t('crm.mail.newMessage')}
             </Button>
             <Dialog
                 isOpen={isOpen}
                 onClose={onDialogClose}
                 onRequestClose={onDialogClose}
             >
-                <h5 className="mb-4">New Message</h5>
+                <h5 className="mb-4">{t('crm.mail.newMessage')}</h5>
                 <div className="max-h-[400px] overflow-y-auto px-1">
                     <MailEditor ref={mailEditorRef} mode="new" />
                 </div>
@@ -55,10 +57,10 @@ const MainCompose = () => {
                         variant="plain"
                         onClick={onDialogClose}
                     >
-                        Discard
+                        {t('text.actions.discard')}
                     </Button>
                     <Button variant="solid" onClick={onSend}>
-                        Send
+                        {t('text.actions.send')}
                     </Button>
                 </div>
             </Dialog>

@@ -6,8 +6,10 @@ import {
 } from '../store'
 import cloneDeep from 'lodash/cloneDeep'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
+import { useTranslation } from 'react-i18next'
 
 const DeletePaymentMethod = () => {
+    const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const data = useAppSelector(
         (state) => state.crmCustomerDetails.data.paymentMethodData,
@@ -36,14 +38,14 @@ const DeletePaymentMethod = () => {
         <ConfirmDialog
             isOpen={dialogOpen}
             type="danger"
-            title="Remove payment method"
+            title={t('crm.customerDetail.removePaymentMethod')}
             confirmButtonColor="red-600"
             onClose={onDialogClose}
             onRequestClose={onDialogClose}
             onCancel={onDialogClose}
             onConfirm={onDelete}
         >
-            <p> Are you sure you want to remove this payment method? </p>
+            <p>{t('crm.customerDetail.removePaymentMethodConfirm')}</p>
         </ConfirmDialog>
     )
 }

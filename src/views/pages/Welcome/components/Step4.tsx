@@ -13,44 +13,46 @@ import {
 import type { CallbackSetBack } from '../types'
 import type { FieldProps } from 'formik'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 type Step4Props = CallbackSetBack
 
 const roles: {
     value: string
-    label: string
+    labelKey: string
     icon: ReactNode
     disabled?: boolean
 }[] = [
     {
         value: '0',
-        label: 'Start project from scratch',
+        labelKey: 'welcome.step4.items.startScratch',
         icon: <HiOutlineBookOpen />,
     },
     {
         value: '1',
-        label: 'Automate time consuming tasks',
+        labelKey: 'welcome.step4.items.automateTasks',
         icon: <HiOutlineClock />,
     },
     {
         value: '2',
-        label: 'Enhance current workflow',
+        labelKey: 'welcome.step4.items.enhanceWorkflow',
         icon: <HiOutlineAdjustments />,
     },
-    { value: '3', label: 'Others', icon: <HiOutlineSparkles /> },
+    { value: '3', labelKey: 'welcome.step4.items.other', icon: <HiOutlineSparkles /> },
 ]
 
 const Step4 = ({ onNext, onBack }: Step4Props) => {
+    const { t } = useTranslation()
     return (
         <div className="text-center">
-            <h3 className="mb-2">What is your main objective with Elstar?</h3>
+            <h3 className="mb-2">{t('welcome.step4.title')}</h3>
             <div className="mt-8 max-w-[600px] lg:min-w-[600px] mx-auto">
                 <Formik
                     initialValues={{
                         role: '',
                     }}
                     onSubmit={() => {
-                        console.log()
+                        // no-op
                     }}
                 >
                     {({ touched, errors }) => {
@@ -77,12 +79,8 @@ const Step4 = ({ onNext, onBack }: Step4Props) => {
                                                         {roles.map((item) => (
                                                             <Segment.Item
                                                                 key={item.value}
-                                                                value={
-                                                                    item.value
-                                                                }
-                                                                disabled={
-                                                                    item.disabled
-                                                                }
+                                                                value={item.value}
+                                                                disabled={item.disabled}
                                                             >
                                                                 {({
                                                                     active,
@@ -92,12 +90,8 @@ const Step4 = ({ onNext, onBack }: Step4Props) => {
                                                                     return (
                                                                         <SegmentItemOption
                                                                             hoverable
-                                                                            active={
-                                                                                active
-                                                                            }
-                                                                            disabled={
-                                                                                disabled
-                                                                            }
+                                                                            active={active}
+                                                                            disabled={disabled}
                                                                             className="mb-4 bg-white dark:bg-gray-800 w-auto"
                                                                             onSegmentItemClick={
                                                                                 onSegmentItemClick
@@ -105,15 +99,9 @@ const Step4 = ({ onNext, onBack }: Step4Props) => {
                                                                         >
                                                                             <div className="flex items-center gap-3">
                                                                                 <span className="text-2xl">
-                                                                                    {
-                                                                                        item.icon
-                                                                                    }
+                                                                                    {item.icon}
                                                                                 </span>
-                                                                                <h6>
-                                                                                    {
-                                                                                        item.label
-                                                                                    }
-                                                                                </h6>
+                                                                                <h6>{t(item.labelKey)}</h6>
                                                                             </div>
                                                                         </SegmentItemOption>
                                                                     )
@@ -132,12 +120,12 @@ const Step4 = ({ onNext, onBack }: Step4Props) => {
                                         icon={<HiArrowSmLeft />}
                                         onClick={onBack}
                                     >
-                                        Back
+                                        {t('text.actions.back')}
                                     </Button>
                                 </FormContainer>
                             </Form>
                         )
-                    }}
+                    })}
                 </Formik>
             </div>
         </div>

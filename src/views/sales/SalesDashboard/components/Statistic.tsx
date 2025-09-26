@@ -3,6 +3,7 @@ import { NumericFormat } from 'react-number-format'
 import GrowShrinkTag from '@/components/shared/GrowShrinkTag'
 import { useAppSelector } from '../store'
 import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
 
 type StatisticCardProps = {
     data?: {
@@ -37,6 +38,7 @@ const StatisticCard = ({
     valuePrefix,
     date,
 }: StatisticCardProps) => {
+    const { t } = useTranslation()
     return (
         <Card>
             <h6 className="font-semibold mb-4 text-sm">{label}</h6>
@@ -51,10 +53,10 @@ const StatisticCard = ({
                         />
                     </h3>
                     <p>
-                        vs. 3 months prior to{' '}
-                        <span className="font-semibold">
-                            {dayjs(date).format('DD MMM')}
-                        </span>
+                        {t('sales.dashboard.stat.vsMonths', {
+                            months: 3,
+                            date: dayjs(date).format('DD MMM'),
+                        })}
                     </p>
                 </div>
                 <GrowShrinkTag value={data.growShrink} suffix="%" />
@@ -68,19 +70,20 @@ const Statistic = ({ data = {} }: StatisticProps) => {
         (state) => state.salesDashboard.data.startDate,
     )
 
+    const { t } = useTranslation()
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-4">
             <StatisticCard
                 data={data.revenue}
                 valuePrefix="$"
-                label="Revenue"
+                label={t('sales.dashboard.stat.revenue')}
                 date={startDate}
             />
-            <StatisticCard data={data.orders} label="Orders" date={startDate} />
+            <StatisticCard data={data.orders} label={t('sales.dashboard.stat.orders')} date={startDate} />
             <StatisticCard
                 data={data.purchases}
                 valuePrefix="$"
-                label="Purchases"
+                label={t('sales.dashboard.stat.purchases')}
                 date={startDate}
             />
         </div>

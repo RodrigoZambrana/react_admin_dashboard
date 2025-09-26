@@ -10,6 +10,7 @@ import { HiLocationMarker, HiPhone } from 'react-icons/hi'
 import useThemeClass from '@/utils/hooks/useThemeClass'
 import { useAppSelector } from '@/store'
 import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
 import type { Product, Summary } from './ContentTable'
 
 type Invoice = {
@@ -29,6 +30,7 @@ type GetAccountInvoiceDataResponse = Invoice
 
 const InvoiceContent = () => {
     const { textTheme } = useThemeClass()
+    const { t } = useTranslation()
 
     const location = useLocation()
 
@@ -74,16 +76,16 @@ const InvoiceContent = () => {
                                     <br />
                                     <span>Fairfield, Chicago Town 06824</span>
                                     <br />
-                                    <abbr title="Phone">Phone:</abbr>
+                                    <abbr title="Phone">{t('text.labels.phone')}:</abbr>
                                     <span>(123) 456-7890</span>
                                 </div>
                             </address>
                         </div>
                         <div className="my-4">
                             <div className="mb-2">
-                                <h4>Invoice #{data?.id}</h4>
+                                <h4>{t('text.titles.invoice')} #{data?.id}</h4>
                                 <span>
-                                    Date:{' '}
+                                    {t('text.labels.date')}: 
                                     {dayjs
                                         .unix(data.dateTime as number)
                                         .format('dddd, DD MMMM, YYYY')}
@@ -116,11 +118,10 @@ const InvoiceContent = () => {
                     />
                     <div className="print:hidden mt-6 flex items-center justify-between">
                         <small className="italic">
-                            Invoice was created on a computer and is valid
-                            without the signature and seal.
+                            {t('text.messages.invoiceNote')}
                         </small>
                         <Button variant="solid" onClick={() => window.print()}>
-                            Print
+                            {t('text.actions.print')}
                         </Button>
                     </div>
                 </>

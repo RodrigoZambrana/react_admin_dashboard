@@ -2,6 +2,7 @@ import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import Chart from '@/components/shared/Chart'
 import { COLORS } from '@/constants/chart.constant'
+import { useTranslation } from 'react-i18next'
 
 type SalesByCategoriesProps = {
     data?: {
@@ -13,9 +14,10 @@ type SalesByCategoriesProps = {
 const SalesByCategories = ({
     data = { labels: [], data: [] },
 }: SalesByCategoriesProps) => {
+    const { t } = useTranslation()
     return (
         <Card>
-            <h4>Categories</h4>
+            <h4>{t('sales.dashboard.categories.title')}</h4>
             <div className="mt-6">
                 {data.data.length > 0 && (
                     <>
@@ -24,7 +26,7 @@ const SalesByCategories = ({
                                 (a, b) => a + b,
                                 0,
                             )}`}
-                            donutText="Product Sold"
+                            donutText={t('sales.dashboard.categories.donutText')}
                             series={data.data}
                             customOptions={{ labels: data.labels }}
                             type="donut"

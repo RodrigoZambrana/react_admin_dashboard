@@ -14,6 +14,7 @@ import Checkbox from '@/components/ui/Checkbox'
 import Radio from '@/components/ui/Radio'
 import Drawer from '@/components/ui/Drawer'
 import { Field, Form, Formik, FormikProps, FieldProps } from 'formik'
+import { useTranslation } from 'react-i18next'
 import type { MouseEvent } from 'react'
 
 type FormModel = {
@@ -35,6 +36,7 @@ type DrawerFooterProps = {
 const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
     ({ onSubmitComplete }, ref) => {
         const dispatch = useAppDispatch()
+        const { t } = useTranslation()
 
         const filterData = useAppSelector(
             (state) => state.salesProductList.data.filterData,
@@ -62,12 +64,12 @@ const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
                                 invalid={errors.name && touched.name}
                                 errorMessage={errors.name}
                             >
-                                <h6 className="mb-4">Included text</h6>
+                                <h6 className="mb-4">{t('sales.productList.filter.includedText')}</h6>
                                 <Field
                                     type="text"
                                     autoComplete="off"
                                     name="name"
-                                    placeholder="Keyword"
+                                    placeholder={t('sales.productList.filter.keyword')}
                                     component={Input}
                                     prefix={
                                         <HiOutlineSearch className="text-lg" />
@@ -78,7 +80,7 @@ const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
                                 invalid={errors.category && touched.category}
                                 errorMessage={errors.category as string}
                             >
-                                <h6 className="mb-4">Product Category</h6>
+                                <h6 className="mb-4">{t('sales.productList.filter.productCategory')}</h6>
                                 <Field name="category">
                                     {({ field, form }: FieldProps) => (
                                         <>
@@ -97,34 +99,34 @@ const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
                                                     name={field.name}
                                                     value="bags"
                                                 >
-                                                    Bags{' '}
+                                                    {t('sales.productForm.categories.bags')}
                                                 </Checkbox>
                                                 <Checkbox
                                                     className="mb-3"
                                                     name={field.name}
                                                     value="cloths"
                                                 >
-                                                    Cloths{' '}
+                                                    {t('sales.productForm.categories.cloths')}
                                                 </Checkbox>
                                                 <Checkbox
                                                     className="mb-3"
                                                     name={field.name}
                                                     value="devices"
                                                 >
-                                                    Devices{' '}
+                                                    {t('sales.productForm.categories.devices')}
                                                 </Checkbox>
                                                 <Checkbox
                                                     className="mb-3"
                                                     name={field.name}
                                                     value="shoes"
                                                 >
-                                                    Shoes{' '}
+                                                    {t('sales.productForm.categories.shoes')}
                                                 </Checkbox>
                                                 <Checkbox
                                                     name={field.name}
                                                     value="watches"
                                                 >
-                                                    Watches{' '}
+                                                    {t('sales.productForm.categories.watches')}
                                                 </Checkbox>
                                             </Checkbox.Group>
                                         </>
@@ -135,7 +137,7 @@ const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
                                 invalid={errors.status && touched.status}
                                 errorMessage={errors.status as string}
                             >
-                                <h6 className="mb-4">Product Category</h6>
+                                <h6 className="mb-4">{t('sales.productList.filter.productStatus')}</h6>
                                 <Field name="status">
                                     {({ field, form }: FieldProps) => (
                                         <>
@@ -154,21 +156,21 @@ const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
                                                     name={field.name}
                                                     value={0}
                                                 >
-                                                    In Stock{' '}
+                                                    {t('text.status.inStock')}
                                                 </Checkbox>
                                                 <Checkbox
                                                     className="mb-3"
                                                     name={field.name}
                                                     value={1}
                                                 >
-                                                    Limited{' '}
+                                                    {t('text.status.limited')}
                                                 </Checkbox>
                                                 <Checkbox
                                                     className="mb-3"
                                                     name={field.name}
                                                     value={2}
                                                 >
-                                                    Out Of Stock{' '}
+                                                    {t('text.status.outOfStock')}
                                                 </Checkbox>
                                             </Checkbox.Group>
                                         </>
@@ -182,7 +184,7 @@ const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
                                 }
                                 errorMessage={errors.productStatus}
                             >
-                                <h6 className="mb-4">Product Status</h6>
+                                <h6 className="mb-4">{t('sales.productList.filter.publicationStatus')}</h6>
                                 <Field name="productStatus">
                                     {({ field, form }: FieldProps) => (
                                         <Radio.Group
@@ -195,9 +197,9 @@ const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
                                                 )
                                             }
                                         >
-                                            <Radio value={0}>Published</Radio>
-                                            <Radio value={1}>Disabled</Radio>
-                                            <Radio value={2}>Archive</Radio>
+                                            <Radio value={0}>{t('text.status.published')}</Radio>
+                                            <Radio value={1}>{t('text.status.disabled')}</Radio>
+                                            <Radio value={2}>{t('text.status.archive')}</Radio>
                                         </Radio.Group>
                                     )}
                                 </Field>
@@ -211,19 +213,21 @@ const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
 )
 
 const DrawerFooter = ({ onSaveClick, onCancel }: DrawerFooterProps) => {
+    const { t } = useTranslation()
     return (
         <div className="text-right w-full">
             <Button size="sm" className="mr-2" onClick={onCancel}>
-                Cancel
+                {t('text.actions.cancel')}
             </Button>
             <Button size="sm" variant="solid" onClick={onSaveClick}>
-                Query
+                {t('text.actions.query')}
             </Button>
         </div>
     )
 }
 
 const ProductFilter = () => {
+    const { t } = useTranslation()
     const formikRef = useRef<FormikProps<FormModel>>(null)
 
     const [isOpen, setIsOpen] = useState(false)
@@ -248,10 +252,10 @@ const ProductFilter = () => {
                 icon={<HiOutlineFilter />}
                 onClick={() => openDrawer()}
             >
-                Filter
+                {t('text.actions.filter')}
             </Button>
             <Drawer
-                title="Filter"
+                title={t('text.actions.filter')}
                 isOpen={isOpen}
                 footer={
                     <DrawerFooter

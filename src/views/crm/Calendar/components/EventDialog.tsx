@@ -11,6 +11,7 @@ import { Field, Form, Formik, FieldProps } from 'formik'
 import { HiCheck } from 'react-icons/hi'
 import { components, ControlProps, OptionProps } from 'react-select'
 import * as Yup from 'yup'
+import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
 
 type FormModel = {
@@ -162,15 +163,17 @@ const CustomControl = ({ children, ...props }: ControlProps<ColorOption>) => {
     )
 }
 
-const validationSchema = Yup.object().shape({
-    title: Yup.string().required('Event title Required'),
-    startDate: Yup.date().required('Start Date Required'),
-    endDate: Yup.date(),
-    color: Yup.string().required('Color Required'),
-})
+const useValidationSchema = (t: (k: string) => string) =>
+    Yup.object().shape({
+        title: Yup.string().required(t('text.validation.eventTitleRequired')),
+        startDate: Yup.date().required(t('text.validation.startDateRequired')),
+        endDate: Yup.date(),
+        color: Yup.string().required(t('text.validation.colorRequired')),
+    })
 
 const EventDialog = ({ submit }: EventDialogProps) => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const open = useAppSelector((state) => state.crmCalendar.data.dialogOpen)
     const selected = useAppSelector((state) => state.crmCalendar.data.selected)
@@ -205,7 +208,9 @@ const EventDialog = ({ submit }: EventDialogProps) => {
             onRequestClose={handleDialogClose}
         >
             <h5 className="mb-4">
-                {selected.type === 'NEW' ? 'Add New Event' : 'Edit Event'}
+                {selected.type === 'NEW'
+                    ? t('text.titles.addEvent')
+                    : t('text.titles.editEvent')}
             </h5>
             <div>
                 <Formik
@@ -220,7 +225,7 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                             : '',
                         color: selected.eventColor || colorOptions[0].value,
                     }}
-                    validationSchema={validationSchema}
+                    validationSchema={useValidationSchema(t)}
                     onSubmit={(values, { setSubmitting }) => {
                         handleSubmit(values, setSubmitting)
                     }}
@@ -229,7 +234,7 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                         <Form>
                             <FormContainer>
                                 <FormItem
-                                    label="User Name"
+                                    label={t('text.labels.eventTitle')}
                                     invalid={errors.title && touched.title}
                                     errorMessage={errors.title}
                                 >
@@ -237,18 +242,18 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                                         type="text"
                                         autoComplete="off"
                                         name="title"
-                                        placeholder="Please enter title"
+                                        placeholder={t('text.placeholders.eventTitle')}
                                         component={Input}
                                     />
                                 </FormItem>
                                 <FormItem
-                                    label="Start Date"
+                                    label={t('text.labels.startDate')}
                                     invalid={
                                         errors.startDate && touched.startDate
                                     }
                                     errorMessage={errors.startDate}
                                 >
-                                    <Field name="startDate" placeholder="Date">
+                                    <Field name="startDate" placeholder={t('text.placeholders.date')}>
                                         {({ field, form }: FieldProps) => (
                                             <DatePicker
                                                 field={field}
@@ -265,11 +270,11 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                                     </Field>
                                 </FormItem>
                                 <FormItem
-                                    label="End Date"
+                                    label={t('text.labels.endDate')}
                                     invalid={errors.endDate && touched.endDate}
                                     errorMessage={errors.endDate}
                                 >
-                                    <Field name="endDate" placeholder="Date">
+                                    <Field name="endDate" placeholder={t('text.placeholders.date')}>
                                         {({ field, form }: FieldProps) => (
                                             <DatePicker
                                                 field={field}
@@ -286,7 +291,7 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                                     </Field>
                                 </FormItem>
                                 <FormItem
-                                    label="Prefered"
+                                    label={t('text.labels.preferredColor')}
                                     asterisk={true}
                                     invalid={errors.color && touched.color}
                                     errorMessage={errors.color}
@@ -318,7 +323,7 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                                 </FormItem>
                                 <FormItem className="mb-0 text-right rtl:text-left">
                                     <Button variant="solid" type="submit">
-                                        Submit
+                                        {t('text.actions.submit')}
                                     </Button>
                                 </FormItem>
                             </FormContainer>
