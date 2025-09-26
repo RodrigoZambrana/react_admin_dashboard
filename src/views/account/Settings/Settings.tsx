@@ -3,6 +3,7 @@ import Tabs from '@/components/ui/Tabs'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Container from '@/components/shared/Container'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import isEmpty from 'lodash/isEmpty'
 import { apiGetAccountSettingData } from '@/services/AccountServices'
 
@@ -12,9 +13,7 @@ type AccountSetting = {
         email: string
         title: string
         avatar: string
-        timeZone: string
         lang: string
-        syncData: boolean
     }
     loginHistory: {
         type: string
@@ -48,22 +47,17 @@ const Billing = lazy(() => import('./components/Billing'))
 
 const { TabNav, TabList } = Tabs
 
-const settingsMenu: Record<
-    string,
-    {
-        label: string
-        path: string
-    }
-> = {
-    profile: { label: 'Profile', path: 'profile' },
-    password: { label: 'Password', path: 'password' },
-    notification: { label: 'Notification', path: 'notification' },
-    integration: { label: 'Integration', path: 'integration' },
-    billing: { label: 'Billing', path: 'billing' },
+const settingsMenu: Record<string, { path: string }> = {
+    profile: { path: 'profile' },
+    password: { path: 'password' },
+    notification: { path: 'notification' },
+    integration: { path: 'integration' },
+    billing: { path: 'billing' },
 }
 
 const Settings = () => {
     const [currentTab, setCurrentTab] = useState('profile')
+    const { t } = useTranslation()
     const [data, setData] = useState<Partial<AccountSetting>>({})
 
     const navigate = useNavigate()
@@ -99,7 +93,7 @@ const Settings = () => {
                     <TabList>
                         {Object.keys(settingsMenu).map((key) => (
                             <TabNav key={key} value={key}>
-                                {settingsMenu[key].label}
+                                {t(`account.settings.tabs.${key}`)}
                             </TabNav>
                         ))}
                     </TabList>

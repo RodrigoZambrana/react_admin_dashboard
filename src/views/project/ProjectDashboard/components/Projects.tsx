@@ -2,6 +2,7 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { useNavigate } from 'react-router-dom'
 import ListItem, { ListItemData } from '../../ProjectList/components/ListItem'
+import { useTranslation } from 'react-i18next'
 
 type ProjectsProps = {
     data?: ListItemData[]
@@ -9,6 +10,7 @@ type ProjectsProps = {
 
 const Projects = ({ data = [] }: ProjectsProps) => {
     const navigate = useNavigate()
+    const { t } = useTranslation()
 
     const onViewAllProjects = () => {
         navigate('/app/project/project-list')
@@ -17,9 +19,9 @@ const Projects = ({ data = [] }: ProjectsProps) => {
     return (
         <Card>
             <div className="flex items-center justify-between mb-6">
-                <h4>Projects</h4>
+                <h4>{t('project.dashboard.projects')}</h4>
                 <Button size="sm" onClick={onViewAllProjects}>
-                    View All
+                    {t('text.actions.viewAll')}
                 </Button>
             </div>
             {data.map((project) => (

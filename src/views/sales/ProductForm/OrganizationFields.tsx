@@ -4,6 +4,7 @@ import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import CreatableSelect from 'react-select/creatable'
 import { Field, FormikErrors, FormikTouched, FieldProps } from 'formik'
+import { useTranslation } from 'react-i18next'
 
 type Options = {
     label: string
@@ -28,29 +29,30 @@ type OrganizationFieldsProps = {
 }
 
 const categories = [
-    { label: 'Bags', value: 'bags' },
-    { label: 'Cloths', value: 'cloths' },
-    { label: 'Devices', value: 'devices' },
-    { label: 'Shoes', value: 'shoes' },
-    { label: 'Watches', value: 'watches' },
+    { key: 'bags', value: 'bags' },
+    { key: 'cloths', value: 'cloths' },
+    { key: 'devices', value: 'devices' },
+    { key: 'shoes', value: 'shoes' },
+    { key: 'watches', value: 'watches' },
 ]
 
 const tags = [
-    { label: 'trend', value: 'trend' },
-    { label: 'unisex', value: 'unisex' },
+    { key: 'trend', value: 'trend' },
+    { key: 'unisex', value: 'unisex' },
 ]
 
 const OrganizationFields = (props: OrganizationFieldsProps) => {
     const { values = { category: '', tags: [] }, touched, errors } = props
+    const { t } = useTranslation()
 
     return (
         <AdaptableCard divider isLastChild className="mb-4">
-            <h5>Organizations</h5>
-            <p className="mb-6">Section to config the product attribute</p>
+            <h5>{t('sales.productForm.organizations.title')}</h5>
+            <p className="mb-6">{t('sales.productForm.organizations.desc')}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="col-span-1">
                     <FormItem
-                        label="Category"
+                        label={t('text.labels.category')}
                         invalid={
                             (errors.category && touched.category) as boolean
                         }
@@ -61,7 +63,12 @@ const OrganizationFields = (props: OrganizationFieldsProps) => {
                                 <Select
                                     field={field}
                                     form={form}
-                                    options={categories}
+                                    options={categories.map((c) => ({
+                                        value: c.value,
+                                        label: t(
+                                            `sales.productForm.categories.${c.key}`,
+                                        ),
+                                    }))}
                                     value={categories.filter(
                                         (category) =>
                                             category.value === values.category,
@@ -79,7 +86,7 @@ const OrganizationFields = (props: OrganizationFieldsProps) => {
                 </div>
                 <div className="col-span-1">
                     <FormItem
-                        label="Tags"
+                        label={t('text.labels.tags')}
                         invalid={
                             (errors.tags && touched.tags) as unknown as boolean
                         }
@@ -92,7 +99,12 @@ const OrganizationFields = (props: OrganizationFieldsProps) => {
                                     componentAs={CreatableSelect}
                                     field={field}
                                     form={form}
-                                    options={tags}
+                                    options={tags.map((tg) => ({
+                                        value: tg.value,
+                                        label: t(
+                                            `sales.productForm.tags.${tg.key}`,
+                                        ),
+                                    }))}
                                     value={values.tags}
                                     onChange={(option) =>
                                         form.setFieldValue(field.name, option)
@@ -106,7 +118,7 @@ const OrganizationFields = (props: OrganizationFieldsProps) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="col-span-1">
                     <FormItem
-                        label="Brand"
+                        label={t('text.labels.brand')}
                         invalid={(errors.brand && touched.brand) as boolean}
                         errorMessage={errors.brand}
                     >
@@ -114,14 +126,14 @@ const OrganizationFields = (props: OrganizationFieldsProps) => {
                             type="text"
                             autoComplete="off"
                             name="brand"
-                            placeholder="Brand"
+                            placeholder={t('text.labels.brand')}
                             component={Input}
                         />
                     </FormItem>
                 </div>
                 <div className="col-span-1">
                     <FormItem
-                        label="Vendor"
+                        label={t('text.labels.vendor')}
                         invalid={(errors.vendor && touched.vendor) as boolean}
                         errorMessage={errors.vendor}
                     >
@@ -129,7 +141,7 @@ const OrganizationFields = (props: OrganizationFieldsProps) => {
                             type="text"
                             autoComplete="off"
                             name="vendor"
-                            placeholder="Vendor"
+                            placeholder={t('text.labels.vendor')}
                             component={Input}
                         />
                     </FormItem>

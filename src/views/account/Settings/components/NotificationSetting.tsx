@@ -8,6 +8,7 @@ import FormRow from './FormRow'
 import { Field, Form, Formik } from 'formik'
 import isLastChild from '@/utils/isLastChild'
 import { HiMail, HiGlobeAlt, HiOutlineDeviceMobile } from 'react-icons/hi'
+import { useTranslation } from 'react-i18next'
 import type {
     FieldProps,
     FormikTouched,
@@ -35,7 +36,7 @@ type NotificationSettingProps = {
 
 type RowsProps = {
     rows: {
-        label: string
+        labelKey: string
         name: string
     }[]
     validators: {
@@ -53,25 +54,32 @@ type SelectorProps = {
 }
 
 const generalNotificationForm = [
-    { label: 'News', name: 'news' },
-    { label: 'Account activity', name: 'accountActivity' },
-    { label: 'New device used to sign in', name: 'signIn' },
-    { label: 'Reminders', name: 'reminders' },
+    { labelKey: 'account.settings.notification.general.news', name: 'news' },
+    {
+        labelKey: 'account.settings.notification.general.accountActivity',
+        name: 'accountActivity',
+    },
+    {
+        labelKey: 'account.settings.notification.general.signIn',
+        name: 'signIn',
+    },
+    { labelKey: 'account.settings.notification.general.reminders', name: 'reminders' },
 ]
 
 const projectNotificationForm = [
-    { label: 'Somone mentions you', name: 'mentioned' },
-    { label: 'Somone replies to your message', name: 'replies' },
-    { label: 'Task status updated', name: 'taskUpdate' },
-    { label: 'Task assigned to you', name: 'assigned' },
+    { labelKey: 'account.settings.notification.project.mentioned', name: 'mentioned' },
+    { labelKey: 'account.settings.notification.project.replies', name: 'replies' },
+    { labelKey: 'account.settings.notification.project.taskUpdate', name: 'taskUpdate' },
+    { labelKey: 'account.settings.notification.project.assigned', name: 'assigned' },
 ]
 
 const salesNotificationForm = [
-    { label: 'New product', name: 'newProduct' },
-    { label: 'New order placed', name: 'newOrder' },
+    { labelKey: 'account.settings.notification.sales.newProduct', name: 'newProduct' },
+    { labelKey: 'account.settings.notification.sales.newOrder', name: 'newOrder' },
 ]
 
 const Selector = ({ field, form, values, name }: SelectorProps) => {
+    const { t } = useTranslation()
     return (
         <Segment
             value={values[name as keyof NotificationFormModel]}
@@ -84,7 +92,7 @@ const Selector = ({ field, form, values, name }: SelectorProps) => {
                 value="email"
             >
                 <HiMail className="text-xl" />
-                <span className="hidden sm:block ltr:ml-2 rtl:mr-2">Email</span>
+                <span className="hidden sm:block ltr:ml-2 rtl:mr-2">{t('account.settings.notification.channels.email')}</span>
             </Segment.Item>
             <Segment.Item
                 className="flex items-center justify-center"
@@ -92,9 +100,7 @@ const Selector = ({ field, form, values, name }: SelectorProps) => {
                 value="browser"
             >
                 <HiGlobeAlt className="text-xl" />
-                <span className="hidden sm:block  ltr:ml-2 rtl:mr-2">
-                    Browser
-                </span>
+                <span className="hidden sm:block  ltr:ml-2 rtl:mr-2">{t('account.settings.notification.channels.browser')}</span>
             </Segment.Item>
             <Segment.Item
                 className="flex items-center justify-center"
@@ -102,20 +108,21 @@ const Selector = ({ field, form, values, name }: SelectorProps) => {
                 value="app"
             >
                 <HiOutlineDeviceMobile className="text-xl" />
-                <span className="hidden sm:block  ltr:ml-2 rtl:mr-2">App</span>
+                <span className="hidden sm:block  ltr:ml-2 rtl:mr-2">{t('account.settings.notification.channels.app')}</span>
             </Segment.Item>
         </Segment>
     )
 }
 
 const Rows = ({ rows, validators, values }: RowsProps) => {
+    const { t } = useTranslation()
     return (
         <>
             {rows.map((row, index) => (
                 <FormRow
                     key={row.name}
                     name={row.name as keyof NotificationFormModel}
-                    label={row.label}
+                    label={t(row.labelKey as string)}
                     {...validators}
                     border={!isLastChild(rows, index)}
                 >
@@ -152,13 +159,15 @@ const NotificationSetting = ({
         newOrder: [],
     },
 }: NotificationSettingProps) => {
+    const { t } = useTranslation()
+
     const onFormSubmit = (
         values: NotificationFormModel,
         setSubmitting: (isSubmitting: boolean) => void,
     ) => {
         toast.push(
             <Notification
-                title={'Notification setting updated'}
+                title={t('account.settings.notification.updated')}
                 type="success"
             />,
             {
@@ -186,8 +195,8 @@ const NotificationSetting = ({
                     <Form>
                         <FormContainer>
                             <FormDesription
-                                title="General Notification"
-                                desc="Select how you'll be notified when the following changes occur."
+                                title={t('account.settings.notification.general.title')}
+                                desc={t('account.settings.notification.general.desc')}
                             />
                             <Rows
                                 rows={generalNotificationForm}
@@ -196,8 +205,8 @@ const NotificationSetting = ({
                             />
                             <FormDesription
                                 className="mt-6"
-                                title="Project Notification"
-                                desc="Select how you'll be notified when the project related events happended."
+                                title={t('account.settings.notification.project.title')}
+                                desc={t('account.settings.notification.project.desc')}
                             />
                             <Rows
                                 rows={projectNotificationForm}
@@ -206,8 +215,8 @@ const NotificationSetting = ({
                             />
                             <FormDesription
                                 className="mt-6"
-                                title="Sales Notification"
-                                desc="Select how you'll be notified when any products & order updated."
+                                title={t('account.settings.notification.sales.title')}
+                                desc={t('account.settings.notification.sales.desc')}
                             />
                             <Rows
                                 rows={salesNotificationForm}
@@ -219,15 +228,15 @@ const NotificationSetting = ({
                                     className="ltr:mr-2 rtl:ml-2"
                                     type="button"
                                     onClick={() => resetForm()}
-                                >
-                                    Reset
-                                </Button>
+                                >{t('text.actions.reset')}</Button>
                                 <Button
                                     variant="solid"
                                     loading={isSubmitting}
                                     type="submit"
                                 >
-                                    {isSubmitting ? 'Updating' : 'Update'}
+                                    {isSubmitting
+                                        ? t('text.actions.updating')
+                                        : t('text.actions.update')}
                                 </Button>
                             </div>
                         </FormContainer>

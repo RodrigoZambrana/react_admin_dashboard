@@ -12,11 +12,12 @@ import {
     Mail,
 } from '../store'
 import * as Yup from 'yup'
+import { useTranslation } from 'react-i18next'
 import type { RichTextEditorRef } from '@/components/shared/RichTextEditor'
 
 const validationSchema = Yup.object().shape({
-    title: Yup.string().required('Title Required'),
-    to: Yup.string().required('Receiver Required'),
+    title: Yup.string().required('text.validation.titleRequired'),
+    to: Yup.string().required('text.validation.receiverRequired'),
     cc: Yup.string(),
     bcc: Yup.string(),
     message: Yup.string(),
@@ -44,6 +45,7 @@ export type MailEditorRef = {
 
 const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
     const { mode = 'new', mail = {} } = props
+    const { t } = useTranslation()
 
     const formikRef = useRef<FormikRef>(null)
     const editorRef = useRef<RichTextEditorRef>(null)
@@ -68,7 +70,7 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
     }
 
     const onSend = () => {
-        toast.push(<Notification type="success" title="Mail Sent" />, {
+        toast.push(<Notification type="success" title={t('crm.mail.sent')} />, {
             placement: 'top-center',
         })
 
@@ -101,7 +103,7 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
                     <FormContainer>
                         <FormItem
                             className={mode === 'reply' ? 'hidden!' : ''}
-                            label="Title"
+                            label={t('text.labels.title')}
                             labelClass="justify-start!"
                             invalid={errors.title && touched.title}
                             errorMessage={errors.title}
@@ -114,7 +116,7 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
                         </FormItem>
                         <FormItem
                             className={mode === 'reply' ? 'hidden!' : ''}
-                            label="To"
+                            label={t('text.labels.to')}
                             labelClass="justify-start!"
                             invalid={errors.to && touched.to}
                             errorMessage={errors.to}
@@ -129,13 +131,13 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
                                             className="cursor-pointer select-none hover:underline ltr:mr-2 rtl:ml-2"
                                             onClick={onCcClick}
                                         >
-                                            Cc
+                                            {t('text.labels.cc')}
                                         </span>
                                         <span
                                             className="cursor-pointer select-none hover:underline"
                                             onClick={onBccClick}
                                         >
-                                            Bcc
+                                            {t('text.labels.bcc')}
                                         </span>
                                     </div>
                                 }
@@ -143,7 +145,7 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
                         </FormItem>
                         <FormItem
                             className={!showCC ? 'hidden!' : ''}
-                            label="Cc"
+                            label={t('text.labels.cc')}
                             labelClass="justify-start!"
                             invalid={errors.cc && touched.cc}
                             errorMessage={errors.cc}
@@ -156,7 +158,7 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
                         </FormItem>
                         <FormItem
                             className={!showBcc ? 'hidden!' : ''}
-                            label="Bcc"
+                            label={t('text.labels.bcc')}
                             labelClass="justify-start!"
                             invalid={errors.bcc && touched.bcc}
                             errorMessage={errors.bcc}
@@ -168,7 +170,7 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
                             />
                         </FormItem>
                         <FormItem
-                            label={mode === 'new' ? 'Message' : ''}
+                            label={mode === 'new' ? t('text.labels.message') : ''}
                             className="mb-0"
                             labelClass="justify-start!"
                             invalid={errors.message && touched.message}

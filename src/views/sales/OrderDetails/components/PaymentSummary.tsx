@@ -1,4 +1,5 @@
 import Card from '@/components/ui/Card'
+import { useTranslation } from 'react-i18next'
 import { NumericFormat } from 'react-number-format'
 
 type PaymentInfoProps = {
@@ -39,15 +40,16 @@ const PaymentInfo = ({ label, value, isLast }: PaymentInfoProps) => {
 }
 
 const PaymentSummary = ({ data }: PaymentSummaryProps) => {
+    const { t } = useTranslation()
     return (
         <Card className="mb-4">
-            <h5 className="mb-4">Payment Summary</h5>
+            <h5 className="mb-4">{t('text.titles.paymentSummary')}</h5>
             <ul>
-                <PaymentInfo label="Subtotal" value={data?.subTotal} />
-                <PaymentInfo label="Delivery fee" value={data?.deliveryFees} />
-                <PaymentInfo label="Tax(6%)" value={data?.tax} />
+                <PaymentInfo label={t('text.labels.subtotal')} value={data?.subTotal} />
+                <PaymentInfo label={t('text.labels.deliveryFee')} value={data?.deliveryFees} />
+                <PaymentInfo label={t('text.labels.tax6')} value={data?.tax} />
                 <hr className="mb-3" />
-                <PaymentInfo isLast label="Total" value={data?.total} />
+                <PaymentInfo isLast label={t('text.columns.total')} value={data?.total} />
             </ul>
         </Card>
     )

@@ -2,6 +2,7 @@ import Avatar from '@/components/ui/Avatar'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { NumericFormat } from 'react-number-format'
+import { useTranslation } from 'react-i18next'
 
 type ShippingInfoProps = {
     data?: {
@@ -14,17 +15,17 @@ type ShippingInfoProps = {
 }
 
 const ShippingInfo = ({ data }: ShippingInfoProps) => {
+    const { t } = useTranslation()
     return (
         <Card className="mb-4">
-            <h5 className="mb-4">Shipping</h5>
+            <h5 className="mb-4">{t('text.titles.shipping')}</h5>
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center">
                     <Avatar size={60} src={data?.shippingLogo} />
                     <div className="ltr:ml-2 rtl:mr-2">
                         <h6>{data?.shippingVendor}</h6>
                         <span>
-                            Delivery in {data?.estimatedMin} ~{' '}
-                            {data?.estimatedMax} days
+                            {t('text.labels.deliveryIn')} {data?.estimatedMin} ~ {data?.estimatedMax} {t('text.labels.days')}
                         </span>
                     </div>
                 </div>
@@ -39,7 +40,7 @@ const ShippingInfo = ({ data }: ShippingInfoProps) => {
                     />
                 </span>
             </div>
-            <Button block>View Carrier Details</Button>
+            <Button block>{t('text.actions.viewCarrierDetails')}</Button>
         </Card>
     )
 }

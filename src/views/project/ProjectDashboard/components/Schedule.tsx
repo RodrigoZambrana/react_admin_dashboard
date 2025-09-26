@@ -5,6 +5,7 @@ import Calendar from '@/components/ui/Calendar'
 import Badge from '@/components/ui/Badge'
 import useThemeClass from '@/utils/hooks/useThemeClass'
 import { HiVideoCamera, HiDocumentText, HiChatAlt2 } from 'react-icons/hi'
+import { useTranslation } from 'react-i18next'
 
 type ScheduleProps = {
     data?: {
@@ -72,6 +73,7 @@ const Schedule = ({ data = [] }: ScheduleProps) => {
     const [value, setValue] = useState<Date | null>()
 
     const { textTheme } = useThemeClass()
+    const { t } = useTranslation()
 
     return (
         <Card className="mb-4">
@@ -117,7 +119,7 @@ const Schedule = ({ data = [] }: ScheduleProps) => {
                 />
             </div>
             <hr className="my-6" />
-            <h5 className="mb-4">Schedule</h5>
+            <h5 className="mb-4">{t('text.titles.schedule')}</h5>
             {data.map((event) => (
                 <div
                     key={event.id}

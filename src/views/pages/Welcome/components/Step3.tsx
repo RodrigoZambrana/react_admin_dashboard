@@ -15,46 +15,48 @@ import {
 import type { CallbackSetBack } from '../types'
 import type { FieldProps } from 'formik'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 type Step3Props = CallbackSetBack
 
 const roles: {
     value: string
-    label: string
+    labelKey: string
     icon: ReactNode
     disabled?: boolean
 }[] = [
     {
         value: 'softwareEngineer',
-        label: 'Software Engineer',
+        labelKey: 'welcome.step3.roles.softwareEngineer',
         icon: <HiOutlineCode />,
     },
     {
         value: 'productManager',
-        label: 'Product Manager',
+        labelKey: 'welcome.step3.roles.productManager',
         icon: <HiOutlineCube />,
     },
-    { value: 'designer', label: 'Designer', icon: <HiOutlinePencil /> },
-    { value: 'qaTester', label: 'QA Tester', icon: <HiOutlineShieldCheck /> },
+    { value: 'designer', labelKey: 'welcome.step3.roles.designer', icon: <HiOutlinePencil /> },
+    { value: 'qaTester', labelKey: 'welcome.step3.roles.qaTester', icon: <HiOutlineShieldCheck /> },
     {
-        value: 'skateHolder',
-        label: 'Skate Holder',
+        value: 'stakeholder',
+        labelKey: 'welcome.step3.roles.stakeholder',
         icon: <HiOutlineAcademicCap />,
     },
-    { value: 'other', label: 'Others', icon: <HiOutlineSparkles /> },
+    { value: 'other', labelKey: 'welcome.step3.roles.other', icon: <HiOutlineSparkles /> },
 ]
 
 const Step3 = ({ onNext, onBack }: Step3Props) => {
+    const { t } = useTranslation()
     return (
         <div className="text-center">
-            <h3 className="mb-2">What is your role in the organization?</h3>
+            <h3 className="mb-2">{t('welcome.step3.title')}</h3>
             <div className="mt-8 max-w-[600px] lg:min-w-[600px] mx-auto">
                 <Formik
                     initialValues={{
                         role: '',
                     }}
                     onSubmit={() => {
-                        console.log()
+                        // no-op
                     }}
                 >
                     {({ touched, errors }) => {
@@ -81,12 +83,8 @@ const Step3 = ({ onNext, onBack }: Step3Props) => {
                                                         {roles.map((item) => (
                                                             <Segment.Item
                                                                 key={item.value}
-                                                                value={
-                                                                    item.value
-                                                                }
-                                                                disabled={
-                                                                    item.disabled
-                                                                }
+                                                                value={item.value}
+                                                                disabled={item.disabled}
                                                             >
                                                                 {({
                                                                     active,
@@ -96,12 +94,8 @@ const Step3 = ({ onNext, onBack }: Step3Props) => {
                                                                     return (
                                                                         <SegmentItemOption
                                                                             hoverable
-                                                                            active={
-                                                                                active
-                                                                            }
-                                                                            disabled={
-                                                                                disabled
-                                                                            }
+                                                                            active={active}
+                                                                            disabled={disabled}
                                                                             className="bg-white dark:bg-gray-800 w-auto"
                                                                             onSegmentItemClick={
                                                                                 onSegmentItemClick
@@ -109,15 +103,9 @@ const Step3 = ({ onNext, onBack }: Step3Props) => {
                                                                         >
                                                                             <div className="flex items-center gap-3">
                                                                                 <span className="text-2xl">
-                                                                                    {
-                                                                                        item.icon
-                                                                                    }
+                                                                                    {item.icon}
                                                                                 </span>
-                                                                                <h6>
-                                                                                    {
-                                                                                        item.label
-                                                                                    }
-                                                                                </h6>
+                                                                                <h6>{t(item.labelKey)}</h6>
                                                                             </div>
                                                                         </SegmentItemOption>
                                                                     )
@@ -136,12 +124,12 @@ const Step3 = ({ onNext, onBack }: Step3Props) => {
                                         icon={<HiArrowSmLeft />}
                                         onClick={onBack}
                                     >
-                                        Back
+                                        {t('text.actions.back')}
                                     </Button>
                                 </FormContainer>
                             </Form>
                         )
-                    }}
+                    })}
                 </Formik>
             </div>
         </div>

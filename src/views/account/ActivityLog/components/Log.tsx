@@ -13,9 +13,11 @@ import {
 } from '../store'
 import isEmpty from 'lodash/isEmpty'
 import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
 
 const Log = () => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
     const logs = useAppSelector((state) => state.accountActivityLog.data.logs)
     const loading = useAppSelector(
         (state) => state.accountActivityLog.data.loading,
@@ -54,7 +56,7 @@ const Log = () => {
                         </div>
                         <Timeline>
                             {isEmpty(log.events) ? (
-                                <Timeline.Item>No Activities</Timeline.Item>
+                                <Timeline.Item>{t('text.messages.noActivities')}</Timeline.Item>
                             ) : (
                                 log.events.map((event, index) => (
                                     <Timeline.Item
@@ -73,10 +75,10 @@ const Log = () => {
                 <div className="text-center">
                     {loadable ? (
                         <Button loading={loadMoreLoading} onClick={onLoadMore}>
-                            Load More
+                            {t('text.actions.loadMore')}
                         </Button>
                     ) : (
-                        'No more activity to load'
+                        t('text.messages.noMoreActivity')
                     )}
                 </div>
             </div>

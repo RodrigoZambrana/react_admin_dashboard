@@ -4,6 +4,7 @@ import Card from '@/components/ui/Card'
 import Avatar from '@/components/ui/Avatar'
 import ScrollBar from '@/components/ui/ScrollBar'
 import Tag from '@/components/ui/Tag'
+import { useTranslation } from 'react-i18next'
 import ReactHtmlParser from 'html-react-parser'
 import { HiOutlineClock } from 'react-icons/hi'
 import {
@@ -42,6 +43,7 @@ const fileIcon = (fileType: string) => {
 const MailDetailContent = forwardRef<ScrollbarRef, MailDetailContentProps>(
     (props, ref) => {
         const { mail = {}, children } = props
+        const { t } = useTranslation()
 
         const label = useMemo(
             () => labelList.find((label) => label.value === mail.label),
@@ -75,7 +77,7 @@ const MailDetailContent = forwardRef<ScrollbarRef, MailDetailContentProps>(
                                                     {msg.name}
                                                 </div>
                                                 <div>
-                                                    To:{' '}
+                                                    {t('text.labels.to')}: 
                                                     {mail.mail?.map(
                                                         (to, index) => (
                                                             <span

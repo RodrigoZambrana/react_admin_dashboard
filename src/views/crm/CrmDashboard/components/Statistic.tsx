@@ -10,6 +10,7 @@ import {
     HiOutlineTrendingDown,
 } from 'react-icons/hi'
 import type { Statistic } from '../store'
+import { useTranslation } from 'react-i18next'
 
 const GrowShrink = ({ value }: { value: number }) => {
     return (
@@ -80,6 +81,9 @@ const StatisticIcon = ({ type }: { type?: string }) => {
 }
 
 const StatisticCard = ({ data = {} }: { data: Partial<Statistic> }) => {
+    const { t } = useTranslation()
+    const labelKey = data.key ? `crm.dashboard.stat.${data.key}` : ''
+    const label = labelKey ? t(labelKey) : data.label
     return (
         <Card>
             <div className="flex items-center gap-4">
@@ -87,11 +91,11 @@ const StatisticCard = ({ data = {} }: { data: Partial<Statistic> }) => {
                 <div>
                     <div className="flex gap-1.5 items-end mb-2">
                         <h3 className="font-bold leading-none">{data.value}</h3>
-                        <p className="font-semibold">{data.label}</p>
+                        <p className="font-semibold">{label}</p>
                     </div>
                     <p className="flex items-center gap-1">
                         <GrowShrink value={data.growShrink || 0} />
-                        <span>this month</span>
+                        <span>{t('crm.dashboard.thisMonth')}</span>
                     </p>
                 </div>
             </div>

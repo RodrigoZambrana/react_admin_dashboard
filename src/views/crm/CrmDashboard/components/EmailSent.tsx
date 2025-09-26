@@ -1,6 +1,7 @@
 import Card from '@/components/ui/Card'
 import Progress from '@/components/ui/Progress'
 import type { Emails } from '../store'
+import { useTranslation } from 'react-i18next'
 
 type EmailSentProps = {
     data?: Partial<Emails>
@@ -8,18 +9,20 @@ type EmailSentProps = {
 }
 
 const ProgressInfo = ({ precent }: { precent?: number }) => {
+    const { t } = useTranslation()
     return (
         <div>
             <h3 className="font-bold">{precent}%</h3>
-            <p>Opened</p>
+            <p>{t('crm.emailSent.opened')}</p>
         </div>
     )
 }
 
 const EmailSent = ({ data = {}, className }: EmailSentProps) => {
+    const { t } = useTranslation()
     return (
         <Card className={className}>
-            <h4>Email Sent</h4>
+            <h4>{t('crm.emailSent.title')}</h4>
             <div className="mt-6">
                 <Progress
                     variant="circle"
@@ -31,8 +34,8 @@ const EmailSent = ({ data = {}, className }: EmailSentProps) => {
                 />
             </div>
             <div className="text-center mt-6">
-                <p className="font-semibold">Performace</p>
-                <h4 className="font-bold">Average</h4>
+                <p className="font-semibold">{t('crm.emailSent.performance')}</p>
+                <h4 className="font-bold">{t('crm.emailSent.average')}</h4>
             </div>
         </Card>
     )

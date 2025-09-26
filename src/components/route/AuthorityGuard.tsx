@@ -12,6 +12,8 @@ const AuthorityGuard = (props: AuthorityGuardProps) => {
 
     const roleMatched = useAuthority(userAuthority, authority)
 
+    // ProtectedRoute already ensures authentication.
+    // Here, only handle insufficient authority -> Access Denied
     return <>{roleMatched ? children : <Navigate to="/access-denied" />}</>
 }
 

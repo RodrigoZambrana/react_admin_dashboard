@@ -8,6 +8,7 @@ import Upload from '@/components/ui/Upload'
 import { HiEye, HiTrash } from 'react-icons/hi'
 import cloneDeep from 'lodash/cloneDeep'
 import { Field, FieldProps, FieldInputProps, FormikProps } from 'formik'
+import { useTranslation } from 'react-i18next'
 
 type Image = {
     id: string
@@ -31,6 +32,7 @@ type ProductImagesProps = {
 
 const ImageList = (props: ImageListProps) => {
     const { imgList, onImageDelete } = props
+    const { t } = useTranslation()
 
     const [selectedImg, setSelectedImg] = useState<Image>({} as Image)
     const [viewOpen, setViewOpen] = useState(false)
@@ -106,14 +108,14 @@ const ImageList = (props: ImageListProps) => {
             <ConfirmDialog
                 isOpen={deleteConfirmationOpen}
                 type="danger"
-                title="Remove image"
+                title={t('text.actions.remove')}
                 confirmButtonColor="red-600"
                 onClose={onDeleteConfirmationClose}
                 onRequestClose={onDeleteConfirmationClose}
                 onCancel={onDeleteConfirmationClose}
                 onConfirm={onDelete}
             >
-                <p> Are you sure you want to remove this image? </p>
+                <p>{t('sales.productForm.images.removeConfirm')}</p>
             </ConfirmDialog>
         </>
     )
@@ -121,8 +123,10 @@ const ImageList = (props: ImageListProps) => {
 
 const ProductImages = (props: ProductImagesProps) => {
     const { values } = props
+    const { t } = useTranslation()
 
     const beforeUpload = (file: FileList | null) => {
+        const { t } = useTranslation()
         let valid: boolean | string = true
 
         const allowedFileType = ['image/jpeg', 'image/png']
@@ -131,11 +135,11 @@ const ProductImages = (props: ProductImagesProps) => {
         if (file) {
             for (const f of file) {
                 if (!allowedFileType.includes(f.type)) {
-                    valid = 'Please upload a .jpeg or .png file!'
+                    valid = t('sales.productForm.images.invalidType')
                 }
 
                 if (f.size >= maxFileSize) {
-                    valid = 'Upload image cannot more then 500kb!'
+                    valid = t('sales.productForm.images.invalidSize')
                 }
             }
         }
@@ -180,8 +184,8 @@ const ProductImages = (props: ProductImagesProps) => {
 
     return (
         <AdaptableCard className="mb-4">
-            <h5>Product Image</h5>
-            <p className="mb-6">Add or change image for the product</p>
+            <h5>{t('sales.productForm.images.title')}</h5>
+            <p className="mb-6">{t('sales.productForm.images.desc')}</p>
             <FormItem>
                 <Field name="imgList">
                     {({ field, form }: FieldProps) => {
@@ -208,9 +212,7 @@ const ProductImages = (props: ProductImagesProps) => {
                                                 src="/img/others/upload.png"
                                                 darkModeSrc="/img/others/upload-dark.png"
                                             />
-                                            <p className="font-semibold text-center text-gray-800 dark:text-white">
-                                                Upload
-                                            </p>
+                                            <p className="font-semibold text-center text-gray-800 dark:text-white">{t('sales.productForm.images.upload')}</p>
                                         </div>
                                     </Upload>
                                 </div>
@@ -233,16 +235,10 @@ const ProductImages = (props: ProductImagesProps) => {
                                         darkModeSrc="/img/others/upload-dark.png"
                                     />
                                     <p className="font-semibold">
-                                        <span className="text-gray-800 dark:text-white">
-                                            Drop your image here, or{' '}
-                                        </span>
-                                        <span className="text-blue-500">
-                                            browse
-                                        </span>
+                                        <span className="text-gray-800 dark:text-white">{t('sales.productForm.images.dropHere')} </span>
+                                        <span className="text-blue-500">{t('sales.productForm.images.browse')}</span>
                                     </p>
-                                    <p className="mt-1 opacity-60 dark:text-white">
-                                        Support: jpeg, png
-                                    </p>
+                                    <p className="mt-1 opacity-60 dark:text-white">{t('sales.productForm.images.support')}</p>
                                 </div>
                             </Upload>
                         )

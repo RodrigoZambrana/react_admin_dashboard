@@ -9,6 +9,7 @@ import { Field, Form, Formik } from 'formik'
 import * as Yup from 'yup'
 import useAuth from '@/utils/hooks/useAuth'
 import type { CommonProps } from '@/@types/common'
+import { useTranslation } from 'react-i18next'
 
 interface SignUpFormProps extends CommonProps {
     disableSubmit?: boolean
@@ -22,14 +23,14 @@ type SignUpFormSchema = {
 }
 
 const validationSchema = Yup.object().shape({
-    userName: Yup.string().required('Please enter your user name'),
+    userName: Yup.string().required('text.validation.userNameRequired'),
     email: Yup.string()
-        .email('Invalid email')
-        .required('Please enter your email'),
-    password: Yup.string().required('Please enter your password'),
+        .email('text.validation.invalidEmail')
+        .required('text.validation.emailRequired'),
+    password: Yup.string().required('text.validation.passwordRequired'),
     confirmPassword: Yup.string().oneOf(
         [Yup.ref('password')],
-        'Your passwords do not match',
+        'text.validation.passwordNotMatch',
     ),
 })
 
@@ -39,6 +40,8 @@ const SignUpForm = (props: SignUpFormProps) => {
     const { signUp } = useAuth()
 
     const [message, setMessage] = useTimeOutMessage()
+
+    const { t } = useTranslation()
 
     const onSignUp = async (
         values: SignUpFormSchema,
@@ -82,55 +85,59 @@ const SignUpForm = (props: SignUpFormProps) => {
                     <Form>
                         <FormContainer>
                             <FormItem
-                                label="User Name"
+                                label={t('text.labels.userName')}
                                 invalid={errors.userName && touched.userName}
-                                errorMessage={errors.userName}
+                                errorMessage={t(errors.userName as string)}
                             >
                                 <Field
                                     type="text"
                                     autoComplete="off"
                                     name="userName"
-                                    placeholder="User Name"
+                                    placeholder={t('text.labels.userName')}
                                     component={Input}
                                 />
                             </FormItem>
                             <FormItem
-                                label="Email"
+                                label={t('text.labels.email')}
                                 invalid={errors.email && touched.email}
-                                errorMessage={errors.email}
+                                errorMessage={t(errors.email as string)}
                             >
                                 <Field
                                     type="email"
                                     autoComplete="off"
                                     name="email"
-                                    placeholder="Email"
+                                    placeholder={t('text.labels.email')}
                                     component={Input}
                                 />
                             </FormItem>
                             <FormItem
-                                label="Password"
+                                label={t('text.labels.password')}
                                 invalid={errors.password && touched.password}
-                                errorMessage={errors.password}
+                                errorMessage={t(errors.password as string)}
                             >
                                 <Field
                                     autoComplete="off"
                                     name="password"
-                                    placeholder="Password"
+                                    placeholder={t('text.labels.password')}
                                     component={PasswordInput}
                                 />
                             </FormItem>
                             <FormItem
-                                label="Confirm Password"
+                                label={t('text.placeholders.confirmPassword')}
                                 invalid={
                                     errors.confirmPassword &&
                                     touched.confirmPassword
                                 }
-                                errorMessage={errors.confirmPassword}
+                                errorMessage={t(
+                                    errors.confirmPassword as string,
+                                )}
                             >
                                 <Field
                                     autoComplete="off"
                                     name="confirmPassword"
-                                    placeholder="Confirm Password"
+                                    placeholder={t(
+                                        'text.placeholders.confirmPassword',
+                                    )}
                                     component={PasswordInput}
                                 />
                             </FormItem>
@@ -141,12 +148,14 @@ const SignUpForm = (props: SignUpFormProps) => {
                                 type="submit"
                             >
                                 {isSubmitting
-                                    ? 'Creating Account...'
-                                    : 'Sign Up'}
+                                    ? t('auth.signUp.submitting')
+                                    : t('auth.signUp.submit')}
                             </Button>
                             <div className="mt-4 text-center">
-                                <span>Already have an account? </span>
-                                <ActionLink to={signInUrl}>Sign in</ActionLink>
+                                <span>{t('auth.signUp.hasAccount')} </span>
+                                <ActionLink to={signInUrl}>
+                                    {t('auth.common.signIn')}
+                                </ActionLink>
                             </div>
                         </FormContainer>
                     </Form>

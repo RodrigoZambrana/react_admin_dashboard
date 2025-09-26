@@ -11,10 +11,12 @@ import { Field, Form, Formik } from 'formik'
 import * as Yup from 'yup'
 import type { CommonProps } from '@/@types/common'
 import type { AxiosError } from 'axios'
+import { useTranslation } from 'react-i18next'
 
 interface ResetPasswordFormProps extends CommonProps {
     disableSubmit?: boolean
     signInUrl?: string
+    showBackLink?: boolean
 }
 
 type ResetPasswordFormSchema = {
@@ -23,15 +25,22 @@ type ResetPasswordFormSchema = {
 }
 
 const validationSchema = Yup.object().shape({
-    password: Yup.string().required('Please enter your password'),
+    password: Yup.string().required('text.validation.passwordRequired'),
     confirmPassword: Yup.string().oneOf(
         [Yup.ref('password')],
-        'Your passwords do not match',
+        'text.validation.passwordNotMatch',
     ),
 })
 
 const ResetPasswordForm = (props: ResetPasswordFormProps) => {
-    const { disableSubmit = false, className, signInUrl = '/sign-in' } = props
+    const {
+        disableSubmit = false,
+        className,
+        signInUrl = '/sign-in',
+        showBackLink = true,
+    } = props
+
+    const { t } = useTranslation()
 
     const [resetComplete, setResetComplete] = useState(false)
 
@@ -69,15 +78,13 @@ const ResetPasswordForm = (props: ResetPasswordFormProps) => {
             <div className="mb-6">
                 {resetComplete ? (
                     <>
-                        <h3 className="mb-1">Reset done</h3>
-                        <p>Your password has been successfully reset</p>
+                        <h3 className="mb-1">{t('auth.resetPassword.success.title')}</h3>
+                        <p>{t('auth.resetPassword.success.subtitle')}</p>
                     </>
                 ) : (
                     <>
-                        <h3 className="mb-1">Set new password</h3>
-                        <p>
-                            Your new password must different to previos password
-                        </p>
+                        <h3 className="mb-1">{t('auth.resetPassword.setNewPassword.title')}</h3>
+                        <p>{t('auth.resetPassword.setNewPassword.subtitle')}</p>
                     </>
                 )}
             </div>
@@ -106,31 +113,35 @@ const ResetPasswordForm = (props: ResetPasswordFormProps) => {
                             {!resetComplete ? (
                                 <>
                                     <FormItem
-                                        label="Password"
+                                        label={t('text.labels.password')}
                                         invalid={
                                             errors.password && touched.password
                                         }
-                                        errorMessage={errors.password}
+                                        errorMessage={t(errors.password as string)}
                                     >
                                         <Field
                                             autoComplete="off"
                                             name="password"
-                                            placeholder="Password"
+                                            placeholder={t('text.placeholders.newPassword')}
                                             component={PasswordInput}
                                         />
                                     </FormItem>
                                     <FormItem
-                                        label="Confirm Password"
+                                        label={t('text.placeholders.confirmPassword')}
                                         invalid={
                                             errors.confirmPassword &&
                                             touched.confirmPassword
                                         }
-                                        errorMessage={errors.confirmPassword}
+                                        errorMessage={t(
+                                            errors.confirmPassword as string,
+                                        )}
                                     >
                                         <Field
                                             autoComplete="off"
                                             name="confirmPassword"
-                                            placeholder="Confirm Password"
+                                            placeholder={t(
+                                                'text.placeholders.confirmPassword',
+                                            )}
                                             component={PasswordInput}
                                         />
                                     </FormItem>
@@ -140,9 +151,7 @@ const ResetPasswordForm = (props: ResetPasswordFormProps) => {
                                         variant="solid"
                                         type="submit"
                                     >
-                                        {isSubmitting
-                                            ? 'Submiting...'
-                                            : 'Submit'}
+                                        {t('text.actions.submit')}
                                     </Button>
                                 </>
                             ) : (
@@ -152,14 +161,18 @@ const ResetPasswordForm = (props: ResetPasswordFormProps) => {
                                     type="button"
                                     onClick={onContinue}
                                 >
-                                    Continue
+                                    {t('auth.resetPassword.continue')}
                                 </Button>
                             )}
 
-                            <div className="mt-4 text-center">
-                                <span>Back to </span>
-                                <ActionLink to={signInUrl}>Sign in</ActionLink>
-                            </div>
+                            {showBackLink && (
+                                <div className="mt-4 text-center">
+                                    <span>{t('auth.common.backToSignIn')}</span>
+                                    <ActionLink to={signInUrl}>
+                                        {t('auth.common.signIn')}
+                                    </ActionLink>
+                                </div>
+                            )}
                         </FormContainer>
                     </Form>
                 )}

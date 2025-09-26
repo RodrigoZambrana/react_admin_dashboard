@@ -13,6 +13,7 @@ import cloneDeep from 'lodash/cloneDeep'
 import FormCustomFormatInput from '@/components/shared/FormCustomFormatInput'
 import FormPatternInput from '@/components/shared/FormPatternInput'
 import * as Yup from 'yup'
+import { useTranslation } from 'react-i18next'
 
 type FormModel = {
     cardHolderName: string
@@ -62,6 +63,7 @@ function cardExpiryFormat(val: string) {
 
 const EditPaymentMethod = () => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const card = useAppSelector(
         (state) => state.crmCustomerDetails.data.selectedCard,
@@ -107,7 +109,7 @@ const EditPaymentMethod = () => {
             onClose={onDialogClose}
             onRequestClose={onDialogClose}
         >
-            <h4>Edit Credit Card</h4>
+            <h4>{t('text.titles.editCreditCard')}</h4>
             <div className="mt-6">
                 <Formik
                     initialValues={{
@@ -127,7 +129,7 @@ const EditPaymentMethod = () => {
                         <Form>
                             <FormContainer>
                                 <FormItem
-                                    label="Card holder name"
+                                    label={t('text.labels.cardHolderName')}
                                     invalid={
                                         errors.cardHolderName &&
                                         touched.cardHolderName
@@ -142,7 +144,7 @@ const EditPaymentMethod = () => {
                                     />
                                 </FormItem>
                                 <FormItem
-                                    label="Credit Card Number"
+                                    label={t('text.labels.creditCardNumber')}
                                     invalid={
                                         errors.ccNumber && touched.ccNumber
                                     }
@@ -169,7 +171,7 @@ const EditPaymentMethod = () => {
                                 </FormItem>
                                 <div className="grid grid-cols-2 gap-4">
                                     <FormItem
-                                        label="Expiration date"
+                                        label={t('text.labels.expirationDate')}
                                         invalid={
                                             errors.cardExpiry &&
                                             touched.cardExpiry
@@ -202,7 +204,7 @@ const EditPaymentMethod = () => {
                                         </Field>
                                     </FormItem>
                                     <FormItem
-                                        label="CVV"
+                                        label={t('text.labels.cvv')}
                                         invalid={errors.code && touched.code}
                                         errorMessage={errors.code}
                                     >
@@ -228,7 +230,7 @@ const EditPaymentMethod = () => {
                                 </div>
                                 <FormItem className="mb-0 text-right">
                                     <Button block variant="solid" type="submit">
-                                        Update
+                                        {t('text.actions.update')}
                                     </Button>
                                 </FormItem>
                             </FormContainer>

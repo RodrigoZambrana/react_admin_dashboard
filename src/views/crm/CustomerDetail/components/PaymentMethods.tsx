@@ -13,24 +13,26 @@ import {
 import isLastChild from '@/utils/isLastChild'
 import classNames from 'classnames'
 import { HiPencilAlt } from 'react-icons/hi'
+import { useTranslation } from 'react-i18next'
 
-const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
+const monthsKey = [
+    'jan',
+    'feb',
+    'mar',
+    'apr',
+    'may',
+    'jun',
+    'jul',
+    'aug',
+    'sep',
+    'oct',
+    'nov',
+    'dec',
 ]
 
 const PaymentMethods = () => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const data = useAppSelector(
         (state) => state.crmCustomerDetails.data.paymentMethodData,
@@ -50,7 +52,7 @@ const PaymentMethods = () => {
         <>
             {data.length > 0 && (
                 <div>
-                    <h6 className="mb-4">Payment Methods</h6>
+                    <h6 className="mb-4">{t('text.titles.paymentMethods')}</h6>
                     <div className="rounded-lg border border-gray-200 dark:border-gray-600">
                         {data.map((card, index) => (
                             <div
@@ -82,22 +84,13 @@ const PaymentMethods = () => {
                                             </div>
                                             {card.primary && (
                                                 <Tag className="bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-100 rounded-md border-0 mx-2">
-                                                    <span className="capitalize">
-                                                        {' '}
-                                                        Primary{' '}
-                                                    </span>
+                                                    <span className="capitalize">{t('text.labels.primary')}</span>
                                                 </Tag>
                                             )}
                                         </div>
                                         <span>
-                                            Expired{' '}
-                                            {
-                                                months[
-                                                    parseInt(card.expMonth) - 1
-                                                ]
-                                            }{' '}
-                                            20
-                                            {card.expYear}
+                                            {t('text.labels.expired')}{' '}
+                                            {t(`text.date.monthsShort.${monthsKey[parseInt(card.expMonth) - 1]}`)} 20{card.expYear}
                                         </span>
                                     </div>
                                 </div>
@@ -112,7 +105,7 @@ const PaymentMethods = () => {
                                             )
                                         }
                                     >
-                                        Delete
+                                        {t('text.actions.delete')}
                                     </Button>
                                     <Button
                                         icon={<HiPencilAlt />}
@@ -121,7 +114,7 @@ const PaymentMethods = () => {
                                             onEditPaymentMethodDialogOpen(card)
                                         }
                                     >
-                                        Edit
+                                        {t('text.actions.edit')}
                                     </Button>
                                 </div>
                             </div>

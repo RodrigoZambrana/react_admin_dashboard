@@ -12,6 +12,7 @@ import {
 } from 'react-icons/hi'
 import { NumericFormat } from 'react-number-format'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 type StatisticCardProps = {
     icon: ReactNode
@@ -68,6 +69,7 @@ const StatisticCard = (props: StatisticCardProps) => {
 
 const CustomerStatistic = () => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const statisticData = useAppSelector(
         (state) => state.crmCustomers.data.statisticData,
@@ -86,7 +88,7 @@ const CustomerStatistic = () => {
             <StatisticCard
                 icon={<HiOutlineUserGroup />}
                 avatarClass="bg-indigo-600!"
-                label="Total Customers"
+                label={t('text.labels.totalCustomers')}
                 value={statisticData?.totalCustomers?.value}
                 growthRate={statisticData?.totalCustomers?.growShrink}
                 loading={loading}
@@ -94,7 +96,7 @@ const CustomerStatistic = () => {
             <StatisticCard
                 icon={<HiOutlineUsers />}
                 avatarClass="bg-blue-500!"
-                label="Active Customers"
+                label={t('text.labels.activeCustomers')}
                 value={statisticData?.activeCustomers?.value}
                 growthRate={statisticData?.activeCustomers?.growShrink}
                 loading={loading}
@@ -102,7 +104,7 @@ const CustomerStatistic = () => {
             <StatisticCard
                 icon={<HiOutlineUserAdd />}
                 avatarClass="bg-emerald-500!"
-                label="New Customers"
+                label={t('text.labels.newCustomers')}
                 value={statisticData?.newCustomers?.value}
                 growthRate={statisticData?.newCustomers?.growShrink}
                 loading={loading}

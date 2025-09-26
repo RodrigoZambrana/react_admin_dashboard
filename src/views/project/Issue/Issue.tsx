@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, Fragment } from 'react'
+import { useTranslation } from 'react-i18next'
 import Button from '@/components/ui/Button'
 import Avatar from '@/components/ui/Avatar'
 import Tag from '@/components/ui/Tag'
@@ -77,6 +78,7 @@ const TimelineAvatar = ({ children, ...rest }: AvatarProps) => {
 }
 
 const TimelineAssign = ({ timeline, ...rest }: TimelineAssignProps) => {
+    const { t } = useTranslation()
     return (
         <Timeline.Item
             className="w-full"
@@ -93,7 +95,7 @@ const TimelineAssign = ({ timeline, ...rest }: TimelineAssignProps) => {
                 <span className="font-semibold text-gray-900 dark:text-gray-100">
                     {timeline.name}
                 </span>
-                <span className="mx-2">assigned </span>
+                <span className="mx-2">{t('text.actions.assigned')}</span>
                 {timeline.assignees?.map((assignee, index) => (
                     <span
                         key={assignee}
@@ -112,6 +114,7 @@ const TimelineAssign = ({ timeline, ...rest }: TimelineAssignProps) => {
 }
 
 const TimelineComment = ({ timeline, ...rest }: TimelineCommentProps) => {
+    const { t } = useTranslation()
     return (
         <Timeline.Item
             className="w-full"
@@ -122,7 +125,7 @@ const TimelineComment = ({ timeline, ...rest }: TimelineCommentProps) => {
                 <span className="font-semibold text-gray-900 dark:text-gray-100">
                     {timeline.name}
                 </span>
-                <span className="mx-2">added a comment </span>
+                <span className="mx-2">{t('text.actions.addedAComment')}</span>
                 <span>{timeline.time}</span>
             </p>
             <Card bordered className="mt-4">
@@ -234,6 +237,7 @@ const Issue = () => {
         }
     }
 
+    const { t } = useTranslation()
     return (
         <Container className="h-full">
             <Loading loading={loading}>
@@ -246,7 +250,7 @@ const Issue = () => {
                                         {data.title}
                                     </h3>
                                     <p>
-                                        {data.ticketId} created by
+                                        {data.ticketId} {t('text.labels.createdBy')}
                                         <span className="font-semibold text-gray-900 dark:text-gray-100 mx-1 cursor-pointer">
                                             {data.createdBy}
                                         </span>
@@ -259,7 +263,7 @@ const Issue = () => {
                                             variant="solid"
                                             onClick={onEditComplete}
                                         >
-                                            Done
+                                            {t('text.actions.done')}
                                         </Button>
                                     ) : (
                                         <Button
@@ -267,7 +271,7 @@ const Issue = () => {
                                             icon={<HiPencil />}
                                             onClick={onEditModeActive}
                                         >
-                                            Edit
+                                            {t('text.actions.edit')}
                                         </Button>
                                     )}
                                 </div>
@@ -288,7 +292,7 @@ const Issue = () => {
                                 )}
                             </div>
                             <div className="mt-12">
-                                <h4>Activity</h4>
+                                <h4>{t('text.titles.activity')}</h4>
                                 <hr className="my-6" />
                                 <Timeline>
                                     {data.activity?.map((item, index) => (
@@ -309,7 +313,7 @@ const Issue = () => {
                                         <Input
                                             ref={commentInput}
                                             textArea
-                                            placeholder="Leave a comment"
+                                            placeholder={t('text.placeholders.leaveComment')}
                                         />
                                     </div>
                                 </div>
@@ -318,7 +322,7 @@ const Issue = () => {
                                         variant="solid"
                                         onClick={() => submitComment()}
                                     >
-                                        Comment
+                                        {t('text.actions.comment')}
                                     </Button>
                                 </div>
                             </div>
@@ -326,13 +330,13 @@ const Issue = () => {
                     </div>
                     <div>
                         <AdaptableCard bodyClass="p-5">
-                            <h4 className="mb-6">Details</h4>
+                            <h4 className="mb-6">{t('text.titles.details')}</h4>
                             <IconText
                                 className="mb-4 text-emerald-500"
                                 icon={<HiClock className="text-lg" />}
                             >
                                 <span className="font-semibold">
-                                    In Progress
+                                    {t('text.labels.inProgress')}
                                 </span>
                             </IconText>
                             <IconText
@@ -350,7 +354,7 @@ const Issue = () => {
                                 }
                             >
                                 <span className="font-semibold cursor-pointer">
-                                    Linked tickets
+                                    {t('text.labels.linkedTickets')}
                                 </span>
                             </IconText>
                             <IconText
@@ -360,7 +364,7 @@ const Issue = () => {
                                 }
                             >
                                 <span className="font-semibold cursor-pointer">
-                                    5 story point
+                                    {t('text.labels.storyPoint', { count: 5 })}
                                 </span>
                             </IconText>
                             <IconText
@@ -370,11 +374,11 @@ const Issue = () => {
                                 }
                             >
                                 <span className="font-semibold">
-                                    Created on {data.date}
+                                    {t('text.labels.createdOn')} {data.date}
                                 </span>
                             </IconText>
                             <hr className="my-6" />
-                            <p className="font-semibold mb-4">Assignees</p>
+                            <p className="font-semibold mb-4">{t('text.labels.assignees')}</p>
                             {data.assignees?.map((assignee) => (
                                 <IconText
                                     key={assignee.id}
@@ -392,7 +396,7 @@ const Issue = () => {
                                     </span>
                                 </IconText>
                             ))}
-                            <p className="font-semibold mb-4 mt-8">Tags</p>
+                            <p className="font-semibold mb-4 mt-8">{t('text.labels.tags')}</p>
                             {data.labels?.map((label) => (
                                 <Tag
                                     key={label.title}

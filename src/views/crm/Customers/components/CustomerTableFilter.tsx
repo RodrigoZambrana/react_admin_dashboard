@@ -1,6 +1,7 @@
 import Select from '@/components/ui/Select'
 import Badge from '@/components/ui/Badge'
 import { setFilterData, useAppDispatch, useAppSelector } from '../store'
+import { useTranslation } from 'react-i18next'
 import {
     components,
     ControlProps,
@@ -17,10 +18,10 @@ type Option = {
 
 const { Control } = components
 
-const options: Option[] = [
-    { value: '', label: 'All', color: 'bg-gray-500' },
-    { value: 'active', label: 'Active', color: 'bg-emerald-500' },
-    { value: 'blocked', label: 'Blocked', color: 'bg-red-500' },
+const useOptions = (t: (k: string) => string): Option[] => [
+    { value: '', label: t('text.filters.all'), color: 'bg-gray-500' },
+    { value: 'active', label: t('text.status.active'), color: 'bg-emerald-500' },
+    { value: 'blocked', label: t('text.status.blocked'), color: 'bg-red-500' },
 ]
 
 const CustomSelectOption = ({
@@ -64,6 +65,8 @@ const CustomControl = ({ children, ...props }: ControlProps<Option>) => {
 
 const CustomerTableFilter = () => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
+    const options = useOptions(t)
 
     const { status } = useAppSelector(
         (state) => state.crmCustomers.data.filterData,

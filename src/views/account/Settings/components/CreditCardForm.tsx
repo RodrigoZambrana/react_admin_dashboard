@@ -9,6 +9,7 @@ import { HiCreditCard, HiCalendar, HiInformationCircle } from 'react-icons/hi'
 import FormCustomFormatInput from '@/components/shared/FormCustomFormatInput'
 import FormPatternInput from '@/components/shared/FormPatternInput'
 import * as Yup from 'yup'
+import { useTranslation } from 'react-i18next'
 import type { FieldProps } from 'formik'
 
 export type CreditCardInfo = {
@@ -38,19 +39,19 @@ type CreditCardFormProps = {
 const { useUniqueId } = hooks
 
 const validationSchema = Yup.object().shape({
-    cardHolderName: Yup.string().required('Card holder name required'),
+    cardHolderName: Yup.string().required('text.validation.cardHolderNameRequired'),
     ccNumber: Yup.string()
-        .required('Credit card number required')
+        .required('text.validation.creditCardNumberRequired')
         .matches(
             /^(?:4[0-9]{12}(?:[0-9]{3})?|[25][1-7][0-9]{14}|6(?:011|5[0-9][0-9])[0-9]{12}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\d{3})\d{11})$/,
-            'Invalid credit card number',
+            'text.validation.invalidCreditCardNumber',
         ),
     cardExpiry: Yup.string()
-        .required('Card holder name required')
-        .matches(/^(0[1-9]|1[0-2])\/?([0-9]{4}|[0-9]{2})$/, 'Invalid Date'),
+        .required('text.validation.cardExpiryRequired')
+        .matches(/^(0[1-9]|1[0-2])\/?([0-9]{4}|[0-9]{2})$/, 'text.validation.invalidDate'),
     code: Yup.string()
-        .required()
-        .matches(/^[0-9]{3}$/, 'Invalid CVV'),
+        .required('text.validation.cvvRequired')
+        .matches(/^[0-9]{3}$/, 'text.validation.invalidCvv'),
     primary: Yup.bool(),
 })
 
@@ -114,6 +115,7 @@ const CreditCardForm = ({ card, type, onUpdate }: CreditCardFormProps) => {
         }
     }
 
+    const { t } = useTranslation()
     return (
         <Formik<CreditCardFormModel>
             initialValues={{
@@ -135,7 +137,7 @@ const CreditCardForm = ({ card, type, onUpdate }: CreditCardFormProps) => {
                 <Form>
                     <FormContainer>
                         <FormItem
-                            label="Card holder name"
+                            label={t('text.labels.cardHolderName')}
                             invalid={
                                 errors.cardHolderName && touched.cardHolderName
                             }
@@ -149,7 +151,7 @@ const CreditCardForm = ({ card, type, onUpdate }: CreditCardFormProps) => {
                             />
                         </FormItem>
                         <FormItem
-                            label="Credit Card Number"
+                            label={t('text.labels.creditCardNumber')}
                             invalid={errors.ccNumber && touched.ccNumber}
                             errorMessage={errors.ccNumber}
                         >
@@ -177,7 +179,7 @@ const CreditCardForm = ({ card, type, onUpdate }: CreditCardFormProps) => {
                         </FormItem>
                         <div className="grid grid-cols-2 gap-4">
                             <FormItem
-                                label="Expiration date"
+                                label={t('text.labels.expirationDate')}
                                 invalid={
                                     errors.cardExpiry && touched.cardExpiry
                                 }
@@ -209,7 +211,7 @@ const CreditCardForm = ({ card, type, onUpdate }: CreditCardFormProps) => {
                                 </Field>
                             </FormItem>
                             <FormItem
-                                label="CVV"
+                                label={t('text.labels.cvv')}
                                 invalid={errors.code && touched.code}
                                 errorMessage={errors.code}
                             >
@@ -222,7 +224,7 @@ const CreditCardForm = ({ card, type, onUpdate }: CreditCardFormProps) => {
                                                 placeholder="•••"
                                                 format="###"
                                                 inputPrefix={
-                                                    <Tooltip title="The CVV/CVC code is located on the back of your credit/debit card on the right side of the white signature strip">
+                                                    <Tooltip title={t('text.tooltips.cvv')}>
                                                         <HiInformationCircle className="cursor-pointer text-lg" />
                                                     </Tooltip>
                                                 }
@@ -240,12 +242,12 @@ const CreditCardForm = ({ card, type, onUpdate }: CreditCardFormProps) => {
                         </div>
                         <FormItem>
                             <Field name="primary" component={Checkbox}>
-                                Set this card as primary
+                                {t('text.labels.setAsPrimary')}
                             </Field>
                         </FormItem>
                         <FormItem className="mb-0 text-right">
                             <Button block variant="solid" type="submit">
-                                Update
+                                {t('text.actions.update')}
                             </Button>
                         </FormItem>
                     </FormContainer>

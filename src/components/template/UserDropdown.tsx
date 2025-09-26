@@ -7,28 +7,29 @@ import { Link } from 'react-router-dom'
 import classNames from 'classnames'
 import { HiOutlineUser, HiOutlineCog, HiOutlineLogout } from 'react-icons/hi'
 import { FiActivity } from 'react-icons/fi'
+import { useTranslation } from 'react-i18next'
 import type { CommonProps } from '@/@types/common'
 import type { JSX } from 'react'
 
 type DropdownList = {
-    label: string
+    labelKey: string
     path: string
     icon: JSX.Element
 }
 
 const dropdownItemList: DropdownList[] = [
     {
-        label: 'Profile',
+        labelKey: 'user.menu.profile',
         path: '/app/account/settings/profile',
         icon: <HiOutlineUser />,
     },
     {
-        label: 'Account Setting',
+        labelKey: 'user.menu.accountSetting',
         path: '/app/account/settings/profile',
         icon: <HiOutlineCog />,
     },
     {
-        label: 'Activity Log',
+        labelKey: 'user.menu.activityLog',
         path: '/app/account/activity-log',
         icon: <FiActivity />,
     },
@@ -40,6 +41,7 @@ const _UserDropdown = ({ className }: CommonProps) => {
     )
 
     const { signOut } = useAuth()
+    const { t } = useTranslation()
 
     const UserAvatar = (
         <div className={classNames(className, 'flex items-center gap-2')}>
@@ -74,8 +76,8 @@ const _UserDropdown = ({ className }: CommonProps) => {
                 <Dropdown.Item variant="divider" />
                 {dropdownItemList.map((item) => (
                     <Dropdown.Item
-                        key={item.label}
-                        eventKey={item.label}
+                        key={item.labelKey}
+                        eventKey={item.labelKey}
                         className="mb-1 px-0"
                     >
                         <Link
@@ -86,21 +88,21 @@ const _UserDropdown = ({ className }: CommonProps) => {
                                 <span className="text-xl opacity-50">
                                     {item.icon}
                                 </span>
-                                <span>{item.label}</span>
+                                <span>{t(item.labelKey)}</span>
                             </span>
                         </Link>
                     </Dropdown.Item>
                 ))}
                 <Dropdown.Item variant="divider" />
                 <Dropdown.Item
-                    eventKey="Sign Out"
+                    eventKey="user.menu.signOut"
                     className="gap-2"
                     onClick={signOut}
                 >
                     <span className="text-xl opacity-50">
                         <HiOutlineLogout />
                     </span>
-                    <span>Sign Out</span>
+                    <span>{t('user.menu.signOut')}</span>
                 </Dropdown.Item>
             </Dropdown>
         </div>

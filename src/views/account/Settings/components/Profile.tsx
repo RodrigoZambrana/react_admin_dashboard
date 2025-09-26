@@ -20,6 +20,8 @@ import {
     HiOutlineGlobeAlt,
 } from 'react-icons/hi'
 import * as Yup from 'yup'
+import { useTranslation } from 'react-i18next'
+import i18n from 'i18next'
 import type { OptionProps, ControlProps } from 'react-select'
 import type { FormikProps, FieldInputProps, FieldProps } from 'formik'
 
@@ -28,9 +30,7 @@ export type ProfileFormModel = {
     email: string
     title: string
     avatar: string
-    timeZone: string
     lang: string
-    syncData: boolean
 }
 
 type ProfileProps = {
@@ -47,22 +47,20 @@ const { Control } = components
 
 const validationSchema = Yup.object().shape({
     name: Yup.string()
-        .min(3, 'Too Short!')
-        .max(12, 'Too Long!')
-        .required('User Name Required'),
-    email: Yup.string().email('Invalid email').required('Email Required'),
+        .min(3, 'text.validation.tooShort')
+        .max(12, 'text.validation.tooLong')
+        .required('text.validation.userNameRequired'),
+    email: Yup.string()
+        .email('text.validation.invalidEmail')
+        .required('text.validation.emailRequired'),
     title: Yup.string(),
     avatar: Yup.string(),
     lang: Yup.string(),
-    timeZone: Yup.string(),
-    syncData: Yup.bool(),
 })
 
 const langOptions: LanguageOption[] = [
-    { value: 'en', label: 'English (US)', imgPath: '/img/countries/us.png' },
-    { value: 'ch', label: '中文', imgPath: '/img/countries/cn.png' },
-    { value: 'jp', label: '日本语', imgPath: '/img/countries/jp.png' },
-    { value: 'fr', label: 'French', imgPath: '/img/countries/fr.png' },
+    { value: 'en', label: 'English', imgPath: '/img/countries/us.png' },
+    { value: 'es', label: 'Español', imgPath: '/img/countries/sp.png' },
 ]
 
 const CustomSelectOption = ({
@@ -115,11 +113,10 @@ const Profile = ({
         email: '',
         title: '',
         avatar: '',
-        timeZone: '',
         lang: '',
-        syncData: false,
     },
 }: ProfileProps) => {
+    const { t } = useTranslation()
     const onSetFormFile = (
         form: FormikProps<ProfileFormModel>,
         field: FieldInputProps<ProfileFormModel>,
@@ -133,16 +130,27 @@ const Profile = ({
         setSubmitting: (isSubmitting: boolean) => void,
     ) => {
         console.log('values', values)
-        toast.push(<Notification title={'Profile updated'} type="success" />, {
-            placement: 'top-center',
-        })
+        toast.push(
+            <Notification
+                title={t('account.settings.profile.profileUpdated')}
+                type="success"
+            />,
+            {
+                placement: 'top-center',
+            },
+        )
         setSubmitting(false)
     }
 
     return (
         <Formik
             enableReinitialize
-            initialValues={data}
+            initialValues={{
+                ...data,
+                lang: (i18n.language || 'en').toLowerCase().startsWith('es')
+                    ? 'es'
+                    : 'en',
+            }}
             validationSchema={validationSchema}
             onSubmit={(values, { setSubmitting }) => {
                 setSubmitting(true)
@@ -157,19 +165,21 @@ const Profile = ({
                     <Form>
                         <FormContainer>
                             <FormDesription
-                                title="General"
-                                desc="Basic info, like your name and address that will displayed in public"
+                                title={t('account.settings.profile.general')}
+                                desc={t(
+                                    'account.settings.profile.generalDesc',
+                                )}
                             />
                             <FormRow
                                 name="name"
-                                label="Name"
+                                label={t('text.labels.name')}
                                 {...validatorProps}
                             >
                                 <Field
                                     type="text"
                                     autoComplete="off"
                                     name="name"
-                                    placeholder="Name"
+                                    placeholder={t('text.labels.name')}
                                     component={Input}
                                     prefix={
                                         <HiOutlineUserCircle className="text-xl" />
@@ -178,14 +188,14 @@ const Profile = ({
                             </FormRow>
                             <FormRow
                                 name="email"
-                                label="Email"
+                                label={t('text.labels.email')}
                                 {...validatorProps}
                             >
                                 <Field
                                     type="email"
                                     autoComplete="off"
                                     name="email"
-                                    placeholder="Email"
+                                    placeholder={t('text.labels.email')}
                                     component={Input}
                                     prefix={
                                         <HiOutlineMail className="text-xl" />
@@ -236,7 +246,7 @@ const Profile = ({
                             </FormRow>
                             <FormRow
                                 name="title"
-                                label="Title"
+                                label={t('text.labels.title')}
                                 {...validatorProps}
                                 border={false}
                             >
@@ -244,7 +254,7 @@ const Profile = ({
                                     type="text"
                                     autoComplete="off"
                                     name="title"
-                                    placeholder="Title"
+                                    placeholder={t('text.labels.title')}
                                     component={Input}
                                     prefix={
                                         <HiOutlineBriefcase className="text-xl" />
@@ -253,12 +263,12 @@ const Profile = ({
                             </FormRow>
                             <FormDesription
                                 className="mt-8"
-                                title="Preferences"
-                                desc="Your personalized preference displayed in your account"
+                                title={t('account.settings.profile.preferences')}
+                                desc={t('account.settings.profile.preferencesDesc')}
                             />
                             <FormRow
                                 name="lang"
-                                label="Language"
+                                label={t('text.labels.language')}
                                 {...validatorProps}
                             >
                                 <Field name="lang">
@@ -287,44 +297,23 @@ const Profile = ({
                                 </Field>
                             </FormRow>
                             <FormRow
-                                name="timeZone"
-                                label="Time Zone"
-                                {...validatorProps}
-                            >
-                                <Field
-                                    readOnly
-                                    type="text"
-                                    autoComplete="off"
-                                    name="timeZone"
-                                    placeholder="Time Zone"
-                                    component={Input}
-                                    prefix={
-                                        <HiOutlineGlobeAlt className="text-xl" />
-                                    }
-                                />
-                            </FormRow>
-                            <FormRow
-                                name="syncData"
-                                label="Sync Data"
-                                {...validatorProps}
-                                border={false}
-                            >
-                                <Field name="syncData" component={Switcher} />
-                            </FormRow>
+                                
                             <div className="mt-4 ltr:text-right">
                                 <Button
                                     className="ltr:mr-2 rtl:ml-2"
                                     type="button"
                                     onClick={() => resetForm()}
                                 >
-                                    Reset
+                                    {t('text.actions.reset')}
                                 </Button>
                                 <Button
                                     variant="solid"
                                     loading={isSubmitting}
                                     type="submit"
                                 >
-                                    {isSubmitting ? 'Updating' : 'Update'}
+                                    {isSubmitting
+                                        ? t('text.actions.updating')
+                                        : t('text.actions.update')}
                                 </Button>
                             </div>
                         </FormContainer>

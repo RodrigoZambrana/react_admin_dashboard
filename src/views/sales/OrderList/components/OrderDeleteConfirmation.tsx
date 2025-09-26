@@ -10,6 +10,7 @@ import {
     useAppDispatch,
     useAppSelector,
 } from '../store'
+import { useTranslation } from 'react-i18next'
 
 const OrderDeleteConfirmation = () => {
     const dispatch = useAppDispatch()
@@ -25,6 +26,8 @@ const OrderDeleteConfirmation = () => {
     const tableData = useAppSelector(
         (state) => state.salesOrderList.data.tableData,
     )
+
+    const { t } = useTranslation()
 
     const onDialogClose = () => {
         dispatch(setDeleteMode(''))
@@ -55,13 +58,12 @@ const OrderDeleteConfirmation = () => {
             dispatch(getOrders(tableData))
             toast.push(
                 <Notification
-                    title={'Successfuly Deleted'}
+                    title={t('sales.orders.delete.titleSuccess')}
                     type="success"
                     duration={2500}
                 >
-                    {deleteMode === 'single' && 'Order '}
-                    {deleteMode === 'batch' && `${orders} orders `}
-                    successfuly deleted
+                    {deleteMode === 'single' && t('sales.orders.delete.single')}
+                    {deleteMode === 'batch' && t('sales.orders.delete.batch', { count: orders })}
                 </Notification>,
                 {
                     placement: 'top-center',
@@ -74,18 +76,14 @@ const OrderDeleteConfirmation = () => {
         <ConfirmDialog
             isOpen={deleteMode === 'single' || deleteMode === 'batch'}
             type="danger"
-            title="Delete product"
+            title={t('sales.orders.delete.title')}
             confirmButtonColor="red-600"
             onClose={onDialogClose}
             onRequestClose={onDialogClose}
             onCancel={onDialogClose}
             onConfirm={onDelete}
         >
-            <p>
-                Are you sure you want to delete this order? All record related
-                to this order will be deleted as well. This action cannot be
-                undone.
-            </p>
+            <p>{t('sales.orders.delete.confirm')}</p>
         </ConfirmDialog>
     )
 }

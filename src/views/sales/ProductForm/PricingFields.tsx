@@ -11,6 +11,7 @@ import {
 } from 'formik'
 import type { ComponentType } from 'react'
 import type { InputProps } from '@/components/ui/Input'
+import { useTranslation } from 'react-i18next'
 
 type FormFieldsName = {
     stock: number
@@ -57,15 +58,16 @@ const NumericFormatInput = ({
 
 const PricingFields = (props: PricingFieldsProps) => {
     const { touched, errors } = props
+    const { t } = useTranslation()
 
     return (
         <AdaptableCard divider className="mb-4">
-            <h5>Pricing</h5>
-            <p className="mb-6">Section to config product sales information</p>
+            <h5>{t('text.titles.pricing')}</h5>
+            <p className="mb-6">{t('text.descriptions.productSalesInfo')}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="col-span-1">
                     <FormItem
-                        label="SKU"
+                        label={t('text.labels.sku')}
                         invalid={(errors.stock && touched.stock) as boolean}
                         errorMessage={errors.stock}
                     >
@@ -75,7 +77,7 @@ const PricingFields = (props: PricingFieldsProps) => {
                                     <NumericFormatInput
                                         form={form}
                                         field={field}
-                                        placeholder="Stock"
+                                        placeholder={t('text.placeholders.stock')}
                                         customInput={
                                             NumberInput as ComponentType
                                         }
@@ -93,7 +95,7 @@ const PricingFields = (props: PricingFieldsProps) => {
                 </div>
                 <div className="col-span-1">
                     <FormItem
-                        label="Price"
+                        label={t('text.columns.price')}
                         invalid={(errors.price && touched.price) as boolean}
                         errorMessage={errors.price}
                     >
@@ -103,7 +105,7 @@ const PricingFields = (props: PricingFieldsProps) => {
                                     <NumericFormatInput
                                         form={form}
                                         field={field}
-                                        placeholder="Price"
+                                        placeholder={t('text.columns.price')}
                                         customInput={
                                             PriceInput as ComponentType
                                         }
@@ -123,7 +125,7 @@ const PricingFields = (props: PricingFieldsProps) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="col-span-1">
                     <FormItem
-                        label="Bulk Discount Price"
+                        label={t('text.labels.bulkDiscountPrice')}
                         invalid={
                             (errors.bulkDiscountPrice &&
                                 touched.bulkDiscountPrice) as boolean
@@ -136,7 +138,7 @@ const PricingFields = (props: PricingFieldsProps) => {
                                     <NumericFormatInput
                                         form={form}
                                         field={field}
-                                        placeholder="Bulk Discount Price"
+                                        placeholder={t('text.labels.bulkDiscountPrice')}
                                         customInput={
                                             PriceInput as ComponentType
                                         }
@@ -154,7 +156,7 @@ const PricingFields = (props: PricingFieldsProps) => {
                 </div>
                 <div className="col-span-1">
                     <FormItem
-                        label="Tax Rate(%)"
+                        label={t('text.labels.taxRatePercent')}
                         invalid={(errors.taxRate && touched.taxRate) as boolean}
                         errorMessage={errors.taxRate}
                     >
@@ -164,7 +166,7 @@ const PricingFields = (props: PricingFieldsProps) => {
                                     <NumericFormatInput
                                         form={form}
                                         field={field}
-                                        placeholder="Tax Rate"
+                                        placeholder={t('text.labels.taxRate')}
                                         customInput={
                                             TaxRateInput as ComponentType
                                         }

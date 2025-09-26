@@ -11,9 +11,11 @@ import CustomerTableSearch from './CustomerTableSearch'
 import CustomerTableFilter from './CustomerTableFilter'
 import cloneDeep from 'lodash/cloneDeep'
 import type { TableQueries } from '@/@types/common'
+import { useTranslation } from 'react-i18next'
 
 const CustomersTableTools = () => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const inputRef = useRef<HTMLInputElement>(null)
 
@@ -60,7 +62,7 @@ const CustomersTableTools = () => {
             </div>
             <div className="mb-4">
                 <Button size="sm" onClick={onClearAll}>
-                    Clear All
+                    {t('text.actions.clearAll')}
                 </Button>
             </div>
         </div>

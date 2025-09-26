@@ -14,6 +14,7 @@ import { apiGetSalesOrderDetails } from '@/services/SalesService'
 import { useLocation } from 'react-router-dom'
 import isEmpty from 'lodash/isEmpty'
 import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
 
 type SalesOrderDetailsResponse = {
     id?: string
@@ -127,6 +128,7 @@ const OrderDetails = () => {
         }
     }
 
+    const { t } = useTranslation()
     return (
         <Container className="h-full">
             <Loading loading={loading}>
@@ -135,7 +137,7 @@ const OrderDetails = () => {
                         <div className="mb-6">
                             <div className="flex items-center mb-2">
                                 <h3>
-                                    <span>Order</span>
+                                    <span>{t('text.columns.order')}</span>
                                     <span className="ltr:ml-2 rtl:mr-2">
                                         #{data.id}
                                     </span>
@@ -147,10 +149,13 @@ const OrderDetails = () => {
                                             .class,
                                     )}
                                 >
-                                    {
-                                        paymentStatus[data.payementStatus || 0]
-                                            .label
-                                    }
+                                    {t(
+                                        `text.status.${
+                                            paymentStatus[
+                                                data.payementStatus || 0
+                                            ].label.toLowerCase()
+                                        }`,
+                                    )}
                                 </Tag>
                                 <Tag
                                     className={classNames(
@@ -159,10 +164,13 @@ const OrderDetails = () => {
                                             .class,
                                     )}
                                 >
-                                    {
-                                        progressStatus[data.progressStatus || 0]
-                                            .label
-                                    }
+                                    {t(
+                                        `text.status.${
+                                            progressStatus[
+                                                data.progressStatus || 0
+                                            ].label.toLowerCase()
+                                        }`,
+                                    )}
                                 </Tag>
                             </div>
                             <span className="flex items-center">
@@ -197,9 +205,9 @@ const OrderDetails = () => {
                     <DoubleSidedImage
                         src="/img/others/img-2.png"
                         darkModeSrc="/img/others/img-2-dark.png"
-                        alt="No order found!"
+                        alt={t('common.notFound.order')}
                     />
-                    <h3 className="mt-8">No order found!</h3>
+                    <h3 className="mt-8">{t('common.notFound.order')}</h3>
                 </div>
             )}
         </Container>

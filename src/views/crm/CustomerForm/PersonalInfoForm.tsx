@@ -12,6 +12,7 @@ import {
     HiOutlineUser,
 } from 'react-icons/hi'
 import { Field, FieldProps, FormikErrors, FormikTouched } from 'formik'
+import { useTranslation } from 'react-i18next'
 
 type FormFieldsName = {
     upload: string
@@ -30,6 +31,7 @@ type PersonalInfoFormProps = {
 
 const PersonalInfoForm = (props: PersonalInfoFormProps) => {
     const { touched, errors } = props
+    const { t } = useTranslation()
 
     return (
         <>
@@ -75,7 +77,7 @@ const PersonalInfoForm = (props: PersonalInfoFormProps) => {
                 </Field>
             </FormItem>
             <FormItem
-                label="Name"
+                label={t('text.labels.name')}
                 invalid={errors.name && touched.name}
                 errorMessage={errors.name}
             >
@@ -83,13 +85,13 @@ const PersonalInfoForm = (props: PersonalInfoFormProps) => {
                     type="text"
                     autoComplete="off"
                     name="name"
-                    placeholder="Name"
+                    placeholder={t('text.placeholders.name')}
                     component={Input}
                     prefix={<HiUserCircle className="text-xl" />}
                 />
             </FormItem>
             <FormItem
-                label="Email"
+                label={t('text.labels.email')}
                 invalid={errors.email && touched.email}
                 errorMessage={errors.email}
             >
@@ -97,13 +99,13 @@ const PersonalInfoForm = (props: PersonalInfoFormProps) => {
                     type="email"
                     autoComplete="off"
                     name="email"
-                    placeholder="Email"
+                    placeholder={t('text.labels.email')}
                     component={Input}
                     prefix={<HiMail className="text-xl" />}
                 />
             </FormItem>
             <FormItem
-                label="Location"
+                label={t('text.labels.location')}
                 invalid={errors.location && touched.location}
                 errorMessage={errors.location}
             >
@@ -111,13 +113,13 @@ const PersonalInfoForm = (props: PersonalInfoFormProps) => {
                     type="text"
                     autoComplete="off"
                     name="location"
-                    placeholder="Location"
+                    placeholder={t('text.labels.location')}
                     component={Input}
                     prefix={<HiLocationMarker className="text-xl" />}
                 />
             </FormItem>
             <FormItem
-                label="Phone Number"
+                label={t('text.labels.phoneNumber')}
                 invalid={errors.phoneNumber && touched.phoneNumber}
                 errorMessage={errors.phoneNumber}
             >
@@ -125,13 +127,13 @@ const PersonalInfoForm = (props: PersonalInfoFormProps) => {
                     type="text"
                     autoComplete="off"
                     name="phoneNumber"
-                    placeholder="Phone Number"
+                    placeholder={t('text.labels.phoneNumber')}
                     component={Input}
                     prefix={<HiPhone className="text-xl" />}
                 />
             </FormItem>
             <FormItem
-                label="Title"
+                label={t('text.labels.title')}
                 invalid={errors.title && touched.title}
                 errorMessage={errors.title}
             >
@@ -139,17 +141,17 @@ const PersonalInfoForm = (props: PersonalInfoFormProps) => {
                     type="text"
                     autoComplete="off"
                     name="title"
-                    placeholder="Title"
+                    placeholder={t('text.labels.title')}
                     component={Input}
                     prefix={<HiPhone className="text-xl" />}
                 />
             </FormItem>
             <FormItem
-                label="Birthday"
+                label={t('text.labels.birthday')}
                 invalid={(errors.birthday && touched.birthday) as boolean}
                 errorMessage={errors.birthday as string}
             >
-                <Field name="birthday" placeholder="Date">
+                <Field name="birthday" placeholder={t('text.placeholders.date')}>
                     {({ field, form }: FieldProps) => (
                         <DatePicker
                             field={field}

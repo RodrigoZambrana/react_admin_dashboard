@@ -22,6 +22,7 @@ type ActivitiesProps = {
 
 const Activities = ({ data = [] }: ActivitiesProps) => {
     const navigate = useNavigate()
+    const { t } = useTranslation()
 
     const onViewAllActivity = () => {
         navigate('/app/account/activity-log')
@@ -30,15 +31,15 @@ const Activities = ({ data = [] }: ActivitiesProps) => {
     return (
         <Card>
             <div className="flex items-center justify-between mb-6">
-                <h4>Activitiess</h4>
+                <h4>{t('text.titles.activityLog')}</h4>
                 <Button size="sm" onClick={onViewAllActivity}>
-                    View All
+                    {t('text.actions.viewAll')}
                 </Button>
             </div>
             <div className="mt-6">
                 <Timeline>
                     {isEmpty(data) ? (
-                        <Timeline.Item>No Activities</Timeline.Item>
+                        <Timeline.Item>{t('text.messages.noActivities')}</Timeline.Item>
                     ) : (
                         data.map((event, index) => (
                             <Timeline.Item
@@ -56,3 +57,4 @@ const Activities = ({ data = [] }: ActivitiesProps) => {
 }
 
 export default Activities
+import { useTranslation } from 'react-i18next'

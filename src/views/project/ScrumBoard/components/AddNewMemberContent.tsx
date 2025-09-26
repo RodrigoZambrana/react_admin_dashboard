@@ -11,6 +11,7 @@ import {
     useAppSelector,
 } from '../store'
 import { HiOutlineSearch } from 'react-icons/hi'
+import { useTranslation } from 'react-i18next'
 import debounce from 'lodash/debounce'
 import cloneDeep from 'lodash/cloneDeep'
 import type { ChangeEvent } from 'react'
@@ -24,6 +25,7 @@ type Member = {
 
 const AddNewMemberContent = () => {
     const inputRef = useRef(null)
+    const { t } = useTranslation()
 
     const dispatch = useAppDispatch()
 
@@ -71,18 +73,18 @@ const AddNewMemberContent = () => {
     return (
         <div>
             <div className="text-center mb-6">
-                <h4 className="mb-2">Add people</h4>
-                <p>Invite existing team member to this project.</p>
+                <h4 className="mb-2">{t('text.titles.addPeople')}</h4>
+                <p>{t('text.descriptions.inviteTeamMember')}</p>
             </div>
             <Input
                 ref={inputRef}
                 prefix={<HiOutlineSearch className="text-lg" />}
-                placeholder="Quick search member"
+                placeholder={t('text.placeholders.quickSearchMember')}
                 onChange={onSearch}
             />
             <div className="mt-4">
                 <p className="font-semibold uppercase text-xs mb-4">
-                    {memberList.length} members available
+                    {memberList.length} {t('text.labels.membersAvailable')}
                 </p>
                 <div className="overflow-y-auto h-80 mb-6">
                     <ScrollBar>
@@ -108,7 +110,7 @@ const AddNewMemberContent = () => {
                                         }
                                     >
                                         <span className="text-red-500">
-                                            Remove
+                                            {t('text.actions.remove')}
                                         </span>
                                     </Button>
                                 ) : (
@@ -116,7 +118,7 @@ const AddNewMemberContent = () => {
                                         size="xs"
                                         onClick={() => onAddMember(member)}
                                     >
-                                        Add
+                                        {t('text.actions.add')}
                                     </Button>
                                 )}
                             </div>
@@ -124,7 +126,7 @@ const AddNewMemberContent = () => {
                     </ScrollBar>
                 </div>
                 <Button block variant="solid" onClick={onDone}>
-                    Done
+                    {t('text.actions.done')}
                 </Button>
             </div>
         </div>

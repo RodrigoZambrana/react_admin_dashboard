@@ -2,6 +2,7 @@ import { forwardRef } from 'react'
 import Tabs from '@/components/ui/Tabs'
 import { FormContainer } from '@/components/ui/Form'
 import { Form, Formik, FormikProps } from 'formik'
+import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
 import customParseFormat from 'dayjs/plugin/customParseFormat'
 import * as Yup from 'yup'
@@ -44,14 +45,15 @@ type CustomerFormProps = {
 
 dayjs.extend(customParseFormat)
 
-const validationSchema = Yup.object().shape({
-    email: Yup.string().email('Invalid email').required('Email Required'),
-    name: Yup.string().required('User Name Required'),
+const useValidationSchema = (t: (k: string) => string) =>
+    Yup.object().shape({
+    email: Yup.string().email(t('text.validation.invalidEmail')).required(t('text.validation.emailRequired')),
+    name: Yup.string().required(t('text.validation.userNameRequired')),
     location: Yup.string(),
     title: Yup.string(),
     phoneNumber: Yup.string().matches(
         /^((\+[1-9]{1,4}[ -]?)|(\([0-9]{2,3}\)[ -]?)|([0-9]{2,4})[ -]?)*?[0-9]{3,4}[ -]?[0-9]{3,4}$/,
-        'Phone number is not valid',
+        t('text.validation.invalidPhoneNumber'),
     ),
     birthday: Yup.string(),
     facebook: Yup.string(),
@@ -65,6 +67,7 @@ const { TabNav, TabList, TabContent } = Tabs
 
 const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
     const { customer, onFormSubmit } = props
+    const { t } = useTranslation()
 
     return (
         <Formik<FormModel>
@@ -86,7 +89,7 @@ const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
                 pinterest: customer?.personalInfo?.pinterest || '',
                 linkedIn: customer?.personalInfo?.linkedIn || '',
             }}
-            validationSchema={validationSchema}
+            validationSchema={useValidationSchema(t)}
             onSubmit={(values, { setSubmitting }) => {
                 onFormSubmit?.(values)
                 setSubmitting(false)
@@ -98,9 +101,9 @@ const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
                         <Tabs defaultValue="personalInfo">
                             <TabList>
                                 <TabNav value="personalInfo">
-                                    Personal Info
+                                    {t('text.tabs.personalInfo')}
                                 </TabNav>
-                                <TabNav value="social">Social</TabNav>
+                                <TabNav value="social">{t('text.tabs.social')}</TabNav>
                             </TabList>
                             <div className="p-6">
                                 <TabContent value="personalInfo">

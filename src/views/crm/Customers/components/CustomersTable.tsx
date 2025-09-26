@@ -17,6 +17,7 @@ import { Link } from 'react-router-dom'
 import dayjs from 'dayjs'
 import cloneDeep from 'lodash/cloneDeep'
 import type { OnSortParam, ColumnDef } from '@/components/shared/DataTable'
+import { useTranslation } from 'react-i18next'
 
 const statusColor: Record<string, string> = {
     active: 'bg-emerald-500',
@@ -26,6 +27,7 @@ const statusColor: Record<string, string> = {
 const ActionColumn = ({ row }: { row: Customer }) => {
     const { textTheme } = useThemeClass()
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const onEdit = () => {
         dispatch(setDrawerOpen())
@@ -37,7 +39,7 @@ const ActionColumn = ({ row }: { row: Customer }) => {
             className={`${textTheme} cursor-pointer select-none font-semibold`}
             onClick={onEdit}
         >
-            Edit
+            {t('text.actions.edit')}
         </div>
     )
 }
@@ -60,6 +62,7 @@ const NameColumn = ({ row }: { row: Customer }) => {
 
 const Customers = () => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
     const data = useAppSelector((state) => state.crmCustomers.data.customerList)
     const loading = useAppSelector((state) => state.crmCustomers.data.loading)
     const filterData = useAppSelector(
@@ -86,7 +89,7 @@ const Customers = () => {
     const columns: ColumnDef<Customer>[] = useMemo(
         () => [
             {
-                header: 'Name',
+                header: t('text.columns.name'),
                 accessorKey: 'name',
                 cell: (props) => {
                     const row = props.row.original
@@ -94,11 +97,11 @@ const Customers = () => {
                 },
             },
             {
-                header: 'Email',
+                header: t('text.columns.email'),
                 accessorKey: 'email',
             },
             {
-                header: 'Status',
+                header: t('text.columns.status'),
                 accessorKey: 'status',
                 cell: (props) => {
                     const row = props.row.original
@@ -106,14 +109,14 @@ const Customers = () => {
                         <div className="flex items-center">
                             <Badge className={statusColor[row.status]} />
                             <span className="ml-2 rtl:mr-2 capitalize">
-                                {row.status}
+                                {t(`text.status.${row.status}`)}
                             </span>
                         </div>
                     )
                 },
             },
             {
-                header: 'Last online',
+                header: t('text.columns.lastOnline'),
                 accessorKey: 'lastOnline',
                 cell: (props) => {
                     const row = props.row.original
@@ -130,7 +133,7 @@ const Customers = () => {
                 cell: (props) => <ActionColumn row={props.row.original} />,
             },
         ],
-        [],
+        [t],
     )
 
     const onPaginationChange = (page: number) => {

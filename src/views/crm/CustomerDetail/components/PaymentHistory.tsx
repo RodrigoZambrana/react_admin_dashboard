@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import Table from '@/components/ui/Table'
 import Badge from '@/components/ui/Badge'
 import {
@@ -21,9 +22,9 @@ const statusColor: Record<string, string> = {
 
 const columnHelper = createColumnHelper<OrderHistory>()
 
-const columns = [
+const columns = (t: (k: string) => string) => [
     columnHelper.accessor('id', {
-        header: 'Reference',
+        header: t('text.columns.reference'),
         cell: (props) => {
             const row = props.row.original
             return (
@@ -34,24 +35,22 @@ const columns = [
         },
     }),
     columnHelper.accessor('item', {
-        header: 'Product',
+        header: t('text.columns.product'),
     }),
     columnHelper.accessor('status', {
-        header: 'Status',
+        header: t('text.columns.status'),
         cell: (props) => {
             const row = props.row.original
             return (
                 <div className="flex items-center">
                     <Badge className={statusColor[row.status]} />
-                    <span className="ml-2 rtl:mr-2 capitalize">
-                        {row.status}
-                    </span>
+                    <span className="ml-2 rtl:mr-2 capitalize">{t(`text.status.${row.status}`)}</span>
                 </div>
             )
         },
     }),
     columnHelper.accessor('date', {
-        header: 'Date',
+        header: t('text.columns.date'),
         cell: (props) => {
             const row = props.row.original
             return (
@@ -62,7 +61,7 @@ const columns = [
         },
     }),
     columnHelper.accessor('amount', {
-        header: 'Amount',
+        header: t('text.columns.amount'),
         cell: (props) => {
             const row = props.row.original
             return (
@@ -91,9 +90,10 @@ const PaymentHistory = () => {
         }[]
     >([])
 
+    const { t } = useTranslation()
     const table = useReactTable({
         data,
-        columns,
+        columns: columns(t),
         state: {
             sorting,
         },
@@ -104,7 +104,7 @@ const PaymentHistory = () => {
 
     return (
         <div className="mb-8">
-            <h6 className="mb-4">Payment History</h6>
+            <h6 className="mb-4">{t('text.titles.paymentHistory')}</h6>
             <Table>
                 <THead>
                     {table.getHeaderGroups().map((headerGroup) => (

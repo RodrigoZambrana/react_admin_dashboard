@@ -9,6 +9,8 @@ import {
     createColumnHelper,
 } from '@tanstack/react-table'
 import { FiPackage } from 'react-icons/fi'
+import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 type Product = {
     id: string
@@ -41,31 +43,36 @@ const ProductColumn = ({ row }: { row: Product }) => {
 
 const columnHelper = createColumnHelper<Product>()
 
-const columns = [
+const columns = (t: (k: string) => string) => [
     columnHelper.accessor('name', {
-        header: 'Product',
+        header: t('text.columns.product'),
         cell: (props) => {
             const row = props.row.original
             return <ProductColumn row={row} />
         },
     }),
     columnHelper.accessor('sold', {
-        header: 'Sold',
+        header: t('text.columns.sold'),
     }),
 ]
 
 const TopProduct = ({ data = [], className }: TopProductProps) => {
+    const { t } = useTranslation()
     const table = useReactTable({
         data,
-        columns,
+        columns: columns(t),
         getCoreRowModel: getCoreRowModel(),
     })
+
+    const navigate = useNavigate()
 
     return (
         <Card className={className}>
             <div className="flex items-center justify-between mb-4">
-                <h4>Top Selling</h4>
-                <Button size="sm">View Products</Button>
+                <h4>{t('sales.dashboard.topProduct.title')}</h4>
+                <Button size="sm" onClick={() => navigate('/app/sales/product-list')}>
+                    {t('sales.dashboard.topProduct.viewProducts')}
+                </Button>
             </div>
             <Table>
                 <THead>

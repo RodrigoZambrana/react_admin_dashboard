@@ -11,6 +11,7 @@ import {
 } from '@tanstack/react-table'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
 import type { Lead } from '../store'
 
 type LeadsProps = {
@@ -30,25 +31,26 @@ const NameColumn = ({ row }: { row: Lead }) => {
 }
 
 const LeadStatus = ({ status }: { status: number }) => {
+    const { t } = useTranslation()
     switch (status) {
         case 0:
-            return <Tag className="rounded-md">New</Tag>
+            return <Tag className="rounded-md">{t('text.status.new')}</Tag>
         case 1:
             return (
                 <Tag className="bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-100  border-0 rounded-sm">
-                    Sold
+                    {t('text.status.sold')}
                 </Tag>
             )
         case 2:
             return (
                 <Tag className="text-amber-600 bg-amber-100 dark:text-amber-100 dark:bg-amber-500/20  border-0 rounded-sm">
-                    Not Interested
+                    {t('text.status.notInterested')}
                 </Tag>
             )
         case 3:
             return (
                 <Tag className="bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-100 border-0 rounded-sm">
-                    In Progress
+                    {t('text.status.inProgress')}
                 </Tag>
             )
         default:
@@ -58,26 +60,26 @@ const LeadStatus = ({ status }: { status: number }) => {
 
 const columnHelper = createColumnHelper<Lead>()
 
-const columns = [
+const columns = (t: (k: string) => string) => [
     columnHelper.accessor('name', {
-        header: 'Name',
+        header: t('text.columns.name'),
         cell: (props) => {
             const row = props.row.original
             return <NameColumn row={row} />
         },
     }),
     columnHelper.accessor('status', {
-        header: 'Status',
+        header: t('text.columns.status'),
         cell: (props) => {
             const row = props.row.original
             return <LeadStatus status={row.status} />
         },
     }),
     columnHelper.accessor('email', {
-        header: 'Email',
+        header: t('text.labels.email'),
     }),
     columnHelper.accessor('createdTime', {
-        header: 'Created Time',
+        header: t('text.columns.createdTime'),
         cell: (props) => {
             const row = props.row.original
             return (
@@ -88,7 +90,7 @@ const columns = [
         },
     }),
     columnHelper.accessor('assignee', {
-        header: 'Assignee',
+        header: t('text.columns.assignee'),
         cell: (props) => {
             const row = props.row.original
             return (
@@ -102,10 +104,11 @@ const columns = [
 
 const Leads = ({ data = [], className }: LeadsProps) => {
     const navigate = useNavigate()
+    const { t } = useTranslation()
 
     const table = useReactTable({
         data,
-        columns,
+        columns: columns(t),
         getCoreRowModel: getCoreRowModel(),
     })
 
@@ -116,9 +119,9 @@ const Leads = ({ data = [], className }: LeadsProps) => {
     return (
         <Card className={className}>
             <div className="flex items-center justify-between mb-4">
-                <h4>Leads</h4>
+                <h4>{t('crm.leads.title')}</h4>
                 <Button size="sm" onClick={onNavigate}>
-                    View All Leads
+                    {t('crm.leads.viewAll')}
                 </Button>
             </div>
             <Table>

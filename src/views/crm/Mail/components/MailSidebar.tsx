@@ -14,6 +14,7 @@ import {
     useAppSelector,
 } from '../store'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { groupList, labelList } from '../constants'
 import type { JSX } from 'react'
 
@@ -34,6 +35,7 @@ const { MenuItem, MenuGroup } = Menu
 
 const MailSideBarContent = () => {
     const navigate = useNavigate()
+    const { t } = useTranslation()
     const location = useLocation()
 
     const dispatch = useAppDispatch()
@@ -76,7 +78,7 @@ const MailSideBarContent = () => {
             <div className="flex flex-col justify-between h-full">
                 <div>
                     <div className="my-8 mx-6">
-                        <h3>Mailbox</h3>
+                        <h3>{t('crm.mail.mailbox')}</h3>
                     </div>
                     <Menu variant="transparent" className="mx-2 mb-10">
                         {groupList.map((menu) => (
@@ -93,12 +95,12 @@ const MailSideBarContent = () => {
                                 <span className="text-2xl ltr:mr-2 rtl:ml-2">
                                     {menu.icon}
                                 </span>
-                                <span>{menu.label}</span>
+                                <span>{t(`crm.mail.categories.${menu.value}`)}</span>
                             </MenuItem>
                         ))}
                     </Menu>
                     <Menu variant="transparent" className="mx-2 mb-6">
-                        <MenuGroup label="Labels">
+                        <MenuGroup label={t('crm.mail.labels')}>
                             {labelList.map((label) => (
                                 <MenuItem
                                     key={label.value}
@@ -114,7 +116,7 @@ const MailSideBarContent = () => {
                                         className="ltr:mr-2 rtl:ml-2"
                                         innerClass={label.dotClass}
                                     />
-                                    <span>{label.label}</span>
+                                    <span>{t(`crm.mail.labelsList.${label.value}`)}</span>
                                 </MenuItem>
                             ))}
                         </MenuGroup>
@@ -148,7 +150,7 @@ const MailSidebar = () => {
     return smaller.xl ? (
         <Drawer
             bodyClass="p-0"
-            title="Mail"
+            title={t('crm.mail.title')}
             isOpen={mobileSideBarExpand}
             placement="left"
             width={280}

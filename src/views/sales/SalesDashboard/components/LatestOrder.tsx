@@ -13,6 +13,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { NumericFormat } from 'react-number-format'
 import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
 
 type Order = {
     id: string
@@ -38,22 +39,19 @@ const { Tr, Td, TBody, THead, Th } = Table
 const orderStatusColor: Record<
     number,
     {
-        label: string
         dotClass: string
         textClass: string
     }
 > = {
     0: {
-        label: 'Paid',
         dotClass: 'bg-emerald-500',
         textClass: 'text-emerald-500',
     },
     1: {
-        label: 'Pending',
         dotClass: 'bg-amber-500',
         textClass: 'text-amber-500',
     },
-    2: { label: 'Failed', dotClass: 'bg-red-500', textClass: 'text-red-500' },
+    2: { dotClass: 'bg-red-500', textClass: 'text-red-500' },
 }
 
 const OrderColumn = ({ row }: OrderColumnPros) => {
@@ -76,13 +74,13 @@ const OrderColumn = ({ row }: OrderColumnPros) => {
 
 const columnHelper = createColumnHelper<Order>()
 
-const columns = [
+const columns = (t: (k: string) => string) => [
     columnHelper.accessor('id', {
-        header: 'Order',
+        header: t('text.columns.order'),
         cell: (props) => <OrderColumn row={props.row.original} />,
     }),
     columnHelper.accessor('status', {
-        header: 'Status',
+        header: t('text.columns.status'),
         cell: (props) => {
             const { status } = props.row.original
             return (
@@ -91,24 +89,28 @@ const columns = [
                     <span
                         className={`ml-2 rtl:mr-2 capitalize font-semibold ${orderStatusColor[status].textClass}`}
                     >
-                        {orderStatusColor[status].label}
+                        {status === 0
+                            ? t('text.status.paid')
+                            : status === 1
+                            ? t('text.status.pending')
+                            : t('text.status.failed')}
                     </span>
                 </div>
             )
         },
     }),
     columnHelper.accessor('date', {
-        header: 'Date',
+        header: t('text.columns.date'),
         cell: (props) => {
             const row = props.row.original
             return <span>{dayjs.unix(row.date).format('DD/MM/YYYY')}</span>
         },
     }),
     columnHelper.accessor('customer', {
-        header: 'Customer',
+        header: t('text.columns.customer'),
     }),
     columnHelper.accessor('totalAmount', {
-        header: 'Profile Progress',
+        header: t('text.columns.total'),
         cell: (props) => {
             const { totalAmount } = props.row.original
             return (
@@ -124,17 +126,22 @@ const columns = [
 ]
 
 const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
+    const { t } = useTranslation()
     const table = useReactTable({
         data,
-        columns,
+        columns: columns(t),
         getCoreRowModel: getCoreRowModel(),
     })
+
+    const navigate = useNavigate()
 
     return (
         <Card className={className}>
             <div className="flex items-center justify-between mb-6">
-                <h4>Latest Orders</h4>
-                <Button size="sm">View Orders</Button>
+                <h4>{t('sales.dashboard.latestOrders.title')}</h4>
+                <Button size="sm" onClick={() => navigate('/app/sales/order-list')}>
+                    {t('sales.dashboard.latestOrders.viewOrders')}
+                </Button>
             </div>
             <Table>
                 <THead>

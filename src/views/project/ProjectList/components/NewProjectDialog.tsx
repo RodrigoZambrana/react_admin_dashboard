@@ -5,9 +5,11 @@ import {
     useAppDispatch,
     useAppSelector,
 } from '../store'
+import { useTranslation } from 'react-i18next'
 
 const NewProjectDialog = () => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const newProjectDialog = useAppSelector(
         (state) => state.projectList.data.newProjectDialog,
@@ -23,7 +25,7 @@ const NewProjectDialog = () => {
             onClose={onDialogClose}
             onRequestClose={onDialogClose}
         >
-            <h4>Add new project</h4>
+            <h4>{t('text.titles.addNewProject')}</h4>
             <div className="mt-4">
                 <NewProjectForm />
             </div>

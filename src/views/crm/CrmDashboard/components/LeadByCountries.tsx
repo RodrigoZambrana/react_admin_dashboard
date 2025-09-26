@@ -2,6 +2,7 @@ import Badge from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
 import RegionMap from '@/components/shared/RegionMap'
 import type { LeadRegion } from '../store'
+import { useTranslation } from 'react-i18next'
 
 type LeadByCountriesProps = {
     data?: LeadRegion[]
@@ -34,9 +35,10 @@ const getMapColors = (data: LeadRegion[] = []) => {
 }
 
 const LeadByCountries = ({ data = [], className }: LeadByCountriesProps) => {
+    const { t } = useTranslation()
     return (
         <Card className={className}>
-            <h4>Lead By Countries</h4>
+            <h4>{t('crm.dashboard.leadByCountries.title')}</h4>
             <div className="grid lg:grid-cols-3 gap-4">
                 <div className="lg:col-span-2 px-4">
                     <RegionMap data={getMapColors(data)} valueSuffix="%" />
