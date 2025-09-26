@@ -22,7 +22,7 @@
             "productList": "Lista de productos",
             "productEdit": "Producto editar",
             "productNew": "Agregar producto",
-            "orderList": "Lista de orden",
+            "orderList": "Pedidos confirmados",
             "orderDetails": "Detalles del pedido"
         },
         "appsCrypto": {
@@ -45,6 +45,11 @@
             "invoice": "Factura",
             "activityLog": "Registro de actividades",
             "kycForm": "Formulario kyc"
+        },
+        "appsUsers": {
+            "users": "Usuarios",
+            "userList": "Lista de usuarios",
+            "userNew": "Agregar usuario"
         },
         "uiComponents": "Componentes de la UI",
         "uiComponentsCommon": {
@@ -218,15 +223,46 @@
             "hasAccount": "¿Ya tienes una cuenta?"
         }
     },
+    "project": {
+        "dashboard": {
+            "greeting": "Hola, {{name}}!",
+            "tasksOnHand": "Tienes {{count}} tareas pendientes.",
+            "taskOverview": "Resumen de tareas",
+            "projects": "Proyectos",
+            "ranges": {
+                "monthly": "Mensual",
+                "weekly": "Semanal",
+                "daily": "Diario"
+            }
+        }
+    },
     "text": {
         "titles": {
             "products": "Productos",
             "shipping": "Envío",
             "paymentSummary": "Resumen de pago",
             "paymentHistory": "Historial de pagos",
+            "activity": "Actividad",
+            "details": "Detalles",
             "schedule": "Agenda",
             "myTasks": "Mis tareas",
             "addNewProject": "Agregar nuevo proyecto",
+            "addPeople": "Agregar personas",
+            "addNewTicket": "Agregar nuevo ticket",
+            "deleteBoard": "Eliminar tablero",
+            "installed": "Instalado",
+            "available": "Disponible",
+            "password": "Contraseña",
+            "invoice": "Factura",
+            "shippingAddress": "Dirección de envío",
+            "billingAddress": "Dirección de facturación",
+            "comments": "Comentarios",
+            "description": "Descripción",
+            "attachments": "Adjuntos",
+            "whereSignedIn": "Dónde has iniciado sesión",
+            "addressInformation": "Información de dirección",
+            "permanentAddress": "Dirección permanente",
+            "correspondenceAddress": "Dirección de correspondencia",
             "addEvent": "Agregar evento",
             "editEvent": "Editar evento",
             "deleteCustomer": "Eliminar cliente",
@@ -236,6 +272,7 @@
             "pricing": "Precios",
             "deleteProduct": "Eliminar producto",
             "paymentMethods": "Métodos de pago",
+            "billingHistory": "Historial de facturación",
             "activityLog": "Registro de actividades",
             "filterActivity": "Filtrar actividad"
         },
@@ -416,6 +453,8 @@
             "zipCode": "Código postal",
             "current": "Actual",
             "language": "Idioma",
+            "ticket": "Ticket",
+            "comment": "Comentario",
             "category": "Categoría",
             "tags": "Etiquetas",
             "brand": "Marca",
@@ -440,41 +479,7 @@
         "tooltips": {
             "cvv": "El código CVV/CVC se encuentra en la parte posterior de su tarjeta de crédito/débito, en el lado derecho de la franja blanca de la firma"
         },
-        "titles": {
-            "products": "Productos",
-            "shipping": "Envío",
-            "paymentSummary": "Resumen de pago",
-            "paymentHistory": "Historial de pagos",
-            "schedule": "Agenda",
-            "myTasks": "Mis tareas",
-            "addNewProject": "Agregar nuevo proyecto",
-            "activity": "Actividad",
-            "details": "Detalles",
-            "addPeople": "Agregar personas",
-            "addNewTicket": "Agregar nuevo ticket",
-            "deleteBoard": "Eliminar tablero",
-            "installed": "Instalado",
-            "available": "Disponible",
-            "password": "Contraseña",
-            "invoice": "Factura",
-            "shippingAddress": "Dirección de envío",
-            "billingAddress": "Dirección de facturación",
-            "comments": "Comentarios",
-            "description": "Descripción",
-            "attachments": "Adjuntos",
-            "whereSignedIn": "Dónde has iniciado sesión",
-            "addressInformation": "Información de dirección",
-            "permanentAddress": "Dirección permanente",
-            "correspondenceAddress": "Dirección de correspondencia",
-            "addEvent": "Agregar evento",
-            "editEvent": "Editar evento",
-            "deleteCustomer": "Eliminar cliente",
-            "customerDeleted": "Eliminado correctamente",
-            "editCreditCard": "Editar tarjeta de crédito",
-            "basicInformation": "Información básica",
-            "pricing": "Precios",
-            "deleteProduct": "Eliminar producto"
-        },
+        
         "descriptions": {
             "basicProductInfo": "Sección para configurar la información básica del producto",
             "productSalesInfo": "Sección para configurar la información de ventas del producto",
@@ -493,6 +498,7 @@
             "appInstalled": "Aplicación instalada",
             "invoiceNote": "La factura se creó en una computadora y es válida sin la firma y el sello.",
             "passwordUpdated": "Contraseña actualizada",
+            "userCreated": "Usuario creado",
             "viewPreviousBilling": "Ver su facturación anterior"
         },
         "validation": {
@@ -751,6 +757,15 @@
                 "title": "Eliminado correctamente",
                 "desc": "Producto eliminado correctamente"
             }
+        },
+        "orderDetails": {
+            "activity": {
+                "parcel_has_been_delivered": "El paquete ha sido entregado",
+                "parcel_is_out_for_delivery": "El paquete está en camino de entrega",
+                "parcel_has_arrived_at_delivery_station": "El paquete ha llegado al centro de entrega",
+                "parcel_has_been_picked_up_by_courier": "El paquete ha sido recogido por el mensajero",
+                "seller_is_preparing_to_ship_your_parcel": "El vendedor está preparando el envío de su paquete"
+            }
         }
     },
     "crm": {
@@ -780,6 +795,9 @@
                 "emailResponse": "Email",
                 "proposals": "Propuestas",
                 "appointment": "Citas"
+            },
+            "leadByCountries": {
+                "title": "Prospectos por país"
             }
         },
         "customerDetail": {
@@ -797,11 +815,7 @@
                 "plan": "Plan"
             }
         },
-        "dashboard": {
-            "leadByCountries": {
-                "title": "Prospectos por país"
-            }
-        },
+        
         "leads": {
             "title": "Prospectos",
             "viewAll": "Ver todos los prospectos"
@@ -819,5 +833,14 @@
             "order": "¡Orden no encontrada!",
             "user": "¡Usuario no encontrado!"
         }
+    },
+    "notification": {
+        "title": "Notificaciones",
+        "markAllRead": "Marcar todo como leído",
+        "empty": {
+            "title": "¡Sin notificaciones!",
+            "desc": "Por favor, inténtalo más tarde"
+        },
+        "viewAll": "Ver toda la actividad"
     }
 }

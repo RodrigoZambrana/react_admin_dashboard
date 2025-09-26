@@ -46,6 +46,11 @@
             "activityLog": "Activity Log",
             "kycForm": "KYC Form"
         },
+        "appsUsers": {
+            "users": "Users",
+            "userList": "User List",
+            "userNew": "Add User"
+        },
         "uiComponents": "UI Components",
         "uiComponentsCommon": {
             "common": "Common",
@@ -237,6 +242,8 @@
             "shipping": "Shipping",
             "paymentSummary": "Payment Summary",
             "paymentHistory": "Payment History",
+            "activity": "Activity",
+            "details": "Details",
             "addEvent": "Add New Event",
             "editEvent": "Edit Event",
             "deleteCustomer": "Delete customer",
@@ -245,10 +252,27 @@
             "schedule": "Schedule",
             "myTasks": "My Tasks",
             "addNewProject": "Add new project",
+            "addPeople": "Add people",
+            "addNewTicket": "Add New Ticket",
+            "deleteBoard": "Delete Board",
+            "installed": "Installed",
+            "available": "Available",
+            "password": "Password",
+            "invoice": "Invoice",
+            "shippingAddress": "Shipping Address",
+            "billingAddress": "Billing address",
+            "comments": "Comments",
+            "description": "Description",
+            "attachments": "Attachments",
+            "whereSignedIn": "Where you're signed in",
+            "addressInformation": "Address Information",
+            "permanentAddress": "Permanent Address",
+            "correspondenceAddress": "Correspondence Address",
             "basicInformation": "Basic Information",
             "pricing": "Pricing",
             "deleteProduct": "Delete product",
             "paymentMethods": "Payment Methods",
+            "billingHistory": "Billing History",
             "activityLog": "Activity Log",
             "filterActivity": "Filter Activity"
         },
@@ -429,6 +453,8 @@
             "zipCode": "Zip Code",
             "current": "Current",
             "language": "Language",
+            "ticket": "Ticket",
+            "comment": "Comment",
             "timeZone": "Time Zone",
             "syncData": "Sync Data",
             "category": "Category",
@@ -455,38 +481,7 @@
         "tooltips": {
             "cvv": "The CVV/CVC code is located on the back of your credit/debit card on the right side of the white signature strip"
         },
-        "titles": {
-            "products": "Products",
-            "shipping": "Shipping",
-            "paymentSummary": "Payment Summary",
-            "paymentHistory": "Payment History",
-            "addEvent": "Add New Event",
-            "editEvent": "Edit Event",
-            "deleteCustomer": "Delete customer",
-            "customerDeleted": "Successfully Deleted",
-            "editCreditCard": "Edit Credit Card",
-            "activity": "Activity",
-            "details": "Details",
-            "addPeople": "Add people",
-            "addNewTicket": "Add New Ticket",
-            "deleteBoard": "Delete Board",
-            "installed": "Installed",
-            "available": "Available",
-            "password": "Password",
-            "invoice": "Invoice",
-            "shippingAddress": "Shipping Address",
-            "billingAddress": "Billing address",
-            "comments": "Comments",
-            "description": "Description",
-            "attachments": "Attachments",
-            "whereSignedIn": "Where you're signed in",
-            "addressInformation": "Address Information",
-            "permanentAddress": "Permanent Address",
-            "correspondenceAddress": "Correspondence Address",
-            "basicInformation": "Basic Information",
-            "pricing": "Pricing",
-            "deleteProduct": "Delete product"
-        },
+        
         "descriptions": {
             "basicProductInfo": "Section to config basic product information",
             "productSalesInfo": "Section to config product sales information"
@@ -502,6 +497,7 @@
             "appInstalled": "App installed",
             "invoiceNote": "Invoice was created on a computer and is valid without the signature and seal.",
             "passwordUpdated": "Password updated",
+            "userCreated": "User created",
             "viewPreviousBilling": "View your previous billing"
         },
         "validation": {
@@ -766,6 +762,15 @@
                 "title": "Successfully Deleted",
                 "desc": "Product successfully deleted"
             }
+        },
+        "orderDetails": {
+            "activity": {
+                "parcel_has_been_delivered": "Parcel has been delivered",
+                "parcel_is_out_for_delivery": "Parcel is out for delivery",
+                "parcel_has_arrived_at_delivery_station": "Parcel has arrived at delivery station",
+                "parcel_has_been_picked_up_by_courier": "Parcel has been picked up by courier",
+                "seller_is_preparing_to_ship_your_parcel": "Seller is preparing to ship your parcel"
+            }
         }
     },
     "crm": {
@@ -795,6 +800,9 @@
                 "emailResponse": "Email",
                 "proposals": "Proposals",
                 "appointment": "Appointment"
+            },
+            "leadByCountries": {
+                "title": "Lead By Countries"
             }
         },
         "customerDetail": {
@@ -812,11 +820,7 @@
                 "plan": "Plan"
             }
         },
-        "dashboard": {
-            "leadByCountries": {
-                "title": "Lead By Countries"
-            }
-        },
+        
         "leads": {
             "title": "Leads",
             "viewAll": "View All Leads"
@@ -834,5 +838,14 @@
             "order": "No order found!",
             "user": "No user found!"
         }
+    },
+    "notification": {
+        "title": "Notifications",
+        "markAllRead": "Mark all as read",
+        "empty": {
+            "title": "No notifications!",
+            "desc": "Please try again later"
+        },
+        "viewAll": "View All Activity"
     }
 }

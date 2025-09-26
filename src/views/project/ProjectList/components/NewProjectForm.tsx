@@ -18,6 +18,7 @@ import {
 } from '../store'
 import cloneDeep from 'lodash/cloneDeep'
 import * as Yup from 'yup'
+import { useTranslation } from 'react-i18next'
 
 type FormModel = {
     title: string
@@ -89,6 +90,7 @@ const validationSchema = Yup.object().shape({
 
 const NewProjectForm = () => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const members = useAppSelector((state) => state.projectList.data.allMembers)
 
@@ -149,20 +151,20 @@ const NewProjectForm = () => {
                 <Form>
                     <FormContainer>
                         <FormItem
-                            label="Title"
+                            label={t('text.labels.title')}
                             invalid={errors.title && touched.title}
-                            errorMessage={errors.title}
+                            errorMessage={t(errors.title as string)}
                         >
                             <Field
                                 type="text"
                                 autoComplete="off"
                                 name="title"
-                                placeholder="Enter title"
+                                placeholder={t('text.placeholders.eventTitle')}
                                 component={Input}
                             />
                         </FormItem>
                         <FormItem
-                            label="Assignees"
+                            label={t('text.columns.assignees')}
                             invalid={
                                 (errors.assignees && touched.assignees) as ''
                             }
@@ -192,22 +194,22 @@ const NewProjectForm = () => {
                             </Field>
                         </FormItem>
                         <FormItem
-                            label="Content"
+                            label={t('text.labels.description')}
                             invalid={errors.content && touched.content}
-                            errorMessage={errors.content}
+                            errorMessage={t(errors.content as string)}
                         >
                             <Field
                                 textArea
                                 type="text"
                                 autoComplete="off"
                                 name="content"
-                                placeholder="Enter content"
+                                placeholder={t('text.labels.description')}
                                 component={Input}
                             />
                         </FormItem>
                         <NewTaskField onAddNewTask={handleAddNewTask} />
                         <Button block variant="solid" type="submit">
-                            Submit
+                            {t('text.actions.submit')}
                         </Button>
                     </FormContainer>
                 </Form>
