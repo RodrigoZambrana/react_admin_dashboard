@@ -45,6 +45,7 @@ import {
     cryptoFakeApi,
     authFakeApi,
     knowledgeBaseFakeApi,
+    usersFakeApi,
 } from './fakeApi'
 
 const { apiPrefix } = appConfig
@@ -103,6 +104,7 @@ export function mockServer({ environment = 'test' }) {
             authFakeApi(this, apiPrefix)
             cryptoFakeApi(this, apiPrefix)
             knowledgeBaseFakeApi(this, apiPrefix)
+            usersFakeApi(this, apiPrefix)
         },
     })
 }

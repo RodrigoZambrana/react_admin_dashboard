@@ -20,6 +20,7 @@ import {
 } from '../store'
 import debounce from 'lodash/debounce'
 import type { ChangeEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const ActionBar = () => {
     const dispatch = useAppDispatch()
@@ -52,14 +53,16 @@ const ActionBar = () => {
         debounceFn(e.target.value)
     }
 
+    const { t } = useTranslation()
+
     return (
         <div className="lg:flex items-center justify-between mb-4">
-            <h3 className="mb-4 lg:mb-0">Project List</h3>
+            <h3 className="mb-4 lg:mb-0">{t('nav.appsProject.projectList')}</h3>
             <div className="flex flex-col md:flex-row md:items-center gap-1">
                 <Input
                     ref={inputRef}
                     size="sm"
-                    placeholder="Search"
+                    placeholder={t('text.placeholders.search')}
                     prefix={<HiOutlineSearch className="text-lg" />}
                     onChange={handleInputChange}
                 />
@@ -99,7 +102,7 @@ const ActionBar = () => {
                     icon={<HiOutlinePlusCircle />}
                     onClick={onAddNewProject}
                 >
-                    New Project
+                    {t('text.titles.addNewProject')}
                 </Button>
             </div>
         </div>

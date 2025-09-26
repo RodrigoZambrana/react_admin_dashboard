@@ -26,6 +26,7 @@ import useThemeClass from '@/utils/hooks/useThemeClass'
 import { useAppSelector } from '@/store'
 import useResponsive from '@/utils/hooks/useResponsive'
 import acronym from '@/utils/acronym'
+import { useTranslation } from 'react-i18next'
 
 type NotificationList = {
     id: string
@@ -183,6 +184,8 @@ const _Notification = ({ className }: { className?: string }) => {
         [notificationList],
     )
 
+    const { t } = useTranslation()
+
     return (
         <Dropdown
             renderTitle={
@@ -197,8 +200,8 @@ const _Notification = ({ className }: { className?: string }) => {
         >
             <Dropdown.Item variant="header">
                 <div className="border-b border-gray-200 dark:border-gray-600 px-4 py-2 flex items-center justify-between">
-                    <h6>Notifications</h6>
-                    <Tooltip title="Mark all as read">
+                    <h6>{t('notification.title')}</h6>
+                    <Tooltip title={t('notification.markAllRead')}>
                         <Button
                             variant="plain"
                             shape="circle"
@@ -266,9 +269,9 @@ const _Notification = ({ className }: { className?: string }) => {
                                     alt="no-notification"
                                 />
                                 <h6 className="font-semibold">
-                                    No notifications!
+                                    {t('notification.empty.title')}
                                 </h6>
-                                <p className="mt-1">Please Try again later</p>
+                                <p className="mt-1">{t('notification.empty.desc')}</p>
                             </div>
                         </div>
                     )}
@@ -280,7 +283,7 @@ const _Notification = ({ className }: { className?: string }) => {
                         to="/app/account/activity-log"
                         className="font-semibold cursor-pointer p-2 px-3 text-gray-600 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white"
                     >
-                        View All Activity
+                        {t('notification.viewAll')}
                     </Link>
                 </div>
             </Dropdown.Item>

@@ -296,8 +296,6 @@ const Profile = ({
                                     )}
                                 </Field>
                             </FormRow>
-                            <FormRow
-                                
                             <div className="mt-4 ltr:text-right">
                                 <Button
                                     className="ltr:mr-2 rtl:ml-2"

@@ -54,7 +54,13 @@ const Activity = ({ data = [] }: ActivityProps) => {
                                         event.recipient && 'text-emerald-500',
                                     )}
                                 >
-                                    {event.action}
+                                    {t(
+                                        `sales.orderDetails.activity.${event.action
+                                            .toLowerCase()
+                                            .replace(/[^a-z\s]/g, '')
+                                            .replace(/\s+/g, '_')}`,
+                                        { defaultValue: event.action },
+                                    )}
                                 </div>
                                 {event.recipient && (
                                     <div className="mb-1">

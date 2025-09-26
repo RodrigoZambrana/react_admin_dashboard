@@ -4,6 +4,7 @@ import AuthorityCheck from '@/components/shared/AuthorityCheck'
 import VerticalMenuIcon from './VerticalMenuIcon'
 import { Link } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
+import useAuth from '@/utils/hooks/useAuth'
 import type { CommonProps } from '@/@types/common'
 import type { Direction } from '@/@types/theme'
 import type { NavigationTree } from '@/@types/navigation'
@@ -45,6 +46,7 @@ const CollapsedItem = ({
 
 const DefaultItem = (props: DefaultItemProps) => {
     const { nav, onLinkClick, sideCollapsed, userAuthority } = props
+    const { signOut } = useAuth()
 
     return (
         <AuthorityCheck userAuthority={userAuthority} authority={nav.authority}>
@@ -53,13 +55,18 @@ const DefaultItem = (props: DefaultItemProps) => {
                     to={nav.path}
                     className="flex items-center gap-2 h-full w-full"
                     target={nav.isExternalLink ? '_blank' : ''}
-                    onClick={() =>
+                    onClick={(e) => {
+                        if (nav.path === '/sign-out') {
+                            e.preventDefault()
+                            signOut()
+                            return
+                        }
                         onLinkClick?.({
                             key: nav.key,
                             title: nav.title,
                             path: nav.path,
                         })
-                    }
+                    }}
                 >
                     <VerticalMenuIcon icon={nav.icon} />
                     {!sideCollapsed && (

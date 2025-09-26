@@ -242,4 +242,4 @@ const Integration = () => {
 }
 
 export default Integration
-    const { t } = useTranslation()
+    

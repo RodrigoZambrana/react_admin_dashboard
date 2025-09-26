@@ -4,6 +4,7 @@ import AuthorityCheck from '@/components/shared/AuthorityCheck'
 import { Link } from 'react-router-dom'
 import VerticalMenuIcon from './VerticalMenuIcon'
 import { Trans } from 'react-i18next'
+import useAuth from '@/utils/hooks/useAuth'
 import type { CommonProps } from '@/@types/common'
 import type { Direction } from '@/@types/theme'
 import type { NavigationTree } from '@/@types/navigation'
@@ -25,6 +26,7 @@ interface VerticalCollapsedMenuItemProps extends CollapsedItemProps {
 const { MenuItem, MenuCollapse } = Menu
 
 const DefaultItem = ({ nav, onLinkClick, userAuthority }: DefaultItemProps) => {
+    const { signOut } = useAuth()
     return (
         <AuthorityCheck userAuthority={userAuthority} authority={nav.authority}>
             <MenuCollapse
@@ -58,13 +60,18 @@ const DefaultItem = ({ nav, onLinkClick, userAuthority }: DefaultItemProps) => {
                                     target={
                                         subNav.isExternalLink ? '_blank' : ''
                                     }
-                                    onClick={() =>
+                                    onClick={(e) => {
+                                        if (subNav.path === '/sign-out') {
+                                            e.preventDefault()
+                                            signOut()
+                                            return
+                                        }
                                         onLinkClick?.({
                                             key: subNav.key,
                                             title: subNav.title,
                                             path: subNav.path,
                                         })
-                                    }
+                                    }}
                                 >
                                     <span>
                                         <Trans
@@ -95,6 +102,7 @@ const CollapsedItem = ({
     userAuthority,
     direction,
 }: CollapsedItemProps) => {
+    const { signOut } = useAuth()
     const menuItem = (
         <MenuItem key={nav.key} eventKey={nav.key} className="mb-2">
             <VerticalMenuIcon icon={nav.icon} />
@@ -124,13 +132,18 @@ const CollapsedItem = ({
                                     target={
                                         subNav.isExternalLink ? '_blank' : ''
                                     }
-                                    onClick={() =>
+                                    onClick={(e) => {
+                                        if (subNav.path === '/sign-out') {
+                                            e.preventDefault()
+                                            signOut()
+                                            return
+                                        }
                                         onLinkClick?.({
                                             key: subNav.key,
                                             title: subNav.title,
                                             path: subNav.path,
                                         })
-                                    }
+                                    }}
                                 >
                                     <span>
                                         <Trans

@@ -49,7 +49,7 @@ const appsRoute: Routes = [
         component: lazy(() => import('@/views/crm/Customers')),
         authority: [ADMIN, USER],
         meta: {
-            header: 'Customers',
+            header: lazy(() => import('@/views/crm/Customers/HeaderTitle')),
         },
     },
     {
@@ -109,7 +109,7 @@ const appsRoute: Routes = [
         component: lazy(() => import('@/views/sales/ProductNew')),
         authority: [ADMIN, USER],
         meta: {
-            header: 'Add New Product',
+            header: lazy(() => import('@/views/sales/ProductNew/HeaderTitle')),
         },
     },
     {
@@ -153,6 +153,22 @@ const appsRoute: Routes = [
         path: `${APP_PREFIX_PATH}/account/kyc-form`,
         component: lazy(() => import('@/views/account/KycForm')),
         authority: [ADMIN, USER],
+    },
+    // Users
+    {
+        key: 'appsUsers.userList',
+        path: `${APP_PREFIX_PATH}/users/list`,
+        component: lazy(() => import('@/views/users/UsersList/UsersList')),
+        authority: [ADMIN, USER],
+    },
+    {
+        key: 'appsUsers.userNew',
+        path: `${APP_PREFIX_PATH}/users/new`,
+        component: lazy(() => import('@/views/users/UserNew/UserNew')),
+        authority: [ADMIN, USER],
+        meta: {
+            header: lazy(() => import('@/views/users/UserNew/HeaderTitle')),
+        },
     },
 ]
 
