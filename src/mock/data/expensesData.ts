@@ -1,0 +1,129 @@
+export const expensesDashboardData = {
+    statisticData: {
+        total: {
+            value: 12894.75,
+            growShrink: 3.2,
+        },
+        transactions: {
+            value: 342,
+            growShrink: 1.8,
+        },
+        recurring: {
+            value: 4820.5,
+            growShrink: -0.9,
+        },
+    },
+    expensesReportData: {
+        series: [
+            {
+                name: 'Operating Expenses',
+                data: [12, 14, 16, 18, 17, 15, 16, 19, 21, 20, 22, 24],
+            },
+            {
+                name: 'Administrative Expenses',
+                data: [8, 9, 11, 10, 12, 13, 11, 12, 13, 12, 14, 15],
+            },
+        ],
+        categories: [
+            '01 Jan',
+            '02 Jan',
+            '03 Jan',
+            '04 Jan',
+            '05 Jan',
+            '06 Jan',
+            '07 Jan',
+            '08 Jan',
+            '09 Jan',
+            '10 Jan',
+            '11 Jan',
+            '12 Jan',
+        ],
+    },
+    latestExpensesData: [
+        {
+            id: 'E-1001',
+            date: 1660132800,
+            vendor: 'AWS',
+            status: 0,
+            paymentMehod: 'visa',
+            paymentIdendifier: '•••• 6165',
+            amount: 168.2,
+        },
+        {
+            id: 'E-1002',
+            date: 1659132800,
+            vendor: 'Google Workspace',
+            status: 0,
+            paymentMehod: 'master',
+            paymentIdendifier: '•••• 7128',
+            amount: 89.99,
+        },
+        {
+            id: 'E-1003',
+            date: 1658132800,
+            vendor: 'Figma',
+            status: 1,
+            paymentMehod: 'paypal',
+            paymentIdendifier: '••••@company.com',
+            amount: 25,
+        },
+    ],
+    expensesByCategoriesData: {
+        labels: ['SaaS', 'Office', 'Travel', 'Utilities'],
+        data: [2100, 1540, 960, 720],
+    },
+}
+
+export const expensesData = [
+    {
+        id: 'E-1001',
+        date: 1660132800,
+        vendor: 'AWS',
+        category: 'SaaS',
+        status: 0,
+        paymentMehod: 'visa',
+        paymentIdendifier: '•••• 6165',
+        amount: 168.2,
+        note: 'EC2 & S3 usage',
+    },
+    {
+        id: 'E-1002',
+        date: 1659132800,
+        vendor: 'Google Workspace',
+        category: 'SaaS',
+        status: 0,
+        paymentMehod: 'master',
+        paymentIdendifier: '•••• 7128',
+        amount: 89.99,
+        note: 'Team license',
+    },
+    {
+        id: 'E-1003',
+        date: 1658132800,
+        vendor: 'Figma',
+        category: 'SaaS',
+        status: 1,
+        paymentMehod: 'paypal',
+        paymentIdendifier: '••••@company.com',
+        amount: 25,
+        note: 'Pro plan',
+    },
+    {
+        id: 'E-1004',
+        date: 1657332800,
+        vendor: 'Delta Airlines',
+        category: 'Travel',
+        status: 2,
+        paymentMehod: 'visa',
+        paymentIdendifier: '•••• 0921',
+        amount: 420,
+        note: 'Client meeting flight',
+    },
+]
+
+export const expenseCategoriesData = [
+    { id: 'cat-1', name: 'SaaS' },
+    { id: 'cat-2', name: 'Office' },
+    { id: 'cat-3', name: 'Travel' },
+    { id: 'cat-4', name: 'Utilities' },
+]

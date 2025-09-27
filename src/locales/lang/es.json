@@ -3,27 +3,39 @@
         "apps": "Aplicaciones",
         "appsProject": {
             "project": "Proyecto",
-            "dashboard": "Tablero",
+            "dashboard": "Resumen",
             "projectList": "Lista de proyectos",
             "scrumBoard": "Tablero Scrum",
             "issue": "Tema"
         },
         "appsCrm": {
             "crm": "Clientes",
-            "dashboard": "Tablero",
+            "dashboard": "Resumen",
             "calendar": "Calendario",
-            "customers": "Clientes",
+            "customers": "Listado",
             "customerDetails": "Detalles del cliente",
             "mail": "Correo"
         },
+        "appsCalendar": {
+            "calendar": "Agenda",
+            "activities": "Actividades",
+            "schedule": "Calendario"
+        },
         "appsSales": {
             "sales": "Ventas",
-            "dashboard": "Tablero",
+            "dashboard": "Resumen",
             "productList": "Lista de productos",
             "productEdit": "Producto editar",
             "productNew": "Agregar producto",
             "orderList": "Pedidos confirmados",
             "orderDetails": "Detalles del pedido"
+        },
+        "appsExpenses": {
+            "expenses": "Gastos",
+            "dashboard": "Resumen",
+            "expenseList": "Lista de gastos",
+            "expenseNew": "Nuevo gasto",
+            "categories": "Categorías"
         },
         "appsCrypto": {
             "crypto": "Cripto",
@@ -50,6 +62,13 @@
             "users": "Usuarios",
             "userList": "Lista de usuarios",
             "userNew": "Agregar usuario"
+        },
+        "appsSettings": {
+            "settings": "Configuración",
+            "orderStatuses": "Estados de pedidos",
+            "products": "Productos",
+            "customerStatuses": "Estados de clientes",
+            "expenses": "Gastos"
         },
         "uiComponents": "Componentes de la UI",
         "uiComponentsCommon": {
@@ -139,6 +158,12 @@
             "changeLog": "Registro de cambios"
         },
         "signOut": "Cerrar sesión"
+    },
+    "calendar": {
+        "calendar": "Calendario",
+        "month": "Mes",
+        "week": "Semana",
+        "day": "Día"
     },
     "user": {
         "menu": {
@@ -247,6 +272,7 @@
             "schedule": "Agenda",
             "myTasks": "Mis tareas",
             "addNewProject": "Agregar nuevo proyecto",
+            "addNewCustomer": "Agregar nuevo cliente",
             "addPeople": "Agregar personas",
             "addNewTicket": "Agregar nuevo ticket",
             "deleteBoard": "Eliminar tablero",
@@ -258,6 +284,8 @@
             "billingAddress": "Dirección de facturación",
             "comments": "Comentarios",
             "description": "Descripción",
+            "role": "Rol",
+            "activityDetails": "Detalle de actividad",
             "attachments": "Adjuntos",
             "whereSignedIn": "Dónde has iniciado sesión",
             "addressInformation": "Información de dirección",
@@ -298,7 +326,10 @@
             "taskId": "ID de tarea",
             "subject": "Asunto",
             "priority": "Prioridad",
-            "assignees": "Asignados"
+            "assignees": "Asignados",
+            "actions": "Acciones",
+            "published": "Publicado",
+            "stock": "Stock"
         },
         "priority": {
             "high": "Alta",
@@ -485,7 +516,8 @@
             "productSalesInfo": "Sección para configurar la información de ventas del producto",
             "passwordDesc": "Ingrese su contraseña actual y nueva para restablecer su contraseña",
             "viewPreviousBilling": "Ver su facturación anterior",
-            "addressInformation": "Ingrese su información de dirección para ayudarnos a acelerar el proceso de verificación"
+            "addressInformation": "Ingrese su información de dirección para ayudarnos a acelerar el proceso de verificación",
+            "inviteTeamMember": "Invita a los miembros del equipo a colaborar en este tablero"
         },
         "messages": {
             "deleteProductConfirm": "¿Está seguro de que desea eliminar este producto? Todos los registros relacionados con este producto también se eliminarán. Esta acción no se puede deshacer.",
@@ -702,9 +734,9 @@
                 "subtitle": "Consulta tus ventas y resumen actuales"
             },
             "stat": {
-                "revenue": "Ingresos",
-                "orders": "Órdenes",
-                "purchases": "Compras",
+                "revenue": "Ingreso total",
+                "orders": "Pedidos",
+                "purchases": "Ingreso líquido",
                 "vsMonths": "vs. {{months}} meses anteriores a {{date}}"
             },
             "categories": {
@@ -712,7 +744,7 @@
                 "donutText": "Productos vendidos"
             },
             "latestOrders": {
-                "title": "Últimas órdenes",
+                "title": "Últimos pedidos",
                 "viewOrders": "Ver órdenes"
             },
             "topProduct": {
@@ -739,6 +771,13 @@
                 "title": "Organizaciones",
                 "desc": "Sección para configurar los atributos del producto"
             },
+            "categories": {
+                "bags": "Bolsos",
+                "cloths": "Ropa",
+                "devices": "Dispositivos",
+                "watches": "Relojes",
+                "shoes": "Zapatos"
+            },
             "images": {
                 "title": "Imagen del producto",
                 "desc": "Agrega o cambia la imagen del producto",
@@ -753,6 +792,13 @@
         }
         ,
         "productList": {
+            "filter": {
+                "includedText": "Texto a incluir",
+                "keyword": "Buscar por nombre o código",
+                "productCategory": "Categoría de producto",
+                "publicationStatus": "Estado de publicación",
+                "productStatus": "Stock"
+            },
             "deleted": {
                 "title": "Eliminado correctamente",
                 "desc": "Producto eliminado correctamente"
@@ -825,6 +871,139 @@
             "opened": "Abierto",
             "performance": "Rendimiento",
             "average": "Promedio"
+        }
+    },
+    "expenses": {
+        "dashboard": {
+            "overview": {
+                "title": "Resumen de gastos",
+                "subtitle": "Seguimiento del gasto de la empresa y resumen"
+            },
+            "stat": {
+                "total": "Gasto total",
+                "transactions": "Transacciones",
+                "recurring": "Recurrente",
+                "vsMonths": "vs. {{months}} meses anteriores a {{date}}"
+            },
+            "categories": {
+                "title": "Categorías",
+                "donutText": "Gasto total"
+            },
+            "latestExpenses": {
+                "title": "Últimos gastos",
+                "viewExpenses": "Ver gastos"
+            },
+            "expensesReport": {
+                "title": "Reporte de gastos",
+                "export": "Exportar reporte"
+            }
+        },
+        "latestExpenses": {
+            "columns": {
+                "expense": "Gasto",
+                "vendor": "Proveedor"
+            }
+        },
+        "list": {
+            "title": "Gastos",
+            "columns": {
+                "expense": "Gasto",
+                "vendor": "Proveedor"
+            },
+            "delete": {
+                "title": "Eliminar gasto",
+                "confirm": "¿Seguro que deseas eliminar el/los gasto(s) seleccionado(s)? Esta acción no se puede deshacer.",
+                "titleSuccess": "Eliminado correctamente",
+                "single": "Gasto eliminado correctamente",
+                "batch": "{{count}} gastos eliminados correctamente"
+            }
+        },
+        "new": {
+            "title": "Nuevo gasto",
+            "fields": {
+                "vendor": "Proveedor"
+            },
+            "placeholders": {
+                "vendor": "Nombre del proveedor"
+            },
+            "created": {
+                "title": "Creado correctamente",
+                "desc": "Gasto creado correctamente"
+            }
+        },
+        "edit": {
+            "title": "Editar gasto",
+            "updated": {
+                "title": "Actualizado correctamente",
+                "desc": "Gasto actualizado correctamente"
+            }
+        },
+        "categories": {
+            "title": "Categorías de gastos",
+            "columns": {
+                "name": "Nombre"
+            },
+            "actions": {
+                "add": "Agregar",
+                "manage": "Gestionar categorías"
+            },
+            "placeholders": {
+                "name": "Nombre de la categoría"
+            },
+            "created": {
+                "title": "Creado correctamente",
+                "desc": "Categoría creada correctamente"
+            },
+            "updated": {
+                "title": "Actualizado correctamente",
+                "desc": "Categoría actualizada correctamente"
+            },
+            "deleted": {
+                "title": "Eliminado correctamente",
+                "desc": "Categoría eliminada correctamente"
+            }
+        }
+    },
+    "settings": {
+        "productCategories": {
+            "title": "Categorías de productos",
+            "columns": { "id": "ID", "name": "Nombre" },
+            "placeholders": { "id": "ID de categoría (ej. devices)", "name": "Nombre de la categoría" },
+            "created": { "title": "Creado correctamente", "desc": "Categoría creada correctamente" },
+            "updated": { "title": "Actualizado correctamente", "desc": "Categoría actualizada correctamente" },
+            "deleted": { "title": "Eliminado correctamente", "desc": "Categoría eliminada correctamente" }
+        },
+        "orderStatuses": {
+            "title": "Estados de pedidos",
+            "columns": { "name": "Nombre" },
+            "placeholders": { "name": "Nombre del estado" },
+            "created": { "title": "Creado correctamente", "desc": "Estado creado correctamente" },
+            "updated": { "title": "Actualizado correctamente", "desc": "Estado actualizado correctamente" },
+            "deleted": { "title": "Eliminado correctamente", "desc": "Estado eliminado correctamente" }
+        },
+        "productStatuses": {
+            "title": "Estados de productos",
+            "columns": { "name": "Nombre" },
+            "placeholders": { "name": "Nombre del estado" },
+            "created": { "title": "Creado correctamente", "desc": "Estado creado correctamente" },
+            "updated": { "title": "Actualizado correctamente", "desc": "Estado actualizado correctamente" },
+            "deleted": { "title": "Eliminado correctamente", "desc": "Estado eliminado correctamente" }
+        },
+        "customerStatuses": {
+            "title": "Estados de clientes",
+            "columns": { "id": "ID", "name": "Nombre" },
+            "placeholders": { "id": "ID de estado (ej. active)", "name": "Nombre del estado" },
+            "created": { "title": "Creado correctamente", "desc": "Estado creado correctamente" },
+            "updated": { "title": "Actualizado correctamente", "desc": "Estado actualizado correctamente" },
+            "deleted": { "title": "Eliminado correctamente", "desc": "Estado eliminado correctamente" }
+        },
+        "expenseStatuses": {
+            "title": "Estados de gastos",
+            "columns": { "name": "Nombre" },
+            "placeholders": { "name": "Nombre del estado" },
+            "created": { "title": "Creado correctamente", "desc": "Estado creado correctamente" },
+            "updated": { "title": "Actualizado correctamente", "desc": "Estado actualizado correctamente" },
+            "deleted": { "title": "Eliminado correctamente", "desc": "Estado eliminado correctamente" }
         }
     },
     "common": {

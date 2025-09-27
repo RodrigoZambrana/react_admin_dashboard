@@ -11,7 +11,7 @@ import {
     useAppDispatch,
     useAppSelector,
 } from '../store'
-import { HiOutlineUserAdd, HiOutlineCog } from 'react-icons/hi'
+import { HiOutlineUserAdd } from 'react-icons/hi'
 import { useNavigate } from 'react-router-dom'
 
 const BoardHeader = () => {
@@ -50,13 +50,7 @@ const BoardHeader = () => {
                             icon={<HiOutlineUserAdd />}
                             onClick={onAddMember}
                         />
-                        <Button
-                            size="sm"
-                            icon={<HiOutlineCog />}
-                            onClick={() =>
-                                navigate('/app/account/settings/profile')
-                            }
-                        />
+                        {/* Removed settings shortcut button */}
                         <BoardAddNewColumn />
                     </div>
                 </div>

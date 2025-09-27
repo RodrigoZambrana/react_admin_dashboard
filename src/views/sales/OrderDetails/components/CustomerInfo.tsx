@@ -4,6 +4,7 @@ import IconText from '@/components/shared/IconText'
 import { HiMail, HiPhone, HiExternalLink } from 'react-icons/hi'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { HiOutlineUser } from 'react-icons/hi'
 
 type CustomerInfoProps = {
     data?: {
@@ -37,7 +38,7 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
                 to="/app/crm/customer-details?id=11"
             >
                 <div className="flex items-center">
-                    <Avatar shape="circle" src={data?.img} />
+                    <Avatar shape="circle" src={data?.img || undefined} icon={<HiOutlineUser />} />
                     <div className="ltr:ml-2 rtl:mr-2">
                         <div className="font-semibold group-hover:text-gray-900 dark:group-hover:text-gray-100">
                             {data?.name}

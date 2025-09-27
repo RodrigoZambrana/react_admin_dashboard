@@ -3,6 +3,7 @@ import {
     closeDeletePaymentMethodDialog,
     useAppDispatch,
     useAppSelector,
+    PaymentMethod,
 } from '../store'
 import cloneDeep from 'lodash/cloneDeep'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
@@ -11,15 +12,14 @@ import { useTranslation } from 'react-i18next'
 const DeletePaymentMethod = () => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
-    const data = useAppSelector(
-        (state) => state.crmCustomerDetails.data.paymentMethodData,
+    const EMPTY_METHODS: PaymentMethod[] = []
+    const EMPTY_SELECTED: Partial<PaymentMethod> = {}
+    const crmDetails = useAppSelector(
+        (state) => state.crmCustomerDetails?.data,
     )
-    const dialogOpen = useAppSelector(
-        (state) => state.crmCustomerDetails.data.deletePaymentMethodDialog,
-    )
-    const selectedCard = useAppSelector(
-        (state) => state.crmCustomerDetails.data.selectedCard,
-    )
+    const data = crmDetails?.paymentMethodData ?? EMPTY_METHODS
+    const dialogOpen = crmDetails?.deletePaymentMethodDialog ?? false
+    const selectedCard = (crmDetails?.selectedCard as Partial<PaymentMethod>) ?? EMPTY_SELECTED
 
     const onDelete = () => {
         let newData = cloneDeep(data) || []

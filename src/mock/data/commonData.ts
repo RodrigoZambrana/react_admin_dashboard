@@ -75,38 +75,10 @@ export const notificationListData = [
 
 export const searchQueryPoolData = [
     {
-        title: 'Project Dashboard',
-        url: '/app/project/dashboard',
-        icon: 'project',
-        category: 'Project',
-        categoryTitle: 'Apps',
-    },
-    {
-        title: 'Project List',
-        url: '/app/project/project-list',
-        icon: 'project',
-        category: 'Project',
-        categoryTitle: 'Apps',
-    },
-    {
-        title: 'Scrumboard',
-        url: '/app/project/scrum-board',
-        icon: 'project',
-        category: 'Project',
-        categoryTitle: 'Apps',
-    },
-    {
-        title: 'Issue',
-        url: '/app/project/issue',
-        icon: 'project',
-        category: 'Project',
-        categoryTitle: 'Apps',
-    },
-    {
-        title: 'CRM Dashboard',
-        url: '/app/crm/dashboard',
-        icon: 'crm',
-        category: 'CRM',
+        title: 'Activities',
+        url: '/app/activities/dashboard',
+        icon: 'calendar',
+        category: 'Activities',
         categoryTitle: 'Apps',
     },
     {

@@ -10,7 +10,8 @@ import {
     createColumnHelper,
 } from '@tanstack/react-table'
 import { NumericFormat } from 'react-number-format'
-import { useAppSelector, OrderHistory } from '../store'
+import { OrderHistory } from '../store'
+import { useSelector } from 'react-redux'
 import dayjs from 'dayjs'
 
 const { Tr, Th, Td, THead, TBody, Sorter } = Table
@@ -79,9 +80,17 @@ const columns = (t: (k: string) => string) => [
 ]
 
 const PaymentHistory = () => {
-    const data = useAppSelector(
-        (state) => state.crmCustomerDetails.data.paymentHistoryData,
+    const EMPTY_HISTORY: OrderHistory[] = []
+    const crmDetails = useSelector(
+        (state: any) => state.crmCustomerDetails?.data,
     )
+    const activityDetails = useSelector(
+        (state: any) => state.calendarActivityDetails?.data,
+    )
+    const data =
+        (crmDetails?.paymentHistoryData?.length ?? 0) > 0
+            ? crmDetails.paymentHistoryData
+            : activityDetails?.paymentHistoryData ?? EMPTY_HISTORY
 
     const [sorting, setSorting] = useState<
         {

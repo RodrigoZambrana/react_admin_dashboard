@@ -219,10 +219,10 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                         title: selected.title || '',
                         startDate: selected.start
                             ? dayjs(selected.start).toDate()
-                            : '',
+                            : new Date(),
                         endDate: selected.end
                             ? dayjs(selected.end).toDate()
-                            : '',
+                            : new Date(),
                         color: selected.eventColor || colorOptions[0].value,
                     }}
                     validationSchema={useValidationSchema(t)}
@@ -255,15 +255,13 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                                 >
                                     <Field name="startDate" placeholder={t('text.placeholders.date')}>
                                         {({ field, form }: FieldProps) => (
-                                            <DatePicker
-                                                field={field}
-                                                form={form}
-                                                value={field.value}
+                                            <DatePicker.DateTimepicker
+                                                value={field.value as Date}
+                                                placeholder="Pick date & time"
+                                                amPm={false}
+                                                inputFormat="DD-MMM-YYYY HH:mm"
                                                 onChange={(date) => {
-                                                    form.setFieldValue(
-                                                        field.name,
-                                                        date,
-                                                    )
+                                                    form.setFieldValue(field.name, date)
                                                 }}
                                             />
                                         )}
@@ -276,15 +274,13 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                                 >
                                     <Field name="endDate" placeholder={t('text.placeholders.date')}>
                                         {({ field, form }: FieldProps) => (
-                                            <DatePicker
-                                                field={field}
-                                                form={form}
-                                                value={field.value}
+                                            <DatePicker.DateTimepicker
+                                                value={field.value as Date}
+                                                placeholder="Pick date & time"
+                                                amPm={false}
+                                                inputFormat="DD-MMM-YYYY HH:mm"
                                                 onChange={(date) => {
-                                                    form.setFieldValue(
-                                                        field.name,
-                                                        date,
-                                                    )
+                                                    form.setFieldValue(field.name, date)
                                                 }}
                                             />
                                         )}

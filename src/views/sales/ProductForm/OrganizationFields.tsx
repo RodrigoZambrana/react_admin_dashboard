@@ -4,6 +4,8 @@ import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import CreatableSelect from 'react-select/creatable'
 import { Field, FormikErrors, FormikTouched, FieldProps } from 'formik'
+import { useEffect, useState } from 'react'
+import { apiGetProductCategories } from '@/services/SettingsService'
 import { useTranslation } from 'react-i18next'
 
 type Options = {
@@ -28,12 +30,12 @@ type OrganizationFieldsProps = {
     }
 }
 
-const categories = [
-    { key: 'bags', value: 'bags' },
-    { key: 'cloths', value: 'cloths' },
-    { key: 'devices', value: 'devices' },
-    { key: 'shoes', value: 'shoes' },
-    { key: 'watches', value: 'watches' },
+const defaultCategories = [
+    { key: 'devices', value: 'devices', label: undefined as string | undefined },
+    { key: 'bags', value: 'bags', label: undefined as string | undefined },
+    { key: 'shoes', value: 'shoes', label: undefined as string | undefined },
+    { key: 'watches', value: 'watches', label: undefined as string | undefined },
+    { key: 'cloths', value: 'cloths', label: undefined as string | undefined },
 ]
 
 const tags = [
@@ -44,6 +46,17 @@ const tags = [
 const OrganizationFields = (props: OrganizationFieldsProps) => {
     const { values = { category: '', tags: [] }, touched, errors } = props
     const { t } = useTranslation()
+
+    const [categories, setCategories] = useState(defaultCategories)
+
+    useEffect(() => {
+        const fetch = async () => {
+            const res = await apiGetProductCategories<{ id: string; name: string }[]>()
+            const opts = (res.data as any[]).map((c) => ({ key: c.id, value: c.id, label: c.name }))
+            if (opts.length) setCategories(opts)
+        }
+        fetch()
+    }, [])
 
     return (
         <AdaptableCard divider isLastChild className="mb-4">
@@ -65,14 +78,22 @@ const OrganizationFields = (props: OrganizationFieldsProps) => {
                                     form={form}
                                     options={categories.map((c) => ({
                                         value: c.value,
-                                        label: t(
-                                            `sales.productForm.categories.${c.key}`,
-                                        ),
+                                        label:
+                                            c.label ||
+                                            t(
+                                                `sales.productForm.categories.${c.key}`,
+                                            ),
                                     }))}
-                                    value={categories.filter(
-                                        (category) =>
-                                            category.value === values.category,
-                                    )}
+                                    value={categories
+                                        .map((c) => ({
+                                            value: c.value,
+                                            label:
+                                                c.label ||
+                                                t(
+                                                    `sales.productForm.categories.${c.key}`,
+                                                ),
+                                        }))
+                                        .find((opt) => opt.value === values.category) || null}
                                     onChange={(option) =>
                                         form.setFieldValue(
                                             field.name,

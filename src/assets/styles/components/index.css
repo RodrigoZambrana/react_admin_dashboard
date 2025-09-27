@@ -31,3 +31,7 @@
 @import './_toast.css';
 @import './_tooltip.css';
 @import './_upload.css';
+/* Improve touch responsiveness for calendar and scrollable widgets */
+.calendar {
+  touch-action: manipulation;
+}

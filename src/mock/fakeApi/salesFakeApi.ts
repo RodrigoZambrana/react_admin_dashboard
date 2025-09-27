@@ -16,7 +16,10 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
         const sanitizeProducts = products.filter(
             (elm) => typeof elm !== 'function',
         )
-        let data = sanitizeProducts
+        let data = sanitizeProducts.map((p: any) => ({
+            ...p,
+            published: typeof p.published === 'boolean' ? p.published : true,
+        }))
         let total = products.length
 
         if ((key === 'category' || key === 'name') && order) {
@@ -55,6 +58,9 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
     server.get(`${apiPrefix}/sales/product`, (schema, { queryParams }) => {
         const id = queryParams.id
         const product = schema.db.productsData.find(id as string)
+        if (product && typeof (product as any).published !== 'boolean') {
+            ;(product as any).published = true
+        }
         return product
     })
 
@@ -72,6 +78,9 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
         `${apiPrefix}/sales/products/create`,
         (schema, { requestBody }) => {
             const data = JSON.parse(requestBody)
+            if (typeof data.published !== 'boolean') {
+                data.published = true
+            }
             schema.db.productsData.insert(data)
             return true
         },
@@ -143,4 +152,10 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
             return orderDetail[0]
         },
     )
+
+    server.put(`${apiPrefix}/sales/orders/update`, (schema, { requestBody }) => {
+        const { id, status } = JSON.parse(requestBody)
+        schema.db.ordersData.update({ id }, { status })
+        return true
+    })
 }

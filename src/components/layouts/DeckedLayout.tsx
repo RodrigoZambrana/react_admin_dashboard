@@ -6,7 +6,6 @@ import Notification from '@/components/template/Notification'
 import HeaderLogo from '@/components/template/HeaderLogo'
 import SecondaryHeader from '@/components/template/SecondaryHeader'
 import MobileNav from '@/components/template/MobileNav'
-import Search from '@/components/template/Search'
 import View from '@/views'
 
 const HeaderActionsStart = () => {
@@ -21,7 +20,6 @@ const HeaderActionsStart = () => {
 const HeaderActionsEnd = () => {
     return (
         <>
-            <Search />
             <LanguageSelector />
             <Notification />
             <SidePanel />

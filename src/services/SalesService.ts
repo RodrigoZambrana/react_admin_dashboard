@@ -92,3 +92,14 @@ export async function apiGetSalesOrderDetails<
         params,
     })
 }
+
+export async function apiUpdateSalesOrderStatus<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/sales/orders/update',
+        method: 'put',
+        data,
+    })
+}

@@ -8,6 +8,7 @@ import {
     closeEditPaymentMethodDialog,
     useAppDispatch,
     useAppSelector,
+    PaymentMethod,
 } from '../store'
 import cloneDeep from 'lodash/cloneDeep'
 import FormCustomFormatInput from '@/components/shared/FormCustomFormatInput'
@@ -65,18 +66,15 @@ const EditPaymentMethod = () => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
 
-    const card = useAppSelector(
-        (state) => state.crmCustomerDetails.data.selectedCard,
+    const EMPTY_METHODS: PaymentMethod[] = []
+    const EMPTY_SELECTED: Partial<PaymentMethod> = {}
+    const crmDetails = useAppSelector(
+        (state) => state.crmCustomerDetails?.data,
     )
-    const data = useAppSelector(
-        (state) => state.crmCustomerDetails.data.paymentMethodData,
-    )
-    const dialogOpen = useAppSelector(
-        (state) => state.crmCustomerDetails.data.editPaymentMethodDialog,
-    )
-    const selectedCard = useAppSelector(
-        (state) => state.crmCustomerDetails.data.selectedCard,
-    )
+    const card = (crmDetails?.selectedCard as Partial<PaymentMethod>) ?? EMPTY_SELECTED
+    const data = crmDetails?.paymentMethodData ?? EMPTY_METHODS
+    const dialogOpen = crmDetails?.editPaymentMethodDialog ?? false
+    const selectedCard = (crmDetails?.selectedCard as Partial<PaymentMethod>) ?? EMPTY_SELECTED
 
     const onUpdateCreditCard = (values: FormModel) => {
         let newData = cloneDeep(data) || []
@@ -113,10 +111,11 @@ const EditPaymentMethod = () => {
             <div className="mt-6">
                 <Formik
                     initialValues={{
-                        cardHolderName: card.cardHolderName || '',
+                        cardHolderName: (card as any)?.cardHolderName || '',
                         ccNumber: '',
                         cardExpiry:
-                            (card?.expMonth as string) + card.expYear || '',
+                            ((card as any)?.expMonth ? String((card as any).expMonth) : '') +
+                            ((card as any)?.expYear ? String((card as any).expYear) : ''),
                         code: '',
                     }}
                     validationSchema={validationSchema}

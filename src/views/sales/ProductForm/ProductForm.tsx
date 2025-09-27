@@ -10,6 +10,7 @@ import BasicInformationFields from './BasicInformationFields'
 import PricingFields from './PricingFields'
 import OrganizationFields from './OrganizationFields'
 import ProductImages from './ProductImages'
+import PublicationFields from './PublicationFields'
 import cloneDeep from 'lodash/cloneDeep'
 import { HiOutlineTrash } from 'react-icons/hi'
 import { AiOutlineSave } from 'react-icons/ai'
@@ -39,6 +40,7 @@ type InitialData = {
     brand?: string
     vendor?: string
     description?: string
+    published?: boolean
 }
 
 export type FormModel = Omit<InitialData, 'tags'> & {
@@ -148,6 +150,10 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                 innerRef={ref}
                 initialValues={{
                     ...initialData,
+                    published:
+                        typeof initialData.published === 'boolean'
+                            ? initialData.published
+                            : true,
                     tags: initialData?.tags
                         ? initialData.tags.map((value) => ({
                               label: value,
@@ -185,6 +191,11 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                     <PricingFields
                                         touched={touched}
                                         errors={errors}
+                                    />
+                                    <PublicationFields
+                                        touched={touched as any}
+                                        errors={errors as any}
+                                        values={values as any}
                                     />
                                     <OrganizationFields
                                         touched={touched}

@@ -16,6 +16,11 @@ import {
     salesDashboardData,
 } from './data/salesData'
 import {
+    expensesData,
+    expensesDashboardData,
+    expenseCategoriesData,
+} from './data/expensesData'
+import {
     portfolioData,
     walletsData,
     marketData,
@@ -35,17 +40,22 @@ import {
     helpCenterArticleListData,
 } from './data/knowledgeBaseData'
 import { signInUserData } from './data/authData'
+import { activityDetailData } from './data/calendarData'
+import { orderStatusesData, productStatusesData, customerStatusesData, expenseStatusesData, productCategoriesData } from './data/settingsData'
 
 import {
     commonFakeApi,
     projectFakeApi,
     crmFakeApi,
     salesFakeApi,
+    expensesFakeApi,
     accountFakeApi,
     cryptoFakeApi,
     authFakeApi,
     knowledgeBaseFakeApi,
     usersFakeApi,
+    calendarFakeApi,
+    settingsFakeApi,
 } from './fakeApi'
 
 const { apiPrefix } = appConfig
@@ -81,9 +91,18 @@ export function mockServer({ environment = 'test' }) {
                 helpCenterArticleListData,
                 signInUserData,
                 salesDashboardData,
+                expensesDashboardData,
+                expenseCategoriesData,
+                orderStatusesData,
+                productStatusesData,
+                customerStatusesData,
+                expenseStatusesData,
+                productCategoriesData,
                 crmDashboardData,
                 projectDashboardData,
                 cryptoDashboardData,
+                activityDetailData,
+                expensesData,
             })
         },
         routes() {
@@ -100,11 +119,14 @@ export function mockServer({ environment = 'test' }) {
             projectFakeApi(this, apiPrefix)
             crmFakeApi(this, apiPrefix)
             salesFakeApi(this, apiPrefix)
+            expensesFakeApi(this, apiPrefix)
+            settingsFakeApi(this, apiPrefix)
             accountFakeApi(this, apiPrefix)
             authFakeApi(this, apiPrefix)
             cryptoFakeApi(this, apiPrefix)
             knowledgeBaseFakeApi(this, apiPrefix)
             usersFakeApi(this, apiPrefix)
+            calendarFakeApi(this, apiPrefix)
         },
     })
 }

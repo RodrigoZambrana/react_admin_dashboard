@@ -73,13 +73,13 @@ const Statistic = ({ data = {} }: StatisticProps) => {
     const { t } = useTranslation()
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 lg:gap-4">
+            <StatisticCard data={data.orders} label={t('sales.dashboard.stat.orders')} date={startDate} />
             <StatisticCard
                 data={data.revenue}
                 valuePrefix="$"
                 label={t('sales.dashboard.stat.revenue')}
                 date={startDate}
             />
-            <StatisticCard data={data.orders} label={t('sales.dashboard.stat.orders')} date={startDate} />
             <StatisticCard
                 data={data.purchases}
                 valuePrefix="$"

@@ -1,137 +1,65 @@
 import { useCallback } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
-import Table from '@/components/ui/Table'
-import Badge from '@/components/ui/Badge'
-import useThemeClass from '@/utils/hooks/useThemeClass'
-import {
-    useReactTable,
-    getCoreRowModel,
-    flexRender,
-    createColumnHelper,
-} from '@tanstack/react-table'
+import DataTable from '@/components/shared/DataTable'
+import { useOrderColumns, type Order } from '@/views/sales/OrderList/components/useOrderColumns'
+import { apiGetOrderStatuses } from '@/services/SettingsService'
+import { apiUpdateSalesOrderStatus, apiGetSalesOrders } from '@/services/SalesService'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { NumericFormat } from 'react-number-format'
-import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
-
-type Order = {
-    id: string
-    date: number
-    customer: string
-    status: number
-    paymentMehod: string
-    paymentIdendifier: string
-    totalAmount: number
-}
 
 type LatestOrderProps = {
     data?: Order[]
     className?: string
 }
 
-type OrderColumnPros = {
-    row: Order
-}
-
-const { Tr, Td, TBody, THead, Th } = Table
-
-const orderStatusColor: Record<
-    number,
-    {
-        dotClass: string
-        textClass: string
-    }
-> = {
-    0: {
-        dotClass: 'bg-emerald-500',
-        textClass: 'text-emerald-500',
-    },
-    1: {
-        dotClass: 'bg-amber-500',
-        textClass: 'text-amber-500',
-    },
-    2: { dotClass: 'bg-red-500', textClass: 'text-red-500' },
-}
-
-const OrderColumn = ({ row }: OrderColumnPros) => {
-    const { textTheme } = useThemeClass()
-    const navigate = useNavigate()
-
-    const onView = useCallback(() => {
-        navigate(`/app/sales/order-details/${row.id}`)
-    }, [navigate, row])
-
-    return (
-        <span
-            className={`cursor-pointer select-none font-semibold hover:${textTheme}`}
-            onClick={onView}
-        >
-            #{row.id}
-        </span>
-    )
-}
-
-const columnHelper = createColumnHelper<Order>()
-
-const columns = (t: (k: string) => string) => [
-    columnHelper.accessor('id', {
-        header: t('text.columns.order'),
-        cell: (props) => <OrderColumn row={props.row.original} />,
-    }),
-    columnHelper.accessor('status', {
-        header: t('text.columns.status'),
-        cell: (props) => {
-            const { status } = props.row.original
-            return (
-                <div className="flex items-center">
-                    <Badge className={orderStatusColor[status].dotClass} />
-                    <span
-                        className={`ml-2 rtl:mr-2 capitalize font-semibold ${orderStatusColor[status].textClass}`}
-                    >
-                        {status === 0
-                            ? t('text.status.paid')
-                            : status === 1
-                            ? t('text.status.pending')
-                            : t('text.status.failed')}
-                    </span>
-                </div>
-            )
-        },
-    }),
-    columnHelper.accessor('date', {
-        header: t('text.columns.date'),
-        cell: (props) => {
-            const row = props.row.original
-            return <span>{dayjs.unix(row.date).format('DD/MM/YYYY')}</span>
-        },
-    }),
-    columnHelper.accessor('customer', {
-        header: t('text.columns.customer'),
-    }),
-    columnHelper.accessor('totalAmount', {
-        header: t('text.columns.total'),
-        cell: (props) => {
-            const { totalAmount } = props.row.original
-            return (
-                <NumericFormat
-                    displayType="text"
-                    value={(Math.round(totalAmount * 100) / 100).toFixed(2)}
-                    prefix={'$'}
-                    thousandSeparator={true}
-                />
-            )
-        },
-    }),
-]
-
 const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
     const { t } = useTranslation()
-    const table = useReactTable({
-        data,
-        columns: columns(t),
-        getCoreRowModel: getCoreRowModel(),
-    })
+    const defaultOrderStatuses = useMemo(
+        () => [
+            { id: 0, name: 'Pagado', color: 'emerald-500' },
+            { id: 1, name: 'Pendiente', color: 'amber-500' },
+            { id: 2, name: 'Cancelado', color: 'red-500' },
+        ],
+        [],
+    )
+    const [statuses, setStatuses] = useState<{ id: number; name: string; color: string }[]>(
+        defaultOrderStatuses,
+    )
+    const [rows, setRows] = useState<Order[]>([])
+    const [loading, setLoading] = useState(false)
+
+    useEffect(() => {
+        const fetch = async () => {
+            const res = await apiGetOrderStatuses<{ id: number | string; name: string; color: string }[]>()
+            const normalized = (res.data as any[]).map((s) => ({ ...s, id: Number(s.id) }))
+            if (normalized.length) setStatuses(normalized)
+        }
+        fetch()
+    }, [])
+
+    const onChangeStatus = async (row: Order, status: number) => {
+        await apiUpdateSalesOrderStatus<boolean, { id: string; status: number }>({ id: row.id, status })
+        fetchOrders()
+    }
+
+    const fetchOrders = async () => {
+        setLoading(true)
+        const res = await apiGetSalesOrders<
+            { data: Order[]; total: number },
+            { pageIndex: number; pageSize: number; sort: { key: string; order: string }; query: string }
+        >({ pageIndex: 1, pageSize: 10, sort: { key: 'date', order: 'desc' }, query: '' })
+        setRows(res.data.data)
+        setLoading(false)
+    }
+
+    useEffect(() => {
+        fetchOrders()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    const columns = useOrderColumns({ t, statuses, onChangeStatus, selectOnly: true })
 
     const navigate = useNavigate()
 
@@ -143,45 +71,12 @@ const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
                     {t('sales.dashboard.latestOrders.viewOrders')}
                 </Button>
             </div>
-            <Table>
-                <THead>
-                    {table.getHeaderGroups().map((headerGroup) => (
-                        <Tr key={headerGroup.id}>
-                            {headerGroup.headers.map((header) => {
-                                return (
-                                    <Th
-                                        key={header.id}
-                                        colSpan={header.colSpan}
-                                    >
-                                        {flexRender(
-                                            header.column.columnDef.header,
-                                            header.getContext(),
-                                        )}
-                                    </Th>
-                                )
-                            })}
-                        </Tr>
-                    ))}
-                </THead>
-                <TBody>
-                    {table.getRowModel().rows.map((row) => {
-                        return (
-                            <Tr key={row.id}>
-                                {row.getVisibleCells().map((cell) => {
-                                    return (
-                                        <Td key={cell.id}>
-                                            {flexRender(
-                                                cell.column.columnDef.cell,
-                                                cell.getContext(),
-                                            )}
-                                        </Td>
-                                    )
-                                })}
-                            </Tr>
-                        )
-                    })}
-                </TBody>
-            </Table>
+            <DataTable
+                columns={columns}
+                data={rows}
+                loading={loading}
+                pagingData={{ total: rows.length, pageIndex: 1, pageSize: 10 }}
+            />
         </Card>
     )
 }

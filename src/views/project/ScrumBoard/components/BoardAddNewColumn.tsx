@@ -1,10 +1,12 @@
 import Button from '@/components/ui/Button'
+import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 import { openDialog, updateDialogView } from '../store'
 import { HiOutlinePlusCircle } from 'react-icons/hi'
 
 const BoardAddNewColumn = () => {
     const dispatch = useDispatch()
+    const { t } = useTranslation()
 
     const onAddNewColumn = () => {
         dispatch(updateDialogView('NEW_COLUMN'))
@@ -17,7 +19,7 @@ const BoardAddNewColumn = () => {
             icon={<HiOutlinePlusCircle />}
             onClick={onAddNewColumn}
         >
-            <span>New Board</span>
+            <span>{t('text.actions.add')}</span>
         </Button>
     )
 }
