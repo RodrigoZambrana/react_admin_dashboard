@@ -1,5 +1,8 @@
 import { useEffect, useCallback, useMemo, useRef } from 'react'
-import Badge from '@/components/ui/Badge'
+import Select from '@/components/ui/Select'
+import { apiGetOrderStatuses } from '@/services/SettingsService'
+import { apiUpdateSalesOrderStatus } from '@/services/SalesService'
+import { useState } from 'react'
 import Tooltip from '@/components/ui/Tooltip'
 import DataTable from '@/components/shared/DataTable'
 import { HiOutlineEye, HiOutlineTrash } from 'react-icons/hi'
@@ -26,6 +29,7 @@ import type {
     ColumnDef,
     Row,
 } from '@/components/shared/DataTable'
+// Using formatOptionLabel ensures both menu options and selected value share the same layout
 
 type Order = {
     id: string
@@ -37,23 +41,10 @@ type Order = {
     totalAmount: number
 }
 
-const orderStatusColor: Record<
-    number,
-    {
-        dotClass: string
-        textClass: string
-    }
-> = {
-    0: {
-        dotClass: 'bg-emerald-500',
-        textClass: 'text-emerald-500',
-    },
-    1: {
-        dotClass: 'bg-amber-500',
-        textClass: 'text-amber-500',
-    },
-    2: { dotClass: 'bg-red-500', textClass: 'text-red-500' },
-}
+const colorClass = (color: string) => ({
+    dotClass: `bg-${color}`,
+    textClass: `text-${color}`,
+})
 
 const PaymentMethodImage = ({
     paymentMehod,
@@ -157,6 +148,17 @@ const OrdersTable = () => {
         (state) => state.salesOrderList.data.tableData,
     )
     const loading = useAppSelector((state) => state.salesOrderList.data.loading)
+    const defaultOrderStatuses = useMemo(
+        () => [
+            { id: 0, name: 'Pagado', color: 'emerald-500' },
+            { id: 1, name: 'Pendiente', color: 'amber-500' },
+            { id: 2, name: 'Cancelado', color: 'red-500' },
+        ],
+        [],
+    )
+    const [statuses, setStatuses] = useState<{ id: number; name: string; color: string }[]>(
+        defaultOrderStatuses,
+    )
 
     const data = useAppSelector((state) => state.salesOrderList.data.orderList)
 
@@ -174,6 +176,15 @@ const OrdersTable = () => {
         dispatch(setSelectedRows([]))
         fetchData()
     }, [dispatch, fetchData, pageIndex, pageSize, sort])
+
+    useEffect(() => {
+        const fetchStatuses = async () => {
+            const res = await apiGetOrderStatuses<{ id: number | string; name: string; color: string }[]>()
+            const normalized = (res.data as any[]).map((s) => ({ ...s, id: Number(s.id) }))
+            if (normalized.length) setStatuses(normalized)
+        }
+        fetchStatuses()
+    }, [])
 
     useEffect(() => {
         if (tableRef) {
@@ -211,21 +222,46 @@ const OrdersTable = () => {
                 header: t('text.columns.status'),
                 accessorKey: 'status',
                 cell: (props) => {
-                    const { status } = props.row.original
+                    const row = props.row.original
+                    const statusId =
+                        typeof (row as any).status === 'string'
+                            ? parseInt((row as any).status as unknown as string, 10)
+                            : (row as any).status
+                    const s = statuses.find((x) => x.id === statusId)
+                    const options = statuses.map((x) => ({ value: x.id, label: x.name, color: x.color }))
+                    const onChange = async (opt: any) => {
+                        await apiUpdateSalesOrderStatus<boolean, { id: string; status: number }>({ id: row.id, status: opt.value })
+                        // Refresh from store instead of mutating local row
+                        dispatch(getOrders({ pageIndex, pageSize, sort, query }))
+                    }
                     return (
-                        <div className="flex items-center">
-                            <Badge
-                                className={orderStatusColor[status].dotClass}
+                        <div className="min-w-[140px]">
+                            <Select
+                                size="sm"
+                                options={options}
+                                value={{ value: s?.id ?? statusId, label: s?.name ?? String(statusId), color: s?.color ?? 'gray-500' } as any}
+                                formatOptionLabel={(option: any, { context }: { context: 'menu' | 'value' }) => (
+                                    <div className="flex items-center">
+                                        <span className={`badge-dot bg-${option.color}`}></span>
+                                        <span className={`ml-2 rtl:mr-2 capitalize font-semibold ${context === 'value' ? `text-${option.color}` : ''}`}>
+                                            {option.label}
+                                        </span>
+                                    </div>
+                                )}
+                                style={{
+                                    singleValue: (provided: any) => ({
+                                        ...provided,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                    }),
+                                    valueContainer: (provided: any) => ({
+                                        ...provided,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                    }),
+                                }}
+                                onChange={onChange}
                             />
-                            <span
-                                className={`ml-2 rtl:mr-2 capitalize font-semibold ${orderStatusColor[status].textClass}`}
-                            >
-                                {status === 0
-                                    ? t('text.status.paid')
-                                    : status === 1
-                                    ? t('text.status.pending')
-                                    : t('text.status.failed')}
-                            </span>
                         </div>
                     )
                 },
@@ -272,7 +308,7 @@ const OrdersTable = () => {
                 cell: (props) => <ActionColumn row={props.row.original} />,
             },
         ],
-        [t],
+        [t, statuses],
     )
 
     const onPaginationChange = (page: number) => {

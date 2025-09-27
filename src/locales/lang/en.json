@@ -16,6 +16,11 @@
             "customerDetails": "Customer Details",
             "mail": "Mail"
         },
+        "appsCalendar": {
+            "calendar": "Calendar",
+            "activities": "Activities",
+            "schedule": "Schedule"
+        },
         "appsSales": {
             "sales": "Sales",
             "dashboard": "Dashboard",
@@ -24,6 +29,13 @@
             "productNew": "New Product",
             "orderList": "Order List",
             "orderDetails": "Order Details"
+        },
+        "appsExpenses": {
+            "expenses": "Expenses",
+            "dashboard": "Dashboard",
+            "expenseList": "Expense List",
+            "expenseNew": "New Expense",
+            "categories": "Categories"
         },
         "appsCrypto": {
             "crypto": "Crypto",
@@ -50,6 +62,13 @@
             "users": "Users",
             "userList": "User List",
             "userNew": "Add User"
+        },
+        "appsSettings": {
+            "settings": "Settings",
+            "orderStatuses": "Order Statuses",
+            "products": "Products",
+            "customerStatuses": "Customer Statuses",
+            "expenses": "Expenses"
         },
         "uiComponents": "UI Components",
         "uiComponentsCommon": {
@@ -139,6 +158,12 @@
             "changeLog": "Changelog"
         },
         "signOut": "Sign out"
+    },
+    "calendar": {
+        "calendar": "Calendar",
+        "month": "Month",
+        "week": "Week",
+        "day": "Day"
     },
     "user": {
         "menu": {
@@ -252,6 +277,7 @@
             "schedule": "Schedule",
             "myTasks": "My Tasks",
             "addNewProject": "Add new project",
+            "addNewCustomer": "Add new customer",
             "addPeople": "Add people",
             "addNewTicket": "Add New Ticket",
             "deleteBoard": "Delete Board",
@@ -263,6 +289,8 @@
             "billingAddress": "Billing address",
             "comments": "Comments",
             "description": "Description",
+            "role": "Role",
+            "activityDetails": "Activity Details",
             "attachments": "Attachments",
             "whereSignedIn": "Where you're signed in",
             "addressInformation": "Address Information",
@@ -298,7 +326,11 @@
             "taskId": "Task ID",
             "subject": "Subject",
             "priority": "Priority",
-            "assignees": "Assignees"
+            "assignees": "Assignees",
+            "actions": "Actions",
+            "published": "Published"
+            ,
+            "stock": "Stock"
         },
         "priority": {
             "high": "High",
@@ -484,7 +516,8 @@
         
         "descriptions": {
             "basicProductInfo": "Section to config basic product information",
-            "productSalesInfo": "Section to config product sales information"
+            "productSalesInfo": "Section to config product sales information",
+            "inviteTeamMember": "Invite your team members to collaborate on this board"
         },
         "messages": {
             "deleteProductConfirm": "Are you sure you want to delete this product? All record related to this product will be deleted as well. This action cannot be undone.",
@@ -744,6 +777,13 @@
                 "title": "Organizations",
                 "desc": "Section to config the product attribute"
             },
+            "categories": {
+                "bags": "Bags",
+                "cloths": "Clothes",
+                "devices": "Devices",
+                "watches": "Watches",
+                "shoes": "Shoes"
+            },
             "images": {
                 "title": "Product Image",
                 "desc": "Add or change image for the product",
@@ -758,6 +798,13 @@
         }
         ,
         "productList": {
+            "filter": {
+                "includedText": "Include text",
+                "keyword": "Search by name or code",
+                "productCategory": "Product category",
+                "publicationStatus": "Publication status",
+                "productStatus": "Stock"
+            },
             "deleted": {
                 "title": "Successfully Deleted",
                 "desc": "Product successfully deleted"
@@ -830,6 +877,139 @@
             "opened": "Opened",
             "performance": "Performance",
             "average": "Average"
+        }
+    },
+    "expenses": {
+        "dashboard": {
+            "overview": {
+                "title": "Expenses Overview",
+                "subtitle": "Track company spending and summary"
+            },
+            "stat": {
+                "total": "Total Expenses",
+                "transactions": "Transactions",
+                "recurring": "Recurring",
+                "vsMonths": "vs. {{months}} months prior to {{date}}"
+            },
+            "categories": {
+                "title": "Categories",
+                "donutText": "Total Spend"
+            },
+            "latestExpenses": {
+                "title": "Latest Expenses",
+                "viewExpenses": "View expenses"
+            },
+            "expensesReport": {
+                "title": "Expenses Report",
+                "export": "Export report"
+            }
+        },
+        "latestExpenses": {
+            "columns": {
+                "expense": "Expense",
+                "vendor": "Vendor"
+            }
+        },
+        "list": {
+            "title": "Expenses",
+            "columns": {
+                "expense": "Expense",
+                "vendor": "Vendor"
+            },
+            "delete": {
+                "title": "Delete expense",
+                "confirm": "Are you sure you want to delete the selected expense(s)? This action cannot be undone.",
+                "titleSuccess": "Successfully deleted",
+                "single": "Expense deleted successfully",
+                "batch": "{{count}} expenses deleted successfully"
+            }
+        },
+        "new": {
+            "title": "New Expense",
+            "fields": {
+                "vendor": "Vendor"
+            },
+            "placeholders": {
+                "vendor": "Vendor name"
+            },
+            "created": {
+                "title": "Successfully created",
+                "desc": "Expense created successfully"
+            }
+        },
+        "edit": {
+            "title": "Edit Expense",
+            "updated": {
+                "title": "Updated successfully",
+                "desc": "Expense updated successfully"
+            }
+        },
+        "categories": {
+            "title": "Expense Categories",
+            "columns": {
+                "name": "Name"
+            },
+            "actions": {
+                "add": "Add",
+                "manage": "Manage categories"
+            },
+            "placeholders": {
+                "name": "Category name"
+            },
+            "created": {
+                "title": "Successfully created",
+                "desc": "Category created successfully"
+            },
+            "updated": {
+                "title": "Updated successfully",
+                "desc": "Category updated successfully"
+            },
+            "deleted": {
+                "title": "Successfully deleted",
+                "desc": "Category deleted successfully"
+            }
+        }
+    },
+    "settings": {
+        "productCategories": {
+            "title": "Product Categories",
+            "columns": { "id": "ID", "name": "Name" },
+            "placeholders": { "id": "Category ID (e.g. devices)", "name": "Category name" },
+            "created": { "title": "Successfully created", "desc": "Category created successfully" },
+            "updated": { "title": "Updated successfully", "desc": "Category updated successfully" },
+            "deleted": { "title": "Successfully deleted", "desc": "Category deleted successfully" }
+        },
+        "orderStatuses": {
+            "title": "Order Statuses",
+            "columns": { "name": "Name" },
+            "placeholders": { "name": "Status name" },
+            "created": { "title": "Successfully created", "desc": "Status created successfully" },
+            "updated": { "title": "Updated successfully", "desc": "Status updated successfully" },
+            "deleted": { "title": "Successfully deleted", "desc": "Status deleted successfully" }
+        },
+        "productStatuses": {
+            "title": "Product Statuses",
+            "columns": { "name": "Name" },
+            "placeholders": { "name": "Status name" },
+            "created": { "title": "Successfully created", "desc": "Status created successfully" },
+            "updated": { "title": "Updated successfully", "desc": "Status updated successfully" },
+            "deleted": { "title": "Successfully deleted", "desc": "Status deleted successfully" }
+        },
+        "customerStatuses": {
+            "title": "Customer Statuses",
+            "columns": { "id": "ID", "name": "Name" },
+            "placeholders": { "id": "Status ID (e.g. active)", "name": "Status name" },
+            "created": { "title": "Successfully created", "desc": "Status created successfully" },
+            "updated": { "title": "Updated successfully", "desc": "Status updated successfully" },
+            "deleted": { "title": "Successfully deleted", "desc": "Status deleted successfully" }
+        },
+        "expenseStatuses": {
+            "title": "Expense Statuses",
+            "columns": { "name": "Name" },
+            "placeholders": { "name": "Status name" },
+            "created": { "title": "Successfully created", "desc": "Status created successfully" },
+            "updated": { "title": "Updated successfully", "desc": "Status updated successfully" },
+            "deleted": { "title": "Successfully deleted", "desc": "Status deleted successfully" }
         }
     },
     "common": {

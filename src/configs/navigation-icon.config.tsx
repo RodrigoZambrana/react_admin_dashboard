@@ -16,7 +16,9 @@ import {
     HiOutlineBan,
     HiOutlineHand,
     HiOutlineDocumentText,
+    HiOutlineCalendar,
     HiOutlineTemplate,
+    HiOutlineAdjustments,
     HiOutlineLockClosed,
     HiOutlineDocumentDuplicate,
     HiOutlineViewGridAdd,
@@ -34,6 +36,7 @@ const navigationIcon: NavigationIcons = {
     crm: <HiOutlineUserGroup />,
     sales: <HiOutlineTrendingUp />,
     crypto: <HiOutlineCurrencyDollar />,
+    expenses: <HiOutlineCurrencyDollar />,
     knowledgeBase: <HiOutlineBookOpen />,
     account: <HiOutlineUserCircle />,
     uiComponents: <HiOutlineTemplate />,
@@ -43,6 +46,7 @@ const navigationIcon: NavigationIcons = {
     forms: <HiOutlineDocumentText />,
     navigation: <HiOutlinePaperAirplane />,
     graph: <HiOutlineChartPie />,
+    calendar: <HiOutlineCalendar />,
     authentication: <HiOutlineLockClosed />,
     signIn: <HiOutlineShieldCheck />,
     signUp: <HiOutlineUserAdd />,
@@ -56,6 +60,7 @@ const navigationIcon: NavigationIcons = {
     sharedComponentDoc: <HiOutlineShare />,
     utilsDoc: <HiOutlineVariable />,
     changeLog: <HiOutlineCode />,
+    settings: <HiOutlineAdjustments />,
     signOut: (
         <span className="text-xl opacity-50">
             <svg

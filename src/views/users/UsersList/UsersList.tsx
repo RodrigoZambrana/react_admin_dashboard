@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import Container from '@/components/shared/Container'
 import Card from '@/components/ui/Card'
 import Avatar from '@/components/ui/Avatar'
+import { HiOutlineUser } from 'react-icons/hi'
 import Input from '@/components/ui/Input'
 import { HiOutlineSearch } from 'react-icons/hi'
 import { apiGetUsers, apiUpdateUser } from '@/services/UsersService'
+import Select from '@/components/ui/Select'
 import { useTranslation } from 'react-i18next'
 import Drawer from '@/components/ui/Drawer'
 import { Formik, Form, Field } from 'formik'
@@ -20,6 +22,7 @@ type User = {
     name: string
     email: string
     img?: string
+    role?: string
 }
 
 const UsersList = () => {
@@ -87,7 +90,7 @@ const UsersList = () => {
                 {filtered.map((user) => (
                     <Card key={user.id} onClick={() => onEdit(user)} className="cursor-pointer">
                         <div className="flex items-center gap-3">
-                            <Avatar src={user.img} shape="circle" />
+                            <Avatar src={user.img || undefined} shape="circle" icon={<HiOutlineUser />} />
                             <div>
                                 <div className="font-semibold">{user.name}</div>
                                 <div className="text-sm opacity-70">{user.email}</div>
@@ -105,8 +108,8 @@ const UsersList = () => {
                 title={t('text.actions.edit')}
             >
                 {editing && (
-                    <Formik initialValues={editing} validationSchema={schema} onSubmit={onSubmit}>
-                        {({ errors, touched }) => (
+                    <Formik initialValues={editing} validationSchema={schema} onSubmit={onSubmit} enableReinitialize>
+                        {({ errors, touched, values, setFieldValue }) => (
                             <Form>
                                 <FormContainer>
                                     <FormItem label={t('text.labels.name')} invalid={!!errors.name && !!touched.name} errorMessage={t(errors.name as string)}>
@@ -117,6 +120,17 @@ const UsersList = () => {
                                     </FormItem>
                                     <FormItem label="Avatar URL" invalid={!!errors.img && !!touched.img} errorMessage={errors.img as string}>
                                         <Field name="img" component={Input} placeholder="https://..." />
+                                    </FormItem>
+                                    <FormItem label={t('text.labels.role')}>
+                                        <Select
+                                            options={[
+                                                { value: 'superadmin', label: 'Superadmin' },
+                                                { value: 'admin', label: 'Admin' },
+                                                { value: 'user', label: 'User' },
+                                            ]}
+                                            value={{ value: (values.role || 'user').toLowerCase(), label: (values.role ? values.role.charAt(0).toUpperCase() + values.role.slice(1) : 'User') }}
+                                            onChange={(opt) => setFieldValue('role', (opt as any).value)}
+                                        />
                                     </FormItem>
                                     <div className="flex justify-end gap-2">
                                         <Button type="button" onClick={() => setDrawerOpen(false)}>

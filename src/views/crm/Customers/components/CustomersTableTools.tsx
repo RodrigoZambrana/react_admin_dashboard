@@ -6,12 +6,15 @@ import {
     setFilterData,
     useAppDispatch,
     useAppSelector,
+    setSelectedCustomer,
+    setDrawerOpen,
 } from '../store'
 import CustomerTableSearch from './CustomerTableSearch'
 import CustomerTableFilter from './CustomerTableFilter'
 import cloneDeep from 'lodash/cloneDeep'
 import type { TableQueries } from '@/@types/common'
 import { useTranslation } from 'react-i18next'
+import { HiOutlinePlusCircle } from 'react-icons/hi'
 
 const CustomersTableTools = () => {
     const dispatch = useAppDispatch()
@@ -51,6 +54,11 @@ const CustomersTableTools = () => {
         fetchData(newTableData)
     }
 
+    const onAddNewCustomer = () => {
+        dispatch(setSelectedCustomer({}))
+        dispatch(setDrawerOpen())
+    }
+
     return (
         <div className="md:flex items-center justify-between">
             <div className="md:flex items-center gap-4">
@@ -60,9 +68,17 @@ const CustomersTableTools = () => {
                 />
                 <CustomerTableFilter />
             </div>
-            <div className="mb-4">
+            <div className="mb-4 flex items-center gap-2">
                 <Button size="sm" onClick={onClearAll}>
                     {t('text.actions.clearAll')}
+                </Button>
+                <Button
+                    size="sm"
+                    variant="twoTone"
+                    icon={<HiOutlinePlusCircle />}
+                    onClick={onAddNewCustomer}
+                >
+                    {t('text.titles.addNewCustomer')}
                 </Button>
             </div>
         </div>

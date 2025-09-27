@@ -2,9 +2,14 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import Avatar from '@/components/ui/Avatar'
 import Badge from '@/components/ui/Badge'
+import Select from '@/components/ui/Select'
+import { apiGetProductStatuses } from '@/services/SettingsService'
+import { apiPutSalesProduct } from '@/services/SalesService'
+import { useState } from 'react'
 import DataTable from '@/components/shared/DataTable'
 import { HiOutlinePencil, HiOutlineTrash } from 'react-icons/hi'
 import { FiPackage } from 'react-icons/fi'
+import Switcher from '@/components/ui/Switcher'
 import {
     getProducts,
     setTableData,
@@ -32,32 +37,14 @@ type Product = {
     price: number
     stock: number
     status: number
+    published?: boolean
 }
 
-const inventoryStatusColor: Record<
-    number,
-    {
-        label: string
-        dotClass: string
-        textClass: string
-    }
-> = {
-    0: {
-        label: 'In Stock',
-        dotClass: 'bg-emerald-500',
-        textClass: 'text-emerald-500',
-    },
-    1: {
-        label: 'Limited',
-        dotClass: 'bg-amber-500',
-        textClass: 'text-amber-500',
-    },
-    2: {
-        label: 'Out of Stock',
-        dotClass: 'bg-red-500',
-        textClass: 'text-red-500',
-    },
-}
+const inventoryDefaultStatuses = [
+    { id: 0, name: 'En stock', color: 'emerald-500' },
+    { id: 1, name: 'Limitado', color: 'amber-500' },
+    { id: 2, name: 'Sin stock', color: 'red-500' },
+]
 
 const ActionColumn = ({ row }: { row: Product }) => {
     const dispatch = useAppDispatch()
@@ -109,6 +96,9 @@ const ProductColumn = ({ row }: { row: Product }) => {
 const ProductTable = () => {
     const { t } = useTranslation()
     const tableRef = useRef<DataTableResetHandle>(null)
+    const [productStatuses, setProductStatuses] = useState(
+        inventoryDefaultStatuses,
+    )
 
     const dispatch = useAppDispatch()
 
@@ -148,6 +138,20 @@ const ProductTable = () => {
         dispatch(getProducts({ pageIndex, pageSize, sort, query, filterData }))
     }
 
+    useEffect(() => {
+        const fetchStatuses = async () => {
+            const res = await apiGetProductStatuses<
+                { id: number | string; name: string; color: string }[]
+            >()
+            const normalized = (res.data as any[]).map((s) => ({
+                ...s,
+                id: Number(s.id),
+            }))
+            if (normalized.length) setProductStatuses(normalized as any)
+        }
+        fetchStatuses()
+    }, [])
+
     const columns: ColumnDef<Product>[] = useMemo(
         () => [
             {
@@ -172,26 +176,76 @@ const ProductTable = () => {
                 sortable: true,
             },
             {
-                header: t('text.columns.status'),
+                header: t('text.columns.stock'),
                 accessorKey: 'status',
                 cell: (props) => {
-                    const { status } = props.row.original
+                    const row = props.row.original
+                    const statusId =
+                        typeof (row as any).status === 'string'
+                            ? parseInt((row as any).status as unknown as string, 10)
+                            : (row as any).status
+                    const s = productStatuses.find((x) => x.id === statusId)
+                    const options = productStatuses.map((x) => ({
+                        value: x.id,
+                        label: x.name,
+                        color: x.color,
+                    }))
+                    const onChange = async (opt: any) => {
+                        await apiPutSalesProduct<boolean, { id: string; status: number }>(
+                            { id: row.id, status: opt.value },
+                        )
+                        fetchData()
+                    }
                     return (
-                        <div className="flex items-center gap-2">
-                            <Badge
-                                className={
-                                    inventoryStatusColor[status].dotClass
-                                }
+                        <div className="min-w-[140px]">
+                            <Select
+                                size="sm"
+                                options={options}
+                                value={{
+                                    value: s?.id ?? statusId,
+                                    label: s?.name ?? String(statusId),
+                                    color: s?.color ?? 'gray-500',
+                                } as any}
+                                formatOptionLabel={(option: any, { context }: { context: 'menu' | 'value' }) => (
+                                    <div className="flex items-center">
+                                        <span className={`badge-dot bg-${option.color}`}></span>
+                                        <span className={`ml-2 rtl:mr-2 capitalize font-semibold ${context === 'value' ? `text-${option.color}` : ''}`}>
+                                            {option.label}
+                                        </span>
+                                    </div>
+                                )}
+                                style={{
+                                    singleValue: (provided: any) => ({
+                                        ...provided,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                    }),
+                                    valueContainer: (provided: any) => ({
+                                        ...provided,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                    }),
+                                }}
+                                onChange={onChange}
                             />
-                            <span
-                                className={`capitalize font-semibold ${inventoryStatusColor[status].textClass}`}
-                            >
-                                {status === 0
-                                    ? t('text.status.inStock')
-                                    : status === 1
-                                    ? t('text.status.limited')
-                                    : t('text.status.outOfStock')}
-                            </span>
+                        </div>
+                    )
+                },
+            },
+            {
+                header: t('text.columns.published'),
+                accessorKey: 'published',
+                cell: (props) => {
+                    const row = props.row.original
+                    const checked = typeof row.published === 'boolean' ? row.published : true
+                    const onToggle = async (val: boolean) => {
+                        await apiPutSalesProduct<boolean, { id: string; published: boolean }>({ id: row.id, published: val })
+                        // refresh to reflect server state
+                        fetchData()
+                    }
+                    return (
+                        <div className="min-w-[120px]">
+                            <Switcher defaultChecked={checked} onChange={(v) => onToggle(v)} />
                         </div>
                     )
                 },

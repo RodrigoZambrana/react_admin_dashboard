@@ -4,22 +4,48 @@ import { ADMIN, USER } from '@/constants/roles.constant'
 import type { Routes } from '@/@types/routes'
 
 const appsRoute: Routes = [
+    // Calendar
     {
-        key: 'appsProject.dashboard',
-        path: `${APP_PREFIX_PATH}/project/dashboard`,
-        component: lazy(() => import('@/views/project/ProjectDashboard')),
+        key: 'appsCalendar.activities',
+        path: `${APP_PREFIX_PATH}/calendar/activities`,
+        component: lazy(() => import('@/views/calendar/Activities')),
         authority: [ADMIN, USER],
+        meta: {
+            header: 'Activities',
+        },
+    },
+    {
+        key: 'appsActivities.dashboard',
+        path: `${APP_PREFIX_PATH}/activities/dashboard`,
+        component: lazy(() => import('@/views/project/ScrumBoard')),
+        authority: [ADMIN, USER],
+        meta: {
+            header: 'Activities',
+        },
+    },
+    {
+        key: 'appsCalendar.schedule',
+        path: `${APP_PREFIX_PATH}/calendar/schedule`,
+        component: lazy(() => import('@/views/crm/Calendar')),
+        authority: [ADMIN, USER],
+        meta: {
+            header: lazy(() => import('@/views/crm/Calendar/HeaderTitle')),
+        },
+    },
+    {
+        key: 'appsCalendar.activityDetails',
+        path: `${APP_PREFIX_PATH}/calendar/activities/details`,
+        component: lazy(() => import('@/views/calendar/ActivitiesDetail')),
+        authority: [ADMIN, USER],
+        meta: {
+            header: lazy(() => import('@/views/calendar/ActivitiesDetail/HeaderTitle')),
+            headerContainer: true,
+        },
     },
     {
         key: 'appsAccount.resetPassword',
         path: `${APP_PREFIX_PATH}/account/reset-password`,
         component: lazy(() => import('@/views/account/ResetPasswordInApp')),
-        authority: [ADMIN, USER],
-    },
-    {
-        key: 'appsProject.projectList',
-        path: `${APP_PREFIX_PATH}/project/project-list`,
-        component: lazy(() => import('@/views/project/ProjectList')),
         authority: [ADMIN, USER],
     },
     {
@@ -30,18 +56,6 @@ const appsRoute: Routes = [
         meta: {
             pageContainerType: 'gutterless',
         },
-    },
-    {
-        key: 'appsCrm.dashboard',
-        path: `${APP_PREFIX_PATH}/crm/dashboard`,
-        component: lazy(() => import('@/views/crm/CrmDashboard')),
-        authority: [ADMIN, USER],
-    },
-    {
-        key: 'appsCrm.calendar',
-        path: `${APP_PREFIX_PATH}/crm/calendar`,
-        component: lazy(() => import('@/views/crm/Calendar')),
-        authority: [ADMIN, USER],
     },
     {
         key: 'appsCrm.customers',
@@ -89,6 +103,12 @@ const appsRoute: Routes = [
         authority: [ADMIN, USER],
     },
     {
+        key: 'appsExpenses.dashboard',
+        path: `${APP_PREFIX_PATH}/expenses/dashboard`,
+        component: lazy(() => import('@/views/expenses/ExpensesDashboard')),
+        authority: [ADMIN, USER],
+    },
+    {
         key: 'appsSales.productList',
         path: `${APP_PREFIX_PATH}/sales/product-list`,
         component: lazy(() => import('@/views/sales/ProductList')),
@@ -124,6 +144,33 @@ const appsRoute: Routes = [
         component: lazy(() => import('@/views/sales/OrderDetails')),
         authority: [ADMIN, USER],
     },
+    {
+        key: 'appsExpenses.expenseList',
+        path: `${APP_PREFIX_PATH}/expenses/expense-list`,
+        component: lazy(() => import('@/views/expenses/ExpenseList')),
+        authority: [ADMIN, USER],
+    },
+    {
+        key: 'appsExpenses.expenseNew',
+        path: `${APP_PREFIX_PATH}/expenses/expense-new`,
+        component: lazy(() => import('@/views/expenses/ExpenseNew')),
+        authority: [ADMIN, USER],
+    },
+    {
+        key: 'appsExpenses.expenseEdit',
+        path: `${APP_PREFIX_PATH}/expenses/expense-edit/:expenseId`,
+        component: lazy(() => import('@/views/expenses/ExpenseEdit')),
+        authority: [ADMIN, USER],
+        meta: {
+            header: 'Edit Expense',
+        },
+    },
+    {
+        key: 'appsExpenses.categories',
+        path: `${APP_PREFIX_PATH}/expenses/categories`,
+        component: lazy(() => import('@/views/expenses/Categories')),
+        authority: [ADMIN, USER],
+    },
     
     
     {
@@ -152,6 +199,31 @@ const appsRoute: Routes = [
         key: 'appsAccount.kycForm',
         path: `${APP_PREFIX_PATH}/account/kyc-form`,
         component: lazy(() => import('@/views/account/KycForm')),
+        authority: [ADMIN, USER],
+    },
+    // Settings
+    {
+        key: 'appsSettings.orderStatuses',
+        path: `${APP_PREFIX_PATH}/settings/order-statuses`,
+        component: lazy(() => import('@/views/settings/OrderStatuses')),
+        authority: [ADMIN, USER],
+    },
+    {
+        key: 'appsSettings.products',
+        path: `${APP_PREFIX_PATH}/settings/products`,
+        component: lazy(() => import('@/views/settings/ProductSettings')),
+        authority: [ADMIN, USER],
+    },
+    {
+        key: 'appsSettings.customerStatuses',
+        path: `${APP_PREFIX_PATH}/settings/customer-statuses`,
+        component: lazy(() => import('@/views/settings/CustomerStatuses')),
+        authority: [ADMIN, USER],
+    },
+    {
+        key: 'appsSettings.expenses',
+        path: `${APP_PREFIX_PATH}/settings/expenses`,
+        component: lazy(() => import('@/views/settings/ExpenseSettings')),
         authority: [ADMIN, USER],
     },
     // Users

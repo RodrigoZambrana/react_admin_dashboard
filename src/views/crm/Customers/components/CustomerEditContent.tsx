@@ -48,20 +48,46 @@ const CustomerEditContent = forwardRef<FormikRef>((_, ref) => {
             linkedIn,
         }
         let newData = cloneDeep(data)
-        let editedCustomer: Partial<Customer> = {}
-        newData = newData.map((elm) => {
-            if (elm.id === id) {
-                elm = { ...elm, ...basicInfo }
-                elm.personalInfo = { ...elm.personalInfo, ...personalInfo }
-                editedCustomer = elm
+        if (id) {
+            let editedCustomer: Partial<Customer> = {}
+            newData = newData.map((elm) => {
+                if (elm.id === id) {
+                    elm = { ...elm, ...basicInfo }
+                    elm.personalInfo = { ...elm.personalInfo, ...personalInfo }
+                    editedCustomer = elm
+                }
+                return elm
+            })
+            if (!isEmpty(editedCustomer)) {
+                dispatch(putCustomer(editedCustomer as Customer))
             }
-            return elm
-        })
-        if (!isEmpty(editedCustomer)) {
-            dispatch(putCustomer(editedCustomer as Customer))
+        } else {
+            const newCustomer: Customer = {
+                id: String(Date.now()),
+                name: basicInfo.name || '',
+                email: basicInfo.email || '',
+                img: basicInfo.img || '/img/avatars/thumb-1.jpg',
+                role: 'User',
+                lastOnline: dayjs().unix(),
+                status: 'active',
+                personalInfo: {
+                    location: personalInfo.location || '',
+                    title: personalInfo.title || '',
+                    birthday: personalInfo.birthday || '',
+                    phoneNumber: personalInfo.phoneNumber || '',
+                    facebook: personalInfo.facebook || '',
+                    twitter: personalInfo.twitter || '',
+                    pinterest: personalInfo.pinterest || '',
+                    linkedIn: personalInfo.linkedIn || '',
+                },
+                orderHistory: [],
+                paymentMethod: [],
+                subscription: [],
+            }
+            newData = [newCustomer, ...newData]
         }
-        dispatch(setDrawerClose())
         dispatch(setCustomerList(newData))
+        dispatch(setDrawerClose())
     }
 
     return (

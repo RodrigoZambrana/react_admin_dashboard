@@ -1,4 +1,5 @@
 import classNames from 'classnames'
+import { Link } from 'react-router-dom'
 import { APP_NAME } from '@/constants/app.constant'
 import type { CommonProps } from '@/@types/common'
 
@@ -22,19 +23,21 @@ const Logo = (props: LogoProps) => {
     } = props
 
     return (
-        <div
-            className={classNames('logo', className)}
-            style={{
-                ...style,
-                ...{ width: logoWidth },
-            }}
-        >
-            <img
-                className={imgClass}
-                src={`${LOGO_SRC_PATH}logo-${mode}-${type}.png`}
-                alt={`${APP_NAME} logo`}
-            />
-        </div>
+        <Link to="/">
+            <div
+                className={classNames('logo', className)}
+                style={{
+                    ...style,
+                    ...{ width: logoWidth },
+                }}
+            >
+                <img
+                    className={imgClass}
+                    src={`${LOGO_SRC_PATH}logo-${mode}-${type}.png`}
+                    alt={`${APP_NAME} logo`}
+                />
+            </div>
+        </Link>
     )
 }
 

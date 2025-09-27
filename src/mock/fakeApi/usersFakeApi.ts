@@ -14,6 +14,7 @@ export default function usersFakeApi(server: Server, apiPrefix: string) {
             name: data.name,
             email: data.email,
             img: data.img || '/img/avatars/thumb-1.jpg',
+            role: data.role || 'user',
         }
         schema.db.usersData.insert(newUser as any)
         return newUser

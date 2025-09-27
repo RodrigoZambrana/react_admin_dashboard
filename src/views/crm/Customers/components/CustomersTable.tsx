@@ -1,6 +1,8 @@
 import { useEffect, useCallback, useMemo } from 'react'
 import Avatar from '@/components/ui/Avatar'
 import Badge from '@/components/ui/Badge'
+import Select from '@/components/ui/Select'
+import Tooltip from '@/components/ui/Tooltip'
 import DataTable from '@/components/shared/DataTable'
 import {
     getCustomers,
@@ -13,20 +15,26 @@ import {
 } from '../store'
 import useThemeClass from '@/utils/hooks/useThemeClass'
 import CustomerEditDialog from './CustomerEditDialog'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { HiOutlineUser, HiOutlineEye } from 'react-icons/hi'
 import dayjs from 'dayjs'
 import cloneDeep from 'lodash/cloneDeep'
 import type { OnSortParam, ColumnDef } from '@/components/shared/DataTable'
 import { useTranslation } from 'react-i18next'
+import { useState } from 'react'
+import { apiGetCustomerStatuses } from '@/services/SettingsService'
+import ApiService from '@/services/ApiService'
 
-const statusColor: Record<string, string> = {
-    active: 'bg-emerald-500',
-    blocked: 'bg-red-500',
-}
+const defaultCustomerStatuses = [
+    { id: 'active', name: 'Activo', color: 'emerald-500' },
+    { id: 'blocked', name: 'Bloqueado', color: 'red-500' },
+    { id: 'pending', name: 'Pendiente', color: 'amber-500' },
+]
 
 const ActionColumn = ({ row }: { row: Customer }) => {
     const { textTheme } = useThemeClass()
     const dispatch = useAppDispatch()
+    const navigate = useNavigate()
     const { t } = useTranslation()
 
     const onEdit = () => {
@@ -34,12 +42,26 @@ const ActionColumn = ({ row }: { row: Customer }) => {
         dispatch(setSelectedCustomer(row))
     }
 
+    const onView = useCallback(() => {
+        navigate(`/app/crm/customer-details?id=${row.id}`)
+    }, [navigate, row])
+
     return (
-        <div
-            className={`${textTheme} cursor-pointer select-none font-semibold`}
-            onClick={onEdit}
-        >
-            {t('text.actions.edit')}
+        <div className="flex justify-end items-center">
+            <Tooltip title={t('text.actions.view')}>
+                <span
+                    className={`cursor-pointer p-2 hover:${textTheme}`}
+                    onClick={onView}
+                >
+                    <HiOutlineEye className="text-lg" />
+                </span>
+            </Tooltip>
+            <div
+                className={`${textTheme} cursor-pointer select-none font-semibold`}
+                onClick={onEdit}
+            >
+                {t('text.actions.edit')}
+            </div>
         </div>
     )
 }
@@ -49,7 +71,7 @@ const NameColumn = ({ row }: { row: Customer }) => {
 
     return (
         <div className="flex items-center">
-            <Avatar size={28} shape="circle" src={row.img} />
+            <Avatar size={28} shape="circle" src={row.img || undefined} icon={<HiOutlineUser />} />
             <Link
                 className={`hover:${textTheme} ml-2 rtl:mr-2 font-semibold`}
                 to={`/app/crm/customer-details?id=${row.id}`}
@@ -65,6 +87,7 @@ const Customers = () => {
     const { t } = useTranslation()
     const data = useAppSelector((state) => state.crmCustomers.data.customerList)
     const loading = useAppSelector((state) => state.crmCustomers.data.loading)
+    const [customerStatuses, setCustomerStatuses] = useState(defaultCustomerStatuses)
     const filterData = useAppSelector(
         (state) => state.crmCustomers.data.filterData,
     )
@@ -80,6 +103,16 @@ const Customers = () => {
     useEffect(() => {
         fetchData()
     }, [fetchData, pageIndex, pageSize, sort, filterData])
+
+    useEffect(() => {
+        const fetchStatuses = async () => {
+            const res = await apiGetCustomerStatuses<
+                { id: string; name: string; color: string }[]
+            >()
+            if ((res.data as any[]).length) setCustomerStatuses(res.data as any)
+        }
+        fetchStatuses()
+    }, [])
 
     const tableData = useMemo(
         () => ({ pageIndex, pageSize, sort, query, total }),
@@ -105,12 +138,32 @@ const Customers = () => {
                 accessorKey: 'status',
                 cell: (props) => {
                     const row = props.row.original
+                    const s = customerStatuses.find((x) => x.id === row.status)
+                    const options = customerStatuses.map((x) => ({ value: x.id, label: x.name, color: x.color }))
+                    const onChange = async (opt: any) => {
+                        await ApiService.fetchData({ url: '/crm/customers', method: 'put', data: { id: row.id, status: opt.value } })
+                        fetchData()
+                    }
                     return (
-                        <div className="flex items-center">
-                            <Badge className={statusColor[row.status]} />
-                            <span className="ml-2 rtl:mr-2 capitalize">
-                                {t(`text.status.${row.status}`)}
-                            </span>
+                        <div className="min-w-[140px]">
+                            <Select
+                                size="sm"
+                                options={options}
+                                value={{ value: s?.id ?? row.status, label: s?.name ?? String(row.status), color: s?.color ?? 'gray-500' } as any}
+                                formatOptionLabel={(option: any, { context }: { context: 'menu' | 'value' }) => (
+                                    <div className="flex items-center">
+                                        <span className={`badge-dot bg-${option.color}`}></span>
+                                        <span className={`ml-2 rtl:mr-2 capitalize font-semibold ${context === 'value' ? `text-${option.color}` : ''}`}>
+                                            {option.label}
+                                        </span>
+                                    </div>
+                                )}
+                                style={{
+                                    singleValue: (provided: any) => ({ ...provided, display: 'flex', alignItems: 'center' }),
+                                    valueContainer: (provided: any) => ({ ...provided, display: 'flex', alignItems: 'center' }),
+                                }}
+                                onChange={onChange}
+                            />
                         </div>
                     )
                 },

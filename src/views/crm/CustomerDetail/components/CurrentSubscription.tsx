@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { useSelector } from 'react-redux'
 import Card from '@/components/ui/Card'
 import Avatar from '@/components/ui/Avatar'
 import Button from '@/components/ui/Button'
@@ -13,9 +14,17 @@ const CurrentSubscription = () => {
     const [subscribed, setSubscribed] = useState(true)
     const { t } = useTranslation()
 
-    const data = useAppSelector(
-        (state) => state.crmCustomerDetails.data.subscriptionData,
+    const EMPTY_SUBS: any[] = []
+    const crmDetails = useSelector(
+        (state: any) => state.crmCustomerDetails?.data,
     )
+    const activityDetails = useSelector(
+        (state: any) => state.calendarActivityDetails?.data,
+    )
+    const data =
+        (crmDetails?.subscriptionData?.length ?? 0) > 0
+            ? crmDetails.subscriptionData
+            : activityDetails?.subscriptionData ?? EMPTY_SUBS
 
     const unsubscribe = useCallback(() => {
         setSubscribed(false)

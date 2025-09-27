@@ -14,6 +14,7 @@ import isLastChild from '@/utils/isLastChild'
 import classNames from 'classnames'
 import { HiPencilAlt } from 'react-icons/hi'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 
 const monthsKey = [
     'jan',
@@ -34,16 +35,26 @@ const PaymentMethods = () => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
 
-    const data = useAppSelector(
-        (state) => state.crmCustomerDetails.data.paymentMethodData,
+    const EMPTY_METHODS: PaymentMethod[] = []
+    const crmDetails = useSelector(
+        (state: any) => state.crmCustomerDetails?.data,
     )
+    const activityDetails = useSelector(
+        (state: any) => state.calendarActivityDetails?.data,
+    )
+    const isCrm = (crmDetails?.paymentMethodData?.length ?? 0) > 0
+    const data = isCrm
+        ? (crmDetails?.paymentMethodData as PaymentMethod[])
+        : (activityDetails?.paymentMethodData as PaymentMethod[]) ?? EMPTY_METHODS
 
     const onEditPaymentMethodDialogOpen = (card: PaymentMethod) => {
+        if (!isCrm) return
         dispatch(updateSelectedCard(card))
         dispatch(openEditPaymentMethodDialog())
     }
 
     const onDeletePaymentMethodDialogOpen = (card: PaymentMethod) => {
+        if (!isCrm) return
         dispatch(updateSelectedCard(card))
         dispatch(openDeletePaymentMethodDialog())
     }
@@ -99,6 +110,7 @@ const PaymentMethods = () => {
                                         className="mr-2 rtl:ml-2"
                                         variant="plain"
                                         size="sm"
+                                        disabled={!isCrm}
                                         onClick={() =>
                                             onDeletePaymentMethodDialogOpen(
                                                 card,
@@ -110,6 +122,7 @@ const PaymentMethods = () => {
                                     <Button
                                         icon={<HiPencilAlt />}
                                         size="sm"
+                                        disabled={!isCrm}
                                         onClick={() =>
                                             onEditPaymentMethodDialogOpen(card)
                                         }
