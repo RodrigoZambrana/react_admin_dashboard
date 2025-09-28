@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useMemo, useRef } from 'react'
 import Badge from '@/components/ui/Badge'
 import Select from '@/components/ui/Select'
-import { apiGetExpenseStatuses } from '@/services/SettingsService'
+import { apiGetExpenseStatuses, apiGetPaymentMethods } from '@/services/SettingsService'
 import { apiUpdateExpense } from '@/services/ExpensesService'
 import { useState } from 'react'
 import Tooltip from '@/components/ui/Tooltip'
@@ -132,6 +132,7 @@ const ExpensesTable = () => {
         { id: 1, name: 'Pendiente', color: 'amber-500' },
         { id: 2, name: 'Cancelado', color: 'red-500' },
     ])
+    const [paymentMethods, setPaymentMethods] = useState<{ value: string; label: string }[]>([])
 
     const data = useAppSelector((state) => state.expensesList.data.expenses)
     const currency = useAppSelector((state) => state.currency.code)
@@ -156,7 +157,12 @@ const ExpensesTable = () => {
             }))
             if (normalized.length) setExpenseStatuses(normalized as any)
         }
+        const fetchMethods = async () => {
+            const mRes = await apiGetPaymentMethods<{ id: string; name: string }[]>()
+            setPaymentMethods((mRes.data as any[]).map((m) => ({ value: m.id, label: m.name })))
+        }
         fetchStatuses()
+        fetchMethods()
     }, [])
 
     useEffect(() => {
@@ -244,14 +250,16 @@ const ExpensesTable = () => {
                 header: t('text.columns.paymentMethod'),
                 accessorKey: 'paymentMehod',
                 cell: (props) => {
-                    const { paymentMehod, paymentIdendifier } =
-                        props.row.original
+                    const row = props.row.original
+                    const current = paymentMethods.find((m) => m.value === row.paymentMehod) || { value: row.paymentMehod, label: row.paymentMehod }
+                    const onChange = async (opt: any) => {
+                        await apiUpdateExpense<boolean, { id: string; paymentMehod: string }>({ id: row.id, paymentMehod: opt.value })
+                        fetchData()
+                    }
                     return (
-                        <span className="flex items-center">
-                            <span className="ltr:ml-2 rtl:mr-2">
-                                {paymentMehod.toUpperCase()} {paymentIdendifier}
-                            </span>
-                        </span>
+                        <div className="min-w-[160px]">
+                            <Select size="md" options={paymentMethods} value={current as any} onChange={onChange} />
+                        </div>
                     )
                 },
             },
@@ -276,7 +284,7 @@ const ExpensesTable = () => {
                 cell: (props) => <ActionColumn row={props.row.original} />,
             },
         ],
-        [t, currency],
+        [t, currency, paymentMethods, expenseStatuses, fetchData],
     )
 
     const onPaginationChange = (page: number) => {

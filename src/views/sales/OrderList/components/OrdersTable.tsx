@@ -291,7 +291,6 @@ const OrdersTable = () => {
                             <div className="w-[130px]">
                                 <Select size="sm" options={paymentMethods} value={current as any} onChange={onChange} />
                             </div>
-                            <span className="ltr:ml-2 rtl:mr-2">{row.paymentIdendifier}</span>
                         </div>
                     )
                 },

@@ -167,4 +167,43 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
             return true
         },
     )
+
+    // CRUD: get single order
+    server.get(`${apiPrefix}/sales/order`, (schema, { queryParams }) => {
+        const id = queryParams.id as string
+        return schema.db.ordersData.find(id)
+    })
+
+    // CRUD: create order
+    server.post(`${apiPrefix}/sales/orders/create`, (schema, { requestBody }) => {
+        const data = JSON.parse(requestBody)
+        if (Array.isArray(data.items)) {
+            data.totalAmount = data.items.reduce(
+                (sum: number, it: any) => sum + (Number(it.price) || 0) * (Number(it.qty) || 0),
+                0,
+            )
+        }
+        if (!data.date) {
+            data.date = Math.floor(Date.now() / 1000)
+        }
+        if (!data.status && data.status !== 0) {
+            data.status = 0
+        }
+        schema.db.ordersData.insert(data)
+        return true
+    })
+
+    // CRUD: save order (update full record)
+    server.put(`${apiPrefix}/sales/orders/save`, (schema, { requestBody }) => {
+        const data = JSON.parse(requestBody)
+        const { id } = data
+        if (Array.isArray(data.items)) {
+            data.totalAmount = data.items.reduce(
+                (sum: number, it: any) => sum + (Number(it.price) || 0) * (Number(it.qty) || 0),
+                0,
+            )
+        }
+        schema.db.ordersData.update({ id }, data)
+        return true
+    })
 }

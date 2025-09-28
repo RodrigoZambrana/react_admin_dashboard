@@ -1,5 +1,5 @@
 import Button from '@/components/ui/Button'
-import { HiDownload, HiOutlineTrash } from 'react-icons/hi'
+import { HiDownload, HiOutlineTrash, HiPlusCircle } from 'react-icons/hi'
 import OrderTableSearch from './OrderTableSearch'
 import { setDeleteMode, useAppDispatch, useAppSelector } from '../store'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +33,11 @@ const OrdersTableTools = () => {
     )
     return (
         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+            <Link to="/app/sales/order-new">
+                <Button variant="solid" size="sm" icon={<HiPlusCircle />}>
+                    {t('text.actions.add')}
+                </Button>
+            </Link>
             {selectedRows.length > 0 && <BatchDeleteButton />}
             <Link download to="/data/order-list.csv" target="_blank">
                 <Button block size="sm" icon={<HiDownload />}>

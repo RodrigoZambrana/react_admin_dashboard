@@ -28,7 +28,11 @@
             "productEdit": "Product Edit",
             "productNew": "New Product",
             "orderList": "Order List",
-            "orderDetails": "Order Details"
+            "orderDetails": "Order Details",
+            "addOrder": "Add Order"
+        },
+        "appsProducts": {
+            "products": "Products"
         },
         "appsExpenses": {
             "expenses": "Expenses",
@@ -376,6 +380,7 @@
             "addNewCard": "Add new card",
             "back": "Back",
             "next": "Next",
+            "finalize": "Finalize",
             "print": "Print",
             "updatePassword": "Update Password",
             "assigned": "assigned",
@@ -426,6 +431,9 @@
             "subtotal": "Subtotal",
             "deliveryFee": "Delivery fee",
             "tax6": "Tax(6%)",
+            "minDays": "Min days",
+            "maxDays": "Max days",
+            "sameAsShipping": "Use shipping address",
             "productName": "Product Name",
             "code": "Code",
             "description": "Description",
@@ -774,6 +782,12 @@
                 "titleSuccess": "Successfully Deleted",
                 "single": "Order successfully deleted",
                 "batch": "{{count}} orders successfully deleted"
+            },
+            "created": { "title": "Successfully created", "desc": "Order created successfully" },
+            "updated": { "title": "Updated successfully", "desc": "Order updated successfully" },
+            "validation": {
+                "customerRequired": "Customer is required",
+                "itemsRequired": "Please add at least one product"
             }
         },
         "productForm": {

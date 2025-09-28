@@ -114,3 +114,36 @@ export async function apiUpdateSalesOrderPaymentMethod<
         data,
     })
 }
+
+// Orders CRUD
+export async function apiGetSalesOrder<T, U extends Record<string, unknown>>(
+    params: U,
+) {
+    return ApiService.fetchData<T>({
+        url: '/sales/order',
+        method: 'get',
+        params,
+    })
+}
+
+export async function apiCreateSalesOrder<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/sales/orders/create',
+        method: 'post',
+        data,
+    })
+}
+
+export async function apiSaveSalesOrder<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/sales/orders/save',
+        method: 'put',
+        data,
+    })
+}

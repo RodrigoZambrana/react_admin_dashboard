@@ -17,6 +17,7 @@ const appsNavigationConfig: NavigationTree[] = [
         type: NAV_ITEM_TYPE_TITLE,
         authority: [ADMIN, USER],
         subMenu: [
+            // Ventas
             {
                 key: 'apps.sales',
                 path: '',
@@ -37,26 +38,6 @@ const appsNavigationConfig: NavigationTree[] = [
                         subMenu: [],
                     },
                     {
-                        key: 'appsSales.productList',
-                        path: `${APP_PREFIX_PATH}/sales/product-list`,
-                        title: 'Product List',
-                        translateKey: 'nav.appsSales.productList',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
-                        subMenu: [],
-                    },
-                    {
-                        key: 'appsSales.productNew',
-                        path: `${APP_PREFIX_PATH}/sales/product-new`,
-                        title: 'New Product',
-                        translateKey: 'nav.appsSales.productNew',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
-                        subMenu: [],
-                    },
-                    {
                         key: 'appsSales.orderList',
                         path: `${APP_PREFIX_PATH}/sales/order-list`,
                         title: 'Order List',
@@ -66,8 +47,94 @@ const appsNavigationConfig: NavigationTree[] = [
                         authority: [ADMIN, USER],
                         subMenu: [],
                     },
+                    {
+                        key: 'appsSales.orderNew',
+                        path: `${APP_PREFIX_PATH}/sales/order-new`,
+                        title: 'Add Order',
+                        translateKey: 'nav.appsSales.addOrder',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: [ADMIN, USER],
+                        subMenu: [],
+                    },
                 ],
             },
+            // Productos (nuevo menú)
+            {
+                key: 'apps.products',
+                path: '',
+                title: 'Products',
+                translateKey: 'nav.appsProducts.products',
+                icon: 'products',
+                type: NAV_ITEM_TYPE_COLLAPSE,
+                authority: [ADMIN, USER],
+                subMenu: [
+                    {
+                        key: 'appsProducts.productList',
+                        path: `${APP_PREFIX_PATH}/sales/product-list`,
+                        title: 'Product List',
+                        translateKey: 'nav.appsSales.productList',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: [ADMIN, USER],
+                        subMenu: [],
+                    },
+                    {
+                        key: 'appsProducts.productNew',
+                        path: `${APP_PREFIX_PATH}/sales/product-new`,
+                        title: 'New Product',
+                        translateKey: 'nav.appsSales.productNew',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: [ADMIN, USER],
+                        subMenu: [],
+                    },
+                ],
+            },
+            // Clientes
+            {
+                key: 'apps.crm',
+                path: `${APP_PREFIX_PATH}/crm/customers`,
+                title: 'Clients',
+                translateKey: 'nav.appsCrm.crm',
+                icon: 'crm',
+                type: NAV_ITEM_TYPE_ITEM,
+                authority: [ADMIN, USER],
+                subMenu: [],
+            },
+            // Agenda
+            {
+                key: 'apps.calendar',
+                path: '',
+                title: 'Calendar',
+                translateKey: 'nav.appsCalendar.calendar',
+                icon: 'calendar',
+                type: NAV_ITEM_TYPE_COLLAPSE,
+                authority: [ADMIN, USER],
+                subMenu: [
+                    {
+                        key: 'appsCalendar.activities',
+                        path: `${APP_PREFIX_PATH}/calendar/activities`,
+                        title: 'Activities',
+                        translateKey: 'nav.appsCalendar.activities',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: [ADMIN, USER],
+                        subMenu: [],
+                    },
+                    {
+                        key: 'appsCalendar.schedule',
+                        path: `${APP_PREFIX_PATH}/calendar/schedule`,
+                        title: 'Schedule',
+                        translateKey: 'nav.appsCalendar.schedule',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: [ADMIN, USER],
+                        subMenu: [],
+                    },
+                ],
+            },
+            // Gastos
             {
                 key: 'apps.expenses',
                 path: '',
@@ -109,47 +176,7 @@ const appsNavigationConfig: NavigationTree[] = [
                     },
                 ],
             },
-            {
-                key: 'apps.crm',
-                path: `${APP_PREFIX_PATH}/crm/customers`,
-                title: 'Clients',
-                translateKey: 'nav.appsCrm.crm',
-                icon: 'crm',
-                type: NAV_ITEM_TYPE_ITEM,
-                authority: [ADMIN, USER],
-                subMenu: [],
-            },
-            {
-                key: 'apps.calendar',
-                path: '',
-                title: 'Calendar',
-                translateKey: 'nav.appsCalendar.calendar',
-                icon: 'calendar',
-                type: NAV_ITEM_TYPE_COLLAPSE,
-                authority: [ADMIN, USER],
-                subMenu: [
-                    {
-                        key: 'appsCalendar.activities',
-                        path: `${APP_PREFIX_PATH}/calendar/activities`,
-                        title: 'Activities',
-                        translateKey: 'nav.appsCalendar.activities',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
-                        subMenu: [],
-                    },
-                    {
-                        key: 'appsCalendar.schedule',
-                        path: `${APP_PREFIX_PATH}/calendar/schedule`,
-                        title: 'Schedule',
-                        translateKey: 'nav.appsCalendar.schedule',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
-                        subMenu: [],
-                    },
-                ],
-            },
+            // Actividades
             {
                 key: 'apps.activities',
                 path: `${APP_PREFIX_PATH}/activities/dashboard`,
@@ -160,6 +187,7 @@ const appsNavigationConfig: NavigationTree[] = [
                 authority: [ADMIN, USER],
                 subMenu: [],
             },
+            // Usuarios
             {
                 key: 'apps.users',
                 path: `${APP_PREFIX_PATH}/users/list`,
@@ -170,6 +198,7 @@ const appsNavigationConfig: NavigationTree[] = [
                 authority: [ADMIN, USER],
                 subMenu: [],
             },
+            // Configuración
             {
                 key: 'apps.settings',
                 path: '',
@@ -231,6 +260,7 @@ const appsNavigationConfig: NavigationTree[] = [
                     },
                 ],
             },
+            // Cuenta
             {
                 key: 'apps.account',
                 path: '',

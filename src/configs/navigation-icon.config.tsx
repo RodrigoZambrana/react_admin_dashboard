@@ -25,6 +25,7 @@ import {
     HiOutlineShare,
     HiOutlineVariable,
     HiOutlineCode,
+    HiOutlineShoppingBag,
 } from 'react-icons/hi'
 import type { JSX } from 'react'
 
@@ -61,6 +62,7 @@ const navigationIcon: NavigationIcons = {
     utilsDoc: <HiOutlineVariable />,
     changeLog: <HiOutlineCode />,
     settings: <HiOutlineAdjustments />,
+    products: <HiOutlineShoppingBag />,
     signOut: (
         <span className="text-xl opacity-50">
             <svg
