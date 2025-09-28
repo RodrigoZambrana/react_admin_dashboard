@@ -158,4 +158,13 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
         schema.db.ordersData.update({ id }, { status })
         return true
     })
+
+    server.put(
+        `${apiPrefix}/sales/orders/update-method`,
+        (schema, { requestBody }) => {
+            const { id, paymentMehod } = JSON.parse(requestBody)
+            schema.db.ordersData.update({ id }, { paymentMehod })
+            return true
+        },
+    )
 }

@@ -13,6 +13,7 @@ import {
     useAppSelector,
 } from '../store'
 import { taskLabelColors } from '../utils'
+import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
 import type { Ticket } from '../types'
 import type { CardProps } from '@/components/ui/Card'
@@ -23,6 +24,7 @@ interface BoardCardProps extends CardProps {
 
 const BoardCard = forwardRef<HTMLDivElement, BoardCardProps>((props, ref) => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const selectedTab = useAppSelector(
         (state) => state.scrumBoard.data.selectedTab,
@@ -38,15 +40,31 @@ const BoardCard = forwardRef<HTMLDivElement, BoardCardProps>((props, ref) => {
         dispatch(setSelectedTicketId(id))
     }
 
+    const priorityMatch = (labels: string[] | undefined, tab: string) => {
+        if (!labels || tab === 'all') return true
+        const has = (v: string) => labels.includes(v)
+        switch (tab) {
+            case 'high':
+                return has('High priority') || has('Live issue') || has('Bug')
+            case 'medium':
+                return has('Medium priority') || has('Task')
+            case 'low':
+                return has('Low priority')
+            default:
+                // fallback to original behavior for any other tag
+                return labels.includes(tab)
+        }
+    }
+
+    const hidden = selectedTab !== 'all' && !priorityMatch(labels, selectedTab)
+
     return (
         <Card
             ref={ref}
             clickable
             className={classNames(
                 'hover:shadow-lg rounded-lg dark:bg-gray-700 bg-gray-50',
-                selectedTab !== 'All' && !labels?.includes(selectedTab)
-                    ? 'opacity-0 overflow-hidden h-0'
-                    : 'mb-4',
+                hidden ? 'opacity-0 overflow-hidden h-0' : 'mb-4',
             )}
             bodyClass="p-4"
             onClick={() => onCardClick()}
@@ -54,16 +72,26 @@ const BoardCard = forwardRef<HTMLDivElement, BoardCardProps>((props, ref) => {
         >
             {labels && labels.length > 0 && (
                 <>
-                    {labels.map((label, index) => (
+                    {labels.map((label, index) => {
+                        const display =
+                            label === 'High priority'
+                                ? t('text.priority.high')
+                                : label === 'Medium priority'
+                                ? t('text.priority.medium')
+                                : label === 'Low priority'
+                                ? t('text.priority.low')
+                                : label
+                        return (
                         <Tag
                             key={label + index}
                             prefix
                             className="mr-2 rtl:ml-2 mb-2"
                             prefixClass={`${taskLabelColors[label]}`}
                         >
-                            {label}
+                            {display}
                         </Tag>
-                    ))}
+                        )
+                    })}
                 </>
             )}
             <h6 className="mb-2">{name}</h6>

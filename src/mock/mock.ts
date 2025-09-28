@@ -41,7 +41,7 @@ import {
 } from './data/knowledgeBaseData'
 import { signInUserData } from './data/authData'
 import { activityDetailData } from './data/calendarData'
-import { orderStatusesData, productStatusesData, customerStatusesData, expenseStatusesData, productCategoriesData } from './data/settingsData'
+import { orderStatusesData, productStatusesData, customerStatusesData, expenseStatusesData, productCategoriesData, paymentMethodsData } from './data/settingsData'
 
 import {
     commonFakeApi,
@@ -98,6 +98,7 @@ export function mockServer({ environment = 'test' }) {
                 customerStatusesData,
                 expenseStatusesData,
                 productCategoriesData,
+                paymentMethodsData,
                 crmDashboardData,
                 projectDashboardData,
                 cryptoDashboardData,

@@ -226,6 +226,12 @@ const appsRoute: Routes = [
         component: lazy(() => import('@/views/settings/ExpenseSettings')),
         authority: [ADMIN, USER],
     },
+    {
+        key: 'appsSettings.paymentMethods',
+        path: `${APP_PREFIX_PATH}/settings/payment-methods`,
+        component: lazy(() => import('@/views/settings/PaymentMethods')),
+        authority: [ADMIN, USER],
+    },
     // Users
     {
         key: 'appsUsers.userList',

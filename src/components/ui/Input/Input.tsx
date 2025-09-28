@@ -81,11 +81,11 @@ const Input = forwardRef<ElementType | HTMLInputElement, InputProps>(
 
         const isInvalid = useMemo(() => {
             let validate = false
-            if (!isEmpty(form)) {
+            if (form && field && !isEmpty(form)) {
                 const { touched, errors } = form
-                const touchedField = get(touched, field.name)
-                const errorField = get(errors, field.name)
-                validate = touchedField && errorField
+                const touchedField = get(touched, field?.name)
+                const errorField = get(errors, field?.name)
+                validate = Boolean(touchedField && errorField)
             }
             if (typeof invalid === 'boolean') {
                 validate = invalid

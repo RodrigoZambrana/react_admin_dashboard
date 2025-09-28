@@ -219,6 +219,16 @@ const appsNavigationConfig: NavigationTree[] = [
                         authority: [ADMIN, USER],
                         subMenu: [],
                     },
+                    {
+                        key: 'appsSettings.paymentMethods',
+                        path: `${APP_PREFIX_PATH}/settings/payment-methods`,
+                        title: 'Payment Methods',
+                        translateKey: 'nav.appsSettings.paymentMethods',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: [ADMIN, USER],
+                        subMenu: [],
+                    },
                 ],
             },
             {

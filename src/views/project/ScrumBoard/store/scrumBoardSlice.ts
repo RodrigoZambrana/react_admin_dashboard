@@ -54,7 +54,7 @@ const initialState: ScrumBoardState = {
     dialogView: '',
     ticketId: '',
     board: '',
-    selectedTab: 'All',
+    selectedTab: 'all',
 }
 
 const scrumBoardSlice = createSlice({

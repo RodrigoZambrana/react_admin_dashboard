@@ -68,7 +68,8 @@
             "orderStatuses": "Estados de pedidos",
             "products": "Productos",
             "customerStatuses": "Estados de clientes",
-            "expenses": "Gastos"
+            "expenses": "Gastos",
+            "paymentMethods": "Formas de pago"
         },
         "uiComponents": "Componentes de la UI",
         "uiComponentsCommon": {
@@ -302,7 +303,8 @@
             "paymentMethods": "Métodos de pago",
             "billingHistory": "Historial de facturación",
             "activityLog": "Registro de actividades",
-            "filterActivity": "Filtrar actividad"
+            "filterActivity": "Filtrar actividad",
+            "taskManagement": "Gestión de tareas"
         },
         "columns": {
             "order": "Pedido",
@@ -489,7 +491,8 @@
             "category": "Categoría",
             "tags": "Etiquetas",
             "brand": "Marca",
-            "vendor": "Proveedor"
+            "vendor": "Proveedor",
+            "ticketTitle": "Título del ticket"
         },
         "date": {
             "monthsShort": {
@@ -517,7 +520,8 @@
             "passwordDesc": "Ingrese su contraseña actual y nueva para restablecer su contraseña",
             "viewPreviousBilling": "Ver su facturación anterior",
             "addressInformation": "Ingrese su información de dirección para ayudarnos a acelerar el proceso de verificación",
-            "inviteTeamMember": "Invita a los miembros del equipo a colaborar en este tablero"
+            "inviteTeamMember": "Invita a los miembros del equipo a colaborar en este tablero",
+            "taskManagement": "Tablero de tareas del equipo para registrar y resolver pendientes"
         },
         "messages": {
             "deleteProductConfirm": "¿Está seguro de que desea eliminar este producto? Todos los registros relacionados con este producto también se eliminarán. Esta acción no se puede deshacer.",
@@ -1004,6 +1008,14 @@
             "created": { "title": "Creado correctamente", "desc": "Estado creado correctamente" },
             "updated": { "title": "Actualizado correctamente", "desc": "Estado actualizado correctamente" },
             "deleted": { "title": "Eliminado correctamente", "desc": "Estado eliminado correctamente" }
+        },
+        "paymentMethods": {
+            "title": "Formas de pago",
+            "columns": { "id": "ID", "name": "Nombre" },
+            "placeholders": { "id": "ID de método (ej. cash)", "name": "Nombre del método" },
+            "created": { "title": "Creado correctamente", "desc": "Forma de pago creada correctamente" },
+            "updated": { "title": "Actualizado correctamente", "desc": "Forma de pago actualizada correctamente" },
+            "deleted": { "title": "Eliminado correctamente", "desc": "Forma de pago eliminada correctamente" }
         }
     },
     "common": {
