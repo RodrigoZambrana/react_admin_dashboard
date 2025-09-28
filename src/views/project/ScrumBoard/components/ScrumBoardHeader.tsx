@@ -12,10 +12,12 @@ import {
     useAppSelector,
 } from '../store'
 import { HiOutlineUserAdd } from 'react-icons/hi'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
 const BoardHeader = () => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const navigate = useNavigate()
 
@@ -37,8 +39,8 @@ const BoardHeader = () => {
             <Container className="px-6">
                 <div className="flex justify-between items-end mb-6">
                     <div>
-                        <p className="mb-1">Agile project</p>
-                        <h3>RND Team Sprint 2</h3>
+                        <h3>{t('text.titles.taskManagement')}</h3>
+                        <p className="mt-1">{t('text.descriptions.taskManagement')}</p>
                     </div>
                     <UsersAvatarGroup users={boardMembers} />
                 </div>

@@ -20,10 +20,10 @@ const QuickFilterTab = () => {
     return (
         <Tabs value={selectedTab} variant="pill" onChange={handleTabChange}>
             <TabList>
-                <TabNav value="All">{t('text.filters.all')}</TabNav>
-                {labelList.map((tab, index) => (
-                    <TabNav key={`${tab}-${index}`} value={tab}>
-                        {tab}
+                <TabNav value="all">{t('text.filters.all')}</TabNav>
+                {labelList.map((key, index) => (
+                    <TabNav key={`${key}-${index}`} value={key}>
+                        {t(`text.priority.${key}`)}
                     </TabNav>
                 ))}
             </TabList>

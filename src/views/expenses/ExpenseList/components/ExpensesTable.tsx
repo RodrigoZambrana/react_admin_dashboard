@@ -134,6 +134,7 @@ const ExpensesTable = () => {
     ])
 
     const data = useAppSelector((state) => state.expensesList.data.expenses)
+    const currency = useAppSelector((state) => state.currency.code)
 
     const fetchData = useCallback(() => {
         dispatch(getExpensesList({ pageIndex, pageSize, sort, query }))
@@ -263,7 +264,7 @@ const ExpensesTable = () => {
                         <NumericFormat
                             displayType="text"
                             value={(Math.round(amount * 100) / 100).toFixed(2)}
-                            prefix={'$'}
+                            prefix={`${currency} `}
                             thousandSeparator={true}
                         />
                     )
@@ -275,7 +276,7 @@ const ExpensesTable = () => {
                 cell: (props) => <ActionColumn row={props.row.original} />,
             },
         ],
-        [t],
+        [t, currency],
     )
 
     const onPaginationChange = (page: number) => {

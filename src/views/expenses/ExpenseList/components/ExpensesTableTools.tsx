@@ -4,6 +4,7 @@ import ExpensesTableSearch from './ExpensesTableSearch'
 import { setDeleteMode, useAppDispatch, useAppSelector } from '../store'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
+import CurrencySelector from '@/components/shared/CurrencySelector'
 
 const BatchDeleteButton = () => {
     const { t } = useTranslation()
@@ -44,6 +45,7 @@ const ExpensesTableTools = () => {
                     {t('text.actions.export')}
                 </Button>
             </Link>
+            <CurrencySelector size="sm" />
             <ExpensesTableSearch />
         </div>
     )

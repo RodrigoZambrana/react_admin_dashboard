@@ -152,6 +152,8 @@ const ProductTable = () => {
         fetchStatuses()
     }, [])
 
+    const currency = useAppSelector((state) => state.currency.code)
+
     const columns: ColumnDef<Product>[] = useMemo(
         () => [
             {
@@ -255,7 +257,7 @@ const ProductTable = () => {
                 accessorKey: 'price',
                 cell: (props) => {
                     const { price } = props.row.original
-                    return <span>${price}</span>
+                    return <span>{currency} {price}</span>
                 },
             },
             {
@@ -264,7 +266,7 @@ const ProductTable = () => {
                 cell: (props) => <ActionColumn row={props.row.original} />,
             },
         ],
-        [t],
+        [t, currency],
     )
 
     const onPaginationChange = (page: number) => {

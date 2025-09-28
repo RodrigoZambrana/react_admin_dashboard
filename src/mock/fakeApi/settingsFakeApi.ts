@@ -198,4 +198,40 @@ export default function settingsFakeApi(server: Server, apiPrefix: string) {
             return true
         },
     )
+
+    // Payment methods
+    server.get(`${apiPrefix}/settings/payment-methods`, (schema) => {
+        return (schema.db as any).paymentMethodsData || []
+    })
+
+    server.post(
+        `${apiPrefix}/settings/payment-methods/create`,
+        (schema, { requestBody }) => {
+            const data = JSON.parse(requestBody)
+            ;(schema.db as any).paymentMethodsData.insert(data)
+            return true
+        },
+    )
+
+    server.put(
+        `${apiPrefix}/settings/payment-methods/update`,
+        (schema, { requestBody }) => {
+            const data = JSON.parse(requestBody)
+            const { id } = data
+            ;(schema.db as any).paymentMethodsData.update({ id }, data)
+            return true
+        },
+    )
+
+    server.del(
+        `${apiPrefix}/settings/payment-methods/delete`,
+        (schema, { requestBody }) => {
+            const { id } = JSON.parse(requestBody)
+            const ids: (string | number)[] = Array.isArray(id) ? id : [id]
+            ids.forEach((elm) => {
+                ;(schema.db as any).paymentMethodsData.remove({ id: elm })
+            })
+            return true
+        },
+    )
 }

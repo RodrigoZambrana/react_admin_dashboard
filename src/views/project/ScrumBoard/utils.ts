@@ -73,10 +73,16 @@ export const createCardObject = (): Ticket => {
 }
 
 export const taskLabelColors: Record<string, string> = {
+    // type labels (legacy)
     'Live issue': 'bg-rose-500',
     Task: 'bg-blue-500',
     Bug: 'bg-amber-400',
     'Low priority': 'bg-indigo-500',
+    // priority labels (new)
+    'High priority': 'bg-red-500',
+    'Medium priority': 'bg-amber-500',
+    // keep low aligned with existing color
 }
 
-export const labelList = ['Task', 'Bug', 'Live issue', 'Low priority']
+// Quick filter tabs: priorities (use keys for i18n rendering)
+export const labelList = ['high', 'medium', 'low']

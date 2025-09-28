@@ -29,3 +29,9 @@ export const productCategoriesData = [
     { id: 'watches', name: 'Relojes' },
     { id: 'cloths', name: 'Ropa' },
 ]
+
+export const paymentMethodsData = [
+    { id: 'cash', name: 'Efectivo' },
+    { id: 'card', name: 'Tarjeta' },
+    { id: 'mp', name: 'Mercado Pago' },
+]

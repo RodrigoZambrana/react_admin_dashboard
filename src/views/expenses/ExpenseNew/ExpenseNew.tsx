@@ -9,9 +9,13 @@ import { apiGetExpenseCategories } from '@/services/ExpensesService'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { apiCreateExpense } from '@/services/ExpensesService'
+import { apiGetPaymentMethods } from '@/services/SettingsService'
 import toast from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
 import { useNavigate } from 'react-router-dom'
+import { HiOutlineAdjustments } from 'react-icons/hi'
+import CurrencySelector from '@/components/shared/CurrencySelector'
+import InputGroup from '@/components/ui/InputGroup'
 
 type ExpenseForm = {
     date: Date | null
@@ -30,21 +34,26 @@ const defaultCategories = [
     { value: 'Utilities', label: 'Utilities' },
 ]
 
-const methods = [
-    { value: 'visa', label: 'Visa' },
-    { value: 'master', label: 'Mastercard' },
-    { value: 'paypal', label: 'PayPal' },
+const defaultMethods = [
+    { value: 'cash', label: 'Efectivo' },
+    { value: 'card', label: 'Tarjeta' },
+    { value: 'mp', label: 'Mercado Pago' },
 ]
 
 const ExpenseNew = () => {
     const { t } = useTranslation()
     const [categories, setCategories] = useState(defaultCategories)
+    const [methods, setMethods] = useState(defaultMethods)
 
     useEffect(() => {
         const fetch = async () => {
             const res = await apiGetExpenseCategories<{ id: string; name: string }[]>()
             const opts = (res.data as any[]).map((c) => ({ value: c.name, label: c.name }))
             if (opts.length) setCategories(opts)
+            // payment methods from settings
+            const mRes = await apiGetPaymentMethods<{ id: string; name: string }[]>()
+            const mOpts = (mRes.data as any[]).map((m) => ({ value: m.id, label: m.name }))
+            if (mOpts.length) setMethods(mOpts)
         }
         fetch()
     }, [])
@@ -110,7 +119,7 @@ const ExpenseNew = () => {
                                         onChange={(opt) => setFieldValue('category', (opt as any).value)}
                                     />
                                     <Link to="/app/expenses/categories">
-                                        <Button size="sm" variant="plain">
+                                        <Button size="sm" variant="twoTone" icon={<HiOutlineAdjustments />}>
                                             {t('expenses.categories.actions.manage')}
                                         </Button>
                                     </Link>
@@ -125,12 +134,19 @@ const ExpenseNew = () => {
                                         onChange={(opt) => setFieldValue('paymentMehod', (opt as any).value)}
                                     />
                                 </FormItem>
-                                <FormItem label={t('text.columns.reference')}>
-                                    <Field name="paymentIdendifier" as={Input} placeholder="•••• 1234 or email" />
-                                </FormItem>
+                                
                             </div>
                             <FormItem label={t('text.columns.amount')}>
-                                <Field name="amount" as={Input} type="number" step="0.01" min="0" />
+                                <Field name="amount">
+                                    {({ field, form }: any) => (
+                                        <InputGroup>
+                                            <InputGroup.Addon className="px-0">
+                                                <CurrencySelector embedded selectClassName="w-24" />
+                                            </InputGroup.Addon>
+                                            <Input {...field} form={form} type="number" step="0.01" min="0" />
+                                        </InputGroup>
+                                    )}
+                                </Field>
                             </FormItem>
                             <FormItem label={t('text.columns.comments')}>
                                 <Field name="note" as={Input} textArea rows={3} />

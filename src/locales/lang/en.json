@@ -68,7 +68,8 @@
             "orderStatuses": "Order Statuses",
             "products": "Products",
             "customerStatuses": "Customer Statuses",
-            "expenses": "Expenses"
+            "expenses": "Expenses",
+            "paymentMethods": "Payment Methods"
         },
         "uiComponents": "UI Components",
         "uiComponentsCommon": {
@@ -302,7 +303,8 @@
             "paymentMethods": "Payment Methods",
             "billingHistory": "Billing History",
             "activityLog": "Activity Log",
-            "filterActivity": "Filter Activity"
+            "filterActivity": "Filter Activity",
+            "taskManagement": "Task Management"
         },
         "columns": {
             "order": "Order",
@@ -492,7 +494,8 @@
             "category": "Category",
             "tags": "Tags",
             "brand": "Brand",
-            "vendor": "Vendor"
+            "vendor": "Vendor",
+            "ticketTitle": "Ticket title"
         },
         "date": {
             "monthsShort": {
@@ -517,7 +520,8 @@
         "descriptions": {
             "basicProductInfo": "Section to config basic product information",
             "productSalesInfo": "Section to config product sales information",
-            "inviteTeamMember": "Invite your team members to collaborate on this board"
+            "inviteTeamMember": "Invite your team members to collaborate on this board",
+            "taskManagement": "Team task board to register and resolve work items"
         },
         "messages": {
             "deleteProductConfirm": "Are you sure you want to delete this product? All record related to this product will be deleted as well. This action cannot be undone.",
@@ -1010,6 +1014,22 @@
             "created": { "title": "Successfully created", "desc": "Status created successfully" },
             "updated": { "title": "Updated successfully", "desc": "Status updated successfully" },
             "deleted": { "title": "Successfully deleted", "desc": "Status deleted successfully" }
+        },
+        "paymentMethods": {
+            "title": "Payment Methods",
+            "columns": { "id": "ID", "name": "Name" },
+            "placeholders": { "id": "Method ID (e.g. cash)", "name": "Method name" },
+            "created": { "title": "Successfully created", "desc": "Payment method created successfully" },
+            "updated": { "title": "Updated successfully", "desc": "Payment method updated successfully" },
+            "deleted": { "title": "Successfully deleted", "desc": "Payment method deleted successfully" }
+        },
+        "paymentMethods": {
+            "title": "Payment Methods",
+            "columns": { "id": "ID", "name": "Name" },
+            "placeholders": { "id": "Method ID (e.g. cash)", "name": "Method name" },
+            "created": { "title": "Successfully created", "desc": "Payment method created successfully" },
+            "updated": { "title": "Updated successfully", "desc": "Payment method updated successfully" },
+            "deleted": { "title": "Successfully deleted", "desc": "Payment method deleted successfully" }
         }
     },
     "common": {

@@ -253,50 +253,65 @@ const TicketContent = ({ onTicketClose }: { onTicketClose: () => void }) => {
                                 </div>
                                 <div className="mt-4">
                                     <div className="font-semibold mb-3 text-gray-900 dark:text-gray-100">
-                                        Label:
+                                        {t('text.columns.priority')}
                                     </div>
-                                    <div>
-                                        {ticketData.labels?.map((label) => (
-                                            <Tag
-                                                key={label}
-                                                prefix
-                                                className="mr-2 rtl:ml-2 mb-2"
-                                                prefixClass={`${taskLabelColors[label]}`}
-                                            >
-                                                {label}
-                                            </Tag>
-                                        ))}
+                                    <div className="flex items-center gap-2">
+                                        {(() => {
+                                            const current = (ticketData.labels || []).find((l) =>
+                                                ['High priority', 'Medium priority', 'Low priority'].includes(l),
+                                            )
+                                            if (!current) return null
+                                            const display =
+                                                current === 'High priority'
+                                                    ? t('text.priority.high')
+                                                    : current === 'Medium priority'
+                                                    ? t('text.priority.medium')
+                                                    : t('text.priority.low')
+                                            return (
+                                                <Tag
+                                                    prefix
+                                                    className="mr-2 rtl:ml-2 mb-2"
+                                                    prefixClass={`${taskLabelColors[current]}`}
+                                                >
+                                                    {display}
+                                                </Tag>
+                                            )
+                                        })()}
                                         <Dropdown
                                             renderTitle={
                                                 <Tag className="border-dashed cursor-pointer mr-2 rtl:ml-2">
-                                                    Add Label
+                                                    {t('text.columns.priority')}
                                                 </Tag>
                                             }
                                             placement="bottom-end"
                                         >
-                                            {labelList.map(
-                                                (label) =>
-                                                    !ticketData.labels?.includes(
-                                                        label,
-                                                    ) && (
-                                                        <Dropdown.Item
-                                                            key={label}
-                                                            eventKey={label}
-                                                            onSelect={
-                                                                onAddLabelClick
-                                                            }
-                                                        >
-                                                            <div className="flex items-center">
-                                                                <Badge
-                                                                    innerClass={`${taskLabelColors[label]}`}
-                                                                />
-                                                                <span className="ml-2 rtl:mr-2">
-                                                                    {label}
-                                                                </span>
-                                                            </div>
-                                                        </Dropdown.Item>
-                                                    ),
-                                            )}
+                                            {labelList.map((key) => {
+                                                const label =
+                                                    key === 'high'
+                                                        ? 'High priority'
+                                                        : key === 'medium'
+                                                        ? 'Medium priority'
+                                                        : 'Low priority'
+                                                return (
+                                                    <Dropdown.Item
+                                                        key={key}
+                                                        eventKey={label}
+                                                        onSelect={() =>
+                                                            setTicketData((prev) => ({
+                                                                ...prev,
+                                                                labels: [label],
+                                                            }))
+                                                        }
+                                                    >
+                                                        <div className="flex items-center">
+                                                            <Badge innerClass={`${taskLabelColors[label]}`} />
+                                                            <span className="ml-2 rtl:mr-2">
+                                                                {t(`text.priority.${key}`)}
+                                                            </span>
+                                                        </div>
+                                                    </Dropdown.Item>
+                                                )
+                                            })}
                                         </Dropdown>
                                     </div>
                                 </div>

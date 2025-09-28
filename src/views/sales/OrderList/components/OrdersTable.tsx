@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useMemo, useRef } from 'react'
 import Select from '@/components/ui/Select'
-import { apiGetOrderStatuses } from '@/services/SettingsService'
-import { apiUpdateSalesOrderStatus } from '@/services/SalesService'
+import { apiGetOrderStatuses, apiGetPaymentMethods } from '@/services/SettingsService'
+import { apiUpdateSalesOrderStatus, apiUpdateSalesOrderPaymentMethod } from '@/services/SalesService'
 import { useState } from 'react'
 import Tooltip from '@/components/ui/Tooltip'
 import DataTable from '@/components/shared/DataTable'
@@ -161,6 +161,7 @@ const OrdersTable = () => {
     )
 
     const data = useAppSelector((state) => state.salesOrderList.data.orderList)
+    const [paymentMethods, setPaymentMethods] = useState<{ value: string; label: string }[]>([])
 
     const fetchData = useCallback(() => {
         console.log('{ pageIndex, pageSize, sort, query }', {
@@ -184,6 +185,15 @@ const OrdersTable = () => {
             if (normalized.length) setStatuses(normalized)
         }
         fetchStatuses()
+    }, [])
+
+    useEffect(() => {
+        const fetchPaymentMethods = async () => {
+            const res = await apiGetPaymentMethods<{ id: string; name: string }[]>()
+            const opts = (res.data as any[]).map((m) => ({ value: m.id, label: m.name }))
+            setPaymentMethods(opts)
+        }
+        fetchPaymentMethods()
     }, [])
 
     useEffect(() => {
@@ -270,18 +280,19 @@ const OrdersTable = () => {
                 header: t('text.columns.paymentMethod'),
                 accessorKey: 'paymentMehod',
                 cell: (props) => {
-                    const { paymentMehod, paymentIdendifier } =
-                        props.row.original
+                    const row = props.row.original
+                    const current = paymentMethods.find((m) => m.value === row.paymentMehod) || { value: row.paymentMehod, label: row.paymentMehod }
+                    const onChange = async (opt: any) => {
+                        await apiUpdateSalesOrderPaymentMethod<boolean, { id: string; paymentMehod: string }>({ id: row.id, paymentMehod: opt.value })
+                        dispatch(getOrders({ pageIndex, pageSize, sort, query }))
+                    }
                     return (
-                        <span className="flex items-center">
-                            <PaymentMethodImage
-                                className="max-h-[20px]"
-                                paymentMehod={paymentMehod}
-                            />
-                            <span className="ltr:ml-2 rtl:mr-2">
-                                {paymentIdendifier}
-                            </span>
-                        </span>
+                        <div className="flex items-center min-w-[180px]">
+                            <div className="w-[130px]">
+                                <Select size="sm" options={paymentMethods} value={current as any} onChange={onChange} />
+                            </div>
+                            <span className="ltr:ml-2 rtl:mr-2">{row.paymentIdendifier}</span>
+                        </div>
                     )
                 },
             },
@@ -308,7 +319,7 @@ const OrdersTable = () => {
                 cell: (props) => <ActionColumn row={props.row.original} />,
             },
         ],
-        [t, statuses],
+        [t, statuses, paymentMethods, pageIndex, pageSize, sort, query, dispatch],
     )
 
     const onPaginationChange = (page: number) => {

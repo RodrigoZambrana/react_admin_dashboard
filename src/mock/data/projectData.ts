@@ -1,4 +1,8 @@
 const y = new Date().getFullYear()
+// Priority labels helper
+const priorityLabels = ['High priority', 'Medium priority', 'Low priority'] as const
+const randPriority = () =>
+    priorityLabels[Math.floor(Math.random() * priorityLabels.length)]
 
 export const projectList = [
     {
@@ -417,7 +421,7 @@ export const projectDashboardData = {
             type: 'ADD-TAGS-TO-TICKET',
             dateTime: 1646574027,
             userName: 'Joyce Freeman',
-            tags: ['Live Issue', 'Backend'],
+            tags: ['High priority', 'Backend'],
         },
         {
             type: 'ADD-FILES-TO-TICKET',
@@ -430,22 +434,9 @@ export const projectDashboardData = {
 }
 
 export const labels = [
-    {
-        color: 'blue',
-        label: 'Task',
-    },
-    {
-        color: 'gold',
-        label: 'Bug',
-    },
-    {
-        color: 'red',
-        label: 'Live issue',
-    },
-    {
-        color: 'cyan',
-        label: 'Low priority',
-    },
+    { color: 'red', label: 'High priority' },
+    { color: 'amber', label: 'Medium priority' },
+    { color: 'indigo', label: 'Low priority' },
 ]
 
 const toBeProcessCards = [
@@ -475,7 +466,7 @@ const toBeProcessCards = [
                 img: '/img/avatars/thumb-3.jpg',
             },
         ],
-        labels: ['Task', 'Live issue'],
+        labels: [randPriority()],
         attachments: [
             {
                 id: 'jubuK7XGp3',
@@ -516,7 +507,7 @@ const toBeProcessCards = [
                 img: '/img/avatars/thumb-8.jpg',
             },
         ],
-        labels: ['Bug'],
+        labels: [randPriority()],
         attachments: [],
         comments: [
             {
@@ -558,7 +549,7 @@ const toBeProcessCards = [
                 img: '/img/avatars/thumb-5.jpg',
             },
         ],
-        labels: ['Low priority'],
+        labels: [randPriority()],
         attachments: [],
         comments: [
             {
@@ -595,7 +586,7 @@ const processingCards = [
                 img: '/img/avatars/thumb-8.jpg',
             },
         ],
-        labels: ['Bug'],
+        labels: [randPriority()],
         attachments: [],
         comments: [
             {
@@ -622,7 +613,7 @@ const processingCards = [
                 img: '/img/avatars/thumb-10.jpg',
             },
         ],
-        labels: ['Task'],
+        labels: [randPriority()],
         attachments: [
             {
                 id: 'NjHJhHeWrG',
@@ -657,7 +648,7 @@ const processingCards = [
                 img: '/img/avatars/thumb-6.jpg',
             },
         ],
-        labels: ['Low priority', 'Task'],
+        labels: [randPriority()],
         attachments: [],
         comments: [],
         dueDate: new Date(y, 4, 20),
@@ -679,7 +670,7 @@ const submittedCards = [
                 img: '/img/avatars/thumb-3.jpg',
             },
         ],
-        labels: ['Low priority'],
+        labels: [randPriority()],
         attachments: [],
         comments: [
             {
@@ -712,7 +703,7 @@ const submittedCards = [
                 img: '/img/avatars/thumb-10.jpg',
             },
         ],
-        labels: ['Live issue'],
+        labels: [randPriority()],
         attachments: [
             {
                 id: 'NjHJhHeWrG',
@@ -756,7 +747,7 @@ const completedCards = [
                 img: '/img/avatars/thumb-9.jpg',
             },
         ],
-        labels: ['Task'],
+        labels: [randPriority()],
         attachments: [],
         comments: [
             {
@@ -795,7 +786,7 @@ const completedCards = [
                 img: '/img/avatars/thumb-7.jpg',
             },
         ],
-        labels: ['Bug'],
+        labels: [randPriority()],
         attachments: [],
         comments: [],
         dueDate: new Date(y, 7, 19),
@@ -814,7 +805,7 @@ const completedCards = [
                 img: '/img/avatars/thumb-4.jpg',
             },
         ],
-        labels: ['Live issue'],
+        labels: [randPriority()],
         attachments: [],
         comments: [],
         dueDate: new Date(y, 4, 6),
@@ -839,7 +830,7 @@ const completedCards = [
                 img: '/img/avatars/thumb-3.jpg',
             },
         ],
-        labels: ['Low priority'],
+        labels: [randPriority()],
         attachments: [],
         comments: [
             {
@@ -889,12 +880,8 @@ export const issueData = {
     ],
     labels: [
         {
-            title: 'Bug',
-            class: 'bg-red-500',
-        },
-        {
             title: 'High priority',
-            class: 'bg-amber-500',
+            class: 'bg-red-500',
         },
     ],
     activity: [

@@ -187,3 +187,44 @@ export async function apiDeleteProductCategory<
         data,
     })
 }
+
+// Payment methods
+export async function apiGetPaymentMethods<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/payment-methods',
+        method: 'get',
+    })
+}
+
+export async function apiCreatePaymentMethod<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/payment-methods/create',
+        method: 'post',
+        data,
+    })
+}
+
+export async function apiUpdatePaymentMethod<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/payment-methods/update',
+        method: 'put',
+        data,
+    })
+}
+
+export async function apiDeletePaymentMethod<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/payment-methods/delete',
+        method: 'delete',
+        data,
+    })
+}

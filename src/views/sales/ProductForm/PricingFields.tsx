@@ -12,6 +12,8 @@ import {
 import type { ComponentType } from 'react'
 import type { InputProps } from '@/components/ui/Input'
 import { useTranslation } from 'react-i18next'
+import CurrencySelector from '@/components/shared/CurrencySelector'
+import InputGroup from '@/components/ui/InputGroup'
 
 type FormFieldsName = {
     stock: number
@@ -26,7 +28,7 @@ type PricingFieldsProps = {
 }
 
 const PriceInput = (props: InputProps) => {
-    return <Input {...props} value={props.field.value} prefix="$" />
+    return <Input {...props} value={props.field.value} />
 }
 
 const NumberInput = (props: InputProps) => {
@@ -102,20 +104,25 @@ const PricingFields = (props: PricingFieldsProps) => {
                         <Field name="price">
                             {({ field, form }: FieldProps) => {
                                 return (
-                                    <NumericFormatInput
-                                        form={form}
-                                        field={field}
-                                        placeholder={t('text.columns.price')}
-                                        customInput={
-                                            PriceInput as ComponentType
-                                        }
-                                        onValueChange={(e) => {
-                                            form.setFieldValue(
-                                                field.name,
-                                                e.value,
-                                            )
-                                        }}
-                                    />
+                                    <InputGroup>
+                                        <InputGroup.Addon className="px-0">
+                                            <CurrencySelector embedded selectClassName="w-24" />
+                                        </InputGroup.Addon>
+                                        <NumericFormatInput
+                                            form={form}
+                                            field={field}
+                                            placeholder={t('text.columns.price')}
+                                            customInput={
+                                                PriceInput as ComponentType
+                                            }
+                                            onValueChange={(e) => {
+                                                form.setFieldValue(
+                                                    field.name,
+                                                    e.value,
+                                                )
+                                            }}
+                                        />
+                                    </InputGroup>
                                 )
                             }}
                         </Field>
