@@ -28,7 +28,11 @@
             "productEdit": "Producto editar",
             "productNew": "Agregar producto",
             "orderList": "Pedidos confirmados",
-            "orderDetails": "Detalles del pedido"
+            "orderDetails": "Detalles del pedido",
+            "addOrder": "Agregar pedido"
+        },
+        "appsProducts": {
+            "products": "Productos"
         },
         "appsExpenses": {
             "expenses": "Gastos",
@@ -376,6 +380,7 @@
             "addNewCard": "Agregar nueva tarjeta",
             "back": "Atrás",
             "next": "Siguiente",
+            "finalize": "Finalizar",
             "print": "Imprimir",
             "assigned": "asignó",
             "addedAComment": "agregó un comentario"
@@ -425,6 +430,9 @@
             "subtotal": "Subtotal",
             "deliveryFee": "Costo de envío",
             "tax6": "Impuesto(6%)",
+            "minDays": "Días mínimos",
+            "maxDays": "Días máximos",
+            "sameAsShipping": "Usar la misma dirección de envío",
             "productName": "Nombre del producto",
             "code": "Código",
             "description": "Descripción",
@@ -761,13 +769,19 @@
             }
         },
         "orders": {
-            "title": "Órdenes",
+            "title": "Pedidos confirmados",
             "delete": {
                 "title": "Eliminar orden",
                 "confirm": "¿Seguro que deseas eliminar esta orden? Todos los registros relacionados serán eliminados. Esta acción no se puede deshacer.",
                 "titleSuccess": "Eliminado correctamente",
                 "single": "Orden eliminada correctamente",
                 "batch": "{{count}} órdenes eliminadas correctamente"
+            },
+            "created": { "title": "Creado correctamente", "desc": "Pedido creado correctamente" },
+            "updated": { "title": "Actualizado correctamente", "desc": "Pedido actualizado correctamente" },
+            "validation": {
+                "customerRequired": "El cliente es obligatorio",
+                "itemsRequired": "Agregue al menos un producto"
             }
         },
         "productForm": {

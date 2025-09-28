@@ -16,6 +16,8 @@ import { useNavigate } from 'react-router-dom'
 import { HiOutlineAdjustments } from 'react-icons/hi'
 import CurrencySelector from '@/components/shared/CurrencySelector'
 import InputGroup from '@/components/ui/InputGroup'
+import Upload from '@/components/ui/Upload'
+import DoubleSidedImage from '@/components/shared/DoubleSidedImage'
 
 type ExpenseForm = {
     date: Date | null
@@ -25,6 +27,9 @@ type ExpenseForm = {
     paymentIdendifier: string
     amount: number | ''
     note?: string
+    attachmentUrl?: string
+    attachmentName?: string
+    attachmentType?: string
 }
 
 const defaultCategories = [
@@ -63,10 +68,13 @@ const ExpenseNew = () => {
         date: new Date(),
         vendor: '',
         category: 'SaaS',
-        paymentMehod: 'visa',
+        paymentMehod: 'cash',
         paymentIdendifier: '',
         amount: '',
         note: '',
+        attachmentUrl: '',
+        attachmentName: '',
+        attachmentType: '',
     }
 
     const onSubmit = async (values: ExpenseForm) => {
@@ -81,6 +89,13 @@ const ExpenseNew = () => {
             paymentIdendifier: values.paymentIdendifier,
             amount: Number(values.amount) || 0,
             note: values.note,
+            attachment: values.attachmentUrl
+                ? {
+                      name: values.attachmentName,
+                      url: values.attachmentUrl,
+                      type: values.attachmentType,
+                  }
+                : undefined,
         }
         const res = await apiCreateExpense<boolean, typeof payload>(payload)
         if (res.data) {
@@ -134,7 +149,59 @@ const ExpenseNew = () => {
                                         onChange={(opt) => setFieldValue('paymentMehod', (opt as any).value)}
                                     />
                                 </FormItem>
-                                
+                                <FormItem label={t('text.titles.attachments')}>
+                                    <Field name="attachmentUrl">
+                                        {({ field, form }: any) => (
+                                            <Upload
+                                                uploadLimit={1}
+                                                accept={"image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"}
+                                                showList={false}
+                                                onChange={(files) => {
+                                                    if (files && files[0]) {
+                                                        const f = files[0]
+                                                        form.setFieldValue('attachmentUrl', URL.createObjectURL(f))
+                                                        form.setFieldValue('attachmentName', f.name)
+                                                        form.setFieldValue('attachmentType', f.type)
+                                                    }
+                                                }}
+                                                onFileRemove={() => {
+                                                    form.setFieldValue('attachmentUrl', '')
+                                                    form.setFieldValue('attachmentName', '')
+                                                    form.setFieldValue('attachmentType', '')
+                                                }}
+                                            >
+                                                {values.attachmentUrl ? (
+                                                    <div className="flex items-center gap-3 p-3 border rounded">
+                                                        {String(values.attachmentType || '').startsWith('image/') ? (
+                                                            <img className="rounded-sm max-h-[64px]" src={values.attachmentUrl} alt={values.attachmentName} />
+                                                        ) : (
+                                                            <DoubleSidedImage
+                                                                className="w-12 h-12"
+                                                                src="/img/others/upload.png"
+                                                                darkModeSrc="/img/others/upload-dark.png"
+                                                            />
+                                                        )}
+                                                        <span className="font-semibold truncate max-w-[260px]" title={values.attachmentName}>{values.attachmentName}</span>
+                                                        <Button size="sm" onClick={() => { form.setFieldValue('attachmentUrl', ''); form.setFieldValue('attachmentName', ''); form.setFieldValue('attachmentType', '') }}>{t('text.actions.remove')}</Button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="my-6 text-center">
+                                                        <DoubleSidedImage
+                                                            className="mx-auto"
+                                                            src="/img/others/upload.png"
+                                                            darkModeSrc="/img/others/upload-dark.png"
+                                                        />
+                                                        <p className="font-semibold">
+                                                            <span className="text-gray-800 dark:text-white">Drop your file here, or </span>
+                                                            <span className="text-blue-500">browse</span>
+                                                        </p>
+                                                        <p className="mt-1 opacity-60 dark:text-white">Support: images (jpeg, png) & documents (pdf, doc, xls, csv, txt)</p>
+                                                    </div>
+                                                )}
+                                            </Upload>
+                                        )}
+                                    </Field>
+                                </FormItem>
                             </div>
                             <FormItem label={t('text.columns.amount')}>
                                 <Field name="amount">

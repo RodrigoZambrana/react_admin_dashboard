@@ -139,6 +139,24 @@ const appsRoute: Routes = [
         authority: [ADMIN, USER],
     },
     {
+        key: 'appsSales.orderNew',
+        path: `${APP_PREFIX_PATH}/sales/order-new`,
+        component: lazy(() => import('@/views/sales/OrderNew')),
+        authority: [ADMIN, USER],
+        meta: {
+            header: 'New Order',
+        },
+    },
+    {
+        key: 'appsSales.orderEdit',
+        path: `${APP_PREFIX_PATH}/sales/order-edit/:orderId`,
+        component: lazy(() => import('@/views/sales/OrderEdit')),
+        authority: [ADMIN, USER],
+        meta: {
+            header: 'Edit Order',
+        },
+    },
+    {
         key: 'appsSales.orderDetails',
         path: `${APP_PREFIX_PATH}/sales/order-details/:orderId`,
         component: lazy(() => import('@/views/sales/OrderDetails')),
