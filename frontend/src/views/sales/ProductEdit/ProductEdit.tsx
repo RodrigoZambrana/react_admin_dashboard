@@ -1,0 +1,180 @@
+import { useEffect } from 'react'
+import Loading from '@/components/shared/Loading'
+import DoubleSidedImage from '@/components/shared/DoubleSidedImage'
+import toast from '@/components/ui/toast'
+import Notification from '@/components/ui/Notification'
+import reducer, {
+    getProduct,
+    updateProduct,
+    deleteProduct,
+    useAppSelector,
+    useAppDispatch,
+} from './store'
+import { injectReducer } from '@/store'
+import { useTranslation } from 'react-i18next'
+import { useLocation, useNavigate } from 'react-router-dom'
+
+import ProductForm, {
+    FormModel,
+    SetSubmitting,
+    OnDeleteCallback,
+} from '@/views/sales/ProductForm'
+import isEmpty from 'lodash/isEmpty'
+
+injectReducer('salesProductEdit', reducer)
+
+const ProductEdit = () => {
+    const dispatch = useAppDispatch()
+
+    const location = useLocation()
+    const navigate = useNavigate()
+
+    const productData = useAppSelector(
+        (state) => state.salesProductEdit.data.productData,
+    )
+    const loading = useAppSelector(
+        (state) => state.salesProductEdit.data.loading,
+    )
+
+    const fetchData = (data: { id: string }) => {
+        dispatch(getProduct(data))
+    }
+
+    const handleFormSubmit = async (
+        values: FormModel,
+        setSubmitting: SetSubmitting,
+    ) => {
+        setSubmitting(true)
+        try {
+            const success = await updateProduct(values)
+            if (success) {
+                popNotification('updated')
+            }
+        } catch (e: any) {
+            const errs = e?.response?.data?.errors as { field: string; key: string }[]
+            if (Array.isArray(errs) && errs.length) {
+                const lines = errs
+                    .map((er) => t(er.key, { field: er.field }))
+                    .join('\n')
+                toast.push(
+                    <Notification title={t('validation.failed')} type="danger">
+                        {lines}
+                    </Notification>,
+                    { placement: 'top-center' },
+                )
+            } else {
+                toast.push(
+                    <Notification title={t('validation.failed')} type="danger">
+                        {e?.response?.data?.message || e?.message || String(e)}
+                    </Notification>,
+                    { placement: 'top-center' },
+                )
+            }
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const handleDiscard = () => {
+        navigate('/app/sales/product-list')
+    }
+
+    const handleDelete = async (setDialogOpen: OnDeleteCallback) => {
+        setDialogOpen(false)
+        const success = await deleteProduct({ id: productData.id })
+        if (success) {
+            popNotification('deleted')
+        }
+    }
+
+    const { t } = useTranslation()
+
+    const popNotification = (keyword: 'updated' | 'deleted') => {
+        const titleKey = `sales.productEdit.toast.${keyword}.title`
+        const descKey = `sales.productEdit.toast.${keyword}.desc`
+        toast.push(
+            <Notification
+                title={t(titleKey)}
+                type="success"
+                duration={2500}
+            >
+                {t(descKey)}
+            </Notification>,
+            {
+                placement: 'top-center',
+            },
+        )
+        navigate('/app/sales/product-list')
+    }
+
+    useEffect(() => {
+        const path = location.pathname.substring(
+            location.pathname.lastIndexOf('/') + 1,
+        )
+        const rquestParam = { id: path }
+        fetchData(rquestParam)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.pathname])
+
+    // Build safe initial values mapped from backend data
+    const mappedInitialData = !isEmpty(productData)
+        ? {
+              id: Number((productData as any).id ?? 0),
+              name: productData.name ?? '',
+              productCode: productData.productCode ?? '',
+              img: productData.img ?? '',
+              imgList: Array.isArray((productData as any).images)
+                  ? (productData as any).images.map((im: any) => ({
+                        id: String(im.id ?? ''),
+                        name: im.name ?? '',
+                        img: im.img ?? '',
+                    }))
+                  : [],
+              categoryId:
+                  (productData as any).category?.id ?? (productData as any).categoryId ?? null,
+              price: Number(productData.price ?? 0),
+              stock: Number(productData.stock ?? 0),
+              status: Number(productData.status ?? 0),
+              costPerItem: Number(productData.costPerItem ?? 0),
+              bulkDiscountPrice: Number(productData.bulkDiscountPrice ?? 0),
+              description: productData.description ?? '',
+              tags: (productData as any).tags ?? [],
+              brand: productData.brand ?? '',
+              vendor: productData.vendor ?? '',
+              published:
+                  typeof (productData as any).published === 'boolean'
+                      ? (productData as any).published
+                      : true,
+          }
+        : undefined
+
+    return (
+        <>
+            <Loading loading={loading}>
+                {!isEmpty(productData) && (
+                    <>
+                        <ProductForm
+                            type="edit"
+                            initialData={mappedInitialData as any}
+                            onFormSubmit={handleFormSubmit}
+                            onDiscard={handleDiscard}
+                            onDelete={handleDelete}
+                        />
+                    </>
+                )}
+            </Loading>
+            {!loading && isEmpty(productData) && (
+                <div className="h-full flex flex-col items-center justify-center">
+                    <DoubleSidedImage
+                        src="/img/others/img-2.png"
+                        darkModeSrc="/img/others/img-2-dark.png"
+                        alt={t('common.notFound.product')}
+                    />
+                    <h3 className="mt-8">{t('common.notFound.product')}</h3>
+                </div>
+            )}
+        </>
+    )
+}
+
+export default ProductEdit

@@ -1,0 +1,1 @@
+import{as as t}from"./index-CRYt8ZQg.js";function s(){const{themeColor:r,primaryColorLevel:o}=t(),e=`${r}-${o}`;return{ringTheme:`ring-${e}`,borderTheme:`border-${e}`,bgTheme:`bg-${e}`,textTheme:`text-${e}`}}export{s as u};

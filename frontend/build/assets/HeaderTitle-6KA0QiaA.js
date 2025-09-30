@@ -1,0 +1,1 @@
+import{j as r}from"./index-CRYt8ZQg.js";import{u as s}from"./useTranslation-D_gOIEoi.js";const n=()=>{const{t:e}=s();return r.jsx("h3",{children:e("nav.appsCalendar.schedule")})};export{n as default};

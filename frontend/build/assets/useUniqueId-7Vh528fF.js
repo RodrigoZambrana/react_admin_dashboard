@@ -1,0 +1,1 @@
+import{r as s,aC as u}from"./index-CRYt8ZQg.js";const a=(n=10)=>{const t=[],r="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",o=r.length,c=n;for(let e=0;e<c;e++)t[e]=r.charAt(Math.floor(Math.random()*o));return t.join("")};function i(n="",t=10){const r=s.useRef();return r.current||(r.current=`${u(n)}-${a(t)}`),r.current}export{i as u};
