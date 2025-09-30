@@ -1,0 +1,1 @@
+import{A as t}from"./index-CRYt8ZQg.js";async function s(){return t.fetchData({url:"/users",method:"get"})}async function u(e){return t.fetchData({url:"/users",method:"post",data:e})}async function n(e,r){return t.fetchData({url:`/users/${e}`,method:"put",data:r})}export{s as a,n as b,u as c};

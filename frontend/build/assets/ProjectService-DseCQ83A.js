@@ -1,0 +1,1 @@
+import{A as r}from"./index-CRYt8ZQg.js";async function a(){return r.fetchData({url:"/project/dashboard",method:"get"})}async function e(){return r.fetchData({url:"/project/scrum-board/boards",method:"post"})}async function o(){return r.fetchData({url:"/project/scrum-board/members",method:"post"})}export{a,o as b,e as c};

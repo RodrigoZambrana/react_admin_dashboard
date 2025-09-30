@@ -1,0 +1,1 @@
+import{j as e}from"./index-CRYt8ZQg.js";import{u as s}from"./useTranslation-D_gOIEoi.js";const a=()=>{const{t}=s();return e.jsx("h3",{children:t("text.titles.activityDetails")})};export{a as default};
