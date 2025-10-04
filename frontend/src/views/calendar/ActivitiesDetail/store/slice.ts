@@ -8,6 +8,7 @@ type PersonalInfo = {
     title: string
     birthday: string
     phoneNumber: string
+    phoneNumbers?: string[]
     facebook: string
     twitter: string
     pinterest: string
@@ -32,8 +33,24 @@ export type ActivityEntity = {
     lastOnline: number
     status: string
     phoneNumber?: string
+    phoneNumbers?: string[]
     personalInfo: PersonalInfo
     orders?: ActivityOrder[]
+    detail?: string
+    attachments?: {
+        id: string
+        name: string
+        type?: string
+        size?: number
+        url?: string
+    }[]
+    comments?: {
+        id: string
+        message: string
+        createdAt: string
+        author?: string
+    }[]
+    isInternal?: boolean
 }
 
 type GetActivityDetailsResponse = ActivityEntity
@@ -50,11 +67,8 @@ export type ActivityDetailState = {
 export const getActivity = createAsyncThunk(
     SLICE_NAME + '/getActivity',
     async (data: GetActivityRequest) => {
-        const response = await apiGetCalendarActivityDetails<
-            GetActivityDetailsResponse,
-            GetActivityRequest
-        >(data)
-        return response.data
+        const response = await apiGetCalendarActivityDetails(data)
+        return response as GetActivityDetailsResponse
     },
 )
 
@@ -84,7 +98,7 @@ const slice = createSlice({
             .addCase(getActivity.fulfilled, (state, action) => {
                 state.loading = false
                 state.profileData = action.payload
-                state.ordersData = action.payload?.orders || []
+                state.ordersData = []
             })
             .addCase(getActivity.pending, (state) => {
                 state.loading = true

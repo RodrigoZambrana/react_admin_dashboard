@@ -46,7 +46,8 @@ const ProductEdit = () => {
     ) => {
         setSubmitting(true)
         try {
-            const success = await updateProduct(values)
+            const { permanentStock, ...payload } = values
+            const success = await updateProduct(payload)
             if (success) {
                 popNotification('updated')
             }
@@ -145,6 +146,7 @@ const ProductEdit = () => {
                   typeof (productData as any).published === 'boolean'
                       ? (productData as any).published
                       : true,
+              permanentStock: false,
           }
         : undefined
 

@@ -74,7 +74,8 @@
             "customerStatuses": "Estados de clientes",
             "expenses": "Gastos",
             "paymentMethods": "Formas de pago",
-            "systemConfig": "Configuración del sistema"
+            "systemConfig": "Configuración del sistema",
+            "calendarEventTypes": "Tipos de evento"
         },
         "uiComponents": "Componentes de la UI",
         "uiComponentsCommon": {
@@ -169,7 +170,49 @@
         "calendar": "Calendario",
         "month": "Mes",
         "week": "Semana",
-        "day": "Día"
+        "day": "Día",
+        "fields": {
+            "start": "Inicio",
+            "end": "Fin",
+            "allDay": "Evento de todo el día",
+            "internal": "Evento interno",
+            "customer": "Cliente asociado (opcional)",
+            "eventType": "Tipo de evento",
+            "address": {
+                "street": "Calle",
+                "number": "Número",
+                "city": "Ciudad",
+                "country": "País",
+                "corner": "Esquina",
+                "apartment": "Apartamento"
+            }
+        },
+        "placeholders": {
+            "title": "Título del evento",
+            "customer": "Seleccionar cliente",
+            "eventType": "Selecciona el tipo de evento",
+            "street": "Ingresa la calle",
+            "number": "Número",
+            "city": "Ciudad",
+            "country": "País",
+            "corner": "Esquina",
+            "apartment": "Apartamento / Unidad",
+            "location": "Sala, enlace o referencia",
+            "description": "Detalles, objetivos o agenda"
+        },
+        "errors": {
+            "customers": "No fue posible cargar los clientes.",
+            "customerAddress": "No fue posible cargar la dirección del cliente."
+        },
+        "validation": {
+            "eventTypeRequired": "El tipo de evento es obligatorio"
+        },
+        "eventTypes": {
+            "meeting": "Reunión",
+            "task": "Tarea",
+            "workshop": "Taller",
+            "other": "Otro"
+        }
     },
     "user": {
         "menu": {
@@ -301,6 +344,7 @@
             "editEvent": "Editar evento",
             "deleteCustomer": "Eliminar cliente",
             "customerDeleted": "Eliminado correctamente",
+            "deleteCustomerFailed": "No se puede eliminar el cliente",
             "editCreditCard": "Editar tarjeta de crédito",
             "basicInformation": "Información básica",
             "pricing": "Precios",
@@ -391,6 +435,7 @@
             "searchProduct": "Buscar producto",
             "date": "Fecha",
             "name": "Nombre",
+            "lastName": "Apellido",
             "code": "Código",
             "codeSku": "Código (SKU)",
             "stock": "Existencias",
@@ -427,6 +472,8 @@
             "archive": "Archivado"
         },
         "labels": {
+            "firstName": "Nombre",
+            "lastName": "Apellido",
             "deliveryIn": "Entrega en",
             "days": "días",
             "subtotal": "Subtotal",
@@ -501,12 +548,17 @@
             "zipCode": "Código postal",
             "current": "Actual",
             "language": "Idioma",
+            "timeZone": "Zona horaria",
+            "syncData": "Sincronizar datos",
             "ticket": "Ticket",
             "comment": "Comentario",
             "category": "Categoría",
             "tags": "Etiquetas",
             "brand": "Marca",
             "vendor": "Proveedor",
+            "permanentStock": "Stock permanente",
+            "stockStatus": "Estado del stock",
+            "offerPrice": "Precio oferta",
             "ticketTitle": "Título del ticket"
         },
         "date": {
@@ -541,6 +593,8 @@
         "messages": {
             "deleteProductConfirm": "¿Está seguro de que desea eliminar este producto? Todos los registros relacionados con este producto también se eliminarán. Esta acción no se puede deshacer.",
             "customerDeleted": "Cliente eliminado correctamente",
+            "customerDeleteHasOrders": "No puedes eliminar un cliente que ya tiene pedidos.",
+            "customerAdded": "Cliente agregado correctamente",
             "deleteCustomerConfirm": "¿Está seguro de que desea eliminar este cliente? Todos los registros relacionados con este cliente también se eliminarán. Esta acción no se puede deshacer.",
             "noActivities": "Sin actividades",
             "noMoreActivity": "No hay más actividad para cargar",
@@ -568,6 +622,7 @@
             "emailRequired": "Correo requerido",
             "userNameRequired": "Nombre de usuario requerido",
             "invalidPhoneNumber": "Número de teléfono inválido",
+            "phoneNumberRequired": "El número de teléfono es obligatorio",
             "eventTitleRequired": "Título del evento requerido",
             "startDateRequired": "Fecha de inicio requerida",
             "colorRequired": "Color requerido",
@@ -589,10 +644,12 @@
             "cardExpiryRequired": "Fecha de expiración requerida",
             "invalidDate": "Fecha inválida",
             "cvvRequired": "CVV requerido",
-            "invalidCvv": "CVV inválido"
+            "invalidCvv": "CVV inválido",
+            "dateRequired": "La fecha es obligatoria"
         },
         "tabs": {
             "personalInfo": "Información personal",
+            "address": "Dirección",
             "social": "Social"
         },
         "filters": {
@@ -870,6 +927,9 @@
         "dashboard": {
             "thisMonth": "este mes",
             "stat": {
+                "total": "Clientes totales",
+                "active": "Clientes activos",
+                "new": "Nuevos clientes",
                 "newLeads": "Nuevos prospectos",
                 "emailResponse": "Email",
                 "proposals": "Propuestas",
@@ -1051,6 +1111,30 @@
             "desc": "Define los valores globales utilizados en los cálculos de ventas.",
             "taxRateLabel": "Impuesto (%)",
             "updated": { "title": "Actualizado correctamente", "desc": "Los valores fueron guardados" }
+        },
+        "calendarEventTypes": {
+            "title": "Tipos de evento del calendario",
+            "subtitle": "Configura las opciones disponibles al momento de agendar eventos.",
+            "fields": {
+                "key": "Clave interna",
+                "label": "Nombre visible"
+            },
+            "placeholders": {
+                "key": "Ej: meeting, standup, workshop",
+                "label": "Nombre que verá el usuario"
+            },
+            "actions": {
+                "add": "Agregar tipo"
+            },
+            "validation": {
+                "keyFormat": "La clave solo puede incluir letras, números, guiones y puntos.",
+                "keyRequired": "La clave es obligatoria",
+                "labelRequired": "El nombre visible es obligatorio",
+                "uniqueKeys": "Las claves deben ser únicas.",
+                "minItems": "Debes definir al menos un tipo de evento."
+            },
+            "loadError": "No fue posible cargar los tipos actuales. Se muestran los valores por defecto.",
+            "updated": "Tipos de evento actualizados correctamente."
         }
     },
     "common": {

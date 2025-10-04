@@ -13,6 +13,14 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { PrismaService } from '../prisma/prisma.service'
 
+const safeJsonParse = (value: string) => {
+  try {
+    return JSON.parse(value)
+  } catch (error) {
+    return null
+  }
+}
+
 @UseGuards(JwtAuthGuard)
 @Controller('calendar')
 export class CalendarController {
@@ -56,6 +64,7 @@ export class CalendarController {
   @Post('events')
   async createEvent(@Body() body: any, @Request() req: any) {
     const userId = Number(req?.user?.sub)
+    const metadata = typeof body.metadata === 'string' ? safeJsonParse(body.metadata) : body.metadata
     const data: any = {
       title: body.title,
       description: body.description,
@@ -64,6 +73,8 @@ export class CalendarController {
       endAt: body.endAt ? new Date(body.endAt) : null,
       allDay: !!body.allDay,
       location: body.location,
+      color: body.color || null,
+      metadata: metadata || null,
       projectId: body.projectId || null,
       taskId: body.taskId || null,
       createdById: userId || null,
@@ -74,6 +85,7 @@ export class CalendarController {
 
   @Put('events/:id')
   async updateEvent(@Param('id') id: string, @Body() body: any) {
+    const metadata = typeof body.metadata === 'string' ? safeJsonParse(body.metadata) : body.metadata
     const data: any = {
       title: body.title,
       description: body.description,
@@ -82,6 +94,8 @@ export class CalendarController {
       endAt: body.endAt ? new Date(body.endAt) : undefined,
       allDay: body.allDay,
       location: body.location,
+      color: body.color !== undefined ? body.color : undefined,
+      metadata: metadata !== undefined ? metadata : undefined,
       projectId: body.projectId,
       taskId: body.taskId,
     }

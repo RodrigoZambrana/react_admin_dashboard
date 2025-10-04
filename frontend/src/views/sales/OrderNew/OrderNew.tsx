@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Formik, Form, Field } from 'formik'
+import { Formik, Form, Field, getIn } from 'formik'
 import { FormContainer, FormItem } from '@/components/ui/Form'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
@@ -7,13 +7,14 @@ import Button from '@/components/ui/Button'
 import DatePicker from '@/components/ui/DatePicker'
 import Container from '@/components/shared/Container'
 import Card from '@/components/ui/Card'
+import Notification from '@/components/ui/Notification'
+import toast from '@/components/ui/toast'
+import Drawer from '@/components/ui/Drawer'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { apiGetCrmCustomers, apiGetCrmCustomerDetails } from '@/services/CrmService'
 import { apiGetSalesProducts, apiCreateSalesOrder, apiCreateSalesProduct } from '@/services/SalesService'
 import * as Yup from 'yup'
-import toast from '@/components/ui/toast'
-import Notification from '@/components/ui/Notification'
 import { apiGetPaymentMethods, apiGetCountries, apiGetCities, apiGetSystemConfig } from '@/services/SettingsService'
 import Checkbox from '@/components/ui/Checkbox'
 import PaymentSummary from '@/views/sales/OrderDetails/components/PaymentSummary'
@@ -21,17 +22,23 @@ import EditableOrderProductsTable, { EditableItem } from '@/views/sales/componen
 import Steps from '@/components/ui/Steps'
 import Avatar from '@/components/ui/Avatar'
 import { HiMail, HiPhone } from 'react-icons/hi'
-import Drawer from '@/components/ui/Drawer'
-import CustomerForm, { FormModel as CustomerFormModel } from '@/views/crm/CustomerForm'
-import ProductForm from '@/views/sales/ProductForm'
+import AddCustomerDrawer from '@/components/shared/AddCustomerDrawer'
+import type { FormModel as CustomerFormModel } from '@/views/crm/CustomerForm'
+import ProductForm, {
+    FormModel as ProductFormModel,
+    SetSubmitting as ProductFormSetSubmitting,
+} from '@/views/sales/ProductForm'
 import CountrySelect from '@/components/shared/CountrySelect'
 import CitySelect from '@/components/shared/CitySelect'
+import { findCountryByName } from '@/utils/countries'
+import useResponsive from '@/utils/hooks/useResponsive'
 
 type Item = EditableItem
 
 const OrderNew = () => {
     const { t } = useTranslation()
     const navigate = useNavigate()
+    const location = useLocation()
     const [customers, setCustomers] = useState<{ value: string; label: string }[]>([])
     const [products, setProducts] = useState<{ value: string; label: string; price: number; img?: string; description?: string }[]>([])
     const [methods, setMethods] = useState<{ value: string; label: string }[]>([])
@@ -42,11 +49,35 @@ const OrderNew = () => {
     const [newCustomerOpen, setNewCustomerOpen] = useState(false)
     const [newProductOpen, setNewProductOpen] = useState(false)
     const [taxRate, setTaxRate] = useState(22)
+    const { smaller } = useResponsive()
+    const isCompactViewport = smaller.md
+
+    const addProduct = async (data: ProductFormModel) => {
+        const { permanentStock, ...payload } = data
+        const response = await apiCreateSalesProduct<
+            boolean,
+            Omit<ProductFormModel, 'permanentStock'>
+        >(payload)
+        return response.data
+    }
+
+    const closeNewProductDrawer = () => {
+        setNewProductOpen(false)
+        const searchParams = new URLSearchParams(location.search)
+        if (searchParams.has('addProduct')) {
+            searchParams.delete('addProduct')
+            const query = searchParams.toString()
+            navigate(
+                `${location.pathname}${query ? `?${query}` : ''}`,
+                { replace: true },
+            )
+        }
+    }
 
     useEffect(() => {
         const load = async () => {
             // customers
-            const cRes = await apiGetCrmCustomers<{ data: { id: string | number; name: string }[] }>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' } as any)
+            const cRes = await apiGetCrmCustomers<{ data: { id: string | number; name: string }[] }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' } as any)
             const cOpts = ((cRes as any).data?.data || []).map((c: any) => ({ value: String(c.id), label: c.name }))
             setCustomers(cOpts)
             // products
@@ -80,7 +111,10 @@ const OrderNew = () => {
                 setCurrentStep(Math.max(0, Math.min(6, n)))
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        const openProduct = sp.get('addProduct')
+        if (openProduct === '1' || openProduct === 'true') {
+            setNewProductOpen(true)
+        }
     }, [location.search])
 
     return (
@@ -97,16 +131,18 @@ const OrderNew = () => {
                         number: '',
                         corner: '',
                         apartment: '',
-                        city: '',
-                        state: '',
+                        city: 'Montevideo',
+                        state: 'Uruguay',
+                        countryCode: 'UY',
                     },
                     billingAddress: {
                         street: '',
                         number: '',
                         corner: '',
                         apartment: '',
-                        city: '',
-                        state: '',
+                        city: 'Montevideo',
+                        state: 'Uruguay',
+                        countryCode: 'UY',
                     },
                     billingSameAsShipping: false,
                     shipping: {
@@ -119,7 +155,29 @@ const OrderNew = () => {
                 }}
                 validationSchema={Yup.object().shape({
                     customerId: Yup.string().required(t('sales.orders.validation.customerRequired') as string),
+                    date: Yup.date()
+                        .typeError(t('text.validation.invalidDate'))
+                        .required(t('text.validation.dateRequired')),
                     paymentMehod: Yup.string().required('Payment method is required'),
+                    shippingAddress: Yup.object().shape({
+                        street: Yup.string().required(t('text.validation.enterAddress')),
+                        number: Yup.string().required(t('text.validation.enterAddress')),
+                        city: Yup.string().required(t('text.validation.enterCity')),
+                        state: Yup.string().required(t('text.validation.enterState')),
+                        countryCode: Yup.string().required(t('text.validation.selectCountry')),
+                        corner: Yup.string().nullable(),
+                        apartment: Yup.string().nullable(),
+                    }),
+                    billingSameAsShipping: Yup.boolean(),
+                    billingAddress: Yup.object().shape({
+                        street: Yup.string().required(t('text.validation.enterAddress')),
+                        number: Yup.string().required(t('text.validation.enterAddress')),
+                        city: Yup.string().required(t('text.validation.enterCity')),
+                        state: Yup.string().required(t('text.validation.enterState')),
+                        countryCode: Yup.string().required(t('text.validation.selectCountry')),
+                        corner: Yup.string().nullable(),
+                        apartment: Yup.string().nullable(),
+                    }),
                     items: Yup.array()
                         .of(
                             Yup.object().shape({
@@ -131,11 +189,26 @@ const OrderNew = () => {
                         .min(1, t('sales.orders.validation.itemsRequired') as string),
                 })}
                 onSubmit={async (values) => {
+                    const normalizeAddress = (addr: typeof values.shippingAddress) => ({
+                        street: addr.street,
+                        number: addr.number,
+                        corner: addr.corner,
+                        apartment: addr.apartment,
+                        city: addr.city,
+                        state: addr.state,
+                        countryCode: addr.countryCode,
+                    })
+
+                    const shippingAddress = normalizeAddress(values.shippingAddress)
+                    const billingAddress = values.billingSameAsShipping
+                        ? shippingAddress
+                        : normalizeAddress(values.billingAddress)
+
                     const payload = {
-                        customerId: String((values as any).customerId || ''),
+                        customerId: String(values.customerId || ''),
                         // Backend expects ISO 8601 date string (IsDateString)
                         date: values.date ? new Date(values.date as any).toISOString() : undefined,
-                        paymentMehod: String((values as any).paymentMehod || 'Cash'),
+                        paymentMehod: String(values.paymentMehod || 'Cash'),
                         items: values.items.map((it) => ({
                             productId: String(it.productId),
                             name: it.name,
@@ -144,32 +217,20 @@ const OrderNew = () => {
                             img: it.img,
                             description: it.description,
                         })),
-                        shippingAddress: values.shippingAddress,
-                        billingAddress: (values as any).billingSameAsShipping
-                            ? {
-                                  addressLine1: `${(values as any).shippingAddress?.street || ''} ${(values as any).shippingAddress?.number || ''}${(values as any).shippingAddress?.apartment ? ' Apt ' + (values as any).shippingAddress?.apartment : ''}`.trim(),
-                                  addressLine2: (values as any).shippingAddress?.corner ? `Corner: ${(values as any).shippingAddress?.corner}` : '',
-                                  city: (values as any).shippingAddress?.city,
-                                  state: (values as any).shippingAddress?.state,
-                              }
-                            : {
-                                  addressLine1: `${(values as any).billingAddress?.street || ''} ${(values as any).billingAddress?.number || ''}${(values as any).billingAddress?.apartment ? ' Apt ' + (values as any).billingAddress?.apartment : ''}`.trim(),
-                                  addressLine2: (values as any).billingAddress?.corner ? `Corner: ${(values as any).billingAddress?.corner}` : '',
-                                  city: (values as any).billingAddress?.city,
-                                  state: (values as any).billingAddress?.state,
-                              },
-                        billingSameAsShipping: Boolean((values as any).billingSameAsShipping),
+                        shippingAddress,
+                        billingAddress,
+                        billingSameAsShipping: Boolean(values.billingSameAsShipping),
                         shipping: {
-                            shippingVendor: (values as any).shipping?.shippingVendor,
-                            deliveryFees: Number((values as any).shipping?.deliveryFees ?? 0),
-                            estimatedMin: Number((values as any).shipping?.estimatedMin ?? 0),
-                            estimatedMax: Number((values as any).shipping?.estimatedMax ?? 0),
+                            shippingVendor: values.shipping?.shippingVendor,
+                            deliveryFees: Number(values.shipping?.deliveryFees ?? 0),
+                            estimatedMin: Number(values.shipping?.estimatedMin ?? 0),
+                            estimatedMax: Number(values.shipping?.estimatedMax ?? 0),
                         },
                         comment: values.comment,
                     }
                     // Ensure shipping address is filled
-                    const saddr = (values as any).shippingAddress || {}
-                    if (!saddr.street || !saddr.number || !saddr.state || !saddr.city) {
+                    const saddr = values.shippingAddress || {}
+                    if (!saddr.street || !saddr.number || !saddr.state || !saddr.city || !saddr.countryCode) {
                         toast.push(
                             <Notification title={t('validation.failed')} type="danger">
                                 {t('sales.orders.validation.customerAddressRequired')}
@@ -178,6 +239,20 @@ const OrderNew = () => {
                         )
                         setCurrentStep(2)
                         return
+                    }
+
+                    if (!values.billingSameAsShipping) {
+                        const baddr = values.billingAddress || {}
+                        if (!baddr.street || !baddr.number || !baddr.state || !baddr.city || !baddr.countryCode) {
+                            toast.push(
+                                <Notification title={t('validation.failed')} type="danger">
+                                    {t('sales.orders.validation.customerAddressRequired')}
+                                </Notification>,
+                                { placement: 'top-center' },
+                            )
+                            setCurrentStep(3)
+                            return
+                        }
                     }
 
                     try {
@@ -219,8 +294,11 @@ const OrderNew = () => {
                     const deliveryFee = Number((values as any).shipping?.deliveryFees || 0)
                     const tax = Math.round(total * (taxRate / (100 + taxRate)) * 100) / 100
                     const grandTotal = Math.round((total + deliveryFee) * 100) / 100
-                    const addItem = (pid: string) => {
-                        const p = products.find((x) => x.value === pid)
+                    const addItem = (
+                        pid: string,
+                        option?: { value: string; label: string; price: number; img?: string; description?: string },
+                    ) => {
+                        const p = option ?? products.find((x) => x.value === pid)
                         if (!p) return
                         const exists = values.items.find((it) => it.productId === pid)
                         if (exists) return
@@ -228,7 +306,126 @@ const OrderNew = () => {
                     }
                     const removeItem = (pid: string) => setFieldValue('items', values.items.filter((it) => it.productId !== pid))
                     const changeQty = (pid: string, qty: number) => setFieldValue('items', values.items.map((it) => (it.productId === pid ? { ...it, qty } : it)))
+
+                    const handleCreateProduct = async (
+                        formData: ProductFormModel,
+                        setSubmitting: ProductFormSetSubmitting,
+                    ) => {
+                        setSubmitting(true)
+                        try {
+                            const success = await addProduct(formData)
+                            if (success) {
+                                const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({
+                                    pageIndex: 1,
+                                    pageSize: 100,
+                                    sort: { key: 'name', order: 'asc' },
+                                    query: '',
+                                })
+                                const pOpts =
+                                    ((pRes as any).data?.data || []).map((p: any) => ({
+                                        value: String(p.id),
+                                        label: p.name,
+                                        price: Number(p.price) || 0,
+                                        img: p.img,
+                                        description: p.description,
+                                    })) || []
+                                setProducts(pOpts)
+                                const created = (pRes as any).data?.data?.find(
+                                    (p: any) => String(p.name) === String(formData.name),
+                                )
+                                if (created) {
+                                    const option =
+                                        pOpts.find((opt) => opt.value === String(created.id)) ?? {
+                                            value: String(created.id),
+                                            label: created.name,
+                                            price: Number(created.price) || 0,
+                                            img: created.img,
+                                            description: created.description,
+                                        }
+                                    addItem(String(created.id), option)
+                                }
+                                toast.push(
+                                    <Notification
+                                        title={'Successfuly added'}
+                                        type="success"
+                                        duration={2500}
+                                    >
+                                        Product successfuly added
+                                    </Notification>,
+                                    {
+                                        placement: 'top-center',
+                                    },
+                                )
+                                closeNewProductDrawer()
+                            }
+                        } catch (error: unknown) {
+                            const message =
+                                (error as any)?.response?.data?.message ||
+                                (error instanceof Error ? error.message : String(error))
+                            toast.push(
+                                <Notification title={t('validation.failed')} type="danger">
+                                    {message}
+                                </Notification>,
+                                {
+                                    placement: 'top-center',
+                                },
+                            )
+                        } finally {
+                            setSubmitting(false)
+                        }
+                    }
+
+                    const isAddressComplete = (addr?: typeof values.shippingAddress) =>
+                        Boolean(
+                            addr &&
+                                addr.street &&
+                                addr.number &&
+                                addr.city &&
+                                addr.state &&
+                                addr.countryCode,
+                        )
+
+                    const syncBillingWithShipping = () => {
+                        setFieldValue('billingAddress', {
+                            ...values.shippingAddress,
+                        })
+                    }
+
+                    const shippingComplete = isAddressComplete(values.shippingAddress)
+                    const billingComplete = values.billingSameAsShipping
+                        ? shippingComplete
+                        : isAddressComplete(values.billingAddress)
+                    const shippingIncomplete = !shippingComplete
+                    const billingIncomplete = !values.billingSameAsShipping && !billingComplete
+
                     // Steps controls
+                    const hasCustomer = Boolean(values.customerId)
+                    const hasItems = (values.items || []).length > 0
+                    const stepUnlocks = [
+                        true,
+                        hasCustomer,
+                        hasCustomer && hasItems,
+                        shippingComplete,
+                        shippingComplete,
+                        billingComplete,
+                        billingComplete,
+                    ]
+
+                    let maxNavigableStep = 0
+                    for (let i = 0; i < stepUnlocks.length; i += 1) {
+                        if (stepUnlocks[i]) {
+                            maxNavigableStep = i
+                        } else {
+                            break
+                        }
+                    }
+
+                    const handleStepChange = (nextStep: number) => {
+                        if (nextStep <= maxNavigableStep) {
+                            setCurrentStep(nextStep)
+                        }
+                    }
+
                     const goNext = () => {
                         if (currentStep === 0 && !(values as any).customerId) {
                             setFieldTouched('customerId', true)
@@ -250,6 +447,31 @@ const OrderNew = () => {
                             )
                             return
                         }
+                        if (currentStep === 2) {
+                            if (!isAddressComplete(values.shippingAddress)) {
+                                toast.push(
+                                    <Notification title={t('validation.failed')} type="danger">
+                                        {t('sales.orders.validation.customerAddressRequired')}
+                                    </Notification>,
+                                    { placement: 'top-center' },
+                                )
+                                return
+                            }
+                            if (values.billingSameAsShipping) {
+                                syncBillingWithShipping()
+                            }
+                        }
+                        if (currentStep === 3 && !values.billingSameAsShipping) {
+                            if (!isAddressComplete(values.billingAddress)) {
+                                toast.push(
+                                    <Notification title={t('validation.failed')} type="danger">
+                                        {t('sales.orders.validation.customerAddressRequired')}
+                                    </Notification>,
+                                    { placement: 'top-center' },
+                                )
+                                return
+                            }
+                        }
                         setCurrentStep((c) => Math.min(c + 1, 6))
                     }
                     const goPrev = () => setCurrentStep((c) => Math.max(c - 1, 0))
@@ -262,26 +484,97 @@ const OrderNew = () => {
                             const detail = (res as any).data || (res as any)
                             setCustomerDetail(detail)
                             // Prefill shipping address with customer's primary address
-                            const addr = Array.isArray(detail?.addresses) && detail.addresses.length ? detail.addresses[0] : null
+                            const addrList = Array.isArray(detail?.addresses)
+                                ? detail.addresses
+                                : []
+                            const addr = addrList.find((item: any) => item?.isPrimary) || addrList[0] || null
                             if (addr) {
-                                setFieldValue('shippingAddress', {
+                                const countryInfo =
+                                    findCountryByName(addr.country || '')?.value ||
+                                    values.shippingAddress.countryCode ||
+                                    'UY'
+                                const updatedShipping = {
                                     street: addr.street || '',
                                     number: addr.number || '',
                                     corner: addr.corner || '',
                                     apartment: addr.apartment || '',
-                                    city: addr.city || '',
-                                    state: addr.country || '',
-                                    zip: '',
-                                })
+                                    city: addr.city || 'Montevideo',
+                                    state: addr.country || 'Uruguay',
+                                    countryCode: countryInfo,
+                                }
+                                setFieldValue('shippingAddress', updatedShipping)
+                                if (values.billingSameAsShipping) {
+                                    setFieldValue('billingAddress', updatedShipping)
+                                }
                             }
                         } else {
                             setCustomerDetail(null)
                         }
                     }
 
+                    const handleCustomerCreated = (
+                        created: Record<string, unknown>,
+                        formValues: CustomerFormModel,
+                    ) => {
+                        const customerIdValue = String(created?.id || '')
+                        if (!customerIdValue) {
+                            return
+                        }
+                        const fullName = [
+                            formValues.firstName,
+                            formValues.lastName,
+                        ]
+                            .filter(Boolean)
+                            .join(' ')
+                        const displayName =
+                            (created as any)?.name ||
+                            fullName ||
+                            formValues.email
+                        const option = {
+                            value: customerIdValue,
+                            label: displayName,
+                        }
+                        setCustomers((prev) => {
+                            if (prev.find((item) => item.value === option.value)) {
+                                return prev
+                            }
+                            return [option, ...prev]
+                        })
+                        setFieldValue('customerId', option.value)
+                        setCustomerDetail(created)
+
+                        const address = formValues.address || {
+                            street: '',
+                            number: '',
+                            corner: '',
+                            apartment: '',
+                            city: 'Montevideo',
+                            state: 'Uruguay',
+                            countryCode: 'UY',
+                        }
+                        const normalizedAddress = {
+                            street: address.street,
+                            number: address.number,
+                            corner: address.corner,
+                            apartment: address.apartment,
+                            city: address.city || 'Montevideo',
+                            state: address.state || 'Uruguay',
+                            countryCode: address.countryCode || 'UY',
+                        }
+                        setFieldValue('shippingAddress', normalizedAddress)
+                        if (values.billingSameAsShipping) {
+                            setFieldValue('billingAddress', normalizedAddress)
+                        }
+                    }
+
                     return (
                         <Form>
-                            <Steps current={currentStep} onChange={setCurrentStep} className="mb-6">
+                            <Steps
+                                current={currentStep}
+                                onChange={handleStepChange}
+                                className="mb-6"
+                                vertical={isCompactViewport}
+                            >
                                 <Steps.Item title={t('text.columns.customer')} />
                                 <Steps.Item title={t('text.titles.products')} />
                                 <Steps.Item title={t('text.titles.shippingAddress')} />
@@ -310,9 +603,11 @@ const OrderNew = () => {
                                                         {customerDetail?.email && (
                                                             <span className="flex items-center gap-1"><HiMail /> {customerDetail?.email}</span>
                                                         )}
-                                                        {customerDetail?.personalInfo?.phoneNumber && (
-                                                            <span className="flex items-center gap-1"><HiPhone /> {customerDetail?.personalInfo?.phoneNumber}</span>
-                                                        )}
+                                                        {customerDetail?.personalInfo?.phoneNumbers?.length ? (
+                                                            <span className="flex items-center gap-1">
+                                                                <HiPhone /> {customerDetail?.personalInfo?.phoneNumbers?.[0]}
+                                                            </span>
+                                                        ) : null}
                                                     </div>
                                                 </div>
                                             </div>
@@ -342,45 +637,119 @@ const OrderNew = () => {
                             {currentStep === 2 && (
                                 <Card bodyClass="p-5">
                                     <h4 className="mb-4">{t('text.titles.shippingAddress')}</h4>
-                    <FormContainer>
+                                    <FormContainer>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <FormItem label={t('text.labels.street') || 'Street'}>
-                                                <Field as={Input} name="shippingAddress.street" />
+                                            <FormItem
+                                                label={t('text.labels.street')}
+                                                invalid={Boolean(getIn(touched, 'shippingAddress.street') && getIn(errors, 'shippingAddress.street'))}
+                                                errorMessage={getIn(errors, 'shippingAddress.street') as string}
+                                            >
+                                                <Field name="shippingAddress.street">
+                                                    {({ field, form }) => (
+                                                        <Input
+                                                            {...field}
+                                                            onChange={(e) => {
+                                                                form.setFieldValue(field.name, e.target.value)
+                                                                if (values.billingSameAsShipping) {
+                                                                    form.setFieldValue('billingAddress.street', e.target.value)
+                                                                }
+                                                            }}
+                                                        />
+                                                    )}
+                                                </Field>
                                             </FormItem>
-                                            <FormItem label={t('text.labels.number') || 'Number'}>
-                                                <Field as={Input} name="shippingAddress.number" />
+                                            <FormItem
+                                                label={t('text.labels.number')}
+                                                invalid={Boolean(getIn(touched, 'shippingAddress.number') && getIn(errors, 'shippingAddress.number'))}
+                                                errorMessage={getIn(errors, 'shippingAddress.number') as string}
+                                            >
+                                                <Field name="shippingAddress.number">
+                                                    {({ field, form }) => (
+                                                        <Input
+                                                            {...field}
+                                                            onChange={(e) => {
+                                                                form.setFieldValue(field.name, e.target.value)
+                                                                if (values.billingSameAsShipping) {
+                                                                    form.setFieldValue('billingAddress.number', e.target.value)
+                                                                }
+                                                            }}
+                                                        />
+                                                    )}
+                                                </Field>
                                             </FormItem>
-                                            <FormItem label={t('text.labels.corner') || 'Corner'}>
-                                                <Field as={Input} name="shippingAddress.corner" />
+                                            <FormItem label={t('text.labels.corner')}>
+                                                <Field name="shippingAddress.corner">
+                                                    {({ field, form }) => (
+                                                        <Input
+                                                            {...field}
+                                                            onChange={(e) => {
+                                                                form.setFieldValue(field.name, e.target.value)
+                                                                if (values.billingSameAsShipping) {
+                                                                    form.setFieldValue('billingAddress.corner', e.target.value)
+                                                                }
+                                                            }}
+                                                        />
+                                                    )}
+                                                </Field>
                                             </FormItem>
-                                            <FormItem label={t('text.labels.apartment') || 'Apartment'}>
-                                                <Field as={Input} name="shippingAddress.apartment" />
+                        <FormItem label={t('text.labels.apartment')}>
+                                                <Field name="shippingAddress.apartment">
+                                                    {({ field, form }) => (
+                                                        <Input
+                                                            {...field}
+                                                            onChange={(e) => {
+                                                                form.setFieldValue(field.name, e.target.value)
+                                                                if (values.billingSameAsShipping) {
+                                                                    form.setFieldValue('billingAddress.apartment', e.target.value)
+                                                                }
+                                                            }}
+                                                        />
+                                                    )}
+                                                </Field>
                                             </FormItem>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3 mt-3">
-                                            <FormItem label={t('text.labels.country')}>
+                                            <FormItem
+                                                label={t('text.labels.country')}
+                                                invalid={Boolean(getIn(touched, 'shippingAddress.state') && getIn(errors, 'shippingAddress.state'))}
+                                                errorMessage={getIn(errors, 'shippingAddress.state') as string}
+                                            >
                                                 <CountrySelect
-                                                    value={{ name: (values as any).shippingAddress?.state, code: (values as any).shippingAddress?.countryCode }}
+                                                    value={{ name: values.shippingAddress?.state, code: values.shippingAddress?.countryCode }}
                                                     onChange={(val) => {
                                                         setFieldValue('shippingAddress.state', val.name)
                                                         setFieldValue('shippingAddress.countryCode', val.code)
-                                                        // reset city when country changes
                                                         setFieldValue('shippingAddress.city', '')
+                                                        if (values.billingSameAsShipping) {
+                                                            setFieldValue('billingAddress.state', val.name)
+                                                            setFieldValue('billingAddress.countryCode', val.code)
+                                                            setFieldValue('billingAddress.city', '')
+                                                        }
                                                     }}
                                                     placeholder={t('text.labels.country')}
                                                 />
                                             </FormItem>
-                                            <FormItem label={t('text.labels.city')}>
+                                            <FormItem
+                                                label={t('text.labels.city')}
+                                                invalid={Boolean(getIn(touched, 'shippingAddress.city') && getIn(errors, 'shippingAddress.city'))}
+                                                errorMessage={getIn(errors, 'shippingAddress.city') as string}
+                                            >
                                                 <CitySelect
-                                                    countryCode={(values as any).shippingAddress?.countryCode}
-                                                    countryName={(values as any).shippingAddress?.state}
-                                                    value={(values as any).shippingAddress?.city}
-                                                    onChange={(city) => setFieldValue('shippingAddress.city', city)}
+                                                    countryCode={values.shippingAddress?.countryCode}
+                                                    countryName={values.shippingAddress?.state}
+                                                    value={values.shippingAddress?.city}
+                                                    onChange={(city) => {
+                                                        setFieldValue('shippingAddress.city', city)
+                                                        if (values.billingSameAsShipping) {
+                                                            setFieldValue('billingAddress.city', city)
+                                                        }
+                                                    }}
                                                     placeholder={t('text.labels.city')}
                                                 />
                                             </FormItem>
                                         </div>
-                    </FormContainer>
+                                        {/* Zip removed */}
+                                    </FormContainer>
                                 </Card>
                             )}
 
@@ -393,7 +762,9 @@ const OrderNew = () => {
                                             onChange={(checked) => {
                                                 setFieldValue('billingSameAsShipping', checked)
                                                 if (checked) {
-                                                    setFieldValue('billingAddress', (values as any).shippingAddress)
+                                                    setFieldValue('billingAddress', {
+                                                        ...values.shippingAddress,
+                                                    })
                                                 }
                                             }}
                                         >
@@ -402,24 +773,73 @@ const OrderNew = () => {
                                     </div>
                                     <FormContainer>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <FormItem label={t('text.labels.street') || 'Street'}>
-                                                <Field as={Input} name="billingAddress.street" disabled={(values as any).billingSameAsShipping} />
+                                            <FormItem
+                                                label={t('text.labels.street')}
+                                                invalid={Boolean(getIn(touched, 'billingAddress.street') && getIn(errors, 'billingAddress.street'))}
+                                                errorMessage={getIn(errors, 'billingAddress.street') as string}
+                                            >
+                                                <Field name="billingAddress.street">
+                                                    {({ field, form }) => (
+                                                        <Input
+                                                            {...field}
+                                                            disabled={values.billingSameAsShipping}
+                                                            onChange={(e) => {
+                                                                form.setFieldValue(field.name, e.target.value)
+                                                            }}
+                                                        />
+                                                    )}
+                                                </Field>
                                             </FormItem>
-                                            <FormItem label={t('text.labels.number') || 'Number'}>
-                                                <Field as={Input} name="billingAddress.number" disabled={(values as any).billingSameAsShipping} />
+                                            <FormItem
+                                                label={t('text.labels.number')}
+                                                invalid={Boolean(getIn(touched, 'billingAddress.number') && getIn(errors, 'billingAddress.number'))}
+                                                errorMessage={getIn(errors, 'billingAddress.number') as string}
+                                            >
+                                                <Field name="billingAddress.number">
+                                                    {({ field, form }) => (
+                                                        <Input
+                                                            {...field}
+                                                            disabled={values.billingSameAsShipping}
+                                                            onChange={(e) => {
+                                                                form.setFieldValue(field.name, e.target.value)
+                                                            }}
+                                                        />
+                                                    )}
+                                                </Field>
                                             </FormItem>
                                             <FormItem label={t('text.labels.corner') || 'Corner'}>
-                                                <Field as={Input} name="billingAddress.corner" disabled={(values as any).billingSameAsShipping} />
+                                                <Field name="billingAddress.corner">
+                                                    {({ field, form }) => (
+                                                        <Input
+                                                            {...field}
+                                                            disabled={values.billingSameAsShipping}
+                                                            onChange={(e) => form.setFieldValue(field.name, e.target.value)}
+                                                        />
+                                                    )}
+                                                </Field>
                                             </FormItem>
                                             <FormItem label={t('text.labels.apartment') || 'Apartment'}>
-                                                <Field as={Input} name="billingAddress.apartment" disabled={(values as any).billingSameAsShipping} />
+                                                <Field name="billingAddress.apartment">
+                                                    {({ field, form }) => (
+                                                        <Input
+                                                            {...field}
+                                                            disabled={values.billingSameAsShipping}
+                                                            onChange={(e) => form.setFieldValue(field.name, e.target.value)}
+                                                        />
+                                                    )}
+                                                </Field>
                                             </FormItem>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3 mt-3">
-                                            <FormItem label={t('text.labels.country')}>
+                                            <FormItem
+                                                label={t('text.labels.country')}
+                                                invalid={Boolean(!values.billingSameAsShipping && getIn(touched, 'billingAddress.state') && getIn(errors, 'billingAddress.state'))}
+                                                errorMessage={getIn(errors, 'billingAddress.state') as string}
+                                            >
                                                 <CountrySelect
-                                                    value={{ name: (values as any).billingAddress?.state, code: (values as any).billingAddress?.countryCode }}
+                                                    value={{ name: values.billingAddress?.state, code: values.billingAddress?.countryCode }}
                                                     onChange={(val) => {
+                                                        if (values.billingSameAsShipping) return
                                                         setFieldValue('billingAddress.state', val.name)
                                                         setFieldValue('billingAddress.countryCode', val.code)
                                                         setFieldValue('billingAddress.city', '')
@@ -427,16 +847,24 @@ const OrderNew = () => {
                                                     placeholder={t('text.labels.country')}
                                                 />
                                             </FormItem>
-                                            <FormItem label={t('text.labels.city')}>
+                                            <FormItem
+                                                label={t('text.labels.city')}
+                                                invalid={Boolean(!values.billingSameAsShipping && getIn(touched, 'billingAddress.city') && getIn(errors, 'billingAddress.city'))}
+                                                errorMessage={getIn(errors, 'billingAddress.city') as string}
+                                            >
                                                 <CitySelect
-                                                    countryCode={(values as any).billingAddress?.countryCode}
-                                                    countryName={(values as any).billingAddress?.state}
-                                                    value={(values as any).billingAddress?.city}
-                                                    onChange={(city) => setFieldValue('billingAddress.city', city)}
+                                                    countryCode={values.billingAddress?.countryCode}
+                                                    countryName={values.billingAddress?.state}
+                                                    value={values.billingAddress?.city}
+                                                    onChange={(city) => {
+                                                        if (values.billingSameAsShipping) return
+                                                        setFieldValue('billingAddress.city', city)
+                                                    }}
                                                     placeholder={t('text.labels.city')}
                                                 />
                                             </FormItem>
                                         </div>
+                                        {/* Zip removed */}
                                     </FormContainer>
                                 </Card>
                             )}
@@ -491,13 +919,23 @@ const OrderNew = () => {
 
                             {currentStep === 6 && (
                                 <Card bodyClass="p-5">
-                                    <h4 className="mb-4">{t('text.actions.finalize') || 'Finalizar'}</h4>
+                                    <h4 className="mb-4">{t('text.actions.finalize') || 'Finalize'}</h4>
                                     <FormContainer>
                                         <FormItem label={t('text.columns.comments')}>
                                             <Field as={Input} name="comment" textArea rows={4} />
                                         </FormItem>
-                                        <FormItem label={t('text.labels.date')}>
-                                            <DatePicker value={values.date as any} onChange={(val) => setFieldValue('date', val)} />
+                                        <FormItem
+                                            label={t('text.labels.date')}
+                                            invalid={Boolean(getIn(touched, 'date') && getIn(errors, 'date'))}
+                                            errorMessage={getIn(errors, 'date') as string}
+                                        >
+                                            <DatePicker
+                                                value={values.date as any}
+                                                onChange={(val) => {
+                                                    setFieldValue('date', val)
+                                                    setFieldTouched('date', true, false)
+                                                }}
+                                            />
                                         </FormItem>
                                     </FormContainer>
                                 </Card>
@@ -514,14 +952,10 @@ const OrderNew = () => {
                                             type="button"
                                             variant="solid"
                                             disabled={
-                                                (currentStep === 0 && !(values as any).customerId) ||
+                                                (currentStep === 0 && !values.customerId) ||
                                                 (currentStep === 1 && (values.items || []).length === 0) ||
-                                                (currentStep === 2 && (
-                                                    !((values as any).shippingAddress?.street) ||
-                                                    !((values as any).shippingAddress?.number) ||
-                                                    !((values as any).shippingAddress?.state) ||
-                                                    !((values as any).shippingAddress?.city)
-                                                ))
+                                                (currentStep === 2 && shippingIncomplete) ||
+                                                (currentStep === 3 && billingIncomplete)
                                             }
                                             onClick={goNext}
                                         >
@@ -534,86 +968,45 @@ const OrderNew = () => {
                                 </div>
                             </div>
 
-                            {/* New Customer Drawer */}
-                            <Drawer isOpen={newCustomerOpen} onRequestClose={() => setNewCustomerOpen(false)} width={640} title={t('text.actions.add') + ' ' + t('text.columns.customer')}>
-                                <CustomerForm
-                                    customer={{}}
-                                    onFormSubmit={(data: CustomerFormModel) => {
-                                        const id = Date.now().toString()
-                                        // Update customer options
-                                        const option = { value: id, label: data.name }
-                                        setCustomers((prev) => [option, ...prev])
-                                        // Select and set details
-                                        setFieldValue('customerId', id)
-                                        setCustomerDetail({
-                                            id,
-                                            name: data.name,
-                                            email: data.email,
-                                            img: data.img,
-                                            personalInfo: {
-                                                location: data.location,
-                                                title: data.title,
-                                                phoneNumber: data.phoneNumber,
-                                                birthday: data.birthday as unknown as string,
-                                                facebook: data.facebook,
-                                                twitter: data.twitter,
-                                                pinterest: data.pinterest,
-                                                linkedIn: data.linkedIn,
-                                            },
-                                        })
-                                        // Prefill shipping address
-                                        setFieldValue('shippingAddress', {
-                                            addressLine1: data.location || '',
-                                            addressLine2: '',
-                                            city: '',
-                                            state: '',
-                                            zip: '',
-                                        })
-                                        setNewCustomerOpen(false)
-                                    }}
-                                />
-                            </Drawer>
+                            <AddCustomerDrawer
+                                isOpen={newCustomerOpen}
+                                onClose={() => setNewCustomerOpen(false)}
+                                onSuccess={handleCustomerCreated}
+                            />
 
                             {/* New Product Drawer */}
-                            <Drawer isOpen={newProductOpen} onRequestClose={() => setNewProductOpen(false)} width={840} title={t('text.actions.add') + ' ' + t('text.titles.products')}>
-                                <ProductForm
-                                    type="new"
-                                    initialData={{
-                                        id: 0,
-                                        name: '',
-                                        productCode: '',
-                                        img: '',
-                                        imgList: [],
-                                        categoryId: null,
-                                        price: 0,
-                                        stock: 0,
-                                        status: 0,
-                                        costPerItem: 0,
-                                        bulkDiscountPrice: 0,
-                                        tags: [],
-                                        brand: '',
-                                        vendor: '',
-                                        description: '',
-                                    }}
-                                    onFormSubmit={async (formData, setSubmitting) => {
-                                        try {
-                                            const res = await apiCreateSalesProduct<boolean, any>(formData as any)
-                                            if ((res as any).data || (res as any) === true) {
-                                                // Refresh product list and select new
-                                                const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' })
-                                                const pOpts = (pRes as any).data?.data?.map((p: any) => ({ value: p.id, label: p.name, price: p.price, img: p.img, description: p.description })) || []
-                                                setProducts(pOpts)
-                                                const created = (pRes as any).data?.data?.find((p: any) => p.name === formData.name)
-                                                if (created) {
-                                                    addItem(String(created.id))
-                                                }
-                                                setNewProductOpen(false)
-                                            }
-                                        } finally {
-                                            setSubmitting(false)
-                                        }
-                                    }}
-                                />
+                            <Drawer
+                                isOpen={newProductOpen}
+                                onClose={closeNewProductDrawer}
+                                onRequestClose={closeNewProductDrawer}
+                                width={640}
+                                bodyClass="p-0"
+                                title={t('text.actions.add') + ' ' + t('text.titles.products')}
+                            >
+                                <div className="p-6">
+                                    <ProductForm
+                                        type="new"
+                                        initialData={{
+                                            id: 0,
+                                            name: '',
+                                            productCode: '',
+                                            img: '',
+                                            imgList: [],
+                                            categoryId: null,
+                                            price: 0,
+                                            stock: 0,
+                                            status: 0,
+                                            costPerItem: 0,
+                                            bulkDiscountPrice: 0,
+                                            tags: [],
+                                            brand: '',
+                                            vendor: '',
+                                            description: '',
+                                        }}
+                                        onDiscard={closeNewProductDrawer}
+                                        onFormSubmit={handleCreateProduct}
+                                    />
+                                </div>
                             </Drawer>
                         </Form>
                     )

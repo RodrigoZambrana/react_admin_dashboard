@@ -14,8 +14,7 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
   const l2 = o[`${prefix}Address2`] || ''
   const city = o[`${prefix}City`] || ''
   const state = o[`${prefix}State`] || ''
-  const zip = o[`${prefix}Zip`] || ''
-  const l3 = [city, state, zip].filter(Boolean).join(', ')
+  const l3 = [city, state].filter(Boolean).join(', ')
   return { line1: l1, line2: l2, line3: l3, line4: '' }
 }
 
@@ -52,7 +51,11 @@ export function adaptOrderToDetailsView(o: any) {
         id: o.customer.id,
         name: o.customer.name || '',
         email: o.customer.email || '',
-        phone: o.customer.phoneNumber || '',
+        phone:
+            (Array.isArray((o.customer as any).phoneNumbers) &&
+                (o.customer as any).phoneNumbers[0]) ||
+            o.customer.phoneNumber ||
+            '',
         img: o.customer.img || '',
         previousOrder: 0,
         shippingAddress: toAddressLines(o, 'shipping'),

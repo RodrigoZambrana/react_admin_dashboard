@@ -92,6 +92,22 @@ async function main() {
     create: { key: 'taxRate', value: '22' },
   })
 
+  const defaultEventTypes = [
+    { key: 'meeting', label: 'Meeting' },
+    { key: 'task', label: 'Task' },
+    { key: 'workshop', label: 'Workshop' },
+    { key: 'other', label: 'Other' },
+  ]
+
+  await prisma.systemConfig.upsert({
+    where: { key: 'calendarEventTypes' },
+    update: { value: JSON.stringify(defaultEventTypes) },
+    create: {
+      key: 'calendarEventTypes',
+      value: JSON.stringify(defaultEventTypes),
+    },
+  })
+
   // Expense statuses and categories
   const eStatuses = ['New', 'Approved', 'Rejected']
   for (const s of eStatuses) {
@@ -112,19 +128,81 @@ async function main() {
 
   // Customers
  const customers = [
-    { firstName: 'John', lastName: 'Doe', email: 'john@example.com', location: 'NA', title: 'Owner', phoneNumber: '+1 202 555 0162' },
-    { firstName: 'Jane', lastName: 'Cooper', email: 'jane@example.com', location: 'EU', title: 'Manager', phoneNumber: '+44 20 7946 0958' },
-    { firstName: 'Carlos', lastName: 'Ruiz', email: 'carlos@example.com', location: 'LATAM', title: 'CTO', phoneNumber: '+52 55 5342 1456' },
-    { firstName: 'Akira', lastName: 'Tanaka', email: 'akira@example.com', location: 'APAC', title: 'CEO', phoneNumber: '+81 3 6384 9000' },
-    { firstName: 'Amina', lastName: 'Youssef', email: 'amina@example.com', location: 'MEA', title: 'CFO', phoneNumber: '+971 4 123 4567' },
+    {
+      firstName: 'John',
+      lastName: 'Doe',
+      email: 'john@example.com',
+      location: 'NA',
+      title: 'Owner',
+      img: '/img/avatars/thumb-1.jpg',
+      phones: ['+1 202 555 0162', '+1 202 555 0100'],
+    },
+    {
+      firstName: 'Jane',
+      lastName: 'Cooper',
+      email: 'jane@example.com',
+      location: 'EU',
+      title: 'Manager',
+      img: '/img/avatars/thumb-2.jpg',
+      phones: ['+44 20 7946 0958'],
+    },
+    {
+      firstName: 'Carlos',
+      lastName: 'Ruiz',
+      email: 'carlos@example.com',
+      location: 'LATAM',
+      title: 'CTO',
+      img: '/img/avatars/thumb-3.jpg',
+      phones: ['+52 55 5342 1456', '+52 55 1234 5678'],
+    },
+    {
+      firstName: 'Akira',
+      lastName: 'Tanaka',
+      email: 'akira@example.com',
+      location: 'APAC',
+      title: 'CEO',
+      img: '/img/avatars/thumb-4.jpg',
+      phones: ['+81 3 6384 9000'],
+    },
+    {
+      firstName: 'Amina',
+      lastName: 'Youssef',
+      email: 'amina@example.com',
+      location: 'MEA',
+      title: 'CFO',
+      img: '/img/avatars/thumb-5.jpg',
+      phones: ['+971 4 123 4567'],
+    },
   ]
   for (const c of customers) {
     const found = await prisma.customer.findFirst({ where: { email: c.email } })
     const name = [c.firstName, c.lastName].filter(Boolean).join(' ')
-    const data = { ...c, name }
+    const [primaryPhone] = c.phones || []
+    const customerPayload = {
+      firstName: c.firstName,
+      lastName: c.lastName,
+      email: c.email,
+      location: c.location,
+      title: c.title,
+      img: c.img,
+      name,
+      phoneNumber: primaryPhone,
+    }
     const customer = found
-      ? await prisma.customer.update({ where: { id: found.id }, data })
-      : await prisma.customer.create({ data })
+      ? await prisma.customer.update({ where: { id: found.id }, data: customerPayload })
+      : await prisma.customer.create({ data: customerPayload })
+    if (customer.id) {
+      await prisma.customerPhone.deleteMany({ where: { customerId: customer.id } })
+      if (c.phones && c.phones.length) {
+        await prisma.customerPhone.createMany({
+          data: c.phones.map((phone, index) => ({
+            customerId: customer.id,
+            phone,
+            isPrimary: index === 0,
+          })),
+        })
+      }
+    }
     const addrExists = await prisma.customerAddress.findFirst({ where: { customerId: customer.id } })
     if (!addrExists) {
       await prisma.customerAddress.create({
@@ -213,16 +291,44 @@ async function main() {
 
   // Calendar events
   const allTasks = await prisma.task.findMany()
+  const colorMap: Record<string, string> = {
+    meeting: 'blue',
+    task: 'emerald',
+    workshop: 'purple',
+    other: 'indigo',
+  }
+
   for (let i = 0; i < 12; i++) {
     const day = new Date(Date.now() + i * 86400000)
+    const typeEnum = i % 3 === 0 ? 'MEETING' : i % 3 === 1 ? 'TASK' : 'OTHER'
+    const typeKeyMap: Record<string, string> = {
+      MEETING: 'meeting',
+      TASK: 'task',
+      WORKSHOP: 'workshop',
+      OTHER: 'other',
+    }
+    const typeKey = typeKeyMap[typeEnum] || 'other'
+    const address = {
+      street: 'HQ Main Ave',
+      number: String(100 + i),
+      city: 'Montevideo',
+      country: 'UY',
+      corner: null as string | null,
+      apartment: null as string | null,
+    }
     await prisma.calendarEvent.create({
       data: {
         title: `Event ${i + 1}`,
-        type: i % 3 === 0 ? 'MEETING' : i % 3 === 1 ? 'TASK' : 'OTHER',
+        type: typeEnum,
         startAt: day,
         endAt: new Date(day.getTime() + 2 * 3600000),
         allDay: false,
-        location: 'HQ',
+        location: `${address.street} ${address.number}, ${address.city}`,
+        color: colorMap[typeKey] || 'indigo',
+        metadata: {
+          address,
+          customType: typeKey,
+        },
         taskId: i % 2 === 0 && allTasks[i % allTasks.length] ? allTasks[i % allTasks.length].id : null,
         projectId: projects[i % projects.length]?.id,
       },

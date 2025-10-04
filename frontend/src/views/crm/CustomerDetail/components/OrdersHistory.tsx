@@ -109,7 +109,7 @@ const OrdersHistory = () => {
     })
 
     return (
-        <div className="mb-8">
+        <div className="mb-0">
             <h6 className="mb-4">{t('text.titles.orderHistory')}</h6>
             <Table>
                 <THead>

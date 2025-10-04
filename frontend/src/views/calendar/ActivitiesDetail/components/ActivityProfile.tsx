@@ -26,12 +26,19 @@ const ActivityProfile = ({ data = {} as any }) => {
                     <h4 className="font-bold">{(data as any).name}</h4>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-y-7 gap-x-4 mt-8">
-                    <InfoField title={t('text.labels.title', { defaultValue: 'Title' })} value={(data as any).personalInfo?.title || (data as any).name} />
+                    <InfoField title={t('text.labels.title', { defaultValue: 'Title' })} value={(data as any).name} />
                     <InfoField title={t('text.labels.date', { defaultValue: 'Date' })} value={(data as any).date ? dayjs((data as any).date).format('DD/MM/YYYY') : undefined} />
                     <InfoField title={t('text.labels.time', { defaultValue: 'Time' })} value={(data as any).time} />
                     <InfoField title={t('text.labels.location')} value={(data as any).personalInfo?.location} />
                     <InfoField title={t('text.labels.email')} value={(data as any).email} />
-                    <InfoField title={t('text.labels.phone')} value={(data as any).personalInfo?.phoneNumber} />
+                    <InfoField
+                        title={t('text.labels.phone')}
+                        value={
+                            (data as any).personalInfo?.phoneNumbers?.length
+                                ? (data as any).personalInfo?.phoneNumbers?.join(', ')
+                                : (data as any).personalInfo?.phoneNumber
+                        }
+                    />
                 </div>
                 <div className="mt-4 flex flex-col xl:flex-row gap-2">
                     <Button block icon={<HiPencilAlt />} variant="solid" onClick={() => dispatch(openEditActivityDialog())}>

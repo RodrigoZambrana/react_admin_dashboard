@@ -1,17 +1,18 @@
 import { useEffect } from 'react'
 import CalendarView from '@/components/shared/CalendarView'
 import Container from '@/components/shared/Container'
-import EventDialog, { EventParam } from './components/EventDialog'
+import EventDialog from './components/EventDialog'
 import reducer, {
     getEvents,
-    updateEvent,
     setSelected,
     openDialog,
     useAppDispatch,
     useAppSelector,
+    createCalendarEvent,
+    updateCalendarEvent,
+    CalendarEvent,
 } from './store'
 import { injectReducer } from '@/store'
-import cloneDeep from 'lodash/cloneDeep'
 import dayjs from 'dayjs'
 import type { EventDropArg, EventClickArg, DateSelectArg } from '@fullcalendar/core'
 import esLocale from '@fullcalendar/core/locales/es'
@@ -21,7 +22,10 @@ injectReducer('crmCalendar', reducer)
 
 const Calendar = () => {
     const dispatch = useAppDispatch()
-    const events = useAppSelector((state) => state.crmCalendar.data.eventList)
+    const eventsState = useAppSelector(
+        (state) => state.crmCalendar.data.eventList,
+    )
+    const events = Array.isArray(eventsState) ? eventsState : []
     const { t, i18n } = useTranslation()
     const fcLocale = i18n.language && i18n.language.startsWith('es') ? 'es' : 'en'
 
@@ -39,21 +43,31 @@ const Calendar = () => {
                 type: 'NEW',
                 start: start.format(),
                 end: end.format(),
+                allDay: false,
             }),
         )
         dispatch(openDialog())
     }
 
     const onEventClick = (arg: EventClickArg) => {
-        const { start, end, id, title, extendedProps } = arg.event
+        const { start, end, id, title } = arg.event
+        const eventData = events.find((evt) => evt.id === id)
+        const extendedProps = {
+            ...(eventData?.extendedProps || {}),
+            ...(arg.event.extendedProps as Record<string, unknown>),
+        }
         dispatch(
             setSelected({
                 type: 'EDIT',
-                eventColor: extendedProps.eventColor,
+                eventColor:
+                    (extendedProps.eventColor as string | undefined) ||
+                    eventData?.eventColor,
                 title,
                 start: dayjs(start).format(),
                 end: end ? dayjs(end).format() : undefined,
                 id,
+                allDay: eventData?.allDay ?? arg.event.allDay ?? false,
+                extendedProps,
             }),
         )
         dispatch(openDialog())
@@ -76,43 +90,32 @@ const Calendar = () => {
                 type: 'NEW',
                 start: base.format(),
                 end: end.format(),
+                allDay: false,
             }),
         )
         dispatch(openDialog())
     }
 
-    const onSubmit = (data: EventParam, type: string) => {
-        let newEvents = cloneDeep(events)
-        if (type === 'NEW') {
-            newEvents.push(data)
-        }
-
+    const onSubmit = (data: CalendarEvent, type: string) => {
         if (type === 'EDIT') {
-            newEvents = newEvents.map((event) => {
-                if (data.id === event.id) {
-                    event = data
-                }
-                return event
-            })
+            dispatch(updateCalendarEvent(data))
+        } else {
+            dispatch(createCalendarEvent(data))
         }
-        dispatch(updateEvent(newEvents))
     }
 
     const onEventChange = (arg: EventDropArg) => {
-        const newEvents = cloneDeep(events).map((event) => {
-            if (arg.event.id === event.id) {
-                const { id, extendedProps, start, end, title } = arg.event
-                event = {
-                    id,
-                    start: dayjs(start).format(),
-                    end: dayjs(end).format(),
-                    title,
-                    eventColor: extendedProps.eventColor,
-                }
-            }
-            return event
-        })
-        dispatch(updateEvent(newEvents))
+        const existing = events.find((event) => event.id === arg.event.id)
+        if (!existing) {
+            return
+        }
+        const updated: CalendarEvent = {
+            ...existing,
+            start: dayjs(arg.event.start).format(),
+            end: arg.event.end ? dayjs(arg.event.end).format() : undefined,
+            allDay: Boolean(arg.event.allDay ?? existing.allDay),
+        }
+        dispatch(updateCalendarEvent(updated))
     }
 
     return (

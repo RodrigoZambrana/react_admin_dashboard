@@ -82,8 +82,20 @@ const StatisticIcon = ({ type }: { type?: string }) => {
 
 const StatisticCard = ({ data = {} }: { data: Partial<Statistic> }) => {
     const { t } = useTranslation()
+
     const labelKey = data.key ? `crm.dashboard.stat.${data.key}` : ''
-    const label = labelKey ? t(labelKey) : data.label
+
+    const translateIfAvailable = (key: string, fallback: string) => {
+        const translated = t(key)
+        return translated !== key ? translated : fallback
+    }
+
+    const labelFromKey = labelKey ? translateIfAvailable(labelKey, '') : ''
+    const labelFromPayload = data.label
+        ? translateIfAvailable(data.label, data.label)
+        : ''
+
+    const label = labelFromKey || labelFromPayload
     return (
         <Card>
             <div className="flex items-center gap-4">

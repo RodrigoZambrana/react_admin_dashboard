@@ -37,7 +37,7 @@
   }
 
   .step-item-title {
-    @apply whitespace-nowrap font-bold block text-gray-600 dark:text-gray-300;
+    @apply font-bold block text-gray-600 dark:text-gray-300 whitespace-normal md:whitespace-nowrap;
 
     &.step-item-title-error {
       @apply text-red-500;

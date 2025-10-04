@@ -10,6 +10,7 @@ export const SLICE_NAME = 'crmCustomerDetails'
 type PersonalInfo = {
     location: string
     phoneNumber: string
+    phoneNumbers?: string[]
     facebook: string
     twitter: string
     pinterest: string
@@ -35,8 +36,19 @@ export type Customer = {
     lastOnline: number
     status: string
     phoneNumber?: string
+    phoneNumbers?: string[]
     personalInfo: PersonalInfo
     orders?: CustomerOrder[]
+    addresses?: Array<{
+        street?: string
+        number?: string
+        corner?: string
+        apartment?: string
+        city?: string
+        country?: string
+        countryCode?: string
+        isPrimary?: boolean
+    }>
 }
 
 type GetCrmCustomerDetailsResponse = Customer

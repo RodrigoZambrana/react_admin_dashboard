@@ -55,24 +55,27 @@ const ActivityEditProfile = () => {
         const clonedData = cloneDeep(activity)
         const {
             name,
-            birthday,
             email,
             img,
             location,
-            title,
             phoneNumber,
             facebook,
             twitter,
             pinterest,
             linkedIn,
+            phoneNumbers,
+            address,
         } = values
 
         const basicInfo = { name, email, img }
+        const sanitizedPhones = (phoneNumbers || [])
+            .map((phone) => phone.trim())
+            .filter((phone) => phone.length > 0)
+        const primaryPhone = sanitizedPhones[0] || phoneNumber || ''
         const personalInfo = {
             location,
-            title,
-            birthday: dayjs(birthday).format('DD/MM/YYYY'),
-            phoneNumber,
+            phoneNumber: primaryPhone,
+            phoneNumbers: sanitizedPhones,
             facebook,
             twitter,
             pinterest,
@@ -81,6 +84,22 @@ const ActivityEditProfile = () => {
         clonedData.personalInfo = {
             ...clonedData.personalInfo,
             ...personalInfo,
+        }
+        clonedData.phoneNumbers = sanitizedPhones
+        if (address) {
+            clonedData.addresses = [
+                {
+                    ...(clonedData.addresses?.[0] || {}),
+                    street: address.street,
+                    number: address.number,
+                    corner: address.corner,
+                    apartment: address.apartment,
+                    city: address.city,
+                    country: address.state,
+                    countryCode: address.countryCode,
+                    isPrimary: true,
+                },
+            ]
         }
         const newData = { ...clonedData, ...basicInfo }
         dispatch(updateProfileData(newData))
@@ -111,4 +130,3 @@ const ActivityEditProfile = () => {
 }
 
 export default ActivityEditProfile
-

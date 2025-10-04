@@ -83,7 +83,7 @@ export const searchQueryPoolData = [
     },
     {
         title: 'Calendar',
-        url: '/app/crm/calendar',
+        url: '/app/calendar/activities',
         icon: 'crm',
         category: 'CRM',
         categoryTitle: 'Apps',
@@ -126,13 +126,6 @@ export const searchQueryPoolData = [
     {
         title: 'Product Edit',
         url: '/app/sales/product-edit/12',
-        icon: 'sales',
-        category: 'Sales',
-        categoryTitle: 'Apps',
-    },
-    {
-        title: 'New Product',
-        url: '/app/sales/product-new',
         icon: 'sales',
         category: 'Sales',
         categoryTitle: 'Apps',

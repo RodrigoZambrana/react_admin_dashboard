@@ -9,6 +9,7 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { PrismaService } from '../prisma/prisma.service'
 import { TableQueryDto } from '../crm/dto/table-query.dto'
@@ -31,9 +32,34 @@ export class TasksController {
     if (dto.projectId) where.projectId = Number(dto.projectId)
     if (dto.createdById) where.createdById = Number(dto.createdById)
     const total = await this.prisma.task.count({ where })
+    const sortKey = (dto.sort?.key || '').toString()
+    const sortOrderRaw = (dto.sort?.order || '').toString().toLowerCase()
+    const sortOrder: 'asc' | 'desc' | undefined =
+      sortOrderRaw === 'asc' || sortOrderRaw === 'desc' ? (sortOrderRaw as 'asc' | 'desc') : undefined
+    const orderBy: Prisma.TaskOrderByWithRelationInput[] = []
+    if (sortKey && sortOrder) {
+      switch (sortKey) {
+        case 'code':
+          orderBy.push({ code: sortOrder })
+          break
+        case 'subject':
+          orderBy.push({ subject: sortOrder })
+          break
+        case 'status':
+          orderBy.push({ status: sortOrder })
+          break
+        case 'priority':
+          orderBy.push({ priority: sortOrder })
+          break
+        case 'dueDate':
+          orderBy.push({ dueDate: sortOrder })
+          break
+      }
+    }
+    orderBy.push({ id: 'desc' })
     const data = await this.prisma.task.findMany({
       where,
-      orderBy: { id: 'desc' },
+      orderBy,
       include: { project: true, assignees: { include: { user: true } } },
       skip: (dto.pageIndex - 1) * dto.pageSize,
       take: dto.pageSize,

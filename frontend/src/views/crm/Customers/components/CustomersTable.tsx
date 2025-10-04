@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo } from 'react'
+import { useEffect, useCallback, useMemo, useState } from 'react'
 import Avatar from '@/components/ui/Avatar'
 import Select from '@/components/ui/Select'
 import Tooltip from '@/components/ui/Tooltip'
@@ -17,21 +17,28 @@ import {
 import useThemeClass from '@/utils/hooks/useThemeClass'
 import CustomerEditDialog from './CustomerEditDialog'
 import { Link, useNavigate } from 'react-router-dom'
-import { HiOutlineUser, HiOutlineEye } from 'react-icons/hi'
+import { HiOutlineUser, HiOutlineEye, HiOutlineTrash } from 'react-icons/hi'
 import cloneDeep from 'lodash/cloneDeep'
 import type { OnSortParam, ColumnDef } from '@/components/shared/DataTable'
 import { useTranslation } from 'react-i18next'
-import { useState } from 'react'
 import { apiGetCustomerStatuses } from '@/services/SettingsService'
 import toast from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
+import { apiDeleteCrmCustomer } from '@/services/CrmService'
 type StatusOption = {
     value: number | string
     label: string
     color?: string
 }
 
-const ActionColumn = ({ row }: { row: Customer }) => {
+const ActionColumn = ({
+    row,
+    onRequestDelete,
+}: {
+    row: Customer
+    onRequestDelete: (customer: Customer) => void
+}) => {
     const { textTheme } = useThemeClass()
     const dispatch = useAppDispatch()
     const navigate = useNavigate()
@@ -47,7 +54,7 @@ const ActionColumn = ({ row }: { row: Customer }) => {
     }, [navigate, row])
 
     return (
-        <div className="flex justify-end items-center">
+        <div className="flex justify-end items-center gap-1">
             <Tooltip title={t('text.actions.view')}>
                 <span
                     className={`cursor-pointer p-2 hover:${textTheme}`}
@@ -62,6 +69,14 @@ const ActionColumn = ({ row }: { row: Customer }) => {
             >
                 {t('text.actions.edit')}
             </div>
+            <Tooltip title={t('text.actions.delete')}>
+                <span
+                    className="cursor-pointer p-2 hover:text-red-500"
+                    onClick={() => onRequestDelete(row)}
+                >
+                    <HiOutlineTrash className="text-lg" />
+                </span>
+            </Tooltip>
         </div>
     )
 }
@@ -88,6 +103,10 @@ const Customers = () => {
     const data = useAppSelector((state) => state.crmCustomers.data.customerList)
     const loading = useAppSelector((state) => state.crmCustomers.data.loading)
     const [customerStatuses, setCustomerStatuses] = useState<StatusOption[]>([])
+    const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(
+        null,
+    )
+    const [deleteLoading, setDeleteLoading] = useState(false)
     const filterData = useAppSelector(
         (state) => state.crmCustomers.data.filterData,
     )
@@ -139,6 +158,50 @@ const Customers = () => {
         () => ({ pageIndex, pageSize, sort, query, total }),
         [pageIndex, pageSize, sort, query, total],
     )
+
+    const handleRequestDelete = useCallback((customer: Customer) => {
+        setCustomerToDelete(customer)
+    }, [])
+
+    const handleDelete = useCallback(async () => {
+        if (!customerToDelete) return
+        setDeleteLoading(true)
+        try {
+            await apiDeleteCrmCustomer<boolean, { id: number | string }>({
+                id: customerToDelete.id,
+            })
+            toast.push(
+                <Notification
+                    type="success"
+                    title={t('text.titles.customerDeleted')}
+                >
+                    {t('text.messages.customerDeleted')}
+                </Notification>,
+            )
+            fetchData()
+        } catch (error) {
+            const responseMessage =
+                (typeof error === 'object' &&
+                    error !== null &&
+                    // @ts-expect-error axios style
+                    (error.response?.data?.message || error.message)) ||
+                t('text.messages.customerDeleteHasOrders')
+            const translatedMessage = t(responseMessage, {
+                defaultValue: responseMessage,
+            })
+            toast.push(
+                <Notification
+                    type="danger"
+                    title={t('text.titles.deleteCustomerFailed')}
+                >
+                    {translatedMessage}
+                </Notification>,
+            )
+        } finally {
+            setDeleteLoading(false)
+            setCustomerToDelete(null)
+        }
+    }, [customerToDelete, fetchData, t])
 
     const columns: ColumnDef<Customer>[] = useMemo(
         () => [
@@ -256,10 +319,15 @@ const Customers = () => {
             {
                 header: '',
                 id: 'action',
-                cell: (props) => <ActionColumn row={props.row.original} />,
+                cell: (props) => (
+                    <ActionColumn
+                        row={props.row.original}
+                        onRequestDelete={handleRequestDelete}
+                    />
+                ),
             },
         ],
-        [customerStatuses, fetchData, t],
+        [customerStatuses, fetchData, handleRequestDelete, t],
     )
 
     const onPaginationChange = (page: number) => {
@@ -299,6 +367,25 @@ const Customers = () => {
                 onSort={onSort}
             />
             <CustomerEditDialog />
+            <ConfirmDialog
+                isOpen={Boolean(customerToDelete)}
+                type="danger"
+                title={t('text.titles.deleteCustomer')}
+                confirmButtonColor="red-600"
+                confirmButtonProps={{ loading: deleteLoading }}
+                onClose={() => {
+                    if (!deleteLoading) setCustomerToDelete(null)
+                }}
+                onRequestClose={() => {
+                    if (!deleteLoading) setCustomerToDelete(null)
+                }}
+                onCancel={() => {
+                    if (!deleteLoading) setCustomerToDelete(null)
+                }}
+                onConfirm={handleDelete}
+            >
+                <p>{t('text.messages.deleteCustomerConfirm')}</p>
+            </ConfirmDialog>
         </>
     )
 }

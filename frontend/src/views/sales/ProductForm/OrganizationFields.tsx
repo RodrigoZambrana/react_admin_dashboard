@@ -2,9 +2,9 @@ import AdaptableCard from '@/components/shared/AdaptableCard'
 import { FormItem } from '@/components/ui/Form'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
-import CreatableSelect from 'react-select/creatable'
+import Tag from '@/components/ui/Tag'
 import { Field, FormikErrors, FormikTouched, FieldProps } from 'formik'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, KeyboardEvent } from 'react'
 import { apiGetProductCategories } from '@/services/SettingsService'
 import { useTranslation } from 'react-i18next'
 
@@ -13,14 +13,9 @@ type CategoryOption = {
     value: number
 }
 
-type TagOption = {
-    label: string
-    value: string
-}
-
 type FormFieldsName = {
     categoryId: number | null
-    tags: TagOption[] | string[]
+    tags: string[]
     vendor: string
     brand: string
 }
@@ -30,21 +25,17 @@ type OrganizationFieldsProps = {
     errors: FormikErrors<FormFieldsName>
     values: {
         categoryId: number | null
-        tags: TagOption[] | string[]
+    tags: string[]
         [key: string]: unknown
     }
 }
-
-const tags = [
-    { key: 'trend', value: 'trend' },
-    { key: 'unisex', value: 'unisex' },
-]
 
 const OrganizationFields = (props: OrganizationFieldsProps) => {
     const { values = { categoryId: null, tags: [] }, touched, errors } = props
     const { t } = useTranslation()
 
     const [categories, setCategories] = useState<CategoryOption[]>([])
+    const [tagInputValue, setTagInputValue] = useState('')
 
     useEffect(() => {
         const fetch = async () => {
@@ -112,30 +103,76 @@ const OrganizationFields = (props: OrganizationFieldsProps) => {
                     >
                         <Field name="tags">
                             {({ field, form }: FieldProps) => {
-                                const selectedTags = Array.isArray(values.tags)
-                                    ? values.tags.map((tg) =>
-                                          typeof tg === 'string'
-                                              ? { label: tg, value: tg }
-                                              : tg,
-                                      )
+                                const currentTags = Array.isArray(field.value)
+                                    ? (field.value as string[])
                                     : []
+
+                                const addTag = () => {
+                                    const newTag = tagInputValue.trim()
+                                    if (!newTag) return
+                                    if (!currentTags.includes(newTag)) {
+                                        form.setFieldValue(field.name, [
+                                            ...currentTags,
+                                            newTag,
+                                        ])
+                                    }
+                                    setTagInputValue('')
+                                }
+
+                                const removeTag = (tag: string) => {
+                                    form.setFieldValue(
+                                        field.name,
+                                        currentTags.filter((item) => item !== tag),
+                                    )
+                                }
+
+                                const handleKeyDown = (
+                                    event: KeyboardEvent<HTMLInputElement>,
+                                ) => {
+                                    if (event.key === 'Enter' || event.key === ',') {
+                                        event.preventDefault()
+                                        addTag()
+                                    } else if (
+                                        event.key === 'Backspace' &&
+                                        !tagInputValue &&
+                                        currentTags.length
+                                    ) {
+                                        removeTag(currentTags[currentTags.length - 1])
+                                    }
+                                }
+
                                 return (
-                                    <Select
-                                        isMulti
-                                        componentAs={CreatableSelect}
-                                        field={field}
-                                        form={form}
-                                        options={tags.map((tg) => ({
-                                            value: tg.value,
-                                            label: t(
-                                                `sales.productForm.tags.${tg.key}`,
-                                            ),
-                                        }))}
-                                        value={selectedTags as any}
-                                        onChange={(option) =>
-                                            form.setFieldValue(field.name, option)
-                                        }
-                                    />
+                                    <div>
+                                        <Input
+                                            value={tagInputValue}
+                                            onChange={(e) =>
+                                                setTagInputValue(e.target.value)
+                                            }
+                                            onBlur={addTag}
+                                            onKeyDown={handleKeyDown}
+                                            placeholder={t('text.labels.tags')}
+                                        />
+                                        {currentTags.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                {currentTags.map((tag) => (
+                                                    <Tag
+                                                        key={tag}
+                                                        className="bg-gray-100 dark:bg-gray-700 border-0 flex items-center gap-2 px-2 py-1 text-sm"
+                                                    >
+                                                        <span>{tag}</span>
+                                                        <button
+                                                            type="button"
+                                                            aria-label={t('text.actions.remove')}
+                                                            className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-300"
+                                                            onClick={() => removeTag(tag)}
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    </Tag>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 )
                             }}
                         </Field>

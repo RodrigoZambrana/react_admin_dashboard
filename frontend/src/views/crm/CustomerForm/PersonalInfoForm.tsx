@@ -2,39 +2,22 @@ import Input from '@/components/ui/Input'
 import Avatar from '@/components/ui/Avatar'
 import Upload from '@/components/ui/Upload'
 import { FormItem } from '@/components/ui/Form'
-import {
-    HiUserCircle,
-    HiMail,
-    HiLocationMarker,
-    HiPhone,
-    HiOutlineUser,
-} from 'react-icons/hi'
-import { Field, FieldProps, FormikErrors, FormikTouched } from 'formik'
+import { HiUserCircle, HiMail, HiPhone, HiOutlineUser } from 'react-icons/hi'
+import { Field, FieldArray, FieldProps, getIn, useFormikContext } from 'formik'
 import { useTranslation } from 'react-i18next'
+import Button from '@/components/ui/Button'
+import type { FormModel } from './CustomerForm'
 
-type FormFieldsName = {
-    upload: string
-    firstName: string
-    lastName: string
-    email: string
-    location: string
-    phoneNumber: string
-}
-
-type PersonalInfoFormProps = {
-    touched: FormikTouched<FormFieldsName>
-    errors: FormikErrors<FormFieldsName>
-}
-
-const PersonalInfoForm = (props: PersonalInfoFormProps) => {
-    const { touched, errors } = props
+const PersonalInfoForm = () => {
     const { t } = useTranslation()
+    const { values, errors, touched } = useFormikContext<FormModel>()
+    const phoneNumbers = values.phoneNumbers || ['']
 
     return (
         <>
             <FormItem
-                invalid={errors.upload && touched.upload}
-                errorMessage={errors.upload}
+                invalid={Boolean((errors as any)?.upload && (touched as any)?.upload)}
+                errorMessage={(errors as any)?.upload}
             >
                 <Field name="img">
                     {({ field, form }: FieldProps) => {
@@ -75,8 +58,8 @@ const PersonalInfoForm = (props: PersonalInfoFormProps) => {
             </FormItem>
             <FormItem
                 label={t('text.labels.firstName')}
-                invalid={errors.firstName && touched.firstName}
-                errorMessage={errors.firstName}
+                invalid={Boolean((touched as any).firstName && (errors as any).firstName)}
+                errorMessage={(errors as any).firstName}
             >
                 <Field
                     type="text"
@@ -89,22 +72,22 @@ const PersonalInfoForm = (props: PersonalInfoFormProps) => {
             </FormItem>
             <FormItem
                 label={t('text.labels.lastName')}
-                invalid={errors.lastName && touched.lastName}
-                errorMessage={errors.lastName}
+                invalid={Boolean((touched as any).lastName && (errors as any).lastName)}
+                errorMessage={(errors as any).lastName}
             >
                 <Field
                     type="text"
                     autoComplete="off"
                     name="lastName"
-                    placeholder={t('text.placeholders.name')}
+                    placeholder={t('text.placeholders.lastName')}
                     component={Input}
                     prefix={<HiUserCircle className="text-xl" />}
                 />
             </FormItem>
             <FormItem
                 label={t('text.labels.email')}
-                invalid={errors.email && touched.email}
-                errorMessage={errors.email}
+                invalid={Boolean((touched as any).email && (errors as any).email)}
+                errorMessage={(errors as any).email}
             >
                 <Field
                     type="email"
@@ -115,34 +98,57 @@ const PersonalInfoForm = (props: PersonalInfoFormProps) => {
                     prefix={<HiMail className="text-xl" />}
                 />
             </FormItem>
-            <FormItem
-                label={t('text.labels.location')}
-                invalid={errors.location && touched.location}
-                errorMessage={errors.location}
-            >
-                <Field
-                    type="text"
-                    autoComplete="off"
-                    name="location"
-                    placeholder={t('text.labels.location')}
-                    component={Input}
-                    prefix={<HiLocationMarker className="text-xl" />}
-                />
-            </FormItem>
-            <FormItem
-                label={t('text.labels.phoneNumber')}
-                invalid={errors.phoneNumber && touched.phoneNumber}
-                errorMessage={errors.phoneNumber}
-            >
-                <Field
-                    type="text"
-                    autoComplete="off"
-                    name="phoneNumber"
-                    placeholder={t('text.labels.phoneNumber')}
-                    component={Input}
-                    prefix={<HiPhone className="text-xl" />}
-                />
-            </FormItem>
+            <FieldArray name="phoneNumbers">
+                {({ push, remove }) => (
+                    <div className="flex flex-col gap-3">
+                        {phoneNumbers.map((_, index) => {
+                            const error = getIn(errors, `phoneNumbers.${index}`)
+                            const isTouched = getIn(touched, `phoneNumbers.${index}`)
+                            return (
+                                <FormItem
+                                    key={index}
+                                    label={index === 0 ? t('text.labels.phoneNumber') : undefined}
+                                    invalid={Boolean(isTouched && error)}
+                                    errorMessage={error as string}
+                                >
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                        <Field name={`phoneNumbers.${index}`}>
+                                            {({ field }: FieldProps<string>) => (
+                                                <Input
+                                                    {...field}
+                                                    placeholder={t('text.labels.phoneNumber')}
+                                                    prefix={<HiPhone className="text-xl" />}
+                                                />
+                                            )}
+                                        </Field>
+                                        <div className="flex sm:items-center gap-2">
+                                            {phoneNumbers.length > 1 && (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    onClick={() => remove(index)}
+                                                >
+                                                    {t('text.actions.remove')}
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </FormItem>
+                            )
+                        })}
+                        <div>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="twoTone"
+                                onClick={() => push('')}
+                            >
+                                {t('text.actions.addMore')}
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </FieldArray>
         </>
     )
 }

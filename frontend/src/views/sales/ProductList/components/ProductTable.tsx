@@ -1,11 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import Avatar from '@/components/ui/Avatar'
-import Badge from '@/components/ui/Badge'
-import Select from '@/components/ui/Select'
-import { apiGetProductStatuses } from '@/services/SettingsService'
 import { apiPutSalesProduct } from '@/services/SalesService'
-import { useState } from 'react'
 import DataTable from '@/components/shared/DataTable'
 import { HiOutlinePencil, HiOutlineTrash } from 'react-icons/hi'
 import { FiPackage } from 'react-icons/fi'
@@ -15,6 +11,7 @@ import {
     setTableData,
     setSelectedProduct,
     toggleDeleteConfirmation,
+    updateProductList,
     useAppDispatch,
     useAppSelector,
 } from '../store'
@@ -40,15 +37,8 @@ type Product = {
     published?: boolean
     brand?: string
     vendor?: string
+    permanentStock?: boolean
 }
-
-type StatusOption = { value: number; label: string; color?: string }
-
-const inventoryDefaultStatuses: StatusOption[] = [
-    { value: 0, label: 'En stock', color: 'emerald-500' },
-    { value: 1, label: 'Limitado', color: 'amber-500' },
-    { value: 2, label: 'Sin stock', color: 'red-500' },
-]
 
 const ActionColumn = ({ row }: { row: Product }) => {
     const dispatch = useAppDispatch()
@@ -100,9 +90,6 @@ const ProductColumn = ({ row }: { row: Product }) => {
 const ProductTable = () => {
     const { t } = useTranslation()
     const tableRef = useRef<DataTableResetHandle>(null)
-    const [productStatuses, setProductStatuses] = useState<StatusOption[]>(
-        inventoryDefaultStatuses,
-    )
 
     const dispatch = useAppDispatch()
 
@@ -120,6 +107,16 @@ const ProductTable = () => {
 
     const data = useAppSelector(
         (state) => state.salesProductList.data.productList,
+    )
+
+    const updateProductRow = useCallback(
+        (id: string, updates: Partial<Product>) => {
+            const nextState = data.map((item) =>
+                item.id === id ? { ...item, ...updates } : item,
+            )
+            dispatch(updateProductList(nextState))
+        },
+        [data, dispatch],
     )
 
     useEffect(() => {
@@ -142,22 +139,42 @@ const ProductTable = () => {
         dispatch(getProducts({ pageIndex, pageSize, sort, query, filterData }))
     }
 
-    useEffect(() => {
-        const fetchStatuses = async () => {
-            const res = await apiGetProductStatuses<
-                { id: number | string; code?: number | string; name: string; color?: string }[]
-            >()
-            const normalized = (res.data as any[]).map((s) => ({
-                value: s.code !== undefined ? Number(s.code) : Number(s.id),
-                label: s.name,
-                color: (s as any).color,
-            })) as StatusOption[]
-            if (normalized.length) setProductStatuses(normalized)
-        }
-        fetchStatuses()
-    }, [])
-
     const currency = useAppSelector((state) => state.currency.code)
+
+    const resolveStockStatus = useMemo(() => {
+        const styles = {
+            inStock: {
+                labelKey: 'text.status.inStock',
+                dotClass: 'bg-emerald-500',
+                textClass: 'text-emerald-500',
+            },
+            limited: {
+                labelKey: 'text.status.limited',
+                dotClass: 'bg-amber-500',
+                textClass: 'text-amber-500',
+            },
+            out: {
+                labelKey: 'text.status.outOfStock',
+                dotClass: 'bg-red-500',
+                textClass: 'text-red-500',
+            },
+        } as const
+
+        const derive = (stockValue: number, permanent: boolean) => {
+            if (permanent) {
+                return styles.inStock
+            }
+            if (stockValue <= 0) {
+                return styles.out
+            }
+            if (stockValue < 10) {
+                return styles.limited
+            }
+            return styles.inStock
+        }
+
+        return derive
+    }, [])
 
     const columns: ColumnDef<Product>[] = useMemo(
         () => [
@@ -202,32 +219,47 @@ const ProductTable = () => {
                 },
             },
             {
-                header: t('text.columns.quantity'),
-                accessorKey: 'stock',
-                sortable: true,
-            },
-            {
                 header: t('text.columns.stock'),
                 accessorKey: 'status',
                 cell: (props) => {
                     const row = props.row.original
-                    const statusValue =
-                        typeof (row as any).status === 'string'
-                            ? parseInt((row as any).status as unknown as string, 10)
-                            : (row as any).status
-                    const options = productStatuses
-                    const s = options.find((x) => x.value === statusValue)
-                    const onChange = async (opt: any) => {
-                        await apiPutSalesProduct<boolean, { id: number; status: number }>({ id: Number(row.id), status: opt.value })
+                    const stockValue = Number(row.stock ?? 0)
+                    const permanent = Boolean((row as any).permanentStock)
+                    const status = resolveStockStatus(
+                        Number.isNaN(stockValue) ? 0 : stockValue,
+                        permanent,
+                    )
+                    return (
+                        <div className="flex items-center gap-2">
+                            <span className={`badge-dot ${status.dotClass}`} />
+                            <span
+                                className={`capitalize font-semibold ${status.textClass}`}
+                            >
+                                {t(status.labelKey)}
+                            </span>
+                        </div>
+                    )
+                },
+            },
+            {
+                header: t('text.labels.permanentStock'),
+                accessorKey: 'permanentStock',
+                cell: (props) => {
+                    const row = props.row.original
+                    const checked = Boolean((row as any).permanentStock)
+                    const onToggle = async (val: boolean) => {
+                        updateProductRow(row.id, { permanentStock: val })
+                        await apiPutSalesProduct<
+                            boolean,
+                            { id: number; permanentStock: boolean }
+                        >({ id: Number(row.id), permanentStock: val })
                         fetchData()
                     }
                     return (
-                        <div className="min-w-[140px]">
-                            <Select
-                                size="sm"
-                                options={options as any}
-                                value={s as any ?? { value: statusValue, label: String(statusValue) }}
-                                onChange={onChange}
+                        <div className="min-w-[120px]">
+                            <Switcher
+                                defaultChecked={checked}
+                                onChange={(v) => onToggle(v)}
                             />
                         </div>
                     )
@@ -265,7 +297,7 @@ const ProductTable = () => {
                 cell: (props) => <ActionColumn row={props.row.original} />,
             },
         ],
-        [t, currency],
+        [t, currency, resolveStockStatus, updateProductRow],
     )
 
     const onPaginationChange = (page: number) => {

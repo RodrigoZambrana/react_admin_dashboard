@@ -1,39 +1,21 @@
-import { useRef } from 'react'
-import Button from '@/components/ui/Button'
-import Drawer from '@/components/ui/Drawer'
-import CustomerEditContent, { FormikRef } from './CustomerEditContent'
+import { useEffect, useState } from 'react'
+import CustomerEditContent from './CustomerEditContent'
 import {
     setDrawerClose,
     setSelectedCustomer,
     useAppDispatch,
     useAppSelector,
 } from '../store'
-import type { MouseEvent } from 'react'
-import { useTranslation } from 'react-i18next'
-
-type DrawerFooterProps = {
-    onSaveClick: (event: MouseEvent<HTMLButtonElement>) => void
-    onCancel: (event: MouseEvent<HTMLButtonElement>) => void
-}
-
-const DrawerFooter = ({ onSaveClick, onCancel }: DrawerFooterProps) => {
-    const { t } = useTranslation()
-    return (
-        <div className="text-right w-full">
-            <Button size="sm" className="mr-2" onClick={onCancel}>
-                {t('text.actions.cancel')}
-            </Button>
-            <Button size="sm" variant="solid" onClick={onSaveClick}>
-                {t('text.actions.save')}
-            </Button>
-        </div>
-    )
-}
+import { apiGetCrmCustomerDetails } from '@/services/CrmService'
+import type { Customer } from '../store'
 
 const CustomerEditDialog = () => {
     const dispatch = useAppDispatch()
     const drawerOpen = useAppSelector(
         (state) => state.crmCustomers.data.drawerOpen,
+    )
+    const selectedCustomer = useAppSelector(
+        (state) => state.crmCustomers.data.selectedCustomer,
     )
 
     const onDrawerClose = () => {
@@ -41,28 +23,50 @@ const CustomerEditDialog = () => {
         dispatch(setSelectedCustomer({}))
     }
 
-    const formikRef = useRef<FormikRef>(null)
+    const [activeTab, setActiveTab] = useState<'personalInfo' | 'address'>('personalInfo')
+    const [customerDetail, setCustomerDetail] = useState<Partial<Customer> | null>(
+        null,
+    )
 
-    const formSubmit = () => {
-        formikRef.current?.submitForm()
-    }
+    useEffect(() => {
+        const loadDetail = async () => {
+            if (!drawerOpen) {
+                setCustomerDetail(null)
+                return
+            }
+            const rawId = selectedCustomer?.id
+            if (!rawId) {
+                setCustomerDetail(null)
+                return
+            }
+            const numericId = Number(rawId)
+            if (!Number.isFinite(numericId)) {
+                setCustomerDetail(selectedCustomer)
+                return
+            }
+            try {
+                const response = await apiGetCrmCustomerDetails<
+                    Customer,
+                    { id: string }
+                >({ id: String(numericId) })
+                const detail = (response.data as unknown as Customer) ||
+                    ((response as unknown) as Customer)
+                setCustomerDetail(detail)
+            } catch (error) {
+                setCustomerDetail(selectedCustomer)
+            }
+        }
+        loadDetail()
+    }, [drawerOpen, selectedCustomer])
 
     return (
-        <Drawer
+        <CustomerEditContent
             isOpen={drawerOpen}
-            closable={false}
-            bodyClass="p-0"
-            footer={
-                <DrawerFooter
-                    onCancel={onDrawerClose}
-                    onSaveClick={formSubmit}
-                />
-            }
             onClose={onDrawerClose}
-            onRequestClose={onDrawerClose}
-        >
-            <CustomerEditContent ref={formikRef} />
-        </Drawer>
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            customerData={customerDetail || selectedCustomer}
+        />
     )
 }
 

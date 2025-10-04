@@ -1,12 +1,35 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, Post, Query, Request, UseGuards } from '@nestjs/common'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 
 @UseGuards(JwtAuthGuard)
 @Controller('account')
 export class AccountController {
   @Get('setting')
-  setting() {
-    return { profile: { email: 'admin@example.com', name: 'Admin' } }
+  setting(@Request() req: any) {
+    const email = req?.user?.email || 'admin@example.com'
+    const name = req?.user?.name || 'Admin'
+    return {
+      profile: {
+        email,
+        name,
+        avatar: '/img/avatars/thumb-1.jpg',
+        lang: 'en',
+      },
+      loginHistory: [
+        {
+          type: 'Desktop',
+          deviceName: 'MacBook Pro',
+          time: Math.floor(Date.now() / 1000),
+          location: 'Montevideo, UY',
+        },
+        {
+          type: 'Mobile',
+          deviceName: 'iPhone 14',
+          time: Math.floor((Date.now() - 3600 * 24) / 1000),
+          location: 'Buenos Aires, AR',
+        },
+      ],
+    }
   }
 
   @Get('setting/integration')
@@ -34,4 +57,3 @@ export class AccountController {
     return { kyc: {} }
   }
 }
-

@@ -7,6 +7,7 @@ import Button from '@/components/ui/Button'
 import DatePicker from '@/components/ui/DatePicker'
 import Container from '@/components/shared/Container'
 import Card from '@/components/ui/Card'
+import Drawer from '@/components/ui/Drawer'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
 import { apiGetCrmCustomers, apiGetCrmCustomerDetails } from '@/services/CrmService'
@@ -21,9 +22,10 @@ import EditableOrderProductsTable, { EditableItem } from '@/views/sales/componen
 import Steps from '@/components/ui/Steps'
 import Avatar from '@/components/ui/Avatar'
 import { HiMail, HiPhone } from 'react-icons/hi'
-import Drawer from '@/components/ui/Drawer'
-import CustomerForm, { FormModel as CustomerFormModel } from '@/views/crm/CustomerForm'
+import AddCustomerDrawer from '@/components/shared/AddCustomerDrawer'
+import type { FormModel as CustomerFormModel } from '@/views/crm/CustomerForm'
 import ProductForm from '@/views/sales/ProductForm'
+import useResponsive from '@/utils/hooks/useResponsive'
 
 type Item = EditableItem
 
@@ -31,6 +33,8 @@ const OrderEdit = () => {
     const { t } = useTranslation()
     const navigate = useNavigate()
     const { orderId } = useParams()
+    const { smaller } = useResponsive()
+    const isCompactViewport = smaller.md
     const [customers, setCustomers] = useState<{ value: string; label: string }[]>([])
     const [products, setProducts] = useState<{ value: string; label: string; price: number; img?: string; description?: string }[]>([])
     const [methods, setMethods] = useState<{ value: string; label: string }[]>([])
@@ -43,7 +47,7 @@ const OrderEdit = () => {
 
     useEffect(() => {
         const load = async () => {
-            const cRes = await apiGetCrmCustomers<{ data: { id: string | number; name: string }[] }>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' } as any)
+            const cRes = await apiGetCrmCustomers<{ data: { id: string | number; name: string }[] }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' } as any)
             setCustomers(((cRes as any).data?.data || []).map((c: any) => ({ value: String(c.id), label: c.name })))
             const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' })
             const pArray = ((pRes as any).data?.data || [])
@@ -68,8 +72,8 @@ const OrderEdit = () => {
                     const p = pArray.find((x: any) => String(x.id) === String(it.productId))
                     return { productId: String(it.productId), name: it.name, price: Number(it.price) || 0, qty: Number(it.qty) || 1, img: p?.img, description: p?.description }
                 }),
-                shippingAddress: data.shippingAddress || { addressLine1: '', addressLine2: '', city: '', state: '', zip: '' },
-                billingAddress: data.billingAddress || { addressLine1: '', addressLine2: '', city: '', state: '', zip: '' },
+                shippingAddress: data.shippingAddress || { addressLine1: '', addressLine2: '', city: '', state: '' },
+                billingAddress: data.billingAddress || { addressLine1: '', addressLine2: '', city: '', state: '' },
                 billingSameAsShipping: false,
                 shipping: { shippingVendor: data.shippingVendor || 'FedEx', deliveryFees: Number(data.deliveryFees || 0), estimatedMin: Number(data.estimatedMin || 1), estimatedMax: Number(data.estimatedMax || 3) },
                 comment: data.comment || '',
@@ -146,7 +150,6 @@ const OrderEdit = () => {
                                 addressLine2: '',
                                 city: '',
                                 state: '',
-                                zip: '',
                             })
                         } else {
                             setCustomerDetail(null)
@@ -154,11 +157,89 @@ const OrderEdit = () => {
                     }
                     const goNext = () => setCurrentStep((c) => Math.min(c + 1, 6))
                     const goPrev = () => setCurrentStep((c) => Math.max(c - 1, 0))
+                    const handleCustomerCreated = (
+                        created: Record<string, unknown>,
+                        formValues: CustomerFormModel,
+                    ) => {
+                        const customerIdValue = String((created as any)?.id ?? '')
+                        if (!customerIdValue) {
+                            return
+                        }
+
+                        const fullName = [
+                            formValues.firstName,
+                            formValues.lastName,
+                        ]
+                            .filter(Boolean)
+                            .join(' ')
+
+                        const option = {
+                            value: customerIdValue,
+                            label:
+                                (created as any)?.name ||
+                                fullName ||
+                                formValues.email ||
+                                customerIdValue,
+                        }
+
+                        setCustomers((prev) => {
+                            const existingIndex = prev.findIndex(
+                                (item) => item.value === option.value,
+                            )
+                            if (existingIndex === -1) {
+                                return [option, ...prev]
+                            }
+                            const next = [...prev]
+                            next[existingIndex] = option
+                            return next
+                        })
+
+                        setFieldValue('customerId', option.value)
+                        setCustomerDetail(created)
+
+                        const address = formValues.address
+                        if (address) {
+                            const addressLine1 = [
+                                address.street,
+                                address.number,
+                            ]
+                                .filter(Boolean)
+                                .join(' ')
+                                .trim()
+                            const addressLine2 = [
+                                address.corner,
+                                address.apartment,
+                            ]
+                                .filter(Boolean)
+                                .join(', ')
+                                .trim()
+                            const normalizedAddress = {
+                                addressLine1,
+                                addressLine2,
+                                city: address.city || '',
+                                state: address.state || '',
+                            }
+                            const hasAddress = Object.values(normalizedAddress).some(
+                                (value) => String(value || '').trim() !== '',
+                            )
+                            if (hasAddress) {
+                                setFieldValue('shippingAddress', normalizedAddress)
+                                if ((values as any).billingSameAsShipping) {
+                                    setFieldValue('billingAddress', normalizedAddress)
+                                }
+                            }
+                        }
+                    }
 
                     return (
                         <>
                         <Form>
-                            <Steps current={currentStep} onChange={setCurrentStep} className="mb-6">
+                            <Steps
+                                current={currentStep}
+                                onChange={setCurrentStep}
+                                className="mb-6"
+                                vertical={isCompactViewport}
+                            >
                                 <Steps.Item title={t('text.columns.customer')} />
                                 <Steps.Item title={t('text.titles.products')} />
                                 <Steps.Item title={t('text.titles.shippingAddress')} />
@@ -187,9 +268,11 @@ const OrderEdit = () => {
                                                         {customerDetail?.email && (
                                                             <span className="flex items-center gap-1"><HiMail /> {customerDetail?.email}</span>
                                                         )}
-                                                        {customerDetail?.personalInfo?.phoneNumber && (
-                                                            <span className="flex items-center gap-1"><HiPhone /> {customerDetail?.personalInfo?.phoneNumber}</span>
-                                                        )}
+                                                        {customerDetail?.personalInfo?.phoneNumbers?.length ? (
+                                                            <span className="flex items-center gap-1">
+                                                                <HiPhone /> {customerDetail?.personalInfo?.phoneNumbers?.[0]}
+                                                            </span>
+                                                        ) : null}
                                                     </div>
                                                 </div>
                                             </div>
@@ -233,9 +316,7 @@ const OrderEdit = () => {
                                             <FormItem label={t('text.labels.state')}>
                                                 <Field as={Input} name="shippingAddress.state" />
                                             </FormItem>
-                                            <FormItem label={t('text.labels.zipCode')}>
-                                                <Field as={Input} name="shippingAddress.zip" />
-                                            </FormItem>
+                                            {/* Zip removed */}
                                         </div>
                                     </FormContainer>
                                 </Card>
@@ -271,9 +352,7 @@ const OrderEdit = () => {
                                             <FormItem label={t('text.labels.state')}>
                                                 <Field as={Input} name="billingAddress.state" disabled={(values as any).billingSameAsShipping} />
                                             </FormItem>
-                                            <FormItem label={t('text.labels.zipCode')}>
-                                                <Field as={Input} name="billingAddress.zip" disabled={(values as any).billingSameAsShipping} />
-                                            </FormItem>
+                                            {/* Zip removed */}
                                         </div>
                                     </FormContainer>
                                 </Card>
@@ -357,78 +436,58 @@ const OrderEdit = () => {
                             </div>
                         </Form>
                         {/* New Customer Drawer */}
-                        <Drawer isOpen={newCustomerOpen} onRequestClose={() => setNewCustomerOpen(false)} width={640} title={t('text.actions.add') + ' ' + t('text.columns.customer')}>
-                            <CustomerForm
-                                customer={{}}
-                                onFormSubmit={(data: CustomerFormModel) => {
-                                    const id = Date.now().toString()
-                                    const option = { value: id, label: data.name }
-                                    setCustomers((prev) => [option, ...prev])
-                                    setFieldValue('customerId', id)
-                                    setCustomerDetail({
-                                        id,
-                                        name: data.name,
-                                        email: data.email,
-                                        img: data.img,
-                                        personalInfo: {
-                                            location: data.location,
-                                            title: data.title,
-                                            phoneNumber: data.phoneNumber,
-                                            birthday: data.birthday as unknown as string,
-                                            facebook: data.facebook,
-                                            twitter: data.twitter,
-                                            pinterest: data.pinterest,
-                                            linkedIn: data.linkedIn,
-                                        },
-                                    })
-                                    setFieldValue('shippingAddress', {
-                                        addressLine1: data.location || '',
-                                        addressLine2: '',
-                                        city: '',
-                                        state: '',
-                                        zip: '',
-                                    })
-                                    setNewCustomerOpen(false)
-                                }}
-                            />
-                        </Drawer>
+                        <AddCustomerDrawer
+                            isOpen={newCustomerOpen}
+                            onClose={() => setNewCustomerOpen(false)}
+                            onSuccess={handleCustomerCreated}
+                        />
                         {/* New Product Drawer */}
-                        <Drawer isOpen={newProductOpen} onRequestClose={() => setNewProductOpen(false)} width={840} title={t('text.actions.add') + ' ' + t('text.titles.products')}>
-                            <ProductForm
-                                type="new"
-                                initialData={{
-                                    id: 0,
-                                    name: '',
-                                    productCode: '',
-                                    img: '',
-                                    imgList: [],
-                                    categoryId: null,
-                                    price: 0,
-                                    stock: 0,
-                                    status: 0,
-                                    costPerItem: 0,
-                                    bulkDiscountPrice: 0,
-                                    tags: [],
-                                    brand: '',
-                                    vendor: '',
-                                    description: '',
-                                }}
-                                onFormSubmit={async (formData, setSubmitting) => {
-                                    try {
-                                        const res = await apiCreateSalesProduct<boolean, any>(formData as any)
-                                        if ((res as any).data || (res as any) === true) {
-                                            const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' })
-                                            const pOpts = (pRes as any).data?.data?.map((p: any) => ({ value: p.id, label: p.name, price: p.price, img: p.img, description: p.description })) || []
-                                            setProducts(pOpts)
-                                            const created = (pRes as any).data?.data?.find((p: any) => p.name === formData.name)
-                                            if (created) addItem(String(created.id))
-                                            setNewProductOpen(false)
+                        <Drawer
+                            isOpen={newProductOpen}
+                            onClose={() => setNewProductOpen(false)}
+                            onRequestClose={() => setNewProductOpen(false)}
+                            width={640}
+                            bodyClass="p-0"
+                            title={t('text.actions.add') + ' ' + t('text.titles.products')}
+                        >
+                            <div className="p-6">
+                                <ProductForm
+                                    type="new"
+                                    initialData={{
+                                        id: 0,
+                                        name: '',
+                                        productCode: '',
+                                        img: '',
+                                        imgList: [],
+                                        categoryId: null,
+                                        price: 0,
+                                        stock: 0,
+                                        status: 0,
+                                        costPerItem: 0,
+                                        bulkDiscountPrice: 0,
+                                        tags: [],
+                                        brand: '',
+                                        vendor: '',
+                                        description: '',
+                                    }}
+                                    onDiscard={() => setNewProductOpen(false)}
+                                    onFormSubmit={async (formData, setSubmitting) => {
+                                        try {
+                                            const res = await apiCreateSalesProduct<boolean, any>(formData as any)
+                                            if ((res as any).data || (res as any) === true) {
+                                                const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' })
+                                                const pOpts = (pRes as any).data?.data?.map((p: any) => ({ value: p.id, label: p.name, price: p.price, img: p.img, description: p.description })) || []
+                                                setProducts(pOpts)
+                                                const created = (pRes as any).data?.data?.find((p: any) => p.name === formData.name)
+                                                if (created) addItem(String(created.id))
+                                                setNewProductOpen(false)
+                                            }
+                                        } finally {
+                                            setSubmitting(false)
                                         }
-                                    } finally {
-                                        setSubmitting(false)
-                                    }
-                                }}
-                            />
+                                    }}
+                                />
+                            </div>
                         </Drawer>
                         </>
                     )

@@ -9,6 +9,7 @@ import {
   UseGuards,
   BadRequestException,
 } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { UpsertProductDto, UpdateProductDto, TableQueryDto as ProductQuery } from './dto/product.dto'
@@ -102,9 +103,52 @@ export class SalesController {
     const total = await this.prisma.product.count({ where })
     const pageIndex = Number(dto.pageIndex || 1)
     const pageSize = Number(dto.pageSize || 10)
+
+    const sortKey = (dto.sort?.key || '').toString()
+    const sortOrderRaw = (dto.sort?.order || '').toString().toLowerCase()
+    const sortOrder: 'asc' | 'desc' | undefined =
+      sortOrderRaw === 'asc' || sortOrderRaw === 'desc' ? (sortOrderRaw as 'asc' | 'desc') : undefined
+
+    const orderBy: Prisma.ProductOrderByWithRelationInput[] = []
+    if (sortKey && sortOrder) {
+      switch (sortKey) {
+        case 'name':
+          orderBy.push({ name: sortOrder })
+          break
+        case 'productCode':
+          orderBy.push({ productCode: sortOrder })
+          break
+        case 'brand':
+          orderBy.push({ brand: sortOrder })
+          break
+        case 'vendor':
+          orderBy.push({ vendor: sortOrder })
+          break
+        case 'price':
+          orderBy.push({ price: sortOrder })
+          break
+        case 'stock':
+          orderBy.push({ stock: sortOrder })
+          break
+        case 'status':
+          orderBy.push({ status: sortOrder })
+          break
+        case 'published':
+          orderBy.push({ published: sortOrder })
+          break
+        case 'category':
+          orderBy.push({ category: { name: sortOrder } })
+          break
+        default:
+          orderBy.push({ id: sortOrder })
+          break
+      }
+    }
+    orderBy.push({ id: 'desc' })
+
     const rows = await this.prisma.product.findMany({
       where,
-      orderBy: { id: 'desc' },
+      orderBy,
       skip: (pageIndex - 1) * pageSize,
       take: pageSize,
       select: {
@@ -237,15 +281,54 @@ export class SalesController {
     const pageIndex = Number(q.pageIndex || 1)
     const pageSize = Number(q.pageSize || 10)
     const total = await this.prisma.order.count()
+    const sortKey = (q.sort?.key || '').toString()
+    const sortOrderRaw = (q.sort?.order || '').toString().toLowerCase()
+    const sortOrder: 'asc' | 'desc' | undefined =
+      sortOrderRaw === 'asc' || sortOrderRaw === 'desc' ? (sortOrderRaw as 'asc' | 'desc') : undefined
+
+    const orderBy: Prisma.OrderOrderByWithRelationInput[] = []
+    if (sortKey && sortOrder) {
+      switch (sortKey) {
+        case 'id':
+          orderBy.push({ id: sortOrder })
+          break
+        case 'date':
+          orderBy.push({ date: sortOrder })
+          break
+        case 'customer':
+          orderBy.push({ customer: { name: sortOrder } })
+          break
+        case 'status':
+          orderBy.push({ status: { name: sortOrder } })
+          break
+        case 'paymentMehod':
+          orderBy.push({ paymentMethod: { name: sortOrder } })
+          break
+        case 'totalAmount':
+          orderBy.push({ grandTotal: sortOrder })
+          break
+      }
+    }
+    orderBy.push({ id: 'desc' })
+
     // Default status: Completed (code = 3)
     const defaultStatus = await this.prisma.orderStatus.findUnique({ where: { code: 3 } })
+    const orderListInclude = {
+      customer: true,
+      paymentMethod: true,
+    } satisfies Prisma.OrderInclude
+
+    type OrderWithRelations = Prisma.OrderGetPayload<{
+      include: typeof orderListInclude
+    }>
+
     const orders = await this.prisma.order.findMany({
-      orderBy: { id: 'desc' },
+      orderBy,
       skip: (pageIndex - 1) * pageSize,
       take: pageSize,
-      include: { customer: true, paymentMethod: true },
+      include: orderListInclude,
     })
-    const data = orders.map((o) => ({
+    const data = orders.map((o: OrderWithRelations) => ({
       id: String(o.id),
       date: Math.floor(new Date(o.date).getTime() / 1000),
       customer: o.customer?.name || '',
@@ -332,7 +415,7 @@ export class SalesController {
       const line1 = addr.addressLine1 || `${addr.street || ''} ${addr.number || ''}${addr.apartment ? ' Apt ' + addr.apartment : ''}`.trim()
       const line2 = addr.addressLine2 || (addr.corner ? `Corner: ${addr.corner}` : '')
       return line1 && addr.city && addr.state
-        ? { addressLine1: line1, addressLine2: line2, city: addr.city, state: addr.state, zip: addr.zip || '' }
+        ? { addressLine1: line1, addressLine2: line2, city: addr.city, state: addr.state }
         : undefined
     }
 
@@ -346,7 +429,6 @@ export class SalesController {
         addressLine2: primaryAddr.corner ? `Corner: ${primaryAddr.corner}` : '',
         city: primaryAddr.city,
         state: primaryAddr.country,
-        zip: '',
       }
     }
 
@@ -358,14 +440,12 @@ export class SalesController {
         shippingAddress2: shippingAddress.addressLine2,
         shippingCity: shippingAddress.city,
         shippingState: shippingAddress.state,
-        shippingZip: shippingAddress.zip,
         ...(dto.billingSameAsShipping
           ? {
               billingAddress1: shippingAddress.addressLine1,
               billingAddress2: shippingAddress.addressLine2,
               billingCity: shippingAddress.city,
               billingState: shippingAddress.state,
-              billingZip: shippingAddress.zip,
             }
           : (() => {
               const b = composeAddress(dto.billingAddress)
@@ -375,7 +455,6 @@ export class SalesController {
                     billingAddress2: b.addressLine2,
                     billingCity: b.city,
                     billingState: b.state,
-                    billingZip: b.zip,
                   }
                 : {}
             })()),

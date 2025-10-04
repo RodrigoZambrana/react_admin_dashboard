@@ -8,7 +8,8 @@ import {
     projectDashboardData,
 } from './data/projectData'
 import { usersData, userDetailData } from './data/usersData'
-import { eventsData, mailData, crmDashboardData } from './data/crmData'
+import { mailData, crmDashboardData } from './data/crmData'
+import { eventsData, activityDetailData } from './data/calendarData'
 import {
     productsData,
     ordersData,
@@ -40,7 +41,6 @@ import {
     helpCenterArticleListData,
 } from './data/knowledgeBaseData'
 import { signInUserData } from './data/authData'
-import { activityDetailData } from './data/calendarData'
 import { orderStatusesData, productStatusesData, customerStatusesData, expenseStatusesData, productCategoriesData, paymentMethodsData } from './data/settingsData'
 
 import {

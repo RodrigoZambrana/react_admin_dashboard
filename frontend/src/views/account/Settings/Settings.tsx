@@ -9,11 +9,10 @@ import { apiGetAccountSettingData } from '@/services/AccountServices'
 
 type AccountSetting = {
     profile: {
-        name: string
-        email: string
-        title: string
-        avatar: string
-        lang: string
+        name?: string
+        email?: string
+        avatar?: string
+        lang?: string
     }
     loginHistory: {
         type: string
@@ -21,38 +20,18 @@ type AccountSetting = {
         time: number
         location: string
     }[]
-    notification: {
-        news: string[]
-        accountActivity: string[]
-        signIn: string[]
-        reminders: string[]
-        mentioned: string[]
-        replies: string[]
-        taskUpdate: string[]
-        assigned: string[]
-        newProduct: string[]
-        newOrder: string[]
-    }
 }
 
 type GetAccountSettingData = AccountSetting
 
 const Profile = lazy(() => import('./components/Profile'))
 const Password = lazy(() => import('./components/Password'))
-const NotificationSetting = lazy(
-    () => import('./components/NotificationSetting'),
-)
-const Integration = lazy(() => import('./components/Integration'))
-const Billing = lazy(() => import('./components/Billing'))
 
 const { TabNav, TabList } = Tabs
 
 const settingsMenu: Record<string, { path: string }> = {
     profile: { path: 'profile' },
     password: { path: 'password' },
-    notification: { path: 'notification' },
-    integration: { path: 'integration' },
-    billing: { path: 'billing' },
 }
 
 const Settings = () => {
@@ -106,11 +85,6 @@ const Settings = () => {
                         {currentTab === 'password' && (
                             <Password data={data.loginHistory} />
                         )}
-                        {currentTab === 'notification' && (
-                            <NotificationSetting data={data.notification} />
-                        )}
-                        {currentTab === 'integration' && <Integration />}
-                        {currentTab === 'billing' && <Billing />}
                     </Suspense>
                 </div>
             </AdaptableCard>

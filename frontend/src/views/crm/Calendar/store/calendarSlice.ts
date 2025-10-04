@@ -1,18 +1,43 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
-import { apiGetCrmCalendar } from '@/services/CrmService'
+import {
+    apiCreateCrmCalendarEvent,
+    apiGetCrmCalendar,
+    apiUpdateCrmCalendarEvent,
+    type CalendarEventDto,
+    type CalendarEventAddress,
+} from '@/services/CrmService'
 
-type Event = {
+export type CalendarEventAttachment = {
+    id: string
+    name: string
+    type?: string
+    size?: number
+    url?: string
+}
+
+export type CalendarEventExtendedProps = {
+    type?: string
+    eventType?: string
+    location?: string
+    address?: CalendarEventAddress
+    detail?: string
+    customerId?: string
+    isInternal?: boolean
+    attachments?: CalendarEventAttachment[]
+}
+
+export type CalendarEvent = {
     id: string
     title: string
     start: string
     end?: string
+    allDay?: boolean
     eventColor: string
-    groupId?: undefined
+    groupId?: string
+    extendedProps?: CalendarEventExtendedProps
 }
 
-type Events = Event[]
-
-type GetCrmCalendarResponse = Events
+type Events = CalendarEvent[]
 
 export type CalendarState = {
     loading: boolean
@@ -20,16 +45,44 @@ export type CalendarState = {
     dialogOpen: boolean
     selected: {
         type: string
-    } & Partial<Event>
+    } & Partial<CalendarEvent>
 }
 
 export const SLICE_NAME = 'crmCalendar'
 
+const mapDtoToStateEvent = (event: CalendarEventDto): CalendarEvent => ({
+    ...event,
+})
+
+const dedupeEvents = (events: CalendarEvent[]) => {
+    const map = new Map<string, CalendarEvent>()
+    events.forEach((event) => {
+        map.set(event.id, event)
+    })
+    return Array.from(map.values())
+}
+
 export const getEvents = createAsyncThunk(
     SLICE_NAME + '/getEvents',
     async () => {
-        const response = await apiGetCrmCalendar<GetCrmCalendarResponse>()
-        return response.data
+        const events = await apiGetCrmCalendar()
+        return events.map(mapDtoToStateEvent)
+    },
+)
+
+export const createCalendarEvent = createAsyncThunk(
+    SLICE_NAME + '/createCalendarEvent',
+    async (event: CalendarEvent) => {
+        const created = await apiCreateCrmCalendarEvent(event)
+        return mapDtoToStateEvent(created)
+    },
+)
+
+export const updateCalendarEvent = createAsyncThunk(
+    SLICE_NAME + '/updateCalendarEvent',
+    async (event: CalendarEvent) => {
+        const updated = await apiUpdateCrmCalendarEvent(String(event.id), event)
+        return mapDtoToStateEvent(updated)
     },
 )
 
@@ -46,27 +99,64 @@ const calendarSlice = createSlice({
     name: `${SLICE_NAME}/state`,
     initialState,
     reducers: {
-        updateEvent: (state, action) => {
-            state.eventList = action.payload
-        },
         openDialog: (state) => {
             state.dialogOpen = true
         },
         closeDialog: (state) => {
             state.dialogOpen = false
+            state.selected = { type: '' }
         },
         setSelected: (state, action) => {
             state.selected = action.payload
         },
     },
     extraReducers: (builder) => {
-        builder.addCase(getEvents.fulfilled, (state, action) => {
-            state.eventList = action.payload
-        })
+        builder
+            .addCase(getEvents.pending, (state) => {
+                state.loading = true
+            })
+            .addCase(getEvents.fulfilled, (state, action) => {
+                state.eventList = dedupeEvents(action.payload)
+                state.loading = false
+            })
+            .addCase(getEvents.rejected, (state) => {
+                state.loading = false
+            })
+            .addCase(createCalendarEvent.pending, (state) => {
+                state.loading = true
+            })
+            .addCase(createCalendarEvent.fulfilled, (state, action) => {
+                state.eventList = dedupeEvents([
+                    ...state.eventList,
+                    action.payload,
+                ])
+                state.loading = false
+                state.dialogOpen = false
+                state.selected = { type: '' }
+            })
+            .addCase(createCalendarEvent.rejected, (state) => {
+                state.loading = false
+            })
+            .addCase(updateCalendarEvent.pending, (state) => {
+                state.loading = true
+            })
+            .addCase(updateCalendarEvent.fulfilled, (state, action) => {
+                state.eventList = dedupeEvents([
+                    ...state.eventList.filter(
+                        (event) => event.id !== action.payload.id,
+                    ),
+                    action.payload,
+                ])
+                state.loading = false
+                state.dialogOpen = false
+            })
+            .addCase(updateCalendarEvent.rejected, (state) => {
+                state.loading = false
+            })
     },
 })
 
-export const { updateEvent, openDialog, closeDialog, setSelected } =
+export const { openDialog, closeDialog, setSelected } =
     calendarSlice.actions
 
 export default calendarSlice.reducer

@@ -225,6 +225,24 @@ export async function apiUpdateSystemConfig<
     })
 }
 
+export async function apiGetCalendarEventTypes<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/calendar-event-types',
+        method: 'get',
+    })
+}
+
+export async function apiUpdateCalendarEventTypes<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/calendar-event-types',
+        method: 'put',
+        data,
+    })
+}
+
 export async function apiUpdatePaymentMethod<
     T,
     U extends Record<string, unknown>,

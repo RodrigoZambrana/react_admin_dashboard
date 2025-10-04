@@ -3,12 +3,95 @@ import sortBy, { Primer } from '@/utils/sortBy'
 import paginate from '@/utils/paginate'
 import type { Server } from 'miragejs'
 
+const generateId = () => `evt-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+
+const enrichCustomerPhones = (customer: any) => {
+    if (!customer) {
+        return customer
+    }
+    const existingPhones: string[] = Array.isArray(customer.phoneNumbers)
+        ? customer.phoneNumbers
+        : []
+    const personalPhones: string[] = Array.isArray(
+        customer.personalInfo?.phoneNumbers,
+    )
+        ? customer.personalInfo?.phoneNumbers
+        : []
+    const legacyPhone =
+        customer.phoneNumber || customer.personalInfo?.phoneNumber || ''
+    const aggregated = Array.from(
+        new Set([
+            ...existingPhones,
+            ...personalPhones,
+            ...(legacyPhone ? [legacyPhone] : []),
+        ].filter((phone) => typeof phone === 'string' && phone.trim().length > 0)),
+    )
+
+    return {
+        ...customer,
+        phoneNumber: aggregated[0] || customer.phoneNumber || '',
+        phoneNumbers: aggregated,
+        personalInfo: {
+            ...customer.personalInfo,
+            phoneNumber:
+                aggregated[0] || customer.personalInfo?.phoneNumber || '',
+            phoneNumbers: aggregated,
+        },
+    }
+}
+
+const normalizeEventPayload = (payload: Record<string, unknown>) => {
+    const now = new Date().toISOString()
+    const id = String(payload.id || generateId())
+    const extendedProps = {
+        ...(payload.extendedProps as Record<string, unknown> | undefined),
+    }
+
+    if (extendedProps && extendedProps.description && !extendedProps.detail) {
+        extendedProps.detail = extendedProps.description
+        delete extendedProps.description
+    }
+
+    return {
+        id,
+        title: payload.title,
+        start: payload.start,
+        end: payload.end,
+        allDay: payload.allDay ?? false,
+        eventColor: payload.eventColor || 'blue',
+        groupId: payload.groupId,
+        extendedProps,
+        createdAt: payload.createdAt || now,
+        updatedAt: now,
+    }
+}
+
 export default function crmFakeApi(server: Server, apiPrefix: string) {
     server.get(`${apiPrefix}/crm/dashboard`, (schema) => {
         return schema.db.crmDashboardData[0]
     })
 
     server.get(`${apiPrefix}/crm/calendar`, (schema) => schema.db.eventsData)
+
+    server.post(`${apiPrefix}/crm/calendar`, (schema, { requestBody }) => {
+        const payload = JSON.parse(requestBody)
+        const event = normalizeEventPayload(payload)
+        schema.db.eventsData.insert(event)
+        return schema.db.eventsData
+    })
+
+    server.put(`${apiPrefix}/crm/calendar/:id`, (schema, { params, requestBody }) => {
+        const payload = JSON.parse(requestBody)
+        const id = String(params.id || payload.id)
+        const normalized = normalizeEventPayload({ ...payload, id })
+        const existing = schema.db.eventsData.findBy({ id })
+        if (existing) {
+            schema.db.eventsData.update({ id }, normalized)
+        } else {
+            schema.db.eventsData.insert(normalized)
+        }
+        return schema.db.eventsData
+    })
 
     server.post(`${apiPrefix}/crm/customers`, (schema, { requestBody }) => {
         const body = JSON.parse(requestBody)
@@ -55,7 +138,7 @@ export default function crmFakeApi(server: Server, apiPrefix: string) {
         data = paginate(data, pageSize, pageIndex)
 
         const responseData = {
-            data: data,
+            data: data.map(enrichCustomerPhones),
             total: total,
         }
         return responseData
@@ -83,7 +166,7 @@ export default function crmFakeApi(server: Server, apiPrefix: string) {
         (schema, { queryParams }) => {
             const id = queryParams.id
             const user = schema.db.userDetailData.find(id as string)
-            return user
+            return enrichCustomerPhones(user)
         },
     )
 
@@ -99,7 +182,7 @@ export default function crmFakeApi(server: Server, apiPrefix: string) {
     server.put(`${apiPrefix}/crm/customers`, (schema, { requestBody }) => {
         const data = JSON.parse(requestBody)
         const { id } = data
-        schema.db.userDetailData.update({ id }, data)
+        schema.db.userDetailData.update({ id }, enrichCustomerPhones(data))
         return {}
     })
 

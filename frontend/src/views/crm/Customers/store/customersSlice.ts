@@ -9,6 +9,7 @@ import type { TableQueries } from '@/@types/common'
 type PersonalInfo = {
     location: string
     phoneNumber: string
+    phoneNumbers?: string[]
     facebook: string
     twitter: string
     pinterest: string
@@ -53,15 +54,26 @@ export type Customer = {
     statusId?: number | string | null
     statusName?: string
     phoneNumber?: string
+    phoneNumbers?: string[]
     personalInfo: PersonalInfo
     orderHistory: OrderHistory[]
     paymentMethod: PaymentMethod[]
     subscription: Subscription[]
+    addresses?: Array<{
+        street?: string
+        number?: string
+        corner?: string
+        apartment?: string
+        city?: string
+        country?: string
+        countryCode?: string
+        isPrimary?: boolean
+    }>
 }
 
 type Statistic = {
     value: number
-    growShrink: number
+    growShrink?: number
 }
 
 type CustomerStatistic = {

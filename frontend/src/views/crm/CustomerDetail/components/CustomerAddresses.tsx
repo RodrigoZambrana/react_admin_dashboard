@@ -25,7 +25,13 @@ type Address = {
   isPrimary?: boolean
 }
 
-export default function CustomerAddresses({ customerId }: { customerId: string }) {
+export default function CustomerAddresses({
+  customerId,
+  className,
+}: {
+  customerId: string
+  className?: string
+}) {
   const { t } = useTranslation()
   const [list, setList] = useState<Address[]>([])
   const [editing, setEditing] = useState<Address | null>(null)
@@ -87,7 +93,7 @@ export default function CustomerAddresses({ customerId }: { customerId: string }
   }, [editing?.country, countries])
 
   return (
-    <Card className="mt-4">
+    <Card className={className ?? 'mt-4'}>
       <div className="flex items-center justify-between mb-3">
         <h5>{t('text.titles.addressInformation')}</h5>
         <Button size="sm" variant="solid" onClick={() => startEdit()}>

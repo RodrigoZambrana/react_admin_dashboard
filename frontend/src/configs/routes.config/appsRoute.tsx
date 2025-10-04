@@ -124,15 +124,6 @@ const appsRoute: Routes = [
         },
     },
     {
-        key: 'appsSales.productNew',
-        path: `${APP_PREFIX_PATH}/sales/product-new`,
-        component: lazy(() => import('@/views/sales/ProductNew')),
-        authority: [ADMIN, USER],
-        meta: {
-            header: lazy(() => import('@/views/sales/ProductNew/HeaderTitle')),
-        },
-    },
-    {
         key: 'appsSales.orderList',
         path: `${APP_PREFIX_PATH}/sales/order-list`,
         component: lazy(() => import('@/views/sales/OrderList')),
@@ -254,6 +245,12 @@ const appsRoute: Routes = [
         key: 'appsSettings.systemConfig',
         path: `${APP_PREFIX_PATH}/settings/system-config`,
         component: lazy(() => import('@/views/settings/SystemConfig')),
+        authority: [ADMIN, USER],
+    },
+    {
+        key: 'appsSettings.calendarEventTypes',
+        path: `${APP_PREFIX_PATH}/settings/calendar-event-types`,
+        component: lazy(() => import('@/views/settings/CalendarEventTypes')),
         authority: [ADMIN, USER],
     },
     // Users
