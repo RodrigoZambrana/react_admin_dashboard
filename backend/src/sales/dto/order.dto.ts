@@ -42,10 +42,6 @@ export class AddressDto {
   @IsString()
   state?: string
 
-  @IsOptional()
-  @IsString()
-  zip?: string
-
   // Atomic fields mapping to address lines
   @IsOptional()
   @IsString()

@@ -18,16 +18,13 @@ import {
 import EditCustomerProfile from './EditCustomerProfile'
 import { useTranslation } from 'react-i18next'
 
-type CustomerInfoFieldProps = {
+const CustomerInfoField = ({
+    title,
+    value,
+}: {
     title?: string
     value?: string
-}
-
-type CustomerProfileProps = {
-    data?: Partial<Customer>
-}
-
-const CustomerInfoField = ({ title, value }: CustomerInfoFieldProps) => {
+}) => {
     return (
         <div>
             <span>{title}</span>
@@ -41,79 +38,125 @@ const CustomerInfoField = ({ title, value }: CustomerInfoFieldProps) => {
 const CustomerProfileAction = ({ id }: { id?: string }) => {
     const dispatch = useAppDispatch()
     const [dialogOpen, setDialogOpen] = useState(false)
-
     const navigate = useNavigate()
     const { t } = useTranslation()
 
-    const onDialogClose = () => {
+    const handleDelete = async () => {
         setDialogOpen(false)
-    }
-
-    const onDialogOpen = () => {
-        setDialogOpen(true)
-    }
-
-    const onDelete = () => {
-        setDialogOpen(false)
-        if (id) {
-            dispatch(deleteCustomer({ id }))
+        if (!id) return
+        try {
+            await dispatch(deleteCustomer({ id })).unwrap()
+            toast.push(
+                <Notification
+                    title={t('text.titles.customerDeleted')}
+                    type="success"
+                >
+                    {t('text.messages.customerDeleted')}
+                </Notification>,
+            )
+            navigate('/app/crm/customers')
+        } catch (error) {
+            const responseMessage =
+                (typeof error === 'object' &&
+                    error !== null &&
+                    // @ts-expect-error axios style response
+                    (error.response?.data?.message || error.message)) ||
+                t('text.messages.customerDeleteHasOrders')
+            const translated = t(responseMessage, {
+                defaultValue: responseMessage,
+            })
+            toast.push(
+                <Notification
+                    title={t('text.titles.deleteCustomerFailed')}
+                    type="danger"
+                >
+                    {translated}
+                </Notification>,
+            )
         }
-        navigate('/app/crm/customers')
-        toast.push(
-            <Notification title={t('text.titles.customerDeleted')} type="success">
-                {t('text.messages.customerDeleted')}
-            </Notification>,
-        )
     }
 
-    const onEdit = () => {
+    const handleEdit = () => {
         dispatch(openEditCustomerDetailDialog())
     }
 
     return (
         <>
-            <Button block icon={<HiOutlineTrash />} onClick={onDialogOpen}>
-                {t('text.actions.delete')}
-            </Button>
-            <Button
-                block
-                icon={<HiPencilAlt />}
-                variant="solid"
-                onClick={onEdit}
-            >
-                {t('text.actions.edit')}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Button
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    icon={<HiOutlineTrash />}
+                    onClick={() => setDialogOpen(true)}
+                >
+                    {t('text.actions.delete')}
+                </Button>
+                <Button
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    icon={<HiPencilAlt />}
+                    variant="solid"
+                    onClick={handleEdit}
+                >
+                    {t('text.actions.edit')}
+                </Button>
+            </div>
             <ConfirmDialog
                 isOpen={dialogOpen}
                 type="danger"
                 title={t('text.titles.deleteCustomer')}
                 confirmButtonColor="red-600"
-                onClose={onDialogClose}
-                onRequestClose={onDialogClose}
-                onCancel={onDialogClose}
-                onConfirm={onDelete}
+                onClose={() => setDialogOpen(false)}
+                onRequestClose={() => setDialogOpen(false)}
+                onCancel={() => setDialogOpen(false)}
+                onConfirm={handleDelete}
             >
                 <p>{t('text.messages.deleteCustomerConfirm')}</p>
             </ConfirmDialog>
-            <EditCustomerProfile />
         </>
     )
 }
 
-const CustomerProfile = ({ data = {} }: CustomerProfileProps) => {
+const CustomerProfile = ({ data = {} }: { data?: Partial<Customer> }) => {
     const { t } = useTranslation()
-    const phone = data.phoneNumber || data.personalInfo?.phoneNumber || ''
+    const phoneNumbers =
+        data.phoneNumbers || data.personalInfo?.phoneNumbers || []
+    const phone =
+        phoneNumbers[0] ||
+        data.phoneNumber ||
+        data.personalInfo?.phoneNumber ||
+        ''
     const normalizedPhone = phone.replace(/\D+/g, '')
     const whatsAppHref = normalizedPhone ? `https://wa.me/${normalizedPhone}` : ''
+
     return (
         <Card>
-            <div className="flex flex-col xl:justify-between h-full 2xl:min-w-[360px] mx-auto">
-                <div className="flex xl:flex-col items-center gap-4">
-                    <Avatar size={90} shape="circle" src={data.img} />
-                    <h4 className="font-bold">{[data.firstName, data.lastName].filter(Boolean).join(' ') || data.name}</h4>
+            <div className="flex flex-col gap-6">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <Avatar size={90} shape="circle" src={data.img} />
+                        <div>
+                            <h4 className="font-bold">
+                                {[data.firstName, data.lastName]
+                                    .filter(Boolean)
+                                    .join(' ') || data.name}
+                            </h4>
+                            {data.role && (
+                                <p className="text-sm text-gray-500 dark:text-gray-300">
+                                    {data.role}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                    <div className="flex justify-end">
+                        <CustomerProfileAction id={data.id} />
+                    </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-y-7 gap-x-4 mt-8">
-                    <CustomerInfoField title={t('text.labels.email')} value={data.email} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-6 gap-x-4">
+                    <CustomerInfoField
+                        title={t('text.labels.email')}
+                        value={data.email}
+                    />
                     <div>
                         <span>{t('text.labels.phone')}</span>
                         <div className="mt-2 flex items-center gap-2">
@@ -134,12 +177,28 @@ const CustomerProfile = ({ data = {} }: CustomerProfileProps) => {
                                 </a>
                             )}
                         </div>
+                        {phoneNumbers.slice(1).length > 0 && (
+                            <div className="mt-2 flex flex-col gap-1">
+                                {phoneNumbers.slice(1).map((extraPhone, index) => (
+                                    <span
+                                        key={`${extraPhone}-${index}`}
+                                        className="text-sm text-gray-600 dark:text-gray-300"
+                                    >
+                                        {extraPhone}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
-                </div>
-                <div className="mt-4 flex flex-col xl:flex-row gap-2">
-                    <CustomerProfileAction id={data.id} />
+                    {data.personalInfo?.location && (
+                        <CustomerInfoField
+                            title={t('text.labels.location')}
+                            value={data.personalInfo.location}
+                        />
+                    )}
                 </div>
             </div>
+            <EditCustomerProfile />
         </Card>
     )
 }

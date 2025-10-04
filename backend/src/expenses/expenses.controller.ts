@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Post, Put, Query, UseGuards } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { PrismaService } from '../prisma/prisma.service'
 
@@ -64,9 +65,37 @@ export class ExpensesController {
       ? ({ title: { contains: String(q.query), mode: 'insensitive' as any } } as any)
       : ({} as any)
     const total = await this.prisma.expense.count({ where })
+    const sortKey = (q.sort?.key || '').toString()
+    const sortOrderRaw = (q.sort?.order || '').toString().toLowerCase()
+    const sortOrder: 'asc' | 'desc' | undefined =
+      sortOrderRaw === 'asc' || sortOrderRaw === 'desc' ? (sortOrderRaw as 'asc' | 'desc') : undefined
+    const orderBy: Prisma.ExpenseOrderByWithRelationInput[] = []
+    if (sortKey && sortOrder) {
+      switch (sortKey) {
+        case 'id':
+          orderBy.push({ id: sortOrder })
+          break
+        case 'date':
+          orderBy.push({ date: sortOrder })
+          break
+        case 'vendor':
+          orderBy.push({ title: sortOrder })
+          break
+        case 'category':
+          orderBy.push({ category: { name: sortOrder } })
+          break
+        case 'status':
+          orderBy.push({ status: { name: sortOrder } })
+          break
+        case 'amount':
+          orderBy.push({ amount: sortOrder })
+          break
+      }
+    }
+    orderBy.push({ id: 'desc' })
     const rows = await this.prisma.expense.findMany({
       where,
-      orderBy: { id: 'desc' },
+      orderBy,
       skip: (pageIndex - 1) * pageSize,
       take: pageSize,
       // include: { category: true, status: true },

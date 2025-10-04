@@ -143,10 +143,10 @@ const CustomerStatuses = () => {
     const onUpdate = async () => {
         if (!editingId) return
         const res = await apiUpdateCustomerStatus<boolean, {
-            id: string
+            id: number
             name: string
             color: string
-        }>({ id: editingId, name: editingName, color: editingColor })
+        }>({ id: Number(editingId), name: editingName, color: editingColor })
         if (res.data) {
             toast.push(
                 <Notification title={t('settings.customerStatuses.updated.title')} type="success">

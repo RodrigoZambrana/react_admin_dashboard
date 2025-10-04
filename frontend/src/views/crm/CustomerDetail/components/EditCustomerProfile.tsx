@@ -65,13 +65,21 @@ const EditCustomerProfile = () => {
             twitter,
             pinterest,
             linkedIn,
+            phoneNumbers,
+            address,
         } = values
 
         const name = [firstName, lastName].filter(Boolean).join(' ')
-        const basicInfo = { name, firstName, lastName, email, img, phoneNumber }
+        const sanitizedPhones = (phoneNumbers || [])
+            .map((phone) => phone.trim())
+            .filter((phone) => phone.length > 0)
+        const primaryPhone = sanitizedPhones[0] || phoneNumber || ''
+
+        const basicInfo = { name, firstName, lastName, email, img, phoneNumber: primaryPhone }
         const personalInfo = {
             location,
-            phoneNumber,
+            phoneNumber: primaryPhone,
+            phoneNumbers: sanitizedPhones,
             facebook,
             twitter,
             pinterest,
@@ -81,7 +89,24 @@ const EditCustomerProfile = () => {
             ...(clonedData.personalInfo || {}),
             ...personalInfo,
         }
+        clonedData.phoneNumbers = sanitizedPhones
+        if (address) {
+            clonedData.addresses = [
+                {
+                    ...(clonedData.addresses?.[0] || {}),
+                    street: address.street,
+                    number: address.number,
+                    corner: address.corner,
+                    apartment: address.apartment,
+                    city: address.city,
+                    country: address.state,
+                    countryCode: address.countryCode,
+                    isPrimary: true,
+                },
+            ]
+        }
         const newData = { ...clonedData, ...basicInfo }
+        newData.phoneNumbers = sanitizedPhones
         dispatch(updateProfileData(newData))
         dispatch(putCustomer(newData as Customer))
         onDrawerClose()

@@ -40,10 +40,25 @@ type InitialData = {
     vendor?: string
     description?: string
     published?: boolean
+    permanentStock?: boolean
 }
 
-export type FormModel = Omit<InitialData, 'tags'> & {
-    tags: { label: string; value: string }[] | string[]
+const deriveInventoryStatus = (stock: number, permanent: boolean) => {
+    if (permanent) {
+        return 0
+    }
+    if (stock <= 0) {
+        return 2
+    }
+    if (stock < 5) {
+        return 1
+    }
+    return 0
+}
+
+export type FormModel = Omit<InitialData, 'tags' | 'permanentStock'> & {
+    tags: string[]
+    permanentStock: boolean
 }
 
 export type SetSubmitting = (isSubmitting: boolean) => void
@@ -121,14 +136,14 @@ const DeleteProductButton = ({ onDelete }: { onDelete: OnDelete }) => {
 const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
     const {
         type,
-            initialData = {
-                id: 0,
-                name: '',
-                productCode: '',
-                img: '',
-                imgList: [],
-                categoryId: null,
-                price: 0,
+        initialData = {
+            id: 0,
+            name: '',
+            productCode: '',
+            img: '',
+            imgList: [],
+            categoryId: null,
+            price: 0,
             stock: 0,
             status: 0,
             costPerItem: 0,
@@ -137,6 +152,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
             brand: '',
             vendor: '',
             description: '',
+            permanentStock: false,
         },
         onFormSubmit,
         onDiscard,
@@ -159,17 +175,15 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                         typeof initialData.published === 'boolean'
                             ? initialData.published
                             : true,
-                    tags: initialData?.tags
-                        ? initialData.tags.map((value) => ({
-                              label: value,
-                              value,
-                          }))
+                    tags: Array.isArray(initialData?.tags)
+                        ? (initialData.tags as string[])
                         : [],
+                    permanentStock: Boolean(initialData.permanentStock),
                 }}
                 validationSchema={validationSchema(t)}
                 onSubmit={(values: FormModel, { setSubmitting }) => {
                     const formData = cloneDeep(values)
-                    formData.tags = formData.tags.map((tag) => {
+                    formData.tags = (formData.tags || []).map((tag) => {
                         if (typeof tag !== 'string') {
                             return tag.value
                         }
@@ -189,10 +203,16 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                             formData.img = formData.imgList[0].img
                         }
                     }
+                    const numericStock = Number(formData.stock ?? 0)
+                    const isPermanent = Boolean(formData.permanentStock)
+                    formData.status = deriveInventoryStatus(
+                        Number.isNaN(numericStock) ? 0 : numericStock,
+                        isPermanent,
+                    )
                     onFormSubmit?.(formData, setSubmitting)
                 }}
             >
-                {({ values, touched, errors, isSubmitting }) => (
+                {({ values, touched, errors, isSubmitting, setFieldValue }) => (
                     <Form>
                         <FormContainer>
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -209,6 +229,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                         touched={touched as any}
                                         errors={errors as any}
                                         values={values as any}
+                                        setFieldValue={setFieldValue}
                                     />
                                     <OrganizationFields
                                         touched={touched}
@@ -221,20 +242,20 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                 </div>
                             </div>
                             <StickyFooter
-                                className="-mx-8 px-8 flex items-center justify-between py-4"
+                                className="w-full px-4 sm:px-8 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                                 stickyClass="border-t bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
                             >
-                                <div>
+                                <div className="w-full sm:w-auto">
                                     {type === 'edit' && (
                                         <DeleteProductButton
                                             onDelete={onDelete as OnDelete}
                                         />
                                     )}
                                 </div>
-                                <div className="md:flex items-center">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
                                     <Button
                                         size="sm"
-                                        className="ltr:mr-3 rtl:ml-3"
+                                        className="w-full sm:w-auto"
                                         type="button"
                                         onClick={() => onDiscard?.()}
                                     >
@@ -246,6 +267,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                         loading={isSubmitting}
                                         icon={<AiOutlineSave />}
                                         type="submit"
+                                        className="w-full sm:w-auto"
                                     >
                                         {t('text.actions.save')}
                                     </Button>

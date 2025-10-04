@@ -74,7 +74,8 @@
             "customerStatuses": "Customer Statuses",
             "expenses": "Expenses",
             "paymentMethods": "Payment Methods",
-            "systemConfig": "System Config"
+            "systemConfig": "System Config",
+            "calendarEventTypes": "Calendar Event Types"
         },
         "uiComponents": "UI Components",
         "uiComponentsCommon": {
@@ -169,7 +170,49 @@
         "calendar": "Calendar",
         "month": "Month",
         "week": "Week",
-        "day": "Day"
+        "day": "Day",
+        "fields": {
+            "start": "Start",
+            "end": "End",
+            "allDay": "All day event",
+            "internal": "Internal event",
+            "customer": "Linked customer (optional)",
+            "eventType": "Event type",
+            "address": {
+                "street": "Street",
+                "number": "Number",
+                "city": "City",
+                "country": "Country",
+                "corner": "Cross street",
+                "apartment": "Apartment"
+            }
+        },
+        "placeholders": {
+            "title": "Event title",
+            "customer": "Select customer",
+            "eventType": "Select event type",
+            "street": "Enter street",
+            "number": "Number",
+            "city": "City",
+            "country": "Country",
+            "corner": "Cross street",
+            "apartment": "Apartment / Unit",
+            "location": "Room, link or reference",
+            "description": "Details, goals or agenda"
+        },
+        "errors": {
+            "customers": "Unable to load customers.",
+            "customerAddress": "Could not load customer address."
+        },
+        "validation": {
+            "eventTypeRequired": "Event type is required"
+        },
+        "eventTypes": {
+            "meeting": "Meeting",
+            "task": "Task",
+            "workshop": "Workshop",
+            "other": "Other"
+        }
     },
     "user": {
         "menu": {
@@ -279,6 +322,7 @@
             "editEvent": "Edit Event",
             "deleteCustomer": "Delete customer",
             "customerDeleted": "Successfully Deleted",
+            "deleteCustomerFailed": "Cannot delete customer",
             "editCreditCard": "Edit Credit Card",
             "schedule": "Schedule",
             "myTasks": "My Tasks",
@@ -392,6 +436,7 @@
             "searchProduct": "Search product",
             "date": "Date",
             "name": "Name",
+            "lastName": "Last name",
             "code": "Code",
             "codeSku": "Code (SKU)",
             "stock": "Stock",
@@ -428,6 +473,8 @@
             "archive": "Archive"
         },
         "labels": {
+            "firstName": "First name",
+            "lastName": "Last name",
             "deliveryIn": "Delivery in",
             "days": "days",
             "subtotal": "Subtotal",
@@ -510,6 +557,9 @@
             "tags": "Tags",
             "brand": "Brand",
             "vendor": "Vendor",
+            "permanentStock": "Permanent stock",
+            "stockStatus": "Stock status",
+            "offerPrice": "Offer price",
             "ticketTitle": "Ticket title"
         },
         "date": {
@@ -535,12 +585,17 @@
         "descriptions": {
             "basicProductInfo": "Section to config basic product information",
             "productSalesInfo": "Section to config product sales information",
+            "passwordDesc": "Enter your current and new password to reset your password",
+            "viewPreviousBilling": "View your previous billing",
+            "addressInformation": "Enter your address information to help us speed up the verification process",
             "inviteTeamMember": "Invite your team members to collaborate on this board",
             "taskManagement": "Team task board to register and resolve work items"
         },
         "messages": {
             "deleteProductConfirm": "Are you sure you want to delete this product? All record related to this product will be deleted as well. This action cannot be undone.",
             "customerDeleted": "Customer successfully deleted",
+            "customerDeleteHasOrders": "You cannot delete a customer that already has orders.",
+            "customerAdded": "Customer added successfully",
             "deleteCustomerConfirm": "Are you sure you want to delete this customer? All record related to this customer will be deleted as well. This action cannot be undone.",
             "noActivities": "No Activities",
             "noMoreActivity": "No more activity to load",
@@ -568,6 +623,7 @@
             "emailRequired": "Email Required",
             "userNameRequired": "User Name Required",
             "invalidPhoneNumber": "Phone number is not valid",
+            "phoneNumberRequired": "Phone number is required",
             "eventTitleRequired": "Event title Required",
             "startDateRequired": "Start Date Required",
             "colorRequired": "Color Required",
@@ -589,10 +645,12 @@
             "cardExpiryRequired": "Expiry date required",
             "invalidDate": "Invalid date",
             "cvvRequired": "CVV required",
-            "invalidCvv": "Invalid CVV"
+            "invalidCvv": "Invalid CVV",
+            "dateRequired": "Date is required"
         },
         "tabs": {
             "personalInfo": "Personal Info",
+            "address": "Address",
             "social": "Social"
         },
         "filters": {
@@ -604,12 +662,8 @@
             "newTicket": "New ticket",
             "addTags": "Add tags",
             "addFiles": "Add files"
-        },
-        "labels": {
-            
         }
-    }
-    ,
+    },
     "account": {
         "settings": {
             "tabs": {
@@ -876,6 +930,9 @@
         "dashboard": {
             "thisMonth": "this month",
             "stat": {
+                "total": "Total Customers",
+                "active": "Active Customers",
+                "new": "New Customers",
                 "newLeads": "New Leads",
                 "emailResponse": "Email",
                 "proposals": "Proposals",
@@ -1057,6 +1114,30 @@
             "desc": "Define the global values used across sales calculations.",
             "taxRateLabel": "Tax (%)",
             "updated": { "title": "Successfully updated", "desc": "Configuration saved" }
+        },
+        "calendarEventTypes": {
+            "title": "Calendar event types",
+            "subtitle": "Configure the options available when scheduling events.",
+            "fields": {
+                "key": "Internal key",
+                "label": "Display name"
+            },
+            "placeholders": {
+                "key": "E.g. meeting, standup, workshop",
+                "label": "Name shown to users"
+            },
+            "actions": {
+                "add": "Add event type"
+            },
+            "validation": {
+                "keyFormat": "Key can include letters, numbers, dashes and dots only.",
+                "keyRequired": "Key is required",
+                "labelRequired": "Display name is required",
+                "uniqueKeys": "Keys must be unique.",
+                "minItems": "Define at least one event type."
+            },
+            "loadError": "Could not load current types. Default values are shown.",
+            "updated": "Event types updated successfully."
         }
     },
     "common": {

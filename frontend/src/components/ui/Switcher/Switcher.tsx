@@ -85,10 +85,9 @@ const Switcher = forwardRef<HTMLInputElement, SwitcherProps>((props, ref) => {
 
         if (typeof checked === 'undefined') {
             setSwitcherChecked(nextChecked)
-            onChange?.(nextChecked, e)
-        } else {
-            onChange?.(switcherChecked as boolean, e)
         }
+
+        onChange?.(nextChecked, e)
     }
 
     const switcherColor = color || `${themeColor}-${primaryColorLevel}`

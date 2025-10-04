@@ -1,10 +1,8 @@
-import { useEffect, useState, useCallback } from 'react'
 import classNames from 'classnames'
 import withHeaderItem from '@/utils/hoc/withHeaderItem'
 import Avatar from '@/components/ui/Avatar'
 import Dropdown from '@/components/ui/Dropdown'
 import ScrollBar from '@/components/ui/ScrollBar'
-import Spinner from '@/components/ui/Spinner'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Tooltip from '@/components/ui/Tooltip'
@@ -15,10 +13,6 @@ import {
     HiOutlineBan,
     HiOutlineMailOpen,
 } from 'react-icons/hi'
-import {
-    apiGetNotificationList,
-    apiGetNotificationCount,
-} from '@/services/CommonService'
 import { Link } from 'react-router-dom'
 import isLastChild from '@/utils/isLastChild'
 import useTwColorByName from '@/utils/hooks/useTwColorByName'
@@ -27,6 +21,7 @@ import { useAppSelector } from '@/store'
 import useResponsive from '@/utils/hooks/useResponsive'
 import acronym from '@/utils/acronym'
 import { useTranslation } from 'react-i18next'
+import { useMemo } from 'react'
 
 type NotificationList = {
     id: string
@@ -64,9 +59,8 @@ const notificationTypeAvatar = (data: {
         case 0:
             if (image) {
                 return <Avatar shape="circle" src={`${imagePath}${image}`} />
-            } else {
-                return <GeneratedAvatar target={target} />
             }
+            return <GeneratedAvatar target={target} />
         case 1:
             return (
                 <Avatar
@@ -119,70 +113,16 @@ const NotificationToggle = ({
 }
 
 const _Notification = ({ className }: { className?: string }) => {
-    const [notificationList, setNotificationList] = useState<
-        NotificationList[]
-    >([])
-    const [unreadNotification, setUnreadNotification] = useState(false)
-    const [noResult, setNoResult] = useState(false)
-    const [loading, setLoading] = useState(false)
-
     const { bgTheme } = useThemeClass()
-
     const { larger } = useResponsive()
-
     const direction = useAppSelector((state) => state.theme.direction)
+    const notificationList = useMemo<NotificationList[]>(() => [], [])
+    const unreadNotification = false
+    const noResult = true
 
-    const getNotificationCount = useCallback(async () => {
-        const resp = await apiGetNotificationCount()
-        if (resp.data.count > 0) {
-            setNoResult(false)
-            setUnreadNotification(true)
-        } else {
-            setNoResult(true)
-        }
-    }, [setUnreadNotification])
-
-    useEffect(() => {
-        getNotificationCount()
-    }, [getNotificationCount])
-
-    const onNotificationOpen = useCallback(async () => {
-        if (notificationList.length === 0) {
-            setLoading(true)
-            const resp = await apiGetNotificationList()
-            setLoading(false)
-            setNotificationList(resp.data)
-        }
-    }, [notificationList, setLoading])
-
-    const onMarkAllAsRead = useCallback(() => {
-        const list = notificationList.map((item: NotificationList) => {
-            if (!item.readed) {
-                item.readed = true
-            }
-            return item
-        })
-        setNotificationList(list)
-        setUnreadNotification(false)
-    }, [notificationList])
-
-    const onMarkAsRead = useCallback(
-        (id: string) => {
-            const list = notificationList.map((item) => {
-                if (item.id === id) {
-                    item.readed = true
-                }
-                return item
-            })
-            setNotificationList(list)
-            const hasUnread = notificationList.some((item) => !item.readed)
-
-            if (!hasUnread) {
-                setUnreadNotification(false)
-            }
-        },
-        [notificationList],
-    )
+    const onNotificationOpen = () => {}
+    const onMarkAllAsRead = () => {}
+    const onMarkAsRead = (_id: string) => {}
 
     const { t } = useTranslation()
 
@@ -245,16 +185,6 @@ const _Notification = ({ className }: { className?: string }) => {
                                 />
                             </div>
                         ))}
-                    {loading && (
-                        <div
-                            className={classNames(
-                                'flex items-center justify-center',
-                                notificationHeight,
-                            )}
-                        >
-                            <Spinner size={40} />
-                        </div>
-                    )}
                     {noResult && (
                         <div
                             className={classNames(

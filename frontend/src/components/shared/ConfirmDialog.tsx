@@ -6,6 +6,7 @@ import {
 } from 'react-icons/hi'
 import Avatar from '@/components/ui/Avatar'
 import Button from '@/components/ui/Button'
+import type { ButtonProps } from '@/components/ui/Button'
 import Dialog from '@/components/ui/Dialog'
 import type { ReactNode } from 'react'
 import type { DialogProps } from '@/components/ui/Dialog'
@@ -20,6 +21,8 @@ interface ConfirmDialogProps extends DialogProps {
     title?: ReactNode | string
     onCancel?: () => void
     onConfirm?: () => void
+    cancelButtonProps?: Partial<ButtonProps>
+    confirmButtonProps?: Partial<ButtonProps>
 }
 
 const StatusIcon = ({ status }: { status: StatusType }) => {
@@ -84,6 +87,8 @@ const ConfirmDialog = (props: ConfirmDialogProps) => {
         cancelText = 'Cancel',
         confirmText = 'Confirm',
         confirmButtonColor,
+        cancelButtonProps,
+        confirmButtonProps,
         ...rest
     } = props
 
@@ -111,6 +116,7 @@ const ConfirmDialog = (props: ConfirmDialogProps) => {
                     size="sm"
                     className="ltr:mr-2 rtl:ml-2"
                     onClick={handleCancel}
+                    {...cancelButtonProps}
                 >
                     {cancelText}
                 </Button>
@@ -119,6 +125,7 @@ const ConfirmDialog = (props: ConfirmDialogProps) => {
                     variant="solid"
                     color={confirmButtonColor}
                     onClick={handleConfirm}
+                    {...confirmButtonProps}
                 >
                     {confirmText}
                 </Button>

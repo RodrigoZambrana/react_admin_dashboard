@@ -16,7 +16,7 @@
   }
 
   .drawer-body {
-    @apply p-6 h-full overflow-y-auto;
+    @apply p-6 h-full overflow-y-auto overflow-x-hidden;
   }
 
   .drawer-footer {

@@ -78,12 +78,23 @@ model Customer {
   twitter     String?
   pinterest   String?
   linkedIn    String?
+  phones      CustomerPhone[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   orders      Order[]
   addresses   CustomerAddress[]
   statusId    Int?
   status      CustomerStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
+}
+
+model CustomerPhone {
+  id         Int       @id @default(autoincrement())
+  customerId Int
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  phone      String
+  label      String?
+  isPrimary  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
 }
 
 // Sales Product
@@ -282,6 +293,8 @@ model CalendarEvent {
   endAt       DateTime?
   allDay      Boolean    @default(false)
   location    String?
+  color       String?    @db.VarChar(32)
+  metadata    Json?
   createdById Int?
   createdBy   User?      @relation(fields: [createdById], references: [id], onDelete: SetNull)
   projectId   Int?

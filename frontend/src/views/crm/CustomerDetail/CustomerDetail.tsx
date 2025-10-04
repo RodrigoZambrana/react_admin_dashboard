@@ -43,17 +43,16 @@ const CustomerDetail = () => {
     return (
         <Container className="h-full">
             <Loading loading={loading}>
-                {!isEmpty(data) && (
-                    <div className="flex flex-col xl:flex-row gap-4">
-                        <div>
-                            <CustomerProfile data={data} />
-                        </div>
-                        <div className="w-full">
-                            <AdaptableCard>
-                                <OrdersHistory />
-                                <CustomerAddresses customerId={String(data.id)} />
-                            </AdaptableCard>
-                        </div>
+        {!isEmpty(data) && (
+                    <div className="flex flex-col gap-4">
+                        <CustomerProfile data={data} />
+                        <CustomerAddresses
+                            customerId={String(data.id)}
+                            className="mt-0"
+                        />
+                        <AdaptableCard>
+                            <OrdersHistory />
+                        </AdaptableCard>
                     </div>
                 )}
             </Loading>

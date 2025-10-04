@@ -16,6 +16,7 @@ type Product = {
     status: number
     brand?: string
     vendor?: string
+    permanentStock?: boolean
 }
 
 type Products = Product[]

@@ -16,7 +16,6 @@ import CurrencySelector from '@/components/shared/CurrencySelector'
 import InputGroup from '@/components/ui/InputGroup'
 
 type FormFieldsName = {
-    stock: number
     price: number
     bulkDiscountPrice: number
 }
@@ -27,10 +26,6 @@ type PricingFieldsProps = {
 }
 
 const PriceInput = (props: InputProps) => {
-    return <Input {...props} value={props.field.value} />
-}
-
-const NumberInput = (props: InputProps) => {
     return <Input {...props} value={props.field.value} />
 }
 
@@ -62,34 +57,6 @@ const PricingFields = (props: PricingFieldsProps) => {
             <h5>{t('text.titles.pricing')}</h5>
             <p className="mb-6">{t('text.descriptions.productSalesInfo')}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="col-span-1">
-                    <FormItem
-                        label={t('text.columns.stock')}
-                        invalid={(errors.stock && touched.stock) as boolean}
-                        errorMessage={errors.stock}
-                    >
-                        <Field name="stock">
-                            {({ field, form }: FieldProps) => {
-                                return (
-                                    <NumericFormatInput
-                                        form={form}
-                                        field={field}
-                                        placeholder={t('text.placeholders.stock')}
-                                        customInput={
-                                            NumberInput as ComponentType
-                                        }
-                                        onValueChange={(e) => {
-                                            form.setFieldValue(
-                                                field.name,
-                                                e.value,
-                                            )
-                                        }}
-                                    />
-                                )
-                            }}
-                        </Field>
-                    </FormItem>
-                </div>
                 <div className="col-span-1">
                     <FormItem
                         label={t('text.columns.price')}
@@ -127,7 +94,7 @@ const PricingFields = (props: PricingFieldsProps) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="col-span-1">
                     <FormItem
-                        label={t('text.labels.bulkDiscountPrice')}
+                        label={t('text.labels.offerPrice')}
                         invalid={
                             (errors.bulkDiscountPrice &&
                                 touched.bulkDiscountPrice) as boolean
@@ -140,7 +107,7 @@ const PricingFields = (props: PricingFieldsProps) => {
                                     <NumericFormatInput
                                         form={form}
                                         field={field}
-                                        placeholder={t('text.labels.bulkDiscountPrice')}
+                                        placeholder={t('text.labels.offerPrice')}
                                         customInput={
                                             PriceInput as ComponentType
                                         }

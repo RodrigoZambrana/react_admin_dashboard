@@ -1,11 +1,11 @@
-import { forwardRef } from 'react'
+import { forwardRef, useEffect, useState } from 'react'
 import Tabs from '@/components/ui/Tabs'
 import { FormContainer } from '@/components/ui/Form'
-import { Form, Formik, FormikProps } from 'formik'
+import { Form, Formik, FormikProps, FormikErrors } from 'formik'
 import { useTranslation } from 'react-i18next'
 import * as Yup from 'yup'
 import PersonalInfoForm from './PersonalInfoForm'
-import SocialLinkForm from './SocialLinkForm'
+import AddressForm from './AddressForm'
 
 type BaseCustomerInfo = {
     firstName: string
@@ -16,14 +16,34 @@ type BaseCustomerInfo = {
 
 type CustomerPersonalInfo = {
     location: string
-    phoneNumber: string
     facebook: string
     twitter: string
     pinterest: string
     linkedIn: string
 }
 
-export type Customer = BaseCustomerInfo & CustomerPersonalInfo
+export type CustomerAddress = {
+    street: string
+    number: string
+    corner: string
+    apartment: string
+    city: string
+    state: string
+    countryCode: string
+}
+
+export const ADDRESS_REQUIRED_FIELDS: (keyof CustomerAddress)[] = [
+    'street',
+    'number',
+    'city',
+    'state',
+]
+
+export type Customer = BaseCustomerInfo & CustomerPersonalInfo & {
+    address: CustomerAddress
+    phoneNumbers: string[]
+    phoneNumber?: string
+}
 
 export type FormModel = Customer
 
@@ -33,35 +53,86 @@ export type CustomerProps =
     Partial<
         BaseCustomerInfo & {
             personalInfo: CustomerPersonalInfo
+            address?: Partial<CustomerAddress>
+            addresses?: Array<Partial<CustomerAddress & { isPrimary?: boolean }>>
+            phoneNumbers?: string[]
+            phoneNumber?: string
         }
     > & { name?: string; phoneNumber?: string }
 
 type CustomerFormProps = {
     customer: CustomerProps
-    onFormSubmit: (values: FormModel) => void
+    onFormSubmit: (values: FormModel) => Promise<void> | void
+    activeTab?: 'personalInfo' | 'address'
+    onTabChange?: (tab: 'personalInfo' | 'address') => void
+    onValuesChange?: (values: FormModel) => void
+    onValidationStateChange?: (state: {
+        isValid: boolean
+        isSubmitting: boolean
+        errors: FormikErrors<FormModel>
+    }) => void
 }
 
+// ─────────────────────────────────────────────────────────────
+// Validación: countryCode deja de ser requerido
+// ─────────────────────────────────────────────────────────────
+const addressSchema = (t: (k: string) => string) =>
+    Yup.object().shape({
+        street: Yup.string().required(t('text.validation.enterAddress')),
+        number: Yup.string().required(t('text.validation.enterAddress')),
+        city: Yup.string().required(t('text.validation.enterCity')),
+        state: Yup.string().required(t('text.validation.enterState')),
+        // ⬇️ Ya no requerido; acepta '' y lo transforma a null
+        countryCode: Yup.string()
+            .transform((v) => (v === '' ? null : v))
+            .nullable()
+            .notRequired(),
+        corner: Yup.string().nullable(),
+        apartment: Yup.string().nullable(),
+    })
+
+// ─────────────────────────────────────────────────────────────
+// Validación: phoneNumbers NO bloquea el submit por strings vacíos
+//  - '' -> null (transform)
+//  - se permiten vacíos (notRequired)
+//  - se eliminan nulls del array (compact)
+//  - min(0) para no exigir uno si no se provee
+// ─────────────────────────────────────────────────────────────
 const useValidationSchema = (t: (k: string) => string) =>
     Yup.object().shape({
         email: Yup.string().email(t('text.validation.invalidEmail')).required(t('text.validation.emailRequired')),
         firstName: Yup.string().required(t('text.validation.userNameRequired')),
         lastName: Yup.string().required(t('text.validation.userNameRequired')),
         location: Yup.string(),
-        phoneNumber: Yup.string().matches(
-            /^((\+[1-9]{1,4}[ -]?)|(\([0-9]{2,3}\)[ -]?)|([0-9]{2,4})[ -]?)*?[0-9]{3,4}[ -]?[0-9]{3,4}$/,
-            t('text.validation.invalidPhoneNumber'),
-        ),
+        phoneNumbers: Yup.array()
+            .of(
+                Yup.string()
+                    .transform((v) => (v?.trim() === '' ? null : v))
+                    .nullable()
+                    .matches(/^(\+?[0-9\s-()]{7,})$/, t('text.validation.invalidPhoneNumber'))
+                    .notRequired()
+            )
+            .compact((v) => v == null)
+            .min(0),
         facebook: Yup.string(),
         twitter: Yup.string(),
         pinterest: Yup.string(),
         linkedIn: Yup.string(),
         img: Yup.string(),
+        address: addressSchema(t),
     })
 
 const { TabNav, TabList, TabContent } = Tabs
 
 const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
-    const { customer, onFormSubmit } = props
+    const {
+        customer,
+        onFormSubmit,
+        activeTab,
+        onTabChange,
+        onValuesChange,
+        onValidationStateChange,
+    } = props
     const { t } = useTranslation()
 
     const fullName = (customer.name || '').trim()
@@ -70,8 +141,70 @@ const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
         : ['']
     const defaultLastName = restName.join(' ')
 
+    const [internalTab, setInternalTab] = useState<'personalInfo' | 'address'>(
+        activeTab ?? 'personalInfo',
+    )
+    useEffect(() => {
+        if (activeTab) {
+            setInternalTab(activeTab)
+        }
+    }, [activeTab])
+
+    const handleTabChange = (value: string) => {
+        const tab = value as 'personalInfo' | 'address'
+        if (!activeTab) {
+            setInternalTab(tab)
+        }
+        onTabChange?.(tab)
+    }
+
+    const primaryAddress = (() => {
+        const addresses = customer?.addresses
+        if (Array.isArray(addresses) && addresses.length) {
+            return addresses.find((addr) => addr?.isPrimary) || addresses[0]
+        }
+        return customer?.address
+    })() || {}
+
+    const defaultAddress: CustomerAddress = {
+        street: primaryAddress.street || '',
+        number: primaryAddress.number || '',
+        corner: primaryAddress.corner || '',
+        apartment: primaryAddress.apartment || '',
+        city: primaryAddress.city || 'Montevideo',
+        state:
+            primaryAddress.state ||
+            (primaryAddress as any)?.country ||
+            'Uruguay',
+        countryCode: primaryAddress.countryCode || '', // puede quedar vacío
+    }
+
+    const customerPhoneList = (() => {
+        if (Array.isArray(customer.phoneNumbers) && customer.phoneNumbers.length) {
+            return customer.phoneNumbers
+        }
+        if (Array.isArray((customer as any)?.phones) && (customer as any).phones.length) {
+            return (customer as any).phones
+        }
+        if (Array.isArray(customer.personalInfo?.phoneNumbers) && customer.personalInfo?.phoneNumbers.length) {
+            return customer.personalInfo?.phoneNumbers
+        }
+        const legacy =
+            customer.phoneNumber ||
+            customer.personalInfo?.phoneNumber ||
+            ''
+        return legacy ? [legacy] : []
+    })()
+
+    const initialPhoneNumber =
+        customerPhoneList[0] ||
+        customer.phoneNumber ||
+        customer.personalInfo?.phoneNumber ||
+        ''
+
     return (
         <Formik<FormModel>
+            enableReinitialize
             innerRef={ref}
             initialValues={{
                 firstName: customer.firstName || defaultFirstName || '',
@@ -79,49 +212,85 @@ const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
                 email: customer.email || '',
                 img: customer.img || '',
                 location: customer?.personalInfo?.location || '',
-                phoneNumber:
-                    customer.phoneNumber ||
-                    customer?.personalInfo?.phoneNumber ||
-                    '',
                 facebook: customer?.personalInfo?.facebook || '',
                 twitter: customer?.personalInfo?.twitter || '',
                 pinterest: customer?.personalInfo?.pinterest || '',
                 linkedIn: customer?.personalInfo?.linkedIn || '',
+                address: defaultAddress,
+                phoneNumber: initialPhoneNumber,
+                phoneNumbers:
+                    customerPhoneList.length > 0
+                        ? customerPhoneList
+                        : [''],
             }}
+            validateOnMount
             validationSchema={useValidationSchema(t)}
-            onSubmit={(values, { setSubmitting }) => {
-                onFormSubmit?.(values)
-                setSubmitting(false)
+            onSubmit={async (values, { setSubmitting }) => {
+                // Saneamos teléfonos: quitamos vacíos y dejamos al menos un string si no hay
+                const sanitizedPhones = values.phoneNumbers
+                    .map((phone) => phone.trim())
+                    .filter((phone) => phone.length > 0)
+                values.phoneNumbers = sanitizedPhones.length ? sanitizedPhones : ['']
+                values.phoneNumber = values.phoneNumbers[0] || ''
+                try {
+                    await onFormSubmit?.(values)
+                } finally {
+                    setSubmitting(false)
+                }
             }}
         >
-            {({ touched, errors }) => (
-                <Form>
-                    <FormContainer>
-                        <Tabs defaultValue="personalInfo">
-                            <TabList>
-                                <TabNav value="personalInfo">
-                                    {t('text.tabs.personalInfo')}
-                                </TabNav>
-                                <TabNav value="social">{t('text.tabs.social')}</TabNav>
-                            </TabList>
-                            <div className="p-6">
-                                <TabContent value="personalInfo">
-                                    <PersonalInfoForm
-                                        touched={touched as any}
-                                        errors={errors as any}
-                                    />
-                                </TabContent>
-                                <TabContent value="social">
-                                    <SocialLinkForm
-                                        touched={touched}
-                                        errors={errors}
-                                    />
-                                </TabContent>
-                            </div>
-                        </Tabs>
-                    </FormContainer>
-                </Form>
-            )}
+            {({ values, errors, isValid, isSubmitting }) => {
+                useEffect(() => {
+                    onValuesChange?.(values)
+                }, [values])
+
+                useEffect(() => {
+                    onValidationStateChange?.({
+                        isValid,
+                        isSubmitting,
+                        errors,
+                    })
+                }, [isValid, isSubmitting, errors, onValidationStateChange])
+
+                return (
+                    <Form>
+                        <FormContainer>
+                            <Tabs value={activeTab ?? internalTab} onChange={handleTabChange}>
+                                <TabList>
+                                    {/* Asegúrate de que TabNav NO sea type="submit" */}
+                                    <TabNav value="personalInfo">
+                                        {t('text.tabs.personalInfo')}
+                                    </TabNav>
+                                    <TabNav value="address">
+                                        {t('text.tabs.address')}
+                                    </TabNav>
+                                </TabList>
+                                <div className="p-6">
+                                    <TabContent value="personalInfo">
+                                        <PersonalInfoForm />
+                                    </TabContent>
+                                    <TabContent value="address">
+                                        <AddressForm />
+                                    </TabContent>
+                                </div>
+
+                                {/* Footer con botón de submit explícito */}
+                                <div className="px-6 pb-6 flex flex-col sm:flex-row sm:justify-end gap-3">
+                                    <button
+                                        type="submit"
+                                        className="btn btn-solid w-full sm:w-auto"
+                                        disabled={isSubmitting}
+                                    >
+                                        {isSubmitting
+                                            ? t('text.actions.saving')
+                                            : t('text.actions.save')}
+                                    </button>
+                                </div>
+                            </Tabs>
+                        </FormContainer>
+                    </Form>
+                )
+            }}
         </Formik>
     )
 })

@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import Card from '@/components/ui/Card'
 import Avatar from '@/components/ui/Avatar'
-import GrowShrinkTag from '@/components/shared/GrowShrinkTag'
 import MediaSkeleton from '@/components/shared/loaders/MediaSkeleton'
 import Loading from '@/components/shared/Loading'
 import { getCustomerStatistic, useAppDispatch, useAppSelector } from '../store'
@@ -19,14 +18,19 @@ type StatisticCardProps = {
     avatarClass: string
     label: string
     value?: number
-    growthRate?: number
     loading: boolean
 }
 
-const StatisticCard = (props: StatisticCardProps) => {
-    const { icon, avatarClass, label, value, growthRate, loading } = props
-
+const StatisticCard = ({
+    icon,
+    avatarClass,
+    label,
+    value,
+    loading,
+}: StatisticCardProps) => {
     const avatarSize = 55
+    const hasValue = typeof value === 'number' && Number.isFinite(value)
+    const displayValue = hasValue ? value : 0
 
     return (
         <Card bordered>
@@ -52,15 +56,18 @@ const StatisticCard = (props: StatisticCardProps) => {
                         <div>
                             <span>{label}</span>
                             <h3>
-                                <NumericFormat
-                                    thousandSeparator
-                                    displayType="text"
-                                    value={value}
-                                />
+                                {hasValue ? (
+                                    <NumericFormat
+                                        thousandSeparator
+                                        displayType="text"
+                                        value={displayValue}
+                                    />
+                                ) : (
+                                    <span>--</span>
+                                )}
                             </h3>
                         </div>
                     </div>
-                    <GrowShrinkTag value={growthRate} suffix="%" />
                 </div>
             </Loading>
         </Card>
@@ -90,7 +97,6 @@ const CustomerStatistic = () => {
                 avatarClass="bg-indigo-600!"
                 label={t('text.labels.totalCustomers')}
                 value={statisticData?.totalCustomers?.value}
-                growthRate={statisticData?.totalCustomers?.growShrink}
                 loading={loading}
             />
             <StatisticCard
@@ -98,7 +104,6 @@ const CustomerStatistic = () => {
                 avatarClass="bg-blue-500!"
                 label={t('text.labels.activeCustomers')}
                 value={statisticData?.activeCustomers?.value}
-                growthRate={statisticData?.activeCustomers?.growShrink}
                 loading={loading}
             />
             <StatisticCard
@@ -106,7 +111,6 @@ const CustomerStatistic = () => {
                 avatarClass="bg-emerald-500!"
                 label={t('text.labels.newCustomers')}
                 value={statisticData?.newCustomers?.value}
-                growthRate={statisticData?.newCustomers?.growShrink}
                 loading={loading}
             />
         </div>

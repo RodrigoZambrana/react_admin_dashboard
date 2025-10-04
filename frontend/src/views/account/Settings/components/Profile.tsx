@@ -3,7 +3,6 @@ import Avatar from '@/components/ui/Avatar'
 import Upload from '@/components/ui/Upload'
 import Button from '@/components/ui/Button'
 import Select from '@/components/ui/Select'
-import Switcher from '@/components/ui/Switcher'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
 import { FormContainer } from '@/components/ui/Form'
@@ -14,27 +13,26 @@ import { components } from 'react-select'
 import {
     HiOutlineUserCircle,
     HiOutlineMail,
-    HiOutlineBriefcase,
     HiOutlineUser,
     HiCheck,
-    HiOutlineGlobeAlt,
 } from 'react-icons/hi'
 import * as Yup from 'yup'
 import { useTranslation } from 'react-i18next'
 import i18n from 'i18next'
+import { setLang, useAppDispatch, useAppSelector } from '@/store'
 import type { OptionProps, ControlProps } from 'react-select'
 import type { FormikProps, FieldInputProps, FieldProps } from 'formik'
 
 export type ProfileFormModel = {
-    name: string
+    firstName: string
+    lastName: string
     email: string
-    title: string
     avatar: string
     lang: string
 }
 
 type ProfileProps = {
-    data?: ProfileFormModel
+    data?: Partial<ProfileFormModel> & { name?: string }
 }
 
 type LanguageOption = {
@@ -46,14 +44,14 @@ type LanguageOption = {
 const { Control } = components
 
 const validationSchema = Yup.object().shape({
-    name: Yup.string()
-        .min(3, 'text.validation.tooShort')
-        .max(12, 'text.validation.tooLong')
+    firstName: Yup.string()
+        .min(2, 'text.validation.tooShort')
+        .max(24, 'text.validation.tooLong')
         .required('text.validation.userNameRequired'),
+    lastName: Yup.string().max(24, 'text.validation.tooLong'),
     email: Yup.string()
         .email('text.validation.invalidEmail')
         .required('text.validation.emailRequired'),
-    title: Yup.string(),
     avatar: Yup.string(),
     lang: Yup.string(),
 })
@@ -107,29 +105,50 @@ const CustomControl = ({
     )
 }
 
-const Profile = ({
-    data = {
-        name: '',
-        email: '',
-        title: '',
-        avatar: '',
-        lang: '',
-    },
-}: ProfileProps) => {
+const splitName = (name?: string) => {
+    if (!name) {
+        return { firstName: '', lastName: '' }
+    }
+    const parts = name.trim().split(/\s+/)
+    if (parts.length === 1) {
+        return { firstName: parts[0], lastName: '' }
+    }
+    return {
+        firstName: parts.shift() || '',
+        lastName: parts.join(' '),
+    }
+}
+
+const Profile = ({ data = {} }: ProfileProps) => {
     const { t } = useTranslation()
+    const dispatch = useAppDispatch()
+    const currentLang = useAppSelector((state) => state.locale.currentLang)
+
+    const { firstName, lastName } = splitName(data.name)
+
     const onSetFormFile = (
         form: FormikProps<ProfileFormModel>,
         field: FieldInputProps<ProfileFormModel>,
         file: File[],
     ) => {
-        form.setFieldValue(field.name, URL.createObjectURL(file[0]))
+        if (file.length) {
+            form.setFieldValue(field.name, URL.createObjectURL(file[0]))
+        } else {
+            form.setFieldValue(field.name, '')
+        }
     }
 
     const onFormSubmit = (
         values: ProfileFormModel,
         setSubmitting: (isSubmitting: boolean) => void,
     ) => {
-        console.log('values', values)
+        dispatch(setLang(values.lang))
+        i18n.changeLanguage(values.lang)
+        const payload = {
+            ...values,
+            name: [values.firstName, values.lastName].filter(Boolean).join(' '),
+        }
+        console.log('profile values', payload)
         toast.push(
             <Notification
                 title={t('account.settings.profile.profileUpdated')}
@@ -142,66 +161,39 @@ const Profile = ({
         setSubmitting(false)
     }
 
+    const normalizedLang = (currentLang || i18n.language || 'en')
+        .toLowerCase()
+        .startsWith('es')
+        ? 'es'
+        : 'en'
+
     return (
         <Formik
             enableReinitialize
             initialValues={{
-                ...data,
-                lang: (i18n.language || 'en').toLowerCase().startsWith('es')
-                    ? 'es'
-                    : 'en',
+                firstName: data.firstName || firstName,
+                lastName: data.lastName || lastName,
+                email: data.email || '',
+                avatar: data.avatar || '',
+                lang: data.lang || normalizedLang,
             }}
             validationSchema={validationSchema}
             onSubmit={(values, { setSubmitting }) => {
                 setSubmitting(true)
                 setTimeout(() => {
                     onFormSubmit(values, setSubmitting)
-                }, 1000)
+                }, 600)
             }}
         >
-            {({ values, touched, errors, isSubmitting, resetForm }) => {
+            {({ values, touched, errors, isSubmitting, resetForm, setFieldValue }) => {
                 const validatorProps = { touched, errors }
                 return (
                     <Form>
                         <FormContainer>
                             <FormDesription
                                 title={t('account.settings.profile.general')}
-                                desc={t(
-                                    'account.settings.profile.generalDesc',
-                                )}
+                                desc={t('account.settings.profile.generalDesc')}
                             />
-                            <FormRow
-                                name="name"
-                                label={t('text.labels.name')}
-                                {...validatorProps}
-                            >
-                                <Field
-                                    type="text"
-                                    autoComplete="off"
-                                    name="name"
-                                    placeholder={t('text.labels.name')}
-                                    component={Input}
-                                    prefix={
-                                        <HiOutlineUserCircle className="text-xl" />
-                                    }
-                                />
-                            </FormRow>
-                            <FormRow
-                                name="email"
-                                label={t('text.labels.email')}
-                                {...validatorProps}
-                            >
-                                <Field
-                                    type="email"
-                                    autoComplete="off"
-                                    name="email"
-                                    placeholder={t('text.labels.email')}
-                                    component={Input}
-                                    prefix={
-                                        <HiOutlineMail className="text-xl" />
-                                    }
-                                />
-                            </FormRow>
                             <FormRow
                                 name="avatar"
                                 label="Avatar"
@@ -245,20 +237,45 @@ const Profile = ({
                                 </Field>
                             </FormRow>
                             <FormRow
-                                name="title"
-                                label={t('text.labels.title')}
+                                name="firstName"
+                                label={t('text.labels.firstName')}
                                 {...validatorProps}
-                                border={false}
                             >
                                 <Field
                                     type="text"
-                                    autoComplete="off"
-                                    name="title"
-                                    placeholder={t('text.labels.title')}
+                                    autoComplete="given-name"
+                                    name="firstName"
+                                    placeholder={t('text.labels.firstName')}
                                     component={Input}
-                                    prefix={
-                                        <HiOutlineBriefcase className="text-xl" />
-                                    }
+                                    prefix={<HiOutlineUserCircle className="text-xl" />}
+                                />
+                            </FormRow>
+                            <FormRow
+                                name="lastName"
+                                label={t('text.labels.lastName')}
+                                {...validatorProps}
+                            >
+                                <Field
+                                    type="text"
+                                    autoComplete="family-name"
+                                    name="lastName"
+                                    placeholder={t('text.labels.lastName')}
+                                    component={Input}
+                                    prefix={<HiOutlineUser className="text-xl" />}
+                                />
+                            </FormRow>
+                            <FormRow
+                                name="email"
+                                label={t('text.labels.email')}
+                                {...validatorProps}
+                            >
+                                <Field
+                                    type="email"
+                                    autoComplete="email"
+                                    name="email"
+                                    placeholder={t('text.labels.email')}
+                                    component={Input}
+                                    prefix={<HiOutlineMail className="text-xl" />}
                                 />
                             </FormRow>
                             <FormDesription
@@ -281,17 +298,16 @@ const Profile = ({
                                                 Option: CustomSelectOption,
                                                 Control: CustomControl,
                                             }}
-                                            value={langOptions.filter(
+                                            value={langOptions.find(
                                                 (option) =>
-                                                    option.value ===
-                                                    values?.lang,
+                                                    option.value === values.lang,
                                             )}
-                                            onChange={(option) =>
-                                                form.setFieldValue(
-                                                    field.name,
-                                                    option?.value,
-                                                )
-                                            }
+                                            onChange={(option) => {
+                                                const selected = option?.value || normalizedLang
+                                                form.setFieldValue(field.name, selected)
+                                                dispatch(setLang(selected))
+                                                i18n.changeLanguage(selected)
+                                            }}
                                         />
                                     )}
                                 </Field>

@@ -3,7 +3,7 @@ import Modal from 'react-modal'
 import CloseButton from '../CloseButton'
 import { motion } from 'framer-motion'
 import type ReactModal from 'react-modal'
-import type { MouseEvent, ReactNode } from 'react'
+import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 
 export interface DrawerProps extends ReactModal.Props {
     bodyClass?: string
@@ -52,34 +52,41 @@ const Drawer = (props: DrawerProps) => {
 
     const getStyle = (): {
         dimensionClass?: string
-        contentStyle?: {
-            width?: string | number
-            height?: string | number
-        }
+        contentStyle?: CSSProperties
         motionStyle: {
             [x: string]: string
         }
     } => {
         if (placement === 'left' || placement === 'right') {
+            const contentStyle: CSSProperties = {
+                width,
+                maxWidth: '100vw',
+                maxHeight: '100vh',
+            }
+            const widthOffset =
+                typeof width === 'number' ? `${width}px` : String(width)
             return {
                 dimensionClass: 'vertical',
-                contentStyle: { width },
+                contentStyle,
                 motionStyle: {
-                    [placement]: `-${width}${
-                        typeof width === 'number' && 'px'
-                    }`,
+                    [placement]: `-${widthOffset}`,
                 },
             }
         }
 
         if (placement === 'top' || placement === 'bottom') {
+            const contentStyle: CSSProperties = {
+                height,
+                maxHeight: '100vh',
+                maxWidth: '100vw',
+            }
+            const heightOffset =
+                typeof height === 'number' ? `${height}px` : String(height)
             return {
                 dimensionClass: 'horizontal',
-                contentStyle: { height },
+                contentStyle,
                 motionStyle: {
-                    [placement]: `-${height}${
-                        typeof height === 'number' && 'px'
-                    }`,
+                    [placement]: `-${heightOffset}`,
                 },
             }
         }

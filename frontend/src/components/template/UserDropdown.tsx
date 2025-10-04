@@ -43,14 +43,25 @@ const _UserDropdown = ({ className }: CommonProps) => {
     const { signOut } = useAuth()
     const { t } = useTranslation()
 
+    const primaryRole = authority?.[0] || 'guest'
+    const formatRole = (role: string) => {
+        const normalized = role.replace(/[_-]/g, ' ').toLowerCase()
+        return normalized
+            .split(' ')
+            .filter(Boolean)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ')
+    }
+    const roleLabel = formatRole(primaryRole)
+
     const UserAvatar = (
         <div className={classNames(className, 'flex items-center gap-2')}>
             <Avatar size={32} shape="circle" src={avatar} />
             <div className="hidden md:block">
-                <div className="text-xs capitalize">
-                    {authority?.[0] || 'guest'}
+                <div className="font-bold leading-tight">{userName}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-300 capitalize">
+                    {roleLabel}
                 </div>
-                <div className="font-bold">{userName}</div>
             </div>
         </div>
     )
@@ -68,6 +79,9 @@ const _UserDropdown = ({ className }: CommonProps) => {
                         <div>
                             <div className="font-bold text-gray-900 dark:text-gray-100">
                                 {userName}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-300 capitalize">
+                                {roleLabel}
                             </div>
                             <div className="text-xs">{email}</div>
                         </div>

@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, Post, Put, UseGuards, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Post, Put, UseGuards, Query, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { Prisma } from '@prisma/client'
 
 @UseGuards(JwtAuthGuard)
 @Controller('settings')
@@ -62,8 +63,26 @@ export class SettingsController {
     return true
   }
   @Put('customer-statuses/update')
-  async updateCustomerStatus(@Body() body: { id: number; name?: string; color?: string }) {
-    await this.prisma.customerStatus.update({ where: { id: body.id }, data: { name: body.name, color: body.color } })
+  async updateCustomerStatus(@Body() body: { id: number | string; name?: string; color?: string }) {
+    const id = Number(body.id)
+    if (!Number.isFinite(id)) {
+      throw new BadRequestException('Invalid status id')
+    }
+    const data: Record<string, unknown> = {}
+    if (body.name !== undefined) {
+      data.name = body.name
+    }
+    if (body.color !== undefined) {
+      data.color = body.color
+    }
+    try {
+      await this.prisma.customerStatus.update({ where: { id }, data })
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new BadRequestException('Customer status not found')
+      }
+      throw error
+    }
     return true
   }
   @Delete('customer-statuses/delete')
@@ -159,6 +178,60 @@ export class SettingsController {
       }
     }
     return true
+  }
+
+  @Get('calendar-event-types')
+  async getCalendarEventTypes() {
+    const record = await this.prisma.systemConfig.findUnique({
+      where: { key: 'calendarEventTypes' },
+    })
+    const fallback = [
+      { key: 'meeting', label: 'Meeting' },
+      { key: 'task', label: 'Task' },
+      { key: 'workshop', label: 'Workshop' },
+      { key: 'other', label: 'Other' },
+    ]
+    if (!record) {
+      return fallback
+    }
+    try {
+      const parsed = JSON.parse(record.value)
+      if (Array.isArray(parsed)) {
+        return parsed
+      }
+    } catch (error) {
+      // fallthrough to fallback
+    }
+    return fallback
+  }
+
+  @Put('calendar-event-types')
+  async updateCalendarEventTypes(
+    @Body()
+    body: {
+      types: { key: string; label: string }[]
+    },
+  ) {
+    const sanitized = Array.isArray(body.types)
+      ? body.types
+          .filter((item) => item && item.key && item.label)
+          .map((item) => ({
+            key: String(item.key).trim(),
+            label: String(item.label).trim(),
+          }))
+      : []
+    const value = sanitized.length > 0 ? sanitized : [
+      { key: 'meeting', label: 'Meeting' },
+      { key: 'task', label: 'Task' },
+      { key: 'workshop', label: 'Workshop' },
+      { key: 'other', label: 'Other' },
+    ]
+    await this.prisma.systemConfig.upsert({
+      where: { key: 'calendarEventTypes' },
+      update: { value: JSON.stringify(value) },
+      create: { key: 'calendarEventTypes', value: JSON.stringify(value) },
+    })
+    return value
   }
 
   // Countries and Cities (simple demo lists)
