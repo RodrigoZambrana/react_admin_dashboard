@@ -70,7 +70,7 @@ const TopProduct = ({ data = [], className }: TopProductProps) => {
         <Card className={className}>
             <div className="flex items-center justify-between mb-4">
                 <h4>{t('sales.dashboard.topProduct.title')}</h4>
-                <Button size="sm" onClick={() => navigate('/app/sales/product-list')}>
+                <Button size="sm" onClick={() => navigate('/app/products/list')}>
                     {t('sales.dashboard.topProduct.viewProducts')}
                 </Button>
             </div>

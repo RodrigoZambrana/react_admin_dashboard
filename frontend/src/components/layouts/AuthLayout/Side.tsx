@@ -8,6 +8,9 @@ interface SideProps extends CommonProps {
     content?: React.ReactNode
 }
 
+// Toggle to restore testimonial copy when marketing content is ready
+const showSideCopy = false
+
 const Side = ({ children, content, ...rest }: SideProps) => {
     return (
         <div className="grid lg:grid-cols-3 h-full">
@@ -18,30 +21,38 @@ const Side = ({ children, content, ...rest }: SideProps) => {
                 }}
             >
                 <Logo mode="dark" />
-                <div>
-                    <div className="mb-6 flex items-center gap-4">
-                        <Avatar
-                            className="border-2 border-white"
-                            shape="circle"
-                            src="/img/avatars/thumb-10.jpg"
-                        />
-                        <div className="text-white">
-                            <div className="font-semibold text-base">
-                                Brittany Hale
+                <div className="flex-1" />
+                {showSideCopy && (
+                    <div>
+                        <div className="mb-6 flex items-center gap-4">
+                            <Avatar
+                                className="border-2 border-white"
+                                shape="circle"
+                                src="/img/avatars/thumb-10.jpg"
+                            />
+                            <div className="text-white">
+                                <div className="font-semibold text-base">
+                                    Brittany Hale
+                                </div>
+                                <span className="opacity-80">CTO, Onward</span>
                             </div>
-                            <span className="opacity-80">CTO, Onward</span>
                         </div>
+                        <p className="text-lg text-white opacity-80">
+                            Elstar comes with a complete set of UI components
+                            crafted with Tailwind CSS, it fulfilled most of the
+                            use case to create modern and beautiful UI and
+                            application
+                        </p>
                     </div>
-                    <p className="text-lg text-white opacity-80">
-                        Elstar comes with a complete set of UI components
-                        crafted with Tailwind CSS, it fulfilled most of the use
-                        case to create modern and beautiful UI and application
-                    </p>
-                </div>
-                <span className="text-white">
-                    Copyright &copy; {`${new Date().getFullYear()}`}{' '}
-                    <span className="font-semibold">{`${APP_NAME}`}</span>{' '}
-                </span>
+                )}
+                {showSideCopy && (
+                    <span className="text-white">
+                        Copyright &copy; {`${new Date().getFullYear()}`}{' '}
+                        <span className="font-semibold">
+                            {`${APP_NAME}`}
+                        </span>{' '}
+                    </span>
+                )}
             </div>
             <div className="col-span-2 flex flex-col justify-center items-center bg-white dark:bg-gray-800">
                 <div className="w-full xl:max-w-[450px] px-8 max-w-[380px]">

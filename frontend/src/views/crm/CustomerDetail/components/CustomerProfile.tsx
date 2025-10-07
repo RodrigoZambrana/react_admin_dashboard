@@ -5,9 +5,8 @@ import Button from '@/components/ui/Button'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
-import { HiPencilAlt, HiOutlineTrash, HiPhone } from 'react-icons/hi'
+import { HiPencilAlt, HiOutlineTrash } from 'react-icons/hi'
 import { FaWhatsapp } from 'react-icons/fa'
-import IconText from '@/components/shared/IconText'
 import { useNavigate } from 'react-router-dom'
 import {
     deleteCustomer,
@@ -160,11 +159,9 @@ const CustomerProfile = ({ data = {} }: { data?: Partial<Customer> }) => {
                     <div>
                         <span>{t('text.labels.phone')}</span>
                         <div className="mt-2 flex items-center gap-2">
-                            <IconText icon={<HiPhone className="text-xl" />}>
-                                <span className="font-semibold">
-                                    {phone || '-'}
-                                </span>
-                            </IconText>
+                            <span className="font-semibold">
+                                {phone || '-'}
+                            </span>
                             {whatsAppHref && (
                                 <a
                                     href={whatsAppHref}

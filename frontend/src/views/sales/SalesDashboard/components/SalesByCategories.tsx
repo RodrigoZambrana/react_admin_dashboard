@@ -15,19 +15,30 @@ const SalesByCategories = ({
     data = { labels: [], data: [] },
 }: SalesByCategoriesProps) => {
     const { t } = useTranslation()
+    const normalizedValues = Array.isArray(data.data)
+        ? data.data.map((value) => Number(value) || 0)
+        : []
+    const totalSold = normalizedValues.reduce((acc, value) => acc + value, 0)
+    const hasData =
+        normalizedValues.length > 0 &&
+        normalizedValues.some((value) => value > 0)
+
     return (
-        <Card>
+        <Card
+            className={
+                hasData
+                    ? undefined
+                    : 'bg-gray-50 border border-dashed border-gray-200 dark:bg-gray-800/40 dark:border-gray-600'
+            }
+        >
             <h4>{t('sales.dashboard.categories.title')}</h4>
             <div className="mt-6">
-                {data.data.length > 0 && (
+                {hasData ? (
                     <>
                         <Chart
-                            donutTitle={`${data.data.reduce(
-                                (a, b) => a + b,
-                                0,
-                            )}`}
+                            donutTitle={`${totalSold}`}
                             donutText={t('sales.dashboard.categories.donutText')}
-                            series={data.data}
+                            series={normalizedValues}
                             customOptions={{ labels: data.labels }}
                             type="donut"
                         />
@@ -51,6 +62,13 @@ const SalesByCategories = ({
                             </div>
                         )}
                     </>
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center text-gray-500 dark:text-gray-300">
+                        <div className="h-32 w-32 rounded-full border-4 border-dashed border-gray-200 bg-gray-100 dark:border-gray-600 dark:bg-gray-700/40" />
+                        <p className="mt-6 text-sm font-medium">
+                            {t('sales.dashboard.categories.empty')}
+                        </p>
+                    </div>
                 )}
             </div>
         </Card>

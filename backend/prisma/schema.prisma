@@ -49,6 +49,7 @@ model User {
   id           Int      @id @default(autoincrement())
   userName     String   @unique
   name         String?
+  lastName     String?
   email        String   @unique
   img          String?
   role         Role     @default(USER)
@@ -60,6 +61,8 @@ model User {
   taskAssignees TaskAssignee[]
   events       CalendarEvent[]
   notifications Notification[]
+  activityTicketMembers ActivityTicketMember[]
+  calendarComments CalendarEventComment[]
 }
 
 // CRM Customer
@@ -107,7 +110,9 @@ model Product {
   categoryId        Int?
   category          ProductCategory? @relation(fields: [categoryId], references: [id])
   price             Float            @default(0)
+  currency          String           @default("UYU")
   stock             Int              @default(0)
+  permanentStock    Boolean          @default(false)
   status            Int              @default(0) // 0=inStock,1=limited,2=outOfStock
   costPerItem       Float?
   bulkDiscountPrice Float?
@@ -135,13 +140,6 @@ model ProductCategory {
   id    Int       @id @default(autoincrement())
   name  String    @unique
   products Product[]
-}
-
-model ProductStatus {
-  id    Int    @id @default(autoincrement())
-  code  Int    @unique
-  name  String
-  color String?
 }
 
 model SystemConfig {
@@ -200,6 +198,7 @@ model PaymentMethod {
   id     Int     @id @default(autoincrement())
   name   String  @unique
   orders Order[]
+  expenses Expense[]
 }
 
 model OrderStatus {
@@ -217,12 +216,28 @@ model Expense {
   description String?
   amount      Float          @default(0)
   date        DateTime       @default(now())
+  currency    String?        @db.VarChar(8)
   categoryId  Int?
   category    ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   statusId    Int?
   status      ExpenseStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  paymentMethodId Int?
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  paymentReference String?
+  attachments ExpenseAttachment[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+}
+
+model ExpenseAttachment {
+  id        Int      @id @default(autoincrement())
+  expenseId Int
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  name      String
+  mimeType  String?
+  size      Int?
+  content   Bytes
+  createdAt DateTime @default(now())
 }
 
 model ExpenseCategory {
@@ -284,6 +299,40 @@ model TaskAssignee {
   @@id([taskId, userId])
 }
 
+model ActivityColumn {
+  id        Int                @id @default(autoincrement())
+  title     String             @unique
+  sortOrder Int                @default(0)
+  tickets   ActivityTicket[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+}
+
+model ActivityTicket {
+  id          Int                   @id @default(autoincrement())
+  columnId    Int
+  column      ActivityColumn        @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  priority    String?               @default("Medium priority")
+  labels      String[]              @default([])
+  dueDate     DateTime?
+  order       Int                   @default(0)
+  cover       String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  members     ActivityTicketMember[]
+}
+
+model ActivityTicketMember {
+  ticketId Int
+  userId   Int
+  ticket   ActivityTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, userId])
+}
+
 model CalendarEvent {
   id          Int        @id @default(autoincrement())
   title       String
@@ -301,8 +350,43 @@ model CalendarEvent {
   project     Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
   taskId      Int?
   task        Task?      @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  eventTypeId Int?
+  eventType   CalendarEventType? @relation(fields: [eventTypeId], references: [id], onDelete: SetNull)
+  attachments CalendarEventAttachment[]
+  comments    CalendarEventComment[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+}
+
+model CalendarEventType {
+  id          Int             @id @default(autoincrement())
+  name        String
+  color       String          @default("#2563eb")
+  description String?
+  events      CalendarEvent[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model CalendarEventAttachment {
+  id        Int           @id @default(autoincrement())
+  eventId   Int
+  event     CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  mimeType  String?
+  size      Int?
+  content   Bytes
+  createdAt DateTime      @default(now())
+}
+
+model CalendarEventComment {
+  id        Int           @id @default(autoincrement())
+  eventId   Int
+  event     CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    Int?
+  author    User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  message   String
+  createdAt DateTime      @default(now())
 }
 model CustomerAddress {
   id         Int      @id @default(autoincrement())

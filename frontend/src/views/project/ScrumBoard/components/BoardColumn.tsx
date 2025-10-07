@@ -1,19 +1,25 @@
 import { Draggable } from '@hello-pangea/dnd'
 import BoardTitle from './BoardTitle'
 import BoardCardList, { BaseBoardProps } from './BoardCardList'
+import type { Column } from '../types'
 
 interface BoardColumnProps extends BaseBoardProps {
-    title: string
+    column: Column
     index: number
     isScrollable?: boolean
 }
 
 const BoardColumn = (props: BoardColumnProps) => {
-    const { title, contents, index, isScrollable, isCombineEnabled, useClone } =
-        props
+    const {
+        column,
+        index,
+        isScrollable,
+        isCombineEnabled,
+        useClone,
+    } = props
 
     return (
-        <Draggable draggableId={title} index={index}>
+        <Draggable draggableId={column.id} index={index}>
             {(provided, snapshot) => (
                 <div
                     ref={provided.innerRef}
@@ -31,14 +37,14 @@ const BoardColumn = (props: BoardColumnProps) => {
                     {...provided.draggableProps}
                 >
                     <BoardTitle
-                        title={title}
+                        column={column}
                         dragHandleProps={provided.dragHandleProps}
                     />
                     <BoardCardList
-                        listId={title}
+                        listId={column.id}
                         listType="CONTENT"
                         className={snapshot.isDragging ? 'is-dragging' : ''}
-                        contents={contents}
+                        contents={column.tickets}
                         internalScroll={isScrollable}
                         isCombineEnabled={isCombineEnabled}
                         useClone={useClone}

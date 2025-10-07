@@ -38,6 +38,10 @@ const SignInForm = (props: SignInFormProps) => {
         signUpUrl = '/sign-up',
     } = props
 
+    // Flags keep navigation logic available without rendering the UI copy yet
+    const showForgotPasswordLink = false
+    const showSignUpPrompt = false
+
     const [message, setMessage] = useTimeOutMessage()
 
     const { signIn } = useAuth()
@@ -124,9 +128,11 @@ const SignInForm = (props: SignInFormProps) => {
                                 >
                                     {t('auth.signIn.rememberMe')}
                                 </Field>
-                                <ActionLink to={forgotPasswordUrl}>
-                                    {t('auth.signIn.forgotPassword')}
-                                </ActionLink>
+                                {showForgotPasswordLink && (
+                                    <ActionLink to={forgotPasswordUrl}>
+                                        {t('auth.signIn.forgotPassword')}
+                                    </ActionLink>
+                                )}
                             </div>
                             <Button
                                 block
@@ -138,12 +144,14 @@ const SignInForm = (props: SignInFormProps) => {
                                     ? t('auth.signIn.submitting')
                                     : t('auth.signIn.submit')}
                             </Button>
-                            <div className="mt-4 text-center">
-                                <span>{t('auth.signIn.noAccount')} </span>
-                                <ActionLink to={signUpUrl}>
-                                    {t('auth.common.signUp')}
-                                </ActionLink>
-                            </div>
+                            {showSignUpPrompt && (
+                                <div className="mt-4 text-center">
+                                    <span>{t('auth.signIn.noAccount')} </span>
+                                    <ActionLink to={signUpUrl}>
+                                        {t('auth.common.signUp')}
+                                    </ActionLink>
+                                </div>
+                            )}
                         </FormContainer>
                     </Form>
                 )}

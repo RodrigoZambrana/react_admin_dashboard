@@ -10,6 +10,7 @@ import reducer, {
     useAppSelector,
     createCalendarEvent,
     updateCalendarEvent,
+    deleteCalendarEvent,
     CalendarEvent,
 } from './store'
 import { injectReducer } from '@/store'
@@ -56,6 +57,8 @@ const Calendar = () => {
             ...(eventData?.extendedProps || {}),
             ...(arg.event.extendedProps as Record<string, unknown>),
         }
+        const eventTypeId =
+            extendedProps.eventTypeId?.toString?.() || eventData?.eventTypeId
         dispatch(
             setSelected({
                 type: 'EDIT',
@@ -67,6 +70,7 @@ const Calendar = () => {
                 end: end ? dayjs(end).format() : undefined,
                 id,
                 allDay: eventData?.allDay ?? arg.event.allDay ?? false,
+                eventTypeId,
                 extendedProps,
             }),
         )
@@ -104,6 +108,8 @@ const Calendar = () => {
         }
     }
 
+    const onDelete = (id: string) => dispatch(deleteCalendarEvent(id)).unwrap()
+
     const onEventChange = (arg: EventDropArg) => {
         const existing = events.find((event) => event.id === arg.event.id)
         if (!existing) {
@@ -138,7 +144,7 @@ const Calendar = () => {
                 eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
                 slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
             />
-            <EventDialog submit={onSubmit} />
+            <EventDialog submit={onSubmit} onDelete={onDelete} />
         </Container>
     )
 }

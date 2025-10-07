@@ -1,23 +1,19 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import {
     apiCreateCrmCalendarEvent,
+    apiDeleteCrmCalendarEvent,
     apiGetCrmCalendar,
     apiUpdateCrmCalendarEvent,
     type CalendarEventDto,
     type CalendarEventAddress,
+    type CalendarEventAttachment,
 } from '@/services/CrmService'
-
-export type CalendarEventAttachment = {
-    id: string
-    name: string
-    type?: string
-    size?: number
-    url?: string
-}
 
 export type CalendarEventExtendedProps = {
     type?: string
     eventType?: string
+    eventTypeId?: string
+    eventTypeName?: string
     location?: string
     address?: CalendarEventAddress
     detail?: string
@@ -34,6 +30,7 @@ export type CalendarEvent = {
     allDay?: boolean
     eventColor: string
     groupId?: string
+    eventTypeId?: string
     extendedProps?: CalendarEventExtendedProps
 }
 
@@ -83,6 +80,14 @@ export const updateCalendarEvent = createAsyncThunk(
     async (event: CalendarEvent) => {
         const updated = await apiUpdateCrmCalendarEvent(String(event.id), event)
         return mapDtoToStateEvent(updated)
+    },
+)
+
+export const deleteCalendarEvent = createAsyncThunk(
+    SLICE_NAME + '/deleteCalendarEvent',
+    async (id: string) => {
+        const deletedId = await apiDeleteCrmCalendarEvent(String(id))
+        return String(deletedId)
     },
 )
 
@@ -151,6 +156,20 @@ const calendarSlice = createSlice({
                 state.dialogOpen = false
             })
             .addCase(updateCalendarEvent.rejected, (state) => {
+                state.loading = false
+            })
+            .addCase(deleteCalendarEvent.pending, (state) => {
+                state.loading = true
+            })
+            .addCase(deleteCalendarEvent.fulfilled, (state, action) => {
+                state.eventList = state.eventList.filter(
+                    (event) => event.id !== action.payload,
+                )
+                state.loading = false
+                state.dialogOpen = false
+                state.selected = { type: '' }
+            })
+            .addCase(deleteCalendarEvent.rejected, (state) => {
                 state.loading = false
             })
     },

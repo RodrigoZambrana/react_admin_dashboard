@@ -1,26 +1,20 @@
 import { createSlice, createAsyncThunk, current } from '@reduxjs/toolkit'
 import { apiGetAccountLogData } from '@/services/AccountServices'
 import {
-    UPDATE_TICKET,
-    COMMENT,
-    COMMENT_MENTION,
-    ASSIGN_TICKET,
-    ADD_TAGS_TO_TICKET,
-    ADD_FILES_TO_TICKET,
-    CREATE_TICKET,
+    LOGIN,
+    PASSWORD_CHANGE,
+    DEVICE_SIGN_IN,
+    PROFILE_UPDATE,
+    SECURITY_ALERT,
 } from '../constants'
 
 type Event = {
     type: string
     dateTime: number
-    ticket?: string
-    status?: number
     userName: string
     userImg?: string
-    comment?: string
-    tags?: string[]
-    files?: string[]
-    assignee?: string
+    description?: string
+    metadata?: Record<string, string | undefined>
 }
 
 type Log = {
@@ -81,13 +75,11 @@ const initialState: ActivityLogState = {
     activityIndex: 1,
     logs: [],
     selectedType: [
-        UPDATE_TICKET,
-        COMMENT,
-        COMMENT_MENTION,
-        ASSIGN_TICKET,
-        ADD_TAGS_TO_TICKET,
-        ADD_FILES_TO_TICKET,
-        CREATE_TICKET,
+        LOGIN,
+        DEVICE_SIGN_IN,
+        PROFILE_UPDATE,
+        PASSWORD_CHANGE,
+        SECURITY_ALERT,
     ],
 }
 

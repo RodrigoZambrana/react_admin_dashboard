@@ -121,7 +121,7 @@ function _DataTable<T>(
         pagingData = {
             total: 0,
             pageIndex: 1,
-            pageSize: 10,
+            pageSize: 50,
         },
     } = props
 

@@ -36,7 +36,16 @@ const OrderEdit = () => {
     const { smaller } = useResponsive()
     const isCompactViewport = smaller.md
     const [customers, setCustomers] = useState<{ value: string; label: string }[]>([])
-    const [products, setProducts] = useState<{ value: string; label: string; price: number; img?: string; description?: string }[]>([])
+    const [products, setProducts] = useState<
+        {
+            value: string
+            label: string
+            price: number
+            currency?: string
+            img?: string
+            description?: string
+        }[]
+    >([])
     const [methods, setMethods] = useState<{ value: string; label: string }[]>([])
     const [initial, setInitial] = useState<any | null>(null)
     const [customerDetail, setCustomerDetail] = useState<any | null>(null)
@@ -51,7 +60,16 @@ const OrderEdit = () => {
             setCustomers(((cRes as any).data?.data || []).map((c: any) => ({ value: String(c.id), label: c.name })))
             const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' })
             const pArray = ((pRes as any).data?.data || [])
-            setProducts(pArray.map((p: any) => ({ value: String(p.id), label: p.name, price: Number(p.price) || 0, img: p.img, description: p.description })))
+            setProducts(
+                pArray.map((p: any) => ({
+                    value: String(p.id),
+                    label: p.name,
+                    price: Number(p.price) || 0,
+                    currency: p.currency,
+                    img: p.img,
+                    description: p.description,
+                })),
+            )
             const mRes = await apiGetPaymentMethods<{ id: number | string; name: string }[]>()
             setMethods((mRes.data as any[]).map((m) => ({ value: String(m.name || m.id), label: m.name })))
             try {
@@ -70,7 +88,15 @@ const OrderEdit = () => {
                 paymentMehod: String(data.paymentMehod || 'Cash'),
                 items: (data.items || []).map((it: any) => {
                     const p = pArray.find((x: any) => String(x.id) === String(it.productId))
-                    return { productId: String(it.productId), name: it.name, price: Number(it.price) || 0, qty: Number(it.qty) || 1, img: p?.img, description: p?.description }
+                    return {
+                        productId: String(it.productId),
+                        name: it.name,
+                        price: Number(it.price) || 0,
+                        qty: Number(it.qty) || 1,
+                        currency: p?.currency,
+                        img: p?.img,
+                        description: p?.description,
+                    }
                 }),
                 shippingAddress: data.shippingAddress || { addressLine1: '', addressLine2: '', city: '', state: '' },
                 billingAddress: data.billingAddress || { addressLine1: '', addressLine2: '', city: '', state: '' },
@@ -129,12 +155,33 @@ const OrderEdit = () => {
                     const deliveryFee = Number((values as any).shipping?.deliveryFees || 0)
                     const tax = Math.round(total * (taxRate / (100 + taxRate)) * 100) / 100
                     const grandTotal = Math.round((total + deliveryFee) * 100) / 100
-                    const addItem = (pid: string) => {
-                        const p = products.find((x) => x.value === pid)
+                    const addItem = (
+                        pid: string,
+                        option?: {
+                            value: string
+                            label: string
+                            price: number
+                            currency?: string
+                            img?: string
+                            description?: string
+                        },
+                    ) => {
+                        const p = option ?? products.find((x) => x.value === pid)
                         if (!p) return
                         const exists = values.items.find((it: Item) => it.productId === pid)
                         if (exists) return
-                        setFieldValue('items', [...values.items, { productId: pid, name: p.label, price: p.price, qty: 1, img: p.img, description: p.description }])
+                        setFieldValue('items', [
+                            ...values.items,
+                            {
+                                productId: pid,
+                                name: p.label,
+                                price: p.price,
+                                currency: p.currency,
+                                qty: 1,
+                                img: p.img,
+                                description: p.description,
+                            },
+                        ])
                     }
                     const removeItem = (pid: string) => setFieldValue('items', values.items.filter((it: Item) => it.productId !== pid))
                     const changeQty = (pid: string, qty: number) => setFieldValue('items', values.items.map((it: Item) => (it.productId === pid ? { ...it, qty } : it)))
@@ -287,7 +334,12 @@ const OrderEdit = () => {
                                     <FormContainer>
                                         <FormItem label={t('text.columns.product')} invalid={!!(touched as any).items && !!(errors as any).items} errorMessage={(errors as any).items as any}>
                                             <div className="flex items-center gap-2">
-                                                <Select className="w-80" options={products} onChange={(opt) => addItem((opt as any).value)} placeholder={t('text.placeholders.searchProduct')} />
+                                                <Select
+                                                    className="w-80"
+                                                    options={products}
+                                                    onChange={(opt) => addItem((opt as any).value, opt as any)}
+                                                    placeholder={t('text.placeholders.searchProduct')}
+                                                />
                                                 <Button type="button" onClick={() => setNewProductOpen(true)}>{t('text.actions.add')} {t('text.titles.products')}</Button>
                                                 <div className="font-semibold ml-auto">{t('text.columns.total')}: ${total.toFixed(2)}</div>
                                             </div>
@@ -475,11 +527,37 @@ const OrderEdit = () => {
                                         try {
                                             const res = await apiCreateSalesProduct<boolean, any>(formData as any)
                                             if ((res as any).data || (res as any) === true) {
-                                                const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' })
-                                                const pOpts = (pRes as any).data?.data?.map((p: any) => ({ value: p.id, label: p.name, price: p.price, img: p.img, description: p.description })) || []
-                                                setProducts(pOpts)
-                                                const created = (pRes as any).data?.data?.find((p: any) => p.name === formData.name)
-                                                if (created) addItem(String(created.id))
+                                                const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({
+                                                    pageIndex: 1,
+                                                    pageSize: 100,
+                                                    sort: { key: 'name', order: 'asc' },
+                                                    query: '',
+                                                })
+                                                const formattedOptions =
+                                                    ((pRes as any).data?.data || []).map((p: any) => ({
+                                                        value: String(p.id),
+                                                        label: p.name,
+                                                        price: Number(p.price) || 0,
+                                                        currency: p.currency,
+                                                        img: p.img,
+                                                        description: p.description,
+                                                    })) || []
+                                                setProducts(formattedOptions)
+                                                const created = (pRes as any).data?.data?.find(
+                                                    (p: any) => p.name === formData.name,
+                                                )
+                                                if (created) {
+                                                    const option =
+                                                        formattedOptions.find((opt) => opt.value === String(created.id)) ?? {
+                                                            value: String(created.id),
+                                                            label: created.name,
+                                                            price: Number(created.price) || 0,
+                                                            currency: created.currency,
+                                                            img: created.img,
+                                                            description: created.description,
+                                                        }
+                                                    addItem(String(created.id), option)
+                                                }
                                                 setNewProductOpen(false)
                                             }
                                         } finally {

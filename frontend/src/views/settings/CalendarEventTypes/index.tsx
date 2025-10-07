@@ -2,114 +2,214 @@ import { useEffect, useState } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import { Formik, Form, FieldArray, Field } from 'formik'
-import { FormContainer, FormItem } from '@/components/ui/Form'
+import Table from '@/components/ui/Table'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
-import * as Yup from 'yup'
-import { useTranslation } from 'react-i18next'
 import Loading from '@/components/shared/Loading'
 import {
     apiGetCalendarEventTypes,
-    apiUpdateCalendarEventTypes,
+    apiCreateCalendarEventType,
+    apiUpdateCalendarEventType,
+    apiDeleteCalendarEventType,
 } from '@/services/SettingsService'
-import { HiOutlineTrash } from 'react-icons/hi'
+import { useTranslation } from 'react-i18next'
 
-const MIN_TYPES = 1
+const { Tr, Td, TBody, THead, Th } = Table
 
-const buildValidationSchema = (
-    t: (key: string, opts?: Record<string, unknown>) => string,
-) =>
-    Yup.object().shape({
-        types: Yup.array()
-            .of(
-                Yup.object().shape({
-                    key: Yup.string()
-                        .trim()
-                        .matches(/^[a-z0-9\-_.]+$/i, {
-                            message: t('settings.calendarEventTypes.validation.keyFormat', {
-                                defaultValue:
-                                    'La clave solo puede incluir letras, números, guiones y puntos.',
-                            }),
-                        })
-                        .required(
-                            t('settings.calendarEventTypes.validation.keyRequired', {
-                                defaultValue: 'La clave es obligatoria',
-                            }),
-                        ),
-                    label: Yup.string()
-                        .trim()
-                        .required(
-                            t('settings.calendarEventTypes.validation.labelRequired', {
-                                defaultValue: 'El nombre visible es obligatorio',
-                            }),
-                        ),
-                }),
-            )
-            .test(
-                'unique-keys',
-                t('settings.calendarEventTypes.validation.uniqueKeys', {
-                    defaultValue: 'Las claves deben ser únicas.',
-                }),
-                (value) => {
-                    if (!value) {
-                        return false
-                    }
-                    const keys = value.map((item) => (item.key || '').trim().toLowerCase())
-                    return new Set(keys).size === keys.length
-                },
-            )
-            .min(
-                MIN_TYPES,
-                t('settings.calendarEventTypes.validation.minItems', {
-                    defaultValue: 'Debes definir al menos un tipo de evento.',
-                }),
-            ),
-    })
+const DEFAULT_COLOR = '#2563eb'
+
+type CalendarEventType = {
+    id: number
+    name: string
+    color: string
+    description?: string | null
+}
+
+const normalizeColor = (value: string) => {
+    if (!value) {
+        return DEFAULT_COLOR
+    }
+    const trimmed = value.trim()
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(trimmed)) {
+        return trimmed.length === 4
+            ? `#${trimmed
+                  .substring(1)
+                  .split('')
+                  .map((char) => char + char)
+                  .join('')}`
+            : trimmed.toLowerCase()
+    }
+    return trimmed
+}
 
 const CalendarEventTypes = () => {
     const { t } = useTranslation()
-    const [initialValues, setInitialValues] = useState({
-        types: [
-            { key: 'meeting', label: t('calendar.eventTypes.meeting', { defaultValue: 'Reunión' }) },
-            { key: 'task', label: t('calendar.eventTypes.task', { defaultValue: 'Tarea' }) },
-            { key: 'workshop', label: t('calendar.eventTypes.workshop', { defaultValue: 'Taller' }) },
-            { key: 'other', label: t('calendar.eventTypes.other', { defaultValue: 'Otro' }) },
-        ],
-    })
+    const [items, setItems] = useState<CalendarEventType[]>([])
     const [loading, setLoading] = useState(true)
+    const [creating, setCreating] = useState(false)
+    const [creatingName, setCreatingName] = useState('')
+    const [creatingColor, setCreatingColor] = useState(DEFAULT_COLOR)
+    const [editingId, setEditingId] = useState<number | null>(null)
+    const [editingName, setEditingName] = useState('')
+    const [editingColor, setEditingColor] = useState(DEFAULT_COLOR)
+    const [savingId, setSavingId] = useState<number | null>(null)
+    const [deletingId, setDeletingId] = useState<number | null>(null)
+
+    const load = async (showSpinner = true) => {
+        try {
+            if (showSpinner) {
+                setLoading(true)
+            }
+            const response = await apiGetCalendarEventTypes<CalendarEventType[]>()
+            const data = Array.isArray(response.data) ? response.data : []
+            setItems(data)
+        } catch (error: any) {
+            toast.push(
+                <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                    {error?.response?.data?.message || error?.message || String(error)}
+                </Notification>,
+            )
+        } finally {
+            setLoading(false)
+        }
+    }
 
     useEffect(() => {
-        const loadTypes = async () => {
-            try {
-                const response = await apiGetCalendarEventTypes<
-                    { key: string; label: string }[]
-                >()
-                const list = Array.isArray(response.data)
-                    ? response.data.filter((item) => item && item.key && item.label)
-                    : []
-                if (list.length > 0) {
-                    setInitialValues({ types: list })
-                }
-            } catch (error) {
-                toast.push(
-                    <Notification
-                        type="warning"
-                        title={t('common.warning', { defaultValue: 'Aviso' })}
-                    >
-                        {t('settings.calendarEventTypes.loadError', {
-                            defaultValue:
-                                'No fue posible cargar los tipos actuales. Se muestran los valores por defecto.',
-                        })}
-                    </Notification>,
-                )
-            } finally {
-                setLoading(false)
-            }
-        }
-        loadTypes()
+        load()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
+
+    const resetCreateForm = () => {
+        setCreatingName('')
+        setCreatingColor(DEFAULT_COLOR)
+    }
+
+    const handleCreate = async () => {
+        const name = creatingName.trim()
+        if (!name) {
+            toast.push(
+                <Notification type="warning" title={t('validation.failed', { defaultValue: 'Error' })}>
+                    {t('settings.calendarEventTypes.validation.labelRequired', {
+                        defaultValue: 'El nombre es obligatorio',
+                    })}
+                </Notification>,
+            )
+            return
+        }
+        try {
+            setCreating(true)
+            await apiCreateCalendarEventType<boolean, { name: string; color: string }>(
+                {
+                    name,
+                    color: normalizeColor(creatingColor),
+                },
+            )
+            toast.push(
+                <Notification type="success" title={t('common.success', { defaultValue: 'Éxito' })}>
+                    {t('settings.calendarEventTypes.created', {
+                        defaultValue: 'Tipo de evento creado correctamente.',
+                    })}
+                </Notification>,
+            )
+            resetCreateForm()
+            await load(false)
+        } catch (error: any) {
+            toast.push(
+                <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                    {error?.response?.data?.message || error?.message || String(error)}
+                </Notification>,
+            )
+        } finally {
+            setCreating(false)
+        }
+    }
+
+    const startEdit = (item: CalendarEventType) => {
+        setEditingId(item.id)
+        setEditingName(item.name)
+        setEditingColor(item.color || DEFAULT_COLOR)
+    }
+
+    const cancelEdit = () => {
+        setEditingId(null)
+        setEditingName('')
+        setEditingColor(DEFAULT_COLOR)
+        setSavingId(null)
+    }
+
+    const handleSave = async (id: number) => {
+        const name = editingName.trim()
+        if (!name) {
+            toast.push(
+                <Notification type="warning" title={t('validation.failed', { defaultValue: 'Error' })}>
+                    {t('settings.calendarEventTypes.validation.labelRequired', {
+                        defaultValue: 'El nombre es obligatorio',
+                    })}
+                </Notification>,
+            )
+            return
+        }
+        try {
+            setSavingId(id)
+            await apiUpdateCalendarEventType<boolean, { name: string; color: string }>(id, {
+                name,
+                color: normalizeColor(editingColor),
+            })
+            toast.push(
+                <Notification type="success" title={t('common.success', { defaultValue: 'Éxito' })}>
+                    {t('settings.calendarEventTypes.updated', {
+                        defaultValue: 'Tipo de evento actualizado correctamente.',
+                    })}
+                </Notification>,
+            )
+            cancelEdit()
+            await load(false)
+        } catch (error: any) {
+            toast.push(
+                <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                    {error?.response?.data?.message || error?.message || String(error)}
+                </Notification>,
+            )
+        } finally {
+            setSavingId(null)
+        }
+    }
+
+    const handleDelete = async (id: number) => {
+        try {
+            setDeletingId(id)
+            await apiDeleteCalendarEventType<boolean>(id)
+            toast.push(
+                <Notification type="success" title={t('common.success', { defaultValue: 'Éxito' })}>
+                    {t('settings.calendarEventTypes.deleted', {
+                        defaultValue: 'Tipo de evento eliminado correctamente.',
+                    })}
+                </Notification>,
+            )
+            await load(false)
+        } catch (error: any) {
+            toast.push(
+                <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                    {error?.response?.data?.message || error?.message || String(error)}
+                </Notification>,
+            )
+        } finally {
+            setDeletingId(null)
+        }
+    }
+
+    const renderColorPreview = (color: string) => {
+        const value = normalizeColor(color)
+        return (
+            <div className="flex items-center gap-2">
+                <span
+                    className="inline-block h-5 w-5 rounded border border-gray-300 dark:border-gray-600"
+                    style={{ backgroundColor: value }}
+                />
+                <span className="text-sm font-mono">{value}</span>
+            </div>
+        )
+    }
 
     return (
         <Loading loading={loading}>
@@ -121,141 +221,171 @@ const CalendarEventTypes = () => {
                 </h3>
                 <p className="mb-6 text-sm opacity-70">
                     {t('settings.calendarEventTypes.subtitle', {
-                        defaultValue: 'Configura las opciones disponibles al crear o editar eventos.',
+                        defaultValue:
+                            'Configura las opciones disponibles al crear o editar eventos.',
                     })}
                 </p>
-                <Formik
-                    enableReinitialize
-                    initialValues={initialValues}
-                    validationSchema={buildValidationSchema(t)}
-                    onSubmit={async (values, { setSubmitting }) => {
-                        try {
-                            await apiUpdateCalendarEventTypes<boolean, typeof values>(values)
-                            setInitialValues(values)
-                            toast.push(
-                                <Notification
-                                    type="success"
-                                    title={t('common.success', { defaultValue: 'Éxito' })}
-                                >
-                                    {t('settings.calendarEventTypes.updated', {
-                                        defaultValue: 'Tipos de evento actualizados correctamente.',
-                                    })}
-                                </Notification>,
-                                { placement: 'top-center' },
+
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-6 items-end">
+                    <div className="lg:col-span-2">
+                        <label className="block text-sm font-semibold mb-2">
+                            {t('settings.calendarEventTypes.fields.name', {
+                                defaultValue: 'Nombre visible',
+                            })}
+                        </label>
+                        <Input
+                            value={creatingName}
+                            placeholder={t(
+                                'settings.calendarEventTypes.placeholders.label',
+                                { defaultValue: 'Ej: Reunión' },
+                            )}
+                            onChange={(e) => setCreatingName(e.target.value)}
+                        />
+                    </div>
+                    <div className="lg:col-span-2">
+                        <label className="block text-sm font-semibold mb-2">
+                            {t('settings.calendarEventTypes.fields.color', {
+                                defaultValue: 'Color',
+                            })}
+                        </label>
+                        <div className="flex items-center gap-3">
+                            <input
+                                type="color"
+                                value={creatingColor}
+                                onChange={(e) => setCreatingColor(e.target.value)}
+                                className="h-10 w-14 cursor-pointer rounded border border-gray-300 dark:border-gray-600 bg-transparent"
+                                aria-label={t('settings.calendarEventTypes.fields.color', {
+                                    defaultValue: 'Color',
+                                })}
+                            />
+                            <Input
+                                value={creatingColor}
+                                onChange={(e) => setCreatingColor(e.target.value)}
+                                placeholder="#2563eb"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex lg:justify-end">
+                        <Button
+                            variant="solid"
+                            onClick={handleCreate}
+                            loading={creating}
+                            disabled={creating}
+                        >
+                            {t('settings.calendarEventTypes.actions.add', {
+                                defaultValue: 'Agregar tipo de evento',
+                            })}
+                        </Button>
+                    </div>
+                </div>
+
+                <Table>
+                    <THead>
+                        <Tr>
+                            <Th className="w-3/5">
+                                {t('settings.calendarEventTypes.fields.name', {
+                                    defaultValue: 'Nombre',
+                                })}
+                            </Th>
+                            <Th className="w-1/5">
+                                {t('settings.calendarEventTypes.fields.color', {
+                                    defaultValue: 'Color',
+                                })}
+                            </Th>
+                            <Th className="text-right w-1/5">
+                                {t('text.columns.actions', { defaultValue: 'Acciones' })}
+                            </Th>
+                        </Tr>
+                    </THead>
+                    <TBody>
+                        {items.map((item) => {
+                            const isEditing = editingId === item.id
+                            return (
+                                <Tr key={item.id}>
+                                    <Td>
+                                        {isEditing ? (
+                                            <Input
+                                                value={editingName}
+                                                onChange={(e) => setEditingName(e.target.value)}
+                                            />
+                                        ) : (
+                                            <span className="font-medium">{item.name}</span>
+                                        )}
+                                    </Td>
+                                    <Td>
+                                        {isEditing ? (
+                                            <div className="flex items-center gap-3">
+                                                <input
+                                                    type="color"
+                                                    value={editingColor}
+                                                    onChange={(e) => setEditingColor(e.target.value)}
+                                                    className="h-9 w-12 cursor-pointer rounded border border-gray-300 dark:border-gray-600 bg-transparent"
+                                                    aria-label={t('settings.calendarEventTypes.fields.color', {
+                                                        defaultValue: 'Color',
+                                                    })}
+                                                />
+                                                <Input
+                                                    value={editingColor}
+                                                    onChange={(e) => setEditingColor(e.target.value)}
+                                                    placeholder="#2563eb"
+                                                />
+                                            </div>
+                                        ) : (
+                                            renderColorPreview(item.color)
+                                        )}
+                                    </Td>
+                                    <Td className="text-right">
+                                        {isEditing ? (
+                                            <div className="flex justify-end gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant="solid"
+                                                    loading={savingId === item.id}
+                                                    onClick={() => handleSave(item.id)}
+                                                >
+                                                    {t('text.actions.save', {
+                                                        defaultValue: 'Guardar',
+                                                    })}
+                                                </Button>
+                                                <Button size="sm" onClick={cancelEdit}>
+                                                    {t('text.actions.cancel', {
+                                                        defaultValue: 'Cancelar',
+                                                    })}
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex justify-end gap-2">
+                                                <Button size="sm" onClick={() => startEdit(item)}>
+                                                    {t('text.actions.edit', {
+                                                        defaultValue: 'Editar',
+                                                    })}
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    color="red-600"
+                                                    loading={deletingId === item.id}
+                                                    onClick={() => handleDelete(item.id)}
+                                                    disabled={deletingId === item.id}
+                                                >
+                                                    {t('text.actions.delete', {
+                                                        defaultValue: 'Eliminar',
+                                                    })}
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </Td>
+                                </Tr>
                             )
-                        } catch (error: any) {
-                            toast.push(
-                                <Notification
-                                    type="danger"
-                                    title={t('validation.failed', { defaultValue: 'Error' })}
-                                >
-                                    {error?.response?.data?.message || error?.message || String(error)}
-                                </Notification>,
-                                { placement: 'top-center' },
-                            )
-                        } finally {
-                            setSubmitting(false)
-                        }
-                    }}
-                >
-                    {({ values, errors, touched, isSubmitting }) => (
-                        <Form>
-                            <FormContainer>
-                                <FieldArray name="types">
-                                    {({ remove, push }) => (
-                                        <div className="space-y-4">
-                                            {values.types.map((type, index) => {
-                                                const keyError = Boolean(
-                                                    (errors.types as Array<any>)?.[index]?.key &&
-                                                        (touched.types as Array<any>)?.[index]?.key,
-                                                )
-                                                const labelError = Boolean(
-                                                    (errors.types as Array<any>)?.[index]?.label &&
-                                                        (touched.types as Array<any>)?.[index]?.label,
-                                                )
-                                                return (
-                                                    <div
-                                                        key={`event-type-${index}`}
-                                                        className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end"
-                                                    >
-                                                        <FormItem
-                                                            className="md:col-span-2"
-                                                            label={t('settings.calendarEventTypes.fields.key', {
-                                                                defaultValue: 'Clave interna',
-                                                            })}
-                                                            invalid={keyError}
-                                                            errorMessage={
-                                                                (errors.types as Array<any>)?.[index]?.key as string
-                                                            }
-                                                        >
-                                                            <Field
-                                                                name={`types.${index}.key`}
-                                                                component={Input}
-                                                                placeholder={t(
-                                                                    'settings.calendarEventTypes.placeholders.key',
-                                                                    {
-                                                                        defaultValue:
-                                                                            'Ej: meeting, standup, workshop',
-                                                                    },
-                                                                )}
-                                                            />
-                                                        </FormItem>
-                                                        <FormItem
-                                                            className="md:col-span-3"
-                                                            label={t('settings.calendarEventTypes.fields.label', {
-                                                                defaultValue: 'Nombre visible',
-                                                            })}
-                                                            invalid={labelError}
-                                                            errorMessage={
-                                                                (errors.types as Array<any>)?.[index]?.label as string
-                                                            }
-                                                        >
-                                                            <Field
-                                                                name={`types.${index}.label`}
-                                                                component={Input}
-                                                                placeholder={t(
-                                                                    'settings.calendarEventTypes.placeholders.label',
-                                                                    {
-                                                                        defaultValue:
-                                                                            'Nombre que verá el usuario',
-                                                                    },
-                                                                )}
-                                                            />
-                                                        </FormItem>
-                                                        <div className="flex justify-end md:justify-center">
-                                                            <Button
-                                                                type="button"
-                                                                size="sm"
-                                                                variant="plain"
-                                                                icon={<HiOutlineTrash />}
-                                                                disabled={values.types.length <= MIN_TYPES}
-                                                                onClick={() => remove(index)}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                )
-                                            })}
-                                            <Button
-                                                type="button"
-                                                variant="twoTone"
-                                                onClick={() => push({ key: '', label: '' })}
-                                            >
-                                                {t('settings.calendarEventTypes.actions.add', {
-                                                    defaultValue: 'Agregar tipo',
-                                                })}
-                                            </Button>
-                                        </div>
-                                    )}
-                                </FieldArray>
-                                <div className="flex justify-end">
-                                    <Button type="submit" variant="solid" loading={isSubmitting}>
-                                        {t('text.actions.save')}
-                                    </Button>
-                                </div>
-                            </FormContainer>
-                        </Form>
-                    )}
-                </Formik>
+                        })}
+                    </TBody>
+                </Table>
+                {items.length === 0 && !loading && (
+                    <div className="mt-4 text-sm opacity-70">
+                        {t('settings.calendarEventTypes.empty', {
+                            defaultValue: 'Aún no hay tipos de evento configurados.',
+                        })}
+                    </div>
+                )}
             </Card>
         </Loading>
     )

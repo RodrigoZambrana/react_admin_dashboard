@@ -20,7 +20,6 @@ const { Tr, Td, TBody, THead, Th } = Table
 const PaymentMethods = () => {
     const { t } = useTranslation()
     const [items, setItems] = useState<Method[]>([])
-    const [id, setId] = useState('')
     const [name, setName] = useState('')
     const [loading, setLoading] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -36,12 +35,13 @@ const PaymentMethods = () => {
     }, [])
 
     const onAdd = async () => {
-        if (!id.trim() || !name.trim()) return
+        if (!name.trim()) return
         setLoading(true)
-        const res = await apiCreatePaymentMethod<boolean, Method>({ id, name })
+        const res = await apiCreatePaymentMethod<boolean, { name: string }>(
+            { name },
+        )
         setLoading(false)
         if (res.data) {
-            setId('')
             setName('')
             toast.push(
                 <Notification title={t('settings.paymentMethods.created.title')} type="success">
@@ -93,9 +93,12 @@ const PaymentMethods = () => {
         <div className="flex flex-col gap-4 h-full">
             <Card className="card-shadow">
                 <h4 className="mb-4">{t('settings.paymentMethods.title')}</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4 max-w-2xl">
-                    <Input value={id} placeholder={t('settings.paymentMethods.placeholders.id')} onChange={(e) => setId(e.target.value)} />
-                    <Input value={name} placeholder={t('settings.paymentMethods.placeholders.name')} onChange={(e) => setName(e.target.value)} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4 max-w-xl">
+                    <Input
+                        value={name}
+                        placeholder={t('settings.paymentMethods.placeholders.name')}
+                        onChange={(e) => setName(e.target.value)}
+                    />
                     <Button loading={loading} onClick={onAdd} variant="solid">
                         {t('text.actions.add')}
                     </Button>
@@ -103,7 +106,6 @@ const PaymentMethods = () => {
                 <Table>
                     <THead>
                         <Tr>
-                            <Th>{t('settings.paymentMethods.columns.id')}</Th>
                             <Th>{t('settings.paymentMethods.columns.name')}</Th>
                             <Th className="text-right">{t('text.columns.actions')}</Th>
                         </Tr>
@@ -111,7 +113,6 @@ const PaymentMethods = () => {
                     <TBody>
                         {items.map((m) => (
                             <Tr key={m.id}>
-                                <Td>{m.id}</Td>
                                 <Td>
                                     {editingId === m.id ? (
                                         <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} />
@@ -142,4 +143,3 @@ const PaymentMethods = () => {
 }
 
 export default PaymentMethods
-

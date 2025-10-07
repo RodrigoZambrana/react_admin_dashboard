@@ -1,330 +1,199 @@
-import Badge from '@/components/ui/Badge'
-import Card from '@/components/ui/Card'
-import Tag from '@/components/ui/Tag'
-import classNames from 'classnames'
-import ReactHtmlParser, { HTMLReactParserOptions } from 'html-react-parser'
-import isLastChild from '@/utils/isLastChild'
+import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
-import {
-    UPDATE_TICKET,
-    COMMENT,
-    ADD_TAGS_TO_TICKET,
-    ADD_FILES_TO_TICKET,
-    CREATE_TICKET,
-    COMMENT_MENTION,
-    ASSIGN_TICKET,
-} from '../constants'
 import type { CommonProps } from '@/@types/common'
+import {
+    DEVICE_SIGN_IN,
+    LOGIN,
+    PASSWORD_CHANGE,
+    PROFILE_UPDATE,
+    SECURITY_ALERT,
+} from '../constants'
 
 type EventProps = {
     data: {
         type: string
         dateTime: number
-        ticket?: string
-        status?: number
         userName: string
-        userImg?: string
-        comment?: string
-        tags?: string[]
-        files?: string[]
-        assignee?: string
+        description?: string
+        metadata?: Record<string, string | undefined | null>
     }
     compact?: boolean
 }
 
-const ticketStatus: Record<
-    number,
-    {
-        label: string
-        bgClass: string
-        textClass: string
-    }
-> = {
-    0: {
-        label: 'Completed',
-        bgClass: 'bg-emerald-500',
-        textClass: 'text-emerald-500',
-    },
-    1: { label: 'In Dev', bgClass: 'bg-blue-500', textClass: 'text-blue-500' },
-    2: {
-        label: 'Ready to test',
-        bgClass: 'bg-amber-500',
-        textClass: 'text-amber-500',
-    },
-}
-
-const taskLabelColors: Record<string, string> = {
-    'Live Issue': 'bg-rose-500',
-    Backend: 'bg-blue-500',
-    Bug: 'bg-amber-400',
-    'Low priority': 'bg-indigo-500',
-}
-
 const UnixDateTime = ({ value }: { value: number }) => {
-    return <>{dayjs.unix(value).format('hh:mm A')}</>
+    return <>{dayjs.unix(value).format('HH:mm')}</>
 }
 
 const HighlightedText = ({ children, className }: CommonProps) => {
     return (
-        <span
-            className={classNames(
-                'font-semibold text-gray-900 dark:text-gray-100',
-                className,
-            )}
-        >
+        <span className={`font-semibold text-gray-900 dark:text-gray-100 ${className || ''}`}>
             {children}
         </span>
     )
 }
 
-const Event = ({ data, compact }: EventProps) => {
-    const options: HTMLReactParserOptions = {
-        // eslint-disable-next-line  @typescript-eslint/no-explicit-any
-        replace: (node: any) => {
-            if (node.type === 'tag' && node?.name === 'strong') {
-                return (
-                    <HighlightedText key={node?.children[0]?.data}>
-                        {node?.children[0]?.data}
-                    </HighlightedText>
-                )
-            }
-            return node.data
-        },
+const normalizeMetadata = (
+    metadata: Record<string, string | undefined | null> | undefined,
+) => {
+    if (!metadata) {
+        return [] as Array<{ key: string; value: string }>
+    }
+    return Object.entries(metadata)
+        .filter(([, value]) => Boolean(value))
+        .map(([key, value]) => ({ key, value: String(value) }))
+}
+
+const Event = ({ data }: EventProps) => {
+    const { t } = useTranslation()
+
+    const metadataEntries = normalizeMetadata(data.metadata)
+
+    const metadataLabels: Record<string, string> = {
+        device: t('account.activity.metadata.device', { defaultValue: 'Device' }),
+        location: t('account.activity.metadata.location', {
+            defaultValue: 'Location',
+        }),
+        ipAddress: t('account.activity.metadata.ipAddress', {
+            defaultValue: 'IP address',
+        }),
+        method: t('account.activity.metadata.method', { defaultValue: 'Method' }),
+        fields: t('account.activity.metadata.fields', { defaultValue: 'Fields' }),
+        reason: t('account.activity.metadata.reason', { defaultValue: 'Reason' }),
+        browser: t('account.activity.metadata.browser', { defaultValue: 'Browser' }),
+        platform: t('account.activity.metadata.platform', {
+            defaultValue: 'Platform',
+        }),
     }
 
+    let title: JSX.Element | string = ''
+    let description = data.description || ''
+
     switch (data.type) {
-        case UPDATE_TICKET:
-            return compact ? (
+        case LOGIN:
+            title = (
                 <>
-                    <div className="flex flex-col gap-y-0.5">
-                        <HighlightedText>{data.userName}</HighlightedText>
-                        <span className="text-xs">
-                            <UnixDateTime value={data.dateTime} />
-                        </span>
-                    </div>
-                    <div className="mt-4">
-                        <span className="mx-1">has change </span>
-                        <HighlightedText>{data.ticket}</HighlightedText>
-                        <span className="mx-1"> status to </span>
-                        <Badge
-                            className={ticketStatus[data.status || 0].bgClass}
-                        />
-                        <HighlightedText className="ml-1 rtl:mr-1">
-                            {ticketStatus[data.status || 0].label}
-                        </HighlightedText>
-                    </div>
-                </>
-            ) : (
-                <p className="my-1 flex items-center">
                     <HighlightedText>{data.userName}</HighlightedText>
-                    <span className="mx-1">has change </span>
-                    <HighlightedText>{data.ticket}</HighlightedText>
-                    <span className="mx-1"> status to </span>
-                    <Badge className={ticketStatus[data.status || 0].bgClass} />
-                    <HighlightedText className="ml-1 rtl:mr-1">
-                        {ticketStatus[data.status || 0].label}
-                    </HighlightedText>
-                    <span className="ml-3 rtl:mr-3">
-                        <UnixDateTime value={data.dateTime} />
+                    <span className="mx-1">
+                        {t('account.activity.events.login', {
+                            defaultValue: 'logged in successfully.',
+                        })}
                     </span>
-                </p>
-            )
-        case COMMENT:
-            return (
-                <>
-                    {compact ? (
-                        <>
-                            <div className="flex flex-col gap-y-0.5">
-                                <HighlightedText>
-                                    {data.userName}
-                                </HighlightedText>
-                                <span className="text-xs">
-                                    <UnixDateTime value={data.dateTime} />
-                                </span>
-                            </div>
-                            <div className="mt-4">
-                                <span className="mx-1">comment on your</span>
-                                <HighlightedText>Post</HighlightedText>
-                            </div>
-                        </>
-                    ) : (
-                        <p className="my-1 flex items-center">
-                            <HighlightedText>{data.userName}</HighlightedText>
-                            <span className="mx-1">comment on your</span>
-                            <HighlightedText>Post</HighlightedText>
-                            <span className="ml-3 rtl:mr-3">
-                                <UnixDateTime value={data.dateTime} />
-                            </span>
-                        </p>
-                    )}
-                    <Card bordered className="mt-4">
-                        {ReactHtmlParser(data.comment || '', options)}
-                    </Card>
                 </>
             )
-        case COMMENT_MENTION:
-            return (
+            if (!description) {
+                description = t('account.activity.events.loginDescription', {
+                    defaultValue: 'Successful authentication recorded.',
+                })
+            }
+            break
+        case DEVICE_SIGN_IN:
+            title = (
                 <>
-                    {compact ? (
-                        <>
-                            <div className="flex flex-col gap-y-0.5">
-                                <HighlightedText>
-                                    {data.userName}
-                                </HighlightedText>
-                                <span className="text-xs">
-                                    <UnixDateTime value={data.dateTime} />
-                                </span>
-                            </div>
-                            <div className="mt-4">
-                                <span className="mx-1">
-                                    mentioned you in a comment
-                                </span>
-                                <HighlightedText>Post</HighlightedText>
-                            </div>
-                        </>
-                    ) : (
-                        <p className="my-1 flex items-center">
-                            <HighlightedText>{data.userName}</HighlightedText>
-                            <span className="mx-1">
-                                mentioned you in a comment
-                            </span>
-                            <HighlightedText>Post</HighlightedText>
-                            <span className="ml-3 rtl:mr-3">
-                                <UnixDateTime value={data.dateTime} />
-                            </span>
-                        </p>
-                    )}
-                    <Card bordered className="mt-4">
-                        {ReactHtmlParser(data.comment || '', options)}
-                    </Card>
+                    <HighlightedText>{data.userName}</HighlightedText>
+                    <span className="mx-1">
+                        {t('account.activity.events.device', {
+                            defaultValue: 'signed in on a new device.',
+                        })}
+                    </span>
                 </>
             )
-        case ADD_TAGS_TO_TICKET:
-            return compact ? (
+            if (!description) {
+                description = t('account.activity.events.deviceDescription', {
+                    defaultValue:
+                        'A new session was created from an unrecognized browser.',
+                })
+            }
+            break
+        case PASSWORD_CHANGE:
+            title = (
                 <>
-                    <div className="flex flex-col gap-y-0.5">
-                        <HighlightedText>{data.userName}</HighlightedText>
-                        <span className="text-xs">
-                            <UnixDateTime value={data.dateTime} />
-                        </span>
-                    </div>
-                    <div className="mt-4">
-                        <span className="mx-1">added tags </span>
-                        {data?.tags?.map((label, index) => (
-                            <Tag
-                                key={label + index}
-                                prefix
-                                className="mx-1"
-                                prefixClass={`${taskLabelColors[label]}`}
-                            >
-                                {label}
-                            </Tag>
-                        ))}
-                    </div>
-                </>
-            ) : (
-                <div className="flex items-center">
-                    <HighlightedText>{data.userName} </HighlightedText>
-                    <span className="mx-1">added tags </span>
-                    {data?.tags?.map((label, index) => (
-                        <Tag
-                            key={label + index}
-                            prefix
-                            className="mx-1"
-                            prefixClass={`${taskLabelColors[label]}`}
-                        >
-                            {label}
-                        </Tag>
-                    ))}
-                    <span className="ml-3 rtl:mr-3">
-                        <UnixDateTime value={data.dateTime} />
+                    <HighlightedText>{data.userName}</HighlightedText>
+                    <span className="mx-1">
+                        {t('account.activity.events.passwordChange', {
+                            defaultValue: 'updated the account password.',
+                        })}
                     </span>
-                </div>
+                </>
             )
-        case ADD_FILES_TO_TICKET:
-            return compact ? (
+            if (!description) {
+                description = t('account.activity.events.passwordDescription', {
+                    defaultValue: 'Password change confirmed.',
+                })
+            }
+            break
+        case PROFILE_UPDATE:
+            title = (
                 <>
-                    <div className="flex flex-col gap-y-0.5">
-                        <HighlightedText>{data.userName}</HighlightedText>
-                        <span className="text-xs">
-                            <UnixDateTime value={data.dateTime} />
-                        </span>
-                    </div>
-                    <div className="mt-4">
-                        <span className="mx-1">added</span>
-                        {data?.files?.map((file, index) => (
-                            <HighlightedText key={file + index}>
-                                {file}
-                                {!isLastChild(data?.files || [], index) && (
-                                    <span className="ltr:mr-1 rtl:ml-1">
-                                        ,{' '}
-                                    </span>
-                                )}
-                            </HighlightedText>
-                        ))}
-                    </div>
-                </>
-            ) : (
-                <div className="flex items-center">
-                    <HighlightedText>{data.userName} </HighlightedText>
-                    <span className="mx-1">added</span>
-                    {data?.files?.map((file, index) => (
-                        <HighlightedText key={file + index}>
-                            {file}
-                            {!isLastChild(data?.files || [], index) && (
-                                <span className="ltr:mr-1 rtl:ml-1">, </span>
-                            )}
-                        </HighlightedText>
-                    ))}
-                    <span className="mx-1">to ticket</span>
-                    <HighlightedText>{data.ticket} </HighlightedText>
-                    <span className="ml-3 rtl:mr-3">
-                        <UnixDateTime value={data.dateTime} />
+                    <HighlightedText>{data.userName}</HighlightedText>
+                    <span className="mx-1">
+                        {t('account.activity.events.profileUpdate', {
+                            defaultValue: 'updated the account profile.',
+                        })}
                     </span>
-                </div>
+                </>
             )
-        case ASSIGN_TICKET:
-            return compact ? (
+            if (!description) {
+                description = t('account.activity.events.profileDescription', {
+                    defaultValue: 'Profile information was modified.',
+                })
+            }
+            break
+        case SECURITY_ALERT:
+            title = (
                 <>
-                    <div className="flex flex-col gap-y-0.5">
-                        <HighlightedText>{data.userName}</HighlightedText>
-                        <span className="text-xs">
-                            <UnixDateTime value={data.dateTime} />
-                        </span>
-                    </div>
-                    <div className="mt-4">
-                        <span className="mx-1">assigned ticket</span>
-                        <HighlightedText>{data.ticket}</HighlightedText>
-                        <span className="mx-1">to</span>
-                        <HighlightedText>{data?.assignee} </HighlightedText>
-                    </div>
+                    <HighlightedText>{data.userName}</HighlightedText>
+                    <span className="mx-1">
+                        {t('account.activity.events.securityAlert', {
+                            defaultValue: 'triggered a security alert.',
+                        })}
+                    </span>
                 </>
-            ) : (
-                <div className="flex items-center">
-                    <HighlightedText>{data.userName} </HighlightedText>
-                    <span className="mx-1">assigned ticket</span>
-                    <HighlightedText>{data.ticket}</HighlightedText>
-                    <span className="mx-1">to</span>
-                    <HighlightedText>{data.assignee} </HighlightedText>
-                    <span className="ml-3 rtl:mr-3">
-                        <UnixDateTime value={data.dateTime} />
-                    </span>
-                </div>
             )
-        case CREATE_TICKET:
-            return (
-                <div className="flex items-center">
-                    <HighlightedText>{data.userName} </HighlightedText>
-                    <span className="mx-1">has created ticket</span>
-                    <HighlightedText>{data.ticket}</HighlightedText>
-                    <span className="ml-3 rtl:mr-3">
-                        <UnixDateTime value={data.dateTime} />
-                    </span>
-                </div>
-            )
+            if (!description) {
+                description = t('account.activity.events.securityDescription', {
+                    defaultValue: 'Unusual activity detected by the security system.',
+                })
+            }
+            break
         default:
-            return null
+            title = (
+                <>
+                    <HighlightedText>{data.userName}</HighlightedText>
+                    <span className="mx-1">{t('account.activity.events.generic', {
+                        defaultValue: 'recorded an account activity.',
+                    })}</span>
+                </>
+            )
+            break
     }
+
+    return (
+        <div className="space-y-2">
+            <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center gap-1 text-sm">
+                    {title}
+                </div>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                    <UnixDateTime value={data.dateTime} />
+                </span>
+            </div>
+            {description && (
+                <p className="text-sm text-gray-600 dark:text-gray-300">{description}</p>
+            )}
+            {metadataEntries.length > 0 && (
+                <dl className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                    {metadataEntries.map((item) => (
+                        <div key={item.key} className="flex gap-2">
+                            <dt className="font-semibold">
+                                {metadataLabels[item.key] || item.key}
+                            </dt>
+                            <dd className="flex-1">{item.value}</dd>
+                        </div>
+                    ))}
+                </dl>
+            )}
+        </div>
+    )
 }
 
 export default Event

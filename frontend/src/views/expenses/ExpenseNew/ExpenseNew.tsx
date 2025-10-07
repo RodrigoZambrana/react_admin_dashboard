@@ -5,60 +5,74 @@ import DatePicker from '@/components/ui/DatePicker'
 import Button from '@/components/ui/Button'
 import { Field, Form, Formik } from 'formik'
 import { useEffect, useState } from 'react'
-import { apiGetExpenseCategories } from '@/services/ExpensesService'
+import {
+    apiGetExpenseCategories,
+    apiCreateExpense,
+    type ExpenseAttachment,
+} from '@/services/ExpensesService'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { apiCreateExpense } from '@/services/ExpensesService'
-import { apiGetPaymentMethods } from '@/services/SettingsService'
+import { apiGetPaymentMethods, apiGetExpenseStatuses } from '@/services/SettingsService'
 import toast from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
 import { useNavigate } from 'react-router-dom'
 import { HiOutlineAdjustments } from 'react-icons/hi'
 import CurrencySelector from '@/components/shared/CurrencySelector'
+import type { CurrencyCode } from '@/store'
 import InputGroup from '@/components/ui/InputGroup'
-import Upload from '@/components/ui/Upload'
-import DoubleSidedImage from '@/components/shared/DoubleSidedImage'
+import ExpenseAttachmentsField from '@/views/expenses/components/ExpenseAttachmentsField'
 
 type ExpenseForm = {
     date: Date | null
     vendor: string
-    category: string
-    paymentMehod: string
-    paymentIdendifier: string
+    categoryId: string | null
+    statusId: string | null
+    paymentMethodId: string | null
+    paymentReference: string
     amount: number | ''
     note?: string
-    attachmentUrl?: string
-    attachmentName?: string
-    attachmentType?: string
+    currency: string
+    attachments: ExpenseAttachment[]
 }
 
-const defaultCategories = [
-    { value: 'SaaS', label: 'SaaS' },
-    { value: 'Office', label: 'Office' },
-    { value: 'Travel', label: 'Travel' },
-    { value: 'Utilities', label: 'Utilities' },
-]
-
-const defaultMethods = [
-    { value: 'cash', label: 'Efectivo' },
-    { value: 'card', label: 'Tarjeta' },
-    { value: 'mp', label: 'Mercado Pago' },
-]
+const defaultCategories: Array<{ value: string; label: string }> = []
+const defaultStatuses: Array<{ value: string; label: string }> = []
+const defaultMethods: Array<{ value: string; label: string }> = []
 
 const ExpenseNew = () => {
     const { t } = useTranslation()
     const [categories, setCategories] = useState(defaultCategories)
+    const [statuses, setStatuses] = useState(defaultStatuses)
     const [methods, setMethods] = useState(defaultMethods)
 
     useEffect(() => {
         const fetch = async () => {
-            const res = await apiGetExpenseCategories<{ id: string; name: string }[]>()
-            const opts = (res.data as any[]).map((c) => ({ value: c.name, label: c.name }))
-            if (opts.length) setCategories(opts)
-            // payment methods from settings
-            const mRes = await apiGetPaymentMethods<{ id: string; name: string }[]>()
-            const mOpts = (mRes.data as any[]).map((m) => ({ value: m.id, label: m.name }))
-            if (mOpts.length) setMethods(mOpts)
+            const [categoryRes, statusRes, methodRes] = await Promise.all([
+                apiGetExpenseCategories<{ id: number; name: string }[]>(),
+                apiGetExpenseStatuses<{ id: number; name: string }[]>(),
+                apiGetPaymentMethods<{ id: number; name: string }[]>(),
+            ])
+            const categoryOptions = (categoryRes.data as any[]).map((category) => ({
+                value: String(category.id),
+                label: category.name,
+            }))
+            if (categoryOptions.length) {
+                setCategories(categoryOptions)
+            }
+            const statusOptions = (statusRes.data as any[]).map((status) => ({
+                value: String(status.id),
+                label: status.name,
+            }))
+            if (statusOptions.length) {
+                setStatuses(statusOptions)
+            }
+            const methodOptions = (methodRes.data as any[]).map((method) => ({
+                value: String(method.id),
+                label: method.name,
+            }))
+            if (methodOptions.length) {
+                setMethods(methodOptions)
+            }
         }
         fetch()
     }, [])
@@ -67,14 +81,14 @@ const ExpenseNew = () => {
     const initialValues: ExpenseForm = {
         date: new Date(),
         vendor: '',
-        category: 'SaaS',
-        paymentMehod: 'cash',
-        paymentIdendifier: '',
+        categoryId: null,
+        statusId: null,
+        paymentMethodId: null,
+        paymentReference: '',
         amount: '',
         note: '',
-        attachmentUrl: '',
-        attachmentName: '',
-        attachmentType: '',
+        currency: 'UYU',
+        attachments: [],
     }
 
     const onSubmit = async (values: ExpenseForm) => {
@@ -83,20 +97,15 @@ const ExpenseNew = () => {
             id,
             date: values.date ? Math.floor(values.date.getTime() / 1000) : Math.floor(Date.now() / 1000),
             vendor: values.vendor,
-            category: values.category,
-            status: 0,
-            paymentMehod: values.paymentMehod,
-            paymentIdendifier: values.paymentIdendifier,
-            amount: Number(values.amount) || 0,
-            note: values.note,
-            attachment: values.attachmentUrl
-                ? {
-                      name: values.attachmentName,
-                      url: values.attachmentUrl,
-                      type: values.attachmentType,
-                  }
-                : undefined,
-        }
+            categoryId: values.categoryId ? Number(values.categoryId) : null,
+            statusId: values.statusId ? Number(values.statusId) : null,
+            paymentMethodId: values.paymentMethodId ? Number(values.paymentMethodId) : null,
+        paymentReference: values.paymentReference,
+        amount: Number(values.amount) || 0,
+        note: values.note,
+        currency: values.currency ? values.currency.toUpperCase() : null,
+        attachments: values.attachments || [],
+    }
         const res = await apiCreateExpense<boolean, typeof payload>(payload)
         if (res.data) {
             toast.push(
@@ -116,107 +125,90 @@ const ExpenseNew = () => {
                 {({ values, touched, errors, setFieldValue }) => (
                     <Form>
                         <FormContainer>
-                            <FormItem label={t('text.columns.date')}>
-                                <DatePicker
-                                    value={values.date ?? undefined}
-                                    onChange={(val) => setFieldValue('date', val)}
-                                />
-                            </FormItem>
-                            <FormItem label={t('expenses.new.fields.vendor')}>
-                                <Field name="vendor" as={Input} placeholder={t('expenses.new.placeholders.vendor')} />
-                            </FormItem>
-                            <FormItem label={t('text.columns.category')}>
-                                <div className="flex items-center gap-2">
-                                    <Select
-                                        size="md"
-                                        options={categories}
-                                        value={categories.find((c) => c.value === values.category)}
-                                        onChange={(opt) => setFieldValue('category', (opt as any).value)}
-                                    />
-                                    <Link to="/app/expenses/categories">
-                                        <Button size="sm" variant="twoTone" icon={<HiOutlineAdjustments />}>
-                                            {t('expenses.categories.actions.manage')}
-                                        </Button>
-                                    </Link>
-                                </div>
-                            </FormItem>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                <FormItem label={t('text.columns.paymentMethod')}>
-                                    <Select
-                                        size="md"
-                                        options={methods}
-                                        value={methods.find((m) => m.value === values.paymentMehod)}
-                                        onChange={(opt) => setFieldValue('paymentMehod', (opt as any).value)}
-                                    />
-                                </FormItem>
-                                <FormItem label={t('text.titles.attachments')}>
-                                    <Field name="attachmentUrl">
-                                        {({ field, form }: any) => (
-                                            <Upload
-                                                uploadLimit={1}
-                                                accept={"image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"}
-                                                showList={false}
-                                                onChange={(files) => {
-                                                    if (files && files[0]) {
-                                                        const f = files[0]
-                                                        form.setFieldValue('attachmentUrl', URL.createObjectURL(f))
-                                                        form.setFieldValue('attachmentName', f.name)
-                                                        form.setFieldValue('attachmentType', f.type)
-                                                    }
-                                                }}
-                                                onFileRemove={() => {
-                                                    form.setFieldValue('attachmentUrl', '')
-                                                    form.setFieldValue('attachmentName', '')
-                                                    form.setFieldValue('attachmentType', '')
-                                                }}
-                                            >
-                                                {values.attachmentUrl ? (
-                                                    <div className="flex items-center gap-3 p-3 border rounded">
-                                                        {String(values.attachmentType || '').startsWith('image/') ? (
-                                                            <img className="rounded-sm max-h-[64px]" src={values.attachmentUrl} alt={values.attachmentName} />
-                                                        ) : (
-                                                            <DoubleSidedImage
-                                                                className="w-12 h-12"
-                                                                src="/img/others/upload.png"
-                                                                darkModeSrc="/img/others/upload-dark.png"
-                                                            />
-                                                        )}
-                                                        <span className="font-semibold truncate max-w-[260px]" title={values.attachmentName}>{values.attachmentName}</span>
-                                                        <Button size="sm" onClick={() => { form.setFieldValue('attachmentUrl', ''); form.setFieldValue('attachmentName', ''); form.setFieldValue('attachmentType', '') }}>{t('text.actions.remove')}</Button>
-                                                    </div>
-                                                ) : (
-                                                    <div className="my-6 text-center">
-                                                        <DoubleSidedImage
-                                                            className="mx-auto"
-                                                            src="/img/others/upload.png"
-                                                            darkModeSrc="/img/others/upload-dark.png"
-                                                        />
-                                                        <p className="font-semibold">
-                                                            <span className="text-gray-800 dark:text-white">Drop your file here, or </span>
-                                                            <span className="text-blue-500">browse</span>
-                                                        </p>
-                                                        <p className="mt-1 opacity-60 dark:text-white">Support: images (jpeg, png) & documents (pdf, doc, xls, csv, txt)</p>
-                                                    </div>
-                                                )}
-                                            </Upload>
-                                        )}
-                                    </Field>
-                                </FormItem>
-                            </div>
                             <FormItem label={t('text.columns.amount')}>
                                 <Field name="amount">
                                     {({ field, form }: any) => (
                                         <InputGroup>
                                             <InputGroup.Addon className="px-0">
-                                                <CurrencySelector embedded selectClassName="w-24" />
+                                                <CurrencySelector
+                                                    embedded
+                                                    selectClassName="w-24"
+                                                    value={values.currency as CurrencyCode}
+                                                    onChange={(code) =>
+                                                        setFieldValue('currency', code)
+                                                    }
+                                                />
                                             </InputGroup.Addon>
                                             <Input {...field} form={form} type="number" step="0.01" min="0" />
                                         </InputGroup>
                                     )}
                                 </Field>
                             </FormItem>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <FormItem label={t('expenses.new.fields.vendor')}>
+                                    <Field
+                                        name="vendor"
+                                        as={Input}
+                                        placeholder={t('expenses.new.placeholders.vendor')}
+                                    />
+                                </FormItem>
+                                <FormItem label={t('text.columns.paymentMethod')}>
+                                    <Select
+                                        size="md"
+                                        options={methods}
+                                        value={methods.find((method) => method.value === values.paymentMethodId) || null}
+                                        onChange={(opt) =>
+                                            setFieldValue('paymentMethodId', opt ? (opt as any).value : null)
+                                        }
+                                        isClearable
+                                    />
+                                </FormItem>
+                                <FormItem label={t('text.columns.category')}>
+                                    <div className="flex items-center gap-2">
+                                        <Select
+                                            size="md"
+                                            options={categories}
+                                            value={
+                                                categories.find((category) => category.value === values.categoryId) || null
+                                            }
+                                            onChange={(opt) =>
+                                                setFieldValue('categoryId', opt ? (opt as any).value : null)
+                                            }
+                                            isClearable
+                                        />
+                                        <Link to="/app/expenses/categories">
+                                            <Button size="sm" variant="twoTone" icon={<HiOutlineAdjustments />}>
+                                                {t('expenses.categories.actions.manage')}
+                                            </Button>
+                                        </Link>
+                                    </div>
+                                </FormItem>
+                                <FormItem label={t('text.columns.status')}>
+                                    <Select
+                                        size="md"
+                                        options={statuses}
+                                        value={statuses.find((status) => status.value === values.statusId) || null}
+                                        onChange={(opt) =>
+                                            setFieldValue('statusId', opt ? (opt as any).value : null)
+                                        }
+                                        isClearable
+                                    />
+                                </FormItem>
+                            </div>
+                            <FormItem label={t('text.titles.attachments')}>
+                                <ExpenseAttachmentsField
+                                    attachments={values.attachments}
+                                    onChange={(next) => setFieldValue('attachments', next)}
+                                />
+                            </FormItem>
                             <FormItem label={t('text.columns.comments')}>
                                 <Field name="note" as={Input} textArea rows={3} />
+                            </FormItem>
+                            <FormItem label={t('text.columns.date')}>
+                                <DatePicker
+                                    value={values.date ?? undefined}
+                                    onChange={(val) => setFieldValue('date', val)}
+                                />
                             </FormItem>
                             <div className="flex items-center gap-2">
                                 <Button type="submit" variant="solid">

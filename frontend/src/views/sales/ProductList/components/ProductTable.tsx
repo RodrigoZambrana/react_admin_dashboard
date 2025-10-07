@@ -19,6 +19,7 @@ import useThemeClass from '@/utils/hooks/useThemeClass'
 import ProductDeleteConfirmation from './ProductDeleteConfirmation'
 import { useNavigate } from 'react-router-dom'
 import cloneDeep from 'lodash/cloneDeep'
+import { deriveInventoryStatus } from '@/utils/inventory'
 import type {
     DataTableResetHandle,
     OnSortParam,
@@ -38,6 +39,7 @@ type Product = {
     brand?: string
     vendor?: string
     permanentStock?: boolean
+    currency?: string
 }
 
 const ActionColumn = ({ row }: { row: Product }) => {
@@ -46,7 +48,7 @@ const ActionColumn = ({ row }: { row: Product }) => {
     const navigate = useNavigate()
 
     const onEdit = () => {
-        navigate(`/app/sales/product-edit/${row.id}`)
+        navigate(`/app/products/edit/${row.id}`)
     }
 
     const onDelete = () => {
@@ -139,41 +141,32 @@ const ProductTable = () => {
         dispatch(getProducts({ pageIndex, pageSize, sort, query, filterData }))
     }
 
-    const currency = useAppSelector((state) => state.currency.code)
+    const defaultCurrency = useAppSelector((state) => state.currency.code)
 
     const resolveStockStatus = useMemo(() => {
         const styles = {
-            inStock: {
+            0: {
                 labelKey: 'text.status.inStock',
                 dotClass: 'bg-emerald-500',
                 textClass: 'text-emerald-500',
             },
-            limited: {
+            1: {
                 labelKey: 'text.status.limited',
                 dotClass: 'bg-amber-500',
                 textClass: 'text-amber-500',
             },
-            out: {
+            2: {
                 labelKey: 'text.status.outOfStock',
                 dotClass: 'bg-red-500',
                 textClass: 'text-red-500',
             },
         } as const
 
-        const derive = (stockValue: number, permanent: boolean) => {
-            if (permanent) {
-                return styles.inStock
-            }
-            if (stockValue <= 0) {
-                return styles.out
-            }
-            if (stockValue < 10) {
-                return styles.limited
-            }
-            return styles.inStock
+        return (stockValue: number, permanent: boolean) => {
+            const normalized = Number.isNaN(stockValue) ? 0 : stockValue
+            const status = deriveInventoryStatus(normalized, permanent)
+            return styles[status]
         }
-
-        return derive
     }, [])
 
     const columns: ColumnDef<Product>[] = useMemo(
@@ -287,8 +280,13 @@ const ProductTable = () => {
                 header: t('text.columns.price'),
                 accessorKey: 'price',
                 cell: (props) => {
-                    const { price } = props.row.original
-                    return <span>{currency} {price}</span>
+                    const { price, currency: rowCurrency } = props.row.original
+                    const label = rowCurrency || defaultCurrency
+                    return (
+                        <span>
+                            {label} {price}
+                        </span>
+                    )
                 },
             },
             {
@@ -297,7 +295,7 @@ const ProductTable = () => {
                 cell: (props) => <ActionColumn row={props.row.original} />,
             },
         ],
-        [t, currency, resolveStockStatus, updateProductRow],
+        [t, defaultCurrency, resolveStockStatus, updateProductRow],
     )
 
     const onPaginationChange = (page: number) => {

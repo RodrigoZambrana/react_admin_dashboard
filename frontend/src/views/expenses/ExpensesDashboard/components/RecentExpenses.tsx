@@ -2,7 +2,6 @@ import { useCallback } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Table from '@/components/ui/Table'
-import Badge from '@/components/ui/Badge'
 import useThemeClass from '@/utils/hooks/useThemeClass'
 import {
     useReactTable,
@@ -19,9 +18,11 @@ type Expense = {
     id: string
     date: number
     vendor: string
-    status: number
-    paymentMehod: string
-    paymentIdendifier: string
+    statusId?: number | null
+    statusName?: string
+    statusColor?: string | null
+    paymentMethodId?: number | null
+    paymentMethodName?: string
     amount: number
 }
 
@@ -35,24 +36,6 @@ type ExpenseColumnPros = {
 }
 
 const { Tr, Td, TBody, THead, Th } = Table
-
-const statusColor: Record<
-    number,
-    {
-        dotClass: string
-        textClass: string
-    }
-> = {
-    0: {
-        dotClass: 'bg-emerald-500',
-        textClass: 'text-emerald-500',
-    },
-    1: {
-        dotClass: 'bg-amber-500',
-        textClass: 'text-amber-500',
-    },
-    2: { dotClass: 'bg-red-500', textClass: 'text-red-500' },
-}
 
 const ExpenseColumn = ({ row }: ExpenseColumnPros) => {
     const { textTheme } = useThemeClass()

@@ -6,7 +6,6 @@ import DatePicker from '@/components/ui/DatePicker'
 import Dialog from '@/components/ui/Dialog'
 import Switcher from '@/components/ui/Switcher'
 import Upload from '@/components/ui/Upload'
-import Badge from '@/components/ui/Badge'
 import { FormContainer, FormItem } from '@/components/ui/Form'
 import hooks from '@/components/ui/hooks'
 import {
@@ -16,81 +15,25 @@ import {
     CalendarEvent,
     CalendarEventAttachment,
 } from '../store'
-import { Field, Form, Formik } from 'formik'
-import { components, ControlProps, OptionProps } from 'react-select'
+import { Field, Form, Formik, getIn } from 'formik'
 import * as Yup from 'yup'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
-import { HiCheck, HiOutlineTrash } from 'react-icons/hi'
+import { HiOutlineDownload, HiOutlineEye, HiOutlineTrash } from 'react-icons/hi'
 import {
     apiGetCrmCustomers,
     apiGetCrmCustomerDetails,
     type CalendarEventAddress,
 } from '@/services/CrmService'
+import CountryCitySelector, {
+    type CountryCityValue,
+} from '@/components/shared/CountryCitySelector'
 import { apiGetCalendarEventTypes } from '@/services/SettingsService'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
+import { apiFetchCalendarAttachment } from '@/services/CalendarService'
 
-const { Control } = components
 const { useUniqueId } = hooks
-
-const colorOptions = [
-    { value: 'red', label: 'red', color: 'bg-red-500' },
-    { value: 'orange', label: 'orange', color: 'bg-orange-500' },
-    { value: 'amber', label: 'amber', color: 'bg-amber-500' },
-    { value: 'yellow', label: 'yellow', color: 'bg-yellow-500' },
-    { value: 'lime', label: 'lime', color: 'bg-lime-500' },
-    { value: 'green', label: 'green', color: 'bg-green-500' },
-    { value: 'emerald', label: 'emerald', color: 'bg-emerald-500' },
-    { value: 'teal', label: 'teal', color: 'bg-teal-500' },
-    { value: 'cyan', label: 'cyan', color: 'bg-cyan-500' },
-    { value: 'sky', label: 'sky', color: 'bg-sky-500' },
-    { value: 'blue', label: 'blue', color: 'bg-blue-500' },
-    { value: 'indigo', label: 'indigo', color: 'bg-indigo-500' },
-    { value: 'purple', label: 'purple', color: 'bg-purple-500' },
-    { value: 'fuchsia', label: 'fuchsia', color: 'bg-fuchsia-500' },
-    { value: 'pink', label: 'pink', color: 'bg-pink-500' },
-    { value: 'rose', label: 'rose', color: 'bg-rose-500' },
-]
-
-type ColorOption = (typeof colorOptions)[number]
-
-const CustomSelectOption = ({
-    innerProps,
-    label,
-    data,
-    isSelected,
-}: OptionProps<ColorOption>) => {
-    return (
-        <div
-            className={`flex items-center justify-between p-2 ${
-                isSelected
-                    ? 'bg-gray-100 dark:bg-gray-500'
-                    : 'hover:bg-gray-50 dark:hover:bg-gray-600'
-            }`}
-            {...innerProps}
-        >
-            <div className="flex items-center">
-                <Badge className={data.color} />
-                <span className="ml-2 rtl:mr-2 capitalize">{label}</span>
-            </div>
-            {isSelected && <HiCheck className="text-emerald-500 text-xl" />}
-        </div>
-    )
-}
-
-const CustomControl = ({ children, ...props }: ControlProps<ColorOption>) => {
-    const selected = props.getValue()[0]
-
-    return (
-        <Control className="capitalize" {...props}>
-            {selected && (
-                <Badge className={`${selected.color} ltr:ml-4 rtl:mr-4`} />
-            )}
-            {children}
-        </Control>
-    )
-}
 
 type CustomerOption = {
     value: string
@@ -101,6 +44,7 @@ type CustomerOption = {
 type EventTypeOption = {
     value: string
     label: string
+    color: string
 }
 
 type FormModel = {
@@ -108,17 +52,17 @@ type FormModel = {
     detail: string
     startDate: Date | null
     endDate: Date | null
-    color: string
     allDay: boolean
     address: CalendarEventAddress
     isInternal: boolean
     customerId: string | null
-    eventType: string
+    eventTypeId: string
     attachments: File[]
 }
 
 type EventDialogProps = {
     submit: (eventData: CalendarEvent, type: string) => void
+    onDelete?: (id: string) => Promise<unknown> | unknown
 }
 
 const useValidationSchema = (t: (k: string, opts?: Record<string, unknown>) => string) =>
@@ -148,8 +92,7 @@ const useValidationSchema = (t: (k: string, opts?: Record<string, unknown>) => s
                         'La fecha de fin debe ser posterior a la de inicio.',
                 }),
             ),
-        color: Yup.string().required(t('text.validation.colorRequired')),
-        eventType: Yup.string().required(
+        eventTypeId: Yup.string().required(
             t('calendar.validation.eventTypeRequired', {
                 defaultValue: 'Selecciona un tipo de evento',
             }),
@@ -165,6 +108,7 @@ const emptyAddress: CalendarEventAddress = {
     apartment: '',
     city: '',
     country: '',
+    countryCode: '',
 }
 
 const formatAddressLabel = (address?: CalendarEventAddress) => {
@@ -182,15 +126,84 @@ const formatAddressLabel = (address?: CalendarEventAddress) => {
         .join(', ')
 }
 
-const mapFilesToAttachments = (files: File[]): CalendarEventAttachment[] =>
-    files.map((file, index) => ({
-        id: `file-${Date.now()}-${index}`,
-        name: file.name,
-        type: file.type,
-        size: file.size,
-    }))
+const readFileAsBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+            const { result } = reader
+            if (typeof result === 'string') {
+                const base64 = result.includes(',') ? result.split(',').pop() || '' : result
+                resolve(base64)
+                return
+            }
+            if (result instanceof ArrayBuffer) {
+                const bytes = new Uint8Array(result)
+                let binary = ''
+                bytes.forEach((byte) => {
+                    binary += String.fromCharCode(byte)
+                })
+                resolve(window.btoa(binary))
+                return
+            }
+            resolve('')
+        }
+        reader.onerror = () => reject(reader.error || new Error('no-file'))
+        reader.readAsDataURL(file)
+    })
 
-const EventDialog = ({ submit }: EventDialogProps) => {
+const mapFilesToAttachments = async (
+    files: File[],
+): Promise<CalendarEventAttachment[]> => {
+    if (!files.length) {
+        return []
+    }
+    const timestamp = Date.now()
+    const mapped = await Promise.all(
+        files.map(async (file, index) => {
+            try {
+                const content = await readFileAsBase64(file)
+                return {
+                    id: `file-${timestamp}-${index}`,
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                    content,
+                } satisfies CalendarEventAttachment
+            } catch (error) {
+                return {
+                    id: `file-${timestamp}-${index}`,
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                } satisfies CalendarEventAttachment
+            }
+        }),
+    )
+    return mapped.filter(Boolean)
+}
+
+const decodeBase64ToBlob = (base64: string, mimeType?: string) => {
+    if (typeof window === 'undefined') {
+        return new Blob()
+    }
+    const normalized = base64.includes(',') ? base64.split(',').pop() || '' : base64
+    const binaryString = window.atob(normalized)
+    const len = binaryString.length
+    const bytes = new Uint8Array(len)
+    for (let i = 0; i < len; i += 1) {
+        bytes[i] = binaryString.charCodeAt(i)
+    }
+    return new Blob([bytes], { type: mimeType || 'application/octet-stream' })
+}
+
+const createBlobUrl = (blob: Blob) => {
+    if (typeof window === 'undefined') {
+        return ''
+    }
+    return URL.createObjectURL(blob)
+}
+
+const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
 
@@ -209,8 +222,9 @@ const EventDialog = ({ submit }: EventDialogProps) => {
         Record<string, CalendarEventAddress | undefined>
     >({})
     const [loadingAddress, setLoadingAddress] = useState(false)
+    const [deleting, setDeleting] = useState(false)
     const defaultEventType = useMemo(
-        () => eventTypeOptions[0]?.value || 'meeting',
+        () => eventTypeOptions[0],
         [eventTypeOptions],
     )
 
@@ -250,54 +264,62 @@ const EventDialog = ({ submit }: EventDialogProps) => {
         const loadEventTypes = async () => {
             try {
                 const response = await apiGetCalendarEventTypes<
-                    { key: string; label: string }[]
+                    { id: number; name: string; color?: string }[]
                 >()
                 const list = Array.isArray(response.data)
                     ? response.data
-                          .filter((item) => item && item.key && item.label)
+                          .filter((item) => item && item.id && item.name)
                           .map((item) => ({
-                              value: item.key,
-                              label: item.label,
+                              value: String(item.id),
+                              label: item.name,
+                              color: item.color || '#2563eb',
                           }))
                     : []
-                setEventTypeOptions(
-                    list.length > 0
-                        ? list
-                        : [
-                              {
-                                  value: 'meeting',
-                                  label: t('calendar.eventTypes.meeting', {
-                                      defaultValue: 'Reunión',
-                                  }),
-                              },
-                              {
-                                  value: 'task',
-                                  label: t('calendar.eventTypes.task', {
-                                      defaultValue: 'Tarea',
-                                  }),
-                              },
-                              {
-                                  value: 'workshop',
-                                  label: t('calendar.eventTypes.workshop', {
-                                      defaultValue: 'Taller',
-                                  }),
-                              },
-                              {
-                                  value: 'other',
-                                  label: t('calendar.eventTypes.other', {
-                                      defaultValue: 'Otro',
-                                  }),
-                              },
-                          ],
-                )
+                if (list.length) {
+                    setEventTypeOptions(list)
+                    return
+                }
             } catch (error) {
-                setEventTypeOptions([
-                    { value: 'meeting', label: t('calendar.eventTypes.meeting', { defaultValue: 'Reunión' }) },
-                    { value: 'task', label: t('calendar.eventTypes.task', { defaultValue: 'Tarea' }) },
-                    { value: 'workshop', label: t('calendar.eventTypes.workshop', { defaultValue: 'Taller' }) },
-                    { value: 'other', label: t('calendar.eventTypes.other', { defaultValue: 'Otro' }) },
-                ])
+                toast.push(
+                    <Notification type="warning" title={t('common.warning', { defaultValue: 'Aviso' })}>
+                        {t('settings.calendarEventTypes.loadError', {
+                            defaultValue:
+                                'No fue posible cargar los tipos actuales. Se muestran los valores por defecto.',
+                        })}
+                    </Notification>,
+                )
             }
+            const fallback: EventTypeOption[] = [
+                {
+                    value: 'meeting',
+                    label: t('calendar.eventTypes.meeting', {
+                        defaultValue: 'Reunión',
+                    }),
+                    color: '#2563eb',
+                },
+                {
+                    value: 'task',
+                    label: t('calendar.eventTypes.task', {
+                        defaultValue: 'Tarea',
+                    }),
+                    color: '#059669',
+                },
+                {
+                    value: 'workshop',
+                    label: t('calendar.eventTypes.workshop', {
+                        defaultValue: 'Taller',
+                    }),
+                    color: '#7c3aed',
+                },
+                {
+                    value: 'other',
+                    label: t('calendar.eventTypes.other', {
+                        defaultValue: 'Otro',
+                    }),
+                    color: '#6b7280',
+                },
+            ]
+            setEventTypeOptions(fallback)
         }
         loadEventTypes()
     }, [t])
@@ -320,18 +342,45 @@ const EventDialog = ({ submit }: EventDialogProps) => {
     const initialAddress: CalendarEventAddress = {
         ...emptyAddress,
         ...selectedAddress,
+        country: selectedAddress?.country || '',
+        countryCode: selectedAddress?.countryCode || '',
+        city: selectedAddress?.city || '',
+        street: selectedAddress?.street || '',
+        number: selectedAddress?.number || '',
+        corner: selectedAddress?.corner || '',
+        apartment: selectedAddress?.apartment || '',
     }
 
-    const initialEventTypeValue = selected.extendedProps?.type
-        ? String(selected.extendedProps.type)
-        : defaultEventType
+    const resolvedEventTypeId = useMemo(() => {
+        const selectedId =
+            (selected.extendedProps?.eventTypeId as string | undefined) ??
+            (selected.eventTypeId ? String(selected.eventTypeId) : undefined)
+        if (selectedId) {
+            return selectedId
+        }
+        const labelFromSelection =
+            (selected.extendedProps?.eventType as string | undefined) ??
+            (selected.extendedProps?.type as string | undefined) ??
+            ''
+        if (labelFromSelection && eventTypeOptions.length) {
+            const normalized = labelFromSelection.toLowerCase()
+            const match = eventTypeOptions.find(
+                (option) =>
+                    option.value === labelFromSelection ||
+                    option.label.toLowerCase() === normalized,
+            )
+            if (match) {
+                return match.value
+            }
+        }
+        return defaultEventType?.value || ''
+    }, [defaultEventType, eventTypeOptions, selected])
 
     const initialValues: FormModel = {
         title: selected.title || '',
         detail: selected.extendedProps?.detail || '',
         startDate: startDateTime.toDate(),
         endDate: selected.end ? endDateTime.toDate() : endDateTime.toDate(),
-        color: selected.eventColor || colorOptions[0].value,
         allDay: Boolean(selected.allDay),
         address: initialAddress,
         isInternal: Boolean(selected.extendedProps?.isInternal),
@@ -339,20 +388,22 @@ const EventDialog = ({ submit }: EventDialogProps) => {
             selected.extendedProps?.customerId && !selected.extendedProps?.isInternal
                 ? String(selected.extendedProps.customerId)
                 : null,
-        eventType: initialEventTypeValue,
+        eventTypeId: resolvedEventTypeId,
         attachments: [],
     }
 
-    const handleSubmit = (
+    const handleSubmit = async (
         values: FormModel,
         setSubmitting: (isSubmitting: boolean) => void,
     ) => {
+        setSubmitting(true)
         if (!values.startDate) {
             toast.push(
                 <Notification type="danger" title={t('common.error', { defaultValue: 'Error' })}>
                     {t('text.validation.startDateRequired')}
                 </Notification>,
             )
+            setSubmitting(false)
             return
         }
 
@@ -364,13 +415,23 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                     })}
                 </Notification>,
             )
+            setSubmitting(false)
             return
         }
 
-        const attachments = [
-            ...existingAttachments,
-            ...mapFilesToAttachments(files),
-        ]
+        try {
+            const newAttachments = await mapFilesToAttachments(files)
+            const persistedAttachments = existingAttachments.map((attachment) => ({
+                id: attachment.id,
+                name: attachment.name,
+                type: attachment.type,
+                size: attachment.size,
+            }))
+
+            const attachments: CalendarEventAttachment[] = [
+                ...persistedAttachments,
+                ...newAttachments,
+            ]
 
         const addressPayload: CalendarEventAddress = {
             ...emptyAddress,
@@ -379,9 +440,16 @@ const EventDialog = ({ submit }: EventDialogProps) => {
 
         const locationLabel = formatAddressLabel(addressPayload)
 
+        const selectedTypeOption =
+            eventTypeOptions.find((option) => option.value === values.eventTypeId) ||
+            defaultEventType
+
+        const eventColor =
+            selectedTypeOption?.color || selected.eventColor || '#2563eb'
+
         const typeLabel = values.isInternal
             ? 'internal'
-            : values.eventType || defaultEventType
+            : selectedTypeOption?.label || defaultEventType?.label || 'Evento'
 
         const startMoment = dayjs(values.startDate)
         const endMomentCandidate = dayjs(values.endDate)
@@ -409,34 +477,166 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                 : normalizedStart.add(1, 'hour')
         }
 
-        const event: CalendarEvent = {
-            id: selected.id || newId,
-            title: values.title,
-            start: normalizedStart.format(),
-            end: normalizedEnd ? normalizedEnd.format() : undefined,
-            allDay: values.allDay,
-            eventColor: values.color,
-            extendedProps: {
-                ...selected.extendedProps,
-                type: typeLabel,
-                eventType: typeLabel,
-                detail: values.detail,
-                location: locationLabel,
-                address: addressPayload,
-                customerId: values.isInternal
-                    ? undefined
-                    : values.customerId || undefined,
-                isInternal: values.isInternal,
-                attachments,
-            },
-        }
+            const event: CalendarEvent = {
+                id: selected.id || newId,
+                title: values.title,
+                start: normalizedStart.format(),
+                end: normalizedEnd ? normalizedEnd.format() : undefined,
+                allDay: values.allDay,
+                eventColor,
+                eventTypeId: selectedTypeOption?.value,
+                extendedProps: {
+                    ...selected.extendedProps,
+                    type: typeLabel,
+                    eventType: selectedTypeOption?.label || typeLabel,
+                    eventTypeId: selectedTypeOption?.value,
+                    eventTypeName: selectedTypeOption?.label || typeLabel,
+                    detail: values.detail,
+                    location: locationLabel,
+                    address: addressPayload,
+                    customerId: values.isInternal
+                        ? undefined
+                        : values.customerId || undefined,
+                    isInternal: values.isInternal,
+                    attachments,
+                },
+            }
 
-        submit?.(event, selected.type)
-        setSubmitting(false)
+            submit?.(event, selected.type)
+        } finally {
+            setSubmitting(false)
+        }
     }
 
-    const removeAttachment = (id: string) => {
-        setExistingAttachments((items) => items.filter((item) => item.id !== id))
+    const readAttachmentBlob = async (
+        attachment: CalendarEventAttachment,
+        mode: 'inline' | 'attachment',
+    ) => {
+        try {
+            const response = await apiFetchCalendarAttachment(String(attachment.id), { mode })
+            return response.data
+        } catch (error) {
+            if (attachment.content) {
+                return decodeBase64ToBlob(attachment.content, attachment.type)
+            }
+            toast.push(
+                <Notification
+                    type="danger"
+                    title={t('common.error', { defaultValue: 'Error' })}
+                >
+                    {t('calendar.attachments.downloadFailed', {
+                        defaultValue: 'No se pudo obtener el archivo adjunto.',
+                    })}
+                </Notification>,
+            )
+            return null
+        }
+    }
+
+    const handleViewAttachment = async (attachment: CalendarEventAttachment) => {
+        if (typeof window === 'undefined') {
+            return
+        }
+        const blob = await readAttachmentBlob(attachment, 'inline')
+        if (!blob) {
+            return
+        }
+        const blobUrl = createBlobUrl(blob)
+        if (!blobUrl) {
+            return
+        }
+        window.open(blobUrl, '_blank', 'noopener')
+        setTimeout(() => {
+            URL.revokeObjectURL(blobUrl)
+        }, 10_000)
+    }
+
+    const handleDownloadAttachment = async (attachment: CalendarEventAttachment) => {
+        if (typeof window === 'undefined') {
+            return
+        }
+        const blob = await readAttachmentBlob(attachment, 'attachment')
+        if (!blob) {
+            return
+        }
+        const blobUrl = createBlobUrl(blob)
+        if (!blobUrl) {
+            return
+        }
+        const link = document.createElement('a')
+        link.href = blobUrl
+        link.download = attachment.name || 'attachment'
+        link.rel = 'noopener'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(blobUrl)
+    }
+
+    const confirmRemoveAttachment = (attachment: CalendarEventAttachment) => {
+        let toastKey: string | undefined
+
+        const closeToast = () => {
+            if (toastKey) {
+                toast.remove(toastKey)
+            }
+        }
+
+        const handleConfirm = () => {
+            closeToast()
+            setExistingAttachments((items) => items.filter((item) => item.id !== attachment.id))
+        }
+
+        const handleCancel = () => {
+            closeToast()
+        }
+
+        const message = t('calendar.attachments.confirmDelete', {
+            defaultValue: '¿Deseas eliminar el archivo {{name}}?',
+            name: attachment.name ||
+                t('calendar.attachments.unnamed', {
+                    defaultValue: 'Archivo sin nombre',
+                }),
+        })
+
+        const notification = (
+            <Notification
+                type="warning"
+                title={t('common.confirmation', { defaultValue: 'Confirmación' })}
+                duration={0}
+                closable
+            >
+                <div className="space-y-3">
+                    <p>{message}</p>
+                    <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="plain" onClick={handleCancel}>
+                            {t('text.actions.cancel', { defaultValue: 'Cancelar' })}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="solid"
+                            color="red"
+                            onClick={handleConfirm}
+                        >
+                            {t('text.actions.delete', { defaultValue: 'Eliminar' })}
+                        </Button>
+                    </div>
+                </div>
+            </Notification>
+        )
+
+        const keyOrPromise = toast.push(notification, {
+            placement: 'top-center',
+            duration: 0,
+        })
+
+        if (keyOrPromise instanceof Promise) {
+            keyOrPromise.then((key) => {
+                toastKey = key
+            })
+        } else {
+            toastKey = keyOrPromise
+        }
     }
 
     return (
@@ -456,15 +656,70 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                 enableReinitialize
                 initialValues={initialValues}
                 validationSchema={useValidationSchema(t)}
-                onSubmit={(values, helpers) => handleSubmit(values, helpers.setSubmitting)}
+                onSubmit={async (values, helpers) => {
+                    await handleSubmit(values, helpers.setSubmitting)
+                }}
             >
                 {({
                     values,
                     touched,
                     errors,
                     setFieldValue,
+                    setFieldTouched,
+                    setSubmitting,
                     isSubmitting,
                 }) => {
+                    const addressCountryError = getIn(
+                        errors,
+                        'address.country',
+                    ) as string | undefined
+                    const addressCityError = getIn(
+                        errors,
+                        'address.city',
+                    ) as string | undefined
+                    const addressCountryTouched = getIn(
+                        touched,
+                        'address.country',
+                    )
+                    const addressCityTouched = getIn(
+                        touched,
+                        'address.city',
+                    )
+                    const showAddressError = Boolean(
+                        (addressCountryTouched && addressCountryError) ||
+                            (addressCityTouched && addressCityError),
+                    )
+                    const addressErrorMessage =
+                        (addressCountryTouched && addressCountryError
+                            ? addressCountryError
+                            : undefined) ??
+                        (addressCityTouched && addressCityError
+                            ? addressCityError
+                            : undefined) ??
+                        addressCityError ??
+                        addressCountryError
+
+                    const handleAddressLocationChange = (
+                        next: CountryCityValue,
+                    ) => {
+                        const countryName = next.countryName ?? ''
+                        const cityValue = next.city ?? ''
+                        const countryCode = next.countryCode ?? ''
+
+                        setFieldValue('address.country', countryName)
+                        setFieldValue('address.city', cityValue)
+                        setFieldValue('address.countryCode', countryCode)
+                        setFieldTouched('address.country', true, false)
+                        if (next.city !== undefined) {
+                            setFieldTouched('address.city', true, false)
+                        }
+                    }
+
+                    const selectedEventTypeOption =
+                        eventTypeOptions.find(
+                            (option) => option.value === values.eventTypeId,
+                        ) || null
+
                     const normalizeAllDayStart = (date: dayjs.Dayjs) =>
                         date.hour(0).minute(0).second(0).millisecond(0)
 
@@ -617,6 +872,7 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                                     apartment: primary.apartment || '',
                                     city: primary.city || '',
                                     country: primary.country || '',
+                                    countryCode: primary.countryCode || '',
                                 }
 
                                 setCustomerAddressesCache((prev) => ({
@@ -645,6 +901,58 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                             )
                         } finally {
                             setLoadingAddress(false)
+                        }
+                    }
+
+                    const handleDeleteEvent = async () => {
+                        if (!selected.id || !onDelete) {
+                            return
+                        }
+                        const message = t('calendar.confirmDelete', {
+                            defaultValue:
+                                '¿Eliminar este evento? Esta acción no se puede deshacer.',
+                        })
+                        const confirmed =
+                            typeof window === 'undefined'
+                                ? true
+                                : window.confirm(message)
+                        if (!confirmed) {
+                            return
+                        }
+                        try {
+                            setDeleting(true)
+                            setSubmitting(true)
+                            await onDelete(String(selected.id))
+                            toast.push(
+                                <Notification
+                                    type="success"
+                                    title={t('common.success', {
+                                        defaultValue: 'Éxito',
+                                    })}
+                                >
+                                    {t('calendar.messages.eventDeleted', {
+                                        defaultValue:
+                                            'Evento eliminado correctamente.',
+                                    })}
+                                </Notification>,
+                            )
+                        } catch (error) {
+                            toast.push(
+                                <Notification
+                                    type="danger"
+                                    title={t('common.error', {
+                                        defaultValue: 'Error',
+                                    })}
+                                >
+                                    {t('calendar.errors.deleteFailed', {
+                                        defaultValue:
+                                            'No fue posible eliminar el evento.',
+                                    })}
+                                </Notification>,
+                            )
+                        } finally {
+                            setDeleting(false)
+                            setSubmitting(false)
                         }
                     }
 
@@ -742,22 +1050,19 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                                             defaultValue: 'Tipo de evento',
                                         })}
                                         invalid={Boolean(
-                                            errors.eventType && touched.eventType,
+                                            errors.eventTypeId && touched.eventTypeId,
                                         )}
-                                        errorMessage={errors.eventType as string}
+                                        errorMessage={errors.eventTypeId as string}
                                     >
                                         <Select
                                             value={
-                                                eventTypeOptions.find(
-                                                    (option) =>
-                                                        option.value === values.eventType,
-                                                ) || null
+                                                selectedEventTypeOption
                                             }
                                             options={eventTypeOptions}
                                             isClearable={false}
                                             onChange={(option) =>
                                                 setFieldValue(
-                                                    'eventType',
+                                                    'eventTypeId',
                                                     option
                                                         ? (option as EventTypeOption).value
                                                         : '',
@@ -771,7 +1076,33 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                                                 },
                                             )}
                                             isLoading={eventTypeOptions.length === 0}
+                                            formatOptionLabel={(option) => (
+                                                <div className="flex items-center gap-2">
+                                                    <span
+                                                        className="inline-block h-3 w-3 rounded-full border border-gray-300 dark:border-gray-500"
+                                                        style={{
+                                                            backgroundColor:
+                                                                option.color,
+                                                        }}
+                                                    />
+                                                    <span>{option.label}</span>
+                                                </div>
+                                            )}
                                         />
+                                        {selectedEventTypeOption && (
+                                            <div className="mt-2 flex items-center gap-2 text-sm">
+                                                <span
+                                                    className="inline-block h-4 w-4 rounded-full border border-gray-300 dark:border-gray-500"
+                                                    style={{
+                                                        backgroundColor:
+                                                            selectedEventTypeOption.color,
+                                                    }}
+                                                />
+                                                <span className="font-mono">
+                                                    {selectedEventTypeOption.color}
+                                                </span>
+                                            </div>
+                                        )}
                                     </FormItem>
                                     {!values.isInternal && (
                                         <FormItem
@@ -835,40 +1166,38 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                                             />
                                         </FormItem>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <FormItem
-                                            label={t('calendar.fields.address.city', {
-                                                defaultValue: 'Ciudad',
-                                            })}
-                                        >
-                                            <Field
-                                                name="address.city"
-                                                component={Input}
-                                                placeholder={t(
-                                                    'calendar.placeholders.city',
-                                                    {
-                                                        defaultValue: 'Ciudad',
-                                                    },
-                                                )}
-                                            />
-                                        </FormItem>
-                                        <FormItem
-                                            label={t('calendar.fields.address.country', {
-                                                defaultValue: 'País',
-                                            })}
-                                        >
-                                            <Field
-                                                name="address.country"
-                                                component={Input}
-                                                placeholder={t(
-                                                    'calendar.placeholders.country',
-                                                    {
-                                                        defaultValue: 'País',
-                                                    },
-                                                )}
-                                            />
-                                        </FormItem>
-                                    </div>
+                                    <FormItem
+                                        label={t(
+                                            'calendar.fields.address.countryCity',
+                                            {
+                                                defaultValue: 'País y ciudad',
+                                            },
+                                        )}
+                                        invalid={showAddressError}
+                                        errorMessage={addressErrorMessage}
+                                    >
+                                        <CountryCitySelector
+                                            value={{
+                                                countryCode:
+                                                    values.address.countryCode,
+                                                countryName: values.address.country,
+                                                city: values.address.city,
+                                            }}
+                                            onChange={handleAddressLocationChange}
+                                            countryPlaceholder={t(
+                                                'calendar.placeholders.country',
+                                                {
+                                                    defaultValue: 'País',
+                                                },
+                                            )}
+                                            cityPlaceholder={t(
+                                                'calendar.placeholders.city',
+                                                {
+                                                    defaultValue: 'Ciudad',
+                                                },
+                                            )}
+                                        />
+                                    </FormItem>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <FormItem
                                             label={t('calendar.fields.address.corner', {
@@ -921,30 +1250,6 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                                         />
                                     </FormItem>
                                     <FormItem
-                                        label={t('calendar.fields.color', {
-                                            defaultValue: 'Color del evento',
-                                        })}
-                                        invalid={Boolean(errors.color && touched.color)}
-                                        errorMessage={errors.color}
-                                    >
-                                        <Select
-                                            value={colorOptions.find(
-                                                (option) => option.value === values.color,
-                                            )}
-                                            onChange={(option) =>
-                                                setFieldValue(
-                                                    'color',
-                                                    (option as ColorOption).value,
-                                                )
-                                            }
-                                            options={colorOptions}
-                                            components={{
-                                                Option: CustomSelectOption,
-                                                Control: CustomControl,
-                                            }}
-                                        />
-                                    </FormItem>
-                                    <FormItem
                                         label={t('text.titles.attachments', {
                                             defaultValue: 'Adjuntos',
                                         })}
@@ -973,26 +1278,81 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                                                         key={attachment.id}
                                                         className="flex items-center justify-between rounded border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm"
                                                     >
-                                                        <div className="truncate">
+                                                        <div className="min-w-0">
                                                             <p className="font-semibold truncate">
-                                                                {attachment.name}
+                                                                {attachment.name ||
+                                                                    t(
+                                                                        'calendar.attachments.unnamed',
+                                                                        {
+                                                                            defaultValue:
+                                                                                'Archivo sin nombre',
+                                                                        },
+                                                                    )}
                                                             </p>
-                                                            <p className="text-xs text-gray-500 dark:text-gray-300">
-                                                                {attachment.type || 'Archivo'} ·{' '}
-                                                                {attachment.size
-                                                                    ? `${Math.round(attachment.size / 1024)} KB`
-                                                                    : t('calendar.attachments.unknownSize', {
-                                                                          defaultValue:
-                                                                              'Tamaño desconocido',
-                                                                      })}
+                                                            <p className="text-xs text-gray-500 dark:text-gray-300 truncate">
+                                                                {(attachment.type || 'Archivo') +
+                                                                    (attachment.size
+                                                                        ? ` · ${Math.round(
+                                                                              (attachment.size || 0) /
+                                                                                  1024,
+                                                                          )} KB`
+                                                                        : ` · ${t(
+                                                                              'calendar.attachments.unknownSize',
+                                                                              {
+                                                                                  defaultValue:
+                                                                                      'Tamaño desconocido',
+                                                                              },
+                                                                          )}`)}
                                                             </p>
                                                         </div>
-                                                        <Button
-                                                            size="xs"
-                                                            variant="plain"
-                                                            icon={<HiOutlineTrash />}
-                                                            onClick={() => removeAttachment(attachment.id)}
-                                                        />
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                size="xs"
+                                                                variant="plain"
+                                                                icon={<HiOutlineEye />}
+                                                                onClick={() =>
+                                                                    handleViewAttachment(attachment)
+                                                                }
+                                                                aria-label={t(
+                                                                    'text.actions.view',
+                                                                    {
+                                                                        defaultValue: 'Ver',
+                                                                    },
+                                                                )}
+                                                            />
+                                                            <Button
+                                                                size="xs"
+                                                                variant="plain"
+                                                                icon={<HiOutlineDownload />}
+                                                                onClick={() =>
+                                                                    handleDownloadAttachment(
+                                                                        attachment,
+                                                                    )
+                                                                }
+                                                                aria-label={t(
+                                                                    'text.actions.download',
+                                                                    {
+                                                                        defaultValue: 'Descargar',
+                                                                    },
+                                                                )}
+                                                            />
+                                                            <Button
+                                                                size="xs"
+                                                                variant="plain"
+                                                                icon={<HiOutlineTrash />}
+                                                                onClick={() =>
+                                                                    confirmRemoveAttachment(
+                                                                        attachment,
+                                                                    )
+                                                                }
+                                                                aria-label={t(
+                                                                    'text.actions.delete',
+                                                                    {
+                                                                        defaultValue: 'Eliminar',
+                                                                    },
+                                                                )}
+                                                            />
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1000,12 +1360,24 @@ const EventDialog = ({ submit }: EventDialogProps) => {
                                     </FormItem>
                                 </FormContainer>
                             </div>
-                            <div className="mt-4 text-right">
-                                <Button
-                                    type="button"
-                                    className="ltr:mr-2 rtl:ml-2"
-                                    onClick={handleDialogClose}
-                                >
+                            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+                                {selected.type === 'EDIT' &&
+                                    selected.id &&
+                                    onDelete && (
+                                        <Button
+                                            type="button"
+                                            variant="solid"
+                                            color="red-600"
+                                            icon={<HiOutlineTrash />}
+                                            className="ltr:mr-auto rtl:ml-auto"
+                                            loading={deleting}
+                                            disabled={loading || isSubmitting || deleting}
+                                            onClick={handleDeleteEvent}
+                                        >
+                                            {t('text.actions.delete')}
+                                        </Button>
+                                    )}
+                                <Button type="button" onClick={handleDialogClose}>
                                     {t('text.actions.cancel')}
                                 </Button>
                                 <Button

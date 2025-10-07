@@ -1,49 +1,303 @@
+import { ReactNode, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import Card from '@/components/ui/Card'
-import Avatar from '@/components/ui/Avatar'
 import Button from '@/components/ui/Button'
-import { HiPencilAlt } from 'react-icons/hi'
-import { useAppDispatch } from '../store'
-import { openEditActivityDialog } from '../store/slice'
+import Tag from '@/components/ui/Tag'
+import {
+    HiPencilAlt,
+    HiOutlineCalendar,
+    HiOutlineClock,
+    HiOutlineLocationMarker,
+    HiOutlineSwitchHorizontal,
+} from 'react-icons/hi'
 import dayjs from 'dayjs'
 
-type FieldProps = { title?: string; value?: string }
-const InfoField = ({ title, value }: FieldProps) => (
-    <div>
-        <span>{title}</span>
-        <p className="text-gray-700 dark:text-gray-200 font-semibold">{value}</p>
+type MetaTileProps = {
+    icon: ReactNode
+    label: string
+    value?: ReactNode
+}
+
+const MetaTile = ({ icon, label, value }: MetaTileProps) => (
+    <div className="rounded-xl border border-gray-200/80 dark:border-gray-700 bg-white/75 dark:bg-gray-800/60 backdrop-blur px-4 py-3 shadow-sm">
+        <div className="flex items-start gap-3">
+            <span className="mt-1 text-primary-600 dark:text-primary-400">{icon}</span>
+            <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    {label}
+                </span>
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight">
+                    {value ?? '-'}
+                </div>
+            </div>
+        </div>
     </div>
 )
 
-const ActivityProfile = ({ data = {} as any }) => {
+type ActivityProfileProps = {
+    data?: Partial<{
+        id: string
+        name?: string
+        eventType?: string
+        role?: string
+        startAt?: string
+        endAt?: string
+        allDay?: boolean
+        time?: string
+        eventColor?: string
+        personalInfo?: {
+            location?: string
+        }
+        address?: {
+            street?: string
+            number?: string
+            corner?: string
+            apartment?: string
+            city?: string
+            country?: string
+        }
+    }>
+    onEdit?: () => void
+}
+
+const ActivityProfile = ({ data = {}, onEdit }: ActivityProfileProps) => {
     const { t } = useTranslation()
-    const dispatch = useAppDispatch()
+
+    const start = data.startAt ? dayjs(data.startAt) : null
+    const end = data.endAt ? dayjs(data.endAt) : null
+
+    const eventAccent = useMemo(() => {
+        const fallback = '#2563eb'
+        const hex = (data.eventColor || fallback).trim() || fallback
+        const normalizeHex = (value: string) => {
+            const cleaned = value.replace('#', '')
+            if (cleaned.length === 3) {
+                return cleaned
+                    .split('')
+                    .map((char) => char + char)
+                    .join('')
+            }
+            if (cleaned.length === 6) {
+                return cleaned
+            }
+            return fallback.replace('#', '')
+        }
+        const toRgb = (value: string) => {
+            const normalized = normalizeHex(value)
+            const intValue = parseInt(normalized, 16)
+            const r = (intValue >> 16) & 255
+            const g = (intValue >> 8) & 255
+            const b = intValue & 255
+            return { r, g, b }
+        }
+        const toRgba = (value: string, alpha: number) => {
+            const { r, g, b } = toRgb(value)
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`
+        }
+        const normalizedHex = normalizeHex(hex)
+        return {
+            color: `#${normalizedHex}`,
+            background: toRgba(normalizedHex, 0.12),
+            border: toRgba(normalizedHex, 0.28),
+        }
+    }, [data.eventColor])
+
+    const dateLabel = useMemo(() => {
+        if (!start) {
+            return '-'
+        }
+        if (end && !start.isSame(end, 'day')) {
+            return `${start.format('DD/MM/YYYY')} → ${end.format('DD/MM/YYYY')}`
+        }
+        return start.format('DD/MM/YYYY')
+    }, [start, end])
+
+    const timeLabel = useMemo(() => {
+        if (data.allDay) {
+            return t('calendar.fields.allDay', {
+                defaultValue: 'Evento de todo el día',
+            })
+        }
+        if (start) {
+            const startTime = start.format('HH:mm')
+            const endTime = end ? end.format('HH:mm') : ''
+            return endTime ? `${startTime} - ${endTime}` : startTime
+        }
+        return data.time || '-'
+    }, [data.allDay, data.time, end, start, t])
+
+    const eventTypeLabel = useMemo(() => {
+        const role = (data.role || '').toLowerCase()
+        const fallback = data.eventType || data.role || '-'
+        if (!role) {
+            return fallback
+        }
+        return t(`calendar.eventTypes.${role}`, {
+            defaultValue: fallback,
+        })
+    }, [data.eventType, data.role, t])
+
+    const location = data.personalInfo?.location
+    const structuredAddress = useMemo(() => {
+        if (!data.address) {
+            return ''
+        }
+        const streetLine = [data.address.street, data.address.number]
+            .filter((value) => value && String(value).trim().length)
+            .join(' ')
+        const cornerLine = data.address.corner
+            ? t('calendar.address.cornerFormat', {
+                  defaultValue: 'esq. {{corner}}',
+                  corner: data.address.corner,
+              })
+            : ''
+        const locality = [data.address.city, data.address.country]
+            .filter((value) => value && String(value).trim().length)
+            .join(', ')
+        return [streetLine, cornerLine, locality]
+            .filter((value) => value && value.trim().length)
+            .join(', ')
+    }, [data.address, t])
+
+    const locationSegments = useMemo(() => {
+        if (structuredAddress) {
+            return [structuredAddress.trim()]
+        }
+        if (location && location.trim().length) {
+            return [location.trim()]
+        }
+        return []
+    }, [location, structuredAddress])
+
+    const locationTileValue = useMemo(() => {
+        if (!locationSegments.length) {
+            return '-'
+        }
+        if (locationSegments.length === 1) {
+            return locationSegments[0]
+        }
+        return (
+            <div className="flex flex-col gap-1">
+                {locationSegments.map((value) => (
+                    <span key={value}>{value}</span>
+                ))}
+            </div>
+        )
+    }, [locationSegments])
+
+    const durationLabel = useMemo(() => {
+        if (!start) {
+            return '-'
+        }
+        if (data.allDay) {
+            if (end && !start.isSame(end, 'day')) {
+                const days = end.endOf('day').diff(start.startOf('day'), 'day') + 1
+                return `${days}d`
+            }
+            return t('calendar.fields.allDay', {
+                defaultValue: 'Evento de todo el día',
+            })
+        }
+        if (!end) {
+            return t('calendar.messages.noEndTime', {
+                defaultValue: 'Sin hora de fin',
+            })
+        }
+        const totalMinutes = Math.max(end.diff(start, 'minute'), 0)
+        if (totalMinutes === 0) {
+            return '0m'
+        }
+        const hours = Math.floor(totalMinutes / 60)
+        const minutes = totalMinutes % 60
+        const parts: string[] = []
+        if (hours) {
+            parts.push(`${hours}h`)
+        }
+        if (minutes) {
+            parts.push(`${minutes}m`)
+        }
+        return parts.join(' ')
+    }, [data.allDay, end, start, t])
+
+    const eventTitle =
+        data.name?.trim() ||
+        t('text.labels.title', {
+            defaultValue: 'Título',
+        })
+
     return (
         <Card>
-            <div className="flex flex-col xl:justify-between h-full 2xl:min-w-[360px] mx-auto">
-                <div className="flex xl:flex-col items-center gap-4">
-                    <Avatar size={90} shape="circle" src={(data as any).img} />
-                    <h4 className="font-bold">{(data as any).name}</h4>
+            <div className="flex flex-col gap-6">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div className="flex flex-col gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <span
+                                className="mt-1 h-3 w-3 rounded-full"
+                                style={{ backgroundColor: eventAccent.color }}
+                                aria-hidden="true"
+                            />
+                            <h4 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                                {eventTitle}
+                            </h4>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            {eventTypeLabel && (
+                                <Tag
+                                    className="border"
+                                    style={{
+                                        color: eventAccent.color,
+                                        backgroundColor: eventAccent.background,
+                                        borderColor: eventAccent.border,
+                                    }}
+                                >
+                                    {eventTypeLabel}
+                                </Tag>
+                            )}
+                            {data.allDay && (
+                                <Tag className="border border-transparent bg-gray-100 text-gray-700 dark:bg-gray-700/60 dark:text-gray-200">
+                                    {t('calendar.fields.allDay', {
+                                        defaultValue: 'Evento de todo el día',
+                                    })}
+                                </Tag>
+                            )}
+                        </div>
+                    </div>
+                    <div className="flex justify-end">
+                        <Button
+                            size="sm"
+                            icon={<HiPencilAlt />}
+                            variant="solid"
+                            onClick={onEdit}
+                        >
+                            {t('text.actions.edit')}
+                        </Button>
+                    </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-y-7 gap-x-4 mt-8">
-                    <InfoField title={t('text.labels.title', { defaultValue: 'Title' })} value={(data as any).name} />
-                    <InfoField title={t('text.labels.date', { defaultValue: 'Date' })} value={(data as any).date ? dayjs((data as any).date).format('DD/MM/YYYY') : undefined} />
-                    <InfoField title={t('text.labels.time', { defaultValue: 'Time' })} value={(data as any).time} />
-                    <InfoField title={t('text.labels.location')} value={(data as any).personalInfo?.location} />
-                    <InfoField title={t('text.labels.email')} value={(data as any).email} />
-                    <InfoField
-                        title={t('text.labels.phone')}
-                        value={
-                            (data as any).personalInfo?.phoneNumbers?.length
-                                ? (data as any).personalInfo?.phoneNumbers?.join(', ')
-                                : (data as any).personalInfo?.phoneNumber
-                        }
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                    <MetaTile
+                        icon={<HiOutlineCalendar className="h-5 w-5" />}
+                        label={t('text.labels.date', { defaultValue: 'Fecha' })}
+                        value={dateLabel}
                     />
-                </div>
-                <div className="mt-4 flex flex-col xl:flex-row gap-2">
-                    <Button block icon={<HiPencilAlt />} variant="solid" onClick={() => dispatch(openEditActivityDialog())}>
-                        {t('text.actions.edit')}
-                    </Button>
+                    <MetaTile
+                        icon={<HiOutlineClock className="h-5 w-5" />}
+                        label={t('text.labels.time', { defaultValue: 'Horario' })}
+                        value={timeLabel}
+                    />
+                    <MetaTile
+                        icon={<HiOutlineSwitchHorizontal className="h-5 w-5" />}
+                        label={t('calendar.labels.duration', {
+                            defaultValue: 'Duración',
+                        })}
+                        value={durationLabel}
+                    />
+                    <MetaTile
+                        icon={<HiOutlineLocationMarker className="h-5 w-5" />}
+                        label={t('calendar.labels.address', {
+                            defaultValue: 'Dirección',
+                        })}
+                        value={locationTileValue}
+                    />
                 </div>
             </div>
         </Card>

@@ -65,6 +65,7 @@ export type CustomerDetailState = {
     profileData: Partial<Customer>
     ordersData: CustomerOrder[]
     editCustomerDetailDialog: boolean
+    error?: string | null
 }
 
 export const getCustomer = createAsyncThunk(
@@ -102,6 +103,7 @@ const initialState: CustomerDetailState = {
     profileData: {},
     ordersData: [],
     editCustomerDetailDialog: false,
+    error: null,
 }
 
 const customerDetailSlice = createSlice({
@@ -124,9 +126,17 @@ const customerDetailSlice = createSlice({
                 state.loading = false
                 state.profileData = action.payload
                 state.ordersData = action.payload?.orders || []
+                state.error = null
             })
             .addCase(getCustomer.pending, (state) => {
                 state.loading = true
+                state.error = null
+            })
+            .addCase(getCustomer.rejected, (state, action) => {
+                state.loading = false
+                state.profileData = {}
+                state.ordersData = []
+                state.error = action.error?.message || 'Failed to load customer'
             })
     },
 })

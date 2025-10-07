@@ -37,43 +37,6 @@ export async function apiDeleteOrderStatus<T, U extends Record<string, unknown>>
     })
 }
 
-export async function apiGetProductStatuses<T>() {
-    return ApiService.fetchData<T>({
-        url: '/settings/product-statuses',
-        method: 'get',
-    })
-}
-
-export async function apiCreateProductStatus<T, U extends Record<string, unknown>>(
-    data: U,
-) {
-    return ApiService.fetchData<T>({
-        url: '/settings/product-statuses/create',
-        method: 'post',
-        data,
-    })
-}
-
-export async function apiUpdateProductStatus<T, U extends Record<string, unknown>>(
-    data: U,
-) {
-    return ApiService.fetchData<T>({
-        url: '/settings/product-statuses/update',
-        method: 'put',
-        data,
-    })
-}
-
-export async function apiDeleteProductStatus<T, U extends Record<string, unknown>>(
-    data: U,
-) {
-    return ApiService.fetchData<T>({
-        url: '/settings/product-statuses/delete',
-        method: 'delete',
-        data,
-    })
-}
-
 export async function apiGetCustomerStatuses<T>() {
     return ApiService.fetchData<T>({
         url: '/settings/customer-statuses',
@@ -225,6 +188,46 @@ export async function apiUpdateSystemConfig<
     })
 }
 
+export async function apiGetSystemCurrencies<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/system-config/currencies',
+        method: 'get',
+    })
+}
+
+export async function apiCreateSystemCurrency<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/system-config/currencies',
+        method: 'post',
+        data,
+    })
+}
+
+export async function apiUpdateSystemCurrency<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/system-config/currencies',
+        method: 'put',
+        data,
+    })
+}
+
+export async function apiDeleteSystemCurrency<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/system-config/currencies',
+        method: 'delete',
+        data,
+    })
+}
+
 export async function apiGetCalendarEventTypes<T>() {
     return ApiService.fetchData<T>({
         url: '/settings/calendar-event-types',
@@ -232,14 +235,32 @@ export async function apiGetCalendarEventTypes<T>() {
     })
 }
 
-export async function apiUpdateCalendarEventTypes<
+export async function apiCreateCalendarEventType<
     T,
     U extends Record<string, unknown>,
 >(data: U) {
     return ApiService.fetchData<T>({
         url: '/settings/calendar-event-types',
+        method: 'post',
+        data,
+    })
+}
+
+export async function apiUpdateCalendarEventType<
+    T,
+    U extends Record<string, unknown>,
+>(id: string | number, data: U) {
+    return ApiService.fetchData<T>({
+        url: `/settings/calendar-event-types/${id}`,
         method: 'put',
         data,
+    })
+}
+
+export async function apiDeleteCalendarEventType<T>(id: string | number) {
+    return ApiService.fetchData<T>({
+        url: `/settings/calendar-event-types/${id}`,
+        method: 'delete',
     })
 }
 

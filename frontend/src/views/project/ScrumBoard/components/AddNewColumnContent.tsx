@@ -3,32 +3,23 @@ import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { Formik, Field, Form } from 'formik'
 import requiredFieldValidation from '@/utils/requiredFieldValidation'
-import {
-    closeDialog,
-    updateColumns,
-    updateOrdered,
-    useAppDispatch,
-    useAppSelector,
-} from '../store'
-import cloneDeep from 'lodash/cloneDeep'
+import { closeDialog, createColumn, useAppDispatch } from '../store'
+import { useTranslation } from 'react-i18next'
 
 const AddNewColumnContent = () => {
     const dispatch = useAppDispatch()
-
-    const columns = useAppSelector((state) => state.scrumBoard.data.columns)
-    const ordered = useAppSelector((state) => state.scrumBoard.data.ordered)
+    const { t } = useTranslation()
 
     const onFormSubmit = (title: string) => {
-        const data = cloneDeep(columns)
-        data[title ? title : 'Untitled Board'] = []
-        const newOrdered = [...ordered, ...[title ? title : 'Untitled Board']]
-        const newColumns: Record<string, unknown> = {}
-        newOrdered.forEach((elm) => {
-            newColumns[elm] = data[elm]
+        const trimmed = title.trim()
+        const fallbackTitle = t('text.labels.untitledBoard', {
+            defaultValue: 'Untitled Board',
         })
-
-        dispatch(updateColumns(newColumns))
-        dispatch(updateOrdered(newOrdered))
+        dispatch(
+            createColumn({
+                title: trimmed ? trimmed : fallbackTitle,
+            }),
+        )
         dispatch(closeDialog())
     }
 

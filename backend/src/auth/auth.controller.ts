@@ -28,6 +28,7 @@ export class AuthController {
         data: {
           userName: dto.userName,
           name: dto.name,
+          lastName: dto.lastName,
           email: dto.email,
           passwordHash: await bcrypt.hash(dto.password, 10),
           role: 'USER',
@@ -54,4 +55,3 @@ export class AuthController {
     return { ok: true }
   }
 }
-

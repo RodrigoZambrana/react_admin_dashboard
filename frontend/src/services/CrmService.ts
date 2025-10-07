@@ -13,6 +13,19 @@ type ApiCalendarEvent = {
     taskId?: number | null
     color?: string | null
     metadata?: unknown
+    eventTypeId?: number | null
+    eventType?: {
+        id: number
+        name: string
+        color?: string | null
+    } | null
+    attachments?: {
+        id: number
+        name: string
+        mimeType?: string | null
+        size?: number | null
+        content?: string | null
+    }[]
 }
 
 const EVENT_TYPE_COLOR_MAP: Record<string, string> = {
@@ -29,6 +42,16 @@ export type CalendarEventAddress = {
     apartment?: string | null
     city?: string
     country?: string
+    countryCode?: string | null
+}
+
+export type CalendarEventAttachment = {
+    id: string
+    name: string
+    type?: string
+    size?: number
+    url?: string
+    content?: string
 }
 
 type CalendarEventMetadata = {
@@ -36,6 +59,9 @@ type CalendarEventMetadata = {
     customType?: string
     locationLabel?: string
     color?: string
+    eventTypeId?: string | number
+    eventTypeName?: string
+    customerId?: string | number
 }
 
 const uiTypeFromBackend = (type?: string) => {
@@ -72,22 +98,20 @@ export type CalendarEventDto = {
     allDay?: boolean
     eventColor: string
     groupId?: string
+    eventTypeId?: string | number | null
     extendedProps?: {
         type?: string
         eventType?: string
+        eventTypeId?: string
+        eventTypeName?: string
         location?: string
         address?: CalendarEventAddress
         detail?: string
         projectId?: number | null
         taskId?: number | null
         isInternal?: boolean
-        attachments?: {
-            id: string
-            name: string
-            type?: string
-            size?: number
-            url?: string
-        }[]
+        attachments?: CalendarEventAttachment[]
+        customerId?: string
     }
 }
 
@@ -167,17 +191,54 @@ const sanitizeMetadata = (metadata: CalendarEventMetadata) => {
 const mapApiEventToDto = (event: ApiCalendarEvent): CalendarEventDto => {
     const metadata = normalizeMetadata(event.metadata)
     const address = metadata.address || {}
-    const type = metadata.customType || uiTypeFromBackend(event.type)
+    const metadataEventTypeId =
+        (metadata as Record<string, unknown>).eventTypeId ??
+        (metadata as Record<string, unknown>).eventTypeID ??
+        undefined
+    const rawEventTypeId =
+        event.eventTypeId ??
+        (metadataEventTypeId !== undefined ? metadataEventTypeId : undefined)
+    const eventTypeId =
+        rawEventTypeId !== undefined && rawEventTypeId !== null
+            ? String(rawEventTypeId)
+            : undefined
+    const eventTypeName =
+        (metadata as Record<string, unknown>).eventTypeName ||
+        event.eventType?.name ||
+        metadata.customType ||
+        metadata.type ||
+        undefined
+    const type = metadata.customType || eventTypeName || uiTypeFromBackend(event.type)
     const locationLabel =
         metadata.locationLabel ||
         event.location ||
         buildAddressLabel(address) ||
         ''
+    const rawCustomerId =
+        metadata.customerId ??
+        (metadata as Record<string, unknown>).customerID ??
+        (metadata as Record<string, unknown>).customer ??
+        undefined
+    const customerId =
+        rawCustomerId !== undefined &&
+        rawCustomerId !== null &&
+        String(rawCustomerId).trim() !== ''
+            ? String(rawCustomerId)
+            : undefined
     const color =
         metadata.color ||
         event.color ||
+        event.eventType?.color ||
         EVENT_TYPE_COLOR_MAP[event.type ?? 'OTHER'] ||
         'indigo'
+    const attachments = (event.attachments || []).map((attachment) => ({
+        id: String(attachment.id),
+        name: attachment.name,
+        type: attachment.mimeType ?? undefined,
+        size: attachment.size ?? undefined,
+        url: `/calendar/attachments/${attachment.id}`,
+        content: attachment.content ?? undefined,
+    }))
     return {
         id: String(event.id),
         title: event.title,
@@ -185,16 +246,20 @@ const mapApiEventToDto = (event: ApiCalendarEvent): CalendarEventDto => {
         end: event.endAt || undefined,
         allDay: Boolean(event.allDay),
         eventColor: color,
+        eventTypeId: eventTypeId ?? null,
         extendedProps: {
             type,
-            eventType: type,
+            eventType: eventTypeName || type,
+            eventTypeId,
+            eventTypeName: eventTypeName || type,
             location: locationLabel,
             address,
             detail: event.description || '',
             projectId: event.projectId ?? undefined,
             taskId: event.taskId ?? undefined,
             isInternal: type === 'internal',
-            attachments: [],
+            attachments,
+            customerId,
         },
     }
 }
@@ -211,11 +276,52 @@ const mapDtoToApiEvent = (event: CalendarEventDto) => {
         return Number.isNaN(num) ? null : num
     }
     const address = event.extendedProps?.address
+    const rawEventTypeId =
+        event.eventTypeId ?? event.extendedProps?.eventTypeId ?? null
+    const attachmentsPayload = (event.extendedProps?.attachments || []).map(
+        (attachment) => {
+            const payload: Record<string, unknown> = {
+                name: attachment.name,
+                type: attachment.type,
+                size: attachment.size,
+            }
+            if (attachment.id !== undefined) {
+                const numericId = Number(attachment.id)
+                if (Number.isFinite(numericId) && numericId > 0) {
+                    payload.id = numericId
+                } else {
+                    payload.id = attachment.id
+                }
+            }
+            if (attachment.content) {
+                payload.content = attachment.content
+            }
+            return payload
+        },
+    )
     const metadata: CalendarEventMetadata = {
         address: address && hasAddressValue(address) ? address : undefined,
         customType: typeKey,
         locationLabel: event.extendedProps?.location,
         color: event.eventColor,
+        eventTypeId: rawEventTypeId ?? undefined,
+        eventTypeName:
+            event.extendedProps?.eventType ??
+            event.extendedProps?.type ??
+            undefined,
+        customerId:
+            (() => {
+                const candidate = event.extendedProps?.customerId
+                if (candidate === undefined || candidate === null) {
+                    return undefined
+                }
+                const normalized = String(candidate).trim()
+                if (!normalized) {
+                    return undefined
+                }
+                const asNumber = Number(normalized)
+                return Number.isFinite(asNumber) ? asNumber : normalized
+            })(),
     }
     const locationLabel =
         event.extendedProps?.location || buildAddressLabel(address) || undefined
@@ -231,6 +337,8 @@ const mapDtoToApiEvent = (event: CalendarEventDto) => {
         metadata: sanitizeMetadata(metadata),
         projectId: toNumberOrNull(event.extendedProps?.projectId),
         taskId: toNumberOrNull(event.extendedProps?.taskId),
+        eventTypeId: toNumberOrNull(rawEventTypeId),
+        attachments: attachmentsPayload,
     }
 }
 
@@ -273,6 +381,14 @@ export async function apiUpdateCrmCalendarEvent(
         data: mapDtoToApiEvent(data),
     })
     return mapApiEventToDto(response.data)
+}
+
+export async function apiDeleteCrmCalendarEvent(id: string) {
+    await ApiService.fetchData({
+        url: `/calendar/events/${id}`,
+        method: 'delete',
+    })
+    return id
 }
 
 export async function apiGetCrmCustomers<T, U extends Record<string, unknown>>(

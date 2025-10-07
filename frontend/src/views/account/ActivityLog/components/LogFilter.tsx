@@ -10,34 +10,17 @@ import {
     useAppSelector,
 } from '../store'
 import {
-    UPDATE_TICKET,
-    COMMENT,
-    COMMENT_MENTION,
-    ASSIGN_TICKET,
-    ADD_TAGS_TO_TICKET,
-    ADD_FILES_TO_TICKET,
-    CREATE_TICKET,
+    LOGIN,
+    PASSWORD_CHANGE,
+    DEVICE_SIGN_IN,
+    PROFILE_UPDATE,
+    SECURITY_ALERT,
 } from '../constants'
 import useResponsive from '@/utils/hooks/useResponsive'
 import type { CommonProps } from '@/@types/common'
 import { useTranslation } from 'react-i18next'
 
 type CategoryTitleProps = CommonProps
-
-const useCheckboxes = (t: (k: string) => string) => {
-    const commentCheckboxes = [
-        { label: t('text.filters.commentOnPost'), value: COMMENT },
-        { label: t('text.filters.mentionedYou'), value: COMMENT_MENTION },
-    ]
-    const ticketCheckboxes = [
-        { label: t('text.filters.ticketStatus'), value: UPDATE_TICKET },
-        { label: t('text.filters.assignTicket'), value: ASSIGN_TICKET },
-        { label: t('text.filters.newTicket'), value: CREATE_TICKET },
-        { label: t('text.filters.addTags'), value: ADD_TAGS_TO_TICKET },
-        { label: t('text.filters.addFiles'), value: ADD_FILES_TO_TICKET },
-    ]
-    return { commentCheckboxes, ticketCheckboxes }
-}
 
 const CategoryTitle = ({ children, className }: CategoryTitleProps) => {
     return (
@@ -75,7 +58,47 @@ const LogFilter = () => {
 
     const { larger } = useResponsive()
 
-    const { commentCheckboxes, ticketCheckboxes } = useCheckboxes(t)
+    const securityCheckboxes = useMemo(
+        () => [
+            {
+                label: t('account.activity.filters.login', {
+                    defaultValue: 'Sign-ins',
+                }),
+                value: LOGIN,
+            },
+            {
+                label: t('account.activity.filters.device', {
+                    defaultValue: 'New devices',
+                }),
+                value: DEVICE_SIGN_IN,
+            },
+            {
+                label: t('account.activity.filters.securityAlert', {
+                    defaultValue: 'Security alerts',
+                }),
+                value: SECURITY_ALERT,
+            },
+        ],
+        [t],
+    )
+
+    const accountCheckboxes = useMemo(
+        () => [
+            {
+                label: t('account.activity.filters.passwordChange', {
+                    defaultValue: 'Password changes',
+                }),
+                value: PASSWORD_CHANGE,
+            },
+            {
+                label: t('account.activity.filters.profileUpdate', {
+                    defaultValue: 'Profile updates',
+                }),
+                value: PROFILE_UPDATE,
+            },
+        ],
+        [t],
+    )
 
     const renderLogFilterContent = () => {
         return (
@@ -88,8 +111,12 @@ const LogFilter = () => {
                         onFilterChange(value as string[])
                     }}
                 >
-                    <CategoryTitle className="mb-3">{t('text.labels.ticket')}</CategoryTitle>
-                    {ticketCheckboxes.map((checkbox) => (
+                    <CategoryTitle className="mb-3">
+                        {t('account.activity.categories.security', {
+                            defaultValue: 'Security',
+                        })}
+                    </CategoryTitle>
+                    {securityCheckboxes.map((checkbox) => (
                         <Checkbox
                             key={checkbox.value}
                             className="mb-4"
@@ -98,8 +125,12 @@ const LogFilter = () => {
                             {checkbox.label}
                         </Checkbox>
                     ))}
-                    <CategoryTitle className="mt-4 mb-3">{t('text.labels.comment')}</CategoryTitle>
-                    {commentCheckboxes.map((checkbox) => (
+                    <CategoryTitle className="mt-4 mb-3">
+                        {t('account.activity.categories.account', {
+                            defaultValue: 'Account changes',
+                        })}
+                    </CategoryTitle>
+                    {accountCheckboxes.map((checkbox) => (
                         <Checkbox
                             key={checkbox.value}
                             className="mb-4"

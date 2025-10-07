@@ -38,15 +38,16 @@ function useAuth() {
                 const { token } = resp.data
                 dispatch(signInSuccess(token))
                 if (resp.data.user) {
+                    const userPayload = {
+                        avatar: resp.data.user.avatar || '',
+                        userName: resp.data.user.userName || 'Anonymous',
+                        authority: resp.data.user.authority || ['USER'],
+                        email: resp.data.user.email || '',
+                        name: resp.data.user.name || '',
+                        lastName: resp.data.user.lastName || '',
+                    }
                     dispatch(
-                        setUser(
-                            resp.data.user || {
-                                avatar: '',
-                                userName: 'Anonymous',
-                                authority: ['USER'],
-                                email: '',
-                            },
-                        ),
+                        setUser(userPayload),
                     )
                 }
                 const redirectUrl = query.get(REDIRECT_URL_KEY)
@@ -76,15 +77,16 @@ function useAuth() {
                 const { token } = resp.data
                 dispatch(signInSuccess(token))
                 if (resp.data.user) {
+                    const userPayload = {
+                        avatar: resp.data.user.avatar || '',
+                        userName: resp.data.user.userName || 'Anonymous',
+                        authority: resp.data.user.authority || ['USER'],
+                        email: resp.data.user.email || '',
+                        name: resp.data.user.name || '',
+                        lastName: resp.data.user.lastName || '',
+                    }
                     dispatch(
-                        setUser(
-                            resp.data.user || {
-                                avatar: '',
-                                userName: 'Anonymous',
-                                authority: ['USER'],
-                                email: '',
-                            },
-                        ),
+                        setUser(userPayload),
                     )
                 }
                 const redirectUrl = query.get(REDIRECT_URL_KEY)

@@ -16,7 +16,7 @@ const appsRoute: Routes = [
     },
     {
         key: 'appsActivities.dashboard',
-        path: `${APP_PREFIX_PATH}/activities/dashboard`,
+        path: `${APP_PREFIX_PATH}/activities`,
         component: lazy(() => import('@/views/project/ScrumBoard')),
         authority: [ADMIN, USER],
         meta: {
@@ -109,14 +109,14 @@ const appsRoute: Routes = [
         authority: [ADMIN, USER],
     },
     {
-        key: 'appsSales.productList',
-        path: `${APP_PREFIX_PATH}/sales/product-list`,
+        key: 'appsProducts.productList',
+        path: `${APP_PREFIX_PATH}/products/list`,
         component: lazy(() => import('@/views/sales/ProductList')),
         authority: [ADMIN, USER],
     },
     {
-        key: 'appsSales.productEdit',
-        path: `${APP_PREFIX_PATH}/sales/product-edit/:productId`,
+        key: 'appsProducts.productEdit',
+        path: `${APP_PREFIX_PATH}/products/edit/:productId`,
         component: lazy(() => import('@/views/sales/ProductEdit')),
         authority: [ADMIN, USER],
         meta: {

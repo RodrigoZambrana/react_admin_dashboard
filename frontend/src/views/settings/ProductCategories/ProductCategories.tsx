@@ -21,7 +21,6 @@ const ProductCategories = () => {
     const { t } = useTranslation()
     const [items, setItems] = useState<Category[]>([])
     const [name, setName] = useState('')
-    const [id, setId] = useState('')
     const [loading, setLoading] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editingName, setEditingName] = useState('')
@@ -36,12 +35,13 @@ const ProductCategories = () => {
     }, [])
 
     const onAdd = async () => {
-        if (!id.trim() || !name.trim()) return
+        if (!name.trim()) return
         setLoading(true)
-        const res = await apiCreateProductCategory<boolean, Category>({ id, name })
+        const res = await apiCreateProductCategory<boolean, { name: string }>({
+            name,
+        })
         setLoading(false)
         if (res.data) {
-            setId('')
             setName('')
             toast.push(
                 <Notification title={t('settings.productCategories.created.title')} type="success">
@@ -92,9 +92,12 @@ const ProductCategories = () => {
     return (
         <Card className="card-shadow">
             <h4 className="mb-4">{t('settings.productCategories.title')}</h4>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-4 max-w-2xl">
-                <Input value={id} placeholder={t('settings.productCategories.placeholders.id')} onChange={(e) => setId(e.target.value)} />
-                <Input value={name} placeholder={t('settings.productCategories.placeholders.name')} onChange={(e) => setName(e.target.value)} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-4 max-w-xl">
+                <Input
+                    value={name}
+                    placeholder={t('settings.productCategories.placeholders.name')}
+                    onChange={(e) => setName(e.target.value)}
+                />
                 <Button loading={loading} onClick={onAdd} variant="solid">
                     {t('text.actions.add')}
                 </Button>
@@ -102,7 +105,6 @@ const ProductCategories = () => {
             <Table>
                 <THead>
                     <Tr>
-                        <Th>{t('settings.productCategories.columns.id')}</Th>
                         <Th>{t('settings.productCategories.columns.name')}</Th>
                         <Th className="text-right">{t('text.columns.actions')}</Th>
                     </Tr>
@@ -110,7 +112,6 @@ const ProductCategories = () => {
                 <TBody>
                     {items.map((s) => (
                         <Tr key={s.id}>
-                            <Td>{s.id}</Td>
                             <Td>
                                 {editingId === s.id ? (
                                     <Input value={editingName} onChange={(e) => setEditingName(e.target.value)} />
@@ -140,4 +141,3 @@ const ProductCategories = () => {
 }
 
 export default ProductCategories
-

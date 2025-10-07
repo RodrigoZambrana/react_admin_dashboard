@@ -1,25 +1,104 @@
+import { useEffect, useMemo } from 'react'
 import Select from '@/components/ui/Select'
 import type { CommonProps } from '@/@types/common'
-import { useAppDispatch, useAppSelector, setCurrency } from '@/store'
+import {
+    useAppDispatch,
+    useAppSelector,
+    setCurrency,
+    setAvailableCurrencies,
+    type CurrencyCode,
+} from '@/store'
+import { apiGetSystemCurrencies } from '@/services/SettingsService'
 
 type Size = 'sm' | 'md' | 'lg'
+
+type CurrencyOption = {
+    value: CurrencyCode
+    label: string
+}
 
 type CurrencySelectorProps = CommonProps & {
     size?: Size
     selectClassName?: string
     embedded?: boolean
+    value?: CurrencyCode
+    onChange?: (code: CurrencyCode) => void
+    options?: CurrencyOption[]
 }
 
-const options = [
-    { value: 'UYU', label: 'UYU' },
-    { value: 'USD', label: 'USD' },
-]
+const fallbackValues: CurrencyCode[] = ['UYU', 'USD']
+const fallbackOptions: CurrencyOption[] = fallbackValues.map((code) => ({
+    value: code,
+    label: code,
+}))
 
-const CurrencySelector = ({ className, size = 'md', selectClassName = 'w-28', embedded = false }: CurrencySelectorProps) => {
+const CurrencySelector = ({
+    className,
+    size = 'md',
+    selectClassName = 'w-28',
+    embedded = false,
+    value,
+    onChange,
+    options,
+}: CurrencySelectorProps) => {
     const dispatch = useAppDispatch()
-    const currency = useAppSelector((state) => state.currency.code)
+    const currencyState = useAppSelector((state) => state.currency)
 
-    const selected = options.find((o) => o.value === currency) || options[0]
+    const currency = currencyState?.code || fallbackValues[0]
+    const availableList = Array.isArray(currencyState?.available)
+        ? currencyState?.available
+        : fallbackValues
+    const loaded = Boolean(currencyState?.loaded)
+
+    useEffect(() => {
+        if (options || loaded) {
+            return
+        }
+        let ignore = false
+        const fetchCurrencies = async () => {
+            try {
+                const res = await apiGetSystemCurrencies<CurrencyCode[]>()
+                if (!ignore && Array.isArray(res.data)) {
+                    dispatch(setAvailableCurrencies(res.data))
+                }
+            } catch (error) {
+                if (!ignore) {
+                    dispatch(setAvailableCurrencies([]))
+                }
+            }
+        }
+        fetchCurrencies()
+        return () => {
+            ignore = true
+        }
+    }, [dispatch, loaded, options])
+
+    const resolvedOptions: CurrencyOption[] = useMemo(() => {
+        if (options && Array.isArray(options)) {
+            return options
+        }
+        const source = availableList.length ? availableList : fallbackValues
+        return source.map((value) => ({ value, label: value }))
+    }, [availableList, options])
+
+    const currentValue = value ?? currency
+    const selected =
+        resolvedOptions.find((o) => o.value === currentValue) ||
+        (currentValue
+            ? { value: currentValue, label: currentValue }
+            : resolvedOptions[0] || fallbackOptions[0])
+
+    const handleChange = (opt: unknown) => {
+        const next = (opt as CurrencyOption | null)?.value
+        if (!next) {
+            return
+        }
+        if (onChange) {
+            onChange(next)
+        } else {
+            dispatch(setCurrency(next))
+        }
+    }
 
     return (
         <div className={className}>
@@ -52,9 +131,9 @@ const CurrencySelector = ({ className, size = 'md', selectClassName = 'w-28', em
                           }
                         : undefined
                 }
-                options={options}
+                options={resolvedOptions}
                 value={selected as any}
-                onChange={(opt) => dispatch(setCurrency((opt as any).value))}
+                onChange={handleChange}
             />
         </div>
     )

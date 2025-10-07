@@ -1,39 +1,57 @@
-import { useEffect, useMemo, useState } from 'react'
-import Select from '@/components/ui/Select'
-import { apiGetCountries } from '@/services/SettingsService'
+import { ChangeEvent, useMemo } from 'react'
+import {
+  COUNTRY_CITY_SELECT_CLASS,
+  deriveCountryCode,
+  useCountryCityData,
+} from '@/components/shared/countryCity'
 
-export default function CountrySelect({
-  value,
-  onChange,
-  placeholder = 'Country',
-  className,
-}: {
+type CountrySelectProps = {
   value?: { code?: string; name?: string }
   onChange: (val: { code?: string; name?: string }) => void
   placeholder?: string
   className?: string
-}) {
-  const [countries, setCountries] = useState<{ value: string; label: string }[]>([])
+  isDisabled?: boolean
+}
 
-  useEffect(() => {
-    apiGetCountries<{ code: string; name: string }[]>()
-      .then((res) => setCountries((res.data as any[]).map((c) => ({ value: c.code, label: c.name }))))
-      .catch(() => setCountries([]))
-  }, [])
-  const selected = useMemo(() => {
-    if (value?.code) return countries.find((c) => c.value === value.code)
-    if (value?.name) return countries.find((c) => c.label === value.name)
-    return undefined
-  }, [countries, value?.code, value?.name])
+export default function CountrySelect({
+  value,
+  onChange,
+  placeholder = 'Selecciona un país',
+  className,
+  isDisabled,
+}: CountrySelectProps) {
+  const { countries, loading, error } = useCountryCityData()
+
+  const selectClassName = useMemo(() => {
+    return [COUNTRY_CITY_SELECT_CLASS, className].filter(Boolean).join(' ')
+  }, [className])
+
+  const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const selectedName = event.target.value || undefined
+    const next = {
+      name: selectedName,
+      code: selectedName ? deriveCountryCode(selectedName) : undefined,
+    }
+    onChange(next)
+  }
+
+  const disabled = Boolean(isDisabled || loading || !!error)
 
   return (
-    <div className={className}>
-      <Select
-        options={countries}
-        value={selected as any}
-        placeholder={placeholder}
-        onChange={(opt: any) => onChange({ code: opt?.value, name: opt?.label })}
-      />
-    </div>
+    <select
+      className={selectClassName}
+      value={value?.name ?? ''}
+      onChange={handleChange}
+      disabled={disabled}
+    >
+      <option value="">
+        {loading ? 'Cargando países…' : error ? 'Error al cargar' : placeholder}
+      </option>
+      {countries.map((country) => (
+        <option key={country} value={country}>
+          {country}
+        </option>
+      ))}
+    </select>
   )
 }

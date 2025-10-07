@@ -14,15 +14,19 @@ import type { InputProps } from '@/components/ui/Input'
 import { useTranslation } from 'react-i18next'
 import CurrencySelector from '@/components/shared/CurrencySelector'
 import InputGroup from '@/components/ui/InputGroup'
+import type { CurrencyCode } from '@/store'
 
 type FormFieldsName = {
     price: number
     bulkDiscountPrice: number
+    currency: CurrencyCode
 }
 
 type PricingFieldsProps = {
     touched: FormikTouched<FormFieldsName>
     errors: FormikErrors<FormFieldsName>
+    currency: CurrencyCode
+    onCurrencyChange: (code: CurrencyCode) => void
 }
 
 const PriceInput = (props: InputProps) => {
@@ -49,7 +53,7 @@ const NumericFormatInput = ({
 }
 
 const PricingFields = (props: PricingFieldsProps) => {
-    const { touched, errors } = props
+    const { touched, errors, currency, onCurrencyChange } = props
     const { t } = useTranslation()
 
     return (
@@ -68,7 +72,12 @@ const PricingFields = (props: PricingFieldsProps) => {
                                 return (
                                     <InputGroup>
                                         <InputGroup.Addon className="px-0">
-                                            <CurrencySelector embedded selectClassName="w-24" />
+                                            <CurrencySelector
+                                                embedded
+                                                selectClassName="w-24"
+                                                value={currency}
+                                                onChange={onCurrencyChange}
+                                            />
                                         </InputGroup.Addon>
                                         <NumericFormatInput
                                             form={form}

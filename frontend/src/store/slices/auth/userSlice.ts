@@ -6,6 +6,8 @@ export type UserState = {
     userName?: string
     email?: string
     authority?: string[]
+    name?: string
+    lastName?: string
 }
 
 const initialState: UserState = {
@@ -13,6 +15,8 @@ const initialState: UserState = {
     userName: '',
     email: '',
     authority: [],
+    name: '',
+    lastName: '',
 }
 
 const userSlice = createSlice({
@@ -20,10 +24,12 @@ const userSlice = createSlice({
     initialState,
     reducers: {
         setUser(state, action: PayloadAction<UserState>) {
-            state.avatar = action.payload?.avatar
-            state.email = action.payload?.email
-            state.userName = action.payload?.userName
-            state.authority = action.payload?.authority
+            state.avatar = action.payload?.avatar ?? ''
+            state.email = action.payload?.email ?? ''
+            state.userName = action.payload?.userName ?? ''
+            state.authority = action.payload?.authority ?? []
+            state.name = action.payload?.name ?? ''
+            state.lastName = action.payload?.lastName ?? ''
         },
     },
 })

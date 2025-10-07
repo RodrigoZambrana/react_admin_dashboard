@@ -171,6 +171,20 @@
         "month": "Mes",
         "week": "Semana",
         "day": "Día",
+        "agendaTitle": "Agenda",
+        "calendarTitle": "Calendario",
+        "activitiesTitle": "Actividades",
+        "actions": {
+            "addActivity": "Nueva actividad"
+        },
+        "searchTitle": "Buscar actividades",
+        "searchResults": "Resultados de la búsqueda",
+        "latestActivities": "Últimas actividades",
+        "noSearchResults": "No se encontraron actividades que coincidan con la búsqueda.",
+        "noLatestActivities": "No hay actividades recientes para mostrar.",
+        "allDay": "Todo el día",
+        "noDescription": "Sin descripción disponible.",
+        "confirmDelete": "¿Eliminar el evento \"{{title}}\"? Esta acción no se puede deshacer.",
         "fields": {
             "start": "Inicio",
             "end": "Fin",
@@ -187,6 +201,22 @@
                 "apartment": "Apartamento"
             }
         },
+        "labels": {
+            "address": "Dirección",
+            "duration": "Duración",
+            "unknownDate": "Fecha sin determinar"
+        },
+        "address": {
+            "cornerFormat": "Esquina {{corner}}"
+        },
+        "messages": {
+            "noLinkedCustomer": "Sin cliente asociado.",
+            "customerNotFound": "No se encontró información del cliente.",
+            "noDescription": "Sin descripción disponible.",
+            "eventDeleted": "Evento eliminado correctamente.",
+            "searchInstructions": "Ingresa un término para buscar en todas las actividades.",
+            "noEndTime": "Sin hora de fin"
+        },
         "placeholders": {
             "title": "Título del evento",
             "customer": "Seleccionar cliente",
@@ -198,11 +228,13 @@
             "corner": "Esquina",
             "apartment": "Apartamento / Unidad",
             "location": "Sala, enlace o referencia",
-            "description": "Detalles, objetivos o agenda"
+            "description": "Detalles, objetivos o agenda",
+            "search": "Buscar por título, fecha, cliente o contenido"
         },
         "errors": {
             "customers": "No fue posible cargar los clientes.",
-            "customerAddress": "No fue posible cargar la dirección del cliente."
+            "customerAddress": "No fue posible cargar la dirección del cliente.",
+            "deleteFailed": "No fue posible eliminar el evento."
         },
         "validation": {
             "eventTypeRequired": "El tipo de evento es obligatorio"
@@ -212,6 +244,33 @@
             "task": "Tarea",
             "workshop": "Taller",
             "other": "Otro"
+        },
+        "attachments": {
+            "supported": "Formatos soportados: imágenes y documentos (pdf, doc, xls, csv, txt, zip).",
+            "confirmDelete": "¿Deseas eliminar el archivo \"{{name}}\"?",
+            "unnamed": "Archivo sin nombre",
+            "deleteSuccess": "Archivo eliminado correctamente.",
+            "deleteFailed": "No pudimos eliminar el archivo.",
+            "downloadFailed": "No pudimos obtener el adjunto.",
+            "updateSuccess": "Adjuntos actualizados correctamente.",
+            "updateFailed": "No pudimos actualizar los adjuntos.",
+            "saving": "Guardando cambios…"
+        },
+        "comments": {
+            "title": "Comentarios",
+            "placeholder": "Escribe un comentario...",
+            "add": "Agregar comentario",
+            "empty": "Aún no hay comentarios para esta actividad.",
+            "anonymous": "Usuario",
+            "createFailed": "No pudimos agregar el comentario.",
+            "deleteFailed": "No pudimos eliminar el comentario.",
+            "edit": "Editar",
+            "save": "Guardar",
+            "cancel": "Cancelar",
+            "delete": "Eliminar",
+            "deleteConfirm": "¿Eliminar este comentario?",
+            "updateFailed": "No se pudo actualizar el comentario.",
+            "messageRequired": "El comentario no puede estar vacío."
         }
     },
     "user": {
@@ -492,6 +551,8 @@
             "taxRate": "Tasa de impuesto",
             "name": "Nombre",
             "email": "Correo",
+            "date": "Fecha",
+            "time": "Horario",
             "userName": "Nombre de usuario",
             "password": "Contraseña",
             "location": "Ubicación",
@@ -559,7 +620,9 @@
             "permanentStock": "Stock permanente",
             "stockStatus": "Estado del stock",
             "offerPrice": "Precio oferta",
-            "ticketTitle": "Título del ticket"
+            "ticketTitle": "Título del ticket",
+            "untitledBoard": "Tablero sin título",
+            "untitledCard": "Tarjeta sin título"
         },
         "date": {
             "monthsShort": {
@@ -604,6 +667,7 @@
             "invoiceNote": "La factura se creó en una computadora y es válida sin la firma y el sello.",
             "passwordUpdated": "Contraseña actualizada",
             "userCreated": "Usuario creado",
+            "userUpdated": "Usuario actualizado",
             "viewPreviousBilling": "Ver su facturación anterior"
         },
         "validation": {
@@ -724,6 +788,42 @@
                     "newOrder": "Nueva orden realizada"
                 }
             }
+        },
+        "activity": {
+            "events": {
+                "login": "inició sesión correctamente.",
+                "loginDescription": "Autenticación exitosa registrada.",
+                "device": "inició sesión en un nuevo dispositivo.",
+                "deviceDescription": "Se creó una nueva sesión desde un navegador no reconocido.",
+                "passwordChange": "actualizó la contraseña de la cuenta.",
+                "passwordDescription": "Cambio de contraseña confirmado.",
+                "profileUpdate": "actualizó el perfil de la cuenta.",
+                "profileDescription": "Se modificó la información del perfil.",
+                "securityAlert": "generó una alerta de seguridad.",
+                "securityDescription": "El sistema detectó actividad inusual.",
+                "generic": "registró una actividad en la cuenta."
+            },
+            "metadata": {
+                "device": "Dispositivo",
+                "location": "Ubicación",
+                "ipAddress": "Dirección IP",
+                "method": "Método",
+                "fields": "Campos",
+                "reason": "Motivo",
+                "browser": "Navegador",
+                "platform": "Plataforma"
+            },
+            "filters": {
+                "login": "Inicios de sesión",
+                "device": "Nuevos dispositivos",
+                "securityAlert": "Alertas de seguridad",
+                "passwordChange": "Cambios de contraseña",
+                "profileUpdate": "Actualizaciones de perfil"
+            },
+            "categories": {
+                "security": "Seguridad",
+                "account": "Cambios en la cuenta"
+            }
         }
     },
     "welcome": {
@@ -814,6 +914,19 @@
                 "title": "Resumen de ventas",
                 "subtitle": "Consulta tus ventas y resumen actuales"
             },
+            "filters": {
+                "range": {
+                    "label": "Rango de fechas",
+                    "options": {
+                        "today": "Hoy",
+                        "thisWeek": "Esta semana",
+                        "thisMonth": "Este mes",
+                        "thisYear": "Este año",
+                        "last15Days": "Últimos 15 días",
+                        "custom": "Personalizado"
+                    }
+                }
+            },
             "stat": {
                 "revenue": "Ingreso total",
                 "orders": "Pedidos",
@@ -822,7 +935,8 @@
             },
             "categories": {
                 "title": "Categorías",
-                "donutText": "Productos vendidos"
+                "donutText": "Productos vendidos",
+                "empty": "Sin datos para el período seleccionado"
             },
             "latestOrders": {
                 "title": "Últimos pedidos",
@@ -834,7 +948,9 @@
             },
             "salesReport": {
                 "title": "Reporte de ventas",
-                "export": "Exportar reporte"
+                "export": "Exportar reporte",
+                "salesLine": "Ventas totales",
+                "empty": "No se registran ventas en este período"
             }
         },
         "orders": {
@@ -1026,10 +1142,20 @@
         },
         "edit": {
             "title": "Editar gasto",
+            "fields": {
+                "paymentReference": "Referencia de pago"
+            },
+            "placeholders": {
+                "paymentReference": "Ej: Nº de recibo, comprobante, etc."
+            },
             "updated": {
                 "title": "Actualizado correctamente",
                 "desc": "Gasto actualizado correctamente"
             }
+        },
+        "attachments": {
+            "dropOr": "Arrastra tu archivo aquí, o ",
+            "browse": "buscar"
         },
         "categories": {
             "title": "Categorías de gastos",
@@ -1110,18 +1236,32 @@
             "title": "Configuración del sistema",
             "desc": "Define los valores globales utilizados en los cálculos de ventas.",
             "taxRateLabel": "Impuesto (%)",
-            "updated": { "title": "Actualizado correctamente", "desc": "Los valores fueron guardados" }
+            "updated": { "title": "Actualizado correctamente", "desc": "Los valores fueron guardados" },
+            "currency": {
+                "title": "Monedas permitidas",
+                "desc": "Gestiona la lista de códigos de moneda disponibles en productos y pedidos.",
+                "placeholder": "Ej. USD",
+                "columns": { "code": "Moneda" },
+                "actions": { "add": "Agregar moneda" },
+                "empty": "Todavía no hay monedas configuradas.",
+                "validation": {
+                    "format": "La moneda debe tener entre 3 y 5 letras mayúsculas (ej. USD).",
+                    "duplicate": "La moneda ya existe."
+                },
+                "created": { "title": "Moneda agregada", "desc": "La moneda se agregó correctamente." },
+                "updated": { "title": "Moneda actualizada", "desc": "La moneda se actualizó correctamente." },
+                "deleted": { "title": "Moneda eliminada", "desc": "La moneda se eliminó correctamente." }
+            }
         },
         "calendarEventTypes": {
             "title": "Tipos de evento del calendario",
             "subtitle": "Configura las opciones disponibles al momento de agendar eventos.",
             "fields": {
-                "key": "Clave interna",
-                "label": "Nombre visible"
+                "name": "Nombre visible",
+                "color": "Color"
             },
             "placeholders": {
-                "key": "Ej: meeting, standup, workshop",
-                "label": "Nombre que verá el usuario"
+                "label": "Ej: Reunión"
             },
             "actions": {
                 "add": "Agregar tipo"
@@ -1134,10 +1274,15 @@
                 "minItems": "Debes definir al menos un tipo de evento."
             },
             "loadError": "No fue posible cargar los tipos actuales. Se muestran los valores por defecto.",
-            "updated": "Tipos de evento actualizados correctamente."
+            "updated": "Tipo de evento actualizado correctamente.",
+            "created": "Tipo de evento creado correctamente.",
+            "deleted": "Tipo de evento eliminado correctamente.",
+            "empty": "Aún no hay tipos de evento configurados."
         }
     },
     "common": {
+        "success": "Éxito",
+        "error": "Error",
         "notFound": {
             "product": "¡Producto no encontrado!",
             "order": "¡Orden no encontrada!",

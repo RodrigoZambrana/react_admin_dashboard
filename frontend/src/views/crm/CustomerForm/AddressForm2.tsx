@@ -84,8 +84,8 @@ const AddressForm = () => {
                             code: address.countryCode,
                         }}
                         onChange={(val) => {
-                            setFieldValue('address.state', val.name)
-                            setFieldValue('address.countryCode', val.code)
+                            setFieldValue('address.state', val.name ?? '')
+                            setFieldValue('address.countryCode', val.code ?? '')
                             setFieldValue('address.city', '')
                         }}
                         placeholder={t('text.labels.country')}
@@ -100,7 +100,7 @@ const AddressForm = () => {
                         countryCode={address.countryCode}
                         countryName={address.state}
                         value={address.city}
-                        onChange={(city) => setFieldValue('address.city', city)}
+                        onChange={(city) => setFieldValue('address.city', city ?? '')}
                         placeholder={t('text.labels.city')}
                     />
                 </FormItem>

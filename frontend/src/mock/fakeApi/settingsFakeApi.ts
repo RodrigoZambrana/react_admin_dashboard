@@ -52,43 +52,6 @@ export default function settingsFakeApi(server: Server, apiPrefix: string) {
         },
     )
 
-    // Product statuses
-    server.get(`${apiPrefix}/settings/product-statuses`, (schema) => {
-        return schema.db.productStatusesData
-    })
-
-    server.post(
-        `${apiPrefix}/settings/product-statuses/create`,
-        (schema, { requestBody }) => {
-            const data = JSON.parse(requestBody)
-            if (!data.color) data.color = pickRandomColor()
-            schema.db.productStatusesData.insert(data)
-            return true
-        },
-    )
-
-    server.put(
-        `${apiPrefix}/settings/product-statuses/update`,
-        (schema, { requestBody }) => {
-            const data = JSON.parse(requestBody)
-            const { id } = data
-            schema.db.productStatusesData.update({ id }, data)
-            return true
-        },
-    )
-
-    server.del(
-        `${apiPrefix}/settings/product-statuses/delete`,
-        (schema, { requestBody }) => {
-            const { id } = JSON.parse(requestBody)
-            const ids: number[] = Array.isArray(id) ? id : [id]
-            ids.forEach((elm: number) => {
-                schema.db.productStatusesData.remove({ id: elm })
-            })
-            return true
-        },
-    )
-
     // Product categories
     server.get(`${apiPrefix}/settings/product-categories`, (schema) => {
         return schema.db.productCategoriesData

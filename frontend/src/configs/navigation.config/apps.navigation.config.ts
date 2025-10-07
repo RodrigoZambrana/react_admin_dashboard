@@ -62,24 +62,13 @@ const appsNavigationConfig: NavigationTree[] = [
             // Productos (nuevo menú)
             {
                 key: 'apps.products',
-                path: '',
+                path: `${APP_PREFIX_PATH}/products/list`,
                 title: 'Products',
                 translateKey: 'nav.appsProducts.products',
                 icon: 'products',
-                type: NAV_ITEM_TYPE_COLLAPSE,
+                type: NAV_ITEM_TYPE_ITEM,
                 authority: [ADMIN, USER],
-                subMenu: [
-                    {
-                        key: 'appsProducts.productList',
-                        path: `${APP_PREFIX_PATH}/sales/product-list`,
-                        title: 'Product List',
-                        translateKey: 'nav.appsSales.productList',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
-                        subMenu: [],
-                    },
-                ],
+                subMenu: [],
             },
             // Clientes
             {
@@ -169,7 +158,7 @@ const appsNavigationConfig: NavigationTree[] = [
             // Actividades
             {
                 key: 'apps.activities',
-                path: `${APP_PREFIX_PATH}/activities/dashboard`,
+                path: `${APP_PREFIX_PATH}/activities`,
                 title: 'Activities',
                 translateKey: 'nav.appsCalendar.activities',
                 icon: 'project',
@@ -285,16 +274,6 @@ const appsNavigationConfig: NavigationTree[] = [
                         path: `${APP_PREFIX_PATH}/account/settings/profile`,
                         title: 'Settings',
                         translateKey: 'nav.appsAccount.settings',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
-                        subMenu: [],
-                    },
-                    {
-                        key: 'appsAccount.resetPassword',
-                        path: `${APP_PREFIX_PATH}/account/reset-password`,
-                        title: 'Reset Password',
-                        translateKey: 'nav.authentication.resetPassword',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
                         authority: [ADMIN, USER],

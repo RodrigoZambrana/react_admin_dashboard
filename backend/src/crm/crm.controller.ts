@@ -19,6 +19,40 @@ import { TableQueryDto } from './dto/table-query.dto'
 export class CrmController {
   constructor(private prisma: PrismaService) {}
 
+  private mergeEventMetadata(
+    metadata: unknown,
+    eventType?: { id: number; name: string; color: string | null } | null,
+  ) {
+    const base =
+      metadata && typeof metadata === 'object'
+        ? { ...(metadata as Record<string, unknown>) }
+        : {}
+    if (eventType) {
+      base.eventTypeId = eventType.id
+      base.eventTypeName = eventType.name
+      if (eventType.color && !base.color) {
+        base.color = eventType.color
+      }
+    }
+    return Object.keys(base).length > 0 ? base : null
+  }
+
+  private serializeEventAttachments(
+    attachments: {
+      id: number
+      name: string
+      mimeType: string | null
+      size: number | null
+    }[] = [],
+  ) {
+    return attachments.map((attachment) => ({
+      id: attachment.id,
+      name: attachment.name,
+      type: attachment.mimeType ?? undefined,
+      size: attachment.size ?? undefined,
+    }))
+  }
+
   @Get('dashboard')
   async dashboard() {
     const totalCustomers = await this.prisma.customer.count()
@@ -324,8 +358,21 @@ export class CrmController {
     if (projectId) where.projectId = Number(projectId)
     if (createdById) where.createdById = Number(createdById)
     if (taskId) where.taskId = Number(taskId)
-    const events = await this.prisma.calendarEvent.findMany({ where, orderBy: { startAt: 'asc' } })
-    return { events }
+    const events = await this.prisma.calendarEvent.findMany({
+      where,
+      orderBy: { startAt: 'asc' },
+      include: { eventType: true, attachments: true },
+    })
+    const normalized = events.map((event) => {
+      const { attachments = [], ...rest } = event as any
+      return {
+        ...rest,
+        attachments: this.serializeEventAttachments(attachments),
+        color: rest.color || rest.eventType?.color || null,
+        metadata: this.mergeEventMetadata(rest.metadata, rest.eventType ?? undefined),
+      }
+    })
+    return { events: normalized }
   }
 
   @Get('customer-details')

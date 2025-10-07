@@ -24,6 +24,8 @@ export class AuthService {
     email: string
     role: 'SUPERADMIN' | 'ADMIN' | 'USER'
     img?: string | null
+    name?: string | null
+    lastName?: string | null
   }) {
     const payload = {
       sub: user.id,
@@ -32,6 +34,8 @@ export class AuthService {
       authority: [user.role],
       avatar: user.img || '',
       role: user.role,
+      name: user.name || '',
+      lastName: user.lastName || '',
     }
     const token = this.jwt.sign(payload)
     return {
@@ -41,8 +45,9 @@ export class AuthService {
         authority: [user.role],
         avatar: user.img || '',
         email: user.email,
+        name: user.name || '',
+        lastName: user.lastName || '',
       },
     }
   }
 }
-
