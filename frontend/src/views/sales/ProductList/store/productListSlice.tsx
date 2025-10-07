@@ -17,6 +17,7 @@ type Product = {
     brand?: string
     vendor?: string
     permanentStock?: boolean
+    currency?: string
 }
 
 type Products = Product[]
@@ -68,7 +69,7 @@ export const deleteProduct = async (data: { id: string | string[] }) => {
 export const initialTableData: TableQueries = {
     total: 0,
     pageIndex: 1,
-    pageSize: 10,
+    pageSize: 50,
     query: '',
     sort: {
         order: '',

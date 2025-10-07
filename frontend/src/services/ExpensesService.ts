@@ -1,22 +1,61 @@
 import ApiService from './ApiService'
 
+export type ExpenseAttachment = {
+    id: string
+    name: string
+    type?: string
+    size?: number
+    url?: string
+    content?: string
+}
+
+const mapApiAttachmentToDto = (attachment: any): ExpenseAttachment => ({
+    id: String(attachment.id),
+    name: attachment.name,
+    type: attachment.mimeType ?? attachment.type ?? undefined,
+    size: attachment.size ?? undefined,
+    url: attachment.url ?? undefined,
+    content: attachment.content ?? undefined,
+})
+
+const mapExpenseRecord = (expense: any) => {
+    if (!expense || typeof expense !== 'object') {
+        return expense
+    }
+    const record = { ...expense }
+    if (Array.isArray(record.attachments)) {
+        record.attachments = record.attachments.map(mapApiAttachmentToDto)
+    }
+    return record
+}
+
 export async function apiGetExpensesDashboardData<
     T extends Record<string, unknown>,
 >() {
-    return ApiService.fetchData<T>({
+    const response = await ApiService.fetchData<T>({
         url: '/expenses/dashboard',
         method: 'post',
     })
+    const data = response.data as any
+    if (data?.latestExpensesData && Array.isArray(data.latestExpensesData)) {
+        data.latestExpensesData = data.latestExpensesData.map(mapExpenseRecord)
+    }
+    return response
 }
 
 export async function apiGetExpenses<T, U extends Record<string, unknown>>(
     params: U,
 ) {
-    return ApiService.fetchData<T>({
+    const response = await ApiService.fetchData<T>({
         url: '/expenses',
         method: 'get',
         params,
     })
+    const payload = response.data as any
+    if (payload?.data && Array.isArray(payload.data)) {
+        payload.data = payload.data.map(mapExpenseRecord)
+    }
+    return response
 }
 
 export async function apiDeleteExpenses<
@@ -33,11 +72,18 @@ export async function apiDeleteExpenses<
 export async function apiGetExpense<T, U extends Record<string, unknown>>(
     params: U,
 ) {
-    return ApiService.fetchData<T>({
+    const response = await ApiService.fetchData<T>({
         url: '/expenses/detail',
         method: 'get',
         params,
     })
+    if (response.data) {
+        return {
+            ...response,
+            data: mapExpenseRecord(response.data),
+        }
+    }
+    return response
 }
 
 export async function apiCreateExpense<T, U extends Record<string, unknown>>(
@@ -98,4 +144,24 @@ export async function apiDeleteExpenseCategory<
         method: 'delete',
         data,
     })
+}
+
+export async function apiFetchExpenseAttachment(
+    id: string,
+    options: { mode?: 'inline' | 'attachment' } = {},
+) {
+    return ApiService.fetchData<Blob>({
+        url: `/expenses/attachments/${id}`,
+        method: 'get',
+        params: options.mode ? { mode: options.mode } : undefined,
+        responseType: 'blob',
+    })
+}
+
+export async function apiDeleteExpenseAttachment(id: string) {
+    await ApiService.fetchData({
+        url: `/expenses/attachments/${id}`,
+        method: 'delete',
+    })
+    return id
 }

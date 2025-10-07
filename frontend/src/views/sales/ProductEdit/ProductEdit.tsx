@@ -46,8 +46,7 @@ const ProductEdit = () => {
     ) => {
         setSubmitting(true)
         try {
-            const { permanentStock, ...payload } = values
-            const success = await updateProduct(payload)
+            const success = await updateProduct(values)
             if (success) {
                 popNotification('updated')
             }
@@ -77,7 +76,7 @@ const ProductEdit = () => {
     }
 
     const handleDiscard = () => {
-        navigate('/app/sales/product-list')
+        navigate('/app/products/list')
     }
 
     const handleDelete = async (setDialogOpen: OnDeleteCallback) => {
@@ -105,7 +104,7 @@ const ProductEdit = () => {
                 placement: 'top-center',
             },
         )
-        navigate('/app/sales/product-list')
+        navigate('/app/products/list')
     }
 
     useEffect(() => {
@@ -146,7 +145,8 @@ const ProductEdit = () => {
                   typeof (productData as any).published === 'boolean'
                       ? (productData as any).published
                       : true,
-              permanentStock: false,
+              permanentStock: Boolean((productData as any).permanentStock),
+              currency: ((productData as any).currency || 'UYU') as string,
           }
         : undefined
 

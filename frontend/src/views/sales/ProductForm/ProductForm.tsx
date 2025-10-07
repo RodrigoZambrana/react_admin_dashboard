@@ -14,7 +14,8 @@ import cloneDeep from 'lodash/cloneDeep'
 import { HiOutlineTrash } from 'react-icons/hi'
 import { AiOutlineSave } from 'react-icons/ai'
 import * as Yup from 'yup'
-import CurrencySelector from '@/components/shared/CurrencySelector'
+import type { CurrencyCode } from '@/store'
+import { deriveInventoryStatus } from '@/utils/inventory'
 
 // eslint-disable-next-line  @typescript-eslint/no-explicit-any
 type FormikRef = FormikProps<any>
@@ -41,19 +42,7 @@ type InitialData = {
     description?: string
     published?: boolean
     permanentStock?: boolean
-}
-
-const deriveInventoryStatus = (stock: number, permanent: boolean) => {
-    if (permanent) {
-        return 0
-    }
-    if (stock <= 0) {
-        return 2
-    }
-    if (stock < 5) {
-        return 1
-    }
-    return 0
+    currency?: CurrencyCode
 }
 
 export type FormModel = Omit<InitialData, 'tags' | 'permanentStock'> & {
@@ -153,6 +142,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
             vendor: '',
             description: '',
             permanentStock: false,
+            currency: 'UYU',
         },
         onFormSubmit,
         onDiscard,
@@ -175,6 +165,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                         typeof initialData.published === 'boolean'
                             ? initialData.published
                             : true,
+                    currency: (initialData.currency || 'UYU') as CurrencyCode,
                     tags: Array.isArray(initialData?.tags)
                         ? (initialData.tags as string[])
                         : [],
@@ -189,6 +180,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                         }
                         return tag
                     })
+                    formData.currency = ((formData.currency || 'UYU') as string).toUpperCase()
                     // Normalize numeric fields to numbers
                     ;(['price', 'stock', 'status', 'costPerItem', 'bulkDiscountPrice', 'categoryId'] as const).forEach((k) => {
                         const v: any = (formData as any)[k]
@@ -209,7 +201,9 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                         Number.isNaN(numericStock) ? 0 : numericStock,
                         isPermanent,
                     )
-                    onFormSubmit?.(formData, setSubmitting)
+                    const submitData = { ...formData }
+                    delete (submitData as any).status
+                    onFormSubmit?.(submitData, setSubmitting)
                 }}
             >
                 {({ values, touched, errors, isSubmitting, setFieldValue }) => (
@@ -222,8 +216,12 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                         errors={errors}
                                     />
                                     <PricingFields
-                                        touched={touched}
-                                        errors={errors}
+                                        touched={touched as any}
+                                        errors={errors as any}
+                                        currency={values.currency as CurrencyCode}
+                                        onCurrencyChange={(code) =>
+                                            setFieldValue('currency', code)
+                                        }
                                     />
                                     <PublicationFields
                                         touched={touched as any}

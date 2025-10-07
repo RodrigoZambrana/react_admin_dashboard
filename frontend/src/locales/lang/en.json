@@ -171,6 +171,20 @@
         "month": "Month",
         "week": "Week",
         "day": "Day",
+        "agendaTitle": "Agenda",
+        "calendarTitle": "Calendar",
+        "activitiesTitle": "Activities",
+        "actions": {
+            "addActivity": "New activity"
+        },
+        "searchTitle": "Search activities",
+        "searchResults": "Search results",
+        "latestActivities": "Latest activities",
+        "noSearchResults": "No activities match the current search.",
+        "noLatestActivities": "There are no recent activities to display.",
+        "allDay": "All day",
+        "noDescription": "No description available.",
+        "confirmDelete": "Delete the event \"{{title}}\"? This action cannot be undone.",
         "fields": {
             "start": "Start",
             "end": "End",
@@ -187,6 +201,22 @@
                 "apartment": "Apartment"
             }
         },
+        "labels": {
+            "address": "Address",
+            "duration": "Duration",
+            "unknownDate": "Date not specified"
+        },
+        "address": {
+            "cornerFormat": "Corner {{corner}}"
+        },
+        "messages": {
+            "noLinkedCustomer": "No customer linked.",
+            "customerNotFound": "Customer information not found.",
+            "noDescription": "No description available.",
+            "eventDeleted": "Event deleted successfully.",
+            "searchInstructions": "Enter a term to search across all activities.",
+            "noEndTime": "No end time"
+        },
         "placeholders": {
             "title": "Event title",
             "customer": "Select customer",
@@ -198,11 +228,13 @@
             "corner": "Cross street",
             "apartment": "Apartment / Unit",
             "location": "Room, link or reference",
-            "description": "Details, goals or agenda"
+            "description": "Details, goals or agenda",
+            "search": "Search by title, date, customer or content"
         },
         "errors": {
             "customers": "Unable to load customers.",
-            "customerAddress": "Could not load customer address."
+            "customerAddress": "Could not load customer address.",
+            "deleteFailed": "We couldn't delete the event."
         },
         "validation": {
             "eventTypeRequired": "Event type is required"
@@ -212,6 +244,33 @@
             "task": "Task",
             "workshop": "Workshop",
             "other": "Other"
+        },
+        "attachments": {
+            "supported": "Supported formats: images and documents (pdf, doc, xls, csv, txt, zip).",
+            "confirmDelete": "Delete the file \"{{name}}\"?",
+            "unnamed": "Unnamed file",
+            "deleteSuccess": "File deleted successfully.",
+            "deleteFailed": "We couldn't delete the file.",
+            "downloadFailed": "We couldn't retrieve the attachment.",
+            "updateSuccess": "Attachments updated successfully.",
+            "updateFailed": "We couldn't update the attachments.",
+            "saving": "Saving changes…"
+        },
+        "comments": {
+            "title": "Comments",
+            "placeholder": "Write a comment...",
+            "add": "Add comment",
+            "empty": "There are no comments for this activity yet.",
+            "anonymous": "User",
+            "createFailed": "We couldn't add the comment.",
+            "deleteFailed": "We couldn't delete the comment.",
+            "edit": "Edit",
+            "save": "Save",
+            "cancel": "Cancel",
+            "delete": "Delete",
+            "deleteConfirm": "Delete this comment?",
+            "updateFailed": "We couldn't update the comment.",
+            "messageRequired": "Comment message cannot be empty."
         }
     },
     "user": {
@@ -493,6 +552,8 @@
             "taxRate": "Tax Rate",
             "name": "Name",
             "email": "Email",
+            "date": "Date",
+            "time": "Time",
             "userName": "User Name",
             "password": "Password",
             "location": "Location",
@@ -560,7 +621,9 @@
             "permanentStock": "Permanent stock",
             "stockStatus": "Stock status",
             "offerPrice": "Offer price",
-            "ticketTitle": "Ticket title"
+            "ticketTitle": "Ticket title",
+            "untitledBoard": "Untitled Board",
+            "untitledCard": "Untitled Card"
         },
         "date": {
             "monthsShort": {
@@ -605,6 +668,7 @@
             "invoiceNote": "Invoice was created on a computer and is valid without the signature and seal.",
             "passwordUpdated": "Password updated",
             "userCreated": "User created",
+            "userUpdated": "User updated",
             "viewPreviousBilling": "View your previous billing"
         },
         "validation": {
@@ -724,6 +788,42 @@
                     "newOrder": "New order placed"
                 }
             }
+        },
+        "activity": {
+            "events": {
+                "login": "logged in successfully.",
+                "loginDescription": "Successful authentication recorded.",
+                "device": "signed in on a new device.",
+                "deviceDescription": "A new session was created from an unrecognized browser.",
+                "passwordChange": "updated the account password.",
+                "passwordDescription": "Password change confirmed.",
+                "profileUpdate": "updated the account profile.",
+                "profileDescription": "Profile information was modified.",
+                "securityAlert": "triggered a security alert.",
+                "securityDescription": "Unusual activity detected by the security system.",
+                "generic": "recorded an account activity."
+            },
+            "metadata": {
+                "device": "Device",
+                "location": "Location",
+                "ipAddress": "IP address",
+                "method": "Method",
+                "fields": "Fields",
+                "reason": "Reason",
+                "browser": "Browser",
+                "platform": "Platform"
+            },
+            "filters": {
+                "login": "Sign-ins",
+                "device": "New devices",
+                "securityAlert": "Security alerts",
+                "passwordChange": "Password changes",
+                "profileUpdate": "Profile updates"
+            },
+            "categories": {
+                "security": "Security",
+                "account": "Account changes"
+            }
         }
     },
     "welcome": {
@@ -814,6 +914,19 @@
                 "title": "Sales Overview",
                 "subtitle": "View your current sales & summary"
             },
+            "filters": {
+                "range": {
+                    "label": "Date range",
+                    "options": {
+                        "today": "Today",
+                        "thisWeek": "This week",
+                        "thisMonth": "This month",
+                        "thisYear": "This year",
+                        "last15Days": "Last 15 days",
+                        "custom": "Custom"
+                    }
+                }
+            },
             "stat": {
                 "revenue": "Revenue",
                 "orders": "Orders",
@@ -822,7 +935,8 @@
             },
             "categories": {
                 "title": "Categories",
-                "donutText": "Product Sold"
+                "donutText": "Product Sold",
+                "empty": "No data available for the selected period"
             },
             "latestOrders": {
                 "title": "Latest Orders",
@@ -834,7 +948,9 @@
             },
             "salesReport": {
                 "title": "Sales Report",
-                "export": "Export Report"
+                "export": "Export Report",
+                "salesLine": "Total sales",
+                "empty": "No sales recorded for the selected period"
             }
         },
         "orders": {
@@ -1029,10 +1145,20 @@
         },
         "edit": {
             "title": "Edit Expense",
+            "fields": {
+                "paymentReference": "Payment reference"
+            },
+            "placeholders": {
+                "paymentReference": "e.g. Receipt number, transaction id"
+            },
             "updated": {
                 "title": "Updated successfully",
                 "desc": "Expense updated successfully"
             }
+        },
+        "attachments": {
+            "dropOr": "Drop your file here, or ",
+            "browse": "browse"
         },
         "categories": {
             "title": "Expense Categories",
@@ -1113,18 +1239,32 @@
             "title": "System configuration",
             "desc": "Define the global values used across sales calculations.",
             "taxRateLabel": "Tax (%)",
-            "updated": { "title": "Successfully updated", "desc": "Configuration saved" }
+            "updated": { "title": "Successfully updated", "desc": "Configuration saved" },
+            "currency": {
+                "title": "Allowed currencies",
+                "desc": "Manage the list of currency codes that can be used across products and orders.",
+                "placeholder": "E.g. USD",
+                "columns": { "code": "Currency" },
+                "actions": { "add": "Add currency" },
+                "empty": "No currencies configured yet.",
+                "validation": {
+                    "format": "Currency must use 3–5 uppercase letters (e.g. USD).",
+                    "duplicate": "Currency already exists."
+                },
+                "created": { "title": "Currency added", "desc": "The currency was added successfully." },
+                "updated": { "title": "Currency updated", "desc": "The currency was updated successfully." },
+                "deleted": { "title": "Currency removed", "desc": "The currency was deleted successfully." }
+            }
         },
         "calendarEventTypes": {
             "title": "Calendar event types",
             "subtitle": "Configure the options available when scheduling events.",
             "fields": {
-                "key": "Internal key",
-                "label": "Display name"
+                "name": "Display name",
+                "color": "Color"
             },
             "placeholders": {
-                "key": "E.g. meeting, standup, workshop",
-                "label": "Name shown to users"
+                "label": "E.g. Meeting"
             },
             "actions": {
                 "add": "Add event type"
@@ -1137,10 +1277,15 @@
                 "minItems": "Define at least one event type."
             },
             "loadError": "Could not load current types. Default values are shown.",
-            "updated": "Event types updated successfully."
+            "updated": "Event type updated successfully.",
+            "created": "Event type created successfully.",
+            "deleted": "Event type removed successfully.",
+            "empty": "No event types configured yet."
         }
     },
     "common": {
+        "success": "Success",
+        "error": "Error",
         "notFound": {
             "product": "No product found!",
             "order": "No order found!",

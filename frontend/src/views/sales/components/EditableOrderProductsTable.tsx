@@ -19,6 +19,7 @@ export type EditableItem = {
     qty: number
     img?: string
     description?: string
+    currency?: string
 }
 
 type Props = {
@@ -54,11 +55,11 @@ const ProductCell = ({ row, showDescription }: { row: EditableItem; showDescript
     )
 }
 
-const PriceText = ({ amount }: { amount: number }) => (
+const PriceText = ({ amount, currency }: { amount: number; currency?: string }) => (
     <NumericFormat
         displayType="text"
         value={(Math.round(amount * 100) / 100).toFixed(2)}
-        prefix={'$'}
+        prefix={currency ? `${currency} ` : ''}
         thousandSeparator
     />
 )
@@ -76,7 +77,12 @@ const EditableOrderProductsTable = ({ items, onQtyChange, onRemove, showDescript
         }),
         columnHelper.accessor('price', {
             header: t('text.columns.price'),
-            cell: (props) => <PriceText amount={props.row.original.price} />,
+            cell: (props) => (
+                <PriceText
+                    amount={props.row.original.price}
+                    currency={props.row.original.currency}
+                />
+            ),
         }),
         columnHelper.accessor('qty', {
             header: t('text.columns.quantity'),
@@ -97,8 +103,13 @@ const EditableOrderProductsTable = ({ items, onQtyChange, onRemove, showDescript
             id: 'total',
             header: t('text.columns.total'),
             cell: (props) => {
-                const { price, qty } = props.row.original
-                return <PriceText amount={(Number(price) || 0) * (Number(qty) || 0)} />
+                const { price, qty, currency } = props.row.original
+                return (
+                    <PriceText
+                        amount={(Number(price) || 0) * (Number(qty) || 0)}
+                        currency={currency}
+                    />
+                )
             },
         }),
         columnHelper.display({

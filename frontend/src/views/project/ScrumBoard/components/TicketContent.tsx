@@ -109,15 +109,12 @@ const TicketContent = ({ onTicketClose }: { onTicketClose: () => void }) => {
     const getTicketDetail = async () => {
         setLoading(true)
         let ticketDetail = {}
-        for (const key in columns) {
-            if (Object.hasOwnProperty.call(columns, key)) {
-                const board = columns[key]
-                const result = board.find((ticket) => ticket.id === ticketId)
-                if (result) {
-                    ticketDetail = result
-                }
+        Object.values(columns).forEach((column) => {
+            const result = column.tickets.find((ticket) => ticket.id === ticketId)
+            if (result) {
+                ticketDetail = result
             }
-        }
+        })
         setTicketData(ticketDetail)
         setLoading(false)
     }
@@ -151,16 +148,12 @@ const TicketContent = ({ onTicketClose }: { onTicketClose: () => void }) => {
 
     const onUpdateColumn = () => {
         const data = cloneDeep(columns)
-        for (const key in data) {
-            if (Object.hasOwnProperty.call(data, key)) {
-                const board = data[key]
-                board.forEach((ticket, index) => {
-                    if (ticket.id === ticketId) {
-                        data[key][index] = ticketData as Ticket
-                    }
-                })
-            }
-        }
+        Object.keys(data).forEach((key) => {
+            const column = data[key]
+            column.tickets = column.tickets.map((ticket) =>
+                ticket.id === ticketId ? (ticketData as Ticket) : ticket,
+            )
+        })
         dispatch(updateColumns(data))
     }
 

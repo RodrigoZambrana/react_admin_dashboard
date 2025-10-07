@@ -1,5 +1,4 @@
 import { useEffect, useCallback, useMemo, useRef } from 'react'
-import Badge from '@/components/ui/Badge'
 import Select from '@/components/ui/Select'
 import { apiGetExpenseStatuses, apiGetPaymentMethods } from '@/services/SettingsService'
 import { apiUpdateExpense } from '@/services/ExpensesService'
@@ -8,6 +7,7 @@ import Tooltip from '@/components/ui/Tooltip'
 import DataTable from '@/components/shared/DataTable'
 import { HiOutlineEye, HiOutlineTrash } from 'react-icons/hi'
 import { NumericFormat } from 'react-number-format'
+import classNames from 'classnames'
 import {
     setSelectedRows,
     addRowItem,
@@ -35,29 +35,17 @@ type Expense = {
     id: string
     date: number
     vendor: string
-    category: string
-    status: number
-    paymentMehod: string
-    paymentIdendifier: string
+    categoryId?: number | null
+    categoryName: string
+    statusId?: number | null
+    statusName: string
+    statusColor?: string | null
+    paymentMethodId?: number | null
+    paymentMethodName: string
+    paymentReference?: string
     amount: number
-}
-
-const statusColor: Record<
-    number,
-    {
-        dotClass: string
-        textClass: string
-    }
-> = {
-    0: {
-        dotClass: 'bg-emerald-500',
-        textClass: 'text-emerald-500',
-    },
-    1: {
-        dotClass: 'bg-amber-500',
-        textClass: 'text-amber-500',
-    },
-    2: { dotClass: 'bg-red-500', textClass: 'text-red-500' },
+    note?: string
+    currency?: string | null
 }
 
 const ExpenseIdColumn = ({ row }: { row: Expense }) => {
@@ -126,16 +114,12 @@ const ExpensesTable = () => {
     )
     const loading = useAppSelector((state) => state.expensesList.data.loading)
     const [expenseStatuses, setExpenseStatuses] = useState<
-        { id: number; name: string; color: string }[]
-    >([
-        { id: 0, name: 'Pagado', color: 'emerald-500' },
-        { id: 1, name: 'Pendiente', color: 'amber-500' },
-        { id: 2, name: 'Cancelado', color: 'red-500' },
-    ])
+        { id: number; name: string; color: string | null }[]
+    >([])
     const [paymentMethods, setPaymentMethods] = useState<{ value: string; label: string }[]>([])
 
     const data = useAppSelector((state) => state.expensesList.data.expenses)
-    const currency = useAppSelector((state) => state.currency.code)
+    const defaultCurrency = useAppSelector((state) => state.currency.code)
 
     const fetchData = useCallback(() => {
         dispatch(getExpensesList({ pageIndex, pageSize, sort, query }))
@@ -159,7 +143,12 @@ const ExpensesTable = () => {
         }
         const fetchMethods = async () => {
             const mRes = await apiGetPaymentMethods<{ id: string; name: string }[]>()
-            setPaymentMethods((mRes.data as any[]).map((m) => ({ value: m.id, label: m.name })))
+            setPaymentMethods(
+                (mRes.data as any[]).map((m) => ({
+                    value: String(m.id),
+                    label: m.name,
+                })),
+            )
         }
         fetchStatuses()
         fetchMethods()
@@ -199,48 +188,72 @@ const ExpensesTable = () => {
             },
             {
                 header: t('text.columns.category'),
-                accessorKey: 'category',
+                accessorKey: 'categoryName',
+                cell: (props) => {
+                    const row = props.row.original
+                    return row.categoryName || '—'
+                },
             },
             {
                 header: t('text.columns.status'),
-                accessorKey: 'status',
+                accessorKey: 'statusName',
                 cell: (props) => {
                     const row = props.row.original
-                    const statusId =
-                        typeof (row as any).status === 'string'
-                            ? parseInt((row as any).status as unknown as string, 10)
-                            : (row as any).status
-                    const s = expenseStatuses.find((x) => x.id === statusId)
-                    const options = expenseStatuses.map((x) => ({
-                        value: x.id,
-                        label: x.name,
-                        color: x.color,
+                    const selectedStatus = expenseStatuses.find(
+                        (status) => status.id === row.statusId,
+                    )
+                    const options = expenseStatuses.map((status) => ({
+                        value: String(status.id),
+                        label: status.name,
+                        color: status.color || '#6b7280',
                     }))
+                    const fallbackStatus =
+                        !selectedStatus && row.statusName
+                            ? {
+                                  value: String(row.statusId ?? 'current'),
+                                  label: row.statusName,
+                                  color: row.statusColor || '#6b7280',
+                              }
+                            : null
                     const onChange = async (opt: any) => {
-                        await apiUpdateExpense<boolean, { id: string; status: number }>(
-                            { id: row.id, status: opt.value },
+                        const value = opt ? Number(opt.value) : null
+                        await apiUpdateExpense<boolean, { id: string; statusId: number | null }>(
+                            { id: row.id, statusId: value },
                         )
                         fetchData()
                     }
                     return (
-                        <div className="min-w-[140px]">
+                        <div className="min-w-[160px]">
                             <Select
                                 size="sm"
                                 options={options}
-                                value={{ value: s?.id ?? statusId, label: s?.name ?? String(statusId), color: s?.color ?? 'gray-500' } as any}
-                                formatOptionLabel={(option: any, { context }: { context: 'menu' | 'value' }) => (
-                                    <div className="flex items-center">
-                                        <span className={`badge-dot bg-${option.color}`}></span>
-                                        <span className={`ml-2 rtl:mr-2 capitalize font-semibold ${context === 'value' ? `text-${option.color}` : ''}`}>
+                                value={
+                                    selectedStatus
+                                        ? {
+                                              value: String(selectedStatus.id),
+                                              label: selectedStatus.name,
+                                              color: selectedStatus.color || '#6b7280',
+                                          }
+                                        : fallbackStatus
+                                }
+                                onChange={onChange}
+                                placeholder="—"
+                                formatOptionLabel={(option, { context }: { context: 'menu' | 'value' }) => (
+                                    <div className="flex items-center gap-2">
+                                        <span
+                                            className="inline-block h-2.5 w-2.5 rounded-full border border-gray-200 dark:border-gray-600"
+                                            style={{ backgroundColor: option.color }}
+                                        />
+                                        <span
+                                            className={classNames(
+                                                'capitalize font-semibold',
+                                                context === 'value' ? '' : '',
+                                            )}
+                                        >
                                             {option.label}
                                         </span>
                                     </div>
                                 )}
-                                style={{
-                                    singleValue: (provided: any) => ({ ...provided, display: 'flex', alignItems: 'center' }),
-                                    valueContainer: (provided: any) => ({ ...provided, display: 'flex', alignItems: 'center' }),
-                                }}
-                                onChange={onChange}
                             />
                         </div>
                     )
@@ -248,17 +261,39 @@ const ExpensesTable = () => {
             },
             {
                 header: t('text.columns.paymentMethod'),
-                accessorKey: 'paymentMehod',
+                accessorKey: 'paymentMethodName',
                 cell: (props) => {
                     const row = props.row.original
-                    const current = paymentMethods.find((m) => m.value === row.paymentMehod) || { value: row.paymentMehod, label: row.paymentMehod }
+                    const current = row.paymentMethodId
+                        ? paymentMethods.find(
+                              (m) => m.value === String(row.paymentMethodId),
+                          )
+                        : null
+                    const fallbackMethod =
+                        !current && row.paymentMethodName
+                            ? {
+                                  value: String(row.paymentMethodId ?? 'current'),
+                                  label: row.paymentMethodName,
+                              }
+                            : null
                     const onChange = async (opt: any) => {
-                        await apiUpdateExpense<boolean, { id: string; paymentMehod: string }>({ id: row.id, paymentMehod: opt.value })
+                        const value = opt ? Number(opt.value) : null
+                        await apiUpdateExpense<boolean, { id: string; paymentMethodId: number | null }>({
+                            id: row.id,
+                            paymentMethodId: value,
+                        })
                         fetchData()
                     }
                     return (
                         <div className="min-w-[160px]">
-                            <Select size="md" options={paymentMethods} value={current as any} onChange={onChange} />
+                            <Select
+                                size="md"
+                                options={paymentMethods}
+                                value={current || fallbackMethod}
+                                onChange={onChange}
+                                isClearable
+                                placeholder="—"
+                            />
                         </div>
                     )
                 },
@@ -267,12 +302,13 @@ const ExpensesTable = () => {
                 header: t('text.columns.amount'),
                 accessorKey: 'amount',
                 cell: (props) => {
-                    const { amount } = props.row.original
+                    const { amount, currency: rowCurrency } = props.row.original
+                    const currencyLabel = rowCurrency || defaultCurrency
                     return (
                         <NumericFormat
                             displayType="text"
                             value={(Math.round(amount * 100) / 100).toFixed(2)}
-                            prefix={`${currency} `}
+                            prefix={currencyLabel ? `${currencyLabel} ` : ''}
                             thousandSeparator={true}
                         />
                     )
@@ -284,7 +320,7 @@ const ExpensesTable = () => {
                 cell: (props) => <ActionColumn row={props.row.original} />,
             },
         ],
-        [t, currency, paymentMethods, expenseStatuses, fetchData],
+        [t, defaultCurrency, paymentMethods, expenseStatuses, fetchData],
     )
 
     const onPaginationChange = (page: number) => {

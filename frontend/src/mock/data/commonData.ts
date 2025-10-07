@@ -76,7 +76,7 @@ export const notificationListData = [
 export const searchQueryPoolData = [
     {
         title: 'Activities',
-        url: '/app/activities/dashboard',
+        url: '/app/activities',
         icon: 'calendar',
         category: 'Activities',
         categoryTitle: 'Apps',
@@ -118,16 +118,16 @@ export const searchQueryPoolData = [
     },
     {
         title: 'Product List',
-        url: '/app/sales/product-list',
-        icon: 'sales',
-        category: 'Sales',
+        url: '/app/products/list',
+        icon: 'products',
+        category: 'Products',
         categoryTitle: 'Apps',
     },
     {
         title: 'Product Edit',
-        url: '/app/sales/product-edit/12',
-        icon: 'sales',
-        category: 'Sales',
+        url: '/app/products/edit/12',
+        icon: 'products',
+        category: 'Products',
         categoryTitle: 'Apps',
     },
     {

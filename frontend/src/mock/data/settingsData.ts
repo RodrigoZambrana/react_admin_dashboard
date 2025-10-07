@@ -4,12 +4,6 @@ export const orderStatusesData = [
     { id: 2, name: 'Cancelado', color: 'red-500' },
 ]
 
-export const productStatusesData = [
-    { id: 0, name: 'En stock', color: 'emerald-500' },
-    { id: 1, name: 'Limitado', color: 'amber-500' },
-    { id: 2, name: 'Sin stock', color: 'red-500' },
-]
-
 export const customerStatusesData = [
     { id: 'active', name: 'Activo', color: 'emerald-500' },
     { id: 'blocked', name: 'Bloqueado', color: 'red-500' },

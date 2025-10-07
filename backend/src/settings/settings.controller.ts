@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Post, Put, UseGuards, Query, BadRequestException } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Post, Put, UseGuards, Query, BadRequestException, Param } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Prisma } from '@prisma/client'
@@ -7,6 +7,78 @@ import { Prisma } from '@prisma/client'
 @Controller('settings')
 export class SettingsController {
   constructor(private prisma: PrismaService) {}
+
+  private readonly defaultCalendarEventTypes = [
+    { name: 'Reunión', color: '#2563eb' },
+    { name: 'Tarea', color: '#059669' },
+    { name: 'Taller', color: '#7c3aed' },
+    { name: 'Otro', color: '#6b7280' },
+  ]
+
+  private normalizeCurrency(code?: unknown) {
+    if (!code) return null
+    const trimmed = String(code).trim().toUpperCase()
+    if (!/^[A-Z]{3,5}$/.test(trimmed)) {
+      return null
+    }
+    return trimmed
+  }
+
+  private async loadCurrencies(): Promise<string[]> {
+    const record = await this.prisma.systemConfig.findUnique({ where: { key: 'currencies' } })
+    if (!record) {
+      return ['USD', 'UYU']
+    }
+    try {
+      const parsed = JSON.parse(record.value)
+      if (Array.isArray(parsed)) {
+        const normalized = parsed
+          .map((item) => this.normalizeCurrency(item))
+          .filter((item): item is string => Boolean(item))
+        return normalized.length ? normalized : ['USD', 'UYU']
+      }
+    } catch (error) {
+      // fall through to default
+    }
+    return ['USD', 'UYU']
+  }
+
+  private async saveCurrencies(codes: string[]) {
+    const unique = Array.from(new Set(codes))
+    await this.prisma.systemConfig.upsert({
+      where: { key: 'currencies' },
+      update: { value: JSON.stringify(unique) },
+      create: { key: 'currencies', value: JSON.stringify(unique) },
+    })
+    return unique
+  }
+
+  private normalizeColor(value?: string | null) {
+    if (!value) {
+      return '#2563eb'
+    }
+    const trimmed = value.trim()
+    const hexPattern = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
+    if (hexPattern.test(trimmed)) {
+      return trimmed.length === 4
+        ? '#' + trimmed.substring(1).split('').map((c) => c + c).join('').toLowerCase()
+        : trimmed.toLowerCase()
+    }
+    return trimmed
+  }
+
+  private async ensureCalendarEventTypesSeeded() {
+    const count = await this.prisma.calendarEventType.count()
+    if (count === 0) {
+      await this.prisma.calendarEventType.createMany({
+        data: this.defaultCalendarEventTypes.map((item) => ({
+          name: item.name,
+          color: this.normalizeColor(item.color),
+        })),
+        skipDuplicates: true,
+      })
+    }
+  }
 
   // Order Statuses
   @Get('order-statuses')
@@ -27,28 +99,6 @@ export class SettingsController {
   @Delete('order-statuses/delete')
   async deleteOrderStatus(@Body() body: { id: number }) {
     await this.prisma.orderStatus.delete({ where: { id: body.id } })
-    return true
-  }
-
-  // Product Statuses
-  @Get('product-statuses')
-  getProductStatuses() {
-    return this.prisma.productStatus.findMany({ orderBy: { id: 'asc' } })
-  }
-  @Post('product-statuses/create')
-  async createProductStatus(@Body() body: { id?: number; name: string; color?: string }) {
-    const nextCode = (await this.prisma.productStatus.count())
-    await this.prisma.productStatus.create({ data: { name: body.name, code: nextCode, color: body.color } })
-    return true
-  }
-  @Put('product-statuses/update')
-  async updateProductStatus(@Body() body: { id: number; name?: string; color?: string }) {
-    await this.prisma.productStatus.update({ where: { id: body.id }, data: { name: body.name, color: body.color } })
-    return true
-  }
-  @Delete('product-statuses/delete')
-  async deleteProductStatus(@Body() body: { id: number }) {
-    await this.prisma.productStatus.delete({ where: { id: body.id } })
     return true
   }
 
@@ -162,6 +212,7 @@ export class SettingsController {
     const taxRate = Number(map.get('taxRate') ?? '22')
     return {
       taxRate: Number.isNaN(taxRate) ? 22 : taxRate,
+      currencies: await this.loadCurrencies(),
     }
   }
 
@@ -180,58 +231,146 @@ export class SettingsController {
     return true
   }
 
-  @Get('calendar-event-types')
-  async getCalendarEventTypes() {
-    const record = await this.prisma.systemConfig.findUnique({
-      where: { key: 'calendarEventTypes' },
-    })
-    const fallback = [
-      { key: 'meeting', label: 'Meeting' },
-      { key: 'task', label: 'Task' },
-      { key: 'workshop', label: 'Workshop' },
-      { key: 'other', label: 'Other' },
-    ]
-    if (!record) {
-      return fallback
-    }
-    try {
-      const parsed = JSON.parse(record.value)
-      if (Array.isArray(parsed)) {
-        return parsed
-      }
-    } catch (error) {
-      // fallthrough to fallback
-    }
-    return fallback
+  @Get('system-config/currencies')
+  async getCurrencies() {
+    return this.loadCurrencies()
   }
 
-  @Put('calendar-event-types')
-  async updateCalendarEventTypes(
-    @Body()
-    body: {
-      types: { key: string; label: string }[]
-    },
+  @Post('system-config/currencies')
+  async createCurrency(@Body() body: { code: string }) {
+    const code = this.normalizeCurrency(body.code)
+    if (!code) {
+      throw new BadRequestException('Invalid currency code')
+    }
+    const current = await this.loadCurrencies()
+    if (current.includes(code)) {
+      throw new BadRequestException('Currency already exists')
+    }
+    return this.saveCurrencies([...current, code])
+  }
+
+  @Put('system-config/currencies')
+  async updateCurrency(@Body() body: { current: string; next: string }) {
+    const currentCode = this.normalizeCurrency(body.current)
+    const nextCode = this.normalizeCurrency(body.next)
+    if (!currentCode || !nextCode) {
+      throw new BadRequestException('Invalid currency code')
+    }
+    const list = await this.loadCurrencies()
+    if (!list.includes(currentCode)) {
+      throw new BadRequestException('Currency not found')
+    }
+    if (currentCode === nextCode) {
+      return list
+    }
+    if (list.includes(nextCode)) {
+      throw new BadRequestException('Currency already exists')
+    }
+    const updated = list.map((item) => (item === currentCode ? nextCode : item))
+    return this.saveCurrencies(updated)
+  }
+
+  @Delete('system-config/currencies')
+  async deleteCurrency(@Body() body: { code: string }) {
+    const code = this.normalizeCurrency(body.code)
+    if (!code) {
+      throw new BadRequestException('Invalid currency code')
+    }
+    const list = await this.loadCurrencies()
+    if (!list.includes(code)) {
+      throw new BadRequestException('Currency not found')
+    }
+    const updated = list.filter((item) => item !== code)
+    if (!updated.length) {
+      throw new BadRequestException('At least one currency must remain')
+    }
+    return this.saveCurrencies(updated)
+  }
+
+  @Get('calendar-event-types')
+  async getCalendarEventTypes() {
+    await this.ensureCalendarEventTypesSeeded()
+    return this.prisma.calendarEventType.findMany({ orderBy: { id: 'asc' } })
+  }
+
+  @Post('calendar-event-types')
+  async createCalendarEventType(
+    @Body() body: { name: string; color?: string; description?: string },
   ) {
-    const sanitized = Array.isArray(body.types)
-      ? body.types
-          .filter((item) => item && item.key && item.label)
-          .map((item) => ({
-            key: String(item.key).trim(),
-            label: String(item.label).trim(),
-          }))
-      : []
-    const value = sanitized.length > 0 ? sanitized : [
-      { key: 'meeting', label: 'Meeting' },
-      { key: 'task', label: 'Task' },
-      { key: 'workshop', label: 'Workshop' },
-      { key: 'other', label: 'Other' },
-    ]
-    await this.prisma.systemConfig.upsert({
-      where: { key: 'calendarEventTypes' },
-      update: { value: JSON.stringify(value) },
-      create: { key: 'calendarEventTypes', value: JSON.stringify(value) },
+    const name = (body.name || '').trim()
+    if (!name) {
+      throw new BadRequestException('Event type name is required')
+    }
+    const color = this.normalizeColor(body.color)
+    const created = await this.prisma.calendarEventType.create({
+      data: {
+        name,
+        color,
+        description: body.description?.trim() || null,
+      },
     })
-    return value
+    return created
+  }
+
+  @Put('calendar-event-types/:id')
+  async updateCalendarEventType(
+    @Param('id') id: string,
+    @Body() body: { name?: string; color?: string; description?: string },
+  ) {
+    const eventTypeId = Number(id)
+    if (!Number.isFinite(eventTypeId)) {
+      throw new BadRequestException('Invalid event type id')
+    }
+    const data: Record<string, unknown> = {}
+    if (body.name !== undefined) {
+      const name = body.name.trim()
+      if (!name) {
+        throw new BadRequestException('Event type name cannot be empty')
+      }
+      data.name = name
+    }
+    if (body.color !== undefined) {
+      data.color = this.normalizeColor(body.color)
+    }
+    if (body.description !== undefined) {
+      const desc = body.description.trim()
+      data.description = desc ? desc : null
+    }
+    if (Object.keys(data).length === 0) {
+      return this.prisma.calendarEventType.findUnique({ where: { id: eventTypeId } })
+    }
+    try {
+      return await this.prisma.calendarEventType.update({
+        where: { id: eventTypeId },
+        data,
+      })
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new BadRequestException('Event type not found')
+      }
+      throw error
+    }
+  }
+
+  @Delete('calendar-event-types/:id')
+  async deleteCalendarEventType(@Param('id') id: string) {
+    const eventTypeId = Number(id)
+    if (!Number.isFinite(eventTypeId)) {
+      throw new BadRequestException('Invalid event type id')
+    }
+    const remaining = await this.prisma.calendarEventType.count()
+    if (remaining <= 1) {
+      throw new BadRequestException('At least one event type must remain')
+    }
+    try {
+      await this.prisma.calendarEventType.delete({ where: { id: eventTypeId } })
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new BadRequestException('Event type not found')
+      }
+      throw error
+    }
+    return true
   }
 
   // Countries and Cities (simple demo lists)

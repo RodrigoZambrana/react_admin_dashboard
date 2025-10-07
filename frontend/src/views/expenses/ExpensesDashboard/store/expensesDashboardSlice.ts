@@ -24,9 +24,12 @@ export type DashboardData = {
         id: string
         date: number
         vendor: string
-        status: number
-        paymentMehod: string
-        paymentIdendifier: string
+        statusId: number | null
+        statusName: string
+        statusColor?: string | null
+        paymentMethodId: number | null
+        paymentMethodName: string
+        paymentReference?: string
         amount: number
     }[]
     expensesByCategoriesData?: {
@@ -89,4 +92,3 @@ const expensesDashboardSlice = createSlice({
 export const { setStartDate, setEndDate } = expensesDashboardSlice.actions
 
 export default expensesDashboardSlice.reducer
-

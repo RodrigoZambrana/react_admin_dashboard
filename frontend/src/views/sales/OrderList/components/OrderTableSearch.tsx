@@ -6,6 +6,7 @@ import {
     setTableData,
     useAppDispatch,
     useAppSelector,
+    setSelectedRows,
 } from '../store'
 import debounce from 'lodash/debounce'
 import cloneDeep from 'lodash/cloneDeep'
@@ -39,6 +40,7 @@ const OrderTableSearch = () => {
     }
 
     const fetchData = (data: TableQueries) => {
+        dispatch(setSelectedRows([]))
         dispatch(setTableData(data))
         dispatch(getOrders(data))
     }
@@ -52,6 +54,7 @@ const OrderTableSearch = () => {
             ref={searchInput}
             className="lg:w-52"
             size="sm"
+            name="order-search"
             placeholder={t('text.placeholders.search')}
             prefix={<HiOutlineSearch className="text-lg" />}
             onChange={onEdit}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import { FormItem } from '@/components/ui/Form'
 import Input from '@/components/ui/Input'
@@ -7,21 +7,8 @@ import Switcher from '@/components/ui/Switcher'
 import { Field, FormikErrors, FormikTouched, FieldProps } from 'formik'
 import { NumericFormat, NumericFormatProps } from 'react-number-format'
 import { useTranslation } from 'react-i18next'
-import { apiGetProductStatuses } from '@/services/SettingsService'
 import type { ComponentType } from 'react'
-
-const deriveStatus = (stock: number, permanent: boolean) => {
-    if (permanent) {
-        return 0
-    }
-    if (stock <= 0) {
-        return 2
-    }
-    if (stock < 5) {
-        return 1
-    }
-    return 0
-}
+import { deriveInventoryStatus } from '@/utils/inventory'
 
 type FormFieldsName = {
     status: number
@@ -72,39 +59,15 @@ const PublicationFields = ({
 
     const permanentStockEnabled = Boolean(values.permanentStock)
 
-    const [statusOptions, setStatusOptions] = useState(
-        () => [
-            { value: 0, label: t('text.status.inStock') },
-            { value: 1, label: t('text.status.limited') },
-            { value: 2, label: t('text.status.outOfStock') },
-        ],
-    )
-
-    useEffect(() => {
-        const load = async () => {
-            try {
-                const res = await apiGetProductStatuses<
-                    { id: number | string; code?: number | string; name: string; color?: string }[]
-                >()
-                const opts = (res.data as any[]).map((s) => ({
-                    value: s.code !== undefined ? Number(s.code) : Number(s.id),
-                    label: s.name,
-                    color: (s as any).color,
-                }))
-                if (opts.length) {
-                    setStatusOptions(opts)
-                }
-            } catch {
-                // ignore
-            }
-        }
-        load()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    const statusOptions = [
+        { value: 0, label: t('text.status.inStock') },
+        { value: 1, label: t('text.status.limited') },
+        { value: 2, label: t('text.status.outOfStock') },
+    ]
 
     useEffect(() => {
         const numericStock = Number(values.stock ?? 0)
-        const computed = deriveStatus(
+        const computed = deriveInventoryStatus(
             Number.isNaN(numericStock) ? 0 : numericStock,
             permanentStockEnabled,
         )
@@ -151,7 +114,7 @@ const PublicationFields = ({
                                     onChange={(checked) => {
                                         setFieldValue(field.name, checked)
                                         const numericStock = Number(values.stock ?? 0)
-                                        const status = deriveStatus(
+                                        const status = deriveInventoryStatus(
                                             Number.isNaN(numericStock)
                                                 ? 0
                                                 : numericStock,

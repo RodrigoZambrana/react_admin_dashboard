@@ -41,7 +41,13 @@ import {
     helpCenterArticleListData,
 } from './data/knowledgeBaseData'
 import { signInUserData } from './data/authData'
-import { orderStatusesData, productStatusesData, customerStatusesData, expenseStatusesData, productCategoriesData, paymentMethodsData } from './data/settingsData'
+import {
+    orderStatusesData,
+    customerStatusesData,
+    expenseStatusesData,
+    productCategoriesData,
+    paymentMethodsData,
+} from './data/settingsData'
 
 import {
     commonFakeApi,
@@ -94,7 +100,6 @@ export function mockServer({ environment = 'test' }) {
                 expensesDashboardData,
                 expenseCategoriesData,
                 orderStatusesData,
-                productStatusesData,
                 customerStatusesData,
                 expenseStatusesData,
                 productCategoriesData,

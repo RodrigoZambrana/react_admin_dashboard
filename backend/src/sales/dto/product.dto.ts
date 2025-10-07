@@ -30,13 +30,17 @@ export class UpsertProductDto {
   @Type(() => Number)
   price!: number
 
+  @IsOptional()
+  @IsString()
+  currency?: string
+
   @IsNumber()
   @Type(() => Number)
   stock!: number
 
-  @IsNumber()
-  @Type(() => Number)
-  status!: number
+  @IsOptional()
+  @IsBoolean()
+  permanentStock?: boolean
 
   @IsOptional()
   @IsNumber()
@@ -102,14 +106,17 @@ export class UpdateProductDto {
   price?: number
 
   @IsOptional()
+  @IsString()
+  currency?: string
+
+  @IsOptional()
   @IsNumber()
   @Type(() => Number)
   stock?: number
 
   @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  status?: number
+  @IsBoolean()
+  permanentStock?: boolean
 
   @IsOptional()
   @IsNumber()

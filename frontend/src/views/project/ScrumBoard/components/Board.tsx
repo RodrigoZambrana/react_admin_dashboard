@@ -8,13 +8,15 @@ import {
 } from '@hello-pangea/dnd'
 import {
     getBoards,
-    updateColumns,
-    updateOrdered,
+    reorderColumns,
+    reorderTickets,
     closeDialog,
     useAppDispatch,
     useAppSelector,
+    updateColumns,
+    updateOrdered,
 } from '../store'
-import { reorder, reorderQuoteMap } from '../utils'
+import { reorder } from '../utils'
 import BoardColumn from './BoardColumn'
 
 export type BoardProps = {
@@ -56,25 +58,6 @@ const Board = (props: BoardProps) => {
     }, [dispatch])
 
     const onDragEnd = (result: DropResult) => {
-        if (result.combine) {
-            if (result.type === 'COLUMN') {
-                const shallow = [...ordered]
-                shallow.splice(result.source.index, 1)
-                dispatch(updateOrdered(shallow))
-                return
-            }
-
-            const column = columns[result.source.droppableId]
-            const withQuoteRemoved = [...column]
-            withQuoteRemoved.splice(result.source.index, 1)
-            const newColumns = {
-                ...columns,
-                [result.source.droppableId]: withQuoteRemoved,
-            }
-            dispatch(updateColumns(newColumns))
-            return
-        }
-
         if (!result.destination) {
             return
         }
@@ -92,16 +75,60 @@ const Board = (props: BoardProps) => {
         if (result.type === 'COLUMN') {
             const newOrdered = reorder(ordered, source.index, destination.index)
             dispatch(updateOrdered(newOrdered))
+            dispatch(reorderColumns(newOrdered))
             return
         }
 
-        const data = reorderQuoteMap({
-            quoteMap: columns,
-            source,
-            destination,
-        })
+        const sourceColumnId = source.droppableId
+        const destinationColumnId = destination.droppableId
 
-        dispatch(updateColumns(data.quoteMap))
+        const sourceColumn = columns[sourceColumnId]
+        const destinationColumn = columns[destinationColumnId]
+
+        if (!sourceColumn || !destinationColumn) {
+            return
+        }
+
+        const updatedColumns = { ...columns }
+
+        const sourceTickets = [...sourceColumn.tickets]
+        const [movedTicket] = sourceTickets.splice(source.index, 1)
+
+        if (!movedTicket) {
+            return
+        }
+
+        if (sourceColumnId === destinationColumnId) {
+            sourceTickets.splice(destination.index, 0, movedTicket)
+            updatedColumns[sourceColumnId] = {
+                ...sourceColumn,
+                tickets: sourceTickets,
+            }
+        } else {
+            const destinationTickets = [...destinationColumn.tickets]
+            destinationTickets.splice(destination.index, 0, {
+                ...movedTicket,
+                columnId: destinationColumnId,
+            })
+            updatedColumns[sourceColumnId] = {
+                ...sourceColumn,
+                tickets: sourceTickets,
+            }
+            updatedColumns[destinationColumnId] = {
+                ...destinationColumn,
+                tickets: destinationTickets,
+            }
+        }
+
+        dispatch(updateColumns(updatedColumns))
+
+        const columnOrders = ordered.map((columnId) => ({
+            columnId,
+            ticketIds:
+                updatedColumns[columnId]?.tickets.map((ticket) => ticket.id) || [],
+        }))
+
+        dispatch(reorderTickets({ columnOrders }))
     }
 
     return (
@@ -121,17 +148,22 @@ const Board = (props: BoardProps) => {
                             {...provided.droppableProps}
                         >
                             <div className="scrumboard-body flex max-w-full overflow-x-auto h-full mt-4">
-                                {ordered.map((key, index) => (
-                                    <BoardColumn
-                                        key={key}
-                                        index={index}
-                                        title={key}
-                                        contents={columns[key]}
-                                        isScrollable={withScrollableColumns}
-                                        isCombineEnabled={isCombineEnabled}
-                                        useClone={useClone}
-                                    />
-                                ))}
+                                {ordered.map((columnId, index) => {
+                                    const column = columns[columnId]
+                                    if (!column) {
+                                        return null
+                                    }
+                                    return (
+                                        <BoardColumn
+                                            key={column.id}
+                                            index={index}
+                                            column={column}
+                                            isScrollable={withScrollableColumns}
+                                            isCombineEnabled={isCombineEnabled}
+                                            useClone={useClone}
+                                        />
+                                    )
+                                })}
                                 {provided.placeholder}
                             </div>
                         </div>

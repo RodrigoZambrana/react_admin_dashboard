@@ -15,7 +15,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { apiGetCrmCustomers, apiGetCrmCustomerDetails } from '@/services/CrmService'
 import { apiGetSalesProducts, apiCreateSalesOrder, apiCreateSalesProduct } from '@/services/SalesService'
 import * as Yup from 'yup'
-import { apiGetPaymentMethods, apiGetCountries, apiGetCities, apiGetSystemConfig } from '@/services/SettingsService'
+import { apiGetPaymentMethods, apiGetSystemConfig } from '@/services/SettingsService'
 import Checkbox from '@/components/ui/Checkbox'
 import PaymentSummary from '@/views/sales/OrderDetails/components/PaymentSummary'
 import EditableOrderProductsTable, { EditableItem } from '@/views/sales/components/EditableOrderProductsTable'
@@ -28,8 +28,9 @@ import ProductForm, {
     FormModel as ProductFormModel,
     SetSubmitting as ProductFormSetSubmitting,
 } from '@/views/sales/ProductForm'
-import CountrySelect from '@/components/shared/CountrySelect'
-import CitySelect from '@/components/shared/CitySelect'
+import CountryCitySelector, {
+    type CountryCityValue,
+} from '@/components/shared/CountryCitySelector'
 import { findCountryByName } from '@/utils/countries'
 import useResponsive from '@/utils/hooks/useResponsive'
 
@@ -40,10 +41,17 @@ const OrderNew = () => {
     const navigate = useNavigate()
     const location = useLocation()
     const [customers, setCustomers] = useState<{ value: string; label: string }[]>([])
-    const [products, setProducts] = useState<{ value: string; label: string; price: number; img?: string; description?: string }[]>([])
+    const [products, setProducts] = useState<
+        {
+            value: string
+            label: string
+            price: number
+            currency?: string
+            img?: string
+            description?: string
+        }[]
+    >([])
     const [methods, setMethods] = useState<{ value: string; label: string }[]>([])
-    const [countries, setCountries] = useState<{ value: string; label: string }[]>([])
-    const [cities, setCities] = useState<{ value: string; label: string }[]>([])
     const [customerDetail, setCustomerDetail] = useState<any | null>(null)
     const [currentStep, setCurrentStep] = useState(0)
     const [newCustomerOpen, setNewCustomerOpen] = useState(false)
@@ -53,19 +61,25 @@ const OrderNew = () => {
     const isCompactViewport = smaller.md
 
     const addProduct = async (data: ProductFormModel) => {
-        const { permanentStock, ...payload } = data
         const response = await apiCreateSalesProduct<
             boolean,
-            Omit<ProductFormModel, 'permanentStock'>
-        >(payload)
+            ProductFormModel
+        >(data)
         return response.data
     }
 
     const closeNewProductDrawer = () => {
         setNewProductOpen(false)
         const searchParams = new URLSearchParams(location.search)
+        const redirectTo = searchParams.get('redirectTo')
+        if (redirectTo) {
+            const safeRedirect = redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`
+            navigate(safeRedirect, { replace: true })
+            return
+        }
         if (searchParams.has('addProduct')) {
             searchParams.delete('addProduct')
+            searchParams.delete('redirectTo')
             const query = searchParams.toString()
             navigate(
                 `${location.pathname}${query ? `?${query}` : ''}`,
@@ -82,15 +96,20 @@ const OrderNew = () => {
             setCustomers(cOpts)
             // products
             const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' })
-            const pOpts = (pRes as any).data?.data?.map((p: any) => ({ value: String(p.id), label: p.name, price: Number(p.price) || 0, img: p.img, description: p.description })) || []
+            const pOpts =
+                (pRes as any).data?.data?.map((p: any) => ({
+                    value: String(p.id),
+                    label: p.name,
+                    price: Number(p.price) || 0,
+                    currency: p.currency,
+                    img: p.img,
+                    description: p.description,
+                })) || []
             setProducts(pOpts)
             // payment methods
             const mRes = await apiGetPaymentMethods<{ id: number | string; name: string }[]>()
             const mOpts = (mRes.data as any[]).map((m) => ({ value: String(m.name || m.id), label: m.name }))
             setMethods(mOpts)
-            // countries
-            const ctryRes = await apiGetCountries<{ code: string; name: string }[]>()
-            setCountries((ctryRes.data as any[]).map((c) => ({ value: c.code, label: c.name })))
             try {
                 const cfg = await apiGetSystemConfig<{ taxRate?: number }>()
                 const rate = Number((cfg.data as any)?.taxRate)
@@ -296,13 +315,31 @@ const OrderNew = () => {
                     const grandTotal = Math.round((total + deliveryFee) * 100) / 100
                     const addItem = (
                         pid: string,
-                        option?: { value: string; label: string; price: number; img?: string; description?: string },
+                        option?: {
+                            value: string
+                            label: string
+                            price: number
+                            currency?: string
+                            img?: string
+                            description?: string
+                        },
                     ) => {
                         const p = option ?? products.find((x) => x.value === pid)
                         if (!p) return
                         const exists = values.items.find((it) => it.productId === pid)
                         if (exists) return
-                        setFieldValue('items', [...values.items, { productId: pid, name: p.label, price: p.price, qty: 1, img: p.img, description: p.description }])
+                        setFieldValue('items', [
+                            ...values.items,
+                            {
+                                productId: pid,
+                                name: p.label,
+                                price: p.price,
+                                currency: p.currency,
+                                qty: 1,
+                                img: p.img,
+                                description: p.description,
+                            },
+                        ])
                     }
                     const removeItem = (pid: string) => setFieldValue('items', values.items.filter((it) => it.productId !== pid))
                     const changeQty = (pid: string, qty: number) => setFieldValue('items', values.items.map((it) => (it.productId === pid ? { ...it, qty } : it)))
@@ -326,6 +363,7 @@ const OrderNew = () => {
                                         value: String(p.id),
                                         label: p.name,
                                         price: Number(p.price) || 0,
+                                        currency: p.currency,
                                         img: p.img,
                                         description: p.description,
                                     })) || []
@@ -339,6 +377,7 @@ const OrderNew = () => {
                                             value: String(created.id),
                                             label: created.name,
                                             price: Number(created.price) || 0,
+                                            currency: created.currency,
                                             img: created.img,
                                             description: created.description,
                                         }
@@ -389,6 +428,106 @@ const OrderNew = () => {
                         setFieldValue('billingAddress', {
                             ...values.shippingAddress,
                         })
+                    }
+
+                    const shippingCountryError = getIn(
+                        errors,
+                        'shippingAddress.state',
+                    ) as string | undefined
+                    const shippingCityError = getIn(
+                        errors,
+                        'shippingAddress.city',
+                    ) as string | undefined
+                    const shippingCountryTouched = getIn(
+                        touched,
+                        'shippingAddress.state',
+                    )
+                    const shippingCityTouched = getIn(
+                        touched,
+                        'shippingAddress.city',
+                    )
+                    const showShippingLocationError = Boolean(
+                        (shippingCountryTouched && shippingCountryError) ||
+                            (shippingCityTouched && shippingCityError),
+                    )
+                    const shippingLocationErrorMessage =
+                        (shippingCountryTouched && shippingCountryError
+                            ? shippingCountryError
+                            : undefined) ??
+                        (shippingCityTouched && shippingCityError
+                            ? shippingCityError
+                            : undefined) ??
+                        shippingCityError ??
+                        shippingCountryError
+
+                    const billingCountryError = getIn(
+                        errors,
+                        'billingAddress.state',
+                    ) as string | undefined
+                    const billingCityError = getIn(
+                        errors,
+                        'billingAddress.city',
+                    ) as string | undefined
+                    const billingCountryTouched = getIn(
+                        touched,
+                        'billingAddress.state',
+                    )
+                    const billingCityTouched = getIn(
+                        touched,
+                        'billingAddress.city',
+                    )
+                    const showBillingLocationError = Boolean(
+                        !values.billingSameAsShipping &&
+                            ((billingCountryTouched && billingCountryError) ||
+                                (billingCityTouched && billingCityError)),
+                    )
+                    const billingLocationErrorMessage =
+                        (billingCountryTouched && billingCountryError
+                            ? billingCountryError
+                            : undefined) ??
+                        (billingCityTouched && billingCityError
+                            ? billingCityError
+                            : undefined) ??
+                        billingCityError ??
+                        billingCountryError
+
+                    const handleShippingLocationChange = (
+                        next: CountryCityValue,
+                    ) => {
+                        const countryName = next.countryName ?? ''
+                        const cityValue = next.city ?? ''
+                        const countryCode = next.countryCode ?? ''
+
+                        setFieldValue('shippingAddress.state', countryName)
+                        setFieldValue('shippingAddress.countryCode', countryCode)
+                        setFieldValue('shippingAddress.city', cityValue)
+                        setFieldTouched('shippingAddress.state', true, false)
+                        if (next.city !== undefined) {
+                            setFieldTouched('shippingAddress.city', true, false)
+                        }
+
+                        if (values.billingSameAsShipping) {
+                            setFieldValue('billingAddress.state', countryName)
+                            setFieldValue('billingAddress.countryCode', countryCode)
+                            setFieldValue('billingAddress.city', cityValue)
+                        }
+                    }
+
+                    const handleBillingLocationChange = (next: CountryCityValue) => {
+                        if (values.billingSameAsShipping) {
+                            return
+                        }
+                        const countryName = next.countryName ?? ''
+                        const cityValue = next.city ?? ''
+                        const countryCode = next.countryCode ?? ''
+
+                        setFieldValue('billingAddress.state', countryName)
+                        setFieldValue('billingAddress.countryCode', countryCode)
+                        setFieldValue('billingAddress.city', cityValue)
+                        setFieldTouched('billingAddress.state', true, false)
+                        if (next.city !== undefined) {
+                            setFieldTouched('billingAddress.city', true, false)
+                        }
                     }
 
                     const shippingComplete = isAddressComplete(values.shippingAddress)
@@ -708,43 +847,23 @@ const OrderNew = () => {
                                                 </Field>
                                             </FormItem>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-3 mt-3">
+                                        <div className="mt-3">
                                             <FormItem
-                                                label={t('text.labels.country')}
-                                                invalid={Boolean(getIn(touched, 'shippingAddress.state') && getIn(errors, 'shippingAddress.state'))}
-                                                errorMessage={getIn(errors, 'shippingAddress.state') as string}
+                                                label={`${t('text.labels.country')} / ${t('text.labels.city')}`}
+                                                invalid={showShippingLocationError}
+                                                errorMessage={shippingLocationErrorMessage}
                                             >
-                                                <CountrySelect
-                                                    value={{ name: values.shippingAddress?.state, code: values.shippingAddress?.countryCode }}
-                                                    onChange={(val) => {
-                                                        setFieldValue('shippingAddress.state', val.name)
-                                                        setFieldValue('shippingAddress.countryCode', val.code)
-                                                        setFieldValue('shippingAddress.city', '')
-                                                        if (values.billingSameAsShipping) {
-                                                            setFieldValue('billingAddress.state', val.name)
-                                                            setFieldValue('billingAddress.countryCode', val.code)
-                                                            setFieldValue('billingAddress.city', '')
-                                                        }
+                                                <CountryCitySelector
+                                                    value={{
+                                                        countryCode:
+                                                            values.shippingAddress?.countryCode,
+                                                        countryName:
+                                                            values.shippingAddress?.state,
+                                                        city: values.shippingAddress?.city,
                                                     }}
-                                                    placeholder={t('text.labels.country')}
-                                                />
-                                            </FormItem>
-                                            <FormItem
-                                                label={t('text.labels.city')}
-                                                invalid={Boolean(getIn(touched, 'shippingAddress.city') && getIn(errors, 'shippingAddress.city'))}
-                                                errorMessage={getIn(errors, 'shippingAddress.city') as string}
-                                            >
-                                                <CitySelect
-                                                    countryCode={values.shippingAddress?.countryCode}
-                                                    countryName={values.shippingAddress?.state}
-                                                    value={values.shippingAddress?.city}
-                                                    onChange={(city) => {
-                                                        setFieldValue('shippingAddress.city', city)
-                                                        if (values.billingSameAsShipping) {
-                                                            setFieldValue('billingAddress.city', city)
-                                                        }
-                                                    }}
-                                                    placeholder={t('text.labels.city')}
+                                                    onChange={handleShippingLocationChange}
+                                                    countryPlaceholder={t('text.labels.country')}
+                                                    cityPlaceholder={t('text.labels.city')}
                                                 />
                                             </FormItem>
                                         </div>
@@ -830,37 +949,24 @@ const OrderNew = () => {
                                                 </Field>
                                             </FormItem>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-3 mt-3">
+                                        <div className="mt-3">
                                             <FormItem
-                                                label={t('text.labels.country')}
-                                                invalid={Boolean(!values.billingSameAsShipping && getIn(touched, 'billingAddress.state') && getIn(errors, 'billingAddress.state'))}
-                                                errorMessage={getIn(errors, 'billingAddress.state') as string}
+                                                label={`${t('text.labels.country')} / ${t('text.labels.city')}`}
+                                                invalid={showBillingLocationError}
+                                                errorMessage={billingLocationErrorMessage}
                                             >
-                                                <CountrySelect
-                                                    value={{ name: values.billingAddress?.state, code: values.billingAddress?.countryCode }}
-                                                    onChange={(val) => {
-                                                        if (values.billingSameAsShipping) return
-                                                        setFieldValue('billingAddress.state', val.name)
-                                                        setFieldValue('billingAddress.countryCode', val.code)
-                                                        setFieldValue('billingAddress.city', '')
+                                                <CountryCitySelector
+                                                    value={{
+                                                        countryCode:
+                                                            values.billingAddress?.countryCode,
+                                                        countryName:
+                                                            values.billingAddress?.state,
+                                                        city: values.billingAddress?.city,
                                                     }}
-                                                    placeholder={t('text.labels.country')}
-                                                />
-                                            </FormItem>
-                                            <FormItem
-                                                label={t('text.labels.city')}
-                                                invalid={Boolean(!values.billingSameAsShipping && getIn(touched, 'billingAddress.city') && getIn(errors, 'billingAddress.city'))}
-                                                errorMessage={getIn(errors, 'billingAddress.city') as string}
-                                            >
-                                                <CitySelect
-                                                    countryCode={values.billingAddress?.countryCode}
-                                                    countryName={values.billingAddress?.state}
-                                                    value={values.billingAddress?.city}
-                                                    onChange={(city) => {
-                                                        if (values.billingSameAsShipping) return
-                                                        setFieldValue('billingAddress.city', city)
-                                                    }}
-                                                    placeholder={t('text.labels.city')}
+                                                    onChange={handleBillingLocationChange}
+                                                    countryPlaceholder={t('text.labels.country')}
+                                                    cityPlaceholder={t('text.labels.city')}
+                                                    disabled={values.billingSameAsShipping}
                                                 />
                                             </FormItem>
                                         </div>

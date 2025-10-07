@@ -1,11 +1,339 @@
 import wildCardSearch from '@/utils/wildCardSearch'
 import sortBy, { Primer } from '@/utils/sortBy'
 import paginate from '@/utils/paginate'
+import dayjs from 'dayjs'
 import type { Server } from 'miragejs'
 
 export default function salesFakeApi(server: Server, apiPrefix: string) {
-    server.post(`${apiPrefix}/sales/dashboard`, (schema) => {
-        return schema.db.salesDashboardData[0]
+    server.post(`${apiPrefix}/sales/dashboard`, (schema, { requestBody }) => {
+        const body = requestBody ? JSON.parse(requestBody) : {}
+        const startDate =
+            typeof body.startDate === 'number' ? body.startDate : undefined
+        const endDate =
+            typeof body.endDate === 'number' ? body.endDate : undefined
+
+        const rawOrders = schema.db.ordersData.filter(
+            (entry) => typeof entry !== 'function',
+        ) as {
+            date: number
+            totalAmount: number
+            customer: string
+            id: string
+            status: number
+            paymentMehod: string
+            paymentIdendifier: string
+        }[]
+
+        const filteredOrders = rawOrders.filter((order) => {
+            const orderDate = Number(order.date)
+            if (Number.isNaN(orderDate)) {
+                return false
+            }
+            if (startDate && orderDate < startDate) {
+                return false
+            }
+            if (endDate && orderDate > endDate) {
+                return false
+            }
+            return true
+        })
+
+        const rangeStart =
+            startDate ??
+            (filteredOrders.length > 0
+                ? filteredOrders.reduce(
+                      (min, order) =>
+                          order.date < min ? order.date : min,
+                      filteredOrders[0].date,
+                  )
+                : dayjs().startOf('day').unix())
+
+        const rangeEnd =
+            endDate ??
+            (filteredOrders.length > 0
+                ? filteredOrders.reduce(
+                      (max, order) =>
+                          order.date > max ? order.date : max,
+                      filteredOrders[0].date,
+                  )
+                : dayjs().startOf('day').unix())
+
+        const start = dayjs.unix(rangeStart).startOf('day')
+        const end = dayjs.unix(rangeEnd).startOf('day')
+        const diffDays = Math.max(end.diff(start, 'day'), 0)
+
+        const categories: number[] = []
+        const purchasesSeries: number[] = []
+        const monthlyPurchases = new Map<string, number>()
+
+        filteredOrders.forEach((order) => {
+            const orderTotal = Number(order.totalAmount || 0)
+            const monthKey = dayjs.unix(order.date).format('YYYY-MM')
+            monthlyPurchases.set(
+                monthKey,
+                (monthlyPurchases.get(monthKey) || 0) + orderTotal,
+            )
+        })
+
+        const isFullYearRange =
+            start.isSame(start.startOf('year')) &&
+            end.isSame(start.endOf('year')) &&
+            start.isSame(end, 'year')
+
+        const granularity: 'hour' | 'day' | 'month' =
+            diffDays === 0 ? 'hour' : isFullYearRange ? 'month' : 'day'
+
+        if (diffDays === 0) {
+            const hourlyPurchases = Array.from({ length: 24 }, () => 0)
+            filteredOrders.forEach((order) => {
+                const orderHour = dayjs.unix(order.date).hour()
+                if (orderHour >= 0 && orderHour < 24) {
+                    hourlyPurchases[orderHour] += Number(order.totalAmount || 0)
+                }
+            })
+            for (let hour = 0; hour < 24; hour++) {
+                const purchasesValue =
+                    Math.round((hourlyPurchases[hour] + Number.EPSILON) * 100) /
+                    100
+                const bucketTime = start.add(hour, 'hour')
+                categories.push(bucketTime.startOf('hour').unix())
+                purchasesSeries.push(purchasesValue)
+            }
+        } else if (granularity === 'month') {
+            const year = start.year()
+            for (let month = 0; month < 12; month++) {
+                const bucketTime = dayjs(`${year}-01-01`).startOf('year').add(month, 'month')
+                const monthKey = bucketTime.format('YYYY-MM')
+                categories.push(bucketTime.startOf('month').unix())
+                purchasesSeries.push(
+                    Math.round(
+                        ((monthlyPurchases.get(monthKey) || 0) + Number.EPSILON) *
+                            100,
+                    ) / 100,
+                )
+            }
+        } else {
+            for (let i = 0; i <= diffDays; i++) {
+                const day = start.add(i, 'day')
+                const dayStart = day.startOf('day').unix()
+                const dayEnd = day.endOf('day').unix()
+                const dayRevenue = filteredOrders.reduce((sum, order) => {
+                    if (order.date >= dayStart && order.date <= dayEnd) {
+                        return sum + Number(order.totalAmount || 0)
+                    }
+                    return sum
+                }, 0)
+
+                categories.push(day.startOf('day').unix())
+                purchasesSeries.push(
+                    Math.round((dayRevenue + Number.EPSILON) * 100) / 100,
+                )
+            }
+        }
+
+        const computeTotals = filteredOrders.reduce(
+            (acc, order) => {
+                const total = Number(order.totalAmount || 0)
+                return {
+                    revenue: acc.revenue + total,
+                    purchases: acc.purchases + total * 0.65,
+                }
+            },
+            { revenue: 0, purchases: 0 },
+        )
+
+        const baseDashboard =
+            (schema.db.salesDashboardData[0] as Record<string, unknown>) || {}
+
+        const categoriesData = schema.db.productCategoriesData.filter(
+            (entry) => typeof entry !== 'function',
+        ) as { id: string; name: string }[]
+        const categoryLabelMap = new Map<string, string>()
+        categoriesData.forEach((category) => {
+            categoryLabelMap.set(String(category.id), category.name)
+        })
+
+        const rawProducts = schema.db.productsData.filter(
+            (entry) => typeof entry !== 'function',
+        ) as {
+            id: string | number
+            name: string
+            img?: string
+            category?: string
+            categoryId?: string | number
+        }[]
+
+        const productIndex = new Map<
+            string,
+            {
+                name: string
+                img: string
+                categoryId: string
+                categoryLabel: string
+            }
+        >()
+        rawProducts.forEach((product) => {
+            const categoryRaw =
+                (product as any).categoryId ??
+                (product as any).category ??
+                ((product as any).category?.id ?? '')
+            const categoryId = categoryRaw ? String(categoryRaw) : ''
+            const categoryLabel = categoryId
+                ? categoryLabelMap.get(categoryId) ?? categoryId
+                : ''
+            productIndex.set(String(product.id), {
+                name: product.name,
+                img: product.img || '',
+                categoryId,
+                categoryLabel,
+            })
+        })
+
+        const productQty = new Map<string, number>()
+        const categoryTotalsMap = new Map<string, number>()
+        filteredOrders.forEach((order) => {
+            const items = Array.isArray((order as any).items)
+                ? ((order as any).items as any[])
+                : []
+            items.forEach((item) => {
+                const rawQty = Number(item?.qty ?? item?.quantity ?? 0)
+                const qty = Number.isFinite(rawQty) ? rawQty : 0
+                if (qty <= 0) {
+                    return
+                }
+                const productIdRaw = item?.productId ?? item?.id
+                const productId =
+                    productIdRaw !== undefined && productIdRaw !== null
+                        ? String(productIdRaw)
+                        : ''
+                if (productId) {
+                    productQty.set(
+                        productId,
+                        (productQty.get(productId) || 0) + qty,
+                    )
+                }
+
+                let categoryId = item?.categoryId ?? item?.category ?? ''
+                let categoryLabel = item?.categoryLabel ?? ''
+                if (productId) {
+                    const productInfo = productIndex.get(productId)
+                    if (productInfo) {
+                        categoryId = productInfo.categoryId || categoryId
+                        categoryLabel =
+                            productInfo.categoryLabel || categoryLabel
+                    }
+                }
+                if (!categoryLabel && categoryId) {
+                    categoryLabel =
+                        categoryLabelMap.get(String(categoryId)) ??
+                        String(categoryId)
+                }
+                if (!categoryLabel) {
+                    return
+                }
+                categoryTotalsMap.set(
+                    categoryLabel,
+                    (categoryTotalsMap.get(categoryLabel) || 0) + qty,
+                )
+            })
+        })
+
+        let categorySummary = Array.from(categoryTotalsMap.entries())
+            .map(([label, value]) => ({ label, value }))
+            .filter((item) => item.value > 0)
+            .sort((a, b) => b.value - a.value)
+
+        if (!categorySummary.length) {
+            const baseCategories = (baseDashboard.salesByCategoriesData ||
+                {}) as { labels?: string[]; data?: number[] }
+            categorySummary = (baseCategories.labels || [])
+                .map((label, index) => ({
+                    label,
+                    value: baseCategories.data?.[index] || 0,
+                }))
+                .filter((item) => item.value > 0)
+        }
+
+        let topProductsData = Array.from(productQty.entries())
+            .map(([productId, sold]) => {
+                const productInfo = productIndex.get(productId)
+                if (!productInfo) {
+                    return null
+                }
+                return {
+                    id: productId,
+                    name: productInfo.name,
+                    img: productInfo.img,
+                    sold,
+                }
+            })
+            .filter(
+                (
+                    item,
+                ): item is {
+                    id: string
+                    name: string
+                    img: string
+                    sold: number
+                } => !!item && item.sold > 0,
+            )
+            .sort((a, b) => b.sold - a.sold)
+            .slice(0, 6)
+
+        if (!topProductsData.length) {
+            topProductsData =
+                ((baseDashboard.topProductsData as {
+                    id: string
+                    name: string
+                    img: string
+                    sold: number
+                }[]) || []).filter((item) => (item?.sold || 0) > 0)
+        }
+
+        const latestOrderData = filteredOrders
+            .slice()
+            .sort((a, b) => Number(b.date) - Number(a.date))
+            .slice(0, 8)
+            .map((order) => ({
+                ...order,
+                totalAmount: Number(order.totalAmount || 0),
+            }))
+
+        return {
+            statisticData: {
+                revenue: {
+                    value:
+                        Math.round(
+                            (computeTotals.revenue + Number.EPSILON) * 100,
+                        ) / 100,
+                    growShrink: 0,
+                },
+                orders: {
+                    value: filteredOrders.length,
+                    growShrink: 0,
+                },
+                purchases: {
+                    value:
+                        Math.round(
+                            (computeTotals.purchases + Number.EPSILON) * 100,
+                        ) / 100,
+                    growShrink: 0,
+                },
+            },
+            salesReportData: {
+                series: [
+                    { name: 'Purchases', data: purchasesSeries },
+                ],
+                categories,
+                granularity,
+            },
+            topProductsData,
+            latestOrderData,
+            salesByCategoriesData: {
+                labels: categorySummary.map((item) => item.label),
+                data: categorySummary.map((item) => item.value),
+            },
+        }
     })
 
     server.post(`${apiPrefix}/sales/products`, (schema, { requestBody }) => {

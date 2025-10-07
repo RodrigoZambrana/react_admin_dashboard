@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
 import dayjs from 'dayjs'
 import { apiGetSalesDashboardData } from '@/services/SalesService'
+import type { RootState } from '@/store'
 
 type Statistic = {
     value: number
@@ -18,7 +19,8 @@ export type DashboardData = {
             name: string
             data: number[]
         }[]
-        categories: string[]
+        categories: number[]
+        granularity?: 'hour' | 'day' | 'month'
     }
     topProductsData?: {
         id: string
@@ -43,28 +45,57 @@ export type DashboardData = {
 
 type DashboardDataResponse = DashboardData
 
+export type DateRangePreset =
+    | 'today'
+    | 'thisWeek'
+    | 'thisMonth'
+    | 'last15Days'
+    | 'thisYear'
+    | 'custom'
+
 export type SalesDashboardState = {
     startDate: number
     endDate: number
+    dateRangePreset: DateRangePreset
     loading: boolean
     dashboardData: DashboardData
 }
 
 export const SLICE_NAME = 'salesDashboard'
 
-export const getSalesDashboardData = createAsyncThunk(
-    SLICE_NAME + '/getSalesDashboardData',
-    async () => {
-        const response = await apiGetSalesDashboardData<DashboardDataResponse>()
-        return response.data
-    },
-)
+type SalesDashboardRootState = RootState & {
+    [SLICE_NAME]: {
+        data: SalesDashboardState
+    }
+}
+
+export const getSalesDashboardData = createAsyncThunk<
+    DashboardDataResponse,
+    void,
+    { state: SalesDashboardRootState }
+>(SLICE_NAME + '/getSalesDashboardData', async (_, { getState }) => {
+    const {
+        startDate,
+        endDate,
+    } = getState()[SLICE_NAME]?.data ?? {
+        startDate: dayjs().subtract(14, 'day').startOf('day').unix(),
+        endDate: dayjs().endOf('day').unix(),
+    }
+
+    const response = await apiGetSalesDashboardData<
+        DashboardDataResponse,
+        { startDate: number; endDate: number }
+    >({
+        startDate,
+        endDate,
+    })
+    return response.data
+})
 
 const initialState: SalesDashboardState = {
-    startDate: dayjs(
-        dayjs().subtract(3, 'month').format('DD-MMM-YYYY, hh:mm A'),
-    ).unix(),
-    endDate: dayjs(new Date()).unix(),
+    startDate: dayjs().subtract(14, 'day').startOf('day').unix(),
+    endDate: dayjs().endOf('day').unix(),
+    dateRangePreset: 'last15Days',
     loading: true,
     dashboardData: {},
 }
@@ -79,6 +110,12 @@ const salesDashboardSlice = createSlice({
         setEndDate: (state, action: PayloadAction<number>) => {
             state.endDate = action.payload
         },
+        setDateRangePreset: (
+            state,
+            action: PayloadAction<DateRangePreset>,
+        ) => {
+            state.dateRangePreset = action.payload
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -89,9 +126,13 @@ const salesDashboardSlice = createSlice({
             .addCase(getSalesDashboardData.pending, (state) => {
                 state.loading = true
             })
+            .addCase(getSalesDashboardData.rejected, (state) => {
+                state.loading = false
+            })
     },
 })
 
-export const { setStartDate, setEndDate } = salesDashboardSlice.actions
+export const { setStartDate, setEndDate, setDateRangePreset } =
+    salesDashboardSlice.actions
 
 export default salesDashboardSlice.reducer

@@ -9,7 +9,6 @@ import CustomerAddresses from './components/CustomerAddresses'
 import reducer, { getCustomer, useAppDispatch, useAppSelector } from './store'
 
 import { injectReducer } from '@/store'
-import isEmpty from 'lodash/isEmpty'
 import { useTranslation } from 'react-i18next'
 import useQuery from '@/utils/hooks/useQuery'
 
@@ -26,24 +25,24 @@ const CustomerDetail = () => {
     const loading = useAppSelector(
         (state) => state.crmCustomerDetails.data.loading,
     )
+    const error = useAppSelector(
+        (state) => state.crmCustomerDetails.data.error,
+    )
+
+    const id = query.get('id')
 
     useEffect(() => {
-        fetchData()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
-
-    const fetchData = () => {
-        const id = query.get('id')
-        if (id) {
-            dispatch(getCustomer({ id }))
+        if (!id) {
+            return
         }
-    }
+        dispatch(getCustomer({ id }))
+    }, [dispatch, id])
 
     const { t } = useTranslation()
     return (
         <Container className="h-full">
-            <Loading loading={loading}>
-        {!isEmpty(data) && (
+            <Loading loading={loading} type="cover">
+                {Boolean(data?.id) && (
                     <div className="flex flex-col gap-4">
                         <CustomerProfile data={data} />
                         <CustomerAddresses
@@ -56,14 +55,20 @@ const CustomerDetail = () => {
                     </div>
                 )}
             </Loading>
-            {!loading && isEmpty(data) && (
+            {!loading && !data?.id && (
                 <div className="h-full flex flex-col items-center justify-center">
                     <DoubleSidedImage
                         src="/img/others/img-2.png"
                         darkModeSrc="/img/others/img-2-dark.png"
                         alt={t('common.notFound.user')}
                     />
-                    <h3 className="mt-8">{t('common.notFound.user')}</h3>
+                    <h3 className="mt-8">
+                        {error
+                            ? t(error, {
+                                  defaultValue: t('common.notFound.user'),
+                              })
+                            : t('common.notFound.user')}
+                    </h3>
                 </div>
             )}
         </Container>

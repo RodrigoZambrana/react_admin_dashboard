@@ -9,15 +9,13 @@ import Dropdown from '@/components/ui/Dropdown'
 import Tooltip from '@/components/ui/Tooltip'
 import UsersAvatarGroup from '@/components/shared/UsersAvatarGroup'
 import {
-    updateColumns,
     closeDialog,
     setSelectedBoard,
+    createTicket,
     useAppDispatch,
     useAppSelector,
 } from '../store'
-import cloneDeep from 'lodash/cloneDeep'
 import requiredFieldValidation from '@/utils/requiredFieldValidation'
-import { createCardObject } from '../utils'
 import dayjs from 'dayjs'
 import { HiOutlinePlus } from 'react-icons/hi'
 import { useTranslation } from 'react-i18next'
@@ -26,7 +24,6 @@ const AddNewColumnContent = () => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
 
-    const columns = useAppSelector((state) => state.scrumBoard.data.columns)
     const board = useAppSelector((state) => state.scrumBoard.data.board)
     const boardMembers = useAppSelector(
         (state) => state.scrumBoard.data.boardMembers,
@@ -55,21 +52,26 @@ const AddNewColumnContent = () => {
         description: string
         dueDate: Date | null
     }) => {
-        const data = columns
-        const newCard = createCardObject()
-        newCard.name = values.title ? values.title : 'Untitled Card'
-        newCard.labels = [values.priority]
-        // attach selected members
-        newCard.members = boardMembers.filter((m) =>
-            values.members.includes(m.id),
-        )
-        // description & due date
-        newCard.description = values.description
-        newCard.dueDate = values.dueDate ? dayjs(values.dueDate).toDate().getTime() : null
+        if (!board) {
+            return
+        }
 
-        const newData = cloneDeep(data)
-        newData[board].push(newCard)
-        dispatch(updateColumns(newData))
+        const fallbackTitle = t('text.labels.untitledCard', {
+            defaultValue: 'Untitled Card',
+        })
+        dispatch(
+            createTicket({
+                columnId: board,
+                name: values.title ? values.title : fallbackTitle,
+                description: values.description,
+                priority: values.priority,
+                labels: values.priority ? [values.priority] : [],
+                dueDate: values.dueDate
+                    ? dayjs(values.dueDate).toISOString()
+                    : null,
+                memberIds: values.members,
+            }),
+        )
         dispatch(closeDialog())
         dispatch(setSelectedBoard(''))
     }

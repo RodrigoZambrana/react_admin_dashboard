@@ -127,7 +127,7 @@
   }
 
   .fc .custom-calendar-event {
-    @apply flex items-center min-h-[28px] p-1.5 rounded-md w-full overflow-hidden text-ellipsis h-full;
+    @apply min-h-[28px] w-full rounded-md px-2 py-1 text-[13px] leading-tight transition-colors;
   }
 
   .fc-v-event {

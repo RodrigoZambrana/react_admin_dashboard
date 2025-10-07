@@ -25,7 +25,7 @@ const ProductTableTools = () => {
             </Link>
             <Link
                 className="block lg:inline-block md:mb-0 mb-4"
-                to="/app/sales/order-new?addProduct=1"
+                to="/app/sales/order-new?addProduct=1&redirectTo=%2Fapp%2Fproducts%2Flist"
             >
                 <Button block variant="solid" size="sm" icon={<HiPlusCircle />}>
                     {t('text.actions.addProduct')}

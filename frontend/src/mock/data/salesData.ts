@@ -1,3 +1,10 @@
+import dayjs from 'dayjs'
+
+const startOfYear = dayjs().startOf('year')
+const monthlyCategoryTimestamps = Array.from({ length: 12 }, (_, index) =>
+    startOfYear.add(index, 'month').startOf('month').unix(),
+)
+
 export const salesDashboardData = {
     statisticData: {
         revenue: {
@@ -16,28 +23,12 @@ export const salesDashboardData = {
     salesReportData: {
         series: [
             {
-                name: 'Online Sales',
-                data: [24, 33, 29, 36, 34, 43, 40, 47, 45, 48, 46, 55],
-            },
-            {
-                name: 'Marketing Sales',
-                data: [20, 26, 23, 24, 22, 29, 27, 36, 32, 35, 32, 38],
+                name: 'Purchases',
+                data: [44, 59, 52, 60, 56, 72, 67, 83, 77, 83, 78, 93],
             },
         ],
-        categories: [
-            '01 Jan',
-            '02 Jan',
-            '03 Jan',
-            '04 Jan',
-            '05 Jan',
-            '06 Jan',
-            '07 Jan',
-            '08 Jan',
-            '09 Jan',
-            '10 Jan',
-            '11 Jan',
-            '12 Jan',
-        ],
+        categories: monthlyCategoryTimestamps,
+        granularity: 'month' as const,
     },
     topProductsData: [
         {

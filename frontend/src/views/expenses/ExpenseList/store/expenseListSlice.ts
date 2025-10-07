@@ -11,11 +11,17 @@ type Expense = {
     id: string
     date: number
     vendor: string
-    category: string
-    status: number
-    paymentMehod: string
-    paymentIdendifier: string
+    categoryId?: number | null
+    categoryName: string
+    statusId?: number | null
+    statusName: string
+    statusColor?: string | null
+    paymentMethodId?: number | null
+    paymentMethodName: string
+    paymentReference?: string
     amount: number
+    note?: string
+    currency?: string | null
 }
 
 type Expenses = Expense[]
@@ -59,7 +65,7 @@ const initialState: ExpensesListState = {
     tableData: {
         total: 0,
         pageIndex: 1,
-        pageSize: 10,
+        pageSize: 50,
         query: '',
         sort: {
             order: '',
@@ -129,4 +135,3 @@ export const {
 } = expenseListSlice.actions
 
 export default expenseListSlice.reducer
-

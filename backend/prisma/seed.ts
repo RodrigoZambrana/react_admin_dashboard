@@ -36,20 +36,6 @@ async function main() {
     })
   }
 
-  // Product statuses
-  const pStatuses = [
-    { code: 0, name: 'In stock', color: '#16a34a' },
-    { code: 1, name: 'Limited', color: '#f59e0b' },
-    { code: 2, name: 'Out of stock', color: '#ef4444' },
-  ]
-  for (const s of pStatuses) {
-    await prisma.productStatus.upsert({
-      where: { code: s.code },
-      update: { name: s.name, color: s.color },
-      create: s,
-    })
-  }
-
   // Order statuses
   const oStatuses = [
     { code: 0, name: 'Pending', color: '#9ca3af' },
@@ -378,13 +364,16 @@ async function main() {
 
   // Expenses
   const eCats = await prisma.expenseCategory.findMany()
+  const expenseCurrencies = ['UYU', 'USD', 'EUR']
   for (let i = 0; i < 20; i++) {
+    const currency = expenseCurrencies[i % expenseCurrencies.length]
     await prisma.expense.create({
       data: {
         title: `Expense ${i + 1}`,
         description: 'Operational cost',
         amount: Math.round((50 + Math.random() * 450) * 100) / 100,
         date: new Date(Date.now() - i * 86400000),
+        currency,
         categoryId: eCats[i % eCats.length]?.id,
       },
     })

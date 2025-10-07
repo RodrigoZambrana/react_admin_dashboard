@@ -3,17 +3,18 @@ import Avatar from '@/components/ui/Avatar'
 import acronym from '@/utils/acronym'
 import useTwColorByName from '@/utils/hooks/useTwColorByName'
 import {
-    HiTag,
+    HiLogin,
     HiUserCircle,
-    HiDocumentText,
-    HiXCircle,
-    HiTicket,
+    HiDeviceMobile,
+    HiKey,
+    HiShieldExclamation,
 } from 'react-icons/hi'
 import {
-    ADD_TAGS_TO_TICKET,
-    ADD_FILES_TO_TICKET,
-    UPDATE_TICKET,
-    CREATE_TICKET,
+    LOGIN,
+    DEVICE_SIGN_IN,
+    PASSWORD_CHANGE,
+    PROFILE_UPDATE,
+    SECURITY_ALERT,
     avatarType,
     iconType,
 } from '../constants'
@@ -29,14 +30,16 @@ type TimelineAvatar = {
 
 const Icon = ({ type }: { type: string }) => {
     switch (type) {
-        case ADD_TAGS_TO_TICKET:
-            return <HiTag />
-        case ADD_FILES_TO_TICKET:
-            return <HiDocumentText />
-        case UPDATE_TICKET:
-            return <HiXCircle />
-        case CREATE_TICKET:
-            return <HiTicket />
+        case PASSWORD_CHANGE:
+            return <HiKey />
+        case SECURITY_ALERT:
+            return <HiShieldExclamation />
+        case LOGIN:
+            return <HiLogin />
+        case DEVICE_SIGN_IN:
+            return <HiDeviceMobile />
+        case PROFILE_UPDATE:
+            return <HiUserCircle />
         default:
             return <HiUserCircle />
     }

@@ -1,11 +1,12 @@
 import { useEffect } from 'react'
-import AdaptableCard from '@/components/shared/AdaptableCard'
 import Loading from '@/components/shared/Loading'
 import Container from '@/components/shared/Container'
 import DoubleSidedImage from '@/components/shared/DoubleSidedImage'
 import ActivityProfile from './components/ActivityProfile'
-import ActivityPaymentHistory from './components/ActivityPaymentHistory'
-import ActivityEditProfile from './components/ActivityEditProfile'
+import ActivityDescription from './components/ActivityDescription'
+import ActivityAttachments from './components/ActivityAttachments'
+import ActivityComments from './components/ActivityComments'
+import ActivityCustomerInfo from './components/ActivityCustomerInfo'
 import reducer, {
     getActivity,
     useAppDispatch,
@@ -14,6 +15,14 @@ import reducer, {
 import { injectReducer } from '@/store'
 import crmReducer from '@/views/crm/CustomerDetail/store'
 import { getCustomer } from '@/views/crm/CustomerDetail/store'
+import calendarReducer, {
+    openDialog as openCalendarDialog,
+    setSelected as setCalendarSelected,
+    updateCalendarEvent,
+    createCalendarEvent,
+    deleteCalendarEvent,
+} from '@/views/crm/Calendar/store'
+import EventDialog from '@/views/crm/Calendar/components/EventDialog'
 import isEmpty from 'lodash/isEmpty'
 import { useTranslation } from 'react-i18next'
 import useQuery from '@/utils/hooks/useQuery'
@@ -23,6 +32,7 @@ injectReducer('calendarActivityDetails', reducer)
 // Also inject CRM reducer so reused CRM components work here when activities
 // are tied to users. If not tied, components will render empty gracefully.
 injectReducer('crmCustomerDetails', crmReducer)
+injectReducer('crmCalendar', calendarReducer)
 
 const ActivitiesDetail = () => {
     const dispatch = useAppDispatch()
@@ -34,6 +44,12 @@ const ActivitiesDetail = () => {
     )
     const crmLoadedId = useSelector(
         (state: any) => state.crmCustomerDetails?.data?.profileData?.id,
+    )
+    const customer = useSelector(
+        (state: any) => state.crmCustomerDetails?.data?.profileData,
+    )
+    const customerLoading = useSelector(
+        (state: any) => state.crmCustomerDetails?.data?.loading,
     )
     const loading = useAppSelector(
         (state) => state.calendarActivityDetails.data.loading,
@@ -70,23 +86,93 @@ const ActivitiesDetail = () => {
     }
 
     const { t } = useTranslation()
+    const linkedCustomerId =
+        (data as any)?.customerId ||
+        query.get('customerId') ||
+        query.get('crmId') ||
+        query.get('userId')
+
+    const hasLinkedCustomer = Boolean(linkedCustomerId)
+
     return (
         <Container className="h-full">
             <Loading loading={loading}>
                 {!isEmpty(data) && (
-                    <div className="flex flex-col xl:flex-row gap-4">
-                        <div>
-                            <ActivityProfile data={data} />
-                        </div>
-                        <div className="w-full">
-                            <AdaptableCard>
-                                <ActivityPaymentHistory />
-                            </AdaptableCard>
+                    <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-4">
+                            <ActivityProfile
+                                data={data}
+                                onEdit={() => {
+                                    if (!data?.sourceEvent) {
+                                        return
+                                    }
+                                    const event = data.sourceEvent
+                                    dispatch(
+                                        setCalendarSelected({
+                                            type: 'EDIT',
+                                            id: event.id,
+                                            title: event.title,
+                                            start: event.start,
+                                            end: event.end,
+                                            allDay: event.allDay,
+                                            eventColor: event.eventColor,
+                                            eventTypeId:
+                                                event.eventTypeId?.toString?.() ||
+                                                event.extendedProps?.eventTypeId,
+                                            extendedProps: event.extendedProps,
+                                        }),
+                                    )
+                                    dispatch(openCalendarDialog())
+                                }}
+                            />
+                            {hasLinkedCustomer && (
+                                <ActivityCustomerInfo
+                                    customer={customer}
+                                    isLinked={hasLinkedCustomer}
+                                    loading={hasLinkedCustomer && customerLoading}
+                                />
+                            )}
+                            <ActivityDescription description={(data as any)?.detail} />
+                            <ActivityComments activityId={String(data?.id || '')} />
+                            <ActivityAttachments
+                                attachments={(data as any)?.attachments}
+                                sourceEvent={data?.sourceEvent as any}
+                                onRefresh={() => {
+                                    if (data?.id) {
+                                        dispatch(getActivity({ id: String(data.id) }))
+                                    }
+                                }}
+                            />
                         </div>
                     </div>
                 )}
             </Loading>
-            <ActivityEditProfile />
+            <EventDialog
+                submit={async (event, type) => {
+                    try {
+                        if (type === 'EDIT') {
+                            await dispatch(updateCalendarEvent(event)).unwrap()
+                        } else {
+                            await dispatch(createCalendarEvent(event)).unwrap()
+                        }
+                        if (data?.id) {
+                            await dispatch(getActivity({ id: String(data.id) }))
+                        }
+                    } catch (error) {
+                        // Notification handled inside slices
+                    }
+                }}
+                onDelete={async (id) => {
+                    try {
+                        await dispatch(deleteCalendarEvent(id)).unwrap()
+                        if (data?.id) {
+                            await dispatch(getActivity({ id: String(data.id) }))
+                        }
+                    } catch (error) {
+                        // handled by slice notifications
+                    }
+                }}
+            />
             {!loading && isEmpty(data) && (
                 <div className="h-full flex flex-col items-center justify-center">
                     <DoubleSidedImage

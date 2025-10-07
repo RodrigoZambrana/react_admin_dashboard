@@ -26,6 +26,8 @@ type ProductData = {
     tags?: string[]
     brand?: string
     vendor?: string
+    permanentStock?: boolean
+    currency?: string
 }
 
 export type SalesProductEditState = {
@@ -58,7 +60,6 @@ export const updateProduct = async <T, U extends Record<string, unknown>>(
     const numericKeys = [
         'price',
         'stock',
-        'status',
         'costPerItem',
         'bulkDiscountPrice',
         'categoryId',
@@ -70,6 +71,7 @@ export const updateProduct = async <T, U extends Record<string, unknown>>(
             delete payload[k]
         }
     }
+    delete payload.status
     const response = await apiPutSalesProduct<T, U>(payload)
     return response.data
 }

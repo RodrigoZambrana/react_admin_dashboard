@@ -1,5 +1,12 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
-import { apiGetCalendarActivityDetails } from '@/services/CalendarService'
+import {
+    apiGetCalendarActivityDetails,
+    apiCreateCalendarActivityComment,
+    apiUpdateCalendarActivityComment,
+    apiDeleteCalendarActivityComment,
+    type CalendarActivityComment,
+} from '@/services/CalendarService'
+import type { CalendarEventDto } from '@/services/CrmService'
 
 export const SLICE_NAME = 'calendarActivityDetails'
 
@@ -34,6 +41,12 @@ export type ActivityEntity = {
     status: string
     phoneNumber?: string
     phoneNumbers?: string[]
+    customerId?: string | null
+    startAt?: string
+    endAt?: string
+    allDay?: boolean
+    eventType?: string
+    eventColor?: string
     personalInfo: PersonalInfo
     orders?: ActivityOrder[]
     detail?: string
@@ -43,14 +56,19 @@ export type ActivityEntity = {
         type?: string
         size?: number
         url?: string
+        content?: string
     }[]
-    comments?: {
-        id: string
-        message: string
-        createdAt: string
-        author?: string
-    }[]
+    comments?: CalendarActivityComment[]
     isInternal?: boolean
+    address?: {
+        street?: string
+        number?: string
+        corner?: string
+        apartment?: string
+        city?: string
+        country?: string
+    }
+    sourceEvent?: CalendarEventDto
 }
 
 type GetActivityDetailsResponse = ActivityEntity
@@ -72,6 +90,35 @@ export const getActivity = createAsyncThunk(
     },
 )
 
+export const addComment = createAsyncThunk(
+    SLICE_NAME + '/addComment',
+    async (data: { id: string; message: string }) => {
+        const comment = await apiCreateCalendarActivityComment(data.id, {
+            message: data.message,
+        })
+        return { activityId: data.id, comment }
+    },
+)
+
+export const updateComment = createAsyncThunk(
+    SLICE_NAME + '/updateComment',
+    async (data: { activityId: string; commentId: string; message: string }) => {
+        const comment = await apiUpdateCalendarActivityComment(data.commentId, {
+            message: data.message,
+        })
+        return { activityId: data.activityId, comment }
+    },
+)
+
+export const removeComment = createAsyncThunk(
+    SLICE_NAME + '/removeComment',
+    async (data: { activityId: string; commentId: string }) => {
+        await apiDeleteCalendarActivityComment(data.commentId)
+        return { activityId: data.activityId, commentId: data.commentId }
+    },
+)
+
+
 const initialState: ActivityDetailState = {
     loading: true,
     profileData: {},
@@ -86,12 +133,6 @@ const slice = createSlice({
         updateProfileData: (state, action) => {
             state.profileData = action.payload
         },
-        openEditActivityDialog: (state) => {
-            state.editActivityDialog = true
-        },
-        closeEditActivityDialog: (state) => {
-            state.editActivityDialog = false
-        },
     },
     extraReducers: (builder) => {
         builder
@@ -103,13 +144,48 @@ const slice = createSlice({
             .addCase(getActivity.pending, (state) => {
                 state.loading = true
             })
+            .addCase(addComment.fulfilled, (state, action) => {
+                if (state.profileData.id === action.payload.activityId) {
+                    const existing = Array.isArray(state.profileData.comments)
+                        ? [...state.profileData.comments]
+                        : []
+                    state.profileData = {
+                        ...state.profileData,
+                        comments: [...existing, action.payload.comment],
+                    }
+                }
+            })
+            .addCase(updateComment.fulfilled, (state, action) => {
+                if (state.profileData.id === action.payload.activityId) {
+                    const existing = Array.isArray(state.profileData.comments)
+                        ? state.profileData.comments
+                        : []
+                    state.profileData = {
+                        ...state.profileData,
+                        comments: existing.map((comment) =>
+                            comment.id === action.payload.comment.id
+                                ? action.payload.comment
+                                : comment,
+                        ),
+                    }
+                }
+            })
+            .addCase(removeComment.fulfilled, (state, action) => {
+                if (state.profileData.id === action.payload.activityId) {
+                    const existing = Array.isArray(state.profileData.comments)
+                        ? state.profileData.comments
+                        : []
+                    state.profileData = {
+                        ...state.profileData,
+                        comments: existing.filter(
+                            (comment) => comment.id !== action.payload.commentId,
+                        ),
+                    }
+                }
+            })
     },
 })
 
-export const {
-    updateProfileData,
-    openEditActivityDialog,
-    closeEditActivityDialog,
-} = slice.actions
+export const { updateProfileData } = slice.actions
 
 export default slice.reducer

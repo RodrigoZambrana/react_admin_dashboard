@@ -38,7 +38,12 @@ type GetProjectListRequest = Query
 type GetProjectListResponse = ProjectList
 
 type GetScrumBoardtMembersResponse = {
-    allMembers: Member[]
+    allMembers: {
+        id: number
+        name: string
+        email: string
+        img: string
+    }[]
 }
 
 type PutProjectListRequest = {
@@ -85,7 +90,7 @@ export const getMembers = createAsyncThunk(
         const response =
             await apiGetScrumBoardtMembers<GetScrumBoardtMembersResponse>()
         const data = response.data.allMembers.map((item) => ({
-            value: item.id,
+            value: String(item.id),
             label: item.name,
             img: item.img,
         }))

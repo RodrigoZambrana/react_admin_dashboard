@@ -9,21 +9,78 @@ import toast from '@/components/ui/toast'
 import * as Yup from 'yup'
 import { useTranslation } from 'react-i18next'
 import Loading from '@/components/shared/Loading'
-import { apiGetSystemConfig, apiUpdateSystemConfig } from '@/services/SettingsService'
+import Table from '@/components/ui/Table'
+import {
+    apiGetSystemConfig,
+    apiUpdateSystemConfig,
+    apiGetSystemCurrencies,
+    apiCreateSystemCurrency,
+    apiUpdateSystemCurrency,
+    apiDeleteSystemCurrency,
+} from '@/services/SettingsService'
+import { useAppDispatch } from '@/store'
+import { setAvailableCurrencies } from '@/store/slices/currency/currencySlice'
+
+const { Tr, Td, THead, Th, TBody } = Table
 
 const SystemConfig = () => {
     const { t } = useTranslation()
+    const dispatch = useAppDispatch()
     const [initial, setInitial] = useState<{ taxRate: number }>({ taxRate: 22 })
     const [loading, setLoading] = useState(true)
+    const [currencies, setCurrencies] = useState<string[]>(['USD', 'UYU'])
+    const [currenciesLoaded, setCurrenciesLoaded] = useState(false)
+    const [newCurrency, setNewCurrency] = useState('')
+    const [editingCurrency, setEditingCurrency] = useState<string | null>(null)
+    const [editingValue, setEditingValue] = useState('')
+    const [currencyAction, setCurrencyAction] = useState<
+        | { type: 'add' }
+        | { type: 'update'; code: string }
+        | { type: 'delete'; code: string }
+        | null
+    >(null)
+
+    const normalizeCurrency = (value: string) => {
+        const trimmed = (value || '').trim().toUpperCase()
+        return /^[A-Z]{3,5}$/.test(trimmed) ? trimmed : ''
+    }
+
+    const syncStoreCurrencies = (list: string[]) => {
+        dispatch(setAvailableCurrencies(list))
+    }
+
+    const loadCurrencies = async () => {
+        try {
+            const res = await apiGetSystemCurrencies<string[]>()
+            const list = Array.isArray(res.data) && res.data.length ? res.data : ['USD', 'UYU']
+            setCurrencies(list)
+            syncStoreCurrencies(list)
+        } catch {
+            const fallback = ['USD', 'UYU']
+            setCurrencies(fallback)
+            syncStoreCurrencies(fallback)
+        } finally {
+            setCurrenciesLoaded(true)
+        }
+    }
 
     useEffect(() => {
         const load = async () => {
             try {
-                const res = await apiGetSystemConfig<{ taxRate?: number }>()
+                const res = await apiGetSystemConfig<{ taxRate?: number; currencies?: string[] }>()
                 const value = Number((res.data as any)?.taxRate)
                 setInitial({ taxRate: Number.isNaN(value) ? 22 : value })
+                const configuredCurrencies = (res.data as any)?.currencies
+                if (Array.isArray(configuredCurrencies) && configuredCurrencies.length) {
+                    setCurrencies(configuredCurrencies)
+                    syncStoreCurrencies(configuredCurrencies)
+                    setCurrenciesLoaded(true)
+                } else {
+                    setCurrenciesLoaded(false)
+                }
             } catch {
                 setInitial({ taxRate: 22 })
+                setCurrenciesLoaded(false)
             } finally {
                 setLoading(false)
             }
@@ -31,14 +88,150 @@ const SystemConfig = () => {
         load()
     }, [])
 
+    useEffect(() => {
+        if (currenciesLoaded) {
+            return
+        }
+        loadCurrencies()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currenciesLoaded])
+
+    const handleAddCurrency = async () => {
+        const code = normalizeCurrency(newCurrency)
+        if (!code) {
+            toast.push(
+                <Notification title={t('validation.failed')} type="danger">
+                    {t('settings.systemConfig.currency.validation.format')}
+                </Notification>,
+                { placement: 'top-center' },
+            )
+            return
+        }
+        if (currencies.includes(code)) {
+            toast.push(
+                <Notification title={t('validation.failed')} type="danger">
+                    {t('settings.systemConfig.currency.validation.duplicate')}
+                </Notification>,
+                { placement: 'top-center' },
+            )
+            return
+        }
+        setCurrencyAction({ type: 'add' })
+        try {
+            const res = await apiCreateSystemCurrency<string[], { code: string }>({ code })
+            const list = Array.isArray(res.data) ? res.data : currencies.concat(code)
+            setCurrencies(list)
+            syncStoreCurrencies(list)
+            setNewCurrency('')
+            toast.push(
+                <Notification title={t('settings.systemConfig.currency.created.title')} type="success">
+                    {t('settings.systemConfig.currency.created.desc')}
+                </Notification>,
+                { placement: 'top-center' },
+            )
+        } catch (error: any) {
+            toast.push(
+                <Notification title={t('validation.failed')} type="danger">
+                    {error?.response?.data?.message || error?.message || String(error)}
+                </Notification>,
+                { placement: 'top-center' },
+            )
+        } finally {
+            setCurrencyAction(null)
+        }
+    }
+
+    const startEdit = (code: string) => {
+        setEditingCurrency(code)
+        setEditingValue(code)
+    }
+
+    const cancelEdit = () => {
+        setEditingCurrency(null)
+        setEditingValue('')
+    }
+
+    const handleUpdateCurrency = async () => {
+        if (!editingCurrency) return
+        const next = normalizeCurrency(editingValue)
+        if (!next) {
+            toast.push(
+                <Notification title={t('validation.failed')} type="danger">
+                    {t('settings.systemConfig.currency.validation.format')}
+                </Notification>,
+                { placement: 'top-center' },
+            )
+            return
+        }
+        setCurrencyAction({ type: 'update', code: editingCurrency })
+        try {
+            const res = await apiUpdateSystemCurrency<string[], { current: string; next: string }>({
+                current: editingCurrency,
+                next,
+            })
+            const list = Array.isArray(res.data)
+                ? res.data
+                : currencies.map((item) => (item === editingCurrency ? next : item))
+            setCurrencies(list)
+            syncStoreCurrencies(list)
+            toast.push(
+                <Notification title={t('settings.systemConfig.currency.updated.title')} type="success">
+                    {t('settings.systemConfig.currency.updated.desc')}
+                </Notification>,
+                { placement: 'top-center' },
+            )
+            cancelEdit()
+        } catch (error: any) {
+            toast.push(
+                <Notification title={t('validation.failed')} type="danger">
+                    {error?.response?.data?.message || error?.message || String(error)}
+                </Notification>,
+                { placement: 'top-center' },
+            )
+        } finally {
+            setCurrencyAction(null)
+        }
+    }
+
+    const handleDeleteCurrency = async (code: string) => {
+        setCurrencyAction({ type: 'delete', code })
+        try {
+            const res = await apiDeleteSystemCurrency<string[], { code: string }>({ code })
+            const list = Array.isArray(res.data)
+                ? res.data
+                : currencies.filter((item) => item !== code)
+            setCurrencies(list)
+            syncStoreCurrencies(list)
+            toast.push(
+                <Notification title={t('settings.systemConfig.currency.deleted.title')} type="success">
+                    {t('settings.systemConfig.currency.deleted.desc')}
+                </Notification>,
+                { placement: 'top-center' },
+            )
+            if (editingCurrency === code) {
+                cancelEdit()
+            }
+        } catch (error: any) {
+            toast.push(
+                <Notification title={t('validation.failed')} type="danger">
+                    {error?.response?.data?.message || error?.message || String(error)}
+                </Notification>,
+                { placement: 'top-center' },
+            )
+        } finally {
+            setCurrencyAction(null)
+        }
+    }
+
     return (
         <Loading loading={loading}>
-            <Card>
-                <h3 className="mb-2">{t('settings.systemConfig.title')}</h3>
-                <p className="mb-6 text-sm opacity-70">
-                    {t('settings.systemConfig.desc')}
-                </p>
-                <Formik
+            <div className="flex flex-col gap-6">
+                <Card>
+                    <h3 className="mb-2">{t('settings.systemConfig.title')}</h3>
+                    <p className="mb-6 text-sm opacity-70">
+                        {t('settings.systemConfig.desc')}
+                    </p>
+                    <Formik
                     enableReinitialize
                     initialValues={initial}
                     validationSchema={Yup.object().shape({
@@ -106,8 +299,110 @@ const SystemConfig = () => {
                             </FormContainer>
                         </Form>
                     )}
-                </Formik>
-            </Card>
+                    </Formik>
+                </Card>
+                <Card>
+                    <div className="flex flex-col gap-4">
+                        <div>
+                            <h4 className="mb-1">{t('settings.systemConfig.currency.title')}</h4>
+                            <p className="text-sm opacity-70">
+                                {t('settings.systemConfig.currency.desc')}
+                            </p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-2 max-w-sm">
+                            <Input
+                                value={newCurrency}
+                                placeholder={t('settings.systemConfig.currency.placeholder')}
+                                onChange={(e) => setNewCurrency(e.target.value)}
+                                autoComplete="off"
+                                maxLength={5}
+                            />
+                            <Button
+                                variant="solid"
+                                loading={currencyAction?.type === 'add'}
+                                onClick={handleAddCurrency}
+                            >
+                                {t('settings.systemConfig.currency.actions.add')}
+                            </Button>
+                        </div>
+                        <Table>
+                            <THead>
+                                <Tr>
+                                    <Th>{t('settings.systemConfig.currency.columns.code')}</Th>
+                                    <Th className="text-right">{t('text.columns.actions')}</Th>
+                                </Tr>
+                            </THead>
+                            <TBody>
+                                {currenciesLoaded && currencies.length === 0 && (
+                                    <Tr>
+                                        <Td colSpan={2} className="py-6 text-center text-sm opacity-70">
+                                            {t('settings.systemConfig.currency.empty')}
+                                        </Td>
+                                    </Tr>
+                                )}
+                                {currencies.map((code) => {
+                                    const isEditing = editingCurrency === code
+                                    const isDeleting =
+                                        currencyAction?.type === 'delete' &&
+                                        currencyAction.code === code
+                                    const isUpdating =
+                                        currencyAction?.type === 'update' &&
+                                        currencyAction.code === code
+                                    return (
+                                        <Tr key={code}>
+                                            <Td className="w-full align-middle">
+                                                {isEditing ? (
+                                                    <Input
+                                                        value={editingValue}
+                                                        onChange={(e) =>
+                                                            setEditingValue(e.target.value)
+                                                        }
+                                                        autoFocus
+                                                        maxLength={5}
+                                                    />
+                                                ) : (
+                                                    code
+                                                )}
+                                            </Td>
+                                            <Td className="text-right">
+                                                {isEditing ? (
+                                                    <div className="flex justify-end gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="twoTone"
+                                                            loading={isUpdating}
+                                                            onClick={handleUpdateCurrency}
+                                                        >
+                                                            {t('text.actions.save')}
+                                                        </Button>
+                                                        <Button size="sm" onClick={cancelEdit}>
+                                                            {t('text.actions.cancel')}
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex justify-end gap-2">
+                                                        <Button size="sm" onClick={() => startEdit(code)}>
+                                                            {t('text.actions.edit')}
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            color="red-600"
+                                                            loading={isDeleting}
+                                                            onClick={() => handleDeleteCurrency(code)}
+                                                        >
+                                                            {t('text.actions.delete')}
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </Td>
+                                        </Tr>
+                                    )
+                                })}
+                            </TBody>
+                        </Table>
+                    </div>
+                </Card>
+            </div>
         </Loading>
     )
 }

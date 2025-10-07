@@ -6,6 +6,10 @@ export class UpdateUserDto {
   name?: string
 
   @IsOptional()
+  @IsString()
+  lastName?: string
+
+  @IsOptional()
   @IsEmail()
   email?: string
 
@@ -17,4 +21,3 @@ export class UpdateUserDto {
   @IsString()
   role?: 'superadmin' | 'admin' | 'user'
 }
-

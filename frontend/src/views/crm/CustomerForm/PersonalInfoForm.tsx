@@ -8,6 +8,14 @@ import { useTranslation } from 'react-i18next'
 import Button from '@/components/ui/Button'
 import type { FormModel } from './CustomerForm'
 
+const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(file)
+    })
+
 const PersonalInfoForm = () => {
     const { t } = useTranslation()
     const { values, errors, touched } = useFormikContext<FormModel>()
@@ -30,17 +38,18 @@ const PersonalInfoForm = () => {
                                     className="cursor-pointer"
                                     showList={false}
                                     uploadLimit={1}
-                                    onChange={(files) =>
-                                        form.setFieldValue(
-                                            field.name,
-                                            URL.createObjectURL(files[0]),
-                                        )
-                                    }
-                                    onFileRemove={(files) =>
-                                        form.setFieldValue(
-                                            field.name,
-                                            URL.createObjectURL(files[0]),
-                                        )
+                                    onChange={async (files) => {
+                                        const file = files[0]
+                                        if (!file) return
+                                        try {
+                                            const dataUrl = await fileToDataUrl(file)
+                                            form.setFieldValue(field.name, dataUrl)
+                                        } catch (error) {
+                                            console.error('Failed to read image file', error)
+                                        }
+                                    }}
+                                    onFileRemove={() =>
+                                        form.setFieldValue(field.name, '')
                                     }
                                 >
                                     <Avatar

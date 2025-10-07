@@ -16,6 +16,7 @@ import { CalendarModule } from './calendar/calendar.module'
 import { TasksModule } from './tasks/tasks.module'
 import { NotificationModule } from './notification/notification.module'
 import { HealthModule } from './health/health.module'
+import { ActivitiesModule } from './activities/activities.module'
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { HealthModule } from './health/health.module'
     TasksModule,
     NotificationModule,
     HealthModule,
+    ActivitiesModule,
   ],
   providers: [
     {

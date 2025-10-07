@@ -41,10 +41,39 @@ export const SLICE_NAME = 'salesOrderList'
 export const getOrders = createAsyncThunk(
     SLICE_NAME + '/getOrders',
     async (data: TableQueries) => {
+        const pageIndex =
+            typeof data.pageIndex === 'number' && !Number.isNaN(data.pageIndex)
+                ? data.pageIndex
+                : 1
+        const pageSize =
+            typeof data.pageSize === 'number' && !Number.isNaN(data.pageSize)
+                ? data.pageSize
+                : 50
+
+        const params: Record<string, unknown> = {
+            pageIndex,
+            pageSize,
+        }
+
+        if (typeof data.query === 'string') {
+            params.query = data.query
+        }
+
+        const sort = data.sort
+        if (sort) {
+            params.sort = sort
+            if (sort.key !== undefined && sort.key !== '') {
+                params.sortKey = sort.key
+            }
+            if (sort.order === 'asc' || sort.order === 'desc') {
+                params.sortOrder = sort.order
+            }
+        }
+
         const response = await apiGetSalesOrders<
             GetSalesOrdersResponse,
-            TableQueries
-        >(data)
+            Record<string, unknown>
+        >(params)
         return response.data
     },
 )
@@ -63,7 +92,7 @@ const initialState: SalesOrderListState = {
     tableData: {
         total: 0,
         pageIndex: 1,
-        pageSize: 10,
+        pageSize: 50,
         query: '',
         sort: {
             order: '',

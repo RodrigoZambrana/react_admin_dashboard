@@ -49,7 +49,7 @@ const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
         const res = await apiGetSalesOrders<
             { data: Order[]; total: number },
             { pageIndex: number; pageSize: number; sort: { key: string; order: string }; query: string }
-        >({ pageIndex: 1, pageSize: 10, sort: { key: 'date', order: 'desc' }, query: '' })
+        >({ pageIndex: 1, pageSize: 50, sort: { key: 'date', order: 'desc' }, query: '' })
         setRows(res.data.data)
         setLoading(false)
     }
@@ -75,7 +75,7 @@ const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
                 columns={columns}
                 data={rows}
                 loading={loading}
-                pagingData={{ total: rows.length, pageIndex: 1, pageSize: 10 }}
+                pagingData={{ total: rows.length, pageIndex: 1, pageSize: 50 }}
             />
         </Card>
     )

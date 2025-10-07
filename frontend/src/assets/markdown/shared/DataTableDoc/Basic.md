@@ -26,7 +26,7 @@ const Basic = () => {
     }>({
         total: 0,
         pageIndex: 1,
-        pageSize: 10,
+        pageSize: 50,
         query: '',
         sort: {
             order: '',

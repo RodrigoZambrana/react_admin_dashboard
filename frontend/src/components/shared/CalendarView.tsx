@@ -1,10 +1,10 @@
 import classNames from 'classnames'
-import Badge from '@/components/ui/Badge'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import { CalendarOptions } from '@fullcalendar/core'
+import dayjs from 'dayjs'
 
 type EventColors = Record<
     string,
@@ -110,6 +110,26 @@ const defaultColorList: Record<
     },
 }
 
+const isHexColor = (value: string) =>
+    /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)
+
+const normalizeHex = (value: string) => {
+    if (value.length === 4) {
+        const [, r, g, b] = value
+        return `#${r}${r}${g}${g}${b}${b}`.toLowerCase()
+    }
+    return value.toLowerCase()
+}
+
+const getReadableTextColor = (hex: string) => {
+    const color = normalizeHex(hex)
+    const r = parseInt(color.slice(1, 3), 16)
+    const g = parseInt(color.slice(3, 5), 16)
+    const b = parseInt(color.slice(5, 7), 16)
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000
+    return yiq >= 150 ? '#1f2937' : '#ffffff'
+}
+
 const CalendarView = (props: CalendarViewProps) => {
     const {
         wrapperClass,
@@ -127,51 +147,107 @@ const CalendarView = (props: CalendarViewProps) => {
                     right: 'dayGridMonth,timeGridWeek,timeGridDay prev,next',
                 }}
                 eventContent={(arg) => {
-                    const { extendedProps } = arg.event
+                    const palette = eventColors(defaultColorList) || defaultColorList
+                    const rawColor =
+                        (arg.event.extendedProps as Record<string, unknown>)
+                            ?.eventColor ??
+                        (arg.event as unknown as { eventColor?: string })
+                            .eventColor ??
+                        (arg.event as unknown as { backgroundColor?: string })
+                            .backgroundColor ??
+                        (arg.event as unknown as { color?: string }).color ??
+                        ''
+                    const eventColorKey = String(rawColor || '')
+                    const hexColor =
+                        eventColorKey && isHexColor(eventColorKey)
+                            ? normalizeHex(eventColorKey)
+                            : undefined
+                    const paletteColor =
+                        eventColorKey && !hexColor
+                            ? palette[eventColorKey]
+                            : undefined
                     const { isEnd, isStart } = arg
+                    const viewType =
+                        ((arg as unknown as { view?: { type?: string } }).view?.type ?? '')
+                    const isTimeGridView = viewType.startsWith('timeGrid')
+                    const showLeading = !(isEnd && !isStart)
+                    const textColor = hexColor ? getReadableTextColor(hexColor) : undefined
+                    const eventStart = arg.event.start
+                    const eventEnd = arg.event.end
+                    const isAllDay = Boolean(arg.event.allDay)
+                    const hasTime = Boolean(eventStart && !isAllDay)
+                    const start = hasTime && eventStart ? dayjs(eventStart) : null
+                    const end = hasTime && eventEnd ? dayjs(eventEnd) : null
+                    const startTimeText = start ? start.format('HH:mm') : ''
+                    const endTimeText =
+                        start && end && !end.isSame(start, 'minute') ? end.format('HH:mm') : ''
+                    const computedRangeText =
+                        hasTime && (startTimeText || endTimeText)
+                            ? `${startTimeText}${endTimeText ? ` - ${endTimeText}` : ''}`
+                            : ''
+                    const timeLabel = computedRangeText || arg.timeText || ''
+                    const showDot = showLeading
+                    const showTime = Boolean(
+                        timeLabel && showDot && hasTime && (isTimeGridView || isStart),
+                    )
+
                     return (
                         <div
                             className={classNames(
-                                'custom-calendar-event',
-                                extendedProps.eventColor
-                                    ? (eventColors(defaultColorList) ||
-                                          defaultColorList)[
-                                          extendedProps.eventColor
-                                      ]?.bg
-                                    : '',
-                                extendedProps.eventColor
-                                    ? (eventColors(defaultColorList) ||
-                                          defaultColorList)[
-                                          extendedProps.eventColor
-                                      ]?.text
-                                    : '',
+                                'custom-calendar-event flex gap-2',
+                                !hexColor && paletteColor?.bg,
+                                !hexColor && paletteColor?.text,
                                 isEnd &&
                                     !isStart &&
                                     'rounded-tl-none! rounded-bl-none! !rtl:rounded-tr-none !rtl:rounded-br-none',
                                 !isEnd &&
                                     isStart &&
                                     'rounded-tr-none! rounded-br-none! !rtl:rounded-tl-none !rtl:rounded-bl-none',
+                                isTimeGridView
+                                    ? 'h-full flex-col items-start gap-1'
+                                    : 'items-start flex-wrap',
                             )}
+                            style={{
+                                ...(hexColor ? { backgroundColor: hexColor, color: textColor } : {}),
+                                ...(isTimeGridView ? { height: '100%' } : {}),
+                            }}
                         >
-                            {!(isEnd && !isStart) && (
-                                <Badge
+                            {showDot && (
+                                <span
                                     className={classNames(
-                                        'mr-1 rtl:ml-1',
-                                        extendedProps.eventColor
-                                            ? (eventColors(defaultColorList) ||
-                                                  defaultColorList)[
-                                                  extendedProps.eventColor
-                                              ].dot
-                                            : '',
+                                        'inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 border border-transparent',
+                                        !hexColor && (paletteColor?.dot || 'bg-gray-400'),
                                     )}
+                                    style={hexColor ? { backgroundColor: hexColor } : undefined}
                                 />
                             )}
-                            {!(isEnd && !isStart) && (
-                                <span>{arg.timeText}</span>
-                            )}
-                            <span className="font-semibold ml-1 rtl:mr-1">
-                                {arg.event.title}
-                            </span>
+                            <div
+                                className={classNames(
+                                    'min-w-0 flex-1',
+                                    isTimeGridView
+                                        ? 'flex h-full flex-col gap-0.5 leading-tight'
+                                        : 'flex flex-wrap items-baseline gap-x-2 gap-y-0.5 leading-tight',
+                                )}
+                            >
+                                {showTime && (
+                                    <span
+                                        className={classNames(
+                                            'opacity-80',
+                                            isTimeGridView ? 'text-[11px]' : 'text-xs',
+                                        )}
+                                    >
+                                        {timeLabel}
+                                    </span>
+                                )}
+                                <span
+                                    className={classNames(
+                                        'font-semibold whitespace-normal break-words',
+                                        isTimeGridView ? 'text-sm leading-snug' : 'text-[13px]',
+                                    )}
+                                >
+                                    {arg.event.title}
+                                </span>
+                            </div>
                         </div>
                     )
                 }}

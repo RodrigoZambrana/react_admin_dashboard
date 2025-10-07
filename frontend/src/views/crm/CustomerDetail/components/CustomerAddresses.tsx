@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import Select from '@/components/ui/Select'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
-import { apiGetCountries, apiGetCities } from '@/services/SettingsService'
 import {
   apiGetCustomerAddresses,
   apiCreateCustomerAddress,
@@ -13,6 +11,9 @@ import {
   apiSetPrimaryCustomerAddress,
 } from '@/services/CrmService'
 import { useTranslation } from 'react-i18next'
+import CountrySelect from '@/components/shared/CountrySelect'
+import CitySelect from '@/components/shared/CitySelect'
+import { deriveCountryCode, useCountryCityData } from '@/components/shared/countryCity'
 
 type Address = {
   id?: number
@@ -22,6 +23,7 @@ type Address = {
   apartment?: string
   city: string
   country: string
+  countryCode?: string
   isPrimary?: boolean
 }
 
@@ -35,9 +37,8 @@ export default function CustomerAddresses({
   const { t } = useTranslation()
   const [list, setList] = useState<Address[]>([])
   const [editing, setEditing] = useState<Address | null>(null)
-  const [countries, setCountries] = useState<{ value: string; label: string }[]>([])
-  const [cities, setCities] = useState<{ value: string; label: string }[]>([])
   const [deleteId, setDeleteId] = useState<number | null>(null)
+  const { getFirstCityForCountry } = useCountryCityData()
 
   const load = async () => {
     const res = await apiGetCustomerAddresses<Address[], { customerId: string }>({ customerId })
@@ -46,18 +47,31 @@ export default function CustomerAddresses({
 
   useEffect(() => {
     load()
-    apiGetCountries<{ code: string; name: string }[]>().then((res) => setCountries((res.data as any[]).map((c) => ({ value: c.code, label: c.name }))))
   }, [customerId])
 
   const startEdit = (addr?: Address) => {
+    if (addr) {
+      setEditing({
+        ...addr,
+        street: addr.street ?? '',
+        number: addr.number ?? '',
+        corner: addr.corner ?? '',
+        apartment: addr.apartment ?? '',
+        city: addr.city ?? '',
+        country: addr.country ?? '',
+        countryCode: addr.countryCode ?? deriveCountryCode(addr.country ?? ''),
+      })
+      return
+    }
     setEditing(
-      addr || {
+      {
         street: '',
         number: '',
         corner: '',
         apartment: '',
         city: '',
         country: '',
+        countryCode: '',
         isPrimary: list.length === 0,
       },
     )
@@ -86,11 +100,35 @@ export default function CustomerAddresses({
   }
 
   useEffect(() => {
-    const ctry = countries.find((c) => c.label === editing?.country)
-    if (editing && ctry) {
-      apiGetCities<{ name: string }[], { country: string }>({ country: ctry.value }).then((res) => setCities((res.data as any[]).map((x) => ({ value: x.name, label: x.name }))))
-    }
-  }, [editing?.country, countries])
+    if (!editing) return
+    if (!editing.country) return
+    if (editing.city) return
+    const nextCity = getFirstCityForCountry(editing.country)
+    if (!nextCity) return
+    setEditing((prev) => (prev ? { ...prev, city: nextCity } : prev))
+  }, [editing, getFirstCityForCountry])
+
+  const handleCountryChange = (country?: { code?: string; name?: string }) => {
+    setEditing((prev) => {
+      if (!prev) return prev
+      const name = country?.name?.trim() ?? ''
+      if (!name) {
+        return { ...prev, country: '', countryCode: '', city: '' }
+      }
+      const code = country?.code ?? deriveCountryCode(name)
+      const suggestedCity = getFirstCityForCountry(name) ?? ''
+      return {
+        ...prev,
+        country: name,
+        countryCode: code,
+        city: suggestedCity,
+      }
+    })
+  }
+
+  const handleCityChange = (city?: string) => {
+    setEditing((prev) => (prev ? { ...prev, city: city ?? '' } : prev))
+  }
 
   return (
     <Card className={className ?? 'mt-4'}>
@@ -133,10 +171,20 @@ export default function CustomerAddresses({
             <Input value={editing.number ?? ''} placeholder={t('text.labels.number') || 'Number'} onChange={(e) => setEditing({ ...editing, number: e.target.value })} />
             <Input value={editing.corner ?? ''} placeholder={t('text.labels.corner') || 'Corner'} onChange={(e) => setEditing({ ...editing, corner: e.target.value })} />
             <Input value={editing.apartment ?? ''} placeholder={t('text.labels.apartment') || 'Apartment'} onChange={(e) => setEditing({ ...editing, apartment: e.target.value })} />
-            <Select options={countries} value={countries.find((c) => c.label === editing.country) as any}
-              onChange={(opt) => setEditing({ ...editing, country: (opt as any).label || '' })} />
-            <Select options={cities} value={cities.find((c) => c.label === editing.city) as any}
-              onChange={(opt) => setEditing({ ...editing, city: (opt as any).label || '' })} />
+            <CountrySelect
+              value={{ code: editing.countryCode || undefined, name: editing.country || undefined }}
+              onChange={handleCountryChange}
+              placeholder={t('text.labels.country') || 'Country'}
+              className="w-full"
+            />
+            <CitySelect
+              countryCode={editing.countryCode}
+              countryName={editing.country}
+              value={editing.city}
+              onChange={handleCityChange}
+              placeholder={t('text.labels.city') || 'City'}
+              className="w-full"
+            />
           </div>
           <div className="flex gap-2 justify-end">
             <Button size="sm" onClick={() => setEditing(null)}>{t('text.actions.cancel')}</Button>

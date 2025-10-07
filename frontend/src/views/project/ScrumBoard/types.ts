@@ -15,11 +15,12 @@ export type Member = {
 
 export type Ticket = {
     id: string
+    columnId: string
     name: string
-    description: string
-    cover: string
-    members?: Member[]
-    labels?: string[]
+    description?: string | null
+    cover?: string | null
+    members: Member[]
+    labels: string[]
     attachments?: {
         id: string
         name: string
@@ -28,8 +29,17 @@ export type Ticket = {
     }[]
     comments?: Comment[]
     dueDate: number | null
+    order: number
+    priority?: string | null
+}
+
+export type Column = {
+    id: string
+    title: string
+    sortOrder: number
+    tickets: Ticket[]
 }
 
 export type Members = Member[]
 
-export type Columns = Record<string, Ticket[]>
+export type Columns = Record<string, Column>

@@ -19,62 +19,60 @@ import {
     openDialog,
     updateDialogView,
     setSelectedBoard,
-    updateColumns,
-    updateOrdered,
     useAppDispatch,
     useAppSelector,
+    updateColumn,
+    deleteColumn,
 } from '../store'
 import requiredFieldValidation from '@/utils/requiredFieldValidation'
 import type { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd'
-import type { Columns } from '../types'
+import type { Column } from '../types'
 import { useTranslation } from 'react-i18next'
 
 type BoardTitleProps = {
     dragHandleProps?: DraggableProvidedDragHandleProps | null
-    title: string
+    column: Column
 }
 
 type RenameFormProps = {
-    title: string
+    columnId: string
+    currentTitle: string
+    existingTitles: string[]
     closeRenameForm: () => void
-    columns: Columns
-    ordered: string[]
 }
 
 const RenameForm = ({
-    title,
+    columnId,
+    currentTitle,
+    existingTitles,
     closeRenameForm,
-    columns,
-    ordered,
 }: RenameFormProps) => {
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const onFormSubmit = (newTitle: string) => {
-        if (ordered.some((elm) => elm === newTitle)) {
+        const trimmed = newTitle.trim()
+        if (!trimmed || trimmed === currentTitle) {
             closeRenameForm()
             return
         }
 
-        const newColumns = {}
-        delete Object.assign(newColumns, columns, {
-            [newTitle]: columns[title],
-        })[title]
+        if (
+            existingTitles
+                .filter((title) => title !== currentTitle)
+                .includes(trimmed)
+        ) {
+            closeRenameForm()
+            return
+        }
 
-        const newOrder = ordered.map((elm) => {
-            if (elm === title) {
-                return newTitle
-            }
-            return elm
-        })
-
-        dispatch(updateColumns(newColumns))
-        dispatch(updateOrdered(newOrder))
+        dispatch(updateColumn({ columnId, title: trimmed }))
         closeRenameForm()
     }
 
     return (
         <Formik
-            initialValues={{ title: title }}
+            initialValues={{ title: currentTitle }}
             onSubmit={({ title }) => onFormSubmit(title)}
         >
             {({ errors, touched, submitForm }) => (
@@ -87,7 +85,7 @@ const RenameForm = ({
                             <Field
                                 type="text"
                                 name="title"
-                                placeholder={useTranslation().t('text.placeholders.boardTitle')}
+                                placeholder={t('text.placeholders.boardTitle')}
                                 component={Input}
                                 validate={requiredFieldValidation}
                                 suffix={
@@ -108,11 +106,11 @@ const RenameForm = ({
 }
 
 const BoardTitle = (props: BoardTitleProps) => {
-    const { dragHandleProps, title } = props
+    const { dragHandleProps, column } = props
     const { t } = useTranslation()
 
-    const columns = useAppSelector((state) => state.scrumBoard.data.columns)
     const ordered = useAppSelector((state) => state.scrumBoard.data.ordered)
+    const columns = useAppSelector((state) => state.scrumBoard.data.columns)
 
     const dispatch = useAppDispatch()
 
@@ -138,16 +136,11 @@ const BoardTitle = (props: BoardTitleProps) => {
     const onAddNewTicket = () => {
         dispatch(openDialog())
         dispatch(updateDialogView('NEW_TICKET'))
-        dispatch(setSelectedBoard(title))
+        dispatch(setSelectedBoard(column.id))
     }
 
     const onDelete = () => {
-        const newOrder = ordered.filter((elm) => elm !== title)
-        const newColumns: Columns = {}
-        Object.assign(newColumns, columns)
-        delete newColumns[title]
-        dispatch(updateColumns(newColumns))
-        dispatch(updateOrdered(newOrder))
+        dispatch(deleteColumn({ columnId: column.id }))
     }
 
     return (
@@ -158,10 +151,12 @@ const BoardTitle = (props: BoardTitleProps) => {
             {renameActive ? (
                 <>
                     <RenameForm
-                        title={title}
+                        columnId={column.id}
+                        currentTitle={column.title}
+                        existingTitles={ordered.map(
+                            (columnIdItem) => columns[columnIdItem]?.title || '',
+                        )}
                         closeRenameForm={onRenameDeactivate}
-                        columns={columns}
-                        ordered={ordered}
                     />
                     <HiXCircle
                         className="cursor-pointer text-lg"
@@ -170,7 +165,7 @@ const BoardTitle = (props: BoardTitleProps) => {
                 </>
             ) : (
                 <>
-                    <h6>{title}</h6>
+                    <h6>{column.title}</h6>
                     <Dropdown
                         placement="bottom-end"
                         renderTitle={<EllipsisButton />}
