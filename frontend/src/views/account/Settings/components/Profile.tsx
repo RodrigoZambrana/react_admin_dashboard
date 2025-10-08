@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import Input from '@/components/ui/Input'
 import Avatar from '@/components/ui/Avatar'
 import Upload from '@/components/ui/Upload'
@@ -19,9 +20,11 @@ import {
 import * as Yup from 'yup'
 import { useTranslation } from 'react-i18next'
 import i18n from 'i18next'
-import { setLang, useAppDispatch, useAppSelector } from '@/store'
+import { setLang, setUser, useAppDispatch, useAppSelector } from '@/store'
 import type { OptionProps, ControlProps } from 'react-select'
-import type { FormikProps, FieldInputProps, FieldProps } from 'formik'
+import type { FieldProps, FormikHelpers, FormikProps } from 'formik'
+import { apiUpdateAccountProfile } from '@/services/AccountServices'
+import type { AxiosError } from 'axios'
 
 export type ProfileFormModel = {
     firstName: string
@@ -29,16 +32,40 @@ export type ProfileFormModel = {
     email: string
     avatar: string
     lang: string
+    avatarFile: File | null
+}
+
+type ProfileInitialData = Partial<Omit<ProfileFormModel, 'avatarFile'>> & {
+    name?: string
 }
 
 type ProfileProps = {
-    data?: Partial<ProfileFormModel> & { name?: string }
+    data?: ProfileInitialData
 }
 
 type LanguageOption = {
     value: string
     label: string
     imgPath: string
+}
+
+type UpdateProfileResponse = {
+    profile: {
+        firstName: string
+        lastName: string
+        name: string
+        email: string
+        avatar: string
+        lang: string
+    }
+    user?: {
+        avatar?: string
+        userName?: string
+        email?: string
+        authority?: string[]
+        name?: string
+        lastName?: string
+    }
 }
 
 const { Control } = components
@@ -53,6 +80,7 @@ const validationSchema = Yup.object().shape({
         .email('text.validation.invalidEmail')
         .required('text.validation.emailRequired'),
     avatar: Yup.string(),
+    avatarFile: Yup.mixed<File>().nullable(),
     lang: Yup.string(),
 })
 
@@ -123,43 +151,26 @@ const Profile = ({ data = {} }: ProfileProps) => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const currentLang = useAppSelector((state) => state.locale.currentLang)
+    const authUser = useAppSelector((state) => state.auth.user)
+    const avatarPreviewRef = useRef<string | null>(null)
 
-    const { firstName, lastName } = splitName(data.name)
-
-    const onSetFormFile = (
-        form: FormikProps<ProfileFormModel>,
-        field: FieldInputProps<ProfileFormModel>,
-        file: File[],
-    ) => {
-        if (file.length) {
-            form.setFieldValue(field.name, URL.createObjectURL(file[0]))
-        } else {
-            form.setFieldValue(field.name, '')
+    useEffect(() => {
+        return () => {
+            if (avatarPreviewRef.current) {
+                URL.revokeObjectURL(avatarPreviewRef.current)
+                avatarPreviewRef.current = null
+            }
         }
-    }
+    }, [])
 
-    const onFormSubmit = (
-        values: ProfileFormModel,
-        setSubmitting: (isSubmitting: boolean) => void,
-    ) => {
-        dispatch(setLang(values.lang))
-        i18n.changeLanguage(values.lang)
-        const payload = {
-            ...values,
-            name: [values.firstName, values.lastName].filter(Boolean).join(' '),
-        }
-        console.log('profile values', payload)
-        toast.push(
-            <Notification
-                title={t('account.settings.profile.profileUpdated')}
-                type="success"
-            />,
-            {
-                placement: 'top-center',
-            },
-        )
-        setSubmitting(false)
-    }
+    const fallbackNameSource =
+        data.name ||
+        [authUser?.name, authUser?.lastName].filter(Boolean).join(' ') ||
+        ''
+    const {
+        firstName: fallbackFirstName,
+        lastName: fallbackLastName,
+    } = splitName(fallbackNameSource)
 
     const normalizedLang = (currentLang || i18n.language || 'en')
         .toLowerCase()
@@ -167,26 +178,129 @@ const Profile = ({ data = {} }: ProfileProps) => {
         ? 'es'
         : 'en'
 
+    const initialValues: ProfileFormModel = {
+        firstName: data.firstName ?? fallbackFirstName ?? '',
+        lastName:
+            data.lastName ?? fallbackLastName ?? (authUser?.lastName ?? ''),
+        email: data.email || authUser?.email || '',
+        avatar: data.avatar || authUser?.avatar || '',
+        lang: data.lang || normalizedLang,
+        avatarFile: null,
+    }
+
+    const handleSetAvatar = (
+        form: FormikProps<ProfileFormModel>,
+        files: File[],
+    ) => {
+        if (avatarPreviewRef.current) {
+            URL.revokeObjectURL(avatarPreviewRef.current)
+            avatarPreviewRef.current = null
+        }
+        if (files.length) {
+            const [file] = files
+            const previewUrl = URL.createObjectURL(file)
+            avatarPreviewRef.current = previewUrl
+            form.setFieldValue('avatar', previewUrl)
+            form.setFieldValue('avatarFile', file)
+            form.setFieldTouched('avatarFile', true, false)
+        } else {
+            form.setFieldValue('avatar', form.initialValues.avatar || '')
+            form.setFieldValue('avatarFile', null)
+            form.setFieldTouched('avatarFile', false, false)
+        }
+    }
+
+    const handleSubmit = async (
+        values: ProfileFormModel,
+        helpers: FormikHelpers<ProfileFormModel>,
+    ) => {
+        const { setSubmitting, resetForm } = helpers
+        setSubmitting(true)
+        const trimmedFirstName = values.firstName.trim()
+        const trimmedLastName = values.lastName.trim()
+        const trimmedEmail = values.email.trim()
+
+        const formData = new FormData()
+        formData.append('firstName', trimmedFirstName)
+        if (trimmedLastName) {
+            formData.append('lastName', trimmedLastName)
+        }
+        formData.append('email', trimmedEmail)
+        formData.append('lang', values.lang)
+        if (values.avatarFile) {
+            formData.append('avatar', values.avatarFile)
+        }
+
+        try {
+            const response = await apiUpdateAccountProfile<
+                UpdateProfileResponse,
+                FormData
+            >(formData)
+            const updatedProfile = response.data?.profile
+            const nextLang = updatedProfile?.lang || values.lang
+            dispatch(setLang(nextLang))
+            i18n.changeLanguage(nextLang)
+            if (response.data?.user) {
+                dispatch(setUser(response.data.user))
+            }
+            const resolvedValues: ProfileFormModel = {
+                firstName: updatedProfile?.firstName || trimmedFirstName,
+                lastName: updatedProfile?.lastName || trimmedLastName,
+                email: updatedProfile?.email || trimmedEmail,
+                avatar:
+                    updatedProfile?.avatar ||
+                    (values.avatarFile ? '' : values.avatar),
+                lang: nextLang,
+                avatarFile: null,
+            }
+            if (avatarPreviewRef.current) {
+                URL.revokeObjectURL(avatarPreviewRef.current)
+                avatarPreviewRef.current = null
+            }
+            resetForm({ values: resolvedValues })
+            toast.push(
+                <Notification
+                    title={t('account.settings.profile.profileUpdated')}
+                    type="success"
+                />,
+                { placement: 'top-center' },
+            )
+        } catch (error) {
+            const err = error as AxiosError<{ message?: string }>
+            const fallbackMessage = t(
+                'account.settings.profile.updateFailed',
+                {
+                    defaultValue: 'We could not update your profile.',
+                },
+            )
+            const message = err.response?.data?.message
+                ? t(err.response.data.message, { defaultValue: fallbackMessage })
+                : fallbackMessage
+            toast.push(
+                <Notification title={message} type="danger" />,
+                { placement: 'top-center' },
+            )
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
     return (
         <Formik
             enableReinitialize
-            initialValues={{
-                firstName: data.firstName || firstName,
-                lastName: data.lastName || lastName,
-                email: data.email || '',
-                avatar: data.avatar || '',
-                lang: data.lang || normalizedLang,
-            }}
+            initialValues={initialValues}
             validationSchema={validationSchema}
-            onSubmit={(values, { setSubmitting }) => {
-                setSubmitting(true)
-                setTimeout(() => {
-                    onFormSubmit(values, setSubmitting)
-                }, 600)
-            }}
+            onSubmit={handleSubmit}
         >
-            {({ values, touched, errors, isSubmitting, resetForm, setFieldValue }) => {
+            {({ values, touched, errors, isSubmitting, resetForm }) => {
                 const validatorProps = { touched, errors }
+                const handleReset = () => {
+                    if (avatarPreviewRef.current) {
+                        URL.revokeObjectURL(avatarPreviewRef.current)
+                        avatarPreviewRef.current = null
+                    }
+                    resetForm()
+                }
                 return (
                     <Form>
                         <FormContainer>
@@ -196,11 +310,13 @@ const Profile = ({ data = {} }: ProfileProps) => {
                             />
                             <FormRow
                                 name="avatar"
-                                label="Avatar"
+                                label={t('text.labels.avatar', {
+                                    defaultValue: 'Avatar',
+                                })}
                                 {...validatorProps}
                             >
                                 <Field name="avatar">
-                                    {({ field, form }: FieldProps) => {
+                                    {({ field, form }: FieldProps<string>) => {
                                         const avatarProps = field.value
                                             ? { src: field.value }
                                             : {}
@@ -210,18 +326,10 @@ const Profile = ({ data = {} }: ProfileProps) => {
                                                 showList={false}
                                                 uploadLimit={1}
                                                 onChange={(files) =>
-                                                    onSetFormFile(
-                                                        form,
-                                                        field,
-                                                        files,
-                                                    )
+                                                    handleSetAvatar(form, files)
                                                 }
                                                 onFileRemove={(files) =>
-                                                    onSetFormFile(
-                                                        form,
-                                                        field,
-                                                        files,
-                                                    )
+                                                    handleSetAvatar(form, files)
                                                 }
                                             >
                                                 <Avatar
@@ -316,7 +424,7 @@ const Profile = ({ data = {} }: ProfileProps) => {
                                 <Button
                                     className="ltr:mr-2 rtl:ml-2"
                                     type="button"
-                                    onClick={() => resetForm()}
+                                    onClick={handleReset}
                                 >
                                     {t('text.actions.reset')}
                                 </Button>

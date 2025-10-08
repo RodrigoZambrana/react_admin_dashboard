@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsNumber, IsOptional, IsString, IsObject } from 'class-validator'
+import { IsArray, IsBoolean, IsNumber, IsOptional, IsString, IsObject, Min } from 'class-validator'
 import { Type } from 'class-transformer'
 
 export class UpsertProductDto {
@@ -27,8 +27,14 @@ export class UpsertProductDto {
   categoryId!: number
 
   @IsNumber()
+  @Min(0)
   @Type(() => Number)
-  price!: number
+  costPrice!: number
+
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  salePrice!: number
 
   @IsOptional()
   @IsString()
@@ -102,8 +108,15 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsNumber()
+  @Min(0)
   @Type(() => Number)
-  price?: number
+  costPrice?: number
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  salePrice?: number
 
   @IsOptional()
   @IsString()

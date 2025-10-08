@@ -33,12 +33,17 @@ const ActivityComments = ({ activityId }: ActivityCommentsProps) => {
         currentUser?.authority?.some((role) => role === 'SUPERADMIN'),
     )
 
+    const getCreatedAtValue = (value?: string) => {
+        const parsed = dayjs(value)
+        return parsed.isValid() ? parsed.valueOf() : 0
+    }
+
     const sortedComments = useMemo(() => {
         if (!Array.isArray(comments)) {
             return []
         }
         return [...comments].sort(
-            (a, b) => dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf(),
+            (a, b) => getCreatedAtValue(a.createdAt) - getCreatedAtValue(b.createdAt),
         )
     }, [comments])
 

@@ -77,9 +77,7 @@ const initialState: ActivityLogState = {
     selectedType: [
         LOGIN,
         DEVICE_SIGN_IN,
-        PROFILE_UPDATE,
         PASSWORD_CHANGE,
-        SECURITY_ALERT,
     ],
 }
 

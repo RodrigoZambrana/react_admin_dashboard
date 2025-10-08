@@ -7,18 +7,29 @@ export async function apiGetUsers<T>() {
     })
 }
 
-export async function apiCreateUser<T, U extends Record<string, unknown>>(data: U) {
+type Payload = Record<string, unknown> | FormData
+
+const isFormData = (data: Payload): data is FormData =>
+    typeof FormData !== 'undefined' && data instanceof FormData
+
+export async function apiCreateUser<T, U extends Payload>(data: U) {
     return ApiService.fetchData<T>({
         url: '/users',
         method: 'post',
         data,
+        headers: isFormData(data)
+            ? { 'Content-Type': 'multipart/form-data' }
+            : undefined,
     })
 }
 
-export async function apiUpdateUser<T, U extends Record<string, unknown>>(id: string, data: U) {
+export async function apiUpdateUser<T, U extends Payload>(id: string, data: U) {
     return ApiService.fetchData<T>({
         url: `/users/${id}`,
         method: 'put',
         data,
+        headers: isFormData(data)
+            ? { 'Content-Type': 'multipart/form-data' }
+            : undefined,
     })
 }

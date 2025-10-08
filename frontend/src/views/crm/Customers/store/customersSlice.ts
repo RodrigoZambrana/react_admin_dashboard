@@ -68,6 +68,7 @@ export type Customer = {
         country?: string
         countryCode?: string
         isPrimary?: boolean
+        comments?: string
     }>
 }
 

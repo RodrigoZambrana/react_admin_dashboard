@@ -18,4 +18,16 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   role?: 'superadmin' | 'admin' | 'user'
+
+  @IsOptional()
+  @IsString()
+  country?: string
+
+  @IsOptional()
+  @IsString()
+  countryCode?: string
+
+  @IsOptional()
+  @IsString()
+  city?: string
 }

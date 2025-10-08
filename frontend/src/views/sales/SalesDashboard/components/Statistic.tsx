@@ -22,7 +22,7 @@ type StatisticProps = {
             value: number
             growShrink: number
         }
-        purchases?: {
+        netIncome?: {
             value: number
             growShrink: number
         }
@@ -35,7 +35,7 @@ type StatisticCardColorConfig = {
     value: string
 }
 
-const STATISTIC_CARD_COLORS: Record<'orders' | 'revenue' | 'purchases', StatisticCardColorConfig> =
+const STATISTIC_CARD_COLORS: Record<'orders' | 'revenue' | 'netIncome', StatisticCardColorConfig> =
     {
         orders: {
             container:
@@ -49,11 +49,11 @@ const STATISTIC_CARD_COLORS: Record<'orders' | 'revenue' | 'purchases', Statisti
             title: 'text-emerald-700 dark:text-emerald-100',
             value: 'text-emerald-900 dark:text-white',
         },
-        purchases: {
+        netIncome: {
             container:
-                'bg-sky-50 border-sky-200 shadow-sm dark:bg-sky-500/20 dark:border-sky-400/40',
-            title: 'text-sky-700 dark:text-sky-100',
-            value: 'text-sky-900 dark:text-white',
+                'bg-violet-50 border-violet-200 shadow-sm dark:bg-violet-500/20 dark:border-violet-400/40',
+            title: 'text-violet-700 dark:text-violet-100',
+            value: 'text-violet-900 dark:text-white',
         },
     }
 
@@ -101,10 +101,10 @@ const Statistic = ({ data = {} }: StatisticProps) => {
                 colorConfig={STATISTIC_CARD_COLORS.revenue}
             />
             <StatisticCard
-                data={data.purchases}
+                data={data.netIncome}
                 valuePrefix="$"
-                label={t('sales.dashboard.stat.purchases')}
-                colorConfig={STATISTIC_CARD_COLORS.purchases}
+                label={t('sales.dashboard.stat.netIncome')}
+                colorConfig={STATISTIC_CARD_COLORS.netIncome}
             />
         </div>
     )

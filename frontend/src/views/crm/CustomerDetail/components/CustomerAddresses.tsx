@@ -25,6 +25,7 @@ type Address = {
   country: string
   countryCode?: string
   isPrimary?: boolean
+  comments?: string
 }
 
 export default function CustomerAddresses({
@@ -60,6 +61,7 @@ export default function CustomerAddresses({
         city: addr.city ?? '',
         country: addr.country ?? '',
         countryCode: addr.countryCode ?? deriveCountryCode(addr.country ?? ''),
+        comments: addr.comments ?? '',
       })
       return
     }
@@ -73,6 +75,7 @@ export default function CustomerAddresses({
         country: '',
         countryCode: '',
         isPrimary: list.length === 0,
+        comments: '',
       },
     )
   }
@@ -139,28 +142,41 @@ export default function CustomerAddresses({
         </Button>
       </div>
       <div className="space-y-3">
-        {list.map((a) => (
-          <div key={a.id} className="flex items-center justify-between border p-3 rounded">
-            <div>
-              <div className="font-semibold">
-                {a.street} {a.number} {a.apartment && `Apt ${a.apartment}`}
+        {list.map((a) => {
+          const locality = [a.city, a.country]
+            .map((value) => (value || '').trim())
+            .filter((value) => value.length > 0)
+            .join(', ')
+
+          return (
+            <div key={a.id} className="flex items-center justify-between border p-3 rounded">
+              <div>
+                <div className="font-semibold">
+                  {a.street} {a.number} {a.apartment && `Apt ${a.apartment}`}
+                </div>
+                {a.corner && (
+                  <div className="opacity-80 text-sm">
+                    {t('text.labels.cornerFormat', {
+                      defaultValue: `esquina ${a.corner}`,
+                      corner: a.corner,
+                    })}
+                  </div>
+                )}
+                {locality && <div className="opacity-80 text-sm">{locality}</div>}
+                {a.comments && <div className="opacity-70 text-sm mt-1">{a.comments}</div>}
               </div>
-              <div className="opacity-80 text-sm">
-                {a.corner && `${t('text.labels.addressLine2')}: Corner ${a.corner} · `}
-                {a.city}, {a.country}
+              <div className="flex items-center gap-2">
+                {a.isPrimary ? (
+                  <span className="text-emerald-600 font-semibold">{t('text.labels.primary')}</span>
+                ) : (
+                  <Button size="sm" onClick={() => setPrimary(a.id!)}>{t('text.actions.setPrimary') || 'Set primary'}</Button>
+                )}
+                <Button size="sm" onClick={() => startEdit(a)}>{t('text.actions.edit')}</Button>
+                <Button size="sm" color="red-600" onClick={() => setDeleteId(a.id!)}>{t('text.actions.delete')}</Button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {a.isPrimary ? (
-                <span className="text-emerald-600 font-semibold">{t('text.labels.primary')}</span>
-              ) : (
-                <Button size="sm" onClick={() => setPrimary(a.id!)}>{t('text.actions.setPrimary') || 'Set primary'}</Button>
-              )}
-              <Button size="sm" onClick={() => startEdit(a)}>{t('text.actions.edit')}</Button>
-              <Button size="sm" color="red-600" onClick={() => setDeleteId(a.id!)}>{t('text.actions.delete')}</Button>
-            </div>
-          </div>
-        ))}
+          )
+        })}
         {list.length === 0 && <div className="opacity-70">{t('text.messages.noAddresses') || 'No addresses yet'}</div>}
       </div>
 
@@ -186,6 +202,13 @@ export default function CustomerAddresses({
               className="w-full"
             />
           </div>
+          <Input
+            textArea
+            rows={3}
+            value={editing.comments ?? ''}
+            placeholder={t('text.labels.comments') || 'Comentarios'}
+            onChange={(e) => setEditing({ ...editing, comments: e.target.value })}
+          />
           <div className="flex gap-2 justify-end">
             <Button size="sm" onClick={() => setEditing(null)}>{t('text.actions.cancel')}</Button>
             <Button size="sm" variant="solid" onClick={save}>{t('text.actions.save')}</Button>

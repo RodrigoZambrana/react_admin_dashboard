@@ -226,10 +226,15 @@ const CustomerEditContent = forwardRef<unknown, CustomerEditContentProps>(
 
                 onClose()
             } catch (error) {
+                const rawMessage =
+                    (error as any)?.response?.data?.message ||
+                    (error as Error).message
+                const translatedMessage = t(rawMessage, {
+                    defaultValue: rawMessage,
+                })
                 toast.push(
                     <Notification title={t('validation.failed')} type="danger">
-                        {(error as any)?.response?.data?.message ||
-                            (error as Error).message}
+                        {translatedMessage}
                     </Notification>,
                     { placement: 'top-center' },
                 )

@@ -28,88 +28,132 @@ enum EventType {
   OTHER
 }
 
+enum UserActivityType {
+  LOGIN
+  PASSWORD_CHANGE
+  DEVICE_SIGN_IN
+  PROFILE_UPDATE
+  SECURITY_ALERT
+}
+
 // Notification
 model Notification {
-  id             Int       @id @default(autoincrement())
-  recipientId    Int?
-  recipient      User?     @relation(fields: [recipientId], references: [id], onDelete: SetNull)
-  target         String?
-  description    String?
-  type           Int       @default(0)
-  image          String?
-  location       String?
-  locationLabel  String?
-  status         String?   // e.g. info, success, warning
-  readed         Boolean   @default(false)
-  createdAt      DateTime  @default(now())
+  id            Int      @id @default(autoincrement())
+  recipientId   Int?
+  recipient     User?    @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  target        String?
+  description   String?
+  type          Int      @default(0)
+  image         String?
+  location      String?
+  locationLabel String?
+  status        String? // e.g. info, success, warning
+  readed        Boolean  @default(false)
+  createdAt     DateTime @default(now())
 }
 
 // Users and Auth
 model User {
-  id           Int      @id @default(autoincrement())
-  userName     String   @unique
-  name         String?
-  lastName     String?
-  email        String   @unique
-  img          String?
-  role         Role     @default(USER)
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                    Int                    @id @default(autoincrement())
+  userName              String                 @unique
+  name                  String?
+  lastName              String?
+  email                 String                 @unique
+  img                   String?
+  role                  Role                   @default(USER)
+  country               String?
+  countryCode           String?
+  city                  String?
+  passwordHash          String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
   // relations
-  createdTasks Task[]
-  taskAssignees TaskAssignee[]
-  events       CalendarEvent[]
-  notifications Notification[]
+  createdTasks          Task[]
+  taskAssignees         TaskAssignee[]
+  events                CalendarEvent[]
+  notifications         Notification[]
   activityTicketMembers ActivityTicketMember[]
-  calendarComments CalendarEventComment[]
+  calendarComments      CalendarEventComment[]
+  activities            UserActivity[]
+  devices               UserDevice[]
+}
+
+model UserDevice {
+  id            Int            @id @default(autoincrement())
+  userId        Int
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fingerprint   String         @unique
+  displayName   String?
+  userAgent     String?
+  location      String?
+  lastIpAddress String?
+  deviceType    String?
+  firstSeenAt   DateTime       @default(now())
+  lastSeenAt    DateTime       @default(now())
+  activities    UserActivity[]
+}
+
+model UserActivity {
+  id          Int              @id @default(autoincrement())
+  userId      Int
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        UserActivityType
+  description String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  deviceId    Int?
+  device      UserDevice?      @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  performedAt DateTime         @default(now())
+  createdAt   DateTime         @default(now())
 }
 
 // CRM Customer
 model Customer {
-  id          Int       @id @default(autoincrement())
+  id          Int               @id @default(autoincrement())
   name        String
   firstName   String?
   lastName    String?
-  email       String
+  email       String            @unique
   img         String?
   location    String?
   title       String?
-  phoneNumber String?
+  phoneNumber String?           @unique
   birthday    DateTime?
   facebook    String?
   twitter     String?
   pinterest   String?
   linkedIn    String?
   phones      CustomerPhone[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
   orders      Order[]
   addresses   CustomerAddress[]
   statusId    Int?
-  status      CustomerStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  status      CustomerStatus?   @relation(fields: [statusId], references: [id], onDelete: SetNull)
 }
 
 model CustomerPhone {
-  id         Int       @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   customerId Int
-  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   phone      String
   label      String?
-  isPrimary  Boolean   @default(false)
-  createdAt  DateTime  @default(now())
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
 }
 
 // Sales Product
 model Product {
-  id                Int             @id @default(autoincrement())
+  id                Int              @id @default(autoincrement())
   name              String
   productCode       String?
   img               String?
   description       String?
   categoryId        Int?
   category          ProductCategory? @relation(fields: [categoryId], references: [id])
-  price             Float            @default(0)
+  salePrice         Decimal          @default(0) @map("precio_venta") @db.Decimal(12, 2)
+  costPrice         Decimal          @default(0) @map("precio_costo") @db.Decimal(12, 2)
   currency          String           @default("UYU")
   stock             Int              @default(0)
   permanentStock    Boolean          @default(false)
@@ -137,8 +181,8 @@ model ProductImage {
 }
 
 model ProductCategory {
-  id    Int       @id @default(autoincrement())
-  name  String    @unique
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
   products Product[]
 }
 
@@ -149,90 +193,102 @@ model SystemConfig {
 
 // Sales Orders
 model Order {
-  id                  Int           @id @default(autoincrement())
-  customerId          Int
-  customer            Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  date                DateTime      @default(now())
-  paymentMethodId     Int?
-  paymentMethod       PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
-  shippingAddress1    String?
-  shippingAddress2    String?
-  shippingCity        String?
-  shippingState       String?
-  shippingZip         String?
-  billingAddress1     String?
-  billingAddress2     String?
-  billingCity         String?
-  billingState        String?
-  billingZip          String?
-  billingSameAsShipping Boolean     @default(false)
-  shippingVendor      String?       // e.g., FedEx
-  deliveryFees        Float?        @default(0)
-  estimatedMin        Int?          @default(1)
-  estimatedMax        Int?          @default(3)
-  comment             String?
-  statusId            Int?
-  status              OrderStatus?  @relation(fields: [statusId], references: [id], onDelete: SetNull)
-  subTotal            Float         @default(0)
-  tax                 Float         @default(0)
-  grandTotal          Float         @default(0)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-  items               OrderItem[]
+  id                    Int            @id @default(autoincrement())
+  customerId            Int
+  customer              Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  date                  DateTime       @default(now())
+  paymentMethodId       Int?
+  paymentMethod         PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  shippingAddress1      String?
+  shippingAddress2      String?
+  shippingCity          String?
+  shippingState         String?
+  shippingZip           String?
+  billingAddress1       String?
+  billingAddress2       String?
+  billingCity           String?
+  billingState          String?
+  billingZip            String?
+  billingSameAsShipping Boolean        @default(false)
+  shippingVendor        String? // e.g., FedEx
+  deliveryFees          Float?         @default(0)
+  estimatedMin          Int?           @default(1)
+  estimatedMax          Int?           @default(3)
+  comment               String?
+  statusId              Int?
+  status                OrderStatus?   @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  subTotal              Float          @default(0)
+  tax                   Float          @default(0)
+  grandTotal            Float          @default(0)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  items                 OrderItem[]
 }
 
 model OrderItem {
-  id        Int     @id @default(autoincrement())
-  orderId   Int
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId Int?
-  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  name      String
-  price     Float    @default(0)
-  qty       Int      @default(1)
-  img       String?
+  id          Int      @id @default(autoincrement())
+  orderId     Int
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   Int?
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  name        String
+  price       Float    @default(0)
+  qty         Int      @default(1)
+  img         String?
   description String?
 }
 
 model PaymentMethod {
-  id     Int     @id @default(autoincrement())
-  name   String  @unique
-  orders Order[]
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  orders   Order[]
   expenses Expense[]
 }
 
+model ShippingOption {
+  id           Int      @id @default(autoincrement())
+  name         String   @unique
+  deliveryFees Float?   @default(0)
+  estimatedMin Int?     @default(0)
+  estimatedMax Int?     @default(0)
+  img          String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 model OrderStatus {
-  id    Int    @id @default(autoincrement())
-  code  Int    @unique
-  name  String
-  color String?
+  id     Int     @id @default(autoincrement())
+  code   Int     @unique
+  name   String
+  color  String?
   orders Order[]
 }
 
 // Expenses
 model Expense {
-  id          Int            @id @default(autoincrement())
-  title       String
-  description String?
-  amount      Float          @default(0)
-  date        DateTime       @default(now())
-  currency    String?        @db.VarChar(8)
-  categoryId  Int?
-  category    ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  statusId    Int?
-  status      ExpenseStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
-  paymentMethodId Int?
-  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  id               Int                 @id @default(autoincrement())
+  title            String
+  name             String?
+  description      String?
+  amount           Float               @default(0)
+  date             DateTime            @default(now())
+  currency         String?             @db.VarChar(8)
+  categoryId       Int?
+  category         ExpenseCategory?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  statusId         Int?
+  status           ExpenseStatus?      @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  paymentMethodId  Int?
+  paymentMethod    PaymentMethod?      @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
   paymentReference String?
-  attachments ExpenseAttachment[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  attachments      ExpenseAttachment[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
 }
 
 model ExpenseAttachment {
   id        Int      @id @default(autoincrement())
   expenseId Int
-  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   name      String
   mimeType  String?
   size      Int?
@@ -254,39 +310,39 @@ model ExpenseStatus {
 }
 
 model CustomerStatus {
-  id    Int    @id @default(autoincrement())
-  name  String @unique
-  color String?
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  color     String?
   customers Customer[]
 }
 
 model Project {
-  id          Int       @id @default(autoincrement())
+  id          Int             @id @default(autoincrement())
   name        String
   code        String?
   description String?
-  startDate   DateTime? @default(now())
+  startDate   DateTime?       @default(now())
   endDate     DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   tasks       Task[]
   events      CalendarEvent[]
 }
 
 model Task {
-  id          Int       @id @default(autoincrement())
+  id          Int             @id @default(autoincrement())
   code        String?
   subject     String
   description String?
-  priority    Int       @default(1) // 0=High,1=Medium,2=Low
+  priority    Int             @default(1) // 0=High,1=Medium,2=Low
   status      String?
   projectId   Int?
-  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  project     Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
   createdById Int?
-  createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
   dueDate     DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   assignees   TaskAssignee[]
   events      CalendarEvent[]
 }
@@ -296,31 +352,32 @@ model TaskAssignee {
   userId Int
   task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@id([taskId, userId])
 }
 
 model ActivityColumn {
-  id        Int                @id @default(autoincrement())
-  title     String             @unique
-  sortOrder Int                @default(0)
+  id        Int              @id @default(autoincrement())
+  title     String           @unique
+  sortOrder Int              @default(0)
   tickets   ActivityTicket[]
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 }
 
 model ActivityTicket {
-  id          Int                   @id @default(autoincrement())
+  id          Int                    @id @default(autoincrement())
   columnId    Int
-  column      ActivityColumn        @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  column      ActivityColumn         @relation(fields: [columnId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  priority    String?               @default("Medium priority")
-  labels      String[]              @default([])
+  priority    String?                @default("Medium priority")
+  labels      String[]               @default([])
   dueDate     DateTime?
-  order       Int                   @default(0)
+  order       Int                    @default(0)
   cover       String?
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
   members     ActivityTicketMember[]
 }
 
@@ -334,28 +391,28 @@ model ActivityTicketMember {
 }
 
 model CalendarEvent {
-  id          Int        @id @default(autoincrement())
+  id          Int                       @id @default(autoincrement())
   title       String
   description String?
-  type        EventType  @default(OTHER)
+  type        EventType                 @default(OTHER)
   startAt     DateTime
   endAt       DateTime?
-  allDay      Boolean    @default(false)
+  allDay      Boolean                   @default(false)
   location    String?
-  color       String?    @db.VarChar(32)
+  color       String?                   @db.VarChar(32)
   metadata    Json?
   createdById Int?
-  createdBy   User?      @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?                     @relation(fields: [createdById], references: [id], onDelete: SetNull)
   projectId   Int?
-  project     Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  project     Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
   taskId      Int?
-  task        Task?      @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  task        Task?                     @relation(fields: [taskId], references: [id], onDelete: SetNull)
   eventTypeId Int?
-  eventType   CalendarEventType? @relation(fields: [eventTypeId], references: [id], onDelete: SetNull)
+  eventType   CalendarEventType?        @relation(fields: [eventTypeId], references: [id], onDelete: SetNull)
   attachments CalendarEventAttachment[]
   comments    CalendarEventComment[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
 }
 
 model CalendarEventType {
@@ -388,6 +445,7 @@ model CalendarEventComment {
   message   String
   createdAt DateTime      @default(now())
 }
+
 model CustomerAddress {
   id         Int      @id @default(autoincrement())
   customerId Int
@@ -398,6 +456,7 @@ model CustomerAddress {
   apartment  String?
   city       String
   country    String
+  comments   String?
   isPrimary  Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

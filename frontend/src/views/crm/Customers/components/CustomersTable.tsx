@@ -218,6 +218,18 @@ const Customers = () => {
                 accessorKey: 'email',
             },
             {
+                header: t('text.columns.phone'),
+                accessorKey: 'phoneNumber',
+                cell: (props) => {
+                    const row = props.row.original
+                    const primaryPhone =
+                        (Array.isArray(row.phoneNumbers) && row.phoneNumbers.length
+                            ? row.phoneNumbers[0]
+                            : row.phoneNumber) || ''
+                    return primaryPhone || '-'
+                },
+            },
+            {
                 header: t('text.columns.status'),
                 accessorKey: 'status',
                 cell: (props) => {

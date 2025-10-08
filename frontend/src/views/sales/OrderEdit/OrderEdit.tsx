@@ -64,7 +64,7 @@ const OrderEdit = () => {
                 pArray.map((p: any) => ({
                     value: String(p.id),
                     label: p.name,
-                    price: Number(p.price) || 0,
+                    price: Number(p.salePrice ?? p.price) || 0,
                     currency: p.currency,
                     img: p.img,
                     description: p.description,
@@ -512,15 +512,16 @@ const OrderEdit = () => {
                                         img: '',
                                         imgList: [],
                                         categoryId: null,
-                                        price: 0,
+                                        costPrice: 0,
+                                        salePrice: 0,
                                         stock: 0,
                                         status: 0,
-                                        costPerItem: 0,
                                         bulkDiscountPrice: 0,
                                         tags: [],
                                         brand: '',
                                         vendor: '',
                                         description: '',
+                                        currency: 'UYU',
                                     }}
                                     onDiscard={() => setNewProductOpen(false)}
                                     onFormSubmit={async (formData, setSubmitting) => {
@@ -537,7 +538,7 @@ const OrderEdit = () => {
                                                     ((pRes as any).data?.data || []).map((p: any) => ({
                                                         value: String(p.id),
                                                         label: p.name,
-                                                        price: Number(p.price) || 0,
+                                                        price: Number(p.salePrice ?? p.price) || 0,
                                                         currency: p.currency,
                                                         img: p.img,
                                                         description: p.description,
@@ -551,7 +552,7 @@ const OrderEdit = () => {
                                                         formattedOptions.find((opt) => opt.value === String(created.id)) ?? {
                                                             value: String(created.id),
                                                             label: created.name,
-                                                            price: Number(created.price) || 0,
+                                                            price: Number(created.salePrice ?? created.price) || 0,
                                                             currency: created.currency,
                                                             img: created.img,
                                                             description: created.description,

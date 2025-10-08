@@ -11,7 +11,23 @@ export class AuthService {
   ) {}
 
   async validateUser(userName: string, pass: string) {
-    const user = await this.prisma.user.findUnique({ where: { userName } })
+    const identifier = (userName || '').trim()
+    if (!identifier) {
+      throw new UnauthorizedException('Invalid credentials')
+    }
+
+    const lowered = identifier.toLowerCase()
+
+    const user =
+      (await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { userName: { equals: identifier, mode: 'insensitive' } },
+            { email: { equals: lowered, mode: 'insensitive' } },
+          ],
+        },
+      })) || null
+
     if (!user) throw new UnauthorizedException('Invalid credentials')
     const ok = await bcrypt.compare(pass, user.passwordHash)
     if (!ok) throw new UnauthorizedException('Invalid credentials')

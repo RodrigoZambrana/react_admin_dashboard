@@ -151,6 +151,58 @@ export async function apiDeleteProductCategory<
     })
 }
 
+// Shipping options
+export async function apiGetShippingOptions<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/shipping-options',
+        method: 'get',
+    })
+}
+
+type ShippingPayload = Record<string, unknown> | FormData
+
+const isShippingFormData = (data: ShippingPayload): data is FormData =>
+    typeof FormData !== 'undefined' && data instanceof FormData
+
+export async function apiCreateShippingOption<
+    T,
+    U extends ShippingPayload,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/shipping-options/create',
+        method: 'post',
+        data,
+        headers: isShippingFormData(data)
+            ? { 'Content-Type': 'multipart/form-data' }
+            : undefined,
+    })
+}
+
+export async function apiUpdateShippingOption<
+    T,
+    U extends ShippingPayload,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/shipping-options/update',
+        method: 'put',
+        data,
+        headers: isShippingFormData(data)
+            ? { 'Content-Type': 'multipart/form-data' }
+            : undefined,
+    })
+}
+
+export async function apiDeleteShippingOption<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/shipping-options/delete',
+        method: 'delete',
+        data,
+    })
+}
+
 // Payment methods
 export async function apiGetPaymentMethods<T>() {
     return ApiService.fetchData<T>({
@@ -183,6 +235,24 @@ export async function apiUpdateSystemConfig<
 >(data: U) {
     return ApiService.fetchData<T>({
         url: '/settings/system-config',
+        method: 'put',
+        data,
+    })
+}
+
+export async function apiGetThemeConfig<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/theme-config',
+        method: 'get',
+    })
+}
+
+export async function apiUpdateThemeConfig<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/theme-config',
         method: 'put',
         data,
     })

@@ -22,6 +22,9 @@ const ProductDeleteConfirmation = () => {
     const tableData = useAppSelector(
         (state) => state.salesProductList.data.tableData,
     )
+    const filterData = useAppSelector(
+        (state) => state.salesProductList.data.filterData,
+    )
 
     const onDialogClose = () => {
         dispatch(toggleDeleteConfirmation(false))
@@ -32,7 +35,7 @@ const ProductDeleteConfirmation = () => {
         const success = await deleteProduct({ id: selectedProduct })
 
         if (success) {
-            dispatch(getProducts(tableData))
+            dispatch(getProducts({ ...tableData, filterData }))
             toast.push(
                 <Notification
                     title={t('sales.productList.deleted.title')}

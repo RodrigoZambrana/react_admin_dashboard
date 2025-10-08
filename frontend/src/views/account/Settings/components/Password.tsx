@@ -17,6 +17,7 @@ import {
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import * as Yup from 'yup'
+import { apiUpdateAccountPassword } from '@/services/AccountServices'
 
 type LoginHistory = {
     type: string
@@ -60,15 +61,27 @@ const useValidationSchema = (t: (k: string) => string) =>
 const Password = ({ data }: { data?: LoginHistory[] }) => {
     const { t } = useTranslation()
 
-    const onFormSubmit = (
-        values: PasswordFormModel,
-        setSubmitting: (isSubmitting: boolean) => void,
-    ) => {
-        toast.push(<Notification title={t('text.messages.passwordUpdated')} type="success" />, {
-            placement: 'top-center',
+    const getErrorMessage = (error: unknown) => {
+        const responseMessage =
+            (error as {
+                response?: { data?: { message?: string; errors?: Array<{ message?: string }> } }
+            })?.response?.data?.message
+        if (typeof responseMessage === 'string' && responseMessage.trim().length > 0) {
+            return responseMessage
+        }
+        const responseErrors =
+            (error as {
+                response?: { data?: { errors?: Array<{ message?: string }> } }
+            })?.response?.data?.errors
+        if (Array.isArray(responseErrors) && responseErrors.length > 0) {
+            const first = responseErrors[0]?.message
+            if (typeof first === 'string' && first.trim().length > 0) {
+                return first
+            }
+        }
+        return t('text.errors.passwordUpdateFailed', {
+            defaultValue: 'Unable to update password. Please try again.',
         })
-        setSubmitting(false)
-        console.log('values', values)
     }
 
     return (
@@ -80,11 +93,36 @@ const Password = ({ data }: { data?: LoginHistory[] }) => {
                     confirmNewPassword: '',
                 }}
                 validationSchema={useValidationSchema(t)}
-                onSubmit={(values, { setSubmitting }) => {
+                onSubmit={async (values, { setSubmitting, resetForm }) => {
                     setSubmitting(true)
-                    setTimeout(() => {
-                        onFormSubmit(values, setSubmitting)
-                    }, 1000)
+                    try {
+                        await apiUpdateAccountPassword({
+                            password: values.password,
+                            newPassword: values.newPassword,
+                        })
+                        toast.push(
+                            <Notification
+                                title={t('text.messages.passwordUpdated')}
+                                type="success"
+                            />,
+                            { placement: 'top-center' },
+                        )
+                        resetForm()
+                    } catch (error) {
+                        toast.push(
+                            <Notification
+                                title={t('text.errors.passwordUpdateFailedTitle', {
+                                    defaultValue: 'Password update failed',
+                                })}
+                                type="danger"
+                            >
+                                {getErrorMessage(error)}
+                            </Notification>,
+                            { placement: 'top-center' },
+                        )
+                    } finally {
+                        setSubmitting(false)
+                    }
                 }}
             >
                 {({ touched, errors, isSubmitting, resetForm }) => {

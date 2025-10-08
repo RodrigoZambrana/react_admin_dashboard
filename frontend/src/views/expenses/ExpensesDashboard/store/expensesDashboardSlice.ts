@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
 import dayjs from 'dayjs'
 import { apiGetExpensesDashboardData } from '@/services/ExpensesService'
+import type { RootState } from '@/store'
 
 type Statistic = {
     value: number
@@ -18,7 +19,8 @@ export type DashboardData = {
             name: string
             data: number[]
         }[]
-        categories: string[]
+        categories: number[]
+        granularity?: 'hour' | 'day' | 'month'
     }
     latestExpensesData?: {
         id: string
@@ -31,6 +33,7 @@ export type DashboardData = {
         paymentMethodName: string
         paymentReference?: string
         amount: number
+        currency?: string | null
     }[]
     expensesByCategoriesData?: {
         labels: string[]
@@ -40,28 +43,57 @@ export type DashboardData = {
 
 type DashboardDataResponse = DashboardData
 
+export type DateRangePreset =
+    | 'today'
+    | 'thisWeek'
+    | 'thisMonth'
+    | 'last15Days'
+    | 'thisYear'
+    | 'custom'
+
 export type ExpensesDashboardState = {
     startDate: number
     endDate: number
+    dateRangePreset: DateRangePreset
     loading: boolean
     dashboardData: DashboardData
 }
 
 export const SLICE_NAME = 'expensesDashboard'
 
-export const getExpensesDashboardData = createAsyncThunk(
-    SLICE_NAME + '/getExpensesDashboardData',
-    async () => {
-        const response = await apiGetExpensesDashboardData<DashboardDataResponse>()
-        return response.data
-    },
-)
+type ExpensesDashboardRootState = RootState & {
+    [SLICE_NAME]: {
+        data: ExpensesDashboardState
+    }
+}
+
+export const getExpensesDashboardData = createAsyncThunk<
+    DashboardDataResponse,
+    void,
+    { state: ExpensesDashboardRootState }
+>(SLICE_NAME + '/getExpensesDashboardData', async (_, { getState }) => {
+    const {
+        startDate,
+        endDate,
+    } = getState()[SLICE_NAME]?.data ?? {
+        startDate: dayjs().startOf('month').unix(),
+        endDate: dayjs().endOf('month').unix(),
+    }
+
+    const response = await apiGetExpensesDashboardData<
+        DashboardDataResponse,
+        { startDate: number; endDate: number }
+    >({
+        startDate,
+        endDate,
+    })
+    return response.data
+})
 
 const initialState: ExpensesDashboardState = {
-    startDate: dayjs(
-        dayjs().subtract(3, 'month').format('DD-MMM-YYYY, hh:mm A'),
-    ).unix(),
-    endDate: dayjs(new Date()).unix(),
+    startDate: dayjs().startOf('month').unix(),
+    endDate: dayjs().endOf('month').unix(),
+    dateRangePreset: 'thisMonth',
     loading: true,
     dashboardData: {},
 }
@@ -76,6 +108,12 @@ const expensesDashboardSlice = createSlice({
         setEndDate: (state, action: PayloadAction<number>) => {
             state.endDate = action.payload
         },
+        setDateRangePreset: (
+            state,
+            action: PayloadAction<DateRangePreset>,
+        ) => {
+            state.dateRangePreset = action.payload
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -86,9 +124,13 @@ const expensesDashboardSlice = createSlice({
             .addCase(getExpensesDashboardData.pending, (state) => {
                 state.loading = true
             })
+            .addCase(getExpensesDashboardData.rejected, (state) => {
+                state.loading = false
+            })
     },
 })
 
-export const { setStartDate, setEndDate } = expensesDashboardSlice.actions
+export const { setStartDate, setEndDate, setDateRangePreset } =
+    expensesDashboardSlice.actions
 
 export default expensesDashboardSlice.reducer

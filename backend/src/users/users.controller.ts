@@ -1,16 +1,19 @@
 import {
-  Body,
+  BadRequestException,
   Controller,
   Get,
   Param,
   Post,
   Put,
   UseGuards,
+  Request,
 } from '@nestjs/common'
+import type { FastifyRequest } from 'fastify'
 import { PrismaService } from '../prisma/prisma.service'
-import { CreateUserDto } from './dto/create-user.dto'
-import { UpdateUserDto } from './dto/update-user.dto'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { normalizeAvatarPath, persistAvatarFile } from '../common/uploads/avatar'
+import { Prisma } from '@prisma/client'
+import { parseSingleFileMultipart } from '../common/uploads/multipart'
 
 const normalizeNullableString = (value?: string | null) => {
   if (value === undefined || value === null) {
@@ -18,6 +21,11 @@ const normalizeNullableString = (value?: string | null) => {
   }
   const trimmed = value.trim()
   return trimmed.length ? trimmed : null
+}
+
+const normalizeOptionalUppercase = (value?: string | null) => {
+  const normalized = normalizeNullableString(value)
+  return normalized ? normalized.toUpperCase() : normalized
 }
 
 const normalizeRequiredString = (value: string) => value.trim()
@@ -31,7 +39,17 @@ export class UsersController {
   async list() {
     const data = await this.prisma.user.findMany({
       orderBy: { id: 'desc' },
-      select: { id: true, name: true, lastName: true, email: true, img: true, role: true },
+      select: {
+        id: true,
+        name: true,
+        lastName: true,
+        email: true,
+        img: true,
+        role: true,
+        country: true,
+        countryCode: true,
+        city: true,
+      },
     })
     // map role to lowercase for UI usage
     return data.map((u) => ({
@@ -39,52 +57,171 @@ export class UsersController {
       name: normalizeRequiredString(u.name || ''),
       lastName: normalizeNullableString(u.lastName) || '',
       role: (u.role as string).toLowerCase(),
+      country: normalizeNullableString(u.country),
+      countryCode: normalizeOptionalUppercase(u.countryCode),
+      city: normalizeNullableString(u.city),
     }))
   }
 
   @Post()
-  async create(@Body() dto: CreateUserDto) {
-    const created = await this.prisma.user.create({
-      data: {
-        userName: dto.email,
-        name: normalizeRequiredString(dto.name),
-        lastName: normalizeNullableString(dto.lastName),
-        email: dto.email,
-        img: dto.img,
-        role: (dto.role || 'user').toUpperCase() as any,
-        passwordHash: '$2b$10$UceECy7vFdsXL7Ctj1k9auHk/nP9bBWiygYxXyVeaEH0GxPbnA6Ni', // 'password'
-      },
-      select: { id: true, name: true, lastName: true, email: true, img: true, role: true },
-    })
-    return {
-      ...created,
-      name: normalizeRequiredString(created.name || ''),
-      lastName: normalizeNullableString(created.lastName) || '',
-      role: (created.role as string).toLowerCase(),
+  async create(@Request() req: FastifyRequest) {
+    const { fields, file } = await parseSingleFileMultipart(req)
+    const email = normalizeRequiredString(fields.email ?? '').toLowerCase()
+    const avatarPath = file
+      ? await persistAvatarFile(file)
+      : normalizeAvatarPath(fields.img)
+    const role = (fields.role || 'user').toLowerCase()
+
+    try {
+      const created = await this.prisma.user.create({
+        data: {
+          userName: email,
+          name: normalizeRequiredString(fields.name ?? ''),
+          lastName: normalizeNullableString(fields.lastName),
+          email,
+          img: avatarPath ?? null,
+          role: (role || 'user').toUpperCase() as any,
+          country: normalizeNullableString(fields.country),
+          countryCode: normalizeOptionalUppercase(fields.countryCode),
+          city: normalizeNullableString(fields.city),
+          passwordHash: '$2b$10$UceECy7vFdsXL7Ctj1k9auHk/nP9bBWiygYxXyVeaEH0GxPbnA6Ni', // 'password'
+        },
+        select: {
+          id: true,
+          name: true,
+          lastName: true,
+          email: true,
+          img: true,
+          role: true,
+          country: true,
+          countryCode: true,
+          city: true,
+        },
+      })
+      return {
+        ...created,
+        name: normalizeRequiredString(created.name || ''),
+        lastName: normalizeNullableString(created.lastName) || '',
+        role: (created.role as string).toLowerCase(),
+        country: normalizeNullableString(created.country),
+        countryCode: normalizeOptionalUppercase(created.countryCode),
+        city: normalizeNullableString(created.city),
+      }
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException({
+          message: 'users.validation.duplicateEmail',
+          errors: [{ field: 'email', key: 'users.validation.duplicateEmail' }],
+        })
+      }
+      throw error
     }
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
-    const updated = await this.prisma.user.update({
-      where: { id: Number(id) },
-      data: {
-        name: dto.name === undefined ? undefined : normalizeRequiredString(dto.name),
-        lastName:
-          dto.lastName === undefined
-            ? undefined
-            : normalizeNullableString(dto.lastName),
-        email: dto.email,
-        img: dto.img,
-        role: dto.role ? (dto.role as string).toUpperCase() as any : undefined,
-      },
-      select: { id: true, name: true, lastName: true, email: true, img: true, role: true },
+  async update(@Param('id') id: string, @Request() req: FastifyRequest) {
+    const userId = Number(id)
+    if (!Number.isInteger(userId)) {
+      throw new BadRequestException('users.validation.invalidUser')
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { img: true },
     })
-    return {
-      ...updated,
-      name: normalizeRequiredString(updated.name || ''),
-      lastName: normalizeNullableString(updated.lastName) || '',
-      role: (updated.role as string).toLowerCase(),
+
+    if (!existing) {
+      throw new BadRequestException('users.validation.invalidUser')
+    }
+
+    const { fields, file } = await parseSingleFileMultipart(req)
+
+    const currentAvatar = normalizeAvatarPath(existing.img)
+    let nextAvatar = currentAvatar
+    if (file) {
+      nextAvatar = await persistAvatarFile(file, currentAvatar)
+    } else if (fields.img !== undefined) {
+      nextAvatar = normalizeAvatarPath(fields.img)
+    }
+
+    const nameUpdate =
+      fields.name === undefined
+        ? undefined
+        : normalizeRequiredString(fields.name)
+    const lastNameUpdate =
+      fields.lastName === undefined
+        ? undefined
+        : normalizeNullableString(fields.lastName)
+    const emailUpdate =
+      fields.email === undefined
+        ? undefined
+        : normalizeRequiredString(fields.email).toLowerCase()
+    const roleUpdate =
+      fields.role === undefined
+        ? undefined
+        : (fields.role as string).toUpperCase() as any
+    const countryUpdate =
+      fields.country === undefined
+        ? undefined
+        : normalizeNullableString(fields.country)
+    const countryCodeUpdate =
+      fields.countryCode === undefined
+        ? undefined
+        : normalizeOptionalUppercase(fields.countryCode)
+    const cityUpdate =
+      fields.city === undefined
+        ? undefined
+        : normalizeNullableString(fields.city)
+
+    try {
+      const updated = await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          name: nameUpdate,
+          lastName: lastNameUpdate,
+          email: emailUpdate,
+          userName: emailUpdate === undefined ? undefined : emailUpdate,
+          img: nextAvatar ?? null,
+          role: roleUpdate,
+          country: countryUpdate,
+          countryCode: countryCodeUpdate,
+          city: cityUpdate,
+        },
+        select: {
+          id: true,
+          name: true,
+          lastName: true,
+          email: true,
+          img: true,
+          role: true,
+          country: true,
+          countryCode: true,
+          city: true,
+        },
+      })
+      return {
+        ...updated,
+        name: normalizeRequiredString(updated.name || ''),
+        lastName: normalizeNullableString(updated.lastName) || '',
+        role: (updated.role as string).toLowerCase(),
+        country: normalizeNullableString(updated.country),
+        countryCode: normalizeOptionalUppercase(updated.countryCode),
+        city: normalizeNullableString(updated.city),
+      }
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException({
+          message: 'users.validation.duplicateEmail',
+          errors: [{ field: 'email', key: 'users.validation.duplicateEmail' }],
+        })
+      }
+      throw error
     }
   }
 }

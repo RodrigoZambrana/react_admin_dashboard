@@ -51,8 +51,14 @@ const SalesReport = ({ className, data = {} }: SalesReportProps) => {
             : []
         const series = Array.isArray(data.series) ? data.series : []
 
+        const start = dayjs.unix(startDate).startOf('month')
+        const end = dayjs.unix(endDate).startOf('month')
+        const spansMultipleMonths = end.diff(start, 'month') > 0
+
         const shouldGroupToMonths =
-            dateRangePreset === 'thisYear' && granularity !== 'month'
+            granularity !== 'month' &&
+            (dateRangePreset === 'thisYear' ||
+                (dateRangePreset === 'custom' && spansMultipleMonths))
 
         if (!shouldGroupToMonths) {
             return {
@@ -108,57 +114,38 @@ const SalesReport = ({ className, data = {} }: SalesReportProps) => {
             categories: monthOrder,
             series: groupedSeries,
         }
-    }, [data.categories, data.series, dateRangePreset])
+    }, [data.categories, data.series, dateRangePreset, endDate, startDate])
 
     const salesSeries = useMemo(() => {
-        const availableSeries = Array.isArray(normalizedData.series)
-            ? normalizedData.series.filter(
-                  (serie) => Array.isArray(serie.data),
-              )
-            : []
-
-        if (availableSeries.length === 0) {
+        if (!Array.isArray(normalizedData.series)) {
             return []
         }
 
-        const serieMatchPriority = [
-            'venta',
-            'ventas',
-            'sales',
-            'sale',
-            'compra',
-            'compras',
-        ]
-        const fallbackMatch = ['purchase', 'purchases']
+        return normalizedData.series
+            .filter((serie) => Array.isArray(serie.data))
+            .map((serie) => {
+                const sanitizedData = serie.data.map((value) => {
+                    const numericValue =
+                        typeof value === 'number' ? value : Number(value)
+                    return Number.isFinite(numericValue) ? numericValue : 0
+                })
 
-        const findByName = (keywords: string[]) =>
-            availableSeries.find((serie) => {
-                const name = (serie.name || '').toLowerCase()
-                return keywords.some((keyword) => name.includes(keyword))
+                const normalizedName = (serie.name || '').toLowerCase()
+                let translatedName = serie.name?.trim() || ''
+                if (normalizedName.includes('net') && normalizedName.includes('income')) {
+                    translatedName = t('sales.dashboard.salesReport.netIncomeLine')
+                } else if (normalizedName.includes('revenue') || normalizedName.includes('venta') || normalizedName.includes('sale')) {
+                    translatedName = t('sales.dashboard.salesReport.revenueLine')
+                } else if (!translatedName) {
+                    translatedName = t('sales.dashboard.salesReport.title')
+                }
+
+                return {
+                    ...serie,
+                    name: translatedName,
+                    data: sanitizedData,
+                }
             })
-
-        const matchedSerie =
-            findByName(serieMatchPriority) ??
-            findByName(fallbackMatch) ??
-            availableSeries[0]
-
-        const sanitizedData = matchedSerie.data.map((value) => {
-            const numericValue =
-                typeof value === 'number' ? value : Number(value)
-            return Number.isFinite(numericValue) ? numericValue : 0
-        })
-
-        return [
-            {
-                ...matchedSerie,
-                name: t('sales.dashboard.salesReport.salesLine', {
-                    defaultValue:
-                        matchedSerie.name?.trim() ||
-                        t('sales.dashboard.salesReport.title'),
-                }),
-                data: sanitizedData,
-            },
-        ]
     }, [normalizedData.series, t])
 
     const formattedCategories = useMemo(() => {
@@ -254,7 +241,7 @@ const SalesReport = ({ className, data = {} }: SalesReportProps) => {
                     xAxis={formattedCategories}
                     height="380px"
                     customOptions={{
-                        legend: { show: false },
+                        legend: { show: true },
                         yaxis: {
                             labels: {
                                 formatter: (val: number | string) =>

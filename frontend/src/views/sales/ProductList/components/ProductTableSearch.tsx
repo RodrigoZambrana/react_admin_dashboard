@@ -22,6 +22,9 @@ const ProductTableSearch = () => {
     const tableData = useAppSelector(
         (state) => state.salesProductList.data.tableData,
     )
+    const filterData = useAppSelector(
+        (state) => state.salesProductList.data.filterData,
+    )
 
     const debounceFn = debounce(handleDebounceFn, 500)
 
@@ -40,7 +43,12 @@ const ProductTableSearch = () => {
 
     const fetchData = (data: TableQueries) => {
         dispatch(setTableData(data))
-        dispatch(getProducts(data))
+        dispatch(
+            getProducts({
+                ...data,
+                filterData,
+            }),
+        )
     }
 
     const onEdit = (e: ChangeEvent<HTMLInputElement>) => {
@@ -50,8 +58,8 @@ const ProductTableSearch = () => {
     return (
         <Input
             ref={searchInput}
-            className="max-w-md md:w-52 md:mb-0 mb-4"
-            size="sm"
+            className="w-full md:w-80 lg:w-[28rem] md:mb-0 mb-4"
+            size="md"
             placeholder={t('text.placeholders.searchProduct')}
             prefix={<HiOutlineSearch className="text-lg" />}
             onChange={onEdit}

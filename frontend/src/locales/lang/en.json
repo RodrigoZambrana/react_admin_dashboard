@@ -74,6 +74,7 @@
             "customerStatuses": "Customer Statuses",
             "expenses": "Expenses",
             "paymentMethods": "Payment Methods",
+            "shippingOptions": "Shipping Options",
             "systemConfig": "System Config",
             "calendarEventTypes": "Calendar Event Types"
         },
@@ -288,10 +289,6 @@
                 "title": "Dark Mode",
                 "desc": "Switch theme to dark mode"
             },
-            "direction": {
-                "title": "Direction",
-                "desc": "Select a direction"
-            },
             "navMode": {
                 "title": "Nav Mode",
                 "default": "Default",
@@ -302,6 +299,17 @@
             },
             "layout": {
                 "title": "Layout"
+            },
+            "save": {
+                "button": "Save theme",
+                "success": {
+                    "title": "Theme updated",
+                    "desc": "Theme configuration saved successfully."
+                },
+                "error": {
+                    "title": "Save failed",
+                    "desc": "We couldn't save the theme configuration."
+                }
             }
         }
     },
@@ -337,8 +345,7 @@
             },
             "sendEmail": "Send Email",
             "resendEmail": "Resend Email"
-        }
-        ,
+        },
         "signIn": {
             "title": "Welcome back!",
             "subtitle": "Please enter your credentials to sign in!",
@@ -375,6 +382,7 @@
             "shipping": "Shipping",
             "paymentSummary": "Payment Summary",
             "paymentHistory": "Payment History",
+            "orderHistory": "Order History",
             "activity": "Activity",
             "details": "Details",
             "addEvent": "Add New Event",
@@ -425,6 +433,8 @@
             "category": "Category",
             "quantity": "Quantity",
             "price": "Price",
+            "salePrice": "Sale price",
+            "costPrice": "Cost price",
             "product": "Product",
             "reference": "Reference",
             "amount": "Amount",
@@ -432,14 +442,14 @@
             "assignee": "Assignee",
             "sold": "Sold",
             "email": "Email",
+            "phone": "Phone",
             "lastOnline": "Last online",
             "taskId": "Task ID",
             "subject": "Subject",
             "priority": "Priority",
             "assignees": "Assignees",
             "actions": "Actions",
-            "published": "Published"
-            ,
+            "published": "Published",
             "stock": "Stock"
         },
         "priority": {
@@ -469,10 +479,13 @@
             "add": "Add",
             "addMore": "Add More",
             "download": "Download",
+            "import": "Import",
             "send": "Send",
             "change": "Change",
             "rename": "Rename",
             "filter": "Filter",
+            "showFilters": "Show Filters",
+            "hideFilters": "Hide Filters",
             "query": "Query",
             "addTicket": "Add Ticket",
             "deleteBoard": "Delete Board",
@@ -559,6 +572,8 @@
             "location": "Location",
             "phoneNumber": "Phone Number",
             "title": "Title",
+            "role": "Role",
+            "avatar": "Avatar",
             "birthday": "Birthday",
             "phone": "Phone",
             "dateOfBirth": "Date of birth",
@@ -592,20 +607,20 @@
             "expired": "Expired",
             "about": "About",
             "keyFeatures": "Key Features",
-            "date": "Date",
-            "phone": "Phone",
             "to": "To",
             "grandTotal": "Grand Total",
-            "previousOrders": "previous orders",
+            "previousOrders": "Previous orders",
             "setAsPrimary": "Set this card as primary",
-        "country": "Country",
-        "street": "Street",
-        "number": "Number",
-        "apartment": "Apartment",
-        "corner": "Corner",
-        "addressLine1": "Address Line 1",
-        "addressLine2": "Address Line 2",
-        "city": "City",
+            "country": "Country",
+            "street": "Street",
+            "number": "Number",
+            "apartment": "Apartment",
+            "corner": "Corner",
+            "cornerFormat": "Corner {{corner}}",
+            "comments": "Comments",
+            "addressLine1": "Address Line 1",
+            "addressLine2": "Address Line 2",
+            "city": "City",
             "state": "State",
             "zipCode": "Zip Code",
             "current": "Current",
@@ -615,7 +630,6 @@
             "timeZone": "Time Zone",
             "syncData": "Sync Data",
             "category": "Category",
-            "tags": "Tags",
             "brand": "Brand",
             "vendor": "Vendor",
             "permanentStock": "Permanent stock",
@@ -644,10 +658,10 @@
         "tooltips": {
             "cvv": "The CVV/CVC code is located on the back of your credit/debit card on the right side of the white signature strip"
         },
-        
         "descriptions": {
             "basicProductInfo": "Section to config basic product information",
             "productSalesInfo": "Section to config product sales information",
+            "salePriceAuto": "Sale price defaults to cost price × 1.30 and can be adjusted manually",
             "passwordDesc": "Enter your current and new password to reset your password",
             "viewPreviousBilling": "View your previous billing",
             "addressInformation": "Enter your address information to help us speed up the verification process",
@@ -659,6 +673,10 @@
             "customerDeleted": "Customer successfully deleted",
             "customerDeleteHasOrders": "You cannot delete a customer that already has orders.",
             "customerAdded": "Customer added successfully",
+            "customerEmailTaken": "A customer with this email already exists.",
+            "customerPhoneTaken": "A customer with this phone number already exists.",
+            "customerEmailAndPhoneTaken": "A customer with this email and phone number already exists.",
+            "customerDuplicate": "A customer with duplicated unique data already exists.",
             "deleteCustomerConfirm": "Are you sure you want to delete this customer? All record related to this customer will be deleted as well. This action cannot be undone.",
             "noActivities": "No Activities",
             "noMoreActivity": "No more activity to load",
@@ -669,6 +687,7 @@
             "passwordUpdated": "Password updated",
             "userCreated": "User created",
             "userUpdated": "User updated",
+            "userSaveFailed": "We could not save the user.",
             "viewPreviousBilling": "View your previous billing"
         },
         "validation": {
@@ -678,6 +697,10 @@
             "receiverRequired": "Receiver Required",
             "productNameRequired": "Product Name Required",
             "priceRequired": "Price Required",
+            "costPriceRequired": "Cost price is required",
+            "costPriceMin": "Cost price cannot be negative",
+            "salePriceRequired": "Sale price is required",
+            "salePriceMin": "Sale price cannot be negative",
             "skuRequired": "SKU Required",
             "stockRequired": "Stock is required",
             "stockNumber": "Stock must be a number",
@@ -742,7 +765,10 @@
                 "general": "General",
                 "generalDesc": "Basic info, like your name and address that will be displayed in public",
                 "preferences": "Preferences",
-                "preferencesDesc": "Your personalized preferences displayed in your account"
+                "preferencesDesc": "Your personalized preferences displayed in your account",
+                "updateFailed": "We couldn't update your profile.",
+                "emailTaken": "Another account is already using that email.",
+                "invalidAvatarType": "Please upload a valid image file (JPG, PNG, GIF, or WEBP)."
             },
             "billing": {
                 "paymentMethod": "Payment Method",
@@ -824,6 +850,11 @@
                 "security": "Security",
                 "account": "Account changes"
             }
+        }
+    },
+    "users": {
+        "validation": {
+            "duplicateEmail": "A user with that email already exists."
         }
     },
     "welcome": {
@@ -930,7 +961,7 @@
             "stat": {
                 "revenue": "Revenue",
                 "orders": "Orders",
-                "purchases": "Purchases",
+                "netIncome": "Net income",
                 "vsMonths": "vs. {{months}} months prior to {{date}}"
             },
             "categories": {
@@ -949,12 +980,10 @@
             "salesReport": {
                 "title": "Sales Report",
                 "export": "Export Report",
-                "salesLine": "Total sales",
+                "revenueLine": "Revenue",
+                "netIncomeLine": "Net income",
                 "empty": "No sales recorded for the selected period"
             }
-        },
-        "orders": {
-            "title": "Orders"
         },
         "orders": {
             "title": "Orders",
@@ -965,8 +994,23 @@
                 "single": "Order successfully deleted",
                 "batch": "{{count}} orders successfully deleted"
             },
-            "created": { "title": "Successfully created", "desc": "Order created successfully" },
-            "updated": { "title": "Updated successfully", "desc": "Order updated successfully" },
+            "created": {
+                "title": "Successfully created",
+                "desc": "Order created successfully"
+            },
+            "updated": {
+                "title": "Updated successfully",
+                "desc": "Order updated successfully"
+            },
+            "import": {
+                "fileRequired": "Select a CSV file to import.",
+                "emptyFile": "The uploaded file does not contain any rows."
+            },
+            "importSuccess": "Successfully imported {{imported}} orders.",
+            "importSuccessWithErrors": "{{imported}} orders imported. {{failed}} rows returned errors.",
+            "importError": "We couldn't import the orders.",
+            "importErrorRow": "Row {{row}}: {{message}}",
+            "importErrorMore": "{{count}} additional errors were omitted.",
             "validation": {
                 "customerRequired": "Customer is required",
                 "itemsRequired": "Please add at least one product",
@@ -998,20 +1042,36 @@
                 "cover": "Cover",
                 "setCover": "Set as cover"
             }
-        }
-        ,
+        },
         "productList": {
             "filter": {
                 "includedText": "Include text",
                 "keyword": "Search by name or code",
                 "productCategory": "Product category",
+                "currency": "Currency",
                 "publicationStatus": "Publication status",
                 "productStatus": "Stock"
             },
             "deleted": {
                 "title": "Successfully Deleted",
                 "desc": "Product successfully deleted"
-            }
+            },
+            "created": {
+                "title": "Product created",
+                "desc": "The product was added successfully."
+            },
+            "exportSuccess": "Product CSV generated successfully.",
+            "exportError": "Unable to generate the CSV file.",
+            "import": {
+                "fileRequired": "Select a CSV file to continue.",
+                "emptyFile": "The uploaded file does not contain any rows."
+            },
+            "importSuccess": "Products processed: {{imported}} (created: {{created}}, updated: {{updated}}).",
+            "importSuccessWithErrors": "Products processed: {{imported}} (created: {{created}}, updated: {{updated}}). Rows with errors: {{failed}}.",
+            "importError": "We couldn't import the products.",
+            "importErrorRow": "Row {{row}}: {{message}}",
+            "importErrorMore": "{{count}} additional errors were omitted.",
+            "createError": "Unable to create the product."
         },
         "orderDetails": {
             "activity": {
@@ -1073,7 +1133,6 @@
                 "plan": "Plan"
             }
         },
-        
         "leads": {
             "title": "Leads",
             "viewAll": "View All Leads"
@@ -1107,7 +1166,21 @@
             },
             "expensesReport": {
                 "title": "Expenses Report",
-                "export": "Export report"
+                "export": "Export report",
+                "empty": "No expenses recorded for the selected period"
+            },
+            "filters": {
+                "range": {
+                    "label": "Date range",
+                    "options": {
+                        "today": "Today",
+                        "thisWeek": "This week",
+                        "thisMonth": "This month",
+                        "last15Days": "Last 15 days",
+                        "thisYear": "This year",
+                        "custom": "Custom"
+                    }
+                }
             }
         },
         "latestExpenses": {
@@ -1189,71 +1262,204 @@
     "settings": {
         "productCategories": {
             "title": "Product Categories",
-            "columns": { "id": "ID", "name": "Name" },
-            "placeholders": { "id": "Category ID (e.g. devices)", "name": "Category name" },
-            "created": { "title": "Successfully created", "desc": "Category created successfully" },
-            "updated": { "title": "Updated successfully", "desc": "Category updated successfully" },
-            "deleted": { "title": "Successfully deleted", "desc": "Category deleted successfully" }
+            "columns": {
+                "id": "ID",
+                "name": "Name"
+            },
+            "placeholders": {
+                "id": "Category ID (e.g. devices)",
+                "name": "Category name"
+            },
+            "created": {
+                "title": "Successfully created",
+                "desc": "Category created successfully"
+            },
+            "updated": {
+                "title": "Updated successfully",
+                "desc": "Category updated successfully"
+            },
+            "deleted": {
+                "title": "Successfully deleted",
+                "desc": "Category deleted successfully"
+            }
         },
         "orderStatuses": {
             "title": "Order Statuses",
-            "columns": { "name": "Name" },
-            "placeholders": { "name": "Status name" },
-            "created": { "title": "Successfully created", "desc": "Status created successfully" },
-            "updated": { "title": "Updated successfully", "desc": "Status updated successfully" },
-            "deleted": { "title": "Successfully deleted", "desc": "Status deleted successfully" }
+            "columns": {
+                "name": "Name"
+            },
+            "placeholders": {
+                "name": "Status name"
+            },
+            "created": {
+                "title": "Successfully created",
+                "desc": "Status created successfully"
+            },
+            "updated": {
+                "title": "Updated successfully",
+                "desc": "Status updated successfully"
+            },
+            "deleted": {
+                "title": "Successfully deleted",
+                "desc": "Status deleted successfully"
+            }
         },
         "productStatuses": {
             "title": "Product Statuses",
-            "columns": { "name": "Name" },
-            "placeholders": { "name": "Status name" },
-            "created": { "title": "Successfully created", "desc": "Status created successfully" },
-            "updated": { "title": "Updated successfully", "desc": "Status updated successfully" },
-            "deleted": { "title": "Successfully deleted", "desc": "Status deleted successfully" }
+            "columns": {
+                "name": "Name"
+            },
+            "placeholders": {
+                "name": "Status name"
+            },
+            "created": {
+                "title": "Successfully created",
+                "desc": "Status created successfully"
+            },
+            "updated": {
+                "title": "Updated successfully",
+                "desc": "Status updated successfully"
+            },
+            "deleted": {
+                "title": "Successfully deleted",
+                "desc": "Status deleted successfully"
+            }
         },
         "customerStatuses": {
             "title": "Customer Statuses",
-            "columns": { "id": "ID", "name": "Name" },
-            "placeholders": { "id": "Status ID (e.g. active)", "name": "Status name" },
-            "created": { "title": "Successfully created", "desc": "Status created successfully" },
-            "updated": { "title": "Updated successfully", "desc": "Status updated successfully" },
-            "deleted": { "title": "Successfully deleted", "desc": "Status deleted successfully" }
+            "columns": {
+                "id": "ID",
+                "name": "Name",
+                "color": "Color"
+            },
+            "placeholders": {
+                "id": "Status ID (e.g. active)",
+                "name": "Status name"
+            },
+            "created": {
+                "title": "Successfully created",
+                "desc": "Status created successfully"
+            },
+            "updated": {
+                "title": "Updated successfully",
+                "desc": "Status updated successfully"
+            },
+            "deleted": {
+                "title": "Successfully deleted",
+                "desc": "Status deleted successfully"
+            }
         },
         "expenseStatuses": {
             "title": "Expense Statuses",
-            "columns": { "name": "Name" },
-            "placeholders": { "name": "Status name" },
-            "created": { "title": "Successfully created", "desc": "Status created successfully" },
-            "updated": { "title": "Updated successfully", "desc": "Status updated successfully" },
-            "deleted": { "title": "Successfully deleted", "desc": "Status deleted successfully" }
+            "columns": {
+                "name": "Name"
+            },
+            "placeholders": {
+                "name": "Status name"
+            },
+            "created": {
+                "title": "Successfully created",
+                "desc": "Status created successfully"
+            },
+            "updated": {
+                "title": "Updated successfully",
+                "desc": "Status updated successfully"
+            },
+            "deleted": {
+                "title": "Successfully deleted",
+                "desc": "Status deleted successfully"
+            }
         },
         "paymentMethods": {
             "title": "Payment Methods",
-            "columns": { "id": "ID", "name": "Name" },
-            "placeholders": { "id": "Method ID (e.g. cash)", "name": "Method name" },
-            "created": { "title": "Successfully created", "desc": "Payment method created successfully" },
-            "updated": { "title": "Updated successfully", "desc": "Payment method updated successfully" },
-            "deleted": { "title": "Successfully deleted", "desc": "Payment method deleted successfully" }
+            "columns": {
+                "id": "ID",
+                "name": "Name"
+            },
+            "placeholders": {
+                "id": "Method ID (e.g. cash)",
+                "name": "Method name"
+            },
+            "created": {
+                "title": "Successfully created",
+                "desc": "Payment method created successfully"
+            },
+            "updated": {
+                "title": "Updated successfully",
+                "desc": "Payment method updated successfully"
+            },
+            "deleted": {
+                "title": "Successfully deleted",
+                "desc": "Payment method deleted successfully"
+            }
+        },
+        "shippingOptions": {
+            "title": "Shipping Options",
+            "columns": {
+                "image": "Image",
+                "name": "Name",
+                "deliveryFees": "Delivery fee",
+                "estimatedMin": "Min days",
+                "estimatedMax": "Max days"
+            },
+            "placeholders": {
+                "name": "Carrier name",
+                "deliveryFees": "Fee (e.g. 12.50)",
+                "estimatedMin": "Min days",
+                "estimatedMax": "Max days",
+                "img": "Image URL"
+            },
+            "created": {
+                "title": "Shipping option created",
+                "desc": "The shipping option was added successfully."
+            },
+            "updated": {
+                "title": "Shipping option updated",
+                "desc": "The shipping option was updated successfully."
+            },
+            "deleted": {
+                "title": "Shipping option removed",
+                "desc": "The shipping option was deleted successfully."
+            },
+            "errors": {
+                "invalidImageType": "Unsupported file type. Please upload a JPG, PNG, WEBP, GIF, or SVG image."
+            }
         },
         "systemConfig": {
             "title": "System configuration",
             "desc": "Define the global values used across sales calculations.",
             "taxRateLabel": "Tax (%)",
-            "updated": { "title": "Successfully updated", "desc": "Configuration saved" },
+            "updated": {
+                "title": "Successfully updated",
+                "desc": "Configuration saved"
+            },
             "currency": {
                 "title": "Allowed currencies",
                 "desc": "Manage the list of currency codes that can be used across products and orders.",
                 "placeholder": "E.g. USD",
-                "columns": { "code": "Currency" },
-                "actions": { "add": "Add currency" },
+                "columns": {
+                    "code": "Currency"
+                },
+                "actions": {
+                    "add": "Add currency"
+                },
                 "empty": "No currencies configured yet.",
                 "validation": {
                     "format": "Currency must use 3–5 uppercase letters (e.g. USD).",
                     "duplicate": "Currency already exists."
                 },
-                "created": { "title": "Currency added", "desc": "The currency was added successfully." },
-                "updated": { "title": "Currency updated", "desc": "The currency was updated successfully." },
-                "deleted": { "title": "Currency removed", "desc": "The currency was deleted successfully." }
+                "created": {
+                    "title": "Currency added",
+                    "desc": "The currency was added successfully."
+                },
+                "updated": {
+                    "title": "Currency updated",
+                    "desc": "The currency was updated successfully."
+                },
+                "deleted": {
+                    "title": "Currency removed",
+                    "desc": "The currency was deleted successfully."
+                }
             }
         },
         "calendarEventTypes": {

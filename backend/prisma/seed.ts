@@ -62,6 +62,43 @@ async function main() {
     })
   }
 
+  // Shipping options
+  const shippingOptions = [
+    {
+      name: 'FedEx',
+      deliveryFees: 18.5,
+      estimatedMin: 2,
+      estimatedMax: 5,
+      img: '/img/shipping/fedex.png',
+    },
+    {
+      name: 'DHL',
+      deliveryFees: 22,
+      estimatedMin: 3,
+      estimatedMax: 6,
+      img: '/img/shipping/dhl.png',
+    },
+    {
+      name: 'UPS',
+      deliveryFees: 16,
+      estimatedMin: 4,
+      estimatedMax: 7,
+      img: '/img/shipping/ups.png',
+    },
+  ]
+  for (const option of shippingOptions) {
+    await prisma.shippingOption.upsert({
+      where: { name: option.name },
+      update: {
+        deliveryFees: option.deliveryFees,
+        estimatedMin: option.estimatedMin,
+        estimatedMax: option.estimatedMax,
+        img: option.img,
+      },
+      create: option,
+    })
+  }
+
   // Product categories
   const categories = ['devices', 'bags', 'shoes', 'watches', 'cloths']
   for (const c of categories) {
@@ -207,25 +244,41 @@ async function main() {
   }
 
   // Products
+  const markup = 1.3
+  const roundCurrency = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100
   const prods = [
-    { name: 'Alpha Phone', category: 'devices', price: 699, stock: 30, status: 0, img: '/img/products/product-1.jpg' },
-    { name: 'Beta Laptop', category: 'devices', price: 1199, stock: 20, status: 0, img: '/img/products/product-2.jpg' },
-    { name: 'Gamma Watch', category: 'watches', price: 199, stock: 42, status: 1, img: '/img/products/product-3.jpg' },
-    { name: 'Delta Shoes', category: 'shoes', price: 89, stock: 60, status: 0, img: '/img/products/product-4.jpg' },
-    { name: 'Epsilon Backpack', category: 'bags', price: 49, stock: 80, status: 0, img: '/img/products/product-5.jpg' },
+    { name: 'Alpha Phone', category: 'devices', salePrice: 699, stock: 30, status: 0, img: '/img/products/product-1.jpg' },
+    { name: 'Beta Laptop', category: 'devices', salePrice: 1199, stock: 20, status: 0, img: '/img/products/product-2.jpg' },
+    { name: 'Gamma Watch', category: 'watches', salePrice: 199, stock: 42, status: 1, img: '/img/products/product-3.jpg' },
+    { name: 'Delta Shoes', category: 'shoes', salePrice: 89, stock: 60, status: 0, img: '/img/products/product-4.jpg' },
+    { name: 'Epsilon Backpack', category: 'bags', salePrice: 49, stock: 80, status: 0, img: '/img/products/product-5.jpg' },
   ]
   const categoriesMap = new Map<string, number>()
   const catsDb = await prisma.productCategory.findMany()
   catsDb.forEach((c) => categoriesMap.set(c.name, c.id))
   for (const p of prods) {
     const found = await prisma.product.findFirst({ where: { name: p.name } })
+    const costPrice = roundCurrency(p.salePrice / markup)
     if (found) {
-      await prisma.product.update({ where: { id: found.id }, data: { price: p.price, stock: p.stock, status: p.status, img: p.img, categoryId: categoriesMap.get(p.category) } })
+      await prisma.product.update({
+        where: { id: found.id },
+        data: {
+          salePrice: p.salePrice,
+          costPrice,
+          stock: p.stock,
+          status: p.status,
+          img: p.img,
+          categoryId: categoriesMap.get(p.category),
+          costPerItem: costPrice,
+        },
+      })
     } else {
       await prisma.product.create({
         data: {
           name: p.name,
-          price: p.price,
+          salePrice: p.salePrice,
+          costPrice,
+          costPerItem: costPrice,
           stock: p.stock,
           status: p.status,
           img: p.img,
@@ -329,7 +382,16 @@ async function main() {
     const items = dbProducts
       .sort(() => 0.5 - Math.random())
       .slice(0, 3)
-      .map((p) => ({ productId: p.id, name: p.name, price: p.price, qty: 1 + Math.floor(Math.random() * 3), img: p.img }))
+      .map((p) => {
+        const salePrice = Number(p.salePrice ?? 0)
+        return {
+          productId: p.id,
+          name: p.name,
+          price: salePrice,
+          qty: 1 + Math.floor(Math.random() * 3),
+          img: p.img,
+        }
+      })
     const subTotal = items.reduce((s, it) => s + it.price * it.qty, 0)
     const delivery = Math.round(Math.random() * 15 * 100) / 100
     const tax = Math.round(subTotal * 0.06 * 100) / 100

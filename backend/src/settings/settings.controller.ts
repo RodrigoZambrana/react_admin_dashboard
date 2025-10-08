@@ -1,7 +1,40 @@
-import { Body, Controller, Delete, Get, Post, Put, UseGuards, Query, BadRequestException, Param } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Post,
+  Put,
+  UseGuards,
+  Query,
+  BadRequestException,
+  Param,
+  Request,
+} from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Prisma } from '@prisma/client'
+
+type ThemeConfigPayload = {
+  themeColor: string
+  direction: 'ltr' | 'rtl'
+  mode: 'light' | 'dark'
+  primaryColorLevel: number
+  panelExpand: boolean
+  navMode: 'transparent' | 'light' | 'dark' | 'themed'
+  cardBordered: boolean
+  layout: {
+    type: 'classic' | 'modern' | 'stackedSide' | 'simple' | 'decked' | 'blank'
+    sideNavCollapse: boolean
+  }
+}
+import type { FastifyRequest } from 'fastify'
+import { parseSingleFileMultipart } from '../common/uploads/multipart'
+import {
+  normalizeShippingLogoPath,
+  persistShippingLogo,
+  deleteShippingLogo,
+} from '../common/uploads/shipping'
 
 @UseGuards(JwtAuthGuard)
 @Controller('settings')
@@ -14,6 +47,87 @@ export class SettingsController {
     { name: 'Taller', color: '#7c3aed' },
     { name: 'Otro', color: '#6b7280' },
   ]
+
+  private readonly defaultThemeConfig: ThemeConfigPayload = {
+    themeColor: 'indigo',
+    direction: 'ltr',
+    mode: 'light',
+    primaryColorLevel: 600,
+    panelExpand: false,
+    navMode: 'light',
+    cardBordered: true,
+    layout: {
+      type: 'modern',
+      sideNavCollapse: false,
+    },
+  }
+
+  private sanitizeThemeConfig(payload: Partial<ThemeConfigPayload>): ThemeConfigPayload {
+    const allowedDirections: ThemeConfigPayload['direction'][] = ['ltr', 'rtl']
+    const allowedModes: ThemeConfigPayload['mode'][] = ['light', 'dark']
+    const allowedNavModes: ThemeConfigPayload['navMode'][] = [
+      'transparent',
+      'light',
+      'dark',
+      'themed',
+    ]
+    const allowedLayouts: ThemeConfigPayload['layout']['type'][] = [
+      'classic',
+      'modern',
+      'stackedSide',
+      'simple',
+      'decked',
+      'blank',
+    ]
+    const allowedColorLevels = [400, 500, 600, 700, 800, 900]
+
+    const next: ThemeConfigPayload = {
+      ...this.defaultThemeConfig,
+      ...payload,
+      layout: {
+        ...this.defaultThemeConfig.layout,
+        ...(payload.layout ?? {}),
+      },
+    }
+
+    const trimmedColor = String(payload.themeColor ?? next.themeColor).trim()
+    next.themeColor = trimmedColor || this.defaultThemeConfig.themeColor
+
+    if (!allowedDirections.includes(next.direction)) {
+      next.direction = this.defaultThemeConfig.direction
+    }
+
+    if (!allowedModes.includes(next.mode)) {
+      next.mode = this.defaultThemeConfig.mode
+    }
+
+    if (!allowedNavModes.includes(next.navMode)) {
+      next.navMode = this.defaultThemeConfig.navMode
+    }
+
+    const requestedLevel = Number(payload.primaryColorLevel ?? next.primaryColorLevel)
+    next.primaryColorLevel = allowedColorLevels.includes(requestedLevel)
+      ? (requestedLevel as ThemeConfigPayload['primaryColorLevel'])
+      : this.defaultThemeConfig.primaryColorLevel
+
+    if (!allowedLayouts.includes(next.layout.type)) {
+      next.layout.type = this.defaultThemeConfig.layout.type
+    }
+
+    if (payload.panelExpand !== undefined) {
+      next.panelExpand = Boolean(payload.panelExpand)
+    }
+
+    if (payload.cardBordered !== undefined) {
+      next.cardBordered = Boolean(payload.cardBordered)
+    }
+
+    if (payload.layout?.sideNavCollapse !== undefined) {
+      next.layout.sideNavCollapse = Boolean(payload.layout.sideNavCollapse)
+    }
+
+    return next
+  }
 
   private normalizeCurrency(code?: unknown) {
     if (!code) return null
@@ -51,6 +165,19 @@ export class SettingsController {
       create: { key: 'currencies', value: JSON.stringify(unique) },
     })
     return unique
+  }
+
+  private parseNumber(value: unknown, fallback: number) {
+    if (value === null || value === undefined || value === '') {
+      return fallback
+    }
+    const num = Number(value)
+    return Number.isFinite(num) ? num : fallback
+  }
+
+  private parseInteger(value: unknown, fallback: number) {
+    const num = this.parseNumber(value, fallback)
+    return Math.round(num)
   }
 
   private normalizeColor(value?: string | null) {
@@ -204,6 +331,116 @@ export class SettingsController {
     return true
   }
 
+  // Shipping Options
+  @Get('shipping-options')
+  getShippingOptions() {
+    return this.prisma.shippingOption.findMany({ orderBy: { id: 'asc' } })
+  }
+
+  @Post('shipping-options/create')
+  async createShippingOption(@Request() req: FastifyRequest) {
+    const { fields, file } = await parseSingleFileMultipart(req)
+
+    const name = String(fields.name ?? '').trim()
+    if (!name) {
+      throw new BadRequestException('Name is required')
+    }
+    const deliveryFees = this.parseNumber(fields.deliveryFees, 0)
+    const estimatedMin = this.parseInteger(fields.estimatedMin, 0)
+    const estimatedMax = this.parseInteger(fields.estimatedMax, estimatedMin)
+
+    let img = normalizeShippingLogoPath(fields.img)
+    if (file) {
+      img = await persistShippingLogo(file)
+    }
+
+    await this.prisma.shippingOption.create({
+      data: {
+        name,
+        deliveryFees,
+        estimatedMin,
+        estimatedMax,
+        img: img ?? undefined,
+      },
+    })
+    return true
+  }
+
+  @Put('shipping-options/update')
+  async updateShippingOption(@Request() req: FastifyRequest) {
+    const { fields, file } = await parseSingleFileMultipart(req)
+
+    const id = Number(fields.id)
+    if (!Number.isFinite(id)) {
+      throw new BadRequestException('Invalid shipping option id')
+    }
+
+    const existing = await this.prisma.shippingOption.findUnique({
+      where: { id },
+      select: { img: true, estimatedMin: true },
+    })
+
+    if (!existing) {
+      throw new BadRequestException('Invalid shipping option id')
+    }
+
+    const data: Prisma.ShippingOptionUpdateInput = {}
+
+    if (fields.name !== undefined) {
+      const name = String(fields.name ?? '').trim()
+      if (!name) {
+        throw new BadRequestException('Name is required')
+      }
+      data.name = name
+    }
+
+    if (fields.deliveryFees !== undefined) {
+      data.deliveryFees = this.parseNumber(fields.deliveryFees, 0)
+    }
+
+    let estimatedMinUpdate: number | undefined
+
+    if (fields.estimatedMin !== undefined) {
+      estimatedMinUpdate = this.parseInteger(fields.estimatedMin, 0)
+      data.estimatedMin = estimatedMinUpdate
+    }
+
+    if (fields.estimatedMax !== undefined) {
+      const fallback =
+        typeof estimatedMinUpdate === 'number'
+          ? estimatedMinUpdate
+          : existing.estimatedMin ?? 0
+      data.estimatedMax = this.parseInteger(fields.estimatedMax, fallback)
+    }
+
+    if (file) {
+      data.img = await persistShippingLogo(file, existing.img)
+    } else if (fields.img !== undefined) {
+      data.img = normalizeShippingLogoPath(fields.img) ?? null
+    }
+
+    await this.prisma.shippingOption.update({ where: { id }, data })
+    return true
+  }
+
+  @Delete('shipping-options/delete')
+  async deleteShippingOption(@Body() body: { id: number | string }) {
+    const id = Number(body.id)
+    if (!Number.isFinite(id)) {
+      throw new BadRequestException('Invalid shipping option id')
+    }
+    const existing = await this.prisma.shippingOption.findUnique({
+      where: { id },
+      select: { img: true },
+    })
+    if (!existing) {
+      throw new BadRequestException('Invalid shipping option id')
+    }
+    await this.prisma.shippingOption.delete({ where: { id } })
+    await deleteShippingLogo(existing.img)
+    return true
+  }
+
   // System Config
   @Get('system-config')
   async getSystemConfig() {
@@ -229,6 +466,34 @@ export class SettingsController {
       }
     }
     return true
+  }
+
+  @Get('theme-config')
+  async getThemeConfig() {
+    const record = await this.prisma.systemConfig.findUnique({ where: { key: 'themeConfig' } })
+    if (!record) {
+      return this.defaultThemeConfig
+    }
+
+    try {
+      const parsed = JSON.parse(record.value)
+      return this.sanitizeThemeConfig(parsed)
+    } catch (error) {
+      return this.defaultThemeConfig
+    }
+  }
+
+  @Put('theme-config')
+  async updateThemeConfig(@Body() body: Partial<ThemeConfigPayload>) {
+    const sanitized = this.sanitizeThemeConfig(body)
+
+    await this.prisma.systemConfig.upsert({
+      where: { key: 'themeConfig' },
+      update: { value: JSON.stringify(sanitized) },
+      create: { key: 'themeConfig', value: JSON.stringify(sanitized) },
+    })
+
+    return sanitized
   }
 
   @Get('system-config/currencies')
