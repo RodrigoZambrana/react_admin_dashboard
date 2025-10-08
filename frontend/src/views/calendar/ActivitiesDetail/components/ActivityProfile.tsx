@@ -138,36 +138,40 @@ const ActivityProfile = ({ data = {}, onEdit }: ActivityProfileProps) => {
     }, [data.eventType, data.role, t])
 
     const location = data.personalInfo?.location
-    const structuredAddress = useMemo(() => {
+    const addressLines = useMemo(() => {
         if (!data.address) {
-            return ''
+            return []
         }
-        const streetLine = [data.address.street, data.address.number]
-            .filter((value) => value && String(value).trim().length)
+        const streetParts = [data.address.street, data.address.number]
+            .map((value) => (value ? String(value).trim() : ''))
+            .filter((value) => value.length)
+        const apartment = data.address.apartment ? String(data.address.apartment).trim() : ''
+        const streetLine = [streetParts.join(' '), apartment ? `Apt ${apartment}` : '']
+            .filter((value) => value.length)
             .join(' ')
+            .trim()
         const cornerLine = data.address.corner
-            ? t('calendar.address.cornerFormat', {
-                  defaultValue: 'esq. {{corner}}',
+            ? t('text.labels.cornerFormat', {
+                  defaultValue: `esquina ${data.address.corner}`,
                   corner: data.address.corner,
               })
             : ''
         const locality = [data.address.city, data.address.country]
-            .filter((value) => value && String(value).trim().length)
+            .map((value) => (value ? String(value).trim() : ''))
+            .filter((value) => value.length)
             .join(', ')
-        return [streetLine, cornerLine, locality]
-            .filter((value) => value && value.trim().length)
-            .join(', ')
+        return [streetLine, cornerLine, locality].filter((value) => value && value.trim().length)
     }, [data.address, t])
 
     const locationSegments = useMemo(() => {
-        if (structuredAddress) {
-            return [structuredAddress.trim()]
+        if (addressLines.length) {
+            return addressLines
         }
         if (location && location.trim().length) {
             return [location.trim()]
         }
         return []
-    }, [location, structuredAddress])
+    }, [addressLines, location])
 
     const locationTileValue = useMemo(() => {
         if (!locationSegments.length) {

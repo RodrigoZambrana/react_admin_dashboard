@@ -16,11 +16,14 @@ import {
     PROFILE_UPDATE,
     SECURITY_ALERT,
 } from '../constants'
-import useResponsive from '@/utils/hooks/useResponsive'
 import type { CommonProps } from '@/@types/common'
 import { useTranslation } from 'react-i18next'
 
 type CategoryTitleProps = CommonProps
+
+type LogFilterProps = {
+    sticky?: boolean
+}
 
 const CategoryTitle = ({ children, className }: CategoryTitleProps) => {
     return (
@@ -35,7 +38,7 @@ const CategoryTitle = ({ children, className }: CategoryTitleProps) => {
     )
 }
 
-const LogFilter = () => {
+const LogFilter = ({ sticky = false }: LogFilterProps) => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
     const selectedType = useAppSelector(
@@ -55,8 +58,6 @@ const LogFilter = () => {
         },
         [dispatch, activityIndex],
     )
-
-    const { larger } = useResponsive()
 
     const securityCheckboxes = useMemo(
         () => [
@@ -102,7 +103,7 @@ const LogFilter = () => {
 
     const renderLogFilterContent = () => {
         return (
-            <>
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-600 dark:bg-gray-800">
                 <h5 className="mb-4">{t('text.titles.filterActivity')}</h5>
                 <Checkbox.Group
                     vertical
@@ -140,21 +141,14 @@ const LogFilter = () => {
                         </Checkbox>
                     ))}
                 </Checkbox.Group>
-            </>
+            </div>
         )
     }
 
-    return (
-        <div>
-            {larger.md ? (
-                <Affix className="hidden lg:block" offset={80}>
-                    {renderLogFilterContent()}
-                </Affix>
-            ) : (
-                renderLogFilterContent()
-            )}
-        </div>
-    )
+    if (sticky) {
+        return <Affix offset={80}>{renderLogFilterContent()}</Affix>
+    }
+    return renderLogFilterContent()
 }
 
 export default LogFilter

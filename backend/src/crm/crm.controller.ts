@@ -53,6 +53,54 @@ export class CrmController {
     }))
   }
 
+  private extractUniqueConstraintTargets(error: Prisma.PrismaClientKnownRequestError) {
+    const target = error.meta?.target
+    if (Array.isArray(target)) {
+      return target
+        .map((value) => (value ? value.toString() : ''))
+        .filter((value) => value.length > 0)
+    }
+    if (typeof target === 'string' && target.trim().length > 0) {
+      return [target.trim()]
+    }
+    return []
+  }
+
+  private throwCustomerUniqueConstraint(error: Prisma.PrismaClientKnownRequestError): never {
+    const targets = this.extractUniqueConstraintTargets(error).map((value) =>
+      value.toLowerCase(),
+    )
+    const errors: Array<{ field: string; message: string; key: string }> = []
+
+    if (targets.some((target) => target.includes('email'))) {
+      errors.push({
+        field: 'email',
+        key: 'text.messages.customerEmailTaken',
+        message: 'Ya existe un cliente con este correo electrónico.',
+      })
+    }
+    if (targets.some((target) => target.includes('phone'))) {
+      errors.push({
+        field: 'phoneNumber',
+        key: 'text.messages.customerPhoneTaken',
+        message: 'Ya existe un cliente con este número de teléfono.',
+      })
+    }
+
+    const messageKey =
+      errors.length === 1
+        ? errors[0].key
+        : errors.length > 1
+        ? 'text.messages.customerEmailAndPhoneTaken'
+        : 'text.messages.customerDuplicate'
+
+    const response: Record<string, unknown> = { message: messageKey }
+    if (errors.length) {
+      response.errors = errors
+    }
+    throw new BadRequestException(response)
+  }
+
   @Get('dashboard')
   async dashboard() {
     const totalCustomers = await this.prisma.customer.count()
@@ -83,10 +131,22 @@ export class CrmController {
   async listCustomers(@Body() dto: TableQueryDto) {
     const where: any = {}
 
-    if (dto.query) {
+    const rawQuery = typeof dto.query === 'string' ? dto.query.trim() : ''
+    if (rawQuery) {
       where.OR = [
-        { name: { contains: dto.query, mode: 'insensitive' as any } },
-        { email: { contains: dto.query, mode: 'insensitive' as any } },
+        { name: { contains: rawQuery, mode: 'insensitive' as any } },
+        { email: { contains: rawQuery, mode: 'insensitive' as any } },
+        { phoneNumber: { contains: rawQuery, mode: 'insensitive' as any } },
+        {
+          phones: {
+            some: {
+              phone: {
+                contains: rawQuery,
+                mode: 'insensitive' as any,
+              },
+            },
+          },
+        },
       ]
     }
 
@@ -125,6 +185,9 @@ export class CrmController {
           break
         case 'email':
           orderBy.push({ email: sortOrder })
+          break
+        case 'phoneNumber':
+          orderBy.push({ phoneNumber: sortOrder })
           break
         case 'status':
           orderBy.push({ status: { name: sortOrder } })
@@ -251,28 +314,38 @@ export class CrmController {
     }
 
     let customer
-    if (id) {
-      customer = await this.prisma.customer.update({
-        where: { id },
-        data,
-      })
-    } else {
-      if (data.statusId === undefined) {
-        const activeStatus = await this.prisma.customerStatus.upsert({
-          where: {
-            name: 'Active',
-          },
-          update: {},
-          create: {
-            name: 'Active',
-            color: '#10B981',
-          },
+    try {
+      if (id) {
+        customer = await this.prisma.customer.update({
+          where: { id },
+          data,
         })
-        data.statusId = activeStatus.id
+      } else {
+        if (data.statusId === undefined) {
+          const activeStatus = await this.prisma.customerStatus.upsert({
+            where: {
+              name: 'Active',
+            },
+            update: {},
+            create: {
+              name: 'Active',
+              color: '#10B981',
+            },
+          })
+          data.statusId = activeStatus.id
+        }
+        customer = await this.prisma.customer.create({
+          data,
+        })
       }
-      customer = await this.prisma.customer.create({
-        data,
-      })
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        this.throwCustomerUniqueConstraint(error)
+      }
+      throw error
     }
 
     const customerId = customer.id
@@ -291,13 +364,22 @@ export class CrmController {
 
       if (body.address) {
         const addr = body.address || {}
+        const normalizeNullable = (value: unknown) => {
+          if (value === undefined || value === null) {
+            return null
+          }
+          const stringified = String(value).trim()
+          return stringified.length > 0 ? stringified : null
+        }
+
         const addressData = {
-          street: String(addr.street || ''),
-          number: String(addr.number || ''),
-          corner: addr.corner ? String(addr.corner) : null,
-          apartment: addr.apartment ? String(addr.apartment) : null,
-          city: String(addr.city || ''),
-          country: String(addr.country || ''),
+          street: String(addr.street || '').trim(),
+          number: String(addr.number || '').trim(),
+          corner: normalizeNullable(addr.corner),
+          apartment: normalizeNullable(addr.apartment),
+          city: String(addr.city || '').trim(),
+          country: String(addr.country || '').trim(),
+          comments: normalizeNullable(addr.comments),
           isPrimary: true,
         }
 
@@ -446,15 +528,22 @@ export class CrmController {
   @Post('customer-addresses')
   async createAddress(@Body() body: any) {
     const cid = Number(body.customerId)
+    const normalizeNullable = (value: unknown) => {
+      if (value === undefined || value === null) return null
+      const stringified = String(value).trim()
+      return stringified.length ? stringified : null
+    }
+    const trimOrEmpty = (value: unknown) => String(value ?? '').trim()
     const created = await this.prisma.customerAddress.create({
       data: {
         customerId: cid,
-        street: body.street,
-        number: String(body.number || ''),
-        corner: body.corner,
-        apartment: body.apartment,
-        city: body.city,
-        country: body.country,
+        street: trimOrEmpty(body.street),
+        number: trimOrEmpty(body.number),
+        corner: normalizeNullable(body.corner),
+        apartment: normalizeNullable(body.apartment),
+        city: trimOrEmpty(body.city),
+        country: trimOrEmpty(body.country),
+        comments: normalizeNullable(body.comments),
         isPrimary: Boolean(body.isPrimary),
       },
     })
@@ -467,15 +556,22 @@ export class CrmController {
   @Put('customer-addresses/:id')
   async updateAddress(@Query('id') _id: string, @Body() body: any) {
     const id = Number((_id || body.id))
+    const normalizeNullable = (value: unknown) => {
+      if (value === undefined || value === null) return null
+      const stringified = String(value).trim()
+      return stringified.length ? stringified : null
+    }
+    const trimOrEmpty = (value: unknown) => String(value ?? '').trim()
     const updated = await this.prisma.customerAddress.update({
       where: { id },
       data: {
-        street: body.street,
-        number: String(body.number || ''),
-        corner: body.corner,
-        apartment: body.apartment,
-        city: body.city,
-        country: body.country,
+        street: trimOrEmpty(body.street),
+        number: trimOrEmpty(body.number),
+        corner: normalizeNullable(body.corner),
+        apartment: normalizeNullable(body.apartment),
+        city: trimOrEmpty(body.city),
+        country: trimOrEmpty(body.country),
+        comments: normalizeNullable(body.comments),
         isPrimary: body.isPrimary,
       },
     })

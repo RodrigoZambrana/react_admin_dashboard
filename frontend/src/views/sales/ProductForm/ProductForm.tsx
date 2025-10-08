@@ -31,10 +31,10 @@ type InitialData = {
         img: string
     }[]
     categoryId?: number | null
-    price?: number
+    costPrice?: number
+    salePrice?: number
     stock?: number
     status?: number
-    costPerItem?: number
     bulkDiscountPrice?: number
     tags?: string[]
     brand?: string
@@ -67,7 +67,14 @@ type ProductForm = {
 const validationSchema = (t: (k: string) => string) =>
     Yup.object().shape({
         name: Yup.string().required(t('text.validation.productNameRequired')),
-        price: Yup.number().typeError(t('text.validation.priceRequired')).required(t('text.validation.priceRequired')),
+        costPrice: Yup.number()
+            .typeError(t('text.validation.costPriceRequired'))
+            .required(t('text.validation.costPriceRequired'))
+            .min(0, t('text.validation.costPriceMin')), 
+        salePrice: Yup.number()
+            .typeError(t('text.validation.salePriceRequired'))
+            .required(t('text.validation.salePriceRequired'))
+            .min(0, t('text.validation.salePriceMin')),
         stock: Yup.number()
             .typeError(t('text.validation.stockNumber') || 'Stock must be a number')
             .required(t('text.validation.stockRequired') || 'Stock is required')
@@ -132,10 +139,10 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
             img: '',
             imgList: [],
             categoryId: null,
-            price: 0,
+            costPrice: 0,
+            salePrice: 0,
             stock: 0,
             status: 0,
-            costPerItem: 0,
             bulkDiscountPrice: 0,
             tags: [],
             brand: '',
@@ -182,7 +189,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                     })
                     formData.currency = ((formData.currency || 'UYU') as string).toUpperCase()
                     // Normalize numeric fields to numbers
-                    ;(['price', 'stock', 'status', 'costPerItem', 'bulkDiscountPrice', 'categoryId'] as const).forEach((k) => {
+                    ;(['salePrice', 'costPrice', 'stock', 'status', 'bulkDiscountPrice', 'categoryId'] as const).forEach((k) => {
                         const v: any = (formData as any)[k]
                         if (v !== undefined && v !== null && v !== '') {
                             ;(formData as any)[k] = Number(v)

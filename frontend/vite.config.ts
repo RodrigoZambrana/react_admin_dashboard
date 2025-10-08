@@ -26,6 +26,10 @@ export default defineConfig({
         changeOrigin: true,
         // if backend sits behind another path, add rewrite here
       },
+      '/uploads': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+      },
     },
   },
   build: {

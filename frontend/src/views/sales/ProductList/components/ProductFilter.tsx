@@ -1,11 +1,11 @@
-import { useState, useRef, forwardRef } from 'react'
+import { useState, useRef, forwardRef, useMemo } from 'react'
 import { HiOutlineFilter, HiOutlineSearch } from 'react-icons/hi'
 import {
     getProducts,
     setFilterData,
-    initialTableData,
     useAppDispatch,
     useAppSelector,
+    setTableData,
 } from '../store'
 import { FormItem, FormContainer } from '@/components/ui/Form'
 import Input from '@/components/ui/Input'
@@ -22,6 +22,7 @@ type FormModel = {
     category: string[]
     status: number[]
     productStatus: number
+    currency: string[]
 }
 
 type FilterFormProps = {
@@ -41,18 +42,78 @@ const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
         const filterData = useAppSelector(
             (state) => state.salesProductList.data.filterData,
         )
+        const tableData = useAppSelector(
+            (state) => state.salesProductList.data.tableData,
+        )
+        const availableCurrencies = useAppSelector(
+            (state) => state.currency.available,
+        )
+
+        const currencyOptions = useMemo(
+            () =>
+                (Array.isArray(availableCurrencies) && availableCurrencies.length
+                    ? availableCurrencies
+                    : ['UYU', 'USD']
+                )
+                    .map((item) => String(item || '').trim().toUpperCase())
+                    .filter(
+                        (item, index, arr) =>
+                            item && /^[A-Z]{3,5}$/.test(item) && arr.indexOf(item) === index,
+                    ),
+            [availableCurrencies],
+        )
+
+        const sanitizeCurrencySelection = (list: unknown): string[] =>
+            Array.isArray(list)
+                ? Array.from(
+                      new Set(
+                          list
+                              .map((item) => String(item || '').trim().toUpperCase())
+                              .filter((item) => /^[A-Z]{3,5}$/.test(item)),
+                      ),
+                  )
+                : []
+
+        const formInitialValues: FormModel = {
+            name: filterData?.name ?? '',
+            category: Array.isArray(filterData?.category)
+                ? filterData.category
+                : ['bags', 'cloths', 'devices', 'shoes', 'watches'],
+            status: Array.isArray(filterData?.status)
+                ? filterData.status
+                : [0, 1, 2],
+            productStatus:
+                typeof filterData?.productStatus === 'number'
+                    ? filterData.productStatus
+                    : 0,
+            currency: sanitizeCurrencySelection(filterData?.currency),
+        }
 
         const handleSubmit = (values: FormModel) => {
             onSubmitComplete?.()
-            dispatch(setFilterData(values))
-            dispatch(getProducts(initialTableData))
+            const nextFilterData: FormModel = {
+                ...values,
+                currency: sanitizeCurrencySelection(values.currency),
+            }
+            dispatch(setFilterData(nextFilterData))
+            const nextTableData = {
+                ...tableData,
+                pageIndex: 1,
+            }
+            dispatch(setTableData(nextTableData))
+            dispatch(
+                getProducts({
+                    ...nextTableData,
+                    filterData: nextFilterData,
+                }),
+            )
         }
 
         return (
             <Formik
                 enableReinitialize
                 innerRef={ref}
-                initialValues={filterData}
+                initialValues={formInitialValues}
                 onSubmit={(values) => {
                     handleSubmit(values)
                 }}
@@ -131,6 +192,39 @@ const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
                                             </Checkbox.Group>
                                         </>
                                     )}
+                                </Field>
+                            </FormItem>
+                            <FormItem
+                                invalid={errors.currency && touched.currency}
+                                errorMessage={errors.currency as string}
+                            >
+                                <h6 className="mb-4">{t('sales.productList.filter.currency')}</h6>
+                                <Field name="currency">
+                                    {({ field, form }: FieldProps) => {
+                                        const selectedCurrencies = Array.isArray(values.currency)
+                                            ? values.currency
+                                            : []
+                                        return (
+                                            <Checkbox.Group
+                                                vertical
+                                                value={selectedCurrencies}
+                                                onChange={(options) =>
+                                                    form.setFieldValue(field.name, options)
+                                                }
+                                            >
+                                                {currencyOptions.map((code) => (
+                                                    <Checkbox
+                                                        key={code}
+                                                        className="mb-3"
+                                                        name={field.name}
+                                                        value={code}
+                                                    >
+                                                        {code}
+                                                    </Checkbox>
+                                                ))}
+                                            </Checkbox.Group>
+                                        )
+                                    }}
                                 </Field>
                             </FormItem>
                             <FormItem

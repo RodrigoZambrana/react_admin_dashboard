@@ -13,6 +13,8 @@ import { NumericFormat } from 'react-number-format'
 import { CustomerOrder } from '../store'
 import { useSelector } from 'react-redux'
 import dayjs from 'dayjs'
+import { Link } from 'react-router-dom'
+import Button from '@/components/ui/Button'
 
 const { Tr, Th, Td, THead, TBody, Sorter } = Table
 
@@ -32,7 +34,14 @@ const columns = (t: (k: string) => string) => [
         header: t('text.columns.reference'),
         cell: (props) => {
             const row = props.row.original
-            return <span className="cursor-pointer">#{row.id}</span>
+            return (
+                <Link
+                    to={`/app/sales/order-details/${row.id}`}
+                    className="text-primary-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded-sm"
+                >
+                    #{row.id}
+                </Link>
+            )
         },
     }),
     columnHelper.accessor('status', {
@@ -71,6 +80,22 @@ const columns = (t: (k: string) => string) => [
                     prefix={'$'}
                     thousandSeparator
                 />
+            )
+        },
+    }),
+    columnHelper.display({
+        id: 'actions',
+        header: t('text.columns.actions'),
+        cell: (props) => {
+            const row = props.row.original
+            return (
+                <div className="flex justify-end">
+                    <Link to={`/app/sales/order-details/${row.id}`}>
+                        <Button size="xs" variant="twoTone">
+                            {t('text.actions.view')}
+                        </Button>
+                    </Link>
+                </div>
             )
         },
     }),

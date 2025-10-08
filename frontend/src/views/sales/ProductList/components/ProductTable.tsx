@@ -32,7 +32,8 @@ type Product = {
     productCode: string
     img: string
     category: string
-    price: number
+    salePrice: number
+    costPrice: number
     stock: number
     status: number
     published?: boolean
@@ -142,6 +143,15 @@ const ProductTable = () => {
     }
 
     const defaultCurrency = useAppSelector((state) => state.currency.code)
+
+    const formatCurrencyValue = useCallback(
+        (amount: number, currency?: string) => {
+            const numericAmount = Number.isFinite(amount) ? amount : 0
+            const code = (currency || defaultCurrency || '').toUpperCase()
+            return `${code} ${numericAmount.toFixed(2)}`
+        },
+        [defaultCurrency],
+    )
 
     const resolveStockStatus = useMemo(() => {
         const styles = {
@@ -277,16 +287,19 @@ const ProductTable = () => {
                 },
             },
             {
-                header: t('text.columns.price'),
-                accessorKey: 'price',
+                header: t('text.columns.costPrice'),
+                accessorKey: 'costPrice',
                 cell: (props) => {
-                    const { price, currency: rowCurrency } = props.row.original
-                    const label = rowCurrency || defaultCurrency
-                    return (
-                        <span>
-                            {label} {price}
-                        </span>
-                    )
+                    const { costPrice, currency: rowCurrency } = props.row.original
+                    return <span>{formatCurrencyValue(costPrice, rowCurrency)}</span>
+                },
+            },
+            {
+                header: t('text.columns.salePrice'),
+                accessorKey: 'salePrice',
+                cell: (props) => {
+                    const { salePrice, currency: rowCurrency } = props.row.original
+                    return <span>{formatCurrencyValue(salePrice, rowCurrency)}</span>
                 },
             },
             {
@@ -295,7 +308,7 @@ const ProductTable = () => {
                 cell: (props) => <ActionColumn row={props.row.original} />,
             },
         ],
-        [t, defaultCurrency, resolveStockStatus, updateProductRow],
+        [t, resolveStockStatus, updateProductRow, formatCurrencyValue],
     )
 
     const onPaginationChange = (page: number) => {

@@ -31,14 +31,16 @@ const mapExpenseRecord = (expense: any) => {
 
 export async function apiGetExpensesDashboardData<
     T extends Record<string, unknown>,
->() {
+    U extends Record<string, unknown>,
+>(data?: U) {
     const response = await ApiService.fetchData<T>({
         url: '/expenses/dashboard',
         method: 'post',
+        data,
     })
-    const data = response.data as any
-    if (data?.latestExpensesData && Array.isArray(data.latestExpensesData)) {
-        data.latestExpensesData = data.latestExpensesData.map(mapExpenseRecord)
+    const payload = response.data as any
+    if (payload?.latestExpensesData && Array.isArray(payload.latestExpensesData)) {
+        payload.latestExpensesData = payload.latestExpensesData.map(mapExpenseRecord)
     }
     return response
 }

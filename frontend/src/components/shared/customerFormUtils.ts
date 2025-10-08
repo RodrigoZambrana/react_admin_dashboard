@@ -49,6 +49,7 @@ export const composeCustomerPayload = (
             city: values.address.city,
             country: values.address.state,
             countryCode: values.address.countryCode,
+            comments: values.address.comments?.trim() || undefined,
         }
     }
 
@@ -98,6 +99,7 @@ export const normalizeCustomerForSuccess = (
                       country: formValues.address.state,
                       countryCode: formValues.address.countryCode,
                       isPrimary: true,
+                      comments: (formValues.address.comments || '').trim(),
                   },
               ]
             : (saved.addresses as unknown[]) || [],

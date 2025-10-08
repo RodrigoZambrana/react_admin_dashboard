@@ -17,10 +17,10 @@ type ProductData = {
     }[]
     category?: string
     categoryId?: number
-    price?: number
+    salePrice?: number
+    costPrice?: number
     stock?: number
     status?: number
-    costPerItem?: number
     bulkDiscountPrice?: number
     description?: string
     tags?: string[]
@@ -58,9 +58,9 @@ export const updateProduct = async <T, U extends Record<string, unknown>>(
     if (payload.id !== undefined) payload.id = Number(payload.id)
     // Normalize numeric fields if present
     const numericKeys = [
-        'price',
+        'salePrice',
+        'costPrice',
         'stock',
-        'costPerItem',
         'bulkDiscountPrice',
         'categoryId',
     ]
@@ -95,7 +95,12 @@ const productEditSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(getProduct.fulfilled, (state, action) => {
-                state.productData = action.payload
+                const payload = action.payload as ProductData
+                state.productData = {
+                    ...payload,
+                    salePrice: Number((payload as any).salePrice ?? (payload as any).price ?? 0),
+                    costPrice: Number((payload as any).costPrice ?? (payload as any).costPerItem ?? 0),
+                }
                 state.loading = false
             })
             .addCase(getProduct.pending, (state) => {

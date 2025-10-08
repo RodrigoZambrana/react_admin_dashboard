@@ -10,11 +10,23 @@ import {
   UseGuards,
   NotFoundException,
   Res,
+  BadRequestException,
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { PrismaService } from '../prisma/prisma.service'
 import { FastifyReply } from 'fastify'
+import { DashboardFilterDto } from './dto/dashboard.dto'
+
+type ExpenseSortKey =
+  | 'id'
+  | 'name'
+  | 'date'
+  | 'vendor'
+  | 'category'
+  | 'status'
+  | 'paymentMethod'
+  | 'amount'
 
 @UseGuards(JwtAuthGuard)
 @Controller('expenses')
@@ -161,6 +173,19 @@ export class ExpensesController {
     return parsed
   }
 
+  private startOfDay(date: Date) {
+    const d = new Date(date)
+    d.setHours(0, 0, 0, 0)
+    return d
+  }
+
+  private dayKey(date: Date) {
+    const year = date.getFullYear()
+    const month = `${date.getMonth() + 1}`.padStart(2, '0')
+    const day = `${date.getDate()}`.padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
   private normalizeCurrency(value: unknown): string | null | undefined {
     if (value === undefined) {
       return undefined
@@ -175,26 +200,279 @@ export class ExpensesController {
     return normalized.slice(0, 8)
   }
 
-  @Post('dashboard')
-  async dashboard() {
-    const sum = await this.prisma.expense.aggregate({ _sum: { amount: true }, _count: true })
-    const total = sum._sum.amount || 0
-    const count = sum._count || 0
+  private resolveScalarParam(raw: unknown): string {
+    if (Array.isArray(raw)) {
+      for (const item of raw) {
+        if (typeof item === 'string' || typeof item === 'number') {
+          return String(item)
+        }
+      }
+      return ''
+    }
+    if (typeof raw === 'string' || typeof raw === 'number') {
+      return String(raw)
+    }
+    return ''
+  }
 
-    // Build a simple report for last 12 weeks
-    const categories: string[] = []
-    const seriesData: number[] = []
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date()
-      d.setDate(d.getDate() - i * 7)
-      categories.push(`${d.getMonth() + 1}/${d.getDate()}`)
-      // naive distribution
-      seriesData.push(Math.max(0, Math.round((total / 12) * (0.6 + Math.random()))))
+  private normalizeExpenseDirection(value: string): 'asc' | 'desc' | undefined {
+    const normalized = value?.toLowerCase?.() || ''
+    if (normalized === 'asc' || normalized === 'ascending' || normalized === 'ascend') {
+      return 'asc'
+    }
+    if (normalized === 'desc' || normalized === 'descending' || normalized === 'descend') {
+      return 'desc'
+    }
+    return undefined
+  }
+
+  private normalizeExpenseSortKey(key: string): ExpenseSortKey | undefined {
+    const normalized = key?.toString?.().trim()
+    if (!normalized) return undefined
+    const map: Record<string, ExpenseSortKey> = {
+      id: 'id',
+      name: 'name',
+      date: 'date',
+      vendor: 'vendor',
+      title: 'vendor',
+      category: 'category',
+      categoryid: 'category',
+      categoryname: 'category',
+      status: 'status',
+      statusid: 'status',
+      statusname: 'status',
+      paymentmethod: 'paymentMethod',
+      paymentmethodid: 'paymentMethod',
+      paymentmethodname: 'paymentMethod',
+      amount: 'amount',
+    }
+    return map[normalized.toLowerCase()] ?? undefined
+  }
+
+  private parseSortObject(raw: unknown): Record<string, unknown> | undefined {
+    if (!raw) return undefined
+    if (typeof raw === 'object') return raw as Record<string, unknown>
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw)
+        return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : undefined
+      } catch {
+        return undefined
+      }
+    }
+    return undefined
+  }
+
+  private extractExpenseSort(q: any): { key: ExpenseSortKey; order: 'asc' | 'desc' } | undefined {
+    let sortObj: Record<string, unknown> | undefined = this.parseSortObject(q?.sort)
+    if (!sortObj) {
+      const nestedKey = q?.['sort[key]'] ?? q?.['sort.key']
+      const nestedOrder = q?.['sort[order]'] ?? q?.['sort.order']
+      if (nestedKey !== undefined || nestedOrder !== undefined) {
+        sortObj = { key: nestedKey, order: nestedOrder }
+      }
+    }
+    if (!sortObj) {
+      if (q?.sortKey !== undefined || q?.sortOrder !== undefined) {
+        sortObj = { key: q?.sortKey, order: q?.sortOrder }
+      }
+    }
+    const sortKeyRaw = this.resolveScalarParam(sortObj?.key)
+    const sortOrderRaw = this.resolveScalarParam(sortObj?.order)
+    const key = this.normalizeExpenseSortKey(sortKeyRaw)
+    const order = this.normalizeExpenseDirection(sortOrderRaw)
+    if (!key || !order) return undefined
+    return { key, order }
+  }
+
+  private buildExpenseOrderBy(sort?: { key: ExpenseSortKey; order: 'asc' | 'desc' }): Prisma.ExpenseOrderByWithRelationInput[] {
+    const orderBy: Prisma.ExpenseOrderByWithRelationInput[] = []
+    if (sort) {
+      switch (sort.key) {
+        case 'id':
+          orderBy.push({ id: sort.order })
+          break
+        case 'name':
+          orderBy.push({ name: sort.order })
+          break
+        case 'date':
+          orderBy.push({ date: sort.order })
+          break
+        case 'vendor':
+          orderBy.push({ title: sort.order })
+          break
+        case 'category':
+          orderBy.push({ category: { name: sort.order } })
+          break
+        case 'status':
+          orderBy.push({ status: { name: sort.order } })
+          break
+        case 'paymentMethod':
+          orderBy.push({ paymentMethod: { name: sort.order } })
+          break
+        case 'amount':
+          orderBy.push({ amount: sort.order })
+          break
+      }
+    }
+    if (!orderBy.length) {
+      orderBy.push({ id: 'desc' })
+    } else if (sort?.key !== 'id') {
+      orderBy.push({ id: 'desc' })
+    }
+    return orderBy
+  }
+
+  @Post('dashboard')
+  async dashboard(@Body() dto: DashboardFilterDto) {
+    const { startDate, endDate } = dto ?? {}
+    const dateRange: Prisma.DateTimeFilter = {}
+    if (typeof startDate === 'number' && Number.isFinite(startDate)) {
+      dateRange.gte = new Date(startDate * 1000)
+    }
+    if (typeof endDate === 'number' && Number.isFinite(endDate)) {
+      dateRange.lte = new Date(endDate * 1000)
     }
 
-    // Latest expenses
+    const where: Prisma.ExpenseWhereInput = {}
+    if (Object.keys(dateRange).length > 0) {
+      where.date = dateRange
+    }
+
+    const aggregate = await this.prisma.expense.aggregate({
+      where,
+      _sum: { amount: true },
+      _count: true,
+    })
+    const total = aggregate._sum.amount ?? 0
+    const count = typeof aggregate._count === 'number' ? aggregate._count : 0
+
+    const expenses = await this.prisma.expense.findMany({
+      where,
+      select: {
+        id: true,
+        amount: true,
+        date: true,
+        category: { select: { name: true } },
+      },
+    })
+
+    const expensesByDay = new Map<string, number>()
+    const expensesByMonth = new Map<string, number>()
+    const hourlyExpenses = Array.from({ length: 24 }, () => 0)
+    const categoryTotals = new Map<string, number>()
+
+    for (const expense of expenses) {
+      const amount = Number(expense.amount || 0) || 0
+      const expenseDate = new Date(expense.date)
+      const day = this.startOfDay(expenseDate)
+      const key = this.dayKey(day)
+      expensesByDay.set(key, (expensesByDay.get(key) ?? 0) + amount)
+
+      const monthKey = `${expenseDate.getFullYear()}-${expenseDate.getMonth()}`
+      expensesByMonth.set(monthKey, (expensesByMonth.get(monthKey) ?? 0) + amount)
+
+      const hour = expenseDate.getHours()
+      if (hour >= 0 && hour < 24) {
+        hourlyExpenses[hour] += amount
+      }
+
+      const categoryName = expense.category?.name?.trim()
+      if (categoryName) {
+        categoryTotals.set(categoryName, (categoryTotals.get(categoryName) ?? 0) + amount)
+      }
+    }
+
+    let rangeStart =
+      typeof startDate === 'number' && Number.isFinite(startDate)
+        ? this.startOfDay(new Date(startDate * 1000))
+        : undefined
+    let rangeEnd =
+      typeof endDate === 'number' && Number.isFinite(endDate)
+        ? this.startOfDay(new Date(endDate * 1000))
+        : undefined
+
+    if ((!rangeStart || !rangeEnd) && expenses.length > 0) {
+      let minDate: Date | undefined
+      let maxDate: Date | undefined
+      for (const expense of expenses) {
+        const currentDay = this.startOfDay(new Date(expense.date))
+        if (!minDate || currentDay < minDate) {
+          minDate = currentDay
+        }
+        if (!maxDate || currentDay > maxDate) {
+          maxDate = currentDay
+        }
+      }
+      if (!rangeStart && minDate) {
+        rangeStart = minDate
+      }
+      if (!rangeEnd && maxDate) {
+        rangeEnd = maxDate
+      }
+    }
+
+    if (!rangeStart || !rangeEnd || rangeStart > rangeEnd) {
+      const today = this.startOfDay(new Date())
+      rangeStart = today
+      rangeEnd = today
+    }
+
+    const dayMs = 24 * 60 * 60 * 1000
+    const totalSpanDays = Math.floor((rangeEnd.getTime() - rangeStart.getTime()) / dayMs)
+    const isSingleDayRange = totalSpanDays <= 0
+    const isFullYearRange =
+      rangeStart.getFullYear() === rangeEnd.getFullYear() &&
+      rangeStart.getMonth() === 0 &&
+      rangeStart.getDate() === 1 &&
+      rangeEnd.getMonth() === 11
+
+    const granularity: 'hour' | 'day' | 'month' = isSingleDayRange
+      ? 'hour'
+      : isFullYearRange
+        ? 'month'
+        : 'day'
+
+    const categories: number[] = []
+    const seriesData: number[] = []
+
+    if (granularity === 'hour') {
+      const base = rangeStart ?? this.startOfDay(new Date())
+      for (let hour = 0; hour < 24; hour++) {
+        const bucketTime = new Date(base)
+        bucketTime.setHours(hour, 0, 0, 0)
+        categories.push(Math.floor(bucketTime.getTime() / 1000))
+        seriesData.push(
+          Math.round((hourlyExpenses[hour] + Number.EPSILON) * 100) / 100,
+        )
+      }
+    } else if (granularity === 'month') {
+      const year = rangeStart.getFullYear()
+      for (let month = 0; month < 12; month++) {
+        const bucketTime = new Date(year, month, 1)
+        const monthKey = `${year}-${month}`
+        categories.push(Math.floor(bucketTime.getTime() / 1000))
+        seriesData.push(
+          Math.round(((expensesByMonth.get(monthKey) ?? 0) + Number.EPSILON) * 100) /
+            100,
+        )
+      }
+    } else {
+      for (let ts = rangeStart.getTime(); ts <= rangeEnd.getTime(); ts += dayMs) {
+        const current = new Date(ts)
+        current.setHours(0, 0, 0, 0)
+        const key = this.dayKey(current)
+        const bucketExpenses = expensesByDay.get(key) ?? 0
+        categories.push(Math.floor(current.getTime() / 1000))
+        seriesData.push(
+          Math.round((bucketExpenses + Number.EPSILON) * 100) / 100,
+        )
+      }
+    }
+
     const latest = await this.prisma.expense.findMany({
-      orderBy: { id: 'desc' },
+      where,
+      orderBy: { date: 'desc' },
       take: 8,
       include: {
         status: true,
@@ -205,6 +483,7 @@ export class ExpensesController {
     const latestExpensesData = latest.map((e) => ({
       id: String(e.id),
       date: Math.floor(new Date(e.date).getTime() / 1000),
+      name: e.name || e.title,
       vendor: e.title,
       statusId: e.statusId ?? null,
       statusName: e.status?.name || '',
@@ -217,10 +496,36 @@ export class ExpensesController {
       attachments: this.serializeAttachments(e.attachments ?? [], { includeContent: false }),
     }))
 
-    // By categories breakdown
-    const cats = await this.prisma.expenseCategory.findMany({ include: { expenses: true } })
-    const labels = cats.map((c) => c.name)
-    const data = cats.map((c) => c.expenses.reduce((s, x) => s + (x.amount || 0), 0))
+    const expenseCategories = await this.prisma.expenseCategory.findMany({
+      orderBy: { name: 'asc' },
+    })
+
+    const seenCategoryLabels = new Set<string>()
+    const categorySummary: { label: string; value: number }[] = []
+
+    for (const category of expenseCategories) {
+      const label = category.name?.trim()
+      if (!label) {
+        continue
+      }
+      const rawValue = categoryTotals.get(label) ?? 0
+      const value = Math.round((rawValue + Number.EPSILON) * 100) / 100
+      categorySummary.push({ label, value })
+      seenCategoryLabels.add(label)
+    }
+
+    for (const [label, rawValue] of categoryTotals.entries()) {
+      if (!label || seenCategoryLabels.has(label)) {
+        continue
+      }
+      const value = Math.round((rawValue + Number.EPSILON) * 100) / 100
+      categorySummary.push({ label, value })
+    }
+
+    categorySummary.sort((a, b) => b.value - a.value)
+
+    const labels = categorySummary.map(({ label }) => label)
+    const data = categorySummary.map(({ value }) => value)
 
     return {
       statisticData: {
@@ -231,6 +536,7 @@ export class ExpensesController {
       expensesReportData: {
         series: [{ name: 'Expenses', data: seriesData }],
         categories,
+        granularity,
       },
       latestExpensesData,
       expensesByCategoriesData: { labels, data },
@@ -239,40 +545,30 @@ export class ExpensesController {
 
   @Get()
   async list(@Query() q: any) {
-    const pageIndex = Number(q.pageIndex || 1)
-    const pageSize = Number(q.pageSize || 50)
-    const where = q.query
-      ? ({ title: { contains: String(q.query), mode: 'insensitive' as any } } as any)
-      : ({} as any)
-    const total = await this.prisma.expense.count({ where })
-    const sortKey = (q.sort?.key || '').toString()
-    const sortOrderRaw = (q.sort?.order || '').toString().toLowerCase()
-    const sortOrder: 'asc' | 'desc' | undefined =
-      sortOrderRaw === 'asc' || sortOrderRaw === 'desc' ? (sortOrderRaw as 'asc' | 'desc') : undefined
-    const orderBy: Prisma.ExpenseOrderByWithRelationInput[] = []
-    if (sortKey && sortOrder) {
-      switch (sortKey) {
-        case 'id':
-          orderBy.push({ id: sortOrder })
-          break
-        case 'date':
-          orderBy.push({ date: sortOrder })
-          break
-        case 'vendor':
-          orderBy.push({ title: sortOrder })
-          break
-        case 'category':
-          orderBy.push({ category: { name: sortOrder } })
-          break
-        case 'status':
-          orderBy.push({ status: { name: sortOrder } })
-          break
-        case 'amount':
-          orderBy.push({ amount: sortOrder })
-          break
+    const pageIndexRaw = Number(q.pageIndex)
+    const pageSizeRaw = Number(q.pageSize)
+    const pageIndex = Number.isFinite(pageIndexRaw) && pageIndexRaw > 0 ? Math.floor(pageIndexRaw) : 1
+    const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? Math.floor(pageSizeRaw) : 50
+
+    const queryValue = this.resolveScalarParam(q?.query).trim()
+    let where: Prisma.ExpenseWhereInput = {}
+    if (queryValue) {
+      where = {
+        OR: [
+          { name: { contains: queryValue, mode: 'insensitive' } },
+          { title: { contains: queryValue, mode: 'insensitive' } },
+          { paymentReference: { contains: queryValue, mode: 'insensitive' } },
+          { description: { contains: queryValue, mode: 'insensitive' } },
+          { category: { name: { contains: queryValue, mode: 'insensitive' } } },
+          { status: { name: { contains: queryValue, mode: 'insensitive' } } },
+          { paymentMethod: { name: { contains: queryValue, mode: 'insensitive' } } },
+        ],
       }
     }
-    orderBy.push({ id: 'desc' })
+
+    const total = await this.prisma.expense.count({ where })
+    const sort = this.extractExpenseSort(q)
+    const orderBy = this.buildExpenseOrderBy(sort)
     const rows = await this.prisma.expense.findMany({
       where,
       orderBy,
@@ -288,6 +584,7 @@ export class ExpensesController {
     const data = rows.map((e) => ({
       id: String(e.id),
       date: Math.floor(new Date(e.date).getTime() / 1000),
+      name: e.name || e.title,
       vendor: e.title,
       categoryId: e.categoryId ?? null,
       categoryName: e.category?.name || '',
@@ -333,6 +630,7 @@ export class ExpensesController {
     }
     return {
       id: String(expense.id),
+      name: expense.name || expense.title,
       title: expense.title,
       vendor: expense.title,
       amount: expense.amount,
@@ -356,21 +654,61 @@ export class ExpensesController {
 
   @Post('create')
   async create(@Body() body: any) {
-    const title = String(body.title || body.vendor || '').trim() || 'Expense'
-    const amount = Number(body.amount || 0)
+    const rawName = body?.name ?? body?.title ?? body?.vendor
+    const name =
+      typeof rawName === 'string'
+        ? rawName.trim()
+        : rawName && typeof rawName?.toString === 'function'
+          ? rawName.toString().trim()
+          : ''
+    if (!name) {
+      throw new BadRequestException('Name is required')
+    }
+
+    const rawVendor = body?.vendor ?? body?.title
+    const vendor =
+      typeof rawVendor === 'string'
+        ? rawVendor.trim()
+        : rawVendor && typeof rawVendor?.toString === 'function'
+          ? rawVendor.toString().trim()
+          : ''
+
+    const amountValue = Number(body?.amount)
+    if (!Number.isFinite(amountValue)) {
+      throw new BadRequestException('Amount must be a valid number')
+    }
+    if (amountValue <= 0) {
+      throw new BadRequestException('Amount must be greater than 0')
+    }
+    const amount = Math.round((amountValue + Number.EPSILON) * 100) / 100
+
     const date = this.resolveExpenseDate(body.date)
     const categoryId = this.toNullableNumber(body.categoryId ?? body.category)
     const statusId = this.toNullableNumber(body.statusId ?? body.status)
     const paymentMethodId = this.toNullableNumber(
       body.paymentMethodId ?? body.paymentMehod ?? body.paymentMethod,
     )
+    const descriptionRaw = body?.description ?? body?.note
+    const description =
+      typeof descriptionRaw === 'string'
+        ? descriptionRaw.trim()
+        : descriptionRaw && typeof descriptionRaw?.toString === 'function'
+          ? descriptionRaw.toString().trim()
+          : ''
+    const paymentReferenceInput =
+      body?.paymentReference ?? body?.paymentIdendifier ?? body?.reference
     const paymentReference =
-      (body.paymentReference ?? body.paymentIdendifier ?? body.reference ?? '').trim() || null
+      typeof paymentReferenceInput === 'string'
+        ? paymentReferenceInput.trim() || null
+        : paymentReferenceInput && typeof paymentReferenceInput?.toString === 'function'
+          ? paymentReferenceInput.toString().trim() || null
+          : null
     const currencyInput = this.normalizeCurrency(body.currency ?? body.currencyCode)
 
     const data: Prisma.ExpenseCreateInput = {
-      title,
-      description: body.description || body.note || null,
+      title: vendor || name,
+      name,
+      description: description || null,
       amount,
       date,
       paymentReference,

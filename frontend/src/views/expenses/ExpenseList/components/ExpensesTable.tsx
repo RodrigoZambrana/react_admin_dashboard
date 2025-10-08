@@ -48,6 +48,53 @@ type Expense = {
     currency?: string | null
 }
 
+const sortKeyMap: Record<string, string> = {
+    id: 'id',
+    date: 'date',
+    vendor: 'vendor',
+    title: 'vendor',
+    category: 'category',
+    categoryid: 'category',
+    categoryname: 'category',
+    status: 'status',
+    statusid: 'status',
+    statusname: 'status',
+    paymentmethod: 'paymentMethod',
+    paymentmethodid: 'paymentMethod',
+    paymentmethodname: 'paymentMethod',
+    amount: 'amount',
+}
+
+const normalizeSort = (
+    s?: OnSortParam | { key?: string | number; order?: string } | null,
+) => {
+    if (!s) {
+        return undefined
+    }
+    const rawKey = (s as any).key
+    const keyString =
+        rawKey === 0 || rawKey === '0'
+            ? '0'
+            : rawKey !== undefined && rawKey !== null
+              ? String(rawKey).trim()
+              : ''
+    const mappedKey =
+        keyString.length > 0 ? sortKeyMap[keyString.toLowerCase()] ?? keyString : ''
+    const rawOrder = (s as any).order
+    const normalizedOrder =
+        rawOrder === 'ascend'
+            ? 'asc'
+            : rawOrder === 'descend'
+              ? 'desc'
+              : rawOrder === 'asc' || rawOrder === 'desc'
+                ? rawOrder
+                : ''
+    if (!mappedKey || !normalizedOrder) {
+        return undefined
+    }
+    return { key: mappedKey, order: normalizedOrder as 'asc' | 'desc' }
+}
+
 const ExpenseIdColumn = ({ row }: { row: Expense }) => {
     const { textTheme } = useThemeClass()
     const navigate = useNavigate()
@@ -122,8 +169,9 @@ const ExpensesTable = () => {
     const defaultCurrency = useAppSelector((state) => state.currency.code)
 
     const fetchData = useCallback(() => {
-        dispatch(getExpensesList({ pageIndex, pageSize, sort, query }))
-    }, [dispatch, pageIndex, pageSize, sort, query])
+        const normalizedSort = normalizeSort(sort as any)
+        dispatch(getExpensesList({ pageIndex, pageSize, sort: normalizedSort, query }))
+    }, [dispatch, pageIndex, pageSize, query, sort])
 
     useEffect(() => {
         dispatch(setSelectedRows([]))
@@ -336,10 +384,12 @@ const ExpensesTable = () => {
         dispatch(setTableData(newTableData))
     }
 
-    const onSort = (sort: OnSortParam) => {
+    const onSort = (sortParam: OnSortParam) => {
+        const normalized = normalizeSort(sortParam)
         const newTableData = cloneDeep(tableData)
-        newTableData.sort = sort
+        newTableData.sort = (normalized ?? { key: '', order: '' }) as any
         dispatch(setTableData(newTableData))
+        dispatch(setSelectedRows([]))
     }
 
     const onRowSelect = (checked: boolean, row: Expense) => {

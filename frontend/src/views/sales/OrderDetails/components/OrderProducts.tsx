@@ -11,9 +11,13 @@ import {
 } from '@tanstack/react-table'
 import { NumericFormat } from 'react-number-format'
 import isLastChild from '@/utils/isLastChild'
+import { Link } from 'react-router-dom'
+import Tooltip from '@/components/ui/Tooltip'
+import { HiOutlineEye } from 'react-icons/hi'
 
 type Product = {
     id: string
+    productId?: string
     name: string
     productCode: string
     img: string
@@ -36,7 +40,7 @@ const ProductColumn = ({ row }: { row: Product }) => {
         <div className="flex">
             <Avatar size={90} src={row.img} />
             <div className="ltr:ml-2 rtl:mr-2">
-                <h6 className="mb-2">{row.name}</h6>
+                <h6 className="mb-1">{row.name}</h6>
                 {Object.keys(row.details).map((key, i) => (
                     <div key={key + i} className="mb-1">
                         <span className="capitalize">{key}: </span>
@@ -88,7 +92,27 @@ const columns = (t: (k: string) => string) => [
         header: t('text.columns.total'),
         cell: (props) => {
             const row = props.row.original
-            return <PriceAmount amount={row.price} />
+            return <PriceAmount amount={row.total} />
+        },
+    }),
+    columnHelper.display({
+        id: 'actions',
+        header: '',
+        cell: (props) => {
+            const row = props.row.original
+            if (!row.productId) return null
+            return (
+                <div className="flex justify-end text-lg">
+                    <Tooltip title={t('text.actions.view')}>
+                        <Link
+                            to={`/app/products/edit/${row.productId}`}
+                            className="p-2 text-indigo-600 hover:text-indigo-500"
+                        >
+                            <HiOutlineEye />
+                        </Link>
+                    </Tooltip>
+                </div>
+            )
         },
     }),
 ]

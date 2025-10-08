@@ -1,4 +1,4 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { themeConfig } from '@/configs/theme.config'
 import {
     LAYOUT_TYPE_MODERN,
@@ -19,6 +19,7 @@ import type {
     ColorLevel,
     Direction,
 } from '@/@types/theme'
+import { apiGetThemeConfig, apiUpdateThemeConfig } from '@/services/SettingsService'
 
 const initialNavMode = () => {
     if (
@@ -44,6 +45,8 @@ export type ThemeState = {
         sideNavCollapse: boolean
         previousType?: LayoutType
     }
+    isLoading: boolean
+    isSaving: boolean
 }
 
 const initialState: ThemeState = {
@@ -55,7 +58,74 @@ const initialState: ThemeState = {
     cardBordered: themeConfig.cardBordered,
     navMode: initialNavMode(),
     layout: themeConfig.layout,
+    isLoading: false,
+    isSaving: false,
 }
+
+type ThemeConfigDto = {
+    themeColor: string
+    direction: Direction
+    mode: Mode
+    primaryColorLevel: ColorLevel
+    panelExpand: boolean
+    navMode: NavMode
+    cardBordered: boolean
+    layout: {
+        type: LayoutType
+        sideNavCollapse: boolean
+    }
+}
+
+const toThemeConfigDto = (state: ThemeState): ThemeConfigDto => ({
+    themeColor: state.themeColor,
+    direction: state.direction,
+    mode: state.mode,
+    primaryColorLevel: state.primaryColorLevel,
+    panelExpand: false,
+    navMode: state.navMode,
+    cardBordered: state.cardBordered,
+    layout: {
+        type: state.layout.type,
+        sideNavCollapse: state.layout.sideNavCollapse,
+    },
+})
+
+const applyThemeConfigToState = (
+    state: ThemeState,
+    payload: ThemeConfigDto,
+) => {
+    state.themeColor = payload.themeColor
+    state.direction = payload.direction
+    state.mode = payload.mode
+    state.primaryColorLevel = payload.primaryColorLevel
+    state.panelExpand = payload.panelExpand
+    state.navMode = payload.navMode
+    state.cardBordered = payload.cardBordered
+    state.layout = {
+        ...state.layout,
+        type: payload.layout.type,
+        sideNavCollapse: payload.layout.sideNavCollapse,
+    }
+}
+
+export const fetchThemeConfig = createAsyncThunk<ThemeConfigDto>(
+    'theme/fetchThemeConfig',
+    async () => {
+        const { data } = await apiGetThemeConfig<ThemeConfigDto>()
+        return data
+    },
+)
+
+export const saveThemeConfig = createAsyncThunk<
+    ThemeConfigDto,
+    ThemeState
+>('theme/saveThemeConfig', async (theme) => {
+    const payload = toThemeConfigDto(theme)
+    const { data } = await apiUpdateThemeConfig<ThemeConfigDto, ThemeConfigDto>(
+        payload,
+    )
+    return data
+})
 
 const availableNavColorLayouts = [
     LAYOUT_TYPE_CLASSIC,
@@ -153,6 +223,29 @@ export const themeSlice = createSlice({
         setThemeColorLevel: (state, action) => {
             state.primaryColorLevel = action.payload
         },
+    },
+    extraReducers: (builder) => {
+        builder
+            .addCase(fetchThemeConfig.pending, (state) => {
+                state.isLoading = true
+            })
+            .addCase(fetchThemeConfig.fulfilled, (state, action) => {
+                state.isLoading = false
+                applyThemeConfigToState(state, action.payload)
+            })
+            .addCase(fetchThemeConfig.rejected, (state) => {
+                state.isLoading = false
+            })
+            .addCase(saveThemeConfig.pending, (state) => {
+                state.isSaving = true
+            })
+            .addCase(saveThemeConfig.fulfilled, (state, action) => {
+                state.isSaving = false
+                applyThemeConfigToState(state, action.payload)
+            })
+            .addCase(saveThemeConfig.rejected, (state) => {
+                state.isSaving = false
+            })
     },
 })
 

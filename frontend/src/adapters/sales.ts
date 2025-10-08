@@ -37,6 +37,7 @@ export function adaptOrderToDetailsView(o: any) {
   const product = Array.isArray(o.items)
     ? o.items.map((it: any) => ({
         id: String(it.id),
+        productId: it.productId ? String(it.productId) : undefined,
         name: it.name,
         productCode: it.product?.productCode || '',
         img: it.img || '',
@@ -57,7 +58,10 @@ export function adaptOrderToDetailsView(o: any) {
             o.customer.phoneNumber ||
             '',
         img: o.customer.img || '',
-        previousOrder: 0,
+        previousOrder: Math.max(
+          Number((o.customer as any)?.previousOrder ?? 0),
+          0,
+        ),
         shippingAddress: toAddressLines(o, 'shipping'),
         billingAddress: toAddressLines(o, 'billing'),
       }

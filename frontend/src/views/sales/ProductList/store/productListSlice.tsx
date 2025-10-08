@@ -11,7 +11,8 @@ type Product = {
     productCode: string
     img: string
     category: string
-    price: number
+    salePrice: number
+    costPrice: number
     stock: number
     status: number
     brand?: string
@@ -32,6 +33,7 @@ type FilterQueries = {
     category: string[]
     status: number[]
     productStatus: number
+    currency: string[]
 }
 
 export type SalesProductListState = {
@@ -88,6 +90,7 @@ const initialState: SalesProductListState = {
         category: ['bags', 'cloths', 'devices', 'shoes', 'watches'],
         status: [0, 1, 2],
         productStatus: 0,
+        currency: [],
     },
 }
 
@@ -114,7 +117,11 @@ const productListSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(getProducts.fulfilled, (state, action) => {
-                state.productList = action.payload.data
+                state.productList = action.payload.data.map((item) => ({
+                    ...item,
+                    salePrice: Number((item as any).salePrice ?? 0),
+                    costPrice: Number((item as any).costPrice ?? 0),
+                }))
                 state.tableData.total = action.payload.total
                 state.loading = false
             })

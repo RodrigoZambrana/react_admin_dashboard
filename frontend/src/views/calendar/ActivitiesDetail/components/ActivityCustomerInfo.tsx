@@ -7,39 +7,6 @@ import { HiOutlineMail, HiOutlinePhone, HiOutlineLocationMarker } from 'react-ic
 import Button from '@/components/ui/Button'
 import { useNavigate } from 'react-router-dom'
 
-const formatAddress = (address?: {
-    street?: string
-    number?: string
-    corner?: string | null
-    apartment?: string | null
-    city?: string
-    country?: string
-}) => {
-    if (!address) {
-        return ''
-    }
-    const parts: string[] = []
-    const streetLine = [address.street, address.number]
-        .filter((value) => value && String(value).trim() !== '')
-        .join(' ')
-    if (streetLine) {
-        parts.push(streetLine)
-    }
-    if (address.corner) {
-        parts.push(address.corner)
-    }
-    if (address.apartment) {
-        parts.push(address.apartment)
-    }
-    const locality = [address.city, address.country]
-        .filter((value) => value && String(value).trim() !== '')
-        .join(', ')
-    if (locality) {
-        parts.push(locality)
-    }
-    return parts.join(', ')
-}
-
 type InfoFieldProps = { label: string; value?: ReactNode }
 
 const InfoField = ({ label, value }: InfoFieldProps) => {
@@ -89,7 +56,33 @@ const ActivityCustomerInfo = ({
         customer?.phoneNumbers,
     ])
 
-    const formattedAddress = formatAddress(primaryAddress)
+    const addressLines = useMemo(() => {
+        if (!primaryAddress) {
+            return []
+        }
+        const streetParts = [primaryAddress.street, primaryAddress.number]
+            .map((value) => (value ? String(value).trim() : ''))
+            .filter((value) => value.length)
+        const apartment = primaryAddress.apartment ? String(primaryAddress.apartment).trim() : ''
+        const streetLine = [streetParts.join(' '), apartment ? `Apt ${apartment}` : '']
+            .filter((value) => value.length)
+            .join(' ')
+            .trim()
+        const cornerLine =
+            primaryAddress.corner && String(primaryAddress.corner).trim().length
+                ? t('text.labels.cornerFormat', {
+                      defaultValue: `esquina ${primaryAddress.corner}`,
+                      corner: primaryAddress.corner,
+                  })
+                : ''
+        const locality = [primaryAddress.city, primaryAddress.country]
+            .map((value) => (value ? String(value).trim() : ''))
+            .filter((value) => value.length)
+            .join(', ')
+        return [streetLine, cornerLine, locality].filter((value) => value && value.trim().length)
+    }, [primaryAddress, t])
+
+    const formattedAddress = addressLines.join('\n')
 
     if (loading) {
         return (
@@ -206,8 +199,8 @@ const ActivityCustomerInfo = ({
                                         defaultValue: 'Dirección',
                                     })}
                                 </span>
-                                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                    {formattedAddress ||
+                                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 whitespace-pre-line">
+                                    {formattedAddress.trim() ||
                                         customer.personalInfo?.location ||
                                         '-'}
                                 </span>

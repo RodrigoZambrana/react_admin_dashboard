@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Formik, Form, Field, getIn } from 'formik'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Formik, Form, Field, getIn, type FormikProps } from 'formik'
 import { FormContainer, FormItem } from '@/components/ui/Form'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
@@ -15,7 +15,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { apiGetCrmCustomers, apiGetCrmCustomerDetails } from '@/services/CrmService'
 import { apiGetSalesProducts, apiCreateSalesOrder, apiCreateSalesProduct } from '@/services/SalesService'
 import * as Yup from 'yup'
-import { apiGetPaymentMethods, apiGetSystemConfig } from '@/services/SettingsService'
+import { apiGetPaymentMethods, apiGetShippingOptions, apiGetSystemConfig } from '@/services/SettingsService'
 import Checkbox from '@/components/ui/Checkbox'
 import PaymentSummary from '@/views/sales/OrderDetails/components/PaymentSummary'
 import EditableOrderProductsTable, { EditableItem } from '@/views/sales/components/EditableOrderProductsTable'
@@ -36,6 +36,15 @@ import useResponsive from '@/utils/hooks/useResponsive'
 
 type Item = EditableItem
 
+type ShippingOption = {
+    id: number
+    name: string
+    deliveryFees: number | null
+    estimatedMin: number | null
+    estimatedMax: number | null
+    img?: string | null
+}
+
 const OrderNew = () => {
     const { t } = useTranslation()
     const navigate = useNavigate()
@@ -52,13 +61,28 @@ const OrderNew = () => {
         }[]
     >([])
     const [methods, setMethods] = useState<{ value: string; label: string }[]>([])
+    const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([])
     const [customerDetail, setCustomerDetail] = useState<any | null>(null)
     const [currentStep, setCurrentStep] = useState(0)
     const [newCustomerOpen, setNewCustomerOpen] = useState(false)
     const [newProductOpen, setNewProductOpen] = useState(false)
     const [taxRate, setTaxRate] = useState(22)
+    const formikRef = useRef<FormikProps<any>>(null)
     const { smaller } = useResponsive()
     const isCompactViewport = smaller.md
+    const shippingVendorOptions = useMemo(
+        () =>
+            shippingOptions.length
+                ? shippingOptions.map((opt) => ({
+                      label: opt.name,
+                      value: opt.name,
+                  }))
+                : ['FedEx', 'DHL', 'UPS', 'USPS'].map((v) => ({
+                      label: v,
+                      value: v,
+                  })),
+        [shippingOptions],
+    )
 
     const addProduct = async (data: ProductFormModel) => {
         const response = await apiCreateSalesProduct<
@@ -100,7 +124,7 @@ const OrderNew = () => {
                 (pRes as any).data?.data?.map((p: any) => ({
                     value: String(p.id),
                     label: p.name,
-                    price: Number(p.price) || 0,
+                    price: Number(p.salePrice ?? p.price) || 0,
                     currency: p.currency,
                     img: p.img,
                     description: p.description,
@@ -110,6 +134,22 @@ const OrderNew = () => {
             const mRes = await apiGetPaymentMethods<{ id: number | string; name: string }[]>()
             const mOpts = (mRes.data as any[]).map((m) => ({ value: String(m.name || m.id), label: m.name }))
             setMethods(mOpts)
+            try {
+                const sRes = await apiGetShippingOptions<ShippingOption[]>()
+                const sOpts = ((sRes as any).data || []) as ShippingOption[]
+                setShippingOptions(
+                    sOpts.map((opt) => ({
+                        ...opt,
+                        deliveryFees: Number(opt.deliveryFees ?? 0),
+                        estimatedMin: Number(opt.estimatedMin ?? 0),
+                        estimatedMax: Number(
+                            opt.estimatedMax ?? opt.estimatedMin ?? 0,
+                        ),
+                    })),
+                )
+            } catch {
+                setShippingOptions([])
+            }
             try {
                 const cfg = await apiGetSystemConfig<{ taxRate?: number }>()
                 const rate = Number((cfg.data as any)?.taxRate)
@@ -136,10 +176,36 @@ const OrderNew = () => {
         }
     }, [location.search])
 
+    useEffect(() => {
+        if (!shippingOptions.length || !formikRef.current) {
+            return
+        }
+        const formik = formikRef.current
+        const currentVendor = (formik.values as any)?.shipping?.shippingVendor
+        const existing = shippingOptions.find((opt) => opt.name === currentVendor)
+        if (!existing) {
+            const first = shippingOptions[0]
+            formik.setFieldValue('shipping.shippingVendor', first.name)
+            formik.setFieldValue(
+                'shipping.deliveryFees',
+                first.deliveryFees ?? 0,
+            )
+            formik.setFieldValue(
+                'shipping.estimatedMin',
+                first.estimatedMin ?? 0,
+            )
+            formik.setFieldValue(
+                'shipping.estimatedMax',
+                first.estimatedMax ?? first.estimatedMin ?? 0,
+            )
+        }
+    }, [shippingOptions])
+
     return (
         <Container className="h-full">
             <h3 className="mb-6">{t('nav.appsSales.orderList')} · {t('text.actions.add')}</h3>
             <Formik
+                innerRef={formikRef}
                 initialValues={{
                     customerId: '',
                     date: new Date(),
@@ -165,10 +231,10 @@ const OrderNew = () => {
                     },
                     billingSameAsShipping: false,
                     shipping: {
-                        shippingVendor: 'FedEx',
+                        shippingVendor: '',
                         deliveryFees: 0,
-                        estimatedMin: 1,
-                        estimatedMax: 3,
+                        estimatedMin: 0,
+                        estimatedMax: 0,
                     },
                     comment: '',
                 }}
@@ -362,7 +428,7 @@ const OrderNew = () => {
                                     ((pRes as any).data?.data || []).map((p: any) => ({
                                         value: String(p.id),
                                         label: p.name,
-                                        price: Number(p.price) || 0,
+                                        price: Number(p.salePrice ?? p.price) || 0,
                                         currency: p.currency,
                                         img: p.img,
                                         description: p.description,
@@ -376,7 +442,7 @@ const OrderNew = () => {
                                         pOpts.find((opt) => opt.value === String(created.id)) ?? {
                                             value: String(created.id),
                                             label: created.name,
-                                            price: Number(created.price) || 0,
+                                            price: Number(created.salePrice ?? created.price) || 0,
                                             currency: created.currency,
                                             img: created.img,
                                             description: created.description,
@@ -981,10 +1047,99 @@ const OrderNew = () => {
                                     <FormContainer>
                                         <FormItem label={t('text.labels.vendor')}>
                                             <Select
-                                                value={{ label: (values as any).shipping?.shippingVendor || 'FedEx', value: (values as any).shipping?.shippingVendor || 'FedEx' } as any}
-                                                options={['FedEx', 'DHL', 'UPS', 'USPS'].map((v) => ({ label: v, value: v }))}
-                                                onChange={(opt) => setFieldValue('shipping.shippingVendor', (opt as any).value)}
+                                                value={
+                                                    shippingVendorOptions.find(
+                                                        (option) =>
+                                                            option.value ===
+                                                            (values as any)
+                                                                ?.shipping
+                                                                ?.shippingVendor,
+                                                    ) ?? null
+                                                }
+                                                options={shippingVendorOptions}
+                                                placeholder={t('text.labels.vendor')}
+                                                onChange={(opt) => {
+                                                    const value = (opt as any)?.value ?? ''
+                                                    setFieldValue('shipping.shippingVendor', value)
+                                                    if (!value) {
+                                                        return
+                                                    }
+                                                    const selected = shippingOptions.find(
+                                                        (item) => item.name === value,
+                                                    )
+                                                    if (selected) {
+                                                        setFieldValue(
+                                                            'shipping.deliveryFees',
+                                                            selected.deliveryFees ?? 0,
+                                                        )
+                                                        setFieldValue(
+                                                            'shipping.estimatedMin',
+                                                            selected.estimatedMin ?? 0,
+                                                        )
+                                                        setFieldValue(
+                                                            'shipping.estimatedMax',
+                                                            selected.estimatedMax ??
+                                                                selected.estimatedMin ??
+                                                                0,
+                                                        )
+                                                    }
+                                                }}
                                             />
+                                            {(() => {
+                                                const selected = shippingOptions.find(
+                                                    (item) =>
+                                                        item.name ===
+                                                        (values as any)?.shipping
+                                                            ?.shippingVendor,
+                                                )
+                                                if (!selected) {
+                                                    return null
+                                                }
+                                                return (
+                                                    <div className="flex items-center gap-3 mt-3 text-sm text-gray-500">
+                                                        <Avatar
+                                                            shape="circle"
+                                                            src={selected.img || undefined}
+                                                        >
+                                                            {selected.name?.charAt(0) ?? '?'}
+                                                        </Avatar>
+                                                        <div>
+                                                            <div className="font-medium text-gray-700 dark:text-gray-200">
+                                                                {selected.name}
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-3 opacity-80">
+                                                                <span>
+                                                                    {t(
+                                                                        'settings.shippingOptions.columns.deliveryFees',
+                                                                    )}
+                                                                    :{' '}
+                                                                    {Number(
+                                                                        selected.deliveryFees ??
+                                                                            0,
+                                                                    ).toFixed(2)}
+                                                                </span>
+                                                                <span>
+                                                                    {t(
+                                                                        'settings.shippingOptions.columns.estimatedMin',
+                                                                    )}
+                                                                    :{' '}
+                                                                    {selected.estimatedMin ??
+                                                                        0}
+                                                                </span>
+                                                                <span>
+                                                                    {t(
+                                                                        'settings.shippingOptions.columns.estimatedMax',
+                                                                    )}
+                                                                    :{' '}
+                                                                    {selected.estimatedMax ??
+                                                                        selected.estimatedMin ??
+                                                                        0}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })()}
                                         </FormItem>
                                         <div className="grid grid-cols-3 gap-3">
                                             <FormItem label={t('text.labels.deliveryFee')}>
@@ -1099,15 +1254,16 @@ const OrderNew = () => {
                                             img: '',
                                             imgList: [],
                                             categoryId: null,
-                                            price: 0,
+                                            costPrice: 0,
+                                            salePrice: 0,
                                             stock: 0,
                                             status: 0,
-                                            costPerItem: 0,
                                             bulkDiscountPrice: 0,
                                             tags: [],
                                             brand: '',
                                             vendor: '',
                                             description: '',
+                                            currency: 'UYU',
                                         }}
                                         onDiscard={closeNewProductDrawer}
                                         onFormSubmit={handleCreateProduct}

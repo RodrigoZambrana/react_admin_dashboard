@@ -105,7 +105,7 @@ const appsRoute: Routes = [
     {
         key: 'appsExpenses.dashboard',
         path: `${APP_PREFIX_PATH}/expenses/dashboard`,
-        component: lazy(() => import('@/views/expenses/ExpensesDashboard')),
+        component: lazy(() => import('@/views/expenses/ExpensesDashboard/ExpensesDashboard')),
         authority: [ADMIN, USER],
     },
     {
@@ -239,6 +239,12 @@ const appsRoute: Routes = [
         key: 'appsSettings.paymentMethods',
         path: `${APP_PREFIX_PATH}/settings/payment-methods`,
         component: lazy(() => import('@/views/settings/PaymentMethods')),
+        authority: [ADMIN, USER],
+    },
+    {
+        key: 'appsSettings.shippingOptions',
+        path: `${APP_PREFIX_PATH}/settings/shipping-options`,
+        component: lazy(() => import('@/views/settings/ShippingOptions')),
         authority: [ADMIN, USER],
     },
     {

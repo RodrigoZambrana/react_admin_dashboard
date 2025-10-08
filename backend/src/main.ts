@@ -8,6 +8,9 @@ import cors from '@fastify/cors'
 import { AppModule } from './app.module'
 import { BadRequestException, ValidationPipe } from '@nestjs/common'
 import { ValidationError } from 'class-validator'
+import multipart from '@fastify/multipart'
+import fastifyStatic from '@fastify/static'
+import { join } from 'path'
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -19,6 +22,18 @@ async function bootstrap() {
   await app.register(cors as any, {
     origin: true,
     credentials: true,
+  })
+
+  await app.register(multipart as any, {
+    limits: {
+      fileSize: 5 * 1024 * 1024,
+    },
+  })
+
+  await app.register(fastifyStatic as any, {
+    root: join(process.cwd(), 'uploads'),
+    prefix: '/uploads/',
+    decorateReply: false,
   })
 
   app.setGlobalPrefix('api')

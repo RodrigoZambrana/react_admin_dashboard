@@ -1,6 +1,9 @@
+import { useState } from 'react'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import { FormItem } from '@/components/ui/Form'
 import Input from '@/components/ui/Input'
+import InputGroup from '@/components/ui/InputGroup'
+import CurrencySelector from '@/components/shared/CurrencySelector'
 import { NumericFormat, NumericFormatProps } from 'react-number-format'
 import {
     Field,
@@ -11,13 +14,12 @@ import {
 } from 'formik'
 import type { ComponentType } from 'react'
 import type { InputProps } from '@/components/ui/Input'
-import { useTranslation } from 'react-i18next'
-import CurrencySelector from '@/components/shared/CurrencySelector'
-import InputGroup from '@/components/ui/InputGroup'
 import type { CurrencyCode } from '@/store'
+import { useTranslation } from 'react-i18next'
 
 type FormFieldsName = {
-    price: number
+    costPrice: number
+    salePrice: number
     bulkDiscountPrice: number
     currency: CurrencyCode
 }
@@ -55,83 +57,131 @@ const NumericFormatInput = ({
 const PricingFields = (props: PricingFieldsProps) => {
     const { touched, errors, currency, onCurrencyChange } = props
     const { t } = useTranslation()
+    const [salePriceManuallyEdited, setSalePriceManuallyEdited] = useState(false)
+
+    const renderCostPriceField = () => (
+        <FormItem
+            label={t('text.columns.costPrice')}
+            invalid={(errors.costPrice && touched.costPrice) as boolean}
+            errorMessage={errors.costPrice}
+        >
+            <Field name="costPrice">
+                {({ field, form }: FieldProps) => {
+                    return (
+                        <InputGroup>
+                            <InputGroup.Addon className="font-semibold text-xs uppercase">
+                                {currency || 'UYU'}
+                            </InputGroup.Addon>
+                            <NumericFormatInput
+                                form={form}
+                                field={field}
+                                placeholder={t('text.columns.costPrice')}
+                                customInput={PriceInput as ComponentType}
+                                onValueChange={(e) => {
+                                    form.setFieldValue(field.name, e.value)
+                                    if (!salePriceManuallyEdited) {
+                                        if (e.value === '') {
+                                            form.setFieldValue('salePrice', '')
+                                        } else {
+                                            const numericCost = Number(e.value || 0)
+                                            if (Number.isFinite(numericCost)) {
+                                                const computed = (numericCost * 1.3).toFixed(2)
+                                                form.setFieldValue('salePrice', computed)
+                                            }
+                                        }
+                                    }
+                                }}
+                            />
+                        </InputGroup>
+                    )
+                }}
+            </Field>
+        </FormItem>
+    )
+
+    const renderSalePriceField = () => (
+        <FormItem
+            label={t('text.columns.salePrice')}
+            invalid={(errors.salePrice && touched.salePrice) as boolean}
+            errorMessage={errors.salePrice}
+        >
+            <Field name="salePrice">
+                {({ field, form }: FieldProps) => {
+                    return (
+                        <>
+                            <InputGroup>
+                                <InputGroup.Addon className="px-0">
+                                    <CurrencySelector
+                                        embedded
+                                        selectClassName="w-24"
+                                        value={currency}
+                                        onChange={(code) => {
+                                            onCurrencyChange(code)
+                                        }}
+                                    />
+                                </InputGroup.Addon>
+                                <NumericFormatInput
+                                    form={form}
+                                    field={field}
+                                    placeholder={t('text.columns.salePrice')}
+                                    customInput={PriceInput as ComponentType}
+                                    onValueChange={(e) => {
+                                        form.setFieldValue(field.name, e.value)
+                                        if (e.value === '') {
+                                            setSalePriceManuallyEdited(false)
+                                        } else {
+                                            setSalePriceManuallyEdited(true)
+                                        }
+                                    }}
+                                />
+                            </InputGroup>
+                            {!salePriceManuallyEdited && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {t('text.descriptions.salePriceAuto')}
+                                </p>
+                            )}
+                        </>
+                    )
+                }}
+            </Field>
+        </FormItem>
+    )
+
+    const renderBulkDiscountField = () => (
+        <FormItem
+            label={t('text.labels.offerPrice')}
+            invalid={
+                (errors.bulkDiscountPrice &&
+                    touched.bulkDiscountPrice) as boolean
+            }
+            errorMessage={errors.bulkDiscountPrice}
+        >
+            <Field name="bulkDiscountPrice">
+                {({ field, form }: FieldProps) => (
+                    <NumericFormatInput
+                        form={form}
+                        field={field}
+                        placeholder={t('text.labels.offerPrice')}
+                        customInput={PriceInput as ComponentType}
+                        onValueChange={(e) => {
+                            form.setFieldValue(field.name, e.value)
+                        }}
+                    />
+                )}
+            </Field>
+        </FormItem>
+    )
 
     return (
         <AdaptableCard divider className="mb-4">
             <h5>{t('text.titles.pricing')}</h5>
             <p className="mb-6">{t('text.descriptions.productSalesInfo')}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="col-span-1">
-                    <FormItem
-                        label={t('text.columns.price')}
-                        invalid={(errors.price && touched.price) as boolean}
-                        errorMessage={errors.price}
-                    >
-                        <Field name="price">
-                            {({ field, form }: FieldProps) => {
-                                return (
-                                    <InputGroup>
-                                        <InputGroup.Addon className="px-0">
-                                            <CurrencySelector
-                                                embedded
-                                                selectClassName="w-24"
-                                                value={currency}
-                                                onChange={onCurrencyChange}
-                                            />
-                                        </InputGroup.Addon>
-                                        <NumericFormatInput
-                                            form={form}
-                                            field={field}
-                                            placeholder={t('text.columns.price')}
-                                            customInput={
-                                                PriceInput as ComponentType
-                                            }
-                                            onValueChange={(e) => {
-                                                form.setFieldValue(
-                                                    field.name,
-                                                    e.value,
-                                                )
-                                            }}
-                                        />
-                                    </InputGroup>
-                                )
-                            }}
-                        </Field>
-                    </FormItem>
-                </div>
+                <div className="col-span-1">{renderCostPriceField()}</div>
+                <div className="col-span-1">{renderSalePriceField()}</div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="col-span-1">
-                    <FormItem
-                        label={t('text.labels.offerPrice')}
-                        invalid={
-                            (errors.bulkDiscountPrice &&
-                                touched.bulkDiscountPrice) as boolean
-                        }
-                        errorMessage={errors.bulkDiscountPrice}
-                    >
-                        <Field name="bulkDiscountPrice">
-                            {({ field, form }: FieldProps) => {
-                                return (
-                                    <NumericFormatInput
-                                        form={form}
-                                        field={field}
-                                        placeholder={t('text.labels.offerPrice')}
-                                        customInput={
-                                            PriceInput as ComponentType
-                                        }
-                                        onValueChange={(e) => {
-                                            form.setFieldValue(
-                                                field.name,
-                                                e.value,
-                                            )
-                                        }}
-                                    />
-                                )
-                            }}
-                        </Field>
-                    </FormItem>
-                </div>
+                <div className="col-span-1">{renderBulkDiscountField()}</div>
             </div>
         </AdaptableCard>
     )

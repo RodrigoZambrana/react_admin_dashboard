@@ -132,10 +132,18 @@ const ProductEdit = () => {
                   : [],
               categoryId:
                   (productData as any).category?.id ?? (productData as any).categoryId ?? null,
-              price: Number(productData.price ?? 0),
+              costPrice: Number(
+                  (productData as any).costPrice ??
+                      (productData as any).costPerItem ??
+                      0,
+              ),
+              salePrice: Number(
+                  (productData as any).salePrice ??
+                      (productData as any).price ??
+                      0,
+              ),
               stock: Number(productData.stock ?? 0),
               status: Number(productData.status ?? 0),
-              costPerItem: Number(productData.costPerItem ?? 0),
               bulkDiscountPrice: Number(productData.bulkDiscountPrice ?? 0),
               description: productData.description ?? '',
               tags: (productData as any).tags ?? [],

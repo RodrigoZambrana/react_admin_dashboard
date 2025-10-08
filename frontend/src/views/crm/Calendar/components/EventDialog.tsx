@@ -1089,20 +1089,6 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                                                 </div>
                                             )}
                                         />
-                                        {selectedEventTypeOption && (
-                                            <div className="mt-2 flex items-center gap-2 text-sm">
-                                                <span
-                                                    className="inline-block h-4 w-4 rounded-full border border-gray-300 dark:border-gray-500"
-                                                    style={{
-                                                        backgroundColor:
-                                                            selectedEventTypeOption.color,
-                                                    }}
-                                                />
-                                                <span className="font-mono">
-                                                    {selectedEventTypeOption.color}
-                                                </span>
-                                            </div>
-                                        )}
                                     </FormItem>
                                     {!values.isInternal && (
                                         <FormItem

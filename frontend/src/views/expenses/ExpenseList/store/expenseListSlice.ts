@@ -45,9 +45,45 @@ export const SLICE_NAME = 'expensesList'
 export const getExpensesList = createAsyncThunk(
     SLICE_NAME + '/getExpensesList',
     async (data: TableQueries) => {
-        const response = await apiGetExpenses<GetExpensesResponse, TableQueries>(
-            data,
-        )
+        const pageIndex =
+            typeof data.pageIndex === 'number' && !Number.isNaN(data.pageIndex)
+                ? data.pageIndex
+                : 1
+        const pageSize =
+            typeof data.pageSize === 'number' && !Number.isNaN(data.pageSize)
+                ? data.pageSize
+                : 50
+
+        const params: Record<string, unknown> = {
+            pageIndex,
+            pageSize,
+        }
+
+        if (typeof data.query === 'string' && data.query.trim().length > 0) {
+            params.query = data.query.trim()
+        }
+
+        const sort = data.sort
+        if (sort) {
+            const rawKey = sort.key
+            const rawOrder = sort.order
+            const hasKey =
+                (typeof rawKey === 'string' && rawKey.trim().length > 0) ||
+                typeof rawKey === 'number'
+            const isValidOrder = rawOrder === 'asc' || rawOrder === 'desc'
+            if (hasKey && isValidOrder) {
+                const key =
+                    typeof rawKey === 'number' ? String(rawKey) : rawKey.trim()
+                params.sort = { key, order: rawOrder }
+                params.sortKey = key
+                params.sortOrder = rawOrder
+            }
+        }
+
+        const response = await apiGetExpenses<
+            GetExpensesResponse,
+            Record<string, unknown>
+        >(params)
         return response.data
     },
 )

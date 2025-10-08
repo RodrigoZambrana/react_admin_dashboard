@@ -1,1 +1,0 @@
-import{j as r}from"./index-Dez9nIyI.js";import{u as s}from"./useTranslation-jtywIL26.js";const o=()=>{const{t}=s();return r.jsx("h3",{children:t("nav.appsCrm.customerDetails")})};export{o as default};

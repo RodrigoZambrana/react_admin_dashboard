@@ -59,24 +59,24 @@ const appsNavigationConfig: NavigationTree[] = [
                     },
                 ],
             },
-            // Productos (nuevo menú)
-            {
-                key: 'apps.products',
-                path: `${APP_PREFIX_PATH}/products/list`,
-                title: 'Products',
-                translateKey: 'nav.appsProducts.products',
-                icon: 'products',
-                type: NAV_ITEM_TYPE_ITEM,
-                authority: [ADMIN, USER],
-                subMenu: [],
-            },
             // Clientes
             {
-                key: 'apps.crm',
+                key: 'appsCrm.customers',
                 path: `${APP_PREFIX_PATH}/crm/customers`,
                 title: 'Clients',
                 translateKey: 'nav.appsCrm.crm',
                 icon: 'crm',
+                type: NAV_ITEM_TYPE_ITEM,
+                authority: [ADMIN, USER],
+                subMenu: [],
+            },
+            // Productos (nuevo menú)
+            {
+                key: 'appsProducts.productList',
+                path: `${APP_PREFIX_PATH}/products/list`,
+                title: 'Products',
+                translateKey: 'nav.appsProducts.products',
+                icon: 'products',
                 type: NAV_ITEM_TYPE_ITEM,
                 authority: [ADMIN, USER],
                 subMenu: [],
@@ -157,7 +157,7 @@ const appsNavigationConfig: NavigationTree[] = [
             },
             // Actividades
             {
-                key: 'apps.activities',
+                key: 'appsActivities.dashboard',
                 path: `${APP_PREFIX_PATH}/activities`,
                 title: 'Activities',
                 translateKey: 'nav.appsCalendar.activities',
@@ -168,7 +168,7 @@ const appsNavigationConfig: NavigationTree[] = [
             },
             // Usuarios
             {
-                key: 'apps.users',
+                key: 'appsUsers.userList',
                 path: `${APP_PREFIX_PATH}/users/list`,
                 title: 'Users',
                 translateKey: 'nav.appsUsers.users',
@@ -232,6 +232,16 @@ const appsNavigationConfig: NavigationTree[] = [
                         path: `${APP_PREFIX_PATH}/settings/payment-methods`,
                         title: 'Payment Methods',
                         translateKey: 'nav.appsSettings.paymentMethods',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: [ADMIN, USER],
+                        subMenu: [],
+                    },
+                    {
+                        key: 'appsSettings.shippingOptions',
+                        path: `${APP_PREFIX_PATH}/settings/shipping-options`,
+                        title: 'Shipping Options',
+                        translateKey: 'nav.appsSettings.shippingOptions',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
                         authority: [ADMIN, USER],

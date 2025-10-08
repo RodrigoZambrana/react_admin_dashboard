@@ -21,6 +21,26 @@ export async function apiGetSalesProducts<T, U extends Record<string, unknown>>(
     })
 }
 
+export async function apiExportSalesProducts<
+    T = Blob,
+    U extends Record<string, unknown> = Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/sales/products/export',
+        method: 'post',
+        data,
+        responseType: 'blob',
+    })
+}
+
+export async function apiImportSalesProducts<T>(data: FormData) {
+    return ApiService.fetchData<T>({
+        url: '/sales/products/import',
+        method: 'post',
+        data,
+    })
+}
+
 export async function apiDeleteSalesProducts<
     T,
     U extends Record<string, unknown>,
@@ -80,6 +100,26 @@ export async function apiDeleteSalesOrders<
     return ApiService.fetchData<T>({
         url: '/sales/orders/delete',
         method: 'delete',
+        data,
+    })
+}
+
+export async function apiExportSalesOrders<
+    T = Blob,
+    U extends Record<string, unknown> = Record<string, unknown>,
+>(params: U) {
+    return ApiService.fetchData<T>({
+        url: '/sales/orders/export',
+        method: 'get',
+        params,
+        responseType: 'blob',
+    })
+}
+
+export async function apiImportSalesOrders<T>(data: FormData) {
+    return ApiService.fetchData<T>({
+        url: '/sales/orders/import',
+        method: 'post',
         data,
     })
 }

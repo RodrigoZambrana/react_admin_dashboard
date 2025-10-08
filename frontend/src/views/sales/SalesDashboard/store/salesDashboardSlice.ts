@@ -10,9 +10,9 @@ type Statistic = {
 
 export type DashboardData = {
     statisticData?: {
-        revenue: Statistic
-        orders: Statistic
-        purchases: Statistic
+        orders?: Statistic
+        revenue?: Statistic
+        netIncome?: Statistic
     }
     salesReportData?: {
         series: {
@@ -78,8 +78,8 @@ export const getSalesDashboardData = createAsyncThunk<
         startDate,
         endDate,
     } = getState()[SLICE_NAME]?.data ?? {
-        startDate: dayjs().subtract(14, 'day').startOf('day').unix(),
-        endDate: dayjs().endOf('day').unix(),
+        startDate: dayjs().startOf('month').unix(),
+        endDate: dayjs().endOf('month').unix(),
     }
 
     const response = await apiGetSalesDashboardData<
@@ -93,9 +93,9 @@ export const getSalesDashboardData = createAsyncThunk<
 })
 
 const initialState: SalesDashboardState = {
-    startDate: dayjs().subtract(14, 'day').startOf('day').unix(),
-    endDate: dayjs().endOf('day').unix(),
-    dateRangePreset: 'last15Days',
+    startDate: dayjs().startOf('month').unix(),
+    endDate: dayjs().endOf('month').unix(),
+    dateRangePreset: 'thisMonth',
     loading: true,
     dashboardData: {},
 }

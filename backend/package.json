@@ -10,7 +10,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node --compiler-options '{\"module\":\"commonjs\"}' prisma/seed.ts",
-    "prisma:deploy": "prisma migrate deploy"
+    "prisma:deploy": "prisma migrate deploy",
+    "reset-admin": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/reset-admin.ts",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +21,8 @@
   "dependencies": {
     "@fastify/cors": "^11.1.0",
     "@fastify/helmet": "^13.0.2",
+    "@fastify/multipart": "^9.0.1",
+    "@fastify/static": "^8.2.0",
     "@nestjs/common": "^11.1.6",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.6",
@@ -41,6 +45,7 @@
     "@nestjs/schematics": "^11.0.7",
     "@types/node": "^24.5.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "^1.6.0"
   }
 }

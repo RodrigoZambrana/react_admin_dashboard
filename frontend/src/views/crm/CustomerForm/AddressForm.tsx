@@ -160,6 +160,22 @@ const AddressForm = () => {
           />
         </FormItem>
       </div>
+      <FormItem
+        label={t('text.labels.comments')}
+        invalid={Boolean(fieldTouched('comments') && fieldError('comments'))}
+        errorMessage={fieldError('comments') as string}
+      >
+        <Field name="address.comments">
+          {({ field }: FieldProps<string>) => (
+            <Input
+              {...field}
+              textArea
+              rows={3}
+              onChange={(e) => setFieldValue('address.comments', e.target.value)}
+            />
+          )}
+        </Field>
+      </FormItem>
     </div>
   )
 }
