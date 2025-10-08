@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import reducer, {
-    getCrmDashboardData,
+    getCustomersDashboardData,
     useAppDispatch,
     useAppSelector,
 } from './store'
@@ -12,14 +12,16 @@ import LeadByCountries from './components/LeadByCountries'
 import EmailSent from './components/EmailSent'
 import Leads from './components/Leads'
 
-injectReducer('crmDashboard', reducer)
+injectReducer('customersDashboard', reducer)
 
 const CrmDashboard = () => {
     const dispatch = useAppDispatch()
 
     const { statisticData, leadByRegionData, recentLeadsData, emailSentData } =
-        useAppSelector((state) => state.crmDashboard.data.dashboardData)
-    const loading = useAppSelector((state) => state.crmDashboard.data.loading)
+        useAppSelector((state) => state.customersDashboard.data.dashboardData)
+    const loading = useAppSelector(
+        (state) => state.customersDashboard.data.loading,
+    )
 
     useEffect(() => {
         fetchData()
@@ -27,7 +29,7 @@ const CrmDashboard = () => {
     }, [])
 
     const fetchData = () => {
-        dispatch(getCrmDashboardData())
+        dispatch(getCustomersDashboardData())
     }
 
     return (
