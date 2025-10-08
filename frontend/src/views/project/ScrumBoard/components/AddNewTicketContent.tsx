@@ -20,13 +20,17 @@ import dayjs from 'dayjs'
 import { HiOutlinePlus } from 'react-icons/hi'
 import { useTranslation } from 'react-i18next'
 
-const AddNewColumnContent = () => {
+// Nota: Este archivo reemplaza la funcionalidad previa de "AddNewColumnContent"
+// para reflejar que realmente crea un Ticket dentro de la columna seleccionada.
+
+const AddNewTicketContent = () => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
 
-    const board = useAppSelector((state) => state.scrumBoard.data.board)
+    // `board` representa el ID de la columna seleccionada donde se creará el ticket
+    const board = useAppSelector((state: any) => state.scrumBoard.data.board)
     const boardMembers = useAppSelector(
-        (state) => state.scrumBoard.data.boardMembers,
+        (state: any) => state.scrumBoard.data.boardMembers,
     )
 
     const priorityOptions = [
@@ -52,23 +56,20 @@ const AddNewColumnContent = () => {
         description: string
         dueDate: Date | null
     }) => {
-        if (!board) {
-            return
-        }
+        if (!board) return
 
         const fallbackTitle = t('text.labels.untitledCard', {
             defaultValue: 'Untitled Card',
         })
+
         dispatch(
             createTicket({
-                columnId: board,
+                columnId: board, // columna (droppable) destino
                 name: values.title ? values.title : fallbackTitle,
                 description: values.description,
                 priority: values.priority,
                 labels: values.priority ? [values.priority] : [],
-                dueDate: values.dueDate
-                    ? dayjs(values.dueDate).toISOString()
-                    : null,
+                dueDate: values.dueDate ? dayjs(values.dueDate).toISOString() : null,
                 memberIds: values.members,
             }),
         )
@@ -95,8 +96,8 @@ const AddNewColumnContent = () => {
                             <FormContainer>
                                 <FormItem
                                     label={t('text.labels.ticketTitle', { defaultValue: 'Ticket title' })}
-                                    invalid={errors.title && touched.title}
-                                    errorMessage={errors.title}
+                                    invalid={Boolean(errors.title && touched.title)}
+                                    errorMessage={errors.title as string}
                                 >
                                     <Field
                                         type="text"
@@ -116,15 +117,8 @@ const AddNewColumnContent = () => {
                                     <FormItem label={t('text.columns.priority')}>
                                         <Select
                                             options={priorityOptions}
-                                            value={priorityOptions.find(
-                                                (o) => o.value === values.priority,
-                                            )}
-                                            onChange={(opt) =>
-                                                setFieldValue(
-                                                    'priority',
-                                                    (opt as any).value,
-                                                )
-                                            }
+                                            value={priorityOptions.find((o) => o.value === values.priority)}
+                                            onChange={(opt) => setFieldValue('priority', (opt as any).value)}
                                         />
                                     </FormItem>
 
@@ -133,46 +127,26 @@ const AddNewColumnContent = () => {
                                             {t('text.labels.assignees')}
                                         </div>
                                         <UsersAvatarGroup
-                                            avatarProps={{
-                                                className:
-                                                    'mr-1 rtl:ml-1 cursor-pointer',
-                                            }}
+                                            avatarProps={{ className: 'mr-1 rtl:ml-1 cursor-pointer' }}
                                             avatarGroupProps={{ maxCount: 4 }}
                                             chained={false}
-                                            users={boardMembers.filter((m) =>
-                                                values.members.includes(m.id),
-                                            )}
+                                            users={boardMembers.filter((m: any) => values.members.includes(m.id))}
                                         />
-                                        {boardMembers.length !==
-                                            values.members.length && (
+                                        {boardMembers.length !== values.members.length && (
                                             <Dropdown renderTitle={<AddMoreMember />}>
-                                                {boardMembers.map((member) =>
-                                                    !values.members.includes(
-                                                        member.id,
-                                                    ) ? (
+                                                {boardMembers.map((member: any) =>
+                                                    !values.members.includes(member.id) ? (
                                                         <Dropdown.Item
                                                             key={member.id}
                                                             eventKey={member.id}
                                                             onSelect={(id) =>
-                                                                setFieldValue(
-                                                                    'members',
-                                                                    [
-                                                                        ...values.members,
-                                                                        id as string,
-                                                                    ],
-                                                                )
+                                                                setFieldValue('members', [...values.members, id as string])
                                                             }
                                                         >
                                                             <div className="flex items-center justify-between">
                                                                 <div className="flex items-center">
-                                                                    <Avatar
-                                                                        shape="circle"
-                                                                        size={22}
-                                                                        src={member.img}
-                                                                    />
-                                                                    <span className="ml-2 rtl:mr-2">
-                                                                        {member.name}
-                                                                    </span>
+                                                                    <Avatar shape="circle" size={22} src={member.img} />
+                                                                    <span className="ml-2 rtl:mr-2">{member.name}</span>
                                                                 </div>
                                                             </div>
                                                         </Dropdown.Item>
@@ -224,4 +198,4 @@ const AddNewColumnContent = () => {
     )
 }
 
-export default AddNewColumnContent
+export default AddNewTicketContent

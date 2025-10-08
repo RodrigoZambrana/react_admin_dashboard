@@ -42,7 +42,7 @@ const BoardColumn = (props: BoardColumnProps) => {
                     />
                     <BoardCardList
                         listId={column.id}
-                        listType="CONTENT"
+                        listType="TICKET"
                         className={snapshot.isDragging ? 'is-dragging' : ''}
                         contents={column.tickets}
                         internalScroll={isScrollable}
