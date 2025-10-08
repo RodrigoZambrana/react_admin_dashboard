@@ -62,6 +62,9 @@ const _UserDropdown = ({ className }: CommonProps) => {
                 <div className="text-xs text-gray-500 dark:text-gray-300 capitalize">
                     {roleLabel}
                 </div>
+                <div className="text-xs text-gray-400 dark:text-gray-400">
+                    {email}
+                </div>
             </div>
         </div>
     )

@@ -72,10 +72,7 @@ const Board = (props: BoardProps) => {
             return
         }
 
-        const isColumnDrag =
-            source.droppableId === 'board' && destination.droppableId === 'board'
-
-        if (isColumnDrag) {
+        if (result.type === 'COLUMN') {
             const newOrdered = reorder(ordered, source.index, destination.index)
             dispatch(updateOrdered(newOrdered))
             dispatch(reorderColumns(newOrdered))

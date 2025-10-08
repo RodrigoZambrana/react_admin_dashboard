@@ -34,12 +34,16 @@ function InnerList(props: InnerListProps) {
     const { dropProvided, contents, ...rest } = props
 
     return (
-        <div ref={dropProvided.innerRef} className="board-dropzone h-full">
+        <div
+            ref={dropProvided.innerRef}
+            className="board-dropzone h-full"
+            {...dropProvided.droppableProps}
+        >
             <div className="px-4 h-full">
                 {contents?.map((item, index) => (
                     <Draggable
                         key={item.id}
-                        draggableId={item.id}
+                        draggableId={`ticket-${item.id}`}
                         index={index}
                     >
                         {(dragProvided) => (
@@ -54,6 +58,7 @@ function InnerList(props: InnerListProps) {
                     </Draggable>
                 ))}
             </div>
+            {dropProvided.placeholder}
         </div>
     )
 }
@@ -67,7 +72,7 @@ const BoardCardList = (props: BoardCardListProps) => {
         isCombineEnabled,
         listId = 'LIST',
         style,
-        listType,
+        listType = 'TICKET',
         contents,
         useClone,
     } = props
@@ -85,7 +90,6 @@ const BoardCardList = (props: BoardCardListProps) => {
                 <div
                     style={style}
                     className="board-wrapper overflow-hidden flex-auto"
-                    {...dropProvided.droppableProps}
                 >
                     {internalScroll ? (
                         <div
@@ -103,7 +107,6 @@ const BoardCardList = (props: BoardCardListProps) => {
                             dropProvided={dropProvided}
                         />
                     )}
-                    {dropProvided.placeholder}
                 </div>
             )}
         </Droppable>
