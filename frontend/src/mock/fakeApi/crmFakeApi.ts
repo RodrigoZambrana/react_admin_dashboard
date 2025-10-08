@@ -67,20 +67,20 @@ const normalizeEventPayload = (payload: Record<string, unknown>) => {
 }
 
 export default function crmFakeApi(server: Server, apiPrefix: string) {
-    server.get(`${apiPrefix}/crm/dashboard`, (schema) => {
+    server.get(`${apiPrefix}/customers/dashboard`, (schema) => {
         return schema.db.crmDashboardData[0]
     })
 
-    server.get(`${apiPrefix}/crm/calendar`, (schema) => schema.db.eventsData)
+    server.get(`${apiPrefix}/customers/calendar`, (schema) => schema.db.eventsData)
 
-    server.post(`${apiPrefix}/crm/calendar`, (schema, { requestBody }) => {
+    server.post(`${apiPrefix}/customers/calendar`, (schema, { requestBody }) => {
         const payload = JSON.parse(requestBody)
         const event = normalizeEventPayload(payload)
         schema.db.eventsData.insert(event)
         return schema.db.eventsData
     })
 
-    server.put(`${apiPrefix}/crm/calendar/:id`, (schema, { params, requestBody }) => {
+    server.put(`${apiPrefix}/customers/calendar/:id`, (schema, { params, requestBody }) => {
         const payload = JSON.parse(requestBody)
         const id = String(params.id || payload.id)
         const normalized = normalizeEventPayload({ ...payload, id })
@@ -93,7 +93,7 @@ export default function crmFakeApi(server: Server, apiPrefix: string) {
         return schema.db.eventsData
     })
 
-    server.post(`${apiPrefix}/crm/customers`, (schema, { requestBody }) => {
+    server.post(`${apiPrefix}/customers/query`, (schema, { requestBody }) => {
         const body = JSON.parse(requestBody)
         const { pageIndex, pageSize, sort, query, filterData } = body
         const { order, key } = sort
@@ -144,7 +144,7 @@ export default function crmFakeApi(server: Server, apiPrefix: string) {
         return responseData
     })
 
-    server.get(`${apiPrefix}/crm/customers-statistic`, () => {
+    server.get(`${apiPrefix}/customers/statistics`, () => {
         return {
             totalCustomers: {
                 value: 2420,
@@ -162,31 +162,35 @@ export default function crmFakeApi(server: Server, apiPrefix: string) {
     })
 
     server.get(
-        `${apiPrefix}/crm/customer-details`,
-        (schema, { queryParams }) => {
-            const id = queryParams.id
+        `${apiPrefix}/customers/:id`,
+        (schema, { params }) => {
+            const { id } = params
             const user = schema.db.userDetailData.find(id as string)
             return enrichCustomerPhones(user)
         },
     )
 
     server.del(
-        `${apiPrefix}/crm/customer/delete`,
-        (schema, { requestBody }) => {
-            const { id } = JSON.parse(requestBody)
+        `${apiPrefix}/customers/:id`,
+        (schema, { params }) => {
+            const { id } = params
             schema.db.userDetailData.remove({ id })
             return {}
         },
     )
 
-    server.put(`${apiPrefix}/crm/customers`, (schema, { requestBody }) => {
+    server.put(`${apiPrefix}/customers`, (schema, { requestBody }) => {
         const data = JSON.parse(requestBody)
         const { id } = data
-        schema.db.userDetailData.update({ id }, enrichCustomerPhones(data))
+        if (id) {
+            schema.db.userDetailData.update({ id }, enrichCustomerPhones(data))
+        } else {
+            schema.db.userDetailData.insert(enrichCustomerPhones(data))
+        }
         return {}
     })
 
-    server.get(`${apiPrefix}/crm/mails`, (schema, { queryParams }) => {
+    server.get(`${apiPrefix}/customers/mails`, (schema, { queryParams }) => {
         const { category } = queryParams
         let data = schema.db.mailData
 
@@ -217,7 +221,7 @@ export default function crmFakeApi(server: Server, apiPrefix: string) {
         return data
     })
 
-    server.get(`${apiPrefix}/crm/mail`, (schema, { queryParams }) => {
+    server.get(`${apiPrefix}/customers/mail`, (schema, { queryParams }) => {
         const id = queryParams.id
         const mail = schema.db.mailData.find(id as string)
         return mail

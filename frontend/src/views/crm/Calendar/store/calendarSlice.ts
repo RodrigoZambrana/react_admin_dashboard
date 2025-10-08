@@ -1,13 +1,13 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import {
-    apiCreateCrmCalendarEvent,
-    apiDeleteCrmCalendarEvent,
-    apiGetCrmCalendar,
-    apiUpdateCrmCalendarEvent,
+    apiCreateCustomerCalendarEvent,
+    apiDeleteCustomerCalendarEvent,
+    apiGetCustomerCalendar,
+    apiUpdateCustomerCalendarEvent,
     type CalendarEventDto,
     type CalendarEventAddress,
     type CalendarEventAttachment,
-} from '@/services/CrmService'
+} from '@/services/CustomersService'
 
 export type CalendarEventExtendedProps = {
     type?: string
@@ -62,7 +62,7 @@ const dedupeEvents = (events: CalendarEvent[]) => {
 export const getEvents = createAsyncThunk(
     SLICE_NAME + '/getEvents',
     async () => {
-        const events = await apiGetCrmCalendar()
+        const events = await apiGetCustomerCalendar()
         return events.map(mapDtoToStateEvent)
     },
 )
@@ -70,7 +70,7 @@ export const getEvents = createAsyncThunk(
 export const createCalendarEvent = createAsyncThunk(
     SLICE_NAME + '/createCalendarEvent',
     async (event: CalendarEvent) => {
-        const created = await apiCreateCrmCalendarEvent(event)
+        const created = await apiCreateCustomerCalendarEvent(event)
         return mapDtoToStateEvent(created)
     },
 )
@@ -78,7 +78,7 @@ export const createCalendarEvent = createAsyncThunk(
 export const updateCalendarEvent = createAsyncThunk(
     SLICE_NAME + '/updateCalendarEvent',
     async (event: CalendarEvent) => {
-        const updated = await apiUpdateCrmCalendarEvent(String(event.id), event)
+        const updated = await apiUpdateCustomerCalendarEvent(String(event.id), event)
         return mapDtoToStateEvent(updated)
     },
 )
@@ -86,7 +86,7 @@ export const updateCalendarEvent = createAsyncThunk(
 export const deleteCalendarEvent = createAsyncThunk(
     SLICE_NAME + '/deleteCalendarEvent',
     async (id: string) => {
-        const deletedId = await apiDeleteCrmCalendarEvent(String(id))
+        const deletedId = await apiDeleteCustomerCalendarEvent(String(id))
         return String(deletedId)
     },
 )

@@ -1,16 +1,17 @@
 import { Module } from '@nestjs/common'
-import { ConfigModule } from '@nestjs/config'
+import { ConfigModule, ConfigService } from '@nestjs/config'
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'
 import { APP_GUARD } from '@nestjs/core'
 import { PrismaModule } from './prisma/prisma.module'
 import { AuthModule } from './auth/auth.module'
 import { UsersModule } from './users/users.module'
-import { CrmModule } from './crm/crm.module'
+import { CustomersModule } from './customers/customers.module'
 import { SalesModule } from './sales/sales.module'
 import { SettingsModule } from './settings/settings.module'
 import { ExpensesModule } from './expenses/expenses.module'
 import { AccountModule } from './account/account.module'
 import { ProjectModule } from './project/project.module'
+import { OrdersModule } from './orders/orders.module'
 import { RolesGuard } from './auth/roles.guard'
 import { CalendarModule } from './calendar/calendar.module'
 import { TasksModule } from './tasks/tasks.module'
@@ -21,21 +22,25 @@ import { ActivitiesModule } from './activities/activities.module'
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ThrottlerModule.forRoot([
-      {
-        ttl: 60_000,
-        limit: 120,
-      },
-    ]),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: Number(config.get('RATE_LIMIT_TTL_MS') ?? 60_000),
+          limit: Number(config.get('RATE_LIMIT_MAX') ?? 120),
+        },
+      ],
+    }),
     PrismaModule,
     AuthModule,
     UsersModule,
-    CrmModule,
+    CustomersModule,
     SalesModule,
     SettingsModule,
     ExpensesModule,
     AccountModule,
     ProjectModule,
+    OrdersModule,
     CalendarModule,
     TasksModule,
     NotificationModule,

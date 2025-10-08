@@ -12,7 +12,7 @@ import dayjs from 'dayjs'
 import toast from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
 import { useTranslation } from 'react-i18next'
-import { apPutCrmCustomer } from '@/services/CrmService'
+import { apiUpsertCustomer } from '@/services/CustomersService'
 import {
     composeCustomerPayload,
     normalizeCustomerForSuccess,
@@ -186,7 +186,7 @@ const CustomerEditContent = forwardRef<unknown, CustomerEditContentProps>(
             const payload = composeCustomerPayload(values, customer)
 
             try {
-                const response = await apPutCrmCustomer<any, typeof payload>(payload)
+                const response = await apiUpsertCustomer<any, typeof payload>(payload)
                 const saved = (response as any).data || (response as any)
 
                 if (!saved?.id) {

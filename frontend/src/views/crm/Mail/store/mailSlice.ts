@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
-import { apiGetCrmMails, apiGetCrmMail } from '@/services/CrmService'
+import { apiGetCustomerMails, apiGetCustomerMail } from '@/services/CustomersService'
 
 export type Category = {
     category: string
@@ -62,7 +62,7 @@ export const SLICE_NAME = 'crmMail'
 export const getMails = createAsyncThunk(
     SLICE_NAME + '/getMails',
     async (params: GetCrmMailsRequest) => {
-        const response = await apiGetCrmMails<
+        const response = await apiGetCustomerMails<
             GetCrmMailsResponse,
             GetCrmMailsRequest
         >(params)
@@ -73,7 +73,7 @@ export const getMails = createAsyncThunk(
 export const getMail = createAsyncThunk(
     SLICE_NAME + '/getMail',
     async (params: GetCrmMailRequest) => {
-        const response = await apiGetCrmMail<
+        const response = await apiGetCustomerMail<
             GetCrmMailResponse,
             GetCrmMailRequest
         >(params)

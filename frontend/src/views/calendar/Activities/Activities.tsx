@@ -14,7 +14,7 @@ import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
 import toast from '@/components/ui/toast'
 import { HiOutlinePlus, HiOutlineTrash } from 'react-icons/hi'
-import { type CalendarEventAddress, type CalendarEventDto } from '@/services/CrmService'
+import { type CalendarEventAddress, type CalendarEventDto } from '@/services/CustomersService'
 import { apiSearchCalendarActivities } from '@/services/CalendarService'
 import EventDialog from '@/views/crm/Calendar/components/EventDialog'
 import calendarReducer, {

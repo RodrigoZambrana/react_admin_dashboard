@@ -3,7 +3,7 @@ import {
     CustomerProps,
     FormModel as CustomerFormModel,
 } from '@/views/crm/CustomerForm'
-import { apPutCrmCustomer } from '@/services/CrmService'
+import { apiUpsertCustomer } from '@/services/CustomersService'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
 import { useTranslation } from 'react-i18next'
@@ -36,7 +36,7 @@ const AddCustomerDrawer = ({
         const payload = composeCustomerPayload(values, customer)
 
         try {
-            const response = await apPutCrmCustomer<any, typeof payload>(payload)
+            const response = await apiUpsertCustomer<any, typeof payload>(payload)
             const saved = (response as any).data || (response as any)
 
             if (!saved?.id) {

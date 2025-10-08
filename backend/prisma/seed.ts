@@ -328,6 +328,51 @@ async function main() {
     }
   }
 
+  // Activities board
+  const activityColumns = [
+    { title: 'Backlog', sortOrder: 0 },
+    { title: 'In Progress', sortOrder: 1 },
+    { title: 'Review', sortOrder: 2 },
+    { title: 'Done', sortOrder: 3 },
+  ]
+
+  for (const column of activityColumns) {
+    await prisma.activityColumn.upsert({
+      where: { title: column.title },
+      update: { sortOrder: column.sortOrder },
+      create: column,
+    })
+  }
+
+  const boardColumns = await prisma.activityColumn.findMany({ orderBy: { sortOrder: 'asc' } })
+  const activityMembers = await prisma.user.findMany({ take: 3 })
+
+  for (const [index, column] of boardColumns.entries()) {
+    const existingTickets = await prisma.activityTicket.count({ where: { columnId: column.id } })
+    if (existingTickets > 0) continue
+    const ticketCount = index === boardColumns.length - 1 ? 2 : 3
+    for (let i = 0; i < ticketCount; i++) {
+      const ticket = await prisma.activityTicket.create({
+        data: {
+          columnId: column.id,
+          name: `${column.title} task ${i + 1}`,
+          description: `Seeded ticket ${i + 1} in ${column.title}`,
+          priority: index % 2 === 0 ? 'High priority' : 'Medium priority',
+          labels: index % 2 === 0 ? ['backend'] : ['frontend'],
+          dueDate: new Date(Date.now() + (i + 1) * 86400000),
+          order: i,
+        },
+      })
+      for (const member of activityMembers) {
+        await prisma.activityTicketMember.upsert({
+          where: { ticketId_userId: { ticketId: ticket.id, userId: member.id } },
+          update: {},
+          create: { ticketId: ticket.id, userId: member.id },
+        })
+      }
+    }
+  }
+
   // Calendar events
   const allTasks = await prisma.task.findMany()
   const colorMap: Record<string, string> = {

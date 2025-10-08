@@ -6,7 +6,7 @@ import {
     apiDeleteCalendarActivityComment,
     type CalendarActivityComment,
 } from '@/services/CalendarService'
-import type { CalendarEventDto } from '@/services/CrmService'
+import type { CalendarEventDto } from '@/services/CustomersService'
 
 export const SLICE_NAME = 'calendarActivityDetails'
 
