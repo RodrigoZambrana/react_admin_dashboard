@@ -6,7 +6,7 @@ import {
     useAppDispatch,
     useAppSelector,
 } from '../store'
-import { apiGetCrmCustomerDetails } from '@/services/CrmService'
+import { apiGetCustomerDetails } from '@/services/CustomersService'
 import type { Customer } from '../store'
 
 const CustomerEditDialog = () => {
@@ -45,7 +45,7 @@ const CustomerEditDialog = () => {
                 return
             }
             try {
-                const response = await apiGetCrmCustomerDetails<
+                const response = await apiGetCustomerDetails<
                     Customer,
                     { id: string }
                 >({ id: String(numericId) })

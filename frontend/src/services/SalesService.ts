@@ -87,7 +87,7 @@ export async function apiGetSalesOrders<T, U extends Record<string, unknown>>(
     params: U,
 ) {
     return ApiService.fetchData<T>({
-        url: '/sales/orders',
+        url: '/orders',
         method: 'get',
         params,
     })
@@ -98,7 +98,7 @@ export async function apiDeleteSalesOrders<
     U extends Record<string, unknown>,
 >(data: U) {
     return ApiService.fetchData<T>({
-        url: '/sales/orders/delete',
+        url: '/orders',
         method: 'delete',
         data,
     })
@@ -109,7 +109,7 @@ export async function apiExportSalesOrders<
     U extends Record<string, unknown> = Record<string, unknown>,
 >(params: U) {
     return ApiService.fetchData<T>({
-        url: '/sales/orders/export',
+        url: '/orders/export',
         method: 'get',
         params,
         responseType: 'blob',
@@ -118,7 +118,7 @@ export async function apiExportSalesOrders<
 
 export async function apiImportSalesOrders<T>(data: FormData) {
     return ApiService.fetchData<T>({
-        url: '/sales/orders/import',
+        url: '/orders/import',
         method: 'post',
         data,
     })
@@ -129,9 +129,8 @@ export async function apiGetSalesOrderDetails<
     U extends Record<string, unknown>,
 >(params: U) {
     return ApiService.fetchData<T>({
-        url: '/sales/orders-details',
+        url: `/orders/${(params as any).id}/details`,
         method: 'get',
-        params,
     })
 }
 
@@ -140,7 +139,7 @@ export async function apiUpdateSalesOrderStatus<
     U extends Record<string, unknown>,
 >(data: U) {
     return ApiService.fetchData<T>({
-        url: '/sales/orders/update',
+        url: `/orders/${(data as any).id}/status`,
         method: 'put',
         data,
     })
@@ -151,7 +150,7 @@ export async function apiUpdateSalesOrderPaymentMethod<
     U extends Record<string, unknown>,
 >(data: U) {
     return ApiService.fetchData<T>({
-        url: '/sales/orders/update-method',
+        url: `/orders/${(data as any).id}/payment-method`,
         method: 'put',
         data,
     })
@@ -162,9 +161,8 @@ export async function apiGetSalesOrder<T, U extends Record<string, unknown>>(
     params: U,
 ) {
     return ApiService.fetchData<T>({
-        url: '/sales/order',
+        url: `/orders/${(params as any).id}/details`,
         method: 'get',
-        params,
     })
 }
 
@@ -173,7 +171,7 @@ export async function apiCreateSalesOrder<
     U extends Record<string, unknown>,
 >(data: U) {
     return ApiService.fetchData<T>({
-        url: '/sales/orders/create',
+        url: '/orders',
         method: 'post',
         data,
     })
@@ -184,7 +182,7 @@ export async function apiSaveSalesOrder<
     U extends Record<string, unknown>,
 >(data: U) {
     return ApiService.fetchData<T>({
-        url: '/sales/orders/save',
+        url: `/orders/${(data as any).id}`,
         method: 'put',
         data,
     })

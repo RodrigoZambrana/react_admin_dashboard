@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
-import { apiGetCrmDashboardData } from '@/services/CrmService'
+import { apiGetCustomersDashboardData } from '@/services/CustomersService'
 
 export type Statistic = {
     key: string
@@ -55,7 +55,7 @@ export const getCrmDashboardData = createAsyncThunk(
     'crmDashboard/data/getCrmDashboardData',
     async () => {
         const response =
-            await apiGetCrmDashboardData<CrmDashboardDataResponse>()
+            await apiGetCustomersDashboardData<CrmDashboardDataResponse>()
         return response.data
     },
 )

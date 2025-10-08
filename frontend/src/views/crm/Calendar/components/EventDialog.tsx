@@ -21,10 +21,10 @@ import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
 import { HiOutlineDownload, HiOutlineEye, HiOutlineTrash } from 'react-icons/hi'
 import {
-    apiGetCrmCustomers,
-    apiGetCrmCustomerDetails,
+    apiGetCustomers,
+    apiGetCustomerDetails,
     type CalendarEventAddress,
-} from '@/services/CrmService'
+} from '@/services/CustomersService'
 import CountryCitySelector, {
     type CountryCityValue,
 } from '@/components/shared/CountryCitySelector'
@@ -231,7 +231,7 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
     useEffect(() => {
         const loadCustomers = async () => {
             try {
-                const response = await apiGetCrmCustomers<{
+                const response = await apiGetCustomers<{
                     data: { id: string | number; name: string; email?: string }[]
                 }>({
                     pageIndex: 1,
@@ -841,7 +841,7 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
 
                         setLoadingAddress(true)
                         try {
-                            const response = await apiGetCrmCustomerDetails<
+                            const response = await apiGetCustomerDetails<
                                 {
                                     addresses?: Array<
                                         (CalendarEventAddress & {

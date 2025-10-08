@@ -4,7 +4,8 @@ import {
     type CalendarEventAddress,
     type CalendarEventDto,
     type CalendarEventAttachment,
-} from './CrmService'
+    apiGetCustomerCalendar,
+} from './CustomersService'
 import dayjs from 'dayjs'
 
 export type CalendarActivityComment = {

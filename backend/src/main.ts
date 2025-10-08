@@ -19,8 +19,23 @@ async function bootstrap() {
   )
 
   await app.register(helmet as any)
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0)
+
   await app.register(cors as any, {
-    origin: true,
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.includes('*')) {
+        cb(null, true)
+        return
+      }
+      if (allowedOrigins.some((allowed) => origin === allowed || origin.endsWith(allowed))) {
+        cb(null, true)
+        return
+      }
+      cb(new Error('Origin not allowed'), false)
+    },
     credentials: true,
   })
 

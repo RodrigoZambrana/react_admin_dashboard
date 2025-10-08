@@ -1,9 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import {
-    apiGetCrmCustomerDetails,
-    apiDeleteCrmCustomer,
-    apPutCrmCustomer,
-} from '@/services/CrmService'
+    apiGetCustomerDetails,
+    apiDeleteCustomer,
+    apiUpsertCustomer,
+} from '@/services/CustomersService'
 
 export const SLICE_NAME = 'crmCustomerDetails'
 
@@ -72,7 +72,7 @@ export type CustomerDetailState = {
 export const getCustomer = createAsyncThunk(
     SLICE_NAME + '/getCustomer',
     async (data: GetCrmCustomerDetailsRequest) => {
-        const response = await apiGetCrmCustomerDetails<
+        const response = await apiGetCustomerDetails<
             GetCrmCustomerDetailsResponse,
             GetCrmCustomerDetailsRequest
         >(data)
@@ -83,7 +83,7 @@ export const getCustomer = createAsyncThunk(
 export const deleteCustomer = createAsyncThunk(
     SLICE_NAME + '/deleteCustomer',
     async (data: DeleteCrmCustomerRequest) => {
-        const response = await apiDeleteCrmCustomer<
+        const response = await apiDeleteCustomer<
             DeleteCrmCustomerResponse,
             DeleteCrmCustomerRequest
         >(data)
@@ -94,7 +94,7 @@ export const deleteCustomer = createAsyncThunk(
 export const putCustomer = createAsyncThunk(
     SLICE_NAME + '/putCustomer',
     async (data: Customer) => {
-        const response = await apPutCrmCustomer(data)
+        const response = await apiUpsertCustomer(data)
         return response.data
     },
 )

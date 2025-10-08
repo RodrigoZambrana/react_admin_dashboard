@@ -24,7 +24,7 @@ Auth
 
 Key Modules
 - Users: `/api/users`
-- CRM (Customers): `/api/crm/*`
+- Customers: `/api/customers/*`
 - Sales (Products & Orders): `/api/sales/*`
 - Settings: `/api/settings/*`
 - Expenses: `/api/expenses/*`

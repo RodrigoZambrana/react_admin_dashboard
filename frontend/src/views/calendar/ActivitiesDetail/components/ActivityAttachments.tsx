@@ -9,7 +9,7 @@ import {
     apiUpdateCrmCalendarEvent,
     type CalendarEventAttachment,
     type CalendarEventDto,
-} from '@/services/CrmService'
+} from '@/services/CustomersService'
 import { useTranslation } from 'react-i18next'
 
 type ActivityAttachmentsProps = {
