@@ -1,5 +1,8 @@
 import { combineReducers } from '@reduxjs/toolkit'
-import reducers, { SLICE_NAME, CrmDashboardState } from './crmDashboardSlice'
+import reducers, {
+    SLICE_NAME,
+    CustomersDashboardState,
+} from './customersDashboardSlice'
 import { useSelector } from 'react-redux'
 
 import type { TypedUseSelectorHook } from 'react-redux'
@@ -12,11 +15,11 @@ const reducer = combineReducers({
 export const useAppSelector: TypedUseSelectorHook<
     RootState & {
         [SLICE_NAME]: {
-            data: CrmDashboardState
+            data: CustomersDashboardState
         }
     }
 > = useSelector
 
-export * from './crmDashboardSlice'
+export * from './customersDashboardSlice'
 export { useAppDispatch } from '@/store'
 export default reducer

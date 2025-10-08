@@ -29,7 +29,7 @@ Key Modules
 - Settings: `/api/settings/*`
 - Expenses: `/api/expenses/*`
 - Account (stubs): `/api/account/*`
-- Project (stubs): `/api/project/*`
+- Scrumboard (stubs): `/api/scrumboard/*`
 
 Notes
 - All entity IDs are numeric auto-incremented (Prisma `Int @id @default(autoincrement())`).
