@@ -1,6 +1,6 @@
 # React Admin Dashboard – Infraestructura y Automatización
 
-Este repositorio contiene todo lo necesario para desarrollar, construir y desplegar la aplicación compuesta por un frontend en React (Vite + TypeScript), un backend en NestJS/Fastify y PostgreSQL como base de datos. La infraestructura se orquesta con Docker Compose y los despliegues se automatizan mediante GitHub Actions: el ambiente **dev** levanta el stack localmente en el runner y los ambientes de **staging/prod** se publican sobre un Droplet de DigitalOcean mediante SSH
+Este repositorio contiene todo lo necesario para desarrollar, construir y desplegar la aplicación compuesta por un frontend en React (Vite + TypeScript), un backend en NestJS/Fastify y PostgreSQL como base de datos. La infraestructura se orquesta con Docker Compose y los despliegues se automatizan mediante GitHub Actions: el ambiente **dev** levanta el stack localmente en el runner y los ambientes de **staging/prod** se publican sobre un Droplet de DigitalOcean mediante SSH.
 
 ## Estructura del repositorio
 
