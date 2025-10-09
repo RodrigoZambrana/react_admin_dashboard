@@ -13,6 +13,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: prod
+    env:
+      PRISMA_APPLY_MIGRATIONS: ${{ secrets.PRISMA_APPLY_MIGRATIONS }}
 
     steps:
       - uses: actions/checkout@v4
@@ -86,12 +88,8 @@ jobs:
       - name: Prepare environment files
         run: |
           mkdir -p deploy/env
-          cat <<'EOB' > deploy/env/backend.prod.env
-${{ secrets.ENV_FILE_BACKEND }}
-EOB
-          cat <<'EOH' > deploy/env/frontend.prod.env
-${{ secrets.ENV_FILE_FRONTEND }}
-EOH
+          printf '%s' "${{ secrets.ENV_FILE_BACKEND }}" > deploy/env/backend.prod.env
+          printf '%s' "${{ secrets.ENV_FILE_FRONTEND }}" > deploy/env/frontend.prod.env
 
       - name: Archive release
         run: |
@@ -143,7 +141,7 @@ EOSSH
           echo "compose_file=$COMPOSE_FILE" >> "$GITHUB_OUTPUT"
 
       - name: Apply Prisma migrations
-        if: ${{ secrets.PRISMA_APPLY_MIGRATIONS == 'true' && steps.changes.outputs.prisma == 'true' }}
+        if: ${{ env.PRISMA_APPLY_MIGRATIONS == 'true' && steps.changes.outputs.prisma == 'true' }}
         env:
           REMOTE_PORT: ${{ secrets.DO_SSH_PORT }}
           REMOTE_HOST: ${{ secrets.DO_HOST }}

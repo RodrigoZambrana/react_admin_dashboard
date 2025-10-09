@@ -9,6 +9,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: dev
+    env:
+      PRISMA_APPLY_MIGRATIONS: ${{ secrets.PRISMA_APPLY_MIGRATIONS }}
 
     steps:
       - uses: actions/checkout@v4
@@ -94,7 +96,7 @@ jobs:
           docker compose -f deploy/docker-compose.dev.yml up -d --build
 
       - name: Aplicar migraciones de Prisma (si corresponde)
-        if: ${{ secrets.PRISMA_APPLY_MIGRATIONS == 'true' && steps.changes.outputs.prisma == 'true' }}
+        if: ${{ env.PRISMA_APPLY_MIGRATIONS == 'true' && steps.changes.outputs.prisma == 'true' }}
         run: |
           docker compose -f deploy/docker-compose.dev.yml exec -T backend npx prisma migrate deploy
 
