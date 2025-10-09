@@ -4,7 +4,8 @@ import Select from '@/components/ui/Select'
 import DatePicker from '@/components/ui/DatePicker'
 import Button from '@/components/ui/Button'
 import { Field, Form, Formik } from 'formik'
-import { useEffect, useState } from 'react'
+import * as Yup from 'yup'
+import { useEffect, useMemo, useState } from 'react'
 import {
     apiGetExpenseCategories,
     apiCreateExpense,
@@ -44,6 +45,24 @@ const ExpenseNew = () => {
     const [categories, setCategories] = useState(defaultCategories)
     const [statuses, setStatuses] = useState(defaultStatuses)
     const [methods, setMethods] = useState(defaultMethods)
+    const validationSchema = useMemo(
+        () =>
+            Yup.object().shape({
+                vendor: Yup.string()
+                    .transform((value) => (typeof value === 'string' ? value.trim() : ''))
+                    .required(t('expenses.new.validation.vendorRequired') as string),
+                amount: Yup.number()
+                    .transform((value, originalValue) =>
+                        originalValue === '' || originalValue === null
+                            ? undefined
+                            : value,
+                    )
+                    .typeError(t('expenses.new.validation.amountNumber') as string)
+                    .required(t('expenses.new.validation.amountRequired') as string)
+                    .moreThan(0, t('expenses.new.validation.amountPositive') as string),
+            }),
+        [t],
+    )
 
     useEffect(() => {
         const fetch = async () => {
@@ -93,19 +112,21 @@ const ExpenseNew = () => {
 
     const onSubmit = async (values: ExpenseForm) => {
         const id = `E-${Date.now().toString().slice(-6)}`
+        const vendor = values.vendor.trim()
         const payload = {
             id,
             date: values.date ? Math.floor(values.date.getTime() / 1000) : Math.floor(Date.now() / 1000),
-            vendor: values.vendor,
+            name: vendor,
+            vendor,
             categoryId: values.categoryId ? Number(values.categoryId) : null,
             statusId: values.statusId ? Number(values.statusId) : null,
             paymentMethodId: values.paymentMethodId ? Number(values.paymentMethodId) : null,
-        paymentReference: values.paymentReference,
-        amount: Number(values.amount) || 0,
-        note: values.note,
-        currency: values.currency ? values.currency.toUpperCase() : null,
-        attachments: values.attachments || [],
-    }
+            paymentReference: values.paymentReference?.trim() || null,
+            amount: Number(values.amount),
+            note: values.note?.trim() || null,
+            currency: values.currency ? values.currency.toUpperCase() : null,
+            attachments: values.attachments || [],
+        }
         const res = await apiCreateExpense<boolean, typeof payload>(payload)
         if (res.data) {
             toast.push(
@@ -121,11 +142,19 @@ const ExpenseNew = () => {
         <div className="card h-full card-shadow bg-white dark:bg-gray-800 p-6">
             <div className="max-w-3xl">
             <h3 className="mb-4">{t('expenses.new.title')}</h3>
-            <Formik initialValues={initialValues} onSubmit={onSubmit}>
+            <Formik<ExpenseForm>
+                initialValues={initialValues}
+                onSubmit={onSubmit}
+                validationSchema={validationSchema}
+            >
                 {({ values, touched, errors, setFieldValue }) => (
                     <Form>
                         <FormContainer>
-                            <FormItem label={t('text.columns.amount')}>
+                            <FormItem
+                                label={t('text.columns.amount')}
+                                invalid={Boolean(touched.amount && errors.amount)}
+                                errorMessage={touched.amount ? (errors.amount as string) : undefined}
+                            >
                                 <Field name="amount">
                                     {({ field, form }: any) => (
                                         <InputGroup>
@@ -145,7 +174,11 @@ const ExpenseNew = () => {
                                 </Field>
                             </FormItem>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormItem label={t('expenses.new.fields.vendor')}>
+                                <FormItem
+                                    label={t('expenses.new.fields.vendor')}
+                                    invalid={Boolean(touched.vendor && errors.vendor)}
+                                    errorMessage={touched.vendor ? (errors.vendor as string) : undefined}
+                                >
                                     <Field
                                         name="vendor"
                                         as={Input}

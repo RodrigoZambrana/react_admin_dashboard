@@ -1211,6 +1211,12 @@
             "placeholders": {
                 "vendor": "Vendor name"
             },
+            "validation": {
+                "vendorRequired": "Vendor is required",
+                "amountRequired": "Amount is required",
+                "amountNumber": "Amount must be a valid number",
+                "amountPositive": "Amount must be greater than 0"
+            },
             "created": {
                 "title": "Successfully created",
                 "desc": "Expense created successfully"
