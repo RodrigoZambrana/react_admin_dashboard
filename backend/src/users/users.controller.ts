@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Param,
@@ -14,6 +15,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { normalizeAvatarPath, persistAvatarFile } from '../common/uploads/avatar'
 import { Prisma } from '@prisma/client'
 import { parseSingleFileMultipart } from '../common/uploads/multipart'
+import * as bcrypt from 'bcrypt'
 
 const normalizeNullableString = (value?: string | null) => {
   if (value === undefined || value === null) {
@@ -223,5 +225,47 @@ export class UsersController {
       }
       throw error
     }
+  }
+
+  @Put(':id/password')
+  async updatePassword(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      password?: unknown
+    },
+  ) {
+    const userId = Number(id)
+    if (!Number.isInteger(userId)) {
+      throw new BadRequestException('users.validation.invalidUser')
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, passwordHash: true },
+    })
+
+    if (!existing) {
+      throw new BadRequestException('users.validation.invalidUser')
+    }
+
+    if (typeof body?.password !== 'string') {
+      throw new BadRequestException('users.validation.passwordRequired')
+    }
+
+    const password = normalizeRequiredString(body.password)
+
+    if (!password.length) {
+      throw new BadRequestException('users.validation.passwordRequired')
+    }
+
+    const hashed = await bcrypt.hash(password, 10)
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: hashed },
+    })
+
+    return { success: true }
   }
 }

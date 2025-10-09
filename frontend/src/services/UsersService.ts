@@ -33,3 +33,14 @@ export async function apiUpdateUser<T, U extends Payload>(id: string, data: U) {
             : undefined,
     })
 }
+
+export async function apiUpdateUserPassword<T>(
+    id: string,
+    data: { password: string },
+) {
+    return ApiService.fetchData<T>({
+        url: `/users/${id}/password`,
+        method: 'put',
+        data,
+    })
+}

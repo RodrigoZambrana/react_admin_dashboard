@@ -569,6 +569,7 @@
             "time": "Time",
             "userName": "User Name",
             "password": "Password",
+            "confirmPassword": "Confirm Password",
             "location": "Location",
             "phoneNumber": "Phone Number",
             "title": "Title",
@@ -685,9 +686,11 @@
             "appInstalled": "App installed",
             "invoiceNote": "Invoice was created on a computer and is valid without the signature and seal.",
             "passwordUpdated": "Password updated",
+            "passwordUpdateFailed": "We could not update the password.",
             "userCreated": "User created",
             "userUpdated": "User updated",
             "userSaveFailed": "We could not save the user.",
+            "passwordTabRequiresUser": "Create the user before setting a password.",
             "viewPreviousBilling": "View your previous billing"
         },
         "validation": {
@@ -715,6 +718,8 @@
             "startDateRequired": "Start Date Required",
             "colorRequired": "Color Required",
             "passwordRequired": "Password Required",
+            "confirmPasswordRequired": "Confirm Password is required",
+            "passwordMismatch": "Passwords must match",
             "enterNewPassword": "Enter your new password",
             "tooShort": "Too Short!",
             "tooLong": "Too Long!",
@@ -738,7 +743,9 @@
         "tabs": {
             "personalInfo": "Personal Info",
             "address": "Address",
-            "social": "Social"
+            "social": "Social",
+            "userDetails": "Details",
+            "password": "Password"
         },
         "filters": {
             "all": "All",
@@ -854,7 +861,8 @@
     },
     "users": {
         "validation": {
-            "duplicateEmail": "A user with that email already exists."
+            "duplicateEmail": "A user with that email already exists.",
+            "passwordRequired": "Password is required."
         }
     },
     "welcome": {
