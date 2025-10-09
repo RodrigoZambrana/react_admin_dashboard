@@ -12,7 +12,8 @@ import * as Yup from 'yup'
 import type { CommonProps } from '@/@types/common'
 import appConfig from '@/configs/app.config'
 import { useTranslation } from 'react-i18next'
-import { executeRecaptchaAction } from '@/utils/security/recaptcha'
+import { executeRecaptchaAction, preloadRecaptcha } from '@/utils/security/recaptcha'
+import { useEffect } from 'react'
 
 interface SignInFormProps extends CommonProps {
     disableSubmit?: boolean
@@ -55,6 +56,24 @@ const SignInForm = (props: SignInFormProps) => {
     const { signIn } = useAuth()
 
     const { t } = useTranslation()
+
+    useEffect(() => {
+        if (!isRecaptchaEnabled) {
+            return
+        }
+
+        let isCancelled = false
+
+        preloadRecaptcha(recaptchaSiteKey).catch(() => {
+            if (!isCancelled) {
+                setMessage('Unable to initialize reCAPTCHA. Please refresh the page.')
+            }
+        })
+
+        return () => {
+            isCancelled = true
+        }
+    }, [isRecaptchaEnabled, recaptchaSiteKey, setMessage])
 
     const onSignIn = async (
         values: SignInFormSchema,
