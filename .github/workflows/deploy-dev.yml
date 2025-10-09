@@ -85,12 +85,8 @@ jobs:
       - name: Preparar archivos de entorno
         run: |
           mkdir -p deploy/env
-          cat <<'EOB' > deploy/env/backend.dev.env
-${{ secrets.ENV_FILE_BACKEND }}
-EOB
-          cat <<'EOH' > deploy/env/frontend.dev.env
-${{ secrets.ENV_FILE_FRONTEND }}
-EOH
+          printf '%s' "${{ secrets.ENV_FILE_BACKEND }}" > deploy/env/backend.dev.env
+          printf '%s' "${{ secrets.ENV_FILE_FRONTEND }}" > deploy/env/frontend.dev.env
 
       - name: Iniciar stack local de desarrollo
         run: |
