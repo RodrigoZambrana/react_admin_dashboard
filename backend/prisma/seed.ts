@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 
 const prisma = new PrismaClient()
@@ -403,6 +403,15 @@ async function main() {
 
   // Calendar events
   const allTasks = await prisma.task.findMany()
+  const dbCustomers = await prisma.customer.findMany({
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      name: true,
+      email: true,
+    },
+  })
   const colorMap: Record<string, string> = {
     meeting: 'blue',
     task: 'emerald',
@@ -428,6 +437,26 @@ async function main() {
       corner: null as string | null,
       apartment: null as string | null,
     }
+    const assignedCustomer = dbCustomers.length
+      ? dbCustomers[i % dbCustomers.length]
+      : null
+    const metadata: Prisma.JsonObject = {
+      address,
+      customType: typeKey,
+    }
+    if (assignedCustomer) {
+      metadata.customerId = assignedCustomer.id
+      const fullName = [assignedCustomer.firstName, assignedCustomer.lastName]
+        .filter(Boolean)
+        .join(' ')
+      const normalizedName = fullName || assignedCustomer.name || null
+      if (normalizedName) {
+        metadata.customerName = normalizedName
+      }
+      if (assignedCustomer.email) {
+        metadata.customerEmail = assignedCustomer.email
+      }
+    }
     await prisma.calendarEvent.create({
       data: {
         title: `Event ${i + 1}`,
@@ -437,10 +466,7 @@ async function main() {
         allDay: false,
         location: `${address.street} ${address.number}, ${address.city}`,
         color: colorMap[typeKey] || 'indigo',
-        metadata: {
-          address,
-          customType: typeKey,
-        },
+        metadata,
         taskId: i % 2 === 0 && allTasks[i % allTasks.length] ? allTasks[i % allTasks.length].id : null,
         projectId: projects[i % projects.length]?.id,
       },
@@ -449,7 +475,6 @@ async function main() {
 
   // Orders based on customers and products
   const dbProducts = await prisma.product.findMany()
-  const dbCustomers = await prisma.customer.findMany()
   for (let i = 0; i < 10; i++) {
     const cust = dbCustomers[i % dbCustomers.length]
     const items = dbProducts
