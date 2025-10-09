@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: dashboard-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dashboard
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    image: node:20-alpine
+    container_name: dashboard-backend-dev
+    working_dir: /app
+    command: sh -c "npm install && npm run start:dev"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/dashboard?schema=public
+      NODE_ENV: development
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../backend:/app
+      - backend_node_modules:/app/node_modules
+    depends_on:
+      - db
+
+  frontend:
+    image: node:20-alpine
+    container_name: dashboard-frontend-dev
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 80"
+    environment:
+      VITE_API_URL: http://localhost:8080/api
+      SERVER_NAME: ${APP_DOMAIN_DEV:-localhost}
+    volumes:
+      - ../frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - backend
+
+  proxy:
+    image: nginx:1.27-alpine
+    container_name: dashboard-proxy-dev
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+
+volumes:
+  postgres_data_dev:
+  backend_node_modules:
+  frontend_node_modules:

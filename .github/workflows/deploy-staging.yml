@@ -1,0 +1,165 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches:
+      - staging
+
+env:
+  APP_PATH: /opt/app
+  COMPOSE_FILE: docker-compose.staging.yml
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Test frontend
+        working-directory: frontend
+        run: npm run test -- --run
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Lint backend
+        working-directory: backend
+        run: npm run lint
+
+      - name: Test backend
+        working-directory: backend
+        run: npm run test -- --run
+
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
+
+      - name: Clean workspace artifacts
+        run: |
+          rm -rf frontend/node_modules backend/node_modules
+
+      - name: Detect Prisma schema changes
+        id: changes
+        run: |
+          set -euo pipefail
+          BASE=${{ github.event.before }}
+          if [ -z "$BASE" ]; then
+            BASE=$(git rev-parse HEAD^ || echo '')
+          fi
+          if [ -z "$BASE" ]; then
+            echo "prisma=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only "$BASE" HEAD | grep -q '^backend/prisma/'; then
+            echo "prisma=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prisma=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare environment files
+        run: |
+          mkdir -p deploy/env
+          cat <<'EOB' > deploy/env/backend.staging.env
+${{ secrets.ENV_FILE_BACKEND }}
+EOB
+          cat <<'EOH' > deploy/env/frontend.staging.env
+${{ secrets.ENV_FILE_FRONTEND }}
+EOH
+
+      - name: Archive release
+        run: |
+          tar -czf release.tar.gz backend frontend deploy Makefile README.md SECURITY.md .editorconfig .gitignore
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+
+      - name: Add droplet to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ secrets.DO_SSH_PORT }} ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Upload release bundle
+        run: |
+          rsync -az -e "ssh -p ${{ secrets.DO_SSH_PORT }}" release.tar.gz ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_HOST }}:/tmp/release_${{ github.sha }}.tar.gz
+
+      - name: Deploy stack
+        id: deploy
+        env:
+          REMOTE_PORT: ${{ secrets.DO_SSH_PORT }}
+          REMOTE_HOST: ${{ secrets.DO_HOST }}
+          REMOTE_USER: ${{ secrets.DO_SSH_USER }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          RELEASE_DIR="$APP_PATH/releases/$GIT_SHA"
+          PREVIOUS=$(ssh -p "$REMOTE_PORT" "$REMOTE_USER@$REMOTE_HOST" "readlink -f $APP_PATH/current || true")
+          ssh -p "$REMOTE_PORT" "$REMOTE_USER@$REMOTE_HOST" "PREVIOUS='$PREVIOUS' GITHUB_SHA=$GIT_SHA APP_PATH=$APP_PATH COMPOSE_FILE=$COMPOSE_FILE bash -s" <<'EOSSH'
+set -euo pipefail
+mkdir -p "$APP_PATH/releases"
+RELEASE_DIR="$APP_PATH/releases/$GITHUB_SHA"
+rm -rf "$RELEASE_DIR"
+mkdir -p "$RELEASE_DIR"
+tar -xzf "/tmp/release_$GITHUB_SHA.tar.gz" -C "$RELEASE_DIR"
+rm -f "/tmp/release_$GITHUB_SHA.tar.gz"
+if [ -n "$PREVIOUS" ] && [ "$PREVIOUS" != "$RELEASE_DIR" ]; then
+  ln -sfn "$PREVIOUS" "$APP_PATH/previous"
+fi
+ln -sfn "$RELEASE_DIR" "$APP_PATH/current"
+cd "$APP_PATH/current/deploy"
+docker compose -f "$COMPOSE_FILE" pull || true
+docker compose -f "$COMPOSE_FILE" up -d --build --remove-orphans
+EOSSH
+          echo "release_dir=$RELEASE_DIR" >> "$GITHUB_OUTPUT"
+          echo "previous_dir=$PREVIOUS" >> "$GITHUB_OUTPUT"
+          echo "compose_file=$COMPOSE_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Apply Prisma migrations
+        if: ${{ secrets.PRISMA_APPLY_MIGRATIONS == 'true' && steps.changes.outputs.prisma == 'true' }}
+        env:
+          REMOTE_PORT: ${{ secrets.DO_SSH_PORT }}
+          REMOTE_HOST: ${{ secrets.DO_HOST }}
+          REMOTE_USER: ${{ secrets.DO_SSH_USER }}
+        run: |
+          ssh -p "$REMOTE_PORT" "$REMOTE_USER@$REMOTE_HOST" "cd ${{ steps.deploy.outputs.release_dir }}/deploy && docker compose -f ${{ steps.deploy.outputs.compose_file }} exec -T backend npx prisma migrate deploy"
+
+      - name: Health check
+        run: |
+          curl -f --retry 10 --retry-delay 6 ${{ secrets.HEALTHCHECK_URL }}
+
+      - name: Rollback on failure
+        if: failure() && steps.deploy.outputs.previous_dir != ''
+        env:
+          REMOTE_PORT: ${{ secrets.DO_SSH_PORT }}
+          REMOTE_HOST: ${{ secrets.DO_HOST }}
+          REMOTE_USER: ${{ secrets.DO_SSH_USER }}
+        run: |
+          ssh -p "$REMOTE_PORT" "$REMOTE_USER@$REMOTE_HOST" "set -e; ln -sfn ${{ steps.deploy.outputs.previous_dir }} $APP_PATH/current && cd $APP_PATH/current/deploy && docker compose -f ${{ steps.deploy.outputs.compose_file }} up -d --remove-orphans && rm -rf ${{ steps.deploy.outputs.release_dir }}"
