@@ -43,7 +43,29 @@ Cada environment en GitHub Actions debe definir los secretos descritos en la sec
    ```bash
    cp backend/.env.example backend/.env
    cp frontend/.env.example frontend/.env
+   cp deploy/env/backend.dev.env.example deploy/env/backend.dev.env
+   cp deploy/env/frontend.dev.env.example deploy/env/frontend.dev.env
    ```
+   Define al menos las variables de conexión (`DATABASE_URL`), secretos JWT/cookies y los orígenes permitidos en `deploy/env/backend.dev.env`; el archivo del frontend controla las variables `VITE_*` utilizadas por Vite.
+
+   Variables esperadas:
+
+   - `deploy/env/backend.dev.env`
+     - `NODE_ENV`: modo de ejecución del backend (normalmente `development`).
+     - `PORT`: puerto donde expondrá NestJS (por defecto `3000`).
+     - `DATABASE_URL`: cadena de conexión para PostgreSQL.
+     - `JWT_SECRET`: clave para firmar tokens JWT.
+     - `COOKIE_SECRET`: clave para firmar cookies de sesión.
+     - `ALLOWED_ORIGINS`: lista separada por comas con orígenes permitidos para CORS.
+     - `DEFAULT_USER_TEMP_PASSWORD`: contraseña provisional para usuarios creados desde la API.
+     - `RECAPTCHA_SECRET_KEY`: clave secreta del backend para validar reCAPTCHA (opcional).
+     - `SENTRY_DSN`: DSN del proyecto en Sentry (opcional).
+
+   - `deploy/env/frontend.dev.env`
+     - `VITE_APP_NAME`: nombre que muestra la aplicación en el frontend.
+     - `VITE_API_URL`: URL base para la API desde el navegador (generalmente `http://localhost:8080/api`).
+     - `VITE_STATE_SIGNATURE_KEY`: clave utilizada para firmar estados en el frontend.
+     - `VITE_RECAPTCHA_SITE_KEY`: clave pública del sitio para reCAPTCHA (opcional).
 
 2. Levanta el entorno completo (frontend con Vite, backend en modo watch y PostgreSQL) mediante:
    ```bash
