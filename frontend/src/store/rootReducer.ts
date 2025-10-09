@@ -1,4 +1,4 @@
-import { combineReducers, Action, Reducer } from 'redux'
+import { combineReducers, type Action, type Reducer } from '@reduxjs/toolkit'
 import auth, { AuthState } from './slices/auth'
 import base, { BaseState } from './slices/base'
 import locale, { LocaleState } from './slices/locale/localeSlice'

@@ -126,6 +126,72 @@ const useValidationSchema = (t: (k: string) => string) =>
 
 const { TabNav, TabList, TabContent } = Tabs
 
+type CustomerFormInnerProps = FormikProps<FormModel> & {
+  onValuesChange?: (values: FormModel) => void
+  onValidationStateChange?: (state: {
+    isValid: boolean
+    isSubmitting: boolean
+    errors: FormikErrors<FormModel>
+  }) => void
+  currentTab: 'personalInfo' | 'address'
+  onTabChangeLocal: (value: string) => void
+  t: ReturnType<typeof useTranslation>['t']
+}
+
+const CustomerFormInner = ({
+  values,
+  errors,
+  isValid,
+  isSubmitting,
+  onValuesChange,
+  onValidationStateChange,
+  currentTab,
+  onTabChangeLocal,
+  t,
+}: CustomerFormInnerProps) => {
+  useEffect(() => {
+    onValuesChange?.(values)
+  }, [onValuesChange, values])
+
+  useEffect(() => {
+    onValidationStateChange?.({
+      isValid,
+      isSubmitting,
+      errors,
+    })
+  }, [errors, isSubmitting, isValid, onValidationStateChange])
+
+  return (
+    <Form>
+      <FormContainer>
+        <Tabs value={currentTab} onChange={onTabChangeLocal}>
+          <TabList>
+            <TabNav value="personalInfo">{t('text.tabs.personalInfo')}</TabNav>
+            <TabNav value="address">{t('text.tabs.address')}</TabNav>
+          </TabList>
+          <div className="p-6">
+            <TabContent value="personalInfo">
+              <PersonalInfoForm />
+            </TabContent>
+            <TabContent value="address">
+              <AddressForm />
+            </TabContent>
+          </div>
+          <div className="px-6 pb-6 flex flex-col sm:flex-row sm:justify-end gap-3">
+            <button
+              type="submit"
+              className="btn btn-solid w-full sm:w-auto"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? t('text.actions.saving') : t('text.actions.save')}
+            </button>
+          </div>
+        </Tabs>
+      </FormContainer>
+    </Form>
+  )
+}
+
 const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
     const {
         customer,
@@ -242,58 +308,16 @@ const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
                 }
             }}
         >
-            {({ values, errors, isValid, isSubmitting }) => {
-                useEffect(() => {
-                    onValuesChange?.(values)
-                }, [values])
-
-                useEffect(() => {
-                    onValidationStateChange?.({
-                        isValid,
-                        isSubmitting,
-                        errors,
-                    })
-                }, [isValid, isSubmitting, errors, onValidationStateChange])
-
-                return (
-                    <Form>
-                        <FormContainer>
-                            <Tabs value={activeTab ?? internalTab} onChange={handleTabChange}>
-                                <TabList>
-                                    {/* Asegúrate de que TabNav NO sea type="submit" */}
-                                    <TabNav value="personalInfo">
-                                        {t('text.tabs.personalInfo')}
-                                    </TabNav>
-                                    <TabNav value="address">
-                                        {t('text.tabs.address')}
-                                    </TabNav>
-                                </TabList>
-                                <div className="p-6">
-                                    <TabContent value="personalInfo">
-                                        <PersonalInfoForm />
-                                    </TabContent>
-                                    <TabContent value="address">
-                                        <AddressForm />
-                                    </TabContent>
-                                </div>
-
-                                {/* Footer con botón de submit explícito */}
-                                <div className="px-6 pb-6 flex flex-col sm:flex-row sm:justify-end gap-3">
-                                    <button
-                                        type="submit"
-                                        className="btn btn-solid w-full sm:w-auto"
-                                        disabled={isSubmitting}
-                                    >
-                                        {isSubmitting
-                                            ? t('text.actions.saving')
-                                            : t('text.actions.save')}
-                                    </button>
-                                </div>
-                            </Tabs>
-                        </FormContainer>
-                    </Form>
-                )
-            }}
+            {(formikProps) => (
+                <CustomerFormInner
+                    {...formikProps}
+                    onValuesChange={onValuesChange}
+                    onValidationStateChange={onValidationStateChange}
+                    currentTab={activeTab ?? internalTab}
+                    onTabChangeLocal={handleTabChange}
+                    t={t}
+                />
+            )}
         </Formik>
     )
 })

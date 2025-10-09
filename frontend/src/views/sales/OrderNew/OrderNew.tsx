@@ -375,17 +375,13 @@ const OrderNew = () => {
                 }}
             >
                 {({ values, setFieldValue, errors, touched, setFieldTouched }) => {
-                    const deliveryFees = Number(values.shipping?.deliveryFees ?? 0)
-                    const totals = useMemo(() => {
-                        const sum = values.items.reduce(
-                            (runningTotal, it) => runningTotal + (it.price || 0) * (it.qty || 0),
-                            0,
-                        )
-                        const taxAmount = Math.round(sum * (taxRate / (100 + taxRate)) * 100) / 100
-                        const gross = Math.round((sum + deliveryFees) * 100) / 100
-                        return { sum, fee: deliveryFees, taxAmount, gross }
-                    }, [taxRate, values.items, deliveryFees])
-                    const { sum: total, fee: deliveryFee, taxAmount: tax, gross: grandTotal } = totals
+                    const deliveryFee = Number(values.shipping?.deliveryFees ?? 0)
+                    const total = values.items.reduce(
+                        (runningTotal, it) => runningTotal + (it.price || 0) * (it.qty || 0),
+                        0,
+                    )
+                    const tax = Math.round(total * (taxRate / (100 + taxRate)) * 100) / 100
+                    const grandTotal = Math.round((total + deliveryFee) * 100) / 100
                     const addItem = (
                         pid: string,
                         option?: {

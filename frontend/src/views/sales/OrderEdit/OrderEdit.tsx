@@ -151,7 +151,10 @@ const OrderEdit = () => {
                 }
             }}>
                 {({ values, setFieldValue, errors, touched }) => {
-                    const total = useMemo(() => values.items.reduce((s: number, it: Item) => s + (it.price || 0) * (it.qty || 0), 0), [values.items])
+                    const total = values.items.reduce(
+                        (sum: number, it: Item) => sum + (it.price || 0) * (it.qty || 0),
+                        0,
+                    )
                     const deliveryFee = Number((values as any).shipping?.deliveryFees || 0)
                     const tax = Math.round(total * (taxRate / (100 + taxRate)) * 100) / 100
                     const grandTotal = Math.round((total + deliveryFee) * 100) / 100
