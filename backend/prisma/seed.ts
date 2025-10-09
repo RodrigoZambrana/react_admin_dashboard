@@ -132,12 +132,16 @@ async function main() {
   })
 
   // Expense statuses and categories
-  const eStatuses = ['New', 'Approved', 'Rejected']
+  const eStatuses = [
+    { name: 'New', color: '#3b82f6' },
+    { name: 'Approved', color: '#10b981' },
+    { name: 'Rejected', color: '#ef4444' },
+  ]
   for (const s of eStatuses) {
     await prisma.expenseStatus.upsert({
-      where: { name: s },
-      update: {},
-      create: { name: s },
+      where: { name: s.name },
+      update: { color: s.color },
+      create: s,
     })
   }
   const eCategories = ['Operations', 'Marketing', 'Salaries']
@@ -148,6 +152,23 @@ async function main() {
       create: { name: c },
     })
   }
+
+  const customerStatuses = [
+    { name: 'Active', color: '#10b981' },
+    { name: 'Onboarding', color: '#2563eb' },
+    { name: 'Churn Risk', color: '#f59e0b' },
+    { name: 'Inactive', color: '#6b7280' },
+  ]
+  const customerStatusMap = new Map<string, number>()
+  for (const status of customerStatuses) {
+    const record = await prisma.customerStatus.upsert({
+      where: { name: status.name },
+      update: { color: status.color },
+      create: status,
+    })
+    customerStatusMap.set(status.name, record.id)
+  }
+  const activeCustomerStatusId = customerStatusMap.get('Active') ?? null
 
   // Customers
  const customers = [
@@ -198,7 +219,10 @@ async function main() {
     },
   ]
   for (const c of customers) {
-    const found = await prisma.customer.findFirst({ where: { email: c.email } })
+    const found = await prisma.customer.findFirst({
+      where: { email: c.email },
+      select: { id: true, statusId: true },
+    })
     const name = [c.firstName, c.lastName].filter(Boolean).join(' ')
     const [primaryPhone] = c.phones || []
     const customerPayload = {
@@ -210,6 +234,10 @@ async function main() {
       img: c.img,
       name,
       phoneNumber: primaryPhone,
+    }
+    const statusId = found?.statusId ?? activeCustomerStatusId ?? undefined
+    if (statusId !== undefined && statusId !== null) {
+      Object.assign(customerPayload, { statusId })
     }
     const customer = found
       ? await prisma.customer.update({ where: { id: found.id }, data: customerPayload })
@@ -471,9 +499,16 @@ async function main() {
 
   // Expenses
   const eCats = await prisma.expenseCategory.findMany()
+  const expenseStatusesRecords = await prisma.expenseStatus.findMany({ orderBy: { id: 'asc' } })
+  const expenseStatusIds = expenseStatusesRecords.map((status) => status.id)
   const expenseCurrencies = ['UYU', 'USD', 'EUR']
   for (let i = 0; i < 20; i++) {
     const currency = expenseCurrencies[i % expenseCurrencies.length]
+    const expenseStatusId =
+      expenseStatusIds.length > 0
+        ? expenseStatusIds[i % expenseStatusIds.length]
+        : null
+    const paymentMethod = pms.length > 0 ? pms[i % pms.length] : null
     await prisma.expense.create({
       data: {
         title: `Expense ${i + 1}`,
@@ -482,6 +517,8 @@ async function main() {
         date: new Date(Date.now() - i * 86400000),
         currency,
         categoryId: eCats[i % eCats.length]?.id,
+        statusId: expenseStatusId ?? undefined,
+        paymentMethodId: paymentMethod?.id,
       },
     })
   }

@@ -231,6 +231,9 @@ export class AccountController {
     }
     for (const group of map.values()) {
       group.events.sort((a, b) => b.dateTime - a.dateTime)
+      if (group.events.length > 0) {
+        group.date = group.events[0].dateTime
+      }
     }
     return map
   }
