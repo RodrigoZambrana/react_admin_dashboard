@@ -5,13 +5,14 @@
   "scripts": {
     "start": "vite",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "npm run lint -- --fix",
     "prettier": "npx prettier src --check",
     "prettier:fix": "npm run prettier -- --write",
     "test": "vitest run --config vitest.config.ts",
-    "format": "npm run prettier:fix && npm run lint:fix"
+    "format": "npm run prettier:fix && npm run lint:fix",
+    "dev": "vite"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.2",

@@ -1,0 +1,41 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/ci-fe.yml'
+  push:
+    branches:
+      - develop
+      - staging
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/ci-fe.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package.json
+            frontend/package-lock.json
+      - name: Install dependencies
+        run: npm install
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm run test -- --run
+      - name: Build
+        run: npm run build

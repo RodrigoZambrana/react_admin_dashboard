@@ -6,13 +6,14 @@
     "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "start:prod": "node .",
+    "start:prod": "node dist/src/main.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate": "prisma migrate deploy",
     "prisma:seed": "ts-node --compiler-options '{\"module\":\"commonjs\"}' prisma/seed.ts",
     "prisma:deploy": "prisma migrate deploy",
     "reset-admin": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/reset-admin.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",

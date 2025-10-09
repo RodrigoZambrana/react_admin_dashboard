@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+.env*
+prisma/dev.db
+.vscode
+.git
+.gitignore
