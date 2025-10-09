@@ -120,22 +120,22 @@ jobs:
           set -euo pipefail
           RELEASE_DIR="$APP_PATH/releases/$GIT_SHA"
           PREVIOUS=$(ssh -p "$REMOTE_PORT" "$REMOTE_USER@$REMOTE_HOST" "readlink -f $APP_PATH/current || true")
-          ssh -p "$REMOTE_PORT" "$REMOTE_USER@$REMOTE_HOST" "PREVIOUS='$PREVIOUS' GITHUB_SHA=$GIT_SHA APP_PATH=$APP_PATH COMPOSE_FILE=$COMPOSE_FILE bash -s" <<'EOSSH'
-set -euo pipefail
-mkdir -p "$APP_PATH/releases"
-RELEASE_DIR="$APP_PATH/releases/$GITHUB_SHA"
-rm -rf "$RELEASE_DIR"
-mkdir -p "$RELEASE_DIR"
-tar -xzf "/tmp/release_$GITHUB_SHA.tar.gz" -C "$RELEASE_DIR"
-rm -f "/tmp/release_$GITHUB_SHA.tar.gz"
-if [ -n "$PREVIOUS" ] && [ "$PREVIOUS" != "$RELEASE_DIR" ]; then
-  ln -sfn "$PREVIOUS" "$APP_PATH/previous"
-fi
-ln -sfn "$RELEASE_DIR" "$APP_PATH/current"
-cd "$APP_PATH/current/deploy"
-docker compose -f "$COMPOSE_FILE" pull || true
-docker compose -f "$COMPOSE_FILE" up -d --build --remove-orphans
-EOSSH
+          printf '%s\n' \
+            'set -euo pipefail' \
+            'mkdir -p "$APP_PATH/releases"' \
+            'RELEASE_DIR="$APP_PATH/releases/$GITHUB_SHA"' \
+            'rm -rf "$RELEASE_DIR"' \
+            'mkdir -p "$RELEASE_DIR"' \
+            'tar -xzf "/tmp/release_$GITHUB_SHA.tar.gz" -C "$RELEASE_DIR"' \
+            'rm -f "/tmp/release_$GITHUB_SHA.tar.gz"' \
+            'if [ -n "$PREVIOUS" ] && [ "$PREVIOUS" != "$RELEASE_DIR" ]; then' \
+            '  ln -sfn "$PREVIOUS" "$APP_PATH/previous"' \
+            'fi' \
+            'ln -sfn "$RELEASE_DIR" "$APP_PATH/current"' \
+            'cd "$APP_PATH/current/deploy"' \
+            'docker compose -f "$COMPOSE_FILE" pull || true' \
+            'docker compose -f "$COMPOSE_FILE" up -d --build --remove-orphans' \
+          | ssh -p "$REMOTE_PORT" "$REMOTE_USER@$REMOTE_HOST" "PREVIOUS='$PREVIOUS' GITHUB_SHA=$GIT_SHA APP_PATH=$APP_PATH COMPOSE_FILE=$COMPOSE_FILE bash -s"
           echo "release_dir=$RELEASE_DIR" >> "$GITHUB_OUTPUT"
           echo "previous_dir=$PREVIOUS" >> "$GITHUB_OUTPUT"
           echo "compose_file=$COMPOSE_FILE" >> "$GITHUB_OUTPUT"
