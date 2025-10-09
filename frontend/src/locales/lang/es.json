@@ -1211,6 +1211,12 @@
             "placeholders": {
                 "vendor": "Nombre del proveedor"
             },
+            "validation": {
+                "vendorRequired": "El proveedor es obligatorio",
+                "amountRequired": "El monto es obligatorio",
+                "amountNumber": "El monto debe ser un número válido",
+                "amountPositive": "El monto debe ser mayor que 0"
+            },
             "created": {
                 "title": "Creado correctamente",
                 "desc": "Gasto creado correctamente"
