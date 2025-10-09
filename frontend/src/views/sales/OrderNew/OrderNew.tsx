@@ -12,7 +12,7 @@ import toast from '@/components/ui/toast'
 import Drawer from '@/components/ui/Drawer'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { apiGetCrmCustomers, apiGetCrmCustomerDetails } from '@/services/CrmService'
+import { apiGetCustomers, apiGetCustomerDetails } from '@/services/CustomersService'
 import { apiGetSalesProducts, apiCreateSalesOrder, apiCreateSalesProduct } from '@/services/SalesService'
 import * as Yup from 'yup'
 import { apiGetPaymentMethods, apiGetShippingOptions, apiGetSystemConfig } from '@/services/SettingsService'
@@ -115,7 +115,7 @@ const OrderNew = () => {
     useEffect(() => {
         const load = async () => {
             // customers
-            const cRes = await apiGetCrmCustomers<{ data: { id: string | number; name: string }[] }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' } as any)
+            const cRes = await apiGetCustomers<{ data: { id: string | number; name: string }[] }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' } as any)
             const cOpts = ((cRes as any).data?.data || []).map((c: any) => ({ value: String(c.id), label: c.name }))
             setCustomers(cOpts)
             // products
@@ -685,7 +685,7 @@ const OrderNew = () => {
                         const id = opt?.value
                         setFieldValue('customerId', id)
                         if (id) {
-                            const res = await apiGetCrmCustomerDetails<any, { id: string }>({ id })
+                            const res = await apiGetCustomerDetails<any, { id: string }>({ id })
                             const detail = (res as any).data || (res as any)
                             setCustomerDetail(detail)
                             // Prefill shipping address with customer's primary address

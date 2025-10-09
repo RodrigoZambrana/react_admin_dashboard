@@ -14,6 +14,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Prisma } from '@prisma/client'
+import { Roles, ROLES } from '../auth/roles.decorator'
+import { RolesGuard } from '../auth/roles.guard'
 
 type ThemeConfigPayload = {
   themeColor: string
@@ -36,7 +38,6 @@ import {
   deleteShippingLogo,
 } from '../common/uploads/shipping'
 
-@UseGuards(JwtAuthGuard)
 @Controller('settings')
 export class SettingsController {
   constructor(private prisma: PrismaService) {}
@@ -209,21 +210,28 @@ export class SettingsController {
 
   // Order Statuses
   @Get('order-statuses')
+  @UseGuards(JwtAuthGuard)
   getOrderStatuses() {
     return this.prisma.orderStatus.findMany({ orderBy: { id: 'asc' } })
   }
   @Post('order-statuses/create')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async createOrderStatus(@Body() body: { id?: number; name: string; color?: string }) {
     const nextCode = (await this.prisma.orderStatus.count())
     await this.prisma.orderStatus.create({ data: { name: body.name, code: nextCode, color: body.color } })
     return true
   }
   @Put('order-statuses/update')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async updateOrderStatus(@Body() body: { id: number; name?: string; color?: string }) {
     await this.prisma.orderStatus.update({ where: { id: body.id }, data: { name: body.name, color: body.color } })
     return true
   }
   @Delete('order-statuses/delete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async deleteOrderStatus(@Body() body: { id: number }) {
     await this.prisma.orderStatus.delete({ where: { id: body.id } })
     return true
@@ -231,15 +239,20 @@ export class SettingsController {
 
   // Customer Statuses
   @Get('customer-statuses')
+  @UseGuards(JwtAuthGuard)
   getCustomerStatuses() {
     return this.prisma.customerStatus.findMany({ orderBy: { id: 'asc' } })
   }
   @Post('customer-statuses/create')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async createCustomerStatus(@Body() body: { id?: number; name: string; color?: string }) {
     await this.prisma.customerStatus.create({ data: { name: body.name, color: body.color } })
     return true
   }
   @Put('customer-statuses/update')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async updateCustomerStatus(@Body() body: { id: number | string; name?: string; color?: string }) {
     const id = Number(body.id)
     if (!Number.isFinite(id)) {
@@ -263,6 +276,8 @@ export class SettingsController {
     return true
   }
   @Delete('customer-statuses/delete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async deleteCustomerStatus(@Body() body: { id: number }) {
     await this.prisma.customerStatus.delete({ where: { id: body.id } })
     return true
@@ -270,20 +285,27 @@ export class SettingsController {
 
   // Expense Statuses
   @Get('expense-statuses')
+  @UseGuards(JwtAuthGuard)
   getExpenseStatuses() {
     return this.prisma.expenseStatus.findMany({ orderBy: { id: 'asc' } })
   }
   @Post('expense-statuses/create')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async createExpenseStatus(@Body() body: { id?: number; name: string; color?: string }) {
     await this.prisma.expenseStatus.create({ data: { name: body.name, color: body.color } })
     return true
   }
   @Put('expense-statuses/update')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async updateExpenseStatus(@Body() body: { id: number; name?: string; color?: string }) {
     await this.prisma.expenseStatus.update({ where: { id: body.id }, data: { name: body.name, color: body.color } })
     return true
   }
   @Delete('expense-statuses/delete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async deleteExpenseStatus(@Body() body: { id: number }) {
     await this.prisma.expenseStatus.delete({ where: { id: body.id } })
     return true
@@ -291,20 +313,27 @@ export class SettingsController {
 
   // Product Categories
   @Get('product-categories')
+  @UseGuards(JwtAuthGuard)
   getProductCategories() {
     return this.prisma.productCategory.findMany({ orderBy: { id: 'asc' } })
   }
   @Post('product-categories/create')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async createProductCategory(@Body() body: { name: string }) {
     await this.prisma.productCategory.create({ data: { name: body.name } })
     return true
   }
   @Put('product-categories/update')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async updateProductCategory(@Body() body: { id: number; name?: string }) {
     await this.prisma.productCategory.update({ where: { id: body.id }, data: { name: body.name } })
     return true
   }
   @Delete('product-categories/delete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async deleteProductCategory(@Body() body: { id: number }) {
     await this.prisma.productCategory.delete({ where: { id: body.id } })
     return true
@@ -312,20 +341,27 @@ export class SettingsController {
 
   // Payment Methods
   @Get('payment-methods')
+  @UseGuards(JwtAuthGuard)
   getPaymentMethods() {
     return this.prisma.paymentMethod.findMany({ orderBy: { id: 'asc' } })
   }
   @Post('payment-methods/create')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async createPaymentMethod(@Body() body: { name: string }) {
     await this.prisma.paymentMethod.create({ data: { name: body.name } })
     return true
   }
   @Put('payment-methods/update')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async updatePaymentMethod(@Body() body: { id: number; name?: string }) {
     await this.prisma.paymentMethod.update({ where: { id: body.id }, data: { name: body.name } })
     return true
   }
   @Delete('payment-methods/delete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async deletePaymentMethod(@Body() body: { id: number }) {
     await this.prisma.paymentMethod.delete({ where: { id: body.id } })
     return true
@@ -333,11 +369,14 @@ export class SettingsController {
 
   // Shipping Options
   @Get('shipping-options')
+  @UseGuards(JwtAuthGuard)
   getShippingOptions() {
     return this.prisma.shippingOption.findMany({ orderBy: { id: 'asc' } })
   }
 
   @Post('shipping-options/create')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async createShippingOption(@Request() req: FastifyRequest) {
     const { fields, file } = await parseSingleFileMultipart(req)
 
@@ -367,6 +406,8 @@ export class SettingsController {
   }
 
   @Put('shipping-options/update')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async updateShippingOption(@Request() req: FastifyRequest) {
     const { fields, file } = await parseSingleFileMultipart(req)
 
@@ -424,6 +465,8 @@ export class SettingsController {
   }
 
   @Delete('shipping-options/delete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async deleteShippingOption(@Body() body: { id: number | string }) {
     const id = Number(body.id)
     if (!Number.isFinite(id)) {
@@ -443,6 +486,7 @@ export class SettingsController {
 
   // System Config
   @Get('system-config')
+  @UseGuards(JwtAuthGuard)
   async getSystemConfig() {
     const cfg = await this.prisma.systemConfig.findMany()
     const map = new Map(cfg.map((c) => [c.key, c.value]))
@@ -454,6 +498,8 @@ export class SettingsController {
   }
 
   @Put('system-config')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async updateSystemConfig(@Body() body: { taxRate?: number }) {
     if (body.taxRate !== undefined) {
       const value = Number(body.taxRate)
@@ -469,6 +515,7 @@ export class SettingsController {
   }
 
   @Get('theme-config')
+  @UseGuards(JwtAuthGuard)
   async getThemeConfig() {
     const record = await this.prisma.systemConfig.findUnique({ where: { key: 'themeConfig' } })
     if (!record) {
@@ -484,6 +531,8 @@ export class SettingsController {
   }
 
   @Put('theme-config')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async updateThemeConfig(@Body() body: Partial<ThemeConfigPayload>) {
     const sanitized = this.sanitizeThemeConfig(body)
 
@@ -497,11 +546,14 @@ export class SettingsController {
   }
 
   @Get('system-config/currencies')
+  @UseGuards(JwtAuthGuard)
   async getCurrencies() {
     return this.loadCurrencies()
   }
 
   @Post('system-config/currencies')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async createCurrency(@Body() body: { code: string }) {
     const code = this.normalizeCurrency(body.code)
     if (!code) {
@@ -515,6 +567,8 @@ export class SettingsController {
   }
 
   @Put('system-config/currencies')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async updateCurrency(@Body() body: { current: string; next: string }) {
     const currentCode = this.normalizeCurrency(body.current)
     const nextCode = this.normalizeCurrency(body.next)
@@ -536,6 +590,8 @@ export class SettingsController {
   }
 
   @Delete('system-config/currencies')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async deleteCurrency(@Body() body: { code: string }) {
     const code = this.normalizeCurrency(body.code)
     if (!code) {
@@ -553,12 +609,15 @@ export class SettingsController {
   }
 
   @Get('calendar-event-types')
+  @UseGuards(JwtAuthGuard)
   async getCalendarEventTypes() {
     await this.ensureCalendarEventTypesSeeded()
     return this.prisma.calendarEventType.findMany({ orderBy: { id: 'asc' } })
   }
 
   @Post('calendar-event-types')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async createCalendarEventType(
     @Body() body: { name: string; color?: string; description?: string },
   ) {
@@ -578,6 +637,8 @@ export class SettingsController {
   }
 
   @Put('calendar-event-types/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async updateCalendarEventType(
     @Param('id') id: string,
     @Body() body: { name?: string; color?: string; description?: string },
@@ -618,6 +679,8 @@ export class SettingsController {
   }
 
   @Delete('calendar-event-types/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async deleteCalendarEventType(@Param('id') id: string) {
     const eventTypeId = Number(id)
     if (!Number.isFinite(eventTypeId)) {

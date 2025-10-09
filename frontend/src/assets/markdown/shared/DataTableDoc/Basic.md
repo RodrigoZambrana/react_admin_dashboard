@@ -74,7 +74,7 @@ const Basic = () => {
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true)
-            const response = await axios.post('/api/crm/customers', tableData)
+            const response = await axios.post('/api/customers/query', tableData)
             if (response.data) {
                 setData(response.data.data)
                 setLoading(false)

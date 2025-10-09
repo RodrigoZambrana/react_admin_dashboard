@@ -10,10 +10,9 @@ import useAuth from '@/utils/hooks/useAuth'
 import { Field, Form, Formik } from 'formik'
 import * as Yup from 'yup'
 import type { CommonProps } from '@/@types/common'
-import { useCallback, useRef, useState } from 'react'
-import ReCAPTCHA from 'react-google-recaptcha'
 import appConfig from '@/configs/app.config'
 import { useTranslation } from 'react-i18next'
+import { executeRecaptchaAction } from '@/utils/security/recaptcha'
 
 interface SignInFormProps extends CommonProps {
     disableSubmit?: boolean
@@ -22,13 +21,15 @@ interface SignInFormProps extends CommonProps {
 }
 
 type SignInFormSchema = {
-    userName: string
+    email: string
     password: string
     rememberMe: boolean
 }
 
 const validationSchema = Yup.object().shape({
-    userName: Yup.string().required('text.validation.userNameRequired'),
+    email: Yup.string()
+        .email('text.validation.invalidEmail')
+        .required('text.validation.emailRequired'),
     password: Yup.string().required('text.validation.passwordRequired'),
     rememberMe: Yup.bool(),
 })
@@ -46,9 +47,6 @@ const SignInForm = (props: SignInFormProps) => {
     const showSignUpPrompt = false
 
     const [message, setMessage] = useTimeOutMessage()
-    const [captchaToken, setCaptchaToken] = useState<string | null>(null)
-
-    const recaptchaRef = useRef<ReCAPTCHA | null>(null)
 
     const recaptchaSiteKey = appConfig.recaptchaSiteKey || ''
 
@@ -58,43 +56,37 @@ const SignInForm = (props: SignInFormProps) => {
 
     const { t } = useTranslation()
 
-    const handleCaptchaChange = useCallback((token: string | null) => {
-        setCaptchaToken(token)
-        if (token) {
-            setMessage('')
-        }
-    }, [setMessage])
-
-    const handleCaptchaExpired = useCallback(() => {
-        setCaptchaToken(null)
-    }, [])
-
     const onSignIn = async (
         values: SignInFormSchema,
         setSubmitting: (isSubmitting: boolean) => void,
     ) => {
-        const { userName, password } = values
+        const { email, password } = values
         setSubmitting(true)
 
-        if (isRecaptchaEnabled && !captchaToken) {
-            setMessage('Por favor completa el reCAPTCHA antes de continuar.')
-            setSubmitting(false)
-            return
+        let generatedToken: string | undefined
+
+        if (isRecaptchaEnabled) {
+            try {
+                generatedToken = await executeRecaptchaAction(
+                    recaptchaSiteKey,
+                    'LOGIN',
+                )
+                setMessage('')
+            } catch (error) {
+                setMessage('Unable to complete reCAPTCHA. Please try again.')
+                setSubmitting(false)
+                return
+            }
         }
 
         const result = await signIn({
-            userName,
+            email,
             password,
-            ...(captchaToken ? { recaptchaToken: captchaToken } : {}),
+            ...(generatedToken ? { recaptchaToken: generatedToken } : {}),
         })
 
         if (result?.status === 'failed') {
             setMessage(result.message)
-        }
-
-        if (isRecaptchaEnabled) {
-            recaptchaRef.current?.reset()
-            setCaptchaToken(null)
         }
 
         setSubmitting(false)
@@ -109,8 +101,8 @@ const SignInForm = (props: SignInFormProps) => {
             )}
             <Formik
                 initialValues={{
-                    userName: 'admin',
-                    password: 'admin123',
+                    email: 'admin@example.com',
+                    password: 'Admin@123!',
                     rememberMe: true,
                 }}
                 validationSchema={validationSchema}
@@ -126,18 +118,17 @@ const SignInForm = (props: SignInFormProps) => {
                     <Form>
                         <FormContainer>
                             <FormItem
-                                label={t('text.labels.userName')}
+                                label={t('text.labels.email')}
                                 invalid={
-                                    (errors.userName &&
-                                        touched.userName) as boolean
+                                    (errors.email && touched.email) as boolean
                                 }
-                                errorMessage={t(errors.userName as string)}
+                                errorMessage={t(errors.email as string)}
                             >
                                 <Field
-                                    type="text"
+                                    type="email"
                                     autoComplete="off"
-                                    name="userName"
-                                    placeholder={t('text.labels.userName')}
+                                    name="email"
+                                    placeholder={t('text.labels.email')}
                                     component={Input}
                                 />
                             </FormItem>
@@ -157,24 +148,15 @@ const SignInForm = (props: SignInFormProps) => {
                                 />
                             </FormItem>
                             {isRecaptchaEnabled ? (
-                                <div className="mb-6">
-                                    <ReCAPTCHA
-                                        ref={recaptchaRef}
-                                        sitekey={recaptchaSiteKey}
-                                        onChange={handleCaptchaChange}
-                                        onExpired={handleCaptchaExpired}
-                                    />
-                                </div>
-                            ) : (
-                                <Alert type="warning" showIcon className="mb-6">
+                                <Alert type="info" showIcon className="mb-6">
                                     <div className="text-left">
-                                        Configura la variable de entorno{' '}
-                                        <code>VITE_RECAPTCHA_SITE_KEY</code>{' '}
-                                        con la clave de sitio de Google reCAPTCHA para
-                                        habilitar la validación.
+                                        {t('auth.signIn.recaptchaMessage', {
+                                            defaultValue:
+                                                'reCAPTCHA Enterprise protects this action.',
+                                        })}
                                     </div>
                                 </Alert>
-                            )}
+                            ) : null}
                             <div className="flex justify-between mb-6">
                                 <Field
                                     className="mb-0"
@@ -194,10 +176,7 @@ const SignInForm = (props: SignInFormProps) => {
                                 loading={isSubmitting}
                                 variant="solid"
                                 type="submit"
-                                disabled={
-                                    isSubmitting ||
-                                    (isRecaptchaEnabled && !captchaToken)
-                                }
+                                disabled={isSubmitting}
                             >
                                 {isSubmitting
                                     ? t('auth.signIn.submitting')

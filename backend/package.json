@@ -19,6 +19,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.1.0",
     "@fastify/helmet": "^13.0.2",
     "@fastify/multipart": "^9.0.1",
@@ -38,7 +39,8 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "prisma": "^6.16.2",
-    "reflect-metadata": "^0.2.2"
+    "reflect-metadata": "^0.2.2",
+    "xss": "^1.0.15"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.10",

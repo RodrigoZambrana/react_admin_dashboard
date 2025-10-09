@@ -8,6 +8,8 @@ export type AppConfig = {
     recaptchaSiteKey?: string
 }
 
+const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || ''
+
 const appConfig: AppConfig = {
     apiPrefix: '/api',
     authenticatedEntryPath: '/app/sales/dashboard',
@@ -15,7 +17,7 @@ const appConfig: AppConfig = {
     tourPath: '/app/account/kyc-form',
     locale: 'en',
     enableMock: false,
-    recaptchaSiteKey: import.meta.env.VITE_RECAPTCHA_SITE_KEY || '',
+    recaptchaSiteKey: siteKey,
 }
 
 export default appConfig

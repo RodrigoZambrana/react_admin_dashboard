@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import * as bcrypt from 'bcrypt'
 import { JwtService } from '@nestjs/jwt'
+import type { Role } from './roles.decorator'
 
 const RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
 
@@ -57,22 +58,17 @@ export class AuthService {
     }
   }
 
-  async validateUser(userName: string, pass: string) {
-    const identifier = (userName || '').trim()
-    if (!identifier) {
+  async validateUser(email: string, pass: string) {
+    const normalizedEmail = (email || '').trim()
+    if (!normalizedEmail) {
       throw new UnauthorizedException('Invalid credentials')
     }
 
-    const lowered = identifier.toLowerCase()
+    const lowered = normalizedEmail.toLowerCase()
 
     const user =
       (await this.prisma.user.findFirst({
-        where: {
-          OR: [
-            { userName: { equals: identifier, mode: 'insensitive' } },
-            { email: { equals: lowered, mode: 'insensitive' } },
-          ],
-        },
+        where: { email: { equals: lowered, mode: 'insensitive' } },
       })) || null
 
     if (!user) throw new UnauthorizedException('Invalid credentials')
@@ -83,16 +79,14 @@ export class AuthService {
 
   signToken(user: {
     id: number
-    userName: string
     email: string
-    role: 'SUPERADMIN' | 'ADMIN' | 'USER'
+    role: Role
     img?: string | null
     name?: string | null
     lastName?: string | null
   }) {
     const payload = {
       sub: user.id,
-      userName: user.userName,
       email: user.email,
       authority: [user.role],
       avatar: user.img || '',
@@ -104,7 +98,6 @@ export class AuthService {
     return {
       token,
       user: {
-        userName: user.userName,
         authority: [user.role],
         avatar: user.img || '',
         email: user.email,

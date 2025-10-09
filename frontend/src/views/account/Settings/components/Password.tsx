@@ -1,5 +1,4 @@
 import classNames from 'classnames'
-import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import Tag from '@/components/ui/Tag'
 import Notification from '@/components/ui/Notification'
@@ -18,6 +17,8 @@ import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import * as Yup from 'yup'
 import { apiUpdateAccountPassword } from '@/services/AccountServices'
+import PasswordInput from '@/components/shared/PasswordInput'
+import { PASSWORD_COMPLEXITY_REGEX } from '@/constants/security.constant'
 
 type LoginHistory = {
     type: string
@@ -50,8 +51,10 @@ const useValidationSchema = (t: (k: string) => string) =>
         password: Yup.string().required(t('text.validation.passwordRequired')),
         newPassword: Yup.string()
             .required(t('text.validation.enterNewPassword'))
-            .min(8, t('text.validation.tooShort'))
-            .matches(/^[A-Za-z0-9_-]*$/, t('text.validation.lettersNumbersOnly')),
+            .matches(
+                PASSWORD_COMPLEXITY_REGEX,
+                t('text.validation.passwordComplexity'),
+            ),
         confirmNewPassword: Yup.string().oneOf(
             [Yup.ref('newPassword'), ''],
             t('text.validation.passwordNotMatch'),
@@ -67,7 +70,9 @@ const Password = ({ data }: { data?: LoginHistory[] }) => {
                 response?: { data?: { message?: string; errors?: Array<{ message?: string }> } }
             })?.response?.data?.message
         if (typeof responseMessage === 'string' && responseMessage.trim().length > 0) {
-            return responseMessage
+            return t(responseMessage, {
+                defaultValue: responseMessage,
+            })
         }
         const responseErrors =
             (error as {
@@ -76,7 +81,7 @@ const Password = ({ data }: { data?: LoginHistory[] }) => {
         if (Array.isArray(responseErrors) && responseErrors.length > 0) {
             const first = responseErrors[0]?.message
             if (typeof first === 'string' && first.trim().length > 0) {
-                return first
+                return t(first, { defaultValue: first })
             }
         }
         return t('text.errors.passwordUpdateFailed', {
@@ -140,11 +145,10 @@ const Password = ({ data }: { data?: LoginHistory[] }) => {
                                     {...validatorProps}
                                 >
                                     <Field
-                                        type="password"
                                         autoComplete="off"
                                         name="password"
                                         placeholder={t('text.placeholders.currentPassword')}
-                                        component={Input}
+                                        component={PasswordInput}
                                     />
                                 </FormRow>
                                 <FormRow
@@ -153,11 +157,10 @@ const Password = ({ data }: { data?: LoginHistory[] }) => {
                                     {...validatorProps}
                                 >
                                     <Field
-                                        type="password"
                                         autoComplete="off"
                                         name="newPassword"
                                         placeholder={t('text.placeholders.newPassword')}
-                                        component={Input}
+                                        component={PasswordInput}
                                     />
                                 </FormRow>
                                 <FormRow
@@ -166,11 +169,10 @@ const Password = ({ data }: { data?: LoginHistory[] }) => {
                                     {...validatorProps}
                                 >
                                     <Field
-                                        type="password"
                                         autoComplete="off"
                                         name="confirmNewPassword"
                                         placeholder={t('text.placeholders.confirmPassword')}
-                                        component={Input}
+                                        component={PasswordInput}
                                     />
                                 </FormRow>
                                 <div className="mt-4 ltr:text-right">
