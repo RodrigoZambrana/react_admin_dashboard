@@ -3,12 +3,59 @@ import { PrismaService } from '../prisma/prisma.service'
 import * as bcrypt from 'bcrypt'
 import { JwtService } from '@nestjs/jwt'
 
+const RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
+
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
   ) {}
+
+  async verifyRecaptcha(token: string | undefined | null, remoteIp?: string) {
+    const secretKey = process.env.RECAPTCHA_SECRET_KEY
+
+    if (!secretKey) {
+      // No se configuró reCAPTCHA para el backend, omite la validación.
+      return
+    }
+
+    if (!token) {
+      throw new UnauthorizedException('No se pudo validar el reCAPTCHA.')
+    }
+
+    const form = new URLSearchParams({
+      secret: secretKey,
+      response: token,
+    })
+
+    if (remoteIp) {
+      form.set('remoteip', remoteIp)
+    }
+
+    let response
+    try {
+      response = await fetch(RECAPTCHA_VERIFY_URL, {
+        method: 'POST',
+        body: form,
+      })
+    } catch (error) {
+      throw new UnauthorizedException('No se pudo validar el reCAPTCHA.')
+    }
+
+    if (!response.ok) {
+      throw new UnauthorizedException('No se pudo validar el reCAPTCHA.')
+    }
+
+    const payload = (await response.json()) as {
+      success?: boolean
+      'error-codes'?: string[]
+    }
+
+    if (!payload.success) {
+      throw new UnauthorizedException('No se pudo validar el reCAPTCHA.')
+    }
+  }
 
   async validateUser(userName: string, pass: string) {
     const identifier = (userName || '').trim()

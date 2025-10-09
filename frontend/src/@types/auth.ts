@@ -1,6 +1,7 @@
 export type SignInCredential = {
     userName: string
     password: string
+    recaptchaToken?: string
 }
 
 export type SignInResponse = {

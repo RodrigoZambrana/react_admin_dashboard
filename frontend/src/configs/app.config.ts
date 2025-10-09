@@ -5,6 +5,7 @@ export type AppConfig = {
     tourPath: string
     locale: string
     enableMock: boolean
+    recaptchaSiteKey?: string
 }
 
 const appConfig: AppConfig = {
@@ -14,6 +15,7 @@ const appConfig: AppConfig = {
     tourPath: '/app/account/kyc-form',
     locale: 'en',
     enableMock: false,
+    recaptchaSiteKey: import.meta.env.VITE_RECAPTCHA_SITE_KEY || '',
 }
 
 export default appConfig
