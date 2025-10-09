@@ -1,6 +1,6 @@
 # React Admin Dashboard – Infraestructura y Automatización
 
-Este repositorio contiene todo lo necesario para desarrollar, construir y desplegar la aplicación compuesta por un frontend en React (Vite + TypeScript), un backend en NestJS/Fastify y PostgreSQL como base de datos. La infraestructura se orquesta con Docker Compose y los despliegues se automatizan mediante GitHub Actions sobre un Droplet de DigitalOcean.
+Este repositorio contiene todo lo necesario para desarrollar, construir y desplegar la aplicación compuesta por un frontend en React (Vite + TypeScript), un backend en NestJS/Fastify y PostgreSQL como base de datos. La infraestructura se orquesta con Docker Compose y los despliegues se automatizan mediante GitHub Actions: el ambiente **dev** levanta el stack localmente en el runner y los ambientes de **staging/prod** se publican sobre un Droplet de DigitalOcean mediante SSH.
 
 ## Estructura del repositorio
 
@@ -86,11 +86,20 @@ Ambos se ejecutan en cada PR y en pushes a `develop`, `staging` y `main` cuando 
 
 ### Workflows de despliegue
 
-- `deploy-dev.yml` → rama `develop`, environment `dev`.
+- `deploy-dev.yml` → rama `develop`, environment `dev`. Levanta `docker compose -f deploy/docker-compose.dev.yml` directamente en el runner de GitHub para validar el stack de forma local (sin conectarse al Droplet).
 - `deploy-staging.yml` → rama `staging`, environment `staging`.
 - `deploy-prod.yml` → rama `main`, environment `prod`.
 
-Pasos principales:
+Flujo del workflow **dev**:
+
+1. Checkout con historial para detectar cambios en Prisma.
+2. Instalación, lint, test y build de frontend/backend.
+3. Renderizado opcional de `deploy/env/backend.dev.env` y `deploy/env/frontend.dev.env` a partir de los secretos.
+4. Ejecución de `docker compose up -d` (stack dev) dentro del runner.
+5. Migraciones condicionales vía `docker compose exec backend npx prisma migrate deploy` si así se configura.
+6. Health check local contra `http://localhost:8080/api/health` y teardown con `docker compose down`.
+
+Flujo compartido por **staging/prod**:
 
 1. Checkout del repositorio con historial para detectar cambios en Prisma.
 2. Instalación, lint, test y build de frontend/backend.
@@ -104,6 +113,16 @@ Pasos principales:
 
 ### Secretos requeridos por environment
 
+**Dev (runner local):**
+
+| Variable | Descripción |
+|----------|-------------|
+| `ENV_FILE_BACKEND` | (Opcional) Contenido para `deploy/env/backend.dev.env` |
+| `ENV_FILE_FRONTEND` | (Opcional) Contenido para `deploy/env/frontend.dev.env` |
+| `PRISMA_APPLY_MIGRATIONS` | `true/false` para habilitar migraciones automáticas |
+
+**Staging/Prod (Droplet remoto):**
+
 | Variable | Descripción |
 |----------|-------------|
 | `DO_HOST` | IP o dominio del Droplet |
@@ -116,7 +135,7 @@ Pasos principales:
 | `PRISMA_APPLY_MIGRATIONS` | `true/false` según se permita aplicar migraciones |
 | `DATABASE_URL`, `POSTGRES_PASSWORD`, etc. | Incluirlos dentro del archivo del backend o como variables adicionales en el Droplet |
 
-> **Nota:** Los archivos generados a partir de `ENV_FILE_*` no se versionan y sólo viven en el Droplet dentro de `deploy/env/`.
+> **Nota:** Los archivos generados a partir de `ENV_FILE_*` no se versionan; en staging/prod sólo viven en el Droplet dentro de `deploy/env/`.
 
 ## Estrategia de releases y rollback
 
