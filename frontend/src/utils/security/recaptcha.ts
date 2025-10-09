@@ -57,3 +57,7 @@ export async function executeRecaptchaAction(
     await new Promise<void>((resolve) => enterprise.ready(resolve))
     return enterprise.execute(siteKey, { action })
 }
+
+export function preloadRecaptcha(siteKey: string): Promise<void> {
+    return ensureRecaptchaLoaded(siteKey)
+}
