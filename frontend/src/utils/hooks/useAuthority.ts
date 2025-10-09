@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import isEmpty from 'lodash/isEmpty'
+import { SUPERADMIN } from '@/constants/roles.constant'
 
 function useAuthority(
     userAuthority: string[] = [],
@@ -8,7 +9,7 @@ function useAuthority(
 ) {
     const roleMatched = useMemo(() => {
         // SUPERADMIN bypass
-        if (userAuthority.includes('SUPERADMIN')) return true
+        if (userAuthority.includes(SUPERADMIN)) return true
         return authority.some((role) => userAuthority.includes(role))
     }, [authority, userAuthority])
 

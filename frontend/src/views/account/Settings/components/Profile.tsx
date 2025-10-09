@@ -60,7 +60,7 @@ type UpdateProfileResponse = {
     }
     user?: {
         avatar?: string
-        userName?: string
+        displayName?: string
         email?: string
         authority?: string[]
         name?: string
@@ -241,7 +241,21 @@ const Profile = ({ data = {} }: ProfileProps) => {
             dispatch(setLang(nextLang))
             i18n.changeLanguage(nextLang)
             if (response.data?.user) {
-                dispatch(setUser(response.data.user))
+                const userResponse = response.data.user
+                const computedDisplayName =
+                    userResponse.displayName ??
+                    ([userResponse.name, userResponse.lastName]
+                        .filter(Boolean)
+                        .join(' ') ||
+                        userResponse.name ||
+                        userResponse.email ||
+                        '')
+                dispatch(
+                    setUser({
+                        ...userResponse,
+                        displayName: computedDisplayName,
+                    }),
+                )
             }
             const resolvedValues: ProfileFormModel = {
                 firstName: updatedProfile?.firstName || trimmedFirstName,

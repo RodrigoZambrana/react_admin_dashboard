@@ -10,7 +10,7 @@ import Card from '@/components/ui/Card'
 import Drawer from '@/components/ui/Drawer'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from 'react-router-dom'
-import { apiGetCrmCustomers, apiGetCrmCustomerDetails } from '@/services/CrmService'
+import { apiGetCustomers, apiGetCustomerDetails } from '@/services/CustomersService'
 import { apiGetSalesProducts, apiGetSalesOrder, apiSaveSalesOrder, apiCreateSalesProduct } from '@/services/SalesService'
 import * as Yup from 'yup'
 import toast from '@/components/ui/toast'
@@ -56,7 +56,7 @@ const OrderEdit = () => {
 
     useEffect(() => {
         const load = async () => {
-            const cRes = await apiGetCrmCustomers<{ data: { id: string | number; name: string }[] }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' } as any)
+            const cRes = await apiGetCustomers<{ data: { id: string | number; name: string }[] }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' } as any)
             setCustomers(((cRes as any).data?.data || []).map((c: any) => ({ value: String(c.id), label: c.name })))
             const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' })
             const pArray = ((pRes as any).data?.data || [])
@@ -105,7 +105,7 @@ const OrderEdit = () => {
                 comment: data.comment || '',
             })
             if (data.customerId) {
-                const res = await apiGetCrmCustomerDetails<any, { id: string }>({ id: data.customerId })
+                const res = await apiGetCustomerDetails<any, { id: string }>({ id: data.customerId })
                 const detail = (res as any).data || (res as any)
                 setCustomerDetail(detail)
             }
@@ -189,7 +189,7 @@ const OrderEdit = () => {
                         const id = opt?.value
                         setFieldValue('customerId', id)
                         if (id) {
-                            const res = await apiGetCrmCustomerDetails<any, { id: string }>({ id })
+                            const res = await apiGetCustomerDetails<any, { id: string }>({ id })
                             const detail = (res as any).data || (res as any)
                             setCustomerDetail(detail)
                             setFieldValue('shippingAddress', {

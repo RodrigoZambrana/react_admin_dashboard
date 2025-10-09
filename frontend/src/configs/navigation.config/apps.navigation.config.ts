@@ -4,7 +4,8 @@ import {
     NAV_ITEM_TYPE_COLLAPSE,
     NAV_ITEM_TYPE_ITEM,
 } from '@/constants/navigation.constant'
-import { ADMIN, USER } from '@/constants/roles.constant'
+import { ROLE_HIERARCHY } from '@/constants/roles.constant'
+import { FEATURES, getRolesForFeature } from '@/constants/roleAccess.constant'
 import type { NavigationTree } from '@/@types/navigation'
 
 const appsNavigationConfig: NavigationTree[] = [
@@ -15,7 +16,7 @@ const appsNavigationConfig: NavigationTree[] = [
         translateKey: 'nav.apps',
         icon: 'apps',
         type: NAV_ITEM_TYPE_TITLE,
-        authority: [ADMIN, USER],
+        authority: ROLE_HIERARCHY,
         subMenu: [
             // Ventas
             {
@@ -25,7 +26,7 @@ const appsNavigationConfig: NavigationTree[] = [
                 translateKey: 'nav.appsSales.sales',
                 icon: 'sales',
                 type: NAV_ITEM_TYPE_COLLAPSE,
-                authority: [ADMIN, USER],
+                authority: getRolesForFeature(FEATURES.SALES),
                 subMenu: [
                     {
                         key: 'appsSales.dashboard',
@@ -34,7 +35,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsSales.dashboard',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.SALES),
                         subMenu: [],
                     },
                     {
@@ -44,7 +45,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsSales.orderList',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.SALES),
                         subMenu: [],
                     },
                     {
@@ -54,7 +55,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsSales.addOrder',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.SALES),
                         subMenu: [],
                     },
                 ],
@@ -67,7 +68,7 @@ const appsNavigationConfig: NavigationTree[] = [
                 translateKey: 'nav.appsCrm.crm',
                 icon: 'crm',
                 type: NAV_ITEM_TYPE_ITEM,
-                authority: [ADMIN, USER],
+                authority: getRolesForFeature(FEATURES.CUSTOMERS),
                 subMenu: [],
             },
             // Productos (nuevo menú)
@@ -78,7 +79,7 @@ const appsNavigationConfig: NavigationTree[] = [
                 translateKey: 'nav.appsProducts.products',
                 icon: 'products',
                 type: NAV_ITEM_TYPE_ITEM,
-                authority: [ADMIN, USER],
+                authority: getRolesForFeature(FEATURES.PRODUCTS),
                 subMenu: [],
             },
             // Agenda
@@ -89,7 +90,7 @@ const appsNavigationConfig: NavigationTree[] = [
                 translateKey: 'nav.appsCalendar.calendar',
                 icon: 'calendar',
                 type: NAV_ITEM_TYPE_COLLAPSE,
-                authority: [ADMIN, USER],
+                authority: getRolesForFeature(FEATURES.CALENDAR),
                 subMenu: [
                     {
                         key: 'appsCalendar.activities',
@@ -98,7 +99,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsCalendar.activities',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.CALENDAR),
                         subMenu: [],
                     },
                     {
@@ -108,7 +109,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsCalendar.schedule',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.CALENDAR),
                         subMenu: [],
                     },
                 ],
@@ -121,7 +122,7 @@ const appsNavigationConfig: NavigationTree[] = [
                 translateKey: 'nav.appsExpenses.expenses',
                 icon: 'expenses',
                 type: NAV_ITEM_TYPE_COLLAPSE,
-                authority: [ADMIN, USER],
+                authority: getRolesForFeature(FEATURES.EXPENSES),
                 subMenu: [
                     {
                         key: 'appsExpenses.dashboard',
@@ -130,7 +131,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsExpenses.dashboard',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.EXPENSES),
                         subMenu: [],
                     },
                     {
@@ -140,7 +141,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsExpenses.expenseList',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.EXPENSES),
                         subMenu: [],
                     },
                     {
@@ -150,7 +151,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsExpenses.expenseNew',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.EXPENSES),
                         subMenu: [],
                     },
                 ],
@@ -163,7 +164,7 @@ const appsNavigationConfig: NavigationTree[] = [
                 translateKey: 'nav.appsCalendar.activities',
                 icon: 'project',
                 type: NAV_ITEM_TYPE_ITEM,
-                authority: [ADMIN, USER],
+                authority: getRolesForFeature(FEATURES.ACTIVITIES),
                 subMenu: [],
             },
             // Usuarios
@@ -174,7 +175,7 @@ const appsNavigationConfig: NavigationTree[] = [
                 translateKey: 'nav.appsUsers.users',
                 icon: 'signUp',
                 type: NAV_ITEM_TYPE_ITEM,
-                authority: [ADMIN, USER],
+                authority: getRolesForFeature(FEATURES.USERS),
                 subMenu: [],
             },
             // Configuración
@@ -185,7 +186,7 @@ const appsNavigationConfig: NavigationTree[] = [
                 translateKey: 'nav.appsSettings.settings',
                 icon: 'settings',
                 type: NAV_ITEM_TYPE_COLLAPSE,
-                authority: [ADMIN, USER],
+                authority: getRolesForFeature(FEATURES.SETTINGS),
                 subMenu: [
                     {
                         key: 'appsSettings.orderStatuses',
@@ -194,7 +195,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsSettings.orderStatuses',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
                         subMenu: [],
                     },
                     {
@@ -204,7 +205,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsSettings.products',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
                         subMenu: [],
                     },
                     {
@@ -214,7 +215,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsSettings.customerStatuses',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
                         subMenu: [],
                     },
                     {
@@ -224,7 +225,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsSettings.expenses',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
                         subMenu: [],
                     },
                     {
@@ -234,7 +235,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsSettings.paymentMethods',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
                         subMenu: [],
                     },
                     {
@@ -244,7 +245,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsSettings.shippingOptions',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
                         subMenu: [],
                     },
                     {
@@ -254,7 +255,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsSettings.systemConfig',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
                         subMenu: [],
                     },
                     {
@@ -264,7 +265,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsSettings.calendarEventTypes',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
                         subMenu: [],
                     },
                 ],
@@ -277,7 +278,7 @@ const appsNavigationConfig: NavigationTree[] = [
                 translateKey: 'nav.appsAccount.account',
                 icon: 'account',
                 type: NAV_ITEM_TYPE_COLLAPSE,
-                authority: [ADMIN, USER],
+                authority: getRolesForFeature(FEATURES.ACCOUNT),
                 subMenu: [
                     {
                         key: 'appsAccount.settings',
@@ -286,7 +287,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsAccount.settings',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.ACCOUNT),
                         subMenu: [],
                     },
                     {
@@ -296,7 +297,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.appsAccount.activityLog',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.ACCOUNT),
                         subMenu: [],
                     },
                     {
@@ -306,7 +307,7 @@ const appsNavigationConfig: NavigationTree[] = [
                         translateKey: 'nav.signOut',
                         icon: 'signOut',
                         type: NAV_ITEM_TYPE_ITEM,
-                        authority: [ADMIN, USER],
+                        authority: getRolesForFeature(FEATURES.ACCOUNT),
                         subMenu: [],
                     },
                 ],

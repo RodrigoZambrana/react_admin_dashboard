@@ -11,6 +11,8 @@ import { ValidationError } from 'class-validator'
 import multipart from '@fastify/multipart'
 import fastifyStatic from '@fastify/static'
 import { join } from 'path'
+import cookie from '@fastify/cookie'
+import { SanitizeInputPipe } from './common/pipes/sanitize-input.pipe'
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -19,9 +21,33 @@ async function bootstrap() {
   )
 
   await app.register(helmet as any)
+  const defaultAllowedOrigins = ['http://localhost:5173']
+  const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0)
+
+  const allowedOrigins = Array.from(
+    new Set([...defaultAllowedOrigins, ...envAllowedOrigins]),
+  )
+
   await app.register(cors as any, {
-    origin: true,
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.includes('*')) {
+        cb(null, true)
+        return
+      }
+      if (allowedOrigins.some((allowed) => origin === allowed || origin.endsWith(allowed))) {
+        cb(null, true)
+        return
+      }
+      cb(new Error('Origin not allowed'), false)
+    },
     credentials: true,
+  })
+
+  await app.register(cookie as any, {
+    secret: process.env.COOKIE_SECRET || 'dev-cookie-secret',
   })
 
   await app.register(multipart as any, {
@@ -59,6 +85,7 @@ async function bootstrap() {
   }
 
   app.useGlobalPipes(
+    new SanitizeInputPipe(),
     new ValidationPipe({ whitelist: true, transform: true, exceptionFactory }),
   )
 

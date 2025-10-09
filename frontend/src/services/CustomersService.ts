@@ -344,14 +344,14 @@ const mapDtoToApiEvent = (event: CalendarEventDto) => {
 
 export const mapBackendEventToDto = mapApiEventToDto
 
-export async function apiGetCrmDashboardData<T>() {
+export async function apiGetCustomersDashboardData<T>() {
     return ApiService.fetchData<T>({
-        url: '/crm/dashboard',
+        url: '/customers/dashboard',
         method: 'get',
     })
 }
 
-export async function apiGetCrmCalendar() {
+export async function apiGetCustomerCalendar() {
     const response = await ApiService.fetchData<{ events: ApiCalendarEvent[] }>(
         {
             url: '/calendar/events',
@@ -362,7 +362,7 @@ export async function apiGetCrmCalendar() {
     return events.map(mapApiEventToDto)
 }
 
-export async function apiCreateCrmCalendarEvent(data: CalendarEventDto) {
+export async function apiCreateCustomerCalendarEvent(data: CalendarEventDto) {
     const response = await ApiService.fetchData<ApiCalendarEvent>({
         url: '/calendar/events',
         method: 'post',
@@ -371,7 +371,7 @@ export async function apiCreateCrmCalendarEvent(data: CalendarEventDto) {
     return mapApiEventToDto(response.data)
 }
 
-export async function apiUpdateCrmCalendarEvent(
+export async function apiUpdateCustomerCalendarEvent(
     id: string,
     data: CalendarEventDto,
 ) {
@@ -383,7 +383,7 @@ export async function apiUpdateCrmCalendarEvent(
     return mapApiEventToDto(response.data)
 }
 
-export async function apiDeleteCrmCalendarEvent(id: string) {
+export async function apiDeleteCustomerCalendarEvent(id: string) {
     await ApiService.fetchData({
         url: `/calendar/events/${id}`,
         method: 'delete',
@@ -391,52 +391,54 @@ export async function apiDeleteCrmCalendarEvent(id: string) {
     return id
 }
 
-export async function apiGetCrmCustomers<T, U extends Record<string, unknown>>(
+export async function apiGetCustomers<T, U extends Record<string, unknown>>(
     data: U,
 ) {
     return ApiService.fetchData<T>({
-        url: '/crm/customers',
+        url: '/customers/query',
         method: 'post',
         data,
     })
 }
 
-export async function apiGetCrmCustomersStatistic<T>() {
+export async function apiGetCustomerStatistics<T>() {
     return ApiService.fetchData<T>({
-        url: '/crm/customers-statistic',
+        url: '/customers/statistics',
         method: 'get',
     })
 }
 
-export async function apPutCrmCustomer<T, U extends Record<string, unknown>>(
+export async function apiGetCustomersStatistic<T>() {
+    return apiGetCustomerStatistics<T>()
+}
+
+export async function apiUpsertCustomer<T, U extends Record<string, unknown>>(
     data: U,
 ) {
     return ApiService.fetchData<T>({
-        url: '/crm/customers',
+        url: '/customers',
         method: 'put',
         data,
     })
 }
 
-export async function apiGetCrmCustomerDetails<
+export async function apiGetCustomerDetails<
     T,
     U extends Record<string, unknown>,
 >(params: U) {
     return ApiService.fetchData<T>({
-        url: '/crm/customer-details',
+        url: `/customers/${(params as any).id}`,
         method: 'get',
-        params,
     })
 }
 
-export async function apiDeleteCrmCustomer<
+export async function apiDeleteCustomer<
     T,
     U extends Record<string, unknown>,
 >(data: U) {
     return ApiService.fetchData<T>({
-        url: '/crm/customer/delete',
+        url: `/customers/${(data as any).id}`,
         method: 'delete',
-        data,
     })
 }
 
@@ -445,9 +447,8 @@ export async function apiGetCustomerAddresses<T, U extends Record<string, unknow
     params: U,
 ) {
     return ApiService.fetchData<T>({
-        url: '/crm/customer-addresses',
+        url: `/customers/${(params as any).customerId}/addresses`,
         method: 'get',
-        params,
     })
 }
 
@@ -455,7 +456,7 @@ export async function apiCreateCustomerAddress<T, U extends Record<string, unkno
     data: U,
 ) {
     return ApiService.fetchData<T>({
-        url: '/crm/customer-addresses',
+        url: `/customers/${(data as any).customerId}/addresses`,
         method: 'post',
         data,
     })
@@ -465,7 +466,7 @@ export async function apiUpdateCustomerAddress<T, U extends Record<string, unkno
     data: U,
 ) {
     return ApiService.fetchData<T>({
-        url: '/crm/customer-addresses/' + (data as any).id,
+        url: `/customers/${(data as any).customerId}/addresses/${(data as any).id}`,
         method: 'put',
         data,
     })
@@ -475,7 +476,7 @@ export async function apiSetPrimaryCustomerAddress<T, U extends Record<string, u
     params: U,
 ) {
     return ApiService.fetchData<T>({
-        url: '/crm/customer-addresses/' + (params as any).id + '/set-primary',
+        url: `/customers/${(params as any).customerId}/addresses/${(params as any).id}/set-primary`,
         method: 'put',
     })
 }
@@ -484,26 +485,26 @@ export async function apiDeleteCustomerAddress<T, U extends Record<string, unkno
     params: U,
 ) {
     return ApiService.fetchData<T>({
-        url: '/crm/customer-addresses/' + (params as any).id,
+        url: `/customers/${(params as any).customerId}/addresses/${(params as any).id}`,
         method: 'delete',
     })
 }
 
-export async function apiGetCrmMails<T, U extends Record<string, unknown>>(
+export async function apiGetCustomerMails<T, U extends Record<string, unknown>>(
     params: U,
 ) {
     return ApiService.fetchData<T>({
-        url: '/crm/mails',
+        url: '/customers/mails',
         method: 'get',
         params,
     })
 }
 
-export async function apiGetCrmMail<T, U extends Record<string, unknown>>(
+export async function apiGetCustomerMail<T, U extends Record<string, unknown>>(
     params: U,
 ) {
     return ApiService.fetchData<T>({
-        url: '/crm/mail',
+        url: '/customers/mail',
         method: 'get',
         params,
     })

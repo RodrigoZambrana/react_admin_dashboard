@@ -21,6 +21,7 @@ import {
 import { parseSingleFileMultipart } from '../common/uploads/multipart'
 import { UserActivityService } from '../user-activity/user-activity.service'
 import * as bcrypt from 'bcrypt'
+import { assertStrongPassword } from '../common/validation/assert-strong-password'
 
 const normalizeNullableString = (value?: string | null) => {
   if (value === undefined || value === null) {
@@ -121,13 +122,14 @@ export class AccountController {
   private resolveUserName(user?: {
     name?: string | null
     lastName?: string | null
-    userName?: string | null
+    email?: string | null
   }) {
     if (!user) return 'User'
     const firstName = normalizeNullableString(user.name)
     const lastName = normalizeNullableString(user.lastName)
     const fullName = [firstName, lastName].filter(Boolean).join(' ')
-    return fullName || user.userName || 'User'
+    const email = normalizeNullableString(user.email)
+    return fullName || email || 'User'
   }
 
   private resolveDeviceType(deviceType?: string | null) {
@@ -184,7 +186,7 @@ export class AccountController {
       user: {
         name?: string | null
         lastName?: string | null
-        userName?: string | null
+        email?: string | null
         img?: string | null
       } | null
       device: { displayName: string | null; location: string | null } | null
@@ -231,6 +233,9 @@ export class AccountController {
     }
     for (const group of map.values()) {
       group.events.sort((a, b) => b.dateTime - a.dateTime)
+      if (group.events.length > 0) {
+        group.date = group.events[0].dateTime
+      }
     }
     return map
   }
@@ -360,7 +365,7 @@ export class AccountController {
           select: {
             name: true,
             lastName: true,
-            userName: true,
+            email: true,
             img: true,
           },
         },
@@ -415,12 +420,7 @@ export class AccountController {
     const currentPassword = normalizeRequiredString(body?.password ?? '', 'password')
     const newPassword = normalizeRequiredString(body?.newPassword ?? '', 'newPassword')
 
-    if (newPassword.length < 8) {
-      throw new BadRequestException('account.settings.password.tooShort')
-    }
-    if (!/^[A-Za-z0-9_-]*$/.test(newPassword)) {
-      throw new BadRequestException('account.settings.password.invalidFormat')
-    }
+    assertStrongPassword(newPassword, 'newPassword')
 
     const existing = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -477,7 +477,6 @@ export class AccountController {
         name: true,
         lastName: true,
         email: true,
-        userName: true,
         role: true,
       },
     })
@@ -508,7 +507,6 @@ export class AccountController {
           lastName: true,
           email: true,
           img: true,
-          userName: true,
           role: true,
         },
       })
@@ -550,7 +548,6 @@ export class AccountController {
           lang,
         },
         user: {
-          userName: updated.userName,
           email: updated.email,
           avatar: publicAvatar || '',
           authority: [updated.role],

@@ -1,7 +1,10 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 
 const prisma = new PrismaClient()
+
+const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'Admin@123!'
+const DEMO_PASSWORD = process.env.SEED_USER_PASSWORD || 'User@123!'
 
 async function main() {
   // Roles are enum; create admin user if not exists
@@ -10,29 +13,28 @@ async function main() {
   if (!admin) {
     await prisma.user.create({
       data: {
-        userName: 'admin',
         name: 'Admin',
         email: adminEmail,
         img: '',
         role: 'SUPERADMIN',
-        passwordHash: await bcrypt.hash('admin123', 10),
+        passwordHash: await bcrypt.hash(ADMIN_PASSWORD, 10),
       },
     })
-    console.log('Seeded admin user: admin/admin123')
+    console.log(`Seeded admin user: admin/${ADMIN_PASSWORD}`)
   }
 
   // Users demo
   const demoUsers = [
-    { userName: 'alice', name: 'Alice Johnson', email: 'alice@example.com', img: '/img/avatars/thumb-1.jpg' },
-    { userName: 'bob', name: 'Bob Smith', email: 'bob@example.com', img: '/img/avatars/thumb-2.jpg' },
-    { userName: 'carol', name: 'Carol White', email: 'carol@example.com', img: '/img/avatars/thumb-3.jpg' },
-    { userName: 'dave', name: 'Dave Brown', email: 'dave@example.com', img: '/img/avatars/thumb-4.jpg' },
+    { name: 'Alice Johnson', email: 'alice@example.com', img: '/img/avatars/thumb-1.jpg' },
+    { name: 'Bob Smith', email: 'bob@example.com', img: '/img/avatars/thumb-2.jpg' },
+    { name: 'Carol White', email: 'carol@example.com', img: '/img/avatars/thumb-3.jpg' },
+    { name: 'Dave Brown', email: 'dave@example.com', img: '/img/avatars/thumb-4.jpg' },
   ]
   for (const u of demoUsers) {
     await prisma.user.upsert({
       where: { email: u.email },
       update: {},
-      create: { ...u, role: 'USER', passwordHash: await bcrypt.hash('password', 10) },
+      create: { ...u, role: 'USER', passwordHash: await bcrypt.hash(DEMO_PASSWORD, 10) },
     })
   }
 
@@ -132,12 +134,16 @@ async function main() {
   })
 
   // Expense statuses and categories
-  const eStatuses = ['New', 'Approved', 'Rejected']
+  const eStatuses = [
+    { name: 'New', color: '#3b82f6' },
+    { name: 'Approved', color: '#10b981' },
+    { name: 'Rejected', color: '#ef4444' },
+  ]
   for (const s of eStatuses) {
     await prisma.expenseStatus.upsert({
-      where: { name: s },
-      update: {},
-      create: { name: s },
+      where: { name: s.name },
+      update: { color: s.color },
+      create: s,
     })
   }
   const eCategories = ['Operations', 'Marketing', 'Salaries']
@@ -148,6 +154,23 @@ async function main() {
       create: { name: c },
     })
   }
+
+  const customerStatuses = [
+    { name: 'Active', color: '#10b981' },
+    { name: 'Onboarding', color: '#2563eb' },
+    { name: 'Churn Risk', color: '#f59e0b' },
+    { name: 'Inactive', color: '#6b7280' },
+  ]
+  const customerStatusMap = new Map<string, number>()
+  for (const status of customerStatuses) {
+    const record = await prisma.customerStatus.upsert({
+      where: { name: status.name },
+      update: { color: status.color },
+      create: status,
+    })
+    customerStatusMap.set(status.name, record.id)
+  }
+  const activeCustomerStatusId = customerStatusMap.get('Active') ?? null
 
   // Customers
  const customers = [
@@ -198,7 +221,10 @@ async function main() {
     },
   ]
   for (const c of customers) {
-    const found = await prisma.customer.findFirst({ where: { email: c.email } })
+    const found = await prisma.customer.findFirst({
+      where: { email: c.email },
+      select: { id: true, statusId: true },
+    })
     const name = [c.firstName, c.lastName].filter(Boolean).join(' ')
     const [primaryPhone] = c.phones || []
     const customerPayload = {
@@ -210,6 +236,10 @@ async function main() {
       img: c.img,
       name,
       phoneNumber: primaryPhone,
+    }
+    const statusId = found?.statusId ?? activeCustomerStatusId ?? undefined
+    if (statusId !== undefined && statusId !== null) {
+      Object.assign(customerPayload, { statusId })
     }
     const customer = found
       ? await prisma.customer.update({ where: { id: found.id }, data: customerPayload })
@@ -328,8 +358,62 @@ async function main() {
     }
   }
 
+  // Activities board
+  const activityColumns = [
+    { title: 'Backlog', sortOrder: 0 },
+    { title: 'In Progress', sortOrder: 1 },
+    { title: 'Review', sortOrder: 2 },
+    { title: 'Done', sortOrder: 3 },
+  ]
+
+  for (const column of activityColumns) {
+    await prisma.activityColumn.upsert({
+      where: { title: column.title },
+      update: { sortOrder: column.sortOrder },
+      create: column,
+    })
+  }
+
+  const boardColumns = await prisma.activityColumn.findMany({ orderBy: { sortOrder: 'asc' } })
+  const activityMembers = await prisma.user.findMany({ take: 3 })
+
+  for (const [index, column] of boardColumns.entries()) {
+    const existingTickets = await prisma.activityTicket.count({ where: { columnId: column.id } })
+    if (existingTickets > 0) continue
+    const ticketCount = index === boardColumns.length - 1 ? 2 : 3
+    for (let i = 0; i < ticketCount; i++) {
+      const ticket = await prisma.activityTicket.create({
+        data: {
+          columnId: column.id,
+          name: `${column.title} task ${i + 1}`,
+          description: `Seeded ticket ${i + 1} in ${column.title}`,
+          priority: index % 2 === 0 ? 'High priority' : 'Medium priority',
+          labels: index % 2 === 0 ? ['backend'] : ['frontend'],
+          dueDate: new Date(Date.now() + (i + 1) * 86400000),
+          order: i,
+        },
+      })
+      for (const member of activityMembers) {
+        await prisma.activityTicketMember.upsert({
+          where: { ticketId_userId: { ticketId: ticket.id, userId: member.id } },
+          update: {},
+          create: { ticketId: ticket.id, userId: member.id },
+        })
+      }
+    }
+  }
+
   // Calendar events
   const allTasks = await prisma.task.findMany()
+  const dbCustomers = await prisma.customer.findMany({
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      name: true,
+      email: true,
+    },
+  })
   const colorMap: Record<string, string> = {
     meeting: 'blue',
     task: 'emerald',
@@ -355,6 +439,26 @@ async function main() {
       corner: null as string | null,
       apartment: null as string | null,
     }
+    const assignedCustomer = dbCustomers.length
+      ? dbCustomers[i % dbCustomers.length]
+      : null
+    const metadata: Prisma.JsonObject = {
+      address,
+      customType: typeKey,
+    }
+    if (assignedCustomer) {
+      metadata.customerId = assignedCustomer.id
+      const fullName = [assignedCustomer.firstName, assignedCustomer.lastName]
+        .filter(Boolean)
+        .join(' ')
+      const normalizedName = fullName || assignedCustomer.name || null
+      if (normalizedName) {
+        metadata.customerName = normalizedName
+      }
+      if (assignedCustomer.email) {
+        metadata.customerEmail = assignedCustomer.email
+      }
+    }
     await prisma.calendarEvent.create({
       data: {
         title: `Event ${i + 1}`,
@@ -364,10 +468,7 @@ async function main() {
         allDay: false,
         location: `${address.street} ${address.number}, ${address.city}`,
         color: colorMap[typeKey] || 'indigo',
-        metadata: {
-          address,
-          customType: typeKey,
-        },
+        metadata,
         taskId: i % 2 === 0 && allTasks[i % allTasks.length] ? allTasks[i % allTasks.length].id : null,
         projectId: projects[i % projects.length]?.id,
       },
@@ -376,7 +477,6 @@ async function main() {
 
   // Orders based on customers and products
   const dbProducts = await prisma.product.findMany()
-  const dbCustomers = await prisma.customer.findMany()
   for (let i = 0; i < 10; i++) {
     const cust = dbCustomers[i % dbCustomers.length]
     const items = dbProducts
@@ -426,9 +526,16 @@ async function main() {
 
   // Expenses
   const eCats = await prisma.expenseCategory.findMany()
+  const expenseStatusesRecords = await prisma.expenseStatus.findMany({ orderBy: { id: 'asc' } })
+  const expenseStatusIds = expenseStatusesRecords.map((status) => status.id)
   const expenseCurrencies = ['UYU', 'USD', 'EUR']
   for (let i = 0; i < 20; i++) {
     const currency = expenseCurrencies[i % expenseCurrencies.length]
+    const expenseStatusId =
+      expenseStatusIds.length > 0
+        ? expenseStatusIds[i % expenseStatusIds.length]
+        : null
+    const paymentMethod = pms.length > 0 ? pms[i % pms.length] : null
     await prisma.expense.create({
       data: {
         title: `Expense ${i + 1}`,
@@ -437,6 +544,8 @@ async function main() {
         date: new Date(Date.now() - i * 86400000),
         currency,
         categoryId: eCats[i % eCats.length]?.id,
+        statusId: expenseStatusId ?? undefined,
+        paymentMethodId: paymentMethod?.id,
       },
     })
   }

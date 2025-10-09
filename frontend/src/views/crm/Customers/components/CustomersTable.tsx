@@ -25,7 +25,7 @@ import { apiGetCustomerStatuses } from '@/services/SettingsService'
 import toast from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
-import { apiDeleteCrmCustomer } from '@/services/CrmService'
+import { apiDeleteCustomer } from '@/services/CustomersService'
 type StatusOption = {
     value: number | string
     label: string
@@ -167,7 +167,7 @@ const Customers = () => {
         if (!customerToDelete) return
         setDeleteLoading(true)
         try {
-            await apiDeleteCrmCustomer<boolean, { id: number | string }>({
+            await apiDeleteCustomer<boolean, { id: number | string }>({
                 id: customerToDelete.id,
             })
             toast.push(

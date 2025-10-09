@@ -9,7 +9,7 @@ import {
   apiUpdateCustomerAddress,
   apiDeleteCustomerAddress,
   apiSetPrimaryCustomerAddress,
-} from '@/services/CrmService'
+} from '@/services/CustomersService'
 import { useTranslation } from 'react-i18next'
 import CountrySelect from '@/components/shared/CountrySelect'
 import CitySelect from '@/components/shared/CitySelect'
@@ -90,13 +90,17 @@ export default function CustomerAddresses({
   }
 
   const setPrimary = async (id: number) => {
-    await apiSetPrimaryCustomerAddress<boolean, { id: number }>({ id })
+    await apiSetPrimaryCustomerAddress<boolean, { id: number; customerId: string }>(
+      { id, customerId },
+    )
     load()
   }
 
   const doDelete = async () => {
     if (deleteId) {
-      await apiDeleteCustomerAddress<boolean, { id: number }>({ id: deleteId })
+      await apiDeleteCustomerAddress<boolean, { id: number; customerId: string }>(
+        { id: deleteId, customerId },
+      )
       setDeleteId(null)
       load()
     }

@@ -353,7 +353,8 @@
             "forgotPassword": "¿Olvidaste tu contraseña?",
             "submit": "Iniciar sesión",
             "submitting": "Iniciando sesión...",
-            "noAccount": "¿No tienes una cuenta todavía?"
+            "noAccount": "¿No tienes una cuenta todavía?",
+            "recaptchaMessage": "reCAPTCHA Enterprise protege esta acción."
         },
         "signUp": {
             "title": "Registrarse",
@@ -569,6 +570,7 @@
             "time": "Horario",
             "userName": "Nombre de usuario",
             "password": "Contraseña",
+            "confirmPassword": "Confirmar contraseña",
             "location": "Ubicación",
             "phoneNumber": "Número de teléfono",
             "title": "Título",
@@ -685,14 +687,17 @@
             "appInstalled": "Aplicación instalada",
             "invoiceNote": "La factura se creó en una computadora y es válida sin la firma y el sello.",
             "passwordUpdated": "Contraseña actualizada",
+            "passwordUpdateFailed": "No pudimos actualizar la contraseña.",
             "userCreated": "Usuario creado",
             "userUpdated": "Usuario actualizado",
             "userSaveFailed": "No pudimos guardar el usuario.",
+            "passwordTabRequiresUser": "Crea el usuario antes de establecer una contraseña.",
             "viewPreviousBilling": "Ver su facturación anterior"
         },
         "validation": {
             "failed": "Por favor corrige los campos marcados",
             "fieldInvalid": "Campo inválido: {{field}}",
+            "invalidCharacters": "Se detectaron caracteres no permitidos. Revisa la información ingresada.",
             "titleRequired": "Título requerido",
             "receiverRequired": "Destinatario requerido",
             "productNameRequired": "Nombre del producto requerido",
@@ -715,6 +720,9 @@
             "startDateRequired": "Fecha de inicio requerida",
             "colorRequired": "Color requerido",
             "passwordRequired": "Contraseña requerida",
+            "passwordComplexity": "La contraseña debe tener entre 8 y 128 caracteres e incluir mayúsculas, minúsculas, números y un carácter especial",
+            "confirmPasswordRequired": "Debes confirmar la contraseña",
+            "passwordMismatch": "Las contraseñas deben coincidir",
             "enterNewPassword": "Ingrese su nueva contraseña",
             "tooShort": "¡Demasiado corta!",
             "tooLong": "¡Demasiado larga!",
@@ -738,7 +746,9 @@
         "tabs": {
             "personalInfo": "Información personal",
             "address": "Dirección",
-            "social": "Social"
+            "social": "Social",
+            "userDetails": "Detalles",
+            "password": "Contraseña"
         },
         "filters": {
             "all": "Todos",
@@ -854,7 +864,8 @@
     },
     "users": {
         "validation": {
-            "duplicateEmail": "Ya existe un usuario con ese correo."
+            "duplicateEmail": "Ya existe un usuario con ese correo.",
+            "passwordRequired": "La contraseña es obligatoria."
         }
     },
     "welcome": {
@@ -1210,6 +1221,12 @@
             },
             "placeholders": {
                 "vendor": "Nombre del proveedor"
+            },
+            "validation": {
+                "vendorRequired": "El proveedor es obligatorio",
+                "amountRequired": "El monto es obligatorio",
+                "amountNumber": "El monto debe ser un número válido",
+                "amountPositive": "El monto debe ser mayor que 0"
             },
             "created": {
                 "title": "Creado correctamente",

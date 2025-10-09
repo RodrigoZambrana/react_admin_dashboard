@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
-import { apiGetCrmDashboardData } from '@/services/CrmService'
+import { apiGetCustomersDashboardData } from '@/services/CustomersService'
 
 export type Statistic = {
     key: string
@@ -42,43 +42,43 @@ export type DashboardData = {
     }
 }
 
-type CrmDashboardDataResponse = DashboardData
+type CustomersDashboardDataResponse = DashboardData
 
-export type CrmDashboardState = {
+export type CustomersDashboardState = {
     loading: boolean
     dashboardData: Partial<DashboardData>
 }
 
-export const SLICE_NAME = 'crmDashboard'
+export const SLICE_NAME = 'customersDashboard'
 
-export const getCrmDashboardData = createAsyncThunk(
-    'crmDashboard/data/getCrmDashboardData',
+export const getCustomersDashboardData = createAsyncThunk(
+    'customersDashboard/data/getCustomersDashboardData',
     async () => {
         const response =
-            await apiGetCrmDashboardData<CrmDashboardDataResponse>()
+            await apiGetCustomersDashboardData<CustomersDashboardDataResponse>()
         return response.data
     },
 )
 
-const initialState: CrmDashboardState = {
+const initialState: CustomersDashboardState = {
     loading: true,
     dashboardData: {},
 }
 
-const crmDashboardSlice = createSlice({
+const customersDashboardSlice = createSlice({
     name: `${SLICE_NAME}/state`,
     initialState,
     reducers: {},
     extraReducers: (builder) => {
         builder
-            .addCase(getCrmDashboardData.fulfilled, (state, action) => {
+            .addCase(getCustomersDashboardData.fulfilled, (state, action) => {
                 state.dashboardData = action.payload
                 state.loading = false
             })
-            .addCase(getCrmDashboardData.pending, (state) => {
+            .addCase(getCustomersDashboardData.pending, (state) => {
                 state.loading = true
             })
     },
 })
 
-export default crmDashboardSlice.reducer
+export default customersDashboardSlice.reducer

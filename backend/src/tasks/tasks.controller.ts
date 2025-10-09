@@ -12,7 +12,7 @@ import {
 import { Prisma } from '@prisma/client'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { PrismaService } from '../prisma/prisma.service'
-import { TableQueryDto } from '../crm/dto/table-query.dto'
+import { TableQueryDto } from '../customers/dto/table-query.dto'
 
 @UseGuards(JwtAuthGuard)
 @Controller('tasks')

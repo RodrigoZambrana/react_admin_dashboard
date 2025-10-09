@@ -5,6 +5,8 @@ import {
   Get,
   Put,
   Query,
+  Param,
+  ParseIntPipe,
   Post,
   UseGuards,
   BadRequestException,
@@ -15,8 +17,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { TableQueryDto } from './dto/table-query.dto'
 
 @UseGuards(JwtAuthGuard)
-@Controller('crm')
-export class CrmController {
+@Controller('customers')
+export class CustomersController {
   constructor(private prisma: PrismaService) {}
 
   private mergeEventMetadata(
@@ -127,8 +129,8 @@ export class CrmController {
     }
   }
 
-  @Post('customers')
-  async listCustomers(@Body() dto: TableQueryDto) {
+  @Post('query')
+  async queryCustomers(@Body() dto: TableQueryDto) {
     const where: any = {}
 
     const rawQuery = typeof dto.query === 'string' ? dto.query.trim() : ''
@@ -240,7 +242,7 @@ export class CrmController {
     return { data, total }
   }
 
-  @Put('customers')
+  @Put()
   async putCustomer(@Body() body: any) {
     const id = Number(body.id)
     const firstName = body.firstName || ''
@@ -457,10 +459,10 @@ export class CrmController {
     return { events: normalized }
   }
 
-  @Get('customer-details')
-  async customerDetails(@Query('id') id: string) {
+  @Get(':id')
+  async customerDetails(@Param('id', ParseIntPipe) id: number) {
     const customer = await this.prisma.customer.findUnique({
-      where: { id: Number(id) },
+      where: { id },
       include: {
         addresses: true,
         status: true,
@@ -518,90 +520,104 @@ export class CrmController {
   }
 
   // Customer Addresses CRUD
-  @Get('customer-addresses')
-  async listAddresses(@Query('customerId') customerId: string) {
-    const cid = Number(customerId)
-    if (!cid) return []
-    return this.prisma.customerAddress.findMany({ where: { customerId: cid }, orderBy: [{ isPrimary: 'desc' }, { id: 'asc' }] })
+  @Get(':id/addresses')
+  async listAddresses(@Param('id', ParseIntPipe) customerId: number) {
+    return this.prisma.customerAddress.findMany({
+      where: { customerId },
+      orderBy: [{ isPrimary: 'desc' }, { id: 'asc' }],
+    })
   }
 
-  @Post('customer-addresses')
-  async createAddress(@Body() body: any) {
-    const cid = Number(body.customerId)
-    const normalizeNullable = (value: unknown) => {
-      if (value === undefined || value === null) return null
-      const stringified = String(value).trim()
-      return stringified.length ? stringified : null
-    }
-    const trimOrEmpty = (value: unknown) => String(value ?? '').trim()
+  private normalizeNullable(value: unknown) {
+    if (value === undefined || value === null) return null
+    const stringified = String(value).trim()
+    return stringified.length ? stringified : null
+  }
+
+  private trimOrEmpty(value: unknown) {
+    return String(value ?? '').trim()
+  }
+
+  @Post(':id/addresses')
+  async createAddress(
+    @Param('id', ParseIntPipe) customerId: number,
+    @Body() body: any,
+  ) {
     const created = await this.prisma.customerAddress.create({
       data: {
-        customerId: cid,
-        street: trimOrEmpty(body.street),
-        number: trimOrEmpty(body.number),
-        corner: normalizeNullable(body.corner),
-        apartment: normalizeNullable(body.apartment),
-        city: trimOrEmpty(body.city),
-        country: trimOrEmpty(body.country),
-        comments: normalizeNullable(body.comments),
+        customerId,
+        street: this.trimOrEmpty(body.street),
+        number: this.trimOrEmpty(body.number),
+        corner: this.normalizeNullable(body.corner),
+        apartment: this.normalizeNullable(body.apartment),
+        city: this.trimOrEmpty(body.city),
+        country: this.trimOrEmpty(body.country),
+        comments: this.normalizeNullable(body.comments),
         isPrimary: Boolean(body.isPrimary),
       },
     })
     if (created.isPrimary) {
-      await this.prisma.customerAddress.updateMany({ where: { customerId: cid, NOT: { id: created.id } }, data: { isPrimary: false } })
+      await this.prisma.customerAddress.updateMany({
+        where: { customerId, NOT: { id: created.id } },
+        data: { isPrimary: false },
+      })
     }
     return created
   }
 
-  @Put('customer-addresses/:id')
-  async updateAddress(@Query('id') _id: string, @Body() body: any) {
-    const id = Number((_id || body.id))
-    const normalizeNullable = (value: unknown) => {
-      if (value === undefined || value === null) return null
-      const stringified = String(value).trim()
-      return stringified.length ? stringified : null
-    }
-    const trimOrEmpty = (value: unknown) => String(value ?? '').trim()
+  @Put(':customerId/addresses/:id')
+  async updateAddress(
+    @Param('customerId', ParseIntPipe) customerId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: any,
+  ) {
     const updated = await this.prisma.customerAddress.update({
-      where: { id },
+      where: { id, customerId },
       data: {
-        street: trimOrEmpty(body.street),
-        number: trimOrEmpty(body.number),
-        corner: normalizeNullable(body.corner),
-        apartment: normalizeNullable(body.apartment),
-        city: trimOrEmpty(body.city),
-        country: trimOrEmpty(body.country),
-        comments: normalizeNullable(body.comments),
-        isPrimary: body.isPrimary,
+        street: this.trimOrEmpty(body.street),
+        number: this.trimOrEmpty(body.number),
+        corner: this.normalizeNullable(body.corner),
+        apartment: this.normalizeNullable(body.apartment),
+        city: this.trimOrEmpty(body.city),
+        country: this.trimOrEmpty(body.country),
+        comments: this.normalizeNullable(body.comments),
+        isPrimary: Boolean(body.isPrimary),
       },
     })
     if (updated.isPrimary) {
-      await this.prisma.customerAddress.updateMany({ where: { customerId: updated.customerId, NOT: { id: updated.id } }, data: { isPrimary: false } })
+      await this.prisma.customerAddress.updateMany({
+        where: { customerId, NOT: { id: updated.id } },
+        data: { isPrimary: false },
+      })
     }
     return updated
   }
 
-  @Put('customer-addresses/:id/set-primary')
-  async setPrimaryAddress(@Query('id') id: string) {
-    const addr = await this.prisma.customerAddress.findUnique({ where: { id: Number(id) } })
+  @Put(':customerId/addresses/:id/set-primary')
+  async setPrimaryAddress(
+    @Param('customerId', ParseIntPipe) customerId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    const addr = await this.prisma.customerAddress.findUnique({ where: { id, customerId } })
     if (!addr) return false
     await this.prisma.$transaction([
-      this.prisma.customerAddress.updateMany({ where: { customerId: addr.customerId }, data: { isPrimary: false } }),
+      this.prisma.customerAddress.updateMany({ where: { customerId }, data: { isPrimary: false } }),
       this.prisma.customerAddress.update({ where: { id: addr.id }, data: { isPrimary: true } }),
     ])
     return true
   }
 
-  @Delete('customer-addresses/:id')
-  async deleteAddress(@Query('id') id: string) {
-    await this.prisma.customerAddress.delete({ where: { id: Number(id) } })
+  @Delete(':customerId/addresses/:id')
+  async deleteAddress(
+    @Param('customerId', ParseIntPipe) customerId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    await this.prisma.customerAddress.delete({ where: { id, customerId } })
     return true
   }
 
-  @Delete('customer/delete')
-  async deleteCustomer(@Body() body: any) {
-    const id = Number(body.id)
-    if (!id) return false
+  @Delete(':id')
+  async deleteCustomer(@Param('id', ParseIntPipe) id: number) {
     const hasOrders = await this.prisma.order.count({ where: { customerId: id } })
     if (hasOrders > 0) {
       throw new BadRequestException('text.messages.customerDeleteHasOrders')
@@ -610,7 +626,7 @@ export class CrmController {
     return true
   }
 
-  @Get('customers-statistic')
+  @Get('statistics')
   async customersStatistic() {
     const total = await this.prisma.customer.count()
 

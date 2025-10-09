@@ -6,10 +6,10 @@ import ExpenseAttachmentsField from '@/views/expenses/components/ExpenseAttachme
 import type { ExpenseAttachment } from '@/services/ExpensesService'
 import { apiFetchCalendarAttachment } from '@/services/CalendarService'
 import {
-    apiUpdateCrmCalendarEvent,
+    apiUpdateCustomerCalendarEvent,
     type CalendarEventAttachment,
     type CalendarEventDto,
-} from '@/services/CrmService'
+} from '@/services/CustomersService'
 import { useTranslation } from 'react-i18next'
 
 type ActivityAttachmentsProps = {
@@ -158,7 +158,7 @@ const ActivityAttachments = ({ attachments = [], sourceEvent, onRefresh }: Activ
                 ...(updated.extendedProps ?? {}),
                 attachments: attachmentsPayload,
             }
-            await apiUpdateCrmCalendarEvent(String(updated.id), updated)
+            await apiUpdateCustomerCalendarEvent(String(updated.id), updated)
             toast.push(
                 <Notification type="success" title={t('common.success', { defaultValue: 'Éxito' })}>
                     {toastSuccessMessage}
@@ -185,11 +185,12 @@ const ActivityAttachments = ({ attachments = [], sourceEvent, onRefresh }: Activ
                 inlineCandidate?.content ?? contentCache.current.get(id) ?? null
             try {
                 const response = await apiFetchCalendarAttachment(id, { mode })
-                const { data, headers } = response
-                if (data instanceof Blob) {
+                const { headers } = response
+                const data = response.data as unknown
+                if (typeof Blob !== 'undefined' && data instanceof Blob) {
                     return data
                 }
-                if (data instanceof ArrayBuffer) {
+                if (typeof ArrayBuffer !== 'undefined' && data instanceof ArrayBuffer) {
                     const mimeType =
                         (headers as Record<string, string | undefined>)?.['content-type'] ||
                         (headers as Record<string, string | undefined>)?.['Content-Type'] ||

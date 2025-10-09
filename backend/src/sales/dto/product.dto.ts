@@ -1,5 +1,28 @@
-import { IsArray, IsBoolean, IsNumber, IsOptional, IsString, IsObject, Min } from 'class-validator'
+import { IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator'
 import { Type } from 'class-transformer'
+import { IsSafeString } from '../../common/validation/is-safe-string.decorator'
+
+class ProductImagePayload {
+  @IsSafeString()
+  id!: string
+
+  @IsOptional()
+  @IsSafeString()
+  name?: string
+
+  @IsSafeString()
+  img!: string
+}
+
+class ProductSortDto {
+  @IsOptional()
+  @IsSafeString()
+  key?: string
+
+  @IsOptional()
+  @IsIn(['asc', 'desc', ''])
+  order?: 'asc' | 'desc' | ''
+}
 
 export class UpsertProductDto {
   @IsOptional()
@@ -8,18 +31,22 @@ export class UpsertProductDto {
   id?: number
 
   @IsString()
+  @IsSafeString()
   name!: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   productCode?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   img?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   description?: string
 
   @IsNumber()
@@ -38,6 +65,7 @@ export class UpsertProductDto {
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   currency?: string
 
   @IsNumber()
@@ -64,10 +92,12 @@ export class UpsertProductDto {
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   brand?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   vendor?: string
 
   @IsOptional()
@@ -76,7 +106,9 @@ export class UpsertProductDto {
 
   @IsOptional()
   @IsArray()
-  imgList?: { id: string; name?: string; img: string }[]
+  @ValidateNested({ each: true })
+  @Type(() => ProductImagePayload)
+  imgList?: ProductImagePayload[]
 }
 
 // For updates, allow partial fields and require only id
@@ -87,18 +119,22 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   name?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   productCode?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   img?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   description?: string
 
   @IsOptional()
@@ -120,6 +156,7 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   currency?: string
 
   @IsOptional()
@@ -148,10 +185,12 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   brand?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   vendor?: string
 
   @IsOptional()
@@ -160,7 +199,9 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsArray()
-  imgList?: { id: string; name?: string; img: string }[]
+  @ValidateNested({ each: true })
+  @Type(() => ProductImagePayload)
+  imgList?: ProductImagePayload[]
 }
 
 export class TableQueryDto {
@@ -171,12 +212,13 @@ export class TableQueryDto {
   pageSize!: number
 
   @IsOptional()
-  @IsString()
+  @IsSafeString()
   query?: string
 
   @IsOptional()
-  @IsObject()
-  sort?: { key?: string; order?: 'asc' | 'desc' | '' }
+  @ValidateNested()
+  @Type(() => ProductSortDto)
+  sort?: ProductSortDto
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   @IsOptional()

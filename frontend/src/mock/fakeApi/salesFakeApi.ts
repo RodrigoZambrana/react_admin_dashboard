@@ -414,7 +414,7 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
         },
     )
 
-    server.get(`${apiPrefix}/sales/orders`, (schema, { queryParams }) => {
+    server.get(`${apiPrefix}/orders`, (schema, { queryParams }) => {
         const { pageIndex, pageSize, query } = queryParams
         const order = queryParams['sort[order]']
         const key = queryParams['sort[key]']
@@ -461,7 +461,7 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
     })
 
     server.del(
-        `${apiPrefix}/sales/orders/delete`,
+        `${apiPrefix}/orders`,
         (schema, { requestBody }) => {
             const { id } = JSON.parse(requestBody)
             id.forEach((elm: string) => {
@@ -472,38 +472,40 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
     )
 
     server.get(
-        `${apiPrefix}/sales/orders-details`,
-        (schema, { queryParams }) => {
-            const { id } = queryParams
+        `${apiPrefix}/orders/:id/details`,
+        (schema, { params }) => {
+            const { id } = params
             const orderDetail = schema.db.orderDetailsData
             orderDetail[0].id = id
             return orderDetail[0]
         },
     )
 
-    server.put(`${apiPrefix}/sales/orders/update`, (schema, { requestBody }) => {
-        const { id, status } = JSON.parse(requestBody)
+    server.put(`${apiPrefix}/orders/:id/status`, (schema, { params, requestBody }) => {
+        const { id } = params
+        const { status } = JSON.parse(requestBody)
         schema.db.ordersData.update({ id }, { status })
         return true
     })
 
     server.put(
-        `${apiPrefix}/sales/orders/update-method`,
-        (schema, { requestBody }) => {
-            const { id, paymentMehod } = JSON.parse(requestBody)
+        `${apiPrefix}/orders/:id/payment-method`,
+        (schema, { params, requestBody }) => {
+            const { id } = params
+            const { paymentMehod } = JSON.parse(requestBody)
             schema.db.ordersData.update({ id }, { paymentMehod })
             return true
         },
     )
 
     // CRUD: get single order
-    server.get(`${apiPrefix}/sales/order`, (schema, { queryParams }) => {
-        const id = queryParams.id as string
+    server.get(`${apiPrefix}/orders/:id`, (schema, { params }) => {
+        const { id } = params
         return schema.db.ordersData.find(id)
     })
 
     // CRUD: create order
-    server.post(`${apiPrefix}/sales/orders/create`, (schema, { requestBody }) => {
+    server.post(`${apiPrefix}/orders`, (schema, { requestBody }) => {
         const data = JSON.parse(requestBody)
         if (Array.isArray(data.items)) {
             data.totalAmount = data.items.reduce(
@@ -521,17 +523,11 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
         return true
     })
 
-    // CRUD: save order (update full record)
-    server.put(`${apiPrefix}/sales/orders/save`, (schema, { requestBody }) => {
-        const data = JSON.parse(requestBody)
-        const { id } = data
-        if (Array.isArray(data.items)) {
-            data.totalAmount = data.items.reduce(
-                (sum: number, it: any) => sum + (Number(it.price) || 0) * (Number(it.qty) || 0),
-                0,
-            )
-        }
-        schema.db.ordersData.update({ id }, data)
+    // CRUD: save order comment
+    server.patch(`${apiPrefix}/orders/:id/comment`, (schema, { params, requestBody }) => {
+        const { id } = params
+        const { comment } = JSON.parse(requestBody)
+        schema.db.ordersData.update({ id }, { comment })
         return true
     })
 }

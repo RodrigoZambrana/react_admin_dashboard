@@ -3,7 +3,7 @@ import { SLICE_BASE_NAME } from './constants'
 
 export type UserState = {
     avatar?: string
-    userName?: string
+    displayName?: string
     email?: string
     authority?: string[]
     name?: string
@@ -12,7 +12,7 @@ export type UserState = {
 
 const initialState: UserState = {
     avatar: '',
-    userName: '',
+    displayName: '',
     email: '',
     authority: [],
     name: '',
@@ -25,11 +25,21 @@ const userSlice = createSlice({
     reducers: {
         setUser(state, action: PayloadAction<UserState>) {
             state.avatar = action.payload?.avatar ?? ''
-            state.email = action.payload?.email ?? ''
-            state.userName = action.payload?.userName ?? ''
-            state.authority = action.payload?.authority ?? []
-            state.name = action.payload?.name ?? ''
-            state.lastName = action.payload?.lastName ?? ''
+            const normalizedEmail = action.payload?.email?.trim?.() ?? ''
+            state.email = normalizedEmail
+            state.authority = (action.payload?.authority ?? []).map((role) =>
+                role?.toUpperCase?.() ?? '',
+            )
+            state.authority = state.authority.filter((role) => role)
+            state.name = action.payload?.name?.trim?.() ?? ''
+            state.lastName = action.payload?.lastName?.trim?.() ?? ''
+            const fullName = [state.name, state.lastName]
+                .map((part) => part?.trim?.() ?? '')
+                .filter(Boolean)
+                .join(' ')
+            state.displayName =
+                action.payload?.displayName ??
+                (fullName || normalizedEmail || '')
         },
     },
 })
