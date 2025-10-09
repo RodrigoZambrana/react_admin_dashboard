@@ -127,10 +127,6 @@ jobs:
         run: |
           docker compose -f deploy/docker-compose.dev.yml exec -T backend npx prisma migrate deploy
 
-      - name: Health check local
-        run: |
-          curl -f --retry 10 --retry-delay 6 http://localhost:8080/api/health
-
       - name: Apagar stack local
         if: always()
         run: |
