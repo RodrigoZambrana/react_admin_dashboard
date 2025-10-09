@@ -1,13 +1,16 @@
 import { IsArray, IsBoolean, IsDateString, IsNumber, IsOptional, IsString, ValidateNested, IsNotEmpty } from 'class-validator'
 import { Type } from 'class-transformer'
+import { IsSafeString } from '../../common/validation/is-safe-string.decorator'
 
 export class OrderItemDto {
   @IsString()
   @IsNotEmpty()
+  @IsSafeString()
   productId!: string
 
   @IsString()
   @IsNotEmpty()
+  @IsSafeString()
   name!: string
 
   @IsNumber()
@@ -18,51 +21,62 @@ export class OrderItemDto {
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   img?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   description?: string
 }
 
 export class AddressDto {
   @IsOptional()
   @IsString()
+  @IsSafeString()
   addressLine1?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   addressLine2?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   city?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   state?: string
 
   // Atomic fields mapping to address lines
   @IsOptional()
   @IsString()
+  @IsSafeString()
   street?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   number?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   corner?: string
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   apartment?: string
 }
 
 export class ShippingDto {
   @IsOptional()
   @IsString()
+  @IsSafeString()
   shippingVendor?: string
 
   @IsOptional()
@@ -80,6 +94,7 @@ export class ShippingDto {
 
 export class CreateOrderDto {
   @IsString()
+  @IsSafeString()
   customerId!: string
 
   @IsOptional()
@@ -87,6 +102,7 @@ export class CreateOrderDto {
   date?: string
 
   @IsString()
+  @IsSafeString()
   paymentMehod!: string
 
   @IsArray()
@@ -111,5 +127,6 @@ export class CreateOrderDto {
 
   @IsOptional()
   @IsString()
+  @IsSafeString()
   comment?: string
 }

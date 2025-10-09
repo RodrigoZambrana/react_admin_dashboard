@@ -26,6 +26,13 @@ import Upload from '@/components/ui/Upload'
 import type { AxiosError } from 'axios'
 import Tabs from '@/components/ui/Tabs'
 import PasswordInput from '@/components/shared/PasswordInput'
+import { ROLE_OPTIONS, USER, type Role } from '@/constants/roles.constant'
+import { PASSWORD_COMPLEXITY_REGEX } from '@/constants/security.constant'
+import {
+    sanitizePayload,
+    isSuspiciousString,
+    UnsafeInputError,
+} from '@/utils/security/inputGuards'
 
 type User = {
     id: string | number
@@ -33,7 +40,7 @@ type User = {
     lastName?: string
     email: string
     img?: string
-    role?: string
+    role?: Role
     country?: string
     countryCode?: string
     city?: string
@@ -47,7 +54,7 @@ type UserFormValues = {
     img?: string
     avatarFile: File | null
     avatarPreview: string
-    role: string
+    role: Role
     country: string
     countryCode: string
     city: string
@@ -65,7 +72,7 @@ const DEFAULT_USER_FORM: UserFormValues = {
     img: '',
     avatarFile: null,
     avatarPreview: '',
-    role: 'user',
+    role: USER,
     country: 'Uruguay',
     countryCode: 'UY',
     city: 'Montevideo',
@@ -75,6 +82,9 @@ const PASSWORD_FORM: PasswordFormValues = {
     password: '',
     confirmPassword: '',
 }
+
+const normalizeRole = (role?: string | Role): Role =>
+    role ? (String(role).toUpperCase() as Role) : USER
 
 const UsersList = () => {
     const [users, setUsers] = useState<User[]>([])
@@ -97,7 +107,13 @@ const UsersList = () => {
     useEffect(() => {
         const fetch = async () => {
             const resp = await apiGetUsers<User[]>()
-            setUsers(resp.data || [])
+            const fetched = resp.data || []
+            setUsers(
+                fetched.map((user) => ({
+                    ...user,
+                    role: normalizeRole(user.role),
+                })),
+            )
         }
         fetch()
     }, [])
@@ -111,18 +127,35 @@ const UsersList = () => {
         )
     })
 
+    const safeStringValidator = (value?: string | null) =>
+        !value || !isSuspiciousString(value)
+
     const schema = Yup.object().shape({
-        name: Yup.string().required('text.validation.userNameRequired'),
-        lastName: Yup.string().nullable(),
-        email: Yup.string().email('text.validation.invalidEmail').required('text.validation.emailRequired'),
+        name: Yup.string()
+            .required('text.validation.userNameRequired')
+            .test('safe-name', 'text.validation.invalidCharacters', safeStringValidator),
+        lastName: Yup.string()
+            .nullable()
+            .test('safe-lastname', 'text.validation.invalidCharacters', safeStringValidator),
+        email: Yup.string()
+            .email('text.validation.invalidEmail')
+            .required('text.validation.emailRequired'),
         avatarFile: Yup.mixed<File>().nullable(),
-        country: Yup.string().nullable(),
-        city: Yup.string().nullable(),
-        countryCode: Yup.string().nullable(),
+        country: Yup.string()
+            .nullable()
+            .test('safe-country', 'text.validation.invalidCharacters', safeStringValidator),
+        city: Yup.string()
+            .nullable()
+            .test('safe-city', 'text.validation.invalidCharacters', safeStringValidator),
+        countryCode: Yup.string()
+            .nullable()
+            .test('safe-countryCode', 'text.validation.invalidCharacters', safeStringValidator),
     })
 
     const passwordSchema = Yup.object().shape({
-        password: Yup.string().required('text.validation.passwordRequired'),
+        password: Yup.string()
+            .required('text.validation.passwordRequired')
+            .matches(PASSWORD_COMPLEXITY_REGEX, 'text.validation.passwordComplexity'),
         confirmPassword: Yup.string()
             .required('text.validation.confirmPasswordRequired')
             .oneOf([Yup.ref('password')], 'text.validation.passwordMismatch'),
@@ -138,7 +171,7 @@ const UsersList = () => {
             img: user.img,
             avatarFile: null,
             avatarPreview: user.img || '',
-            role: (user.role || 'user').toLowerCase(),
+            role: normalizeRole(user.role),
             country: user.country?.trim() || DEFAULT_USER_FORM.country,
             countryCode: user.countryCode?.trim() || DEFAULT_USER_FORM.countryCode,
             city: user.city?.trim() || DEFAULT_USER_FORM.city,
@@ -172,14 +205,49 @@ const UsersList = () => {
         }
     }, [location, navigate])
 
+    const notifyUnsafeInput = () => {
+        toast.push(
+            <Notification
+                title={t('text.validation.invalidCharacters', {
+                    defaultValue: 'Detected forbidden characters in the form.',
+                })}
+                type="danger"
+            />,
+            { placement: 'top-center' },
+        )
+    }
+
     const onSubmit = async (values: UserFormValues) => {
-        const name = values.name.trim()
-        const lastName = values.lastName?.trim() || ''
-        const email = values.email.trim()
-        const role = (values.role || 'user').toLowerCase()
-        const countryName = values.country?.trim() || ''
-        const cityName = values.city?.trim() || ''
-        const countryCode = values.countryCode?.trim().toUpperCase() || ''
+        let sanitizedFields: {
+            name: string
+            lastName: string
+            email: string
+            role: Role
+            country: string
+            countryCode: string
+            city: string
+        }
+
+        try {
+            sanitizedFields = sanitizePayload({
+                name: values.name.trim(),
+                lastName: values.lastName?.trim() || '',
+                email: values.email.trim(),
+                role: normalizeRole(values.role),
+                country: values.country?.trim() || '',
+                countryCode: values.countryCode?.trim().toUpperCase() || '',
+                city: values.city?.trim() || '',
+            }) as typeof sanitizedFields
+        } catch (error) {
+            if (error instanceof UnsafeInputError) {
+                notifyUnsafeInput()
+                return
+            }
+            throw error
+        }
+
+        const { name, lastName, email, role, country, city, countryCode } =
+            sanitizedFields
 
         const formData = new FormData()
         formData.append('name', name)
@@ -188,9 +256,9 @@ const UsersList = () => {
         }
         formData.append('email', email)
         formData.append('role', role)
-        formData.append('country', countryName)
+        formData.append('country', country)
         formData.append('countryCode', countryCode)
-        formData.append('city', cityName)
+        formData.append('city', city)
         if (values.avatarFile) {
             formData.append('avatar', values.avatarFile)
         }
@@ -202,9 +270,9 @@ const UsersList = () => {
             email,
             img: values.img || '',
             role,
-            country: countryName,
+            country,
             countryCode,
-            city: cityName,
+            city,
         }
 
         try {
@@ -216,9 +284,10 @@ const UsersList = () => {
                 const updated = resp.data || fallbackUser
                 const normalizedUpdated: User = {
                     ...updated,
-                    country: countryName,
+                    role: normalizeRole(updated.role),
+                    country,
                     countryCode,
-                    city: cityName,
+                    city,
                 }
                 setUsers((prev) =>
                     prev.map((u) =>
@@ -236,9 +305,10 @@ const UsersList = () => {
                 const created = resp.data || fallbackUser
                 const normalizedCreated: User = {
                     ...created,
-                    country: countryName,
+                    role: normalizeRole(created.role),
+                    country,
                     countryCode,
-                    city: cityName,
+                    city,
                 }
                 setUsers((prev) => [normalizedCreated, ...prev])
                 toast.push(
@@ -275,6 +345,12 @@ const UsersList = () => {
         const confirm = values.confirmPassword.trim()
 
         if (!password || !confirm || password !== confirm) {
+            helpers.setSubmitting(false)
+            return
+        }
+
+        if (isSuspiciousString(password) || isSuspiciousString(confirm)) {
+            notifyUnsafeInput()
             helpers.setSubmitting(false)
             return
         }
@@ -499,22 +575,21 @@ const UsersList = () => {
                                                 </FormItem>
                                                 <FormItem label={t('text.labels.role')}>
                                                     <Select
-                                                        options={[
-                                                            { value: 'superadmin', label: 'Superadmin' },
-                                                            { value: 'admin', label: 'Admin' },
-                                                            { value: 'user', label: 'User' },
-                                                        ]}
-                                                        value={{
-                                                            value: (values.role || 'user').toLowerCase(),
-                                                            label:
-                                                                values.role === 'superadmin'
-                                                                    ? 'Superadmin'
-                                                                    : (values.role || 'user')
-                                                                          .charAt(0)
-                                                                          .toUpperCase() + (values.role || 'user').slice(1),
-                                                        }}
+                                                        options={ROLE_OPTIONS}
+                                                        value={
+                                                            ROLE_OPTIONS.find(
+                                                                (option) =>
+                                                                    option.value ===
+                                                                    normalizeRole(values.role),
+                                                            ) ?? ROLE_OPTIONS[0]
+                                                        }
                                                         onChange={(opt) =>
-                                                            setFieldValue('role', (opt as any).value)
+                                                            setFieldValue(
+                                                                'role',
+                                                                normalizeRole(
+                                                                    (opt as { value?: string } | null)?.value,
+                                                                ),
+                                                            )
                                                         }
                                                     />
                                                 </FormItem>

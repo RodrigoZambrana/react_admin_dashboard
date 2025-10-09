@@ -1,6 +1,6 @@
 import { lazy } from 'react'
 import { APP_PREFIX_PATH } from '@/constants/route.constant'
-import { ADMIN, USER } from '@/constants/roles.constant'
+import { FEATURES, getRolesForFeature } from '@/constants/roleAccess.constant'
 import type { Routes } from '@/@types/routes'
 
 const appsRoute: Routes = [
@@ -9,7 +9,7 @@ const appsRoute: Routes = [
         key: 'appsCalendar.activities',
         path: `${APP_PREFIX_PATH}/calendar/activities`,
         component: lazy(() => import('@/views/calendar/Activities')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.CALENDAR),
         meta: {
             header: 'Activities',
         },
@@ -18,7 +18,7 @@ const appsRoute: Routes = [
         key: 'appsActivities.dashboard',
         path: `${APP_PREFIX_PATH}/activities`,
         component: lazy(() => import('@/views/project/ScrumBoard')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.ACTIVITIES),
         meta: {
             header: 'Activities',
         },
@@ -27,7 +27,7 @@ const appsRoute: Routes = [
         key: 'appsCalendar.schedule',
         path: `${APP_PREFIX_PATH}/calendar/schedule`,
         component: lazy(() => import('@/views/crm/Calendar')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.CALENDAR),
         meta: {
             header: lazy(() => import('@/views/crm/Calendar/HeaderTitle')),
         },
@@ -36,7 +36,7 @@ const appsRoute: Routes = [
         key: 'appsCalendar.activityDetails',
         path: `${APP_PREFIX_PATH}/calendar/activities/details`,
         component: lazy(() => import('@/views/calendar/ActivitiesDetail')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.CALENDAR),
         meta: {
             header: lazy(() => import('@/views/calendar/ActivitiesDetail/HeaderTitle')),
             headerContainer: true,
@@ -46,13 +46,13 @@ const appsRoute: Routes = [
         key: 'appsAccount.resetPassword',
         path: `${APP_PREFIX_PATH}/account/reset-password`,
         component: lazy(() => import('@/views/account/ResetPasswordInApp')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.ACCOUNT),
     },
     {
         key: 'appsProject.scrumBoard',
         path: `${APP_PREFIX_PATH}/project/scrum-board`,
         component: lazy(() => import('@/views/project/ScrumBoard')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.ACTIVITIES),
         meta: {
             pageContainerType: 'gutterless',
         },
@@ -61,7 +61,7 @@ const appsRoute: Routes = [
         key: 'appsCrm.customers',
         path: `${APP_PREFIX_PATH}/crm/customers`,
         component: lazy(() => import('@/views/crm/Customers')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.CUSTOMERS),
         meta: {
             header: lazy(() => import('@/views/crm/Customers/HeaderTitle')),
         },
@@ -70,7 +70,7 @@ const appsRoute: Routes = [
         key: 'appsCrm.customerDetails',
         path: `${APP_PREFIX_PATH}/crm/customer-details`,
         component: lazy(() => import('@/views/crm/CustomerDetail')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.CUSTOMERS),
         meta: {
             header: lazy(() => import('@/views/crm/CustomerDetail/HeaderTitle')),
             headerContainer: true,
@@ -80,7 +80,7 @@ const appsRoute: Routes = [
         key: 'appsCrm.mail',
         path: `${APP_PREFIX_PATH}/crm/mail`,
         component: lazy(() => import('@/views/crm/Mail')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.CUSTOMERS),
         meta: {
             pageContainerType: 'gutterless',
             footer: false,
@@ -90,7 +90,7 @@ const appsRoute: Routes = [
         key: 'appsCrm.mail',
         path: `${APP_PREFIX_PATH}/crm/mail/:category`,
         component: lazy(() => import('@/views/crm/Mail')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.CUSTOMERS),
         meta: {
             pageContainerType: 'gutterless',
             footer: false,
@@ -100,25 +100,25 @@ const appsRoute: Routes = [
         key: 'appsSales.dashboard',
         path: `${APP_PREFIX_PATH}/sales/dashboard`,
         component: lazy(() => import('@/views/sales/SalesDashboard')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.SALES),
     },
     {
         key: 'appsExpenses.dashboard',
         path: `${APP_PREFIX_PATH}/expenses/dashboard`,
         component: lazy(() => import('@/views/expenses/ExpensesDashboard/ExpensesDashboard')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.EXPENSES),
     },
     {
         key: 'appsProducts.productList',
         path: `${APP_PREFIX_PATH}/products/list`,
         component: lazy(() => import('@/views/sales/ProductList')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.PRODUCTS),
     },
     {
         key: 'appsProducts.productEdit',
         path: `${APP_PREFIX_PATH}/products/edit/:productId`,
         component: lazy(() => import('@/views/sales/ProductEdit')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.PRODUCTS),
         meta: {
             header: 'Edit Product',
         },
@@ -127,13 +127,13 @@ const appsRoute: Routes = [
         key: 'appsSales.orderList',
         path: `${APP_PREFIX_PATH}/sales/order-list`,
         component: lazy(() => import('@/views/sales/OrderList')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.SALES),
     },
     {
         key: 'appsSales.orderNew',
         path: `${APP_PREFIX_PATH}/sales/order-new`,
         component: lazy(() => import('@/views/sales/OrderNew')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.SALES),
         meta: {
             header: 'New Order',
         },
@@ -142,7 +142,7 @@ const appsRoute: Routes = [
         key: 'appsSales.orderEdit',
         path: `${APP_PREFIX_PATH}/sales/order-edit/:orderId`,
         component: lazy(() => import('@/views/sales/OrderEdit')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.SALES),
         meta: {
             header: 'Edit Order',
         },
@@ -151,25 +151,25 @@ const appsRoute: Routes = [
         key: 'appsSales.orderDetails',
         path: `${APP_PREFIX_PATH}/sales/order-details/:orderId`,
         component: lazy(() => import('@/views/sales/OrderDetails')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.SALES),
     },
     {
         key: 'appsExpenses.expenseList',
         path: `${APP_PREFIX_PATH}/expenses/expense-list`,
         component: lazy(() => import('@/views/expenses/ExpenseList')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.EXPENSES),
     },
     {
         key: 'appsExpenses.expenseNew',
         path: `${APP_PREFIX_PATH}/expenses/expense-new`,
         component: lazy(() => import('@/views/expenses/ExpenseNew')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.EXPENSES),
     },
     {
         key: 'appsExpenses.expenseEdit',
         path: `${APP_PREFIX_PATH}/expenses/expense-edit/:expenseId`,
         component: lazy(() => import('@/views/expenses/ExpenseEdit')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.EXPENSES),
         meta: {
             header: 'Edit Expense',
         },
@@ -178,7 +178,7 @@ const appsRoute: Routes = [
         key: 'appsExpenses.categories',
         path: `${APP_PREFIX_PATH}/expenses/categories`,
         component: lazy(() => import('@/views/expenses/Categories')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.EXPENSES),
     },
     
     
@@ -186,7 +186,7 @@ const appsRoute: Routes = [
         key: 'appsAccount.settings',
         path: `${APP_PREFIX_PATH}/account/settings/:tab`,
         component: lazy(() => import('@/views/account/Settings')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.ACCOUNT),
         meta: {
             header: 'Settings',
             headerContainer: true,
@@ -196,81 +196,81 @@ const appsRoute: Routes = [
         key: 'appsAccount.invoice',
         path: `${APP_PREFIX_PATH}/account/invoice/:id`,
         component: lazy(() => import('@/views/account/Invoice')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.ACCOUNT),
     },
     {
         key: 'appsAccount.activityLog',
         path: `${APP_PREFIX_PATH}/account/activity-log`,
         component: lazy(() => import('@/views/account/ActivityLog')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.ACCOUNT),
     },
     {
         key: 'appsAccount.kycForm',
         path: `${APP_PREFIX_PATH}/account/kyc-form`,
         component: lazy(() => import('@/views/account/KycForm')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.ACCOUNT),
     },
     // Settings
     {
         key: 'appsSettings.orderStatuses',
         path: `${APP_PREFIX_PATH}/settings/order-statuses`,
         component: lazy(() => import('@/views/settings/OrderStatuses')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
         key: 'appsSettings.products',
         path: `${APP_PREFIX_PATH}/settings/products`,
         component: lazy(() => import('@/views/settings/ProductSettings')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
         key: 'appsSettings.customerStatuses',
         path: `${APP_PREFIX_PATH}/settings/customer-statuses`,
         component: lazy(() => import('@/views/settings/CustomerStatuses')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
         key: 'appsSettings.expenses',
         path: `${APP_PREFIX_PATH}/settings/expenses`,
         component: lazy(() => import('@/views/settings/ExpenseSettings')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
         key: 'appsSettings.paymentMethods',
         path: `${APP_PREFIX_PATH}/settings/payment-methods`,
         component: lazy(() => import('@/views/settings/PaymentMethods')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
         key: 'appsSettings.shippingOptions',
         path: `${APP_PREFIX_PATH}/settings/shipping-options`,
         component: lazy(() => import('@/views/settings/ShippingOptions')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
         key: 'appsSettings.systemConfig',
         path: `${APP_PREFIX_PATH}/settings/system-config`,
         component: lazy(() => import('@/views/settings/SystemConfig')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
         key: 'appsSettings.calendarEventTypes',
         path: `${APP_PREFIX_PATH}/settings/calendar-event-types`,
         component: lazy(() => import('@/views/settings/CalendarEventTypes')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     // Users
     {
         key: 'appsUsers.userList',
         path: `${APP_PREFIX_PATH}/users/list`,
         component: lazy(() => import('@/views/users/UsersList/UsersList')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.USERS),
     },
     {
         key: 'appsUsers.userNew',
         path: `${APP_PREFIX_PATH}/users/new`,
         component: lazy(() => import('@/views/users/UserNew/UserNew')),
-        authority: [ADMIN, USER],
+        authority: getRolesForFeature(FEATURES.USERS),
         meta: {
             header: lazy(() => import('@/views/users/UserNew/HeaderTitle')),
         },

@@ -11,6 +11,8 @@ import { ValidationError } from 'class-validator'
 import multipart from '@fastify/multipart'
 import fastifyStatic from '@fastify/static'
 import { join } from 'path'
+import cookie from '@fastify/cookie'
+import { SanitizeInputPipe } from './common/pipes/sanitize-input.pipe'
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -42,6 +44,10 @@ async function bootstrap() {
       cb(new Error('Origin not allowed'), false)
     },
     credentials: true,
+  })
+
+  await app.register(cookie as any, {
+    secret: process.env.COOKIE_SECRET || 'dev-cookie-secret',
   })
 
   await app.register(multipart as any, {
@@ -79,6 +85,7 @@ async function bootstrap() {
   }
 
   app.useGlobalPipes(
+    new SanitizeInputPipe(),
     new ValidationPipe({ whitelist: true, transform: true, exceptionFactory }),
   )
 

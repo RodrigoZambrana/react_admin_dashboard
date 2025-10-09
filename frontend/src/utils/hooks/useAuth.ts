@@ -38,13 +38,21 @@ function useAuth() {
                 const { token } = resp.data
                 dispatch(signInSuccess(token))
                 if (resp.data.user) {
+                    const displayName =
+                        [
+                            resp.data.user.name,
+                            resp.data.user.lastName,
+                        ].filter(Boolean).join(' ') ||
+                        resp.data.user.name ||
+                        resp.data.user.email ||
+                        'User'
                     const userPayload = {
                         avatar: resp.data.user.avatar || '',
-                        userName: resp.data.user.userName || 'Anonymous',
                         authority: resp.data.user.authority || ['USER'],
                         email: resp.data.user.email || '',
                         name: resp.data.user.name || '',
                         lastName: resp.data.user.lastName || '',
+                        displayName,
                     }
                     dispatch(
                         setUser(userPayload),
@@ -77,13 +85,21 @@ function useAuth() {
                 const { token } = resp.data
                 dispatch(signInSuccess(token))
                 if (resp.data.user) {
+                    const displayName =
+                        [
+                            resp.data.user.name,
+                            resp.data.user.lastName,
+                        ].filter(Boolean).join(' ') ||
+                        resp.data.user.name ||
+                        resp.data.user.email ||
+                        'User'
                     const userPayload = {
                         avatar: resp.data.user.avatar || '',
-                        userName: resp.data.user.userName || 'Anonymous',
                         authority: resp.data.user.authority || ['USER'],
                         email: resp.data.user.email || '',
                         name: resp.data.user.name || '',
                         lastName: resp.data.user.lastName || '',
+                        displayName,
                     }
                     dispatch(
                         setUser(userPayload),
@@ -114,7 +130,7 @@ function useAuth() {
         dispatch(
             setUser({
                 avatar: '',
-                userName: '',
+                displayName: '',
                 email: '',
                 authority: [],
             }),

@@ -31,11 +31,13 @@
     "d3-fetch": "^3.0.1",
     "d3-scale": "^4.0.2",
     "dayjs": "^1.11.13",
+    "dompurify": "^3.2.7",
     "formik": "^2.4.6",
     "framer-motion": "^11.15.0",
     "history": "^5.3.0",
     "html-react-parser": "^5.2.1",
     "i18next": "^24.2.0",
+    "js-sha256": "^0.11.1",
     "lodash": "^4.17.21",
     "miragejs": "^0.1.48",
     "papaparse": "^5.5.3",
@@ -93,6 +95,7 @@
     "eslint-plugin-react": "^7.32.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.1",
+    "jsdom": "^25.0.0",
     "postcss": "^8.4.21",
     "postcss-cli": "^11.0.0",
     "postcss-nesting": "^12.0.2",
@@ -103,8 +106,7 @@
     "typescript": "^5.7.2",
     "vite": "^7.0.5",
     "vite-plugin-dynamic-import": "^1.6.0",
-    "vitest": "^1.6.0",
-    "jsdom": "^25.0.0"
+    "vitest": "^1.6.0"
   },
   "overrides": {
     "react-simple-maps": {

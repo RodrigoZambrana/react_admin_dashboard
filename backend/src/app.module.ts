@@ -12,7 +12,6 @@ import { ExpensesModule } from './expenses/expenses.module'
 import { AccountModule } from './account/account.module'
 import { ProjectModule } from './project/project.module'
 import { OrdersModule } from './orders/orders.module'
-import { RolesGuard } from './auth/roles.guard'
 import { CalendarModule } from './calendar/calendar.module'
 import { TasksModule } from './tasks/tasks.module'
 import { NotificationModule } from './notification/notification.module'
@@ -51,10 +50,6 @@ import { ActivitiesModule } from './activities/activities.module'
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
     },
   ],
 })

@@ -55,7 +55,6 @@ model Notification {
 // Users and Auth
 model User {
   id                    Int                    @id @default(autoincrement())
-  userName              String                 @unique
   name                  String?
   lastName              String?
   email                 String                 @unique

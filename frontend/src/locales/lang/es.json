@@ -696,6 +696,7 @@
         "validation": {
             "failed": "Por favor corrige los campos marcados",
             "fieldInvalid": "Campo inválido: {{field}}",
+            "invalidCharacters": "Se detectaron caracteres no permitidos. Revisa la información ingresada.",
             "titleRequired": "Título requerido",
             "receiverRequired": "Destinatario requerido",
             "productNameRequired": "Nombre del producto requerido",
@@ -718,6 +719,7 @@
             "startDateRequired": "Fecha de inicio requerida",
             "colorRequired": "Color requerido",
             "passwordRequired": "Contraseña requerida",
+            "passwordComplexity": "La contraseña debe tener entre 8 y 128 caracteres e incluir mayúsculas, minúsculas, números y un carácter especial",
             "confirmPasswordRequired": "Debes confirmar la contraseña",
             "passwordMismatch": "Las contraseñas deben coincidir",
             "enterNewPassword": "Ingrese su nueva contraseña",
