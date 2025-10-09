@@ -7,7 +7,7 @@ Stack
 - PostgreSQL
 
 Quick Start
-- Copy `.env.example` to `.env` and adjust `DATABASE_URL` and `JWT_SECRET`.
+- Copy `.env.example` to `.env` and adjust `DATABASE_URL`, `JWT_SECRET`, and `ALLOWED_ORIGINS` as needed.
 - Install deps: `npm i`
 - Generate Prisma client: `npm run prisma:generate`
 - Create DB schema and run migrations: `npm run prisma:migrate`

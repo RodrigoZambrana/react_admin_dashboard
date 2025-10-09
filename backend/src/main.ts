@@ -19,10 +19,15 @@ async function bootstrap() {
   )
 
   await app.register(helmet as any)
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  const defaultAllowedOrigins = ['http://localhost:5173']
+  const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
     .split(',')
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0)
+
+  const allowedOrigins = Array.from(
+    new Set([...defaultAllowedOrigins, ...envAllowedOrigins]),
+  )
 
   await app.register(cors as any, {
     origin: (origin, cb) => {
