@@ -12,6 +12,7 @@ import * as Yup from 'yup'
 import type { CommonProps } from '@/@types/common'
 import type { AxiosError } from 'axios'
 import { useTranslation } from 'react-i18next'
+import { PASSWORD_COMPLEXITY_REGEX } from '@/constants/security.constant'
 
 interface ResetPasswordFormProps extends CommonProps {
     disableSubmit?: boolean
@@ -25,7 +26,9 @@ type ResetPasswordFormSchema = {
 }
 
 const validationSchema = Yup.object().shape({
-    password: Yup.string().required('text.validation.passwordRequired'),
+    password: Yup.string()
+        .required('text.validation.passwordRequired')
+        .matches(PASSWORD_COMPLEXITY_REGEX, 'text.validation.passwordComplexity'),
     confirmPassword: Yup.string().oneOf(
         [Yup.ref('password')],
         'text.validation.passwordNotMatch',
@@ -95,8 +98,8 @@ const ResetPasswordForm = (props: ResetPasswordFormProps) => {
             )}
             <Formik
                 initialValues={{
-                    password: '123Qwe1',
-                    confirmPassword: '123Qwe1',
+                    password: 'Strong@123',
+                    confirmPassword: 'Strong@123',
                 }}
                 validationSchema={validationSchema}
                 onSubmit={(values, { setSubmitting }) => {

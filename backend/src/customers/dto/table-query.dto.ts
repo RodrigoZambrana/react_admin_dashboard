@@ -1,4 +1,22 @@
-import { IsNumber, IsObject, IsOptional, IsString } from 'class-validator'
+import { IsIn, IsNumber, IsOptional, ValidateNested } from 'class-validator'
+import { Type } from 'class-transformer'
+import { IsSafeString } from '../../common/validation/is-safe-string.decorator'
+
+class TableSortDto {
+  @IsOptional()
+  @IsSafeString()
+  key?: string
+
+  @IsOptional()
+  @IsIn(['asc', 'desc', ''])
+  order?: 'asc' | 'desc' | ''
+}
+
+class TableFilterDto {
+  @IsOptional()
+  @IsSafeString()
+  statusId?: string | null
+}
 
 export class TableQueryDto {
   @IsNumber()
@@ -8,14 +26,16 @@ export class TableQueryDto {
   pageSize!: number
 
   @IsOptional()
-  @IsString()
+  @IsSafeString()
   query?: string
 
   @IsOptional()
-  @IsObject()
-  sort?: { key?: string; order?: 'asc' | 'desc' | '' }
+  @ValidateNested()
+  @Type(() => TableSortDto)
+  sort?: TableSortDto
 
   @IsOptional()
-  @IsObject()
-  filterData?: { statusId?: number | string | null }
+  @ValidateNested()
+  @Type(() => TableFilterDto)
+  filterData?: TableFilterDto
 }

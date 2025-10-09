@@ -696,6 +696,7 @@
         "validation": {
             "failed": "Please correct the highlighted fields",
             "fieldInvalid": "Invalid field: {{field}}",
+            "invalidCharacters": "Detected unsupported characters. Please review your input.",
             "titleRequired": "Title Required",
             "receiverRequired": "Receiver Required",
             "productNameRequired": "Product Name Required",
@@ -718,6 +719,7 @@
             "startDateRequired": "Start Date Required",
             "colorRequired": "Color Required",
             "passwordRequired": "Password Required",
+            "passwordComplexity": "Password must be 8-128 characters and include uppercase, lowercase, number, and special character",
             "confirmPasswordRequired": "Confirm Password is required",
             "passwordMismatch": "Passwords must match",
             "enterNewPassword": "Enter your new password",

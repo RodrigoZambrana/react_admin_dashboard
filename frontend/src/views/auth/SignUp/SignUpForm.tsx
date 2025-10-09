@@ -8,6 +8,8 @@ import useTimeOutMessage from '@/utils/hooks/useTimeOutMessage'
 import { Field, Form, Formik } from 'formik'
 import * as Yup from 'yup'
 import useAuth from '@/utils/hooks/useAuth'
+import { PASSWORD_COMPLEXITY_REGEX } from '@/constants/security.constant'
+import type { SignUpCredential } from '@/@types/auth'
 import type { CommonProps } from '@/@types/common'
 import { useTranslation } from 'react-i18next'
 
@@ -17,17 +19,22 @@ interface SignUpFormProps extends CommonProps {
 }
 
 type SignUpFormSchema = {
-    userName: string
+    firstName: string
+    lastName: string
     password: string
     email: string
+    confirmPassword: string
 }
 
 const validationSchema = Yup.object().shape({
-    userName: Yup.string().required('text.validation.userNameRequired'),
+    firstName: Yup.string().required('text.validation.userNameRequired'),
+    lastName: Yup.string(),
     email: Yup.string()
         .email('text.validation.invalidEmail')
         .required('text.validation.emailRequired'),
-    password: Yup.string().required('text.validation.passwordRequired'),
+    password: Yup.string()
+        .required('text.validation.passwordRequired')
+        .matches(PASSWORD_COMPLEXITY_REGEX, 'text.validation.passwordComplexity'),
     confirmPassword: Yup.string().oneOf(
         [Yup.ref('password')],
         'text.validation.passwordNotMatch',
@@ -47,9 +54,15 @@ const SignUpForm = (props: SignUpFormProps) => {
         values: SignUpFormSchema,
         setSubmitting: (isSubmitting: boolean) => void,
     ) => {
-        const { userName, password, email } = values
+        const { firstName, lastName, password, email } = values
         setSubmitting(true)
-        const result = await signUp({ userName, password, email })
+        const payload: SignUpCredential = {
+            name: firstName,
+            password,
+            email,
+            ...(lastName ? { lastName } : {}),
+        }
+        const result = await signUp(payload)
 
         if (result?.status === 'failed') {
             setMessage(result.message)
@@ -67,9 +80,10 @@ const SignUpForm = (props: SignUpFormProps) => {
             )}
             <Formik
                 initialValues={{
-                    userName: 'admin1',
-                    password: '123Qwe1',
-                    confirmPassword: '123Qwe1',
+                    firstName: 'Admin',
+                    lastName: 'User',
+                    password: 'Strong@123',
+                    confirmPassword: 'Strong@123',
                     email: 'test@testmail.com',
                 }}
                 validationSchema={validationSchema}
@@ -85,15 +99,30 @@ const SignUpForm = (props: SignUpFormProps) => {
                     <Form>
                         <FormContainer>
                             <FormItem
-                                label={t('text.labels.userName')}
-                                invalid={errors.userName && touched.userName}
-                                errorMessage={t(errors.userName as string)}
+                                label={t('text.labels.firstName')}
+                                invalid={
+                                    errors.firstName && touched.firstName
+                                }
+                                errorMessage={t(errors.firstName as string)}
                             >
                                 <Field
                                     type="text"
                                     autoComplete="off"
-                                    name="userName"
-                                    placeholder={t('text.labels.userName')}
+                                    name="firstName"
+                                    placeholder={t('text.labels.firstName')}
+                                    component={Input}
+                                />
+                            </FormItem>
+                            <FormItem
+                                label={t('text.labels.lastName')}
+                                invalid={errors.lastName && touched.lastName}
+                                errorMessage={t(errors.lastName as string)}
+                            >
+                                <Field
+                                    type="text"
+                                    autoComplete="off"
+                                    name="lastName"
+                                    placeholder={t('text.labels.lastName')}
                                     component={Input}
                                 />
                             </FormItem>

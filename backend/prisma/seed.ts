@@ -3,6 +3,9 @@ import * as bcrypt from 'bcrypt'
 
 const prisma = new PrismaClient()
 
+const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'Admin@123!'
+const DEMO_PASSWORD = process.env.SEED_USER_PASSWORD || 'User@123!'
+
 async function main() {
   // Roles are enum; create admin user if not exists
   const adminEmail = 'admin@example.com'
@@ -10,29 +13,28 @@ async function main() {
   if (!admin) {
     await prisma.user.create({
       data: {
-        userName: 'admin',
         name: 'Admin',
         email: adminEmail,
         img: '',
         role: 'SUPERADMIN',
-        passwordHash: await bcrypt.hash('admin123', 10),
+        passwordHash: await bcrypt.hash(ADMIN_PASSWORD, 10),
       },
     })
-    console.log('Seeded admin user: admin/admin123')
+    console.log(`Seeded admin user: admin/${ADMIN_PASSWORD}`)
   }
 
   // Users demo
   const demoUsers = [
-    { userName: 'alice', name: 'Alice Johnson', email: 'alice@example.com', img: '/img/avatars/thumb-1.jpg' },
-    { userName: 'bob', name: 'Bob Smith', email: 'bob@example.com', img: '/img/avatars/thumb-2.jpg' },
-    { userName: 'carol', name: 'Carol White', email: 'carol@example.com', img: '/img/avatars/thumb-3.jpg' },
-    { userName: 'dave', name: 'Dave Brown', email: 'dave@example.com', img: '/img/avatars/thumb-4.jpg' },
+    { name: 'Alice Johnson', email: 'alice@example.com', img: '/img/avatars/thumb-1.jpg' },
+    { name: 'Bob Smith', email: 'bob@example.com', img: '/img/avatars/thumb-2.jpg' },
+    { name: 'Carol White', email: 'carol@example.com', img: '/img/avatars/thumb-3.jpg' },
+    { name: 'Dave Brown', email: 'dave@example.com', img: '/img/avatars/thumb-4.jpg' },
   ]
   for (const u of demoUsers) {
     await prisma.user.upsert({
       where: { email: u.email },
       update: {},
-      create: { ...u, role: 'USER', passwordHash: await bcrypt.hash('password', 10) },
+      create: { ...u, role: 'USER', passwordHash: await bcrypt.hash(DEMO_PASSWORD, 10) },
     })
   }
 

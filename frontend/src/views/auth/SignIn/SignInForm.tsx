@@ -19,13 +19,15 @@ interface SignInFormProps extends CommonProps {
 }
 
 type SignInFormSchema = {
-    userName: string
+    email: string
     password: string
     rememberMe: boolean
 }
 
 const validationSchema = Yup.object().shape({
-    userName: Yup.string().required('text.validation.userNameRequired'),
+    email: Yup.string()
+        .email('text.validation.invalidEmail')
+        .required('text.validation.emailRequired'),
     password: Yup.string().required('text.validation.passwordRequired'),
     rememberMe: Yup.bool(),
 })
@@ -52,10 +54,10 @@ const SignInForm = (props: SignInFormProps) => {
         values: SignInFormSchema,
         setSubmitting: (isSubmitting: boolean) => void,
     ) => {
-        const { userName, password } = values
+        const { email, password } = values
         setSubmitting(true)
 
-        const result = await signIn({ userName, password })
+        const result = await signIn({ email, password })
 
         if (result?.status === 'failed') {
             setMessage(result.message)
@@ -73,8 +75,8 @@ const SignInForm = (props: SignInFormProps) => {
             )}
             <Formik
                 initialValues={{
-                    userName: 'admin',
-                    password: 'admin123',
+                    email: 'admin@example.com',
+                    password: 'Admin@123!',
                     rememberMe: true,
                 }}
                 validationSchema={validationSchema}
@@ -90,18 +92,17 @@ const SignInForm = (props: SignInFormProps) => {
                     <Form>
                         <FormContainer>
                             <FormItem
-                                label={t('text.labels.userName')}
+                                label={t('text.labels.email')}
                                 invalid={
-                                    (errors.userName &&
-                                        touched.userName) as boolean
+                                    (errors.email && touched.email) as boolean
                                 }
-                                errorMessage={t(errors.userName as string)}
+                                errorMessage={t(errors.email as string)}
                             >
                                 <Field
-                                    type="text"
+                                    type="email"
                                     autoComplete="off"
-                                    name="userName"
-                                    placeholder={t('text.labels.userName')}
+                                    name="email"
+                                    placeholder={t('text.labels.email')}
                                     component={Input}
                                 />
                             </FormItem>
