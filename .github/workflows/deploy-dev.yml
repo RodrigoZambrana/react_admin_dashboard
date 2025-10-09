@@ -17,7 +17,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Node.js
+      - name: Set up Node.js (cached)
+        if: ${{ hashFiles('frontend/package-lock.json', 'backend/package-lock.json') != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -25,6 +26,12 @@ jobs:
           cache-dependency-path: |
             frontend/package-lock.json
             backend/package-lock.json
+
+      - name: Set up Node.js (no cache)
+        if: ${{ hashFiles('frontend/package-lock.json', 'backend/package-lock.json') == '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
       - name: Install frontend dependencies
         working-directory: frontend
