@@ -14,6 +14,11 @@ Quick Start
 - Seed base data: `npm run prisma:seed`
 - Start dev server: `npm run start:dev`
 
+Resetting the Database
+- Ensure your `.env` is configured (especially `DATABASE_URL`) before touching Prisma commands.
+- To fully wipe and repopulate the schema in one step, run `npx prisma migrate reset --force`.
+- Alternatively, recreate tables with `npm run prisma:migrate` and then seed fresh data via `npm run prisma:seed`.
+
 HTTP
 - Global prefix: `/api`
 - Auth: Bearer JWT in `Authorization` header
