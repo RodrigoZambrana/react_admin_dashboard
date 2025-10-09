@@ -1,4 +1,4 @@
-import { IsString, MinLength } from 'class-validator'
+import { IsOptional, IsString, MinLength } from 'class-validator'
 
 export class SignInDto {
   @IsString()
@@ -7,5 +7,9 @@ export class SignInDto {
   @IsString()
   @MinLength(6)
   password!: string
+
+  @IsOptional()
+  @IsString()
+  recaptchaToken?: string
 }
 

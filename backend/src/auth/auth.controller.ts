@@ -18,6 +18,7 @@ export class AuthController {
 
   @Post('/sign-in')
   async signIn(@Body() dto: SignInDto, @Req() req: FastifyRequest) {
+    await this.auth.verifyRecaptcha(dto.recaptchaToken, req.ip)
     const user = await this.auth.validateUser(dto.userName, dto.password)
     await this.userActivity.recordLogin(user.id, req)
     const result = this.auth.signToken(user)

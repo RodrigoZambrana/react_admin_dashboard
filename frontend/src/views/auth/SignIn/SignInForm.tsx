@@ -10,6 +10,9 @@ import useAuth from '@/utils/hooks/useAuth'
 import { Field, Form, Formik } from 'formik'
 import * as Yup from 'yup'
 import type { CommonProps } from '@/@types/common'
+import { useCallback, useRef, useState } from 'react'
+import ReCAPTCHA from 'react-google-recaptcha'
+import appConfig from '@/configs/app.config'
 import { useTranslation } from 'react-i18next'
 
 interface SignInFormProps extends CommonProps {
@@ -43,10 +46,28 @@ const SignInForm = (props: SignInFormProps) => {
     const showSignUpPrompt = false
 
     const [message, setMessage] = useTimeOutMessage()
+    const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+
+    const recaptchaRef = useRef<ReCAPTCHA | null>(null)
+
+    const recaptchaSiteKey = appConfig.recaptchaSiteKey || ''
+
+    const isRecaptchaEnabled = Boolean(recaptchaSiteKey)
 
     const { signIn } = useAuth()
 
     const { t } = useTranslation()
+
+    const handleCaptchaChange = useCallback((token: string | null) => {
+        setCaptchaToken(token)
+        if (token) {
+            setMessage('')
+        }
+    }, [setMessage])
+
+    const handleCaptchaExpired = useCallback(() => {
+        setCaptchaToken(null)
+    }, [])
 
     const onSignIn = async (
         values: SignInFormSchema,
@@ -55,10 +76,25 @@ const SignInForm = (props: SignInFormProps) => {
         const { userName, password } = values
         setSubmitting(true)
 
-        const result = await signIn({ userName, password })
+        if (isRecaptchaEnabled && !captchaToken) {
+            setMessage('Por favor completa el reCAPTCHA antes de continuar.')
+            setSubmitting(false)
+            return
+        }
+
+        const result = await signIn({
+            userName,
+            password,
+            ...(captchaToken ? { recaptchaToken: captchaToken } : {}),
+        })
 
         if (result?.status === 'failed') {
             setMessage(result.message)
+        }
+
+        if (isRecaptchaEnabled) {
+            recaptchaRef.current?.reset()
+            setCaptchaToken(null)
         }
 
         setSubmitting(false)
@@ -120,6 +156,25 @@ const SignInForm = (props: SignInFormProps) => {
                                     component={PasswordInput}
                                 />
                             </FormItem>
+                            {isRecaptchaEnabled ? (
+                                <div className="mb-6">
+                                    <ReCAPTCHA
+                                        ref={recaptchaRef}
+                                        sitekey={recaptchaSiteKey}
+                                        onChange={handleCaptchaChange}
+                                        onExpired={handleCaptchaExpired}
+                                    />
+                                </div>
+                            ) : (
+                                <Alert type="warning" showIcon className="mb-6">
+                                    <div className="text-left">
+                                        Configura la variable de entorno{' '}
+                                        <code>VITE_RECAPTCHA_SITE_KEY</code>{' '}
+                                        con la clave de sitio de Google reCAPTCHA para
+                                        habilitar la validación.
+                                    </div>
+                                </Alert>
+                            )}
                             <div className="flex justify-between mb-6">
                                 <Field
                                     className="mb-0"
@@ -139,6 +194,10 @@ const SignInForm = (props: SignInFormProps) => {
                                 loading={isSubmitting}
                                 variant="solid"
                                 type="submit"
+                                disabled={
+                                    isSubmitting ||
+                                    (isRecaptchaEnabled && !captchaToken)
+                                }
                             >
                                 {isSubmitting
                                     ? t('auth.signIn.submitting')
