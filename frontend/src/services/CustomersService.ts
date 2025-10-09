@@ -408,6 +408,10 @@ export async function apiGetCustomerStatistics<T>() {
     })
 }
 
+export async function apiGetCustomersStatistic<T>() {
+    return apiGetCustomerStatistics<T>()
+}
+
 export async function apiUpsertCustomer<T, U extends Record<string, unknown>>(
     data: U,
 ) {
