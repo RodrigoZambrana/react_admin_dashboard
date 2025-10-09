@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import Container from '@/components/shared/Container'
 import Card from '@/components/ui/Card'
 import Avatar from '@/components/ui/Avatar'
-import { HiOutlineUser } from 'react-icons/hi'
+import { HiOutlineUser, HiOutlineSearch } from 'react-icons/hi'
 import Input from '@/components/ui/Input'
-import { HiOutlineSearch } from 'react-icons/hi'
 import {
     apiCreateUser,
     apiGetUsers,

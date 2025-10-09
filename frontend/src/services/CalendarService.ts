@@ -4,7 +4,6 @@ import {
     type CalendarEventAddress,
     type CalendarEventDto,
     type CalendarEventAttachment,
-    apiGetCustomerCalendar,
 } from './CustomersService'
 import dayjs from 'dayjs'
 

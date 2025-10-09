@@ -122,10 +122,13 @@ const ProductTable = () => {
         [data, dispatch],
     )
 
+    const fetchData = useCallback(() => {
+        dispatch(getProducts({ pageIndex, pageSize, sort, query, filterData }))
+    }, [dispatch, pageIndex, pageSize, sort, query, filterData])
+
     useEffect(() => {
         fetchData()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pageIndex, pageSize, sort])
+    }, [fetchData])
 
     useEffect(() => {
         if (tableRef) {
@@ -137,10 +140,6 @@ const ProductTable = () => {
         () => ({ pageIndex, pageSize, sort, query, total }),
         [pageIndex, pageSize, sort, query, total],
     )
-
-    const fetchData = () => {
-        dispatch(getProducts({ pageIndex, pageSize, sort, query, filterData }))
-    }
 
     const defaultCurrency = useAppSelector((state) => state.currency.code)
 
@@ -308,7 +307,7 @@ const ProductTable = () => {
                 cell: (props) => <ActionColumn row={props.row.original} />,
             },
         ],
-        [t, resolveStockStatus, updateProductRow, formatCurrencyValue],
+        [t, resolveStockStatus, updateProductRow, formatCurrencyValue, fetchData],
     )
 
     const onPaginationChange = (page: number) => {

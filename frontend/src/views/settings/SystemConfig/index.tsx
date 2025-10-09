@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Card from '@/components/ui/Card'
 import { Formik, Form, Field } from 'formik'
 import { FormContainer, FormItem } from '@/components/ui/Form'
@@ -45,11 +45,14 @@ const SystemConfig = () => {
         return /^[A-Z]{3,5}$/.test(trimmed) ? trimmed : ''
     }
 
-    const syncStoreCurrencies = (list: string[]) => {
-        dispatch(setAvailableCurrencies(list))
-    }
+    const syncStoreCurrencies = useCallback(
+        (list: string[]) => {
+            dispatch(setAvailableCurrencies(list))
+        },
+        [dispatch],
+    )
 
-    const loadCurrencies = async () => {
+    const loadCurrencies = useCallback(async () => {
         try {
             const res = await apiGetSystemCurrencies<string[]>()
             const list = Array.isArray(res.data) && res.data.length ? res.data : ['USD', 'UYU']
@@ -62,7 +65,7 @@ const SystemConfig = () => {
         } finally {
             setCurrenciesLoaded(true)
         }
-    }
+    }, [syncStoreCurrencies])
 
     useEffect(() => {
         const load = async () => {
@@ -86,15 +89,14 @@ const SystemConfig = () => {
             }
         }
         load()
-    }, [])
+    }, [syncStoreCurrencies])
 
     useEffect(() => {
         if (currenciesLoaded) {
             return
         }
         loadCurrencies()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currenciesLoaded])
+    }, [currenciesLoaded, loadCurrencies])
 
     const handleAddCurrency = async () => {
         const code = normalizeCurrency(newCurrency)

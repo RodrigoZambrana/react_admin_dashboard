@@ -18,8 +18,7 @@ import {
 import { PERSIST_STORE_NAME } from '@/constants/app.constant'
 import rootReducer, { RootState, AsyncReducers } from './rootReducer'
 import RtkQueryService from '@/services/RtkQueryService'
-import secureStorage from './persistence/secureStorage'
-import { purgeIfTampered } from './persistence/secureStorage'
+import secureStorage, { purgeIfTampered } from './persistence/secureStorage'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const middlewares: any[] = [RtkQueryService.middleware]

@@ -4,8 +4,6 @@ import {
     LOGIN,
     PASSWORD_CHANGE,
     DEVICE_SIGN_IN,
-    PROFILE_UPDATE,
-    SECURITY_ALERT,
 } from '../constants'
 
 type Event = {

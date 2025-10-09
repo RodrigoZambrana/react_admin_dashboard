@@ -339,7 +339,7 @@ const Customers = () => {
                 ),
             },
         ],
-        [customerStatuses, fetchData, handleRequestDelete, t],
+        [customerStatuses, data, dispatch, fetchData, handleRequestDelete, t],
     )
 
     const onPaginationChange = (page: number) => {

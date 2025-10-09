@@ -25,13 +25,13 @@ type OrganizationFieldsProps = {
     errors: FormikErrors<FormFieldsName>
     values: {
         categoryId: number | null
-    tags: string[]
+        tags: string[]
         [key: string]: unknown
     }
 }
 
 const OrganizationFields = (props: OrganizationFieldsProps) => {
-    const { values = { categoryId: null, tags: [] }, touched, errors } = props
+    const { touched, errors } = props
     const { t } = useTranslation()
 
     const [categories, setCategories] = useState<CategoryOption[]>([])

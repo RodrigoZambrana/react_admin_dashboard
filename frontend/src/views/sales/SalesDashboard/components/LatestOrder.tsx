@@ -1,4 +1,3 @@
-import { useCallback } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import DataTable from '@/components/shared/DataTable'
@@ -27,7 +26,7 @@ const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
     const [statuses, setStatuses] = useState<{ id: number; name: string; color: string }[]>(
         defaultOrderStatuses,
     )
-    const [rows, setRows] = useState<Order[]>([])
+    const [rows, setRows] = useState<Order[]>(data)
     const [loading, setLoading] = useState(false)
 
     useEffect(() => {
@@ -62,6 +61,10 @@ const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
     const columns = useOrderColumns({ t, statuses, onChangeStatus, selectOnly: true })
 
     const navigate = useNavigate()
+
+    useEffect(() => {
+        setRows(data)
+    }, [data])
 
     return (
         <Card className={className}>

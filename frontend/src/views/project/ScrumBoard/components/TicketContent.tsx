@@ -167,12 +167,6 @@ const TicketContent = ({ onTicketClose }: { onTicketClose: () => void }) => {
         }))
     }
 
-    const onAddLabelClick = (label: string) => {
-        const labels = cloneDeep(ticketData.labels)
-        labels?.push(label)
-        setTicketData((prevState) => ({ ...prevState, ...{ labels: labels } }))
-    }
-
     return (
         <>
             {loading ? (

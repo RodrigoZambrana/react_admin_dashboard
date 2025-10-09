@@ -48,6 +48,8 @@ Cada environment en GitHub Actions debe definir los secretos descritos en la sec
    ```
    Define al menos las variables de conexión (`DATABASE_URL`), secretos JWT/cookies y los orígenes permitidos en `deploy/env/backend.dev.env`; el archivo del frontend controla las variables `VITE_*` utilizadas por Vite.
 
+   > Si ya tenés PostgreSQL escuchando en `5432`, exportá `POSTGRES_HOST_PORT=0` antes de `make dev-up` para que Docker publique la base en un puerto aleatorio y evitar conflictos.
+
    Variables esperadas:
 
    - `deploy/env/backend.dev.env`

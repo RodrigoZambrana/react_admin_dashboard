@@ -4,9 +4,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import PricingFields from '../PricingFields'
 import { Formik, Form } from 'formik'
-import { I18nextProvider } from 'react-i18next'
+import { I18nextProvider, initReactI18next } from 'react-i18next'
 import i18n from 'i18next'
-import { initReactI18next } from 'react-i18next'
 
 vi.mock('@/components/shared/AdaptableCard', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,

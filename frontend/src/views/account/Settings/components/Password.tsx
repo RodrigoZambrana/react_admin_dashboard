@@ -27,12 +27,6 @@ type LoginHistory = {
     location: string
 }
 
-type PasswordFormModel = {
-    password: string
-    newPassword: string
-    confirmNewPassword: string
-}
-
 const LoginHistoryIcon = ({ type }: { type: string }) => {
     switch (type) {
         case 'Desktop':

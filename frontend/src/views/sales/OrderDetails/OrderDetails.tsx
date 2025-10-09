@@ -92,17 +92,6 @@ const paymentStatus: Record<number, PayementStatus> = {
     },
 }
 
-const progressStatus: Record<number, PayementStatus> = {
-    0: {
-        label: 'Fulfilled',
-        class: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-500/20 dark:text-cyan-100',
-    },
-    1: {
-        label: 'Unfulfilled',
-        class: 'text-amber-600 bg-amber-100 dark:text-amber-100 dark:bg-amber-500/20',
-    },
-}
-
 const OrderDetails = () => {
     const location = useLocation()
 
@@ -181,7 +170,7 @@ const OrderDetails = () => {
                                     const sid = (data.progressStatus || 0) as number
                                     const s = orderStatuses.find((x) => x.id === sid)
                                     if (!s) return null
-                                    const [name, shade] = String(s.color || 'gray-500').split('-')
+                                    const [name] = String(s.color || 'gray-500').split('-')
                                     const bg = `bg-${name}-100`
                                     const text = `text-${name}-600`
                                     const darkBg = `dark:bg-${name}-500/20`

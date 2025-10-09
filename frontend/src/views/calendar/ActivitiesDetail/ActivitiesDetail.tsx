@@ -13,8 +13,7 @@ import reducer, {
     useAppSelector,
 } from './store'
 import { injectReducer } from '@/store'
-import crmReducer from '@/views/crm/CustomerDetail/store'
-import { getCustomer } from '@/views/crm/CustomerDetail/store'
+import crmReducer, { getCustomer } from '@/views/crm/CustomerDetail/store'
 import calendarReducer, {
     openDialog as openCalendarDialog,
     setSelected as setCalendarSelected,

@@ -13,13 +13,10 @@ import {
 } from '../store'
 import { HiOutlineUserAdd } from 'react-icons/hi'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 
 const BoardHeader = () => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
-
-    const navigate = useNavigate()
 
     const boardMembers = useAppSelector(
         (state) => state.scrumBoard.data.boardMembers,

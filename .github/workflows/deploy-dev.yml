@@ -11,6 +11,7 @@ jobs:
     environment: dev
     env:
       PRISMA_APPLY_MIGRATIONS: ${{ secrets.PRISMA_APPLY_MIGRATIONS }}
+      POSTGRES_HOST_PORT: 0
 
     steps:
       - uses: actions/checkout@v4

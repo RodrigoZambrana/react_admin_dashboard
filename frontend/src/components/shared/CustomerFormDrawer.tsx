@@ -66,8 +66,6 @@ const CustomerFormDrawer = ({
     const [internalTab, setInternalTab] = useState<TabKey>('personalInfo')
     const [addressComplete, setAddressComplete] = useState(false)
     const [isSubmittingForm, setIsSubmittingForm] = useState(false)
-    const [buttonLabel, setButtonLabel] = useState<'next' | 'save'>('next')
-
     const actualTab = controlledTab ?? internalTab
 
     const setActiveTab = useCallback(
@@ -84,7 +82,6 @@ const CustomerFormDrawer = ({
         setInternalTab('personalInfo')
         setAddressComplete(false)
         setIsSubmittingForm(false)
-        setButtonLabel('next')
         formRef.current?.resetForm?.()
     }, [])
 
