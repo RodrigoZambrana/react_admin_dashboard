@@ -121,6 +121,12 @@ Flujo del workflow **dev**:
 5. Migraciones condicionales vía `docker compose exec backend npx prisma migrate deploy` si así se configura.
 6. Health check local contra `http://localhost:8080/api/health` y teardown con `docker compose down`.
 
+Para revisar el despliegue en `develop`:
+- Abre **Actions → Deploy Dev** en GitHub, ingresa al run correspondiente y revisa los pasos “Iniciar stack…” y “Health check local”. Allí podrás ver logs y el resultado de `curl http://localhost:8080/api/health`.
+- Recuerda que el stack vive sólo dentro del runner, por lo que no queda accesible externamente tras finalizar la pipeline.
+- Si necesitás interactuar con la app, reproduce el entorno localmente: copia `deploy/env/backend.dev.env` y `deploy/env/frontend.dev.env`, ejecuta `make dev-up` y navega a `http://localhost:8080`.
+- Para depurar, `make dev-logs` (o `docker compose -f deploy/docker-compose.dev.yml logs -f proxy backend frontend`) replica los logs del deploy.
+
 Flujo compartido por **staging/prod**:
 
 1. Checkout del repositorio con historial para detectar cambios en Prisma.

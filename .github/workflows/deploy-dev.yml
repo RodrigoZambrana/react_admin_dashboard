@@ -92,10 +92,29 @@ jobs:
           fi
 
       - name: Preparar archivos de entorno
+        env:
+          BACKEND_ENV_FILE: ${{ secrets.ENV_FILE_BACKEND }}
+          FRONTEND_ENV_FILE: ${{ secrets.ENV_FILE_FRONTEND }}
         run: |
           mkdir -p deploy/env
-          printf '%s' "${{ secrets.ENV_FILE_BACKEND }}" > deploy/env/backend.dev.env
-          printf '%s' "${{ secrets.ENV_FILE_FRONTEND }}" > deploy/env/frontend.dev.env
+          if [ -n "$BACKEND_ENV_FILE" ]; then
+            printf '%s' "$BACKEND_ENV_FILE" > deploy/env/backend.dev.env
+          elif [ -f deploy/env/backend.dev.env ]; then
+            echo "Reusing existing deploy/env/backend.dev.env"
+          elif [ -f deploy/env/backend.dev.env.example ]; then
+            cp deploy/env/backend.dev.env.example deploy/env/backend.dev.env
+          else
+            touch deploy/env/backend.dev.env
+          fi
+          if [ -n "$FRONTEND_ENV_FILE" ]; then
+            printf '%s' "$FRONTEND_ENV_FILE" > deploy/env/frontend.dev.env
+          elif [ -f deploy/env/frontend.dev.env ]; then
+            echo "Reusing existing deploy/env/frontend.dev.env"
+          elif [ -f deploy/env/frontend.dev.env.example ]; then
+            cp deploy/env/frontend.dev.env.example deploy/env/frontend.dev.env
+          else
+            touch deploy/env/frontend.dev.env
+          fi
 
       - name: Iniciar stack local de desarrollo
         run: |
