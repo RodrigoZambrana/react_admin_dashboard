@@ -1,10 +1,9 @@
 import Card from '@/components/ui/Card'
 import Avatar from '@/components/ui/Avatar'
 import IconText from '@/components/shared/IconText'
-import { HiMail, HiPhone, HiExternalLink } from 'react-icons/hi'
+import { HiMail, HiPhone, HiExternalLink, HiOutlineUser } from 'react-icons/hi'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { HiOutlineUser } from 'react-icons/hi'
 
 type CustomerInfoProps = {
     data?: {

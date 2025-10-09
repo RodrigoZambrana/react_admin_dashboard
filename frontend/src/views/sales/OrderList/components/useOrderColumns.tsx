@@ -23,7 +23,7 @@ type Params = {
     selectOnly?: boolean
 }
 
-export function useOrderColumns({ t, statuses, onChangeStatus, selectOnly = true }: Params) {
+export function useOrderColumns({ t, statuses, onChangeStatus, selectOnly: _selectOnly = true }: Params) {
     const navigate = useNavigate()
     const { textTheme } = useThemeClass()
 
@@ -63,7 +63,7 @@ export function useOrderColumns({ t, statuses, onChangeStatus, selectOnly = true
                                 size="sm"
                                 options={options}
                                 value={{ value: s?.id ?? statusId, label: s?.name ?? String(statusId), color: s?.color ?? 'gray-500' } as any}
-                                formatOptionLabel={(option: any, { context }: { context: 'menu' | 'value' }) => (
+                                formatOptionLabel={(option: any) => (
                                     <div className="flex items-center">
                                         <span className={`badge-dot bg-${option.color}`}></span>
                                         <span className={`ml-2 rtl:mr-2 capitalize font-semibold text-${option.color}`}>{option.label}</span>
@@ -115,5 +115,5 @@ export function useOrderColumns({ t, statuses, onChangeStatus, selectOnly = true
                 },
             },
         ]
-    }, [navigate, statuses, t, textTheme, onChangeStatus, selectOnly])
+    }, [navigate, statuses, t, textTheme, onChangeStatus])
 }

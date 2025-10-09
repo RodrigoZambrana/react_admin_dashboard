@@ -20,7 +20,7 @@ type CitySelectProps = {
 };
 
 export default function CitySelect({
-  countryCode,
+  countryCode: _countryCode,
   countryName,
   value,
   onChange,

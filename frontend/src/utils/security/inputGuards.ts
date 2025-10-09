@@ -37,7 +37,6 @@ const shouldRejectBasedOnDiff = (original: string, sanitized: string) => {
         return false
     }
     const cleanedOriginal = original.trim()
-    const cleanedSanitized = sanitized.trim()
 
     if (!cleanedOriginal) {
         return false
@@ -114,4 +113,3 @@ export const sanitizeFormData = (formData: FormData) => {
     }
     return sanitized
 }
-

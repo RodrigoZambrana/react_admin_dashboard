@@ -20,10 +20,10 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: dashboard
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
 
   backend:
     <<: *backend-common

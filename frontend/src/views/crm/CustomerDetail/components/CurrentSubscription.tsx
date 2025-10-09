@@ -6,7 +6,6 @@ import Button from '@/components/ui/Button'
 import Tag from '@/components/ui/Tag'
 import { HiFire } from 'react-icons/hi'
 import { NumericFormat } from 'react-number-format'
-import { useAppSelector } from '../store'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 

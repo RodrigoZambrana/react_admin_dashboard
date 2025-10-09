@@ -1,4 +1,4 @@
-import { ReactNode, useMemo } from 'react'
+import { useMemo } from 'react'
 import Card from '@/components/ui/Card'
 import Avatar from '@/components/ui/Avatar'
 import { useTranslation } from 'react-i18next'
@@ -6,19 +6,6 @@ import type { Customer } from '@/views/crm/CustomerDetail/store'
 import { HiOutlineMail, HiOutlinePhone, HiOutlineLocationMarker } from 'react-icons/hi'
 import Button from '@/components/ui/Button'
 import { useNavigate } from 'react-router-dom'
-
-type InfoFieldProps = { label: string; value?: ReactNode }
-
-const InfoField = ({ label, value }: InfoFieldProps) => {
-    return (
-        <div>
-            <span className="text-sm text-gray-500 dark:text-gray-400">{label}</span>
-            <div className="mt-1 text-gray-700 dark:text-gray-200 font-semibold whitespace-pre-line">
-                {value ?? '-'}
-            </div>
-        </div>
-    )
-}
 
 type ActivityCustomerInfoProps = {
     customer?: Partial<Customer>

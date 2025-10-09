@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
@@ -41,14 +41,14 @@ export default function CustomerAddresses({
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const { getFirstCityForCountry } = useCountryCityData()
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const res = await apiGetCustomerAddresses<Address[], { customerId: string }>({ customerId })
     setList(res.data as any)
-  }
+  }, [customerId])
 
   useEffect(() => {
     load()
-  }, [customerId])
+  }, [customerId, load])
 
   const startEdit = (addr?: Address) => {
     if (addr) {

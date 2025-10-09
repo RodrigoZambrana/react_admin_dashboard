@@ -265,7 +265,7 @@ const OrdersTable = () => {
             },
             { header: '', id: 'action', enableSorting: false, cell: (p) => <ActionColumn row={p.row.original} /> },
         ],
-        [t, statuses, paymentMethods, selectStyles],
+        [t, statuses, paymentMethods, selectStyles, dispatch],
     )
 
     const onPaginationChange = (page: number) => {

@@ -71,7 +71,7 @@ const SalesReport = ({ className, data = {} }: SalesReportProps) => {
         const monthOrder: number[] = []
         const monthIndexMap = new Map<number, number>()
 
-        categories.forEach((categoryTs, index) => {
+        categories.forEach((categoryTs) => {
             const tsNumber = Number(categoryTs)
             if (Number.isNaN(tsNumber)) {
                 return
@@ -114,7 +114,7 @@ const SalesReport = ({ className, data = {} }: SalesReportProps) => {
             categories: monthOrder,
             series: groupedSeries,
         }
-    }, [data.categories, data.series, dateRangePreset, endDate, startDate])
+    }, [data.categories, data.series, data.granularity, dateRangePreset, endDate, startDate])
 
     const salesSeries = useMemo(() => {
         if (!Array.isArray(normalizedData.series)) {
@@ -211,14 +211,7 @@ const SalesReport = ({ className, data = {} }: SalesReportProps) => {
                     return current.format('DD MMM')
             }
         })
-    }, [
-        normalizedData.categories,
-        normalizedData.granularity,
-        dateRangePreset,
-        endDate,
-        startDate,
-        i18n.language,
-    ])
+    }, [normalizedData, dateRangePreset, endDate, startDate, i18n.language])
 
     const hasSeriesData = useMemo(() => {
         if (salesSeries.length === 0) {

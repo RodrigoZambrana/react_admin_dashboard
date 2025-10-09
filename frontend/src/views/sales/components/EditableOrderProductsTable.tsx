@@ -1,4 +1,3 @@
-import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import Table from '@/components/ui/Table'
 import Avatar from '@/components/ui/Avatar'

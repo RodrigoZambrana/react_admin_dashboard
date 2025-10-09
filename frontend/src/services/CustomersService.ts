@@ -167,7 +167,7 @@ const buildAddressLabel = (address?: CalendarEventAddress) => {
 }
 
 const sanitizeMetadata = (metadata: CalendarEventMetadata) => {
-    const entries = Object.entries(metadata).filter(([key, value]) => {
+    const entries = Object.entries(metadata).filter(([_, value]) => {
         if (value === undefined || value === null) {
             return false
         }

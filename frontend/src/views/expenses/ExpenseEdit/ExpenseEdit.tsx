@@ -158,7 +158,7 @@ const ExpenseEdit = () => {
             <div className="max-w-3xl">
             <h3 className="mb-4">{t('expenses.edit.title')}</h3>
             <Formik initialValues={initialValues} onSubmit={onSubmit} enableReinitialize>
-                {({ values, touched, errors, setFieldValue }) => (
+                {({ values, setFieldValue }) => (
                     <Form>
                         <FormContainer>
                             <FormItem label={t('text.columns.date')}>
