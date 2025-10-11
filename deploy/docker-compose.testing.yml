@@ -3,7 +3,7 @@ version: "3.9"
 x-backend-common: &backend-common
   restart: unless-stopped
   env_file:
-    - ./env/backend.staging.env
+    - ./env/backend.testing.env
   environment:
     NODE_ENV: production
     PORT: 3000
@@ -12,7 +12,7 @@ x-backend-common: &backend-common
 x-frontend-common: &frontend-common
   restart: unless-stopped
   env_file:
-    - ./env/frontend.staging.env
+    - ./env/frontend.testing.env
 
 services:
   frontend:
@@ -22,7 +22,7 @@ services:
       context: ../frontend
       dockerfile: Dockerfile
     environment:
-      SERVER_NAME: ${APP_DOMAIN_STAGING:-localhost}
+      SERVER_NAME: ${APP_DOMAIN_TESTING:-localhost}
 
   backend:
     <<: *backend-common
@@ -53,7 +53,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-dashboard}
     volumes:
-      - postgres_data_staging:/var/lib/postgresql/data
+      - postgres_data_testing:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
       interval: 10s
@@ -61,4 +61,4 @@ services:
       retries: 5
 
 volumes:
-  postgres_data_staging:
+  postgres_data_testing:

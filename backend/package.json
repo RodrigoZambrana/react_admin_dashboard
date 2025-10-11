@@ -9,11 +9,14 @@
     "start:prod": "node dist/src/main.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "prisma:seed": "ts-node --compiler-options '{\"module\":\"commonjs\"}' prisma/seed.ts",
+    "prisma:seed": "node -r ts-node/register prisma/seed.ts",
     "prisma:deploy": "prisma migrate deploy",
     "reset-admin": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/reset-admin.ts",
     "test": "vitest run",
     "lint": "tsc --noEmit"
+  },
+  "prisma": {
+    "seed": "node -r ts-node/register prisma/seed.ts"
   },
   "keywords": [],
   "author": "",

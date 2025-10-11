@@ -1,11 +1,15 @@
-version: "3.9"
+name: admin-dashboard-dev
 
 x-backend-common: &backend-common
   env_file:
     - ./env/backend.dev.env
   environment:
-    NODE_ENV: development
-    PORT: 3000
+    PORT: ${BACKEND_PORT:-4000}
+    DB_HOST: db
+    DB_PORT: 5432
+    DB_USER: postgres
+    DB_PASSWORD: postgres
+    DB_NAME: ${POSTGRES_DB_NAME:-react_admin_dashboard}
 
 x-frontend-common: &frontend-common
   env_file:
@@ -19,7 +23,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: dashboard
+      POSTGRES_DB: ${POSTGRES_DB_NAME:-react_admin_dashboard}
     ports:
       - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
@@ -27,29 +31,52 @@ services:
 
   backend:
     <<: *backend-common
-    image: node:20-alpine
     container_name: dashboard-backend-dev
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: runtime
     working_dir: /app
-    command: sh -c "npm install && npm run start:dev"
+    command: >
+      sh -c '
+        set -e;
+        export PGPASSWORD="${DB_PASSWORD:-postgres}";
+        pg_host="${DB_HOST:-db}";
+        pg_port="${DB_PORT:-5432}";
+        pg_user="${DB_USER:-postgres}";
+        until pg_isready -h "$$pg_host" -p "$$pg_port" -U "$$pg_user"; do
+          echo "Waiting for PostgreSQL at $$pg_host:$$pg_port...";
+          sleep 2;
+        done;
+        if [ "${SKIP_PRISMA_MIGRATIONS:-false}" != "true" ]; then
+          echo "Running Prisma migrations...";
+          npx prisma migrate deploy;
+        else
+          echo "Skipping Prisma migrations (SKIP_PRISMA_MIGRATIONS=true).";
+        fi;
+        if [ "${RUN_PRISMA_SEED_ON_BOOT:-false}" = "true" ]; then
+          echo "Running Prisma seed...";
+          npx prisma db seed;
+        else
+          echo "Skipping Prisma seed (RUN_PRISMA_SEED_ON_BOOT!=true).";
+        fi;
+        node dist/src/main.js;
+      '
     ports:
-      - "3000:3000"
-    volumes:
-      - ../backend:/app
-      - backend_node_modules:/app/node_modules
+      - "4000:4000"
+      - "5555:5555"
     depends_on:
       - db
 
   frontend:
     <<: *frontend-common
-    image: node:20-alpine
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      target: runtime
     container_name: dashboard-frontend-dev
-    working_dir: /app
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 80"
     environment:
       SERVER_NAME: ${APP_DOMAIN_DEV:-localhost}
-    volumes:
-      - ../frontend:/app
-      - frontend_node_modules:/app/node_modules
     depends_on:
       - backend
 
@@ -66,5 +93,3 @@ services:
 
 volumes:
   postgres_data_dev:
-  backend_node_modules:
-  frontend_node_modules:

@@ -6,6 +6,7 @@ export type SignInCredential = {
 
 export type SignInResponse = {
     token: string
+    expiresAt: string
     user: {
         authority: string[]
         avatar: string

@@ -21,7 +21,9 @@ function useAuth() {
 
     const query = useQuery()
 
-    const { token, signedIn } = useAppSelector((state) => state.auth.session)
+    const { token, signedIn, expiresAt } = useAppSelector(
+        (state) => state.auth.session,
+    )
 
     const signIn = async (
         values: SignInCredential,
@@ -35,8 +37,13 @@ function useAuth() {
         try {
             const resp = await apiSignIn(values)
             if (resp.data) {
-                const { token } = resp.data
-                dispatch(signInSuccess(token))
+                const { token, expiresAt } = resp.data
+                dispatch(
+                    signInSuccess({
+                        token,
+                        expiresAt,
+                    }),
+                )
                 if (resp.data.user) {
                     const displayName =
                         [
@@ -82,8 +89,13 @@ function useAuth() {
         try {
             const resp = await apiSignUp(values)
             if (resp.data) {
-                const { token } = resp.data
-                dispatch(signInSuccess(token))
+                const { token, expiresAt } = resp.data
+                dispatch(
+                    signInSuccess({
+                        token,
+                        expiresAt,
+                    }),
+                )
                 if (resp.data.user) {
                     const displayName =
                         [
@@ -143,8 +155,22 @@ function useAuth() {
         handleSignOut()
     }
 
+    const expiryTime = (() => {
+        if (!expiresAt) {
+            return null
+        }
+        const parsed = Date.parse(expiresAt)
+        if (Number.isNaN(parsed)) {
+            return null
+        }
+        return parsed
+    })()
+
+    const isExpired =
+        expiryTime === null ? Boolean(expiresAt) : expiryTime <= Date.now()
+
     return {
-        authenticated: token && signedIn,
+        authenticated: Boolean(token && signedIn && !isExpired),
         signIn,
         signUp,
         signOut,

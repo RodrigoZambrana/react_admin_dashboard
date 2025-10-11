@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import * as bcrypt from 'bcrypt'
 import { JwtService } from '@nestjs/jwt'
 import type { Role } from './roles.decorator'
+import { SESSION_TTL_MILLISECONDS } from './auth.config'
 
 const RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
 
@@ -14,11 +15,16 @@ export class AuthService {
   ) {}
 
   async verifyRecaptcha(token: string | undefined | null, remoteIp?: string) {
+    const isEnabled =
+      String(process.env.RECAPTCHA_ENABLED || '').toLowerCase() === 'true'
+    if (!isEnabled) {
+      return
+    }
+
     const secretKey = process.env.RECAPTCHA_SECRET_KEY
 
     if (!secretKey) {
-      // No se configuró reCAPTCHA para el backend, omite la validación.
-      return
+      throw new UnauthorizedException('No se configuró la clave de reCAPTCHA.')
     }
 
     if (!token) {
@@ -95,8 +101,10 @@ export class AuthService {
       lastName: user.lastName || '',
     }
     const token = this.jwt.sign(payload)
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MILLISECONDS).toISOString()
     return {
       token,
+      expiresAt,
       user: {
         authority: [user.role],
         avatar: user.img || '',

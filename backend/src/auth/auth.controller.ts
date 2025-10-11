@@ -8,6 +8,7 @@ import type { CookieSerializeOptions } from '@fastify/cookie'
 import { resolveAvatarPublicUrl } from '../common/uploads/avatar'
 import { PrismaService } from '../prisma/prisma.service'
 import { UserActivityService } from '../user-activity/user-activity.service'
+import { SESSION_TTL_SECONDS } from './auth.config'
 
 @Controller()
 export class AuthController {
@@ -24,7 +25,7 @@ export class AuthController {
       sameSite: 'lax',
       secure,
       path: '/',
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: SESSION_TTL_SECONDS,
     }
   }
 

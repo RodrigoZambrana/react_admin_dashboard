@@ -17,6 +17,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.join(__dirname, 'src'),
+      'apexcharts/dist/apexcharts.common': path.resolve(__dirname, 'node_modules/apexcharts/dist/apexcharts.esm.js'),
     },
   },
   server: {
@@ -34,5 +35,8 @@ export default defineConfig({
   },
   build: {
     outDir: 'build'
+  },
+  optimizeDeps: {
+    include: ['apexcharts', 'react-apexcharts']
   }
 });
