@@ -6,7 +6,7 @@ SSH_HOST ?= $(DO_HOST)
 SSH_USER ?= $(DO_SSH_USER)
 SSH_PORT ?= $(DO_SSH_PORT)
 COMPOSE_DEV := deploy/docker-compose.dev.yml
-COMPOSE_STAGING := deploy/docker-compose.staging.yml
+COMPOSE_TESTING := deploy/docker-compose.testing.yml
 COMPOSE_PROD := deploy/docker-compose.prod.yml
 
 ## Show available make targets
@@ -25,13 +25,17 @@ dev-down:
 dev-logs:
 	docker compose -f $(COMPOSE_DEV) logs -f
 
-## Run staging stack locally (requires env files)
-staging-up:
-	docker compose -f $(COMPOSE_STAGING) up -d --build
+## Validate that all env files include required keys
+env-check:
+	node scripts/check-env.mjs
 
-## Tear down staging stack
-staging-down:
-	docker compose -f $(COMPOSE_STAGING) down
+## Run testing stack locally (requires env files)
+testing-up:
+	docker compose -f $(COMPOSE_TESTING) up -d --build
+
+## Tear down testing stack
+testing-down:
+	docker compose -f $(COMPOSE_TESTING) down
 
 ## Run production stack locally (requires env files)
 prod-up:

@@ -1,6 +1,6 @@
 # React Admin Dashboard – Infraestructura y Automatización
 
-Este repositorio contiene todo lo necesario para desarrollar, construir y desplegar la aplicación compuesta por un frontend en React (Vite + TypeScript), un backend en NestJS/Fastify y PostgreSQL como base de datos. La infraestructura se orquesta con Docker Compose y los despliegues se automatizan mediante GitHub Actions: el ambiente **dev** levanta el stack localmente en el runner y los ambientes de **staging/prod** se publican sobre un Droplet de DigitalOcean mediante SSH.
+Este repositorio contiene todo lo necesario para desarrollar, construir y desplegar la aplicación compuesta por un frontend en React (Vite + TypeScript), un backend en NestJS/Fastify y PostgreSQL como base de datos. La infraestructura se orquesta con Docker Compose y los despliegues se automatizan mediante GitHub Actions: la rama **develop** se valida con CI y se ejecuta localmente mediante Docker, mientras que los ambientes de **testing/prod** se publican sobre un Droplet de DigitalOcean mediante SSH.
 
 ## Estructura del repositorio
 
@@ -15,13 +15,13 @@ root/
 │   └── .env.example          # Variables de ejemplo
 ├── deploy/
 │   ├── docker-compose.dev.yml
-│   ├── docker-compose.staging.yml
+│   ├── docker-compose.testing.yml
 │   ├── docker-compose.prod.yml
 │   ├── env/                  # Archivos de entorno (no versionados)
 │   └── nginx/
 │       ├── nginx.conf        # Reverse proxy / TLS opcional
 │       └── dhparam.pem
-├── .github/workflows/        # CI/CD (FE, BE, despliegues dev/staging/prod)
+├── .github/workflows/        # CI/CD (FE, BE, despliegues testing/prod)
 ├── Makefile                  # Comandos de conveniencia
 ├── SECURITY.md               # Buenas prácticas y manejo de secretos
 └── README.md
@@ -31,11 +31,17 @@ root/
 
 | Rama Git | GitHub Environment | Archivo compose | Dominio esperado |
 |----------|-------------------|-----------------|------------------|
-| `develop` | `dev`              | `deploy/docker-compose.dev.yml`      | `APP_DOMINIO_DEV` |
-| `staging` | `staging`          | `deploy/docker-compose.staging.yml`  | `APP_DOMINIO_STAGING` |
+| `develop` | Manual (local)     | `deploy/docker-compose.dev.yml`      | `APP_DOMINIO_DEV` |
+| `testing` | `testing`          | `deploy/docker-compose.testing.yml`  | `APP_DOMINIO_TESTING` |
 | `main`    | `prod`             | `deploy/docker-compose.prod.yml`     | `APP_DOMINIO_PROD` |
 
-Cada environment en GitHub Actions debe definir los secretos descritos en la sección de [CI/CD](#cicd).
+Los environments de testing y prod en GitHub Actions deben definir los secretos descritos en la sección de [CI/CD](#cicd).
+
+## Variables de entorno
+
+- `env.schema.json` centraliza la lista de claves requeridas para backend y frontend; mantenelo actualizado cuando se agreguen variables nuevas.
+- Ejecutá `node scripts/check-env.mjs` para verificar que todos los archivos `.env` (locales y los de `deploy/env` en dev/testing/prod) incluyan esas claves antes de levantar contenedores o desplegar.
+- En `deploy/env` encontrarás un `.env.example` por cada ambiente (dev, testing y prod) para ambos servicios. Copiá el correspondiente y completalo según corresponda.
 
 ## Desarrollo local con Docker Compose
 
@@ -48,33 +54,76 @@ Cada environment en GitHub Actions debe definir los secretos descritos en la sec
    ```
    Define al menos las variables de conexión (`DATABASE_URL`), secretos JWT/cookies y los orígenes permitidos en `deploy/env/backend.dev.env`; el archivo del frontend controla las variables `VITE_*` utilizadas por Vite.
 
+   Ejecutá `node scripts/check-env.mjs` después de copiar y editar los archivos para validar que ningún `.env` quedó sin una variable obligatoria según `env.schema.json`. El script analiza los archivos locales y los de `deploy/env` (dev/testing/prod) e informa las claves faltantes antes de levantar los contenedores.
+
    > Si ya tenés PostgreSQL escuchando en `5432`, exportá `POSTGRES_HOST_PORT=0` antes de `make dev-up` para que Docker publique la base en un puerto aleatorio y evitar conflictos.
 
    Variables esperadas:
 
    - `deploy/env/backend.dev.env`
      - `NODE_ENV`: modo de ejecución del backend (normalmente `development`).
-     - `PORT`: puerto donde expondrá NestJS (por defecto `3000`).
-     - `DATABASE_URL`: cadena de conexión para PostgreSQL.
-     - `JWT_SECRET`: clave para firmar tokens JWT.
-     - `COOKIE_SECRET`: clave para firmar cookies de sesión.
-     - `ALLOWED_ORIGINS`: lista separada por comas con orígenes permitidos para CORS.
-     - `DEFAULT_USER_TEMP_PASSWORD`: contraseña provisional para usuarios creados desde la API.
-     - `RECAPTCHA_SECRET_KEY`: clave secreta del backend para validar reCAPTCHA (opcional).
-     - `SENTRY_DSN`: DSN del proyecto en Sentry (opcional).
+    - `PORT`: puerto donde expondrá NestJS (por defecto `4000`).
+   - `DATABASE_URL`: cadena de conexión para PostgreSQL.
+   - `JWT_SECRET`: clave para firmar tokens JWT.
+   - `SESSION_TTL_HOURS`: duración de la sesión autenticada (JWT + cookie) en horas. Por defecto 168h (7 días).
+   - `COOKIE_SECRET`: clave para firmar cookies de sesión.
+   - `ALLOWED_ORIGINS`: lista separada por comas con orígenes permitidos para CORS.
+   - `DEFAULT_USER_TEMP_PASSWORD`: contraseña provisional para usuarios creados desde la API.
+   - `RECAPTCHA_SECRET_KEY`: clave secreta del backend para validar reCAPTCHA (opcional).
+   - `RECAPTCHA_ENABLED`: activa/desactiva la validación de reCAPTCHA en el backend (`false` por defecto).
+   - `SENTRY_DSN`: DSN del proyecto en Sentry (opcional).
+   - `RUN_PRISMA_SEED_ON_BOOT`: si es `true`, ejecuta `prisma db seed` después de migraciones.
+   - `ENABLE_DEMO_SEED`: habilita datos de ejemplo en el seed (por defecto deshabilitado).
+   - `SEED_SUPERADMIN_EMAIL` / `SEED_SUPERADMIN_PASSWORD`: credenciales para crear un superadmin la primera vez que corre el seed (no se almacenan en texto plano una vez creado).
+   - `SEED_SUPERADMIN_NAME`: nombre para el superadmin creado automáticamente.
+
+> El backend ejecuta `migrate deploy` y, si `RUN_PRISMA_SEED_ON_BOOT=true`, también `prisma db seed` durante `make dev-up`. Definí `SKIP_PRISMA_MIGRATIONS=true` para omitir las migraciones automáticas. El seed solo crea el superadmin cuando las credenciales anteriores están definidas y omite datos demo salvo que `ENABLE_DEMO_SEED=true`.
 
    - `deploy/env/frontend.dev.env`
-     - `VITE_APP_NAME`: nombre que muestra la aplicación en el frontend.
-     - `VITE_API_URL`: URL base para la API desde el navegador (generalmente `http://localhost:8080/api`).
-     - `VITE_STATE_SIGNATURE_KEY`: clave utilizada para firmar estados en el frontend.
-     - `VITE_RECAPTCHA_SITE_KEY`: clave pública del sitio para reCAPTCHA (opcional).
+   - `VITE_APP_NAME`: nombre que muestra la aplicación en el frontend.
+   - `VITE_API_URL`: URL base para la API desde el navegador (generalmente `http://localhost:8080/api`).
+   - `VITE_STATE_SIGNATURE_KEY`: clave utilizada para firmar estados en el frontend.
+   - `VITE_RECAPTCHA_ENABLED`: activa/desactiva la carga del script de reCAPTCHA en el navegador.
+   - `VITE_RECAPTCHA_SITE_KEY`: clave pública del sitio para reCAPTCHA (opcional).
 
-2. Levanta el entorno completo (frontend con Vite, backend en modo watch y PostgreSQL) mediante:
+2. Levanta el entorno completo (frontend servido por Nginx, backend en modo compilado y PostgreSQL) mediante:
    ```bash
    make dev-up
    ```
 
-   La aplicación quedará disponible a través de `http://localhost:8080`, con el proxy Nginx dirigiendo `/api` al backend.
+   La aplicación quedará disponible a través de `http://localhost:8080`, con el proxy Nginx dirigiendo `/api` al backend. Como los servicios corren con la build compilada, cualquier cambio en el código requiere volver a construir las imágenes (`docker compose -f deploy/docker-compose.dev.yml build frontend backend`) antes de reiniciar los contenedores.
+
+   #### Levantar la base sin seed y crear un superadmin temporal
+   1. Edita `deploy/env/backend.dev.env` y asegúrate de que `RUN_PRISMA_SEED_ON_BOOT=false` para que el contenedor del backend no ejecute el seed automáticamente.
+   2. Arranca el stack manualmente (incluye base de datos, backend, frontend y proxy):
+      ```bash
+      docker compose -f deploy/docker-compose.dev.yml up --build
+      ```
+      Agrega `-d` si querés dejar los contenedores en segundo plano.
+   3. Con los servicios en marcha, crea únicamente el superadmin de desarrollo usando las credenciales definidas en `SEED_SUPERADMIN_*`:
+      ```bash
+      docker compose -f deploy/docker-compose.dev.yml exec backend npx --yes prisma db seed
+      ```
+      Asegurate de que el contenedor del backend muestre `Nest application successfully started` en los logs (`docker compose logs backend -f`) antes de ejecutar el seed para evitar que falten binarios.
+      Si `ENABLE_DEMO_SEED=false`, el comando solo genera la cuenta superadmin y no agrega datos de ejemplo.
+   4. Para reiniciar el proceso desde cero (eliminando contenedores, volúmenes y volver a levantar todo), primero detén el stack y borra los recursos existentes:
+      ```bash
+      docker compose -f deploy/docker-compose.dev.yml down --volumes --remove-orphans
+      docker volume rm admin-dashboard-dev_postgres_data_dev 2>/dev/null || true
+      ```
+      Luego vuelve a repetir los pasos 1 a 3.
+   5. Para automatizar el teardown completo, recrear el stack, ejecutar el seed y seguir los logs en una sola secuencia (validando antes que los `.env` estén completos):
+      ```bash
+      make env-check && docker compose -f deploy/docker-compose.dev.yml down --volumes --remove-orphans && docker compose -f deploy/docker-compose.dev.yml up -d --build && docker compose -f deploy/docker-compose.dev.yml exec backend npx --yes prisma db seed && docker compose -f deploy/docker-compose.dev.yml logs -f
+      ```
+      Presioná `Ctrl+C` cuando quieras dejar de seguir los logs.
+   6. Si necesitás inspeccionar o editar los datos con Prisma Studio:
+      ```bash
+      docker compose -f deploy/docker-compose.dev.yml exec backend npx prisma studio --host 0.0.0.0 --port 5555 --browser none
+      ```
+      La interfaz queda disponible en `http://localhost:5555`. Asegurate de tener publicado el puerto `5555` en el servicio `backend` (temporalmente, si es necesario) y presioná `Ctrl+C` para cerrarla cuando termines.
+
+   > Las sesiones autenticadas expiran según el valor de `SESSION_TTL_HOURS`. Una vez alcanzado el límite, el backend invalida el token y el frontend vuelve a requerir credenciales automáticamente.
 
 3. Para detener los servicios:
    ```bash
@@ -84,12 +133,12 @@ Cada environment en GitHub Actions debe definir los secretos descritos en la sec
 4. Otros comandos útiles:
    ```bash
    make dev-logs      # Sigue logs de todos los servicios
-   make staging-up    # Corre el stack de staging en local (requiere envs en deploy/env)
+   make testing-up   # Corre el stack de testing en local (requiere envs en deploy/env)
    make prod-up       # Corre el stack productivo en local (requiere certs/envs)
    make backup ENV=dev POSTGRES_USER=postgres POSTGRES_DB=dashboard
    ```
 
-   > Para iniciar la base de datos incluida en los archivos de staging/prod usa `COMPOSE_PROFILES=managed-db` al ejecutar `docker compose`.
+   > Para iniciar la base de datos incluida en los archivos de testing/prod usa `COMPOSE_PROFILES=managed-db` al ejecutar `docker compose`.
 
 ## Base de datos y Prisma
 
@@ -99,6 +148,12 @@ Cada environment en GitHub Actions debe definir los secretos descritos en la sec
   - El secreto `PRISMA_APPLY_MIGRATIONS` está configurado en `true` para el environment objetivo.
 - Usa `npm run prisma:migrate` (deploy) o `npm run prisma:migrate:dev` (si lo defines) para aplicar cambios manualmente.
 
+### Acceso a la base de datos local
+
+- Levantá únicamente el servicio de PostgreSQL con `docker compose -f backend/docker-compose.yml up -d db`. El contenedor crea automáticamente la base `react_admin_dashboard` usando el usuario `postgres` y la contraseña `postgres`.
+- Si necesitás crear la base manualmente dentro del contenedor, ejecutá `docker compose -f backend/docker-compose.yml exec db psql -U postgres -c "CREATE DATABASE react_admin_dashboard;"`.
+- Desde clientes como DBeaver configurá una conexión PostgreSQL apuntando a `localhost`, puerto `5432`, usuario `postgres`, contraseña `postgres`. Seleccioná la base `react_admin_dashboard` o ejecútala con el comando anterior si aún no existe.
+
 ## CI/CD
 
 ### Workflows de CI
@@ -106,30 +161,21 @@ Cada environment en GitHub Actions debe definir los secretos descritos en la sec
 - `.github/workflows/ci-fe.yml`: lint, test y build del frontend con Node 20.
 - `.github/workflows/ci-be.yml`: lint (tsc), vitest y build del backend, incluyendo `npx prisma generate`.
 
-Ambos se ejecutan en cada PR y en pushes a `develop`, `staging` y `main` cuando cambian archivos de su ámbito.
+Ambos se ejecutan en cada PR y en pushes a `develop`, `testing` y `main` cuando cambian archivos de su ámbito.
 
 ### Workflows de despliegue
 
-- `deploy-dev.yml` → rama `develop`, environment `dev`. Levanta `docker compose -f deploy/docker-compose.dev.yml` directamente en el runner de GitHub para validar el stack de forma local (sin conectarse al Droplet).
-- `deploy-staging.yml` → rama `staging`, environment `staging`.
+- `deploy-testing.yml` → rama `testing`, environment `testing`.
 - `deploy-prod.yml` → rama `main`, environment `prod`.
 
-Flujo del workflow **dev**:
+La rama `develop` no dispara despliegues automáticos. Para validar la pila completa:
+- Ejecutá `make dev-up` (o `docker compose -f deploy/docker-compose.dev.yml up -d --build`) y navegá a `http://localhost:8080`.
+- Cuando termines, `make dev-down` limpia los contenedores locales.
+- Para depurar, `make dev-logs` (o `docker compose -f deploy/docker-compose.dev.yml logs -f proxy backend frontend`) replica los logs del stack.
 
-1. Checkout con historial para detectar cambios en Prisma.
-2. Instalación, lint, test y build de frontend/backend.
-3. Renderizado opcional de `deploy/env/backend.dev.env` y `deploy/env/frontend.dev.env` a partir de los secretos.
-4. Ejecución de `docker compose up -d` (stack dev) dentro del runner.
-5. Migraciones condicionales vía `docker compose exec backend npx prisma migrate deploy` si así se configura.
-6. Health check local contra `http://localhost:8080/api/health` y teardown con `docker compose down`.
+Los Dockerfiles multi-stage del frontend y backend generan artefactos compilados y, en testing/prod, los contenedores sirven esa build (`node dist/src/main.js` y Nginx) en lugar de exponer servidores `npm start`.
 
-Para revisar el despliegue en `develop`:
-- Abre **Actions → Deploy Dev** en GitHub, ingresa al run correspondiente y revisa los pasos “Iniciar stack…” y “Health check local”. Allí podrás ver logs y el resultado de `curl http://localhost:8080/api/health`.
-- Recuerda que el stack vive sólo dentro del runner, por lo que no queda accesible externamente tras finalizar la pipeline.
-- Si necesitás interactuar con la app, reproduce el entorno localmente: copia `deploy/env/backend.dev.env` y `deploy/env/frontend.dev.env`, ejecuta `make dev-up` y navega a `http://localhost:8080`.
-- Para depurar, `make dev-logs` (o `docker compose -f deploy/docker-compose.dev.yml logs -f proxy backend frontend`) replica los logs del deploy.
-
-Flujo compartido por **staging/prod**:
+Flujo compartido por **testing/prod**:
 
 1. Checkout del repositorio con historial para detectar cambios en Prisma.
 2. Instalación, lint, test y build de frontend/backend.
@@ -143,15 +189,9 @@ Flujo compartido por **staging/prod**:
 
 ### Secretos requeridos por environment
 
-**Dev (runner local):**
+El entorno local utiliza los `.env` versionados y no requiere secretos adicionales en GitHub.
 
-| Variable | Descripción |
-|----------|-------------|
-| `ENV_FILE_BACKEND` | (Opcional) Contenido para `deploy/env/backend.dev.env` |
-| `ENV_FILE_FRONTEND` | (Opcional) Contenido para `deploy/env/frontend.dev.env` |
-| `PRISMA_APPLY_MIGRATIONS` | `true/false` para habilitar migraciones automáticas |
-
-**Staging/Prod (Droplet remoto):**
+**Testing/Prod (Droplet remoto):**
 
 | Variable | Descripción |
 |----------|-------------|
@@ -165,7 +205,7 @@ Flujo compartido por **staging/prod**:
 | `PRISMA_APPLY_MIGRATIONS` | `true/false` según se permita aplicar migraciones |
 | `DATABASE_URL`, `POSTGRES_PASSWORD`, etc. | Incluirlos dentro del archivo del backend o como variables adicionales en el Droplet |
 
-> **Nota:** Los archivos generados a partir de `ENV_FILE_*` no se versionan; en staging/prod sólo viven en el Droplet dentro de `deploy/env/`.
+> **Nota:** Los archivos generados a partir de `ENV_FILE_*` no se versionan; en testing/prod sólo viven en el Droplet dentro de `deploy/env/`.
 
 ## Estrategia de releases y rollback
 

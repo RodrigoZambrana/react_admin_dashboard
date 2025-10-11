@@ -15,9 +15,9 @@ Quick Start
 - Start dev server: `npm run start:dev`
 
 Environment Configuration & Deployment Notes
-- Cookie behaviour: `AuthController.buildAuthCookieOptions()` sets `secure: true` whenever `NODE_ENV !== 'development'`. In staging/production you must serve the API over HTTPS (ideally from the same origin as the frontend) so the browser accepts the `access_token` cookie. For temporary HTTP testing outside dev, run the backend with `NODE_ENV=development` or adjust that helper to expose a toggle.
+- Cookie behaviour: `AuthController.buildAuthCookieOptions()` sets `secure: true` whenever `NODE_ENV !== 'development'`. In testing/production debes servir la API sobre HTTPS (idealmente desde el mismo origen que el frontend) para que el navegador acepte la cookie `access_token`. Para pruebas HTTP temporales fuera de dev, ejecutá el backend con `NODE_ENV=development` o ajustá ese helper para exponer un toggle.
 - Required environment variables when `NODE_ENV` is not `development`:
-  - `NODE_ENV=production` (or `staging`) to enable secure defaults.
+  - `NODE_ENV=production` para habilitar defaults seguros.
   - `JWT_SECRET=<32+ random chars>` to sign JWTs.
   - `COOKIE_SECRET=<32+ random chars>` for Fastify cookie signing.
   - `ALLOWED_ORIGINS=https://your-frontend.example.com` (comma-separated list) so CORS allows the deployed frontend.

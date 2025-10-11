@@ -8,7 +8,9 @@ export type AppConfig = {
     recaptchaSiteKey?: string
 }
 
-const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || ''
+const isRecaptchaEnabled =
+    String(import.meta.env.VITE_RECAPTCHA_ENABLED || '').toLowerCase() === 'true'
+const siteKey = isRecaptchaEnabled ? import.meta.env.VITE_RECAPTCHA_SITE_KEY || '' : ''
 
 const appConfig: AppConfig = {
     apiPrefix: '/api',

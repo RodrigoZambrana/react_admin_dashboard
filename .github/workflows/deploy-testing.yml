@@ -1,18 +1,18 @@
-name: Deploy Staging
+name: Deploy Testing
 
 on:
   push:
     branches:
-      - staging
+      - testing
 
 env:
   APP_PATH: /opt/app
-  COMPOSE_FILE: docker-compose.staging.yml
+  COMPOSE_FILE: docker-compose.testing.yml
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: staging
+    environment: testing
     env:
       PRISMA_APPLY_MIGRATIONS: ${{ secrets.PRISMA_APPLY_MIGRATIONS }}
 
@@ -98,8 +98,8 @@ jobs:
       - name: Prepare environment files
         run: |
           mkdir -p deploy/env
-          printf '%s' "${{ secrets.ENV_FILE_BACKEND }}" > deploy/env/backend.staging.env
-          printf '%s' "${{ secrets.ENV_FILE_FRONTEND }}" > deploy/env/frontend.staging.env
+          printf '%s' "${{ secrets.ENV_FILE_BACKEND }}" > deploy/env/backend.testing.env
+          printf '%s' "${{ secrets.ENV_FILE_FRONTEND }}" > deploy/env/frontend.testing.env
 
       - name: Archive release
         run: |

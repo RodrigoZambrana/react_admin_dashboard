@@ -3,27 +3,70 @@ import * as bcrypt from 'bcrypt'
 
 const prisma = new PrismaClient()
 
-const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'Admin@123!'
+const SUPERADMIN_EMAIL = process.env.SEED_SUPERADMIN_EMAIL || ''
+const SUPERADMIN_PASSWORD = process.env.SEED_SUPERADMIN_PASSWORD || ''
+const SUPERADMIN_NAME =
+  process.env.SEED_SUPERADMIN_NAME ||
+  process.env.SEED_SUPERADMIN_FIRST_NAME ||
+  'Super Admin'
+const SUPERADMIN_LAST_NAME = process.env.SEED_SUPERADMIN_LAST_NAME || ''
+const ENABLE_DEMO_SEED = process.env.ENABLE_DEMO_SEED === 'true'
 const DEMO_PASSWORD = process.env.SEED_USER_PASSWORD || 'User@123!'
 
-async function main() {
-  // Roles are enum; create admin user if not exists
-  const adminEmail = 'admin@example.com'
-  const admin = await prisma.user.findUnique({ where: { email: adminEmail } })
-  if (!admin) {
-    await prisma.user.create({
-      data: {
-        name: 'Admin',
-        email: adminEmail,
-        img: '',
-        role: 'SUPERADMIN',
-        passwordHash: await bcrypt.hash(ADMIN_PASSWORD, 10),
-      },
-    })
-    console.log(`Seeded admin user: admin/${ADMIN_PASSWORD}`)
+function maskSecret(value: string) {
+  if (!value) return '(empty)'
+  if (value.length <= 4) return '****'
+  return `${value[0]}***${value[value.length - 1]}`
+}
+
+async function seedSuperAdmin() {
+  if (!SUPERADMIN_EMAIL || !SUPERADMIN_PASSWORD) {
+    console.log(
+      '[seed] Skipping superadmin creation: SEED_SUPERADMIN_EMAIL / SEED_SUPERADMIN_PASSWORD not provided.',
+    )
+    return null
   }
 
-  // Users demo
+  const normalizedEmail = SUPERADMIN_EMAIL.trim().toLowerCase()
+  const existing = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  })
+  if (existing) {
+    console.log(`[seed] Superadmin already exists for ${normalizedEmail}`)
+    return existing
+  }
+
+  const hashed = await bcrypt.hash(SUPERADMIN_PASSWORD, 12)
+  const created = await prisma.user.create({
+    data: {
+      email: normalizedEmail,
+      name: SUPERADMIN_NAME.trim(),
+      lastName: SUPERADMIN_LAST_NAME.trim() || undefined,
+      img: '',
+      role: 'SUPERADMIN',
+      passwordHash: hashed,
+    },
+  })
+
+  console.log(
+    `[seed] Superadmin account created for ${normalizedEmail}. (password: ${maskSecret(
+      SUPERADMIN_PASSWORD,
+    )})`,
+  )
+
+  // Clear sensitive env variables to reduce accidental reuse
+  delete process.env.SEED_SUPERADMIN_PASSWORD
+  return created
+}
+
+async function seedDemoData(superAdminEmail?: string) {
+  if (!ENABLE_DEMO_SEED) {
+    console.log('[seed] Demo data disabled (ENABLE_DEMO_SEED != "true").')
+    return
+  }
+
+  console.log('[seed] Seeding demo data...')
+
   const demoUsers = [
     { name: 'Alice Johnson', email: 'alice@example.com', img: '/img/avatars/thumb-1.jpg' },
     { name: 'Bob Smith', email: 'bob@example.com', img: '/img/avatars/thumb-2.jpg' },
@@ -332,7 +375,13 @@ async function main() {
   const projects = await prisma.project.findMany()
 
   // Tasks with assignees
-  const users = await prisma.user.findMany({ where: { email: { not: adminEmail } } })
+  const users = await prisma.user.findMany({
+    where: {
+      email: {
+        notIn: [superAdminEmail || '', SUPERADMIN_EMAIL].filter(Boolean),
+      },
+    },
+  })
   const someTasks = [
     { subject: 'Design DB schema', description: 'Initial ERD', priority: 0, status: 'open' },
     { subject: 'Implement Auth', description: 'JWT login & roles', priority: 1, status: 'in_progress' },
@@ -551,7 +600,13 @@ async function main() {
   }
 
   // Notifications
-  const anyUser = await prisma.user.findFirst({ where: { email: { not: adminEmail } } })
+  const anyUser = await prisma.user.findFirst({
+    where: {
+      email: {
+        notIn: [superAdminEmail || '', SUPERADMIN_EMAIL].filter(Boolean),
+      },
+    },
+  })
   for (let i = 0; i < 10; i++) {
     await prisma.notification.create({
       data: {
@@ -567,6 +622,11 @@ async function main() {
       },
     })
   }
+}
+
+async function main() {
+  const superAdmin = await seedSuperAdmin()
+  await seedDemoData(superAdmin?.email || SUPERADMIN_EMAIL)
 }
 
 main()
