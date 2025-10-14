@@ -7,10 +7,10 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: react_admin_dashboard
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/react_admin_dashboard?schema=public
     ports:
       - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
 volumes:
   pgdata: {}
-

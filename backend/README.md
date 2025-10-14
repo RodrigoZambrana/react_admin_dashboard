@@ -21,7 +21,7 @@ Environment Configuration & Deployment Notes
   - `JWT_SECRET=<32+ random chars>` to sign JWTs.
   - `COOKIE_SECRET=<32+ random chars>` for Fastify cookie signing.
   - `ALLOWED_ORIGINS=https://your-frontend.example.com` (comma-separated list) so CORS allows the deployed frontend.
-  - `PORT=4000` (or your platform-specific port) and expose it through your reverse proxy.
+  - `PORT=4000` (or your platform-specific port) and asegúrate de publicarlo mediante tu plataforma/ingress (load balancer, App Platform, etc.).
 - Frontend alignment:
   - In production, serve the built frontend from the same domain or configure Axios to hit the deployed API (e.g. expose `VITE_API_BASE=https://api.example.com` and use it in `BaseService`); the Vite proxy only applies during local development.
   - Set `VITE_STATE_SIGNATURE_KEY=<random secret>` so Redux Persist signatures remain environment-specific.
