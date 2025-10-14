@@ -16,12 +16,12 @@
 
 ## TLS
 
-- El reverse proxy (`deploy/nginx/nginx.conf`) soporta TLS; coloca los certificados en `deploy/certs/` dentro del Droplet.
-- Incluye `dhparam.pem` para mejorar el intercambio Diffie-Hellman.
+- Configura TLS desde el proveedor que utilices (DigitalOcean App Platform, load balancers o certificados manejados externamente).
+- Documenta la ubicación y rotación de certificados para cada ambiente.
 
 ## Auditoría y monitoreo
 
-- Revisa periódicamente los logs (`docker compose logs proxy backend`).
+- Revisa periódicamente los logs (`docker compose logs backend frontend`).
 - Configura alertas (Grafana, Healthchecks, PagerDuty, etc.) para notificar caídas.
 - Integra herramientas de observabilidad como Sentry u OpenTelemetry cuando sea posible.
 

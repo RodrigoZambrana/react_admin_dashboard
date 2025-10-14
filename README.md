@@ -17,10 +17,7 @@ root/
 │   ├── docker-compose.dev.yml
 │   ├── docker-compose.testing.yml
 │   ├── docker-compose.prod.yml
-│   ├── env/                  # Archivos de entorno (no versionados)
-│   └── nginx/
-│       ├── nginx.conf        # Reverse proxy / TLS opcional
-│       └── dhparam.pem
+│   └── env/                  # Archivos de entorno (no versionados)
 ├── .github/workflows/        # CI/CD (FE, BE, despliegues testing/prod)
 ├── Makefile                  # Comandos de conveniencia
 ├── SECURITY.md               # Buenas prácticas y manejo de secretos
@@ -63,7 +60,7 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
    - `deploy/env/backend.dev.env`
      - `NODE_ENV`: modo de ejecución del backend (normalmente `development`).
     - `PORT`: puerto donde expondrá NestJS (por defecto `4000`).
-   - `DATABASE_URL`: cadena de conexión para PostgreSQL.
+   - `DATABASE_URL`: cadena de conexión para PostgreSQL (ejemplo local `postgresql://postgres:postgres@host.docker.internal:5432/react_admin_dashboard?schema=public` para apuntar a una base externa al stack).
    - `JWT_SECRET`: clave para firmar tokens JWT.
    - `SESSION_TTL_HOURS`: duración de la sesión autenticada (JWT + cookie) en horas. Por defecto 168h (7 días).
    - `COOKIE_SECRET`: clave para firmar cookies de sesión.
@@ -81,7 +78,7 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
 
    - `deploy/env/frontend.dev.env`
    - `VITE_APP_NAME`: nombre que muestra la aplicación en el frontend.
-   - `VITE_API_URL`: URL base para la API desde el navegador (generalmente `http://localhost:8080/api`).
+   - `VITE_API_URL`: URL base para la API desde el navegador (por defecto `http://localhost:4000/api` en Docker Compose; ajustalo al dominio del backend en testing/prod, p. ej. `https://api.example.com/api`).
    - `VITE_STATE_SIGNATURE_KEY`: clave utilizada para firmar estados en el frontend.
    - `VITE_RECAPTCHA_ENABLED`: activa/desactiva la carga del script de reCAPTCHA en el navegador.
    - `VITE_RECAPTCHA_SITE_KEY`: clave pública del sitio para reCAPTCHA (opcional).
@@ -91,11 +88,11 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
    make dev-up
    ```
 
-   La aplicación quedará disponible a través de `http://localhost:8080`, con el proxy Nginx dirigiendo `/api` al backend. Como los servicios corren con la build compilada, cualquier cambio en el código requiere volver a construir las imágenes (`docker compose -f deploy/docker-compose.dev.yml build frontend backend`) antes de reiniciar los contenedores.
+   La aplicación quedará disponible a través de `http://localhost:8080` (frontend) y la API responderá en `http://localhost:4000/api`. Como los servicios corren con la build compilada, cualquier cambio en el código requiere volver a construir las imágenes (`docker compose -f deploy/docker-compose.dev.yml build frontend backend`) antes de reiniciar los contenedores.
 
    #### Levantar la base sin seed y crear un superadmin temporal
    1. Edita `deploy/env/backend.dev.env` y asegúrate de que `RUN_PRISMA_SEED_ON_BOOT=false` para que el contenedor del backend no ejecute el seed automáticamente.
-   2. Arranca el stack manualmente (incluye base de datos, backend, frontend y proxy):
+   2. Arranca el stack manualmente (incluye base de datos, backend y frontend):
       ```bash
       docker compose -f deploy/docker-compose.dev.yml up --build
       ```
@@ -106,6 +103,14 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
       ```
       Asegurate de que el contenedor del backend muestre `Nest application successfully started` en los logs (`docker compose logs backend -f`) antes de ejecutar el seed para evitar que falten binarios.
       Si `ENABLE_DEMO_SEED=false`, el comando solo genera la cuenta superadmin y no agrega datos de ejemplo.
+      También podés recrear (o forzar) el superadmin sin ejecutar el seed completo:
+      ```bash
+      docker compose -f deploy/docker-compose.dev.yml exec backend \
+        env DEFAULT_ADMIN_EMAIL=admin@example.com \
+            DEFAULT_ADMIN_PASSWORD=Admin@123! \
+            DEFAULT_ADMIN_NAME="Admin Local" \
+        node dist/scripts/reset-admin.js
+      ```
    4. Para reiniciar el proceso desde cero (eliminando contenedores, volúmenes y volver a levantar todo), primero detén el stack y borra los recursos existentes:
       ```bash
       docker compose -f deploy/docker-compose.dev.yml down --volumes --remove-orphans
@@ -134,11 +139,11 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
    ```bash
    make dev-logs      # Sigue logs de todos los servicios
    make testing-up   # Corre el stack de testing en local (requiere envs en deploy/env)
-   make prod-up       # Corre el stack productivo en local (requiere certs/envs)
+   make prod-up       # Corre el stack productivo en local (requiere envs)
    make backup ENV=dev POSTGRES_USER=postgres POSTGRES_DB=dashboard
    ```
 
-   > Para iniciar la base de datos incluida en los archivos de testing/prod usa `COMPOSE_PROFILES=managed-db` al ejecutar `docker compose`.
+   > Para iniciar la base de datos incluida en los archivos de testing/prod usa `COMPOSE_PROFILES=managed-db` al ejecutar `docker compose`. Con la pila productiva expuesta sin proxy, accedé al frontend en `http://localhost:8080` y a la API en `http://localhost:4000/api`.
 
 ## Base de datos y Prisma
 
@@ -153,6 +158,7 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
 - Levantá únicamente el servicio de PostgreSQL con `docker compose -f backend/docker-compose.yml up -d db`. El contenedor crea automáticamente la base `react_admin_dashboard` usando el usuario `postgres` y la contraseña `postgres`.
 - Si necesitás crear la base manualmente dentro del contenedor, ejecutá `docker compose -f backend/docker-compose.yml exec db psql -U postgres -c "CREATE DATABASE react_admin_dashboard;"`.
 - Desde clientes como DBeaver configurá una conexión PostgreSQL apuntando a `localhost`, puerto `5432`, usuario `postgres`, contraseña `postgres`. Seleccioná la base `react_admin_dashboard` o ejecútala con el comando anterior si aún no existe.
+> Nota: desde contenedores del stack (`backend`, `frontend`) accedé a la base local a través de `host.docker.internal` para resolver a tu máquina anfitriona.
 
 ## CI/CD
 
@@ -171,7 +177,7 @@ Ambos se ejecutan en cada PR y en pushes a `develop`, `testing` y `main` cuando 
 La rama `develop` no dispara despliegues automáticos. Para validar la pila completa:
 - Ejecutá `make dev-up` (o `docker compose -f deploy/docker-compose.dev.yml up -d --build`) y navegá a `http://localhost:8080`.
 - Cuando termines, `make dev-down` limpia los contenedores locales.
-- Para depurar, `make dev-logs` (o `docker compose -f deploy/docker-compose.dev.yml logs -f proxy backend frontend`) replica los logs del stack.
+- Para depurar, `make dev-logs` (o `docker compose -f deploy/docker-compose.dev.yml logs -f backend frontend`) replica los logs del stack.
 
 Los Dockerfiles multi-stage del frontend y backend generan artefactos compilados y, en testing/prod, los contenedores sirven esa build (`node dist/src/main.js` y Nginx) en lugar de exponer servidores `npm start`.
 
@@ -224,7 +230,7 @@ En el Droplet los despliegues residen en `/opt/app/releases/<SHA>` y existe un s
 
 - Nunca subas llaves ni archivos `.env`; utiliza los ejemplos como guía.
 - Configura firewall, fail2ban y acceso SSH por clave privada.
-- Renueva certificados TLS (Let’s Encrypt, Caddy, etc.) y ubica los artefactos en `deploy/certs/` (montados en `deploy/docker-compose.prod.yml`).
+- Administrá certificados TLS (Let’s Encrypt, Caddy, etc.) desde la plataforma o el proxy externo que utilices para exponer la aplicación.
 - Considera integrar Sentry u OpenTelemetry agregando variables en los archivos de entorno correspondientes.
 
 ## Comandos npm relevantes
@@ -237,13 +243,13 @@ En el Droplet los despliegues residen en `/opt/app/releases/<SHA>` y existe un s
 
 ## Consideraciones adicionales
 
-- Ajusta `deploy/nginx/nginx.conf` para habilitar TLS (descomenta secciones e incluye certificados en `deploy/certs`).
+- Configurá TLS y dominios desde la plataforma donde despliegues (p. ej. DigitalOcean App Platform) o mediante el balanceador que utilices.
 - Las imágenes pueden publicarse en GHCR cambiando las variables `FRONTEND_IMAGE` y `BACKEND_IMAGE` en los archivos compose.
 - Para habilitar seeds (`prisma db seed`) añade el script correspondiente en `backend/package.json` y ejecútalo desde el Droplet con `docker compose exec`.
 
 ## Troubleshooting rápido
 
-- **El health check falla** → revisa logs con `docker compose -f deploy/docker-compose.<env>.yml logs -f backend proxy` y ejecuta `make rollback`.
+- **El health check falla** → revisa logs con `docker compose -f deploy/docker-compose.<env>.yml logs -f backend frontend` y ejecuta `make rollback`.
 - **Migraciones no aplicadas** → valida que `PRISMA_APPLY_MIGRATIONS=true` y que `backend/prisma/**` cambió en el commit.
 - **Sin acceso a la DB** → confirma `POSTGRES_PASSWORD` y `DATABASE_URL` en el archivo de entorno y que el puerto 5432 esté expuesto o accesible internamente.
 
