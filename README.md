@@ -174,6 +174,14 @@ Ambos se ejecutan en cada PR y en pushes a `develop`, `testing` y `main` cuando 
 - `deploy-testing.yml` → rama `testing`, environment `testing`.
 - `deploy-prod.yml` → rama `main`, environment `prod`.
 
+### DigitalOcean App Platform
+
+- `app.yaml` describe la App con dos componentes Docker. Ajustá `github.repo` y `github.branch` al clonar la app desde tu organización y setea `ALLOWED_ORIGINS` con el dominio público que expondrá App Platform.
+- El componente `frontend` compila `frontend/Dockerfile`, publica la ruta `/` y espera que definas las variables Vite indicadas (las marcadas como `type: SECRET` deben existir como secretos de App Platform con el mismo nombre).
+- El componente `backend` usa `backend/Dockerfile`, expone el puerto `3000` y enruta bajo `/api` manteniendo el prefijo. Configurá los secretos (`DATABASE_URL`, `JWT_SECRET`, etc.) y valores generales (`PRISMA_APPLY_MIGRATIONS`, `RUN_PRISMA_SEED_ON_BOOT`, etc.) antes del primer despliegue.
+- Ajustá `instance_size_slug`, `instance_count` o los `routes` según tus necesidades; podés duplicar el spec por ambiente (testing/prod) cambiando dominios y secretos.
+- Si usás una base autogestionada, apuntá `DATABASE_URL` al servicio administrado y mantené `PRISMA_APPLY_MIGRATIONS=true` para ejecutar `prisma migrate deploy` automáticamente.
+
 La rama `develop` no dispara despliegues automáticos. Para validar la pila completa:
 - Ejecutá `make dev-up` (o `docker compose -f deploy/docker-compose.dev.yml up -d --build`) y navegá a `http://localhost:8080`.
 - Cuando termines, `make dev-down` limpia los contenedores locales.
