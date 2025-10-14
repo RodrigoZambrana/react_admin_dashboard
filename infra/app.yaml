@@ -1,0 +1,48 @@
+# DigitalOcean App Platform spec rendered during CI
+name: mi-app
+region: nyc
+# Managed PostgreSQL instance provisioned by App Platform
+databases:
+  - name: db
+    engine: PG
+    version: "16"
+    production: true
+services:
+  - name: backend
+    image:
+      # ghcr.io image pushed by the workflow; __TAG__ replaced with SHORT_SHA
+      registry: ghcr.io
+      repository: ${REPO_OWNER}/mi-app-backend
+      tag: "__TAG__"
+      registry_type: DOCKER_HUB
+    http_port: 3000
+    routes:
+      - path: /api
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    health_check:
+      http_path: /healthz
+      initial_delay_seconds: 5
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
+      - key: PRISMA_APPLY_MIGRATIONS
+        value: "false"
+static_sites:
+  - name: frontend
+    image:
+      registry: ghcr.io
+      repository: ${REPO_OWNER}/mi-app-frontend
+      tag: "__TAG__"
+      registry_type: DOCKER_HUB
+    routes:
+      - path: /
+    output_dir: /usr/share/nginx/html
+    catchall_document: index.html
