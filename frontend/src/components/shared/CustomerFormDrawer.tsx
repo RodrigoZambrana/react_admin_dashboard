@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Drawer from '@/components/ui/Drawer'
 import Button from '@/components/ui/Button'
+import StickyFooter from '@/components/shared/StickyFooter'
 import CustomerForm, {
     FormikRef as CustomerFormikRef,
     FormModel as CustomerFormModel,
@@ -66,6 +67,7 @@ const CustomerFormDrawer = ({
     const [internalTab, setInternalTab] = useState<TabKey>('personalInfo')
     const [addressComplete, setAddressComplete] = useState(false)
     const [isSubmittingForm, setIsSubmittingForm] = useState(false)
+    const [hasValidationErrors, setHasValidationErrors] = useState(true)
     const actualTab = controlledTab ?? internalTab
 
     const setActiveTab = useCallback(
@@ -82,6 +84,7 @@ const CustomerFormDrawer = ({
         setInternalTab('personalInfo')
         setAddressComplete(false)
         setIsSubmittingForm(false)
+        setHasValidationErrors(true)
         formRef.current?.resetForm?.()
     }, [])
 
@@ -122,41 +125,43 @@ const CustomerFormDrawer = ({
             ? validationErrors
             : formik.errors
 
+        setHasValidationErrors(hasAnyError(combinedErrors))
+
         const { address: addressErrors, ...personalErrors } = (combinedErrors || {}) as Record<string, unknown>
 
         if (hasAnyError(personalErrors)) {
             setActiveTab('personalInfo')
             markPersonalTouched()
-            setButtonLabel('next')
             return
         }
 
         if (hasAnyError(addressErrors)) {
             setActiveTab('address')
             markAddressTouched()
-            setButtonLabel('next')
             return
         }
 
-        setButtonLabel('save')
         await formik.submitForm()
-    }, [markAddressTouched, markPersonalTouched, setActiveTab])
+    }, [
+        markAddressTouched,
+        markPersonalTouched,
+        setActiveTab,
+    ])
 
     const handleValidationStateChange = useCallback(
         ({ errors, isSubmitting }: { errors: FormikErrors<CustomerFormModel>; isSubmitting: boolean }) => {
             setIsSubmittingForm(isSubmitting)
 
-            const addressErrors = (errors as any)?.address
+            const { address: addressErrors } =
+                (errors as Record<string, unknown> | undefined) || {}
             const addressValues = formRef.current?.values.address
             const hasRequiredValues =
                 !!addressValues && ADDRESS_REQUIRED_FIELDS.every((key) => isNonEmpty((addressValues as any)[key]))
             const noAddressErrors = !hasAnyError(addressErrors)
             const complete = hasRequiredValues && noAddressErrors
             setAddressComplete(complete)
-            if (complete) {
-                setButtonLabel('save')
-            }
 
+            setHasValidationErrors(hasAnyError(errors))
             onValidationStateChange?.({ errors, isSubmitting })
         },
         [onValidationStateChange],
@@ -165,7 +170,7 @@ const CustomerFormDrawer = ({
     const handleFormSubmit = useCallback(async (values: CustomerFormModel) => {
         await onSubmit(values)
         onSubmitSuccess?.(values)
-        setButtonLabel('next')
+        setHasValidationErrors(true)
     }, [onSubmit, onSubmitSuccess])
 
     const computedTitle = useMemo(() => title || '', [title])
@@ -173,28 +178,16 @@ const CustomerFormDrawer = ({
     const nextLabel = labels?.next || 'Next'
     const saveLabel = labels?.save || 'Save'
 
+    const primaryActionLabel =
+        actualTab === 'address' && addressComplete && !hasValidationErrors
+            ? saveLabel
+            : nextLabel
+
     return (
         <Drawer
             isOpen={isOpen}
-            closable={false}
             bodyClass="p-0"
             title={computedTitle || undefined}
-            footer={
-                <div className="w-full flex flex-col sm:flex-row sm:justify-end gap-2">
-                    <Button size="sm" onClick={onClose} className="w-full sm:w-auto">
-                        {cancelLabel}
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="solid"
-                        disabled={isSubmittingForm}
-                        onClick={handleSubmitAction}
-                        className="w-full sm:w-auto"
-                    >
-                        {addressComplete ? saveLabel : nextLabel}
-                    </Button>
-                </div>
-            }
             onClose={onClose}
             onRequestClose={onClose}
         >
@@ -212,6 +205,24 @@ const CustomerFormDrawer = ({
                 }}
                 onFormSubmit={handleFormSubmit}
             />
+            <StickyFooter
+                className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3"
+                stickyClass="shadow-lg"
+            >
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <Button type="button" onClick={onClose}>
+                        {cancelLabel}
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="solid"
+                        disabled={isSubmittingForm}
+                        onClick={handleSubmitAction}
+                    >
+                        {primaryActionLabel}
+                    </Button>
+                </div>
+            </StickyFooter>
         </Drawer>
     )
 }

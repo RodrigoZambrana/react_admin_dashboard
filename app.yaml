@@ -1,137 +1,144 @@
 name: react-admin-dashboard
+region: atl
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+
+databases:
+  - cluster_name: react-admin-dashboard
+    engine: PG
+    name: react-admin-dashboard
+    production: true
+    version: "15"
+
+envs:
+  - key: BACKEND_HOST
+    scope: RUN_AND_BUILD_TIME
+    value: react-admin-dashboard-backend
+  - key: BACKEND_PORT
+    scope: RUN_AND_BUILD_TIME
+    value: "3000"
+  - key: VITE_APP_NAME
+    scope: RUN_AND_BUILD_TIME
+    value: React Admin Dashboard
+  - key: VITE_API_URL
+    scope: RUN_AND_BUILD_TIME
+    value: /api
+  - key: VITE_STATE_SIGNATURE_KEY
+    scope: RUN_AND_BUILD_TIME
+    value: __replace_with_unique_secret__
+  - key: VITE_RECAPTCHA_ENABLED
+    scope: RUN_AND_BUILD_TIME
+    value: "false"
+  - key: VITE_RECAPTCHA_SITE_KEY
+    scope: RUN_AND_BUILD_TIME
+  - key: NODE_ENV
+    scope: RUN_AND_BUILD_TIME
+    value: production
+  - key: PORT
+    scope: RUN_AND_BUILD_TIME
+    value: "3000"
+  - key: ALLOWED_ORIGINS
+    scope: RUN_AND_BUILD_TIME
+    value: https://react-admin-dashboard-b8rop.ondigitalocean.app
+  - key: PRISMA_APPLY_MIGRATIONS
+    scope: RUN_AND_BUILD_TIME
+    value: "true"
+  - key: RUN_PRISMA_SEED_ON_BOOT
+    scope: RUN_AND_BUILD_TIME
+    value: "false"
+  - key: ENABLE_DEMO_SEED
+    scope: RUN_AND_BUILD_TIME
+    value: "false"
+  - key: SESSION_TTL_HOURS
+    scope: RUN_AND_BUILD_TIME
+    value: "168"
+  - key: DATABASE_URL
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+    value: EV[1:qUQqYQy7CLTtfJhemmKMmLQXDPr+QvgV:IiTJBggj+RWmEVr3B1Fl6kPUG8ic6+NnxFmRldIEwt/KezaB6j864YVMQQBsvMBRcmdo5rU16E1DGv4uFN32lQTT/AzreLA1ntw3GVt2USA4MVJ9gBR64InKzx+huWMOZoCijKiOHU/DVYieNBkOw4Ei4v2LTMeNFydqmMcx8aWV/VZt6Ue79lJMM9VHQCn/9BplYEYEGLNJtQHhXrHY8K3z5KEQrVd48UWLM73uq6Mmu+mBoMkAn99miiJPD1FR]
+  - key: JWT_SECRET
+    scope: RUN_AND_BUILD_TIME
+    value: __replace_with_unique_secret__
+  - key: COOKIE_SECRET
+    scope: RUN_AND_BUILD_TIME
+    value: __replace_with_unique_secret__
+  - key: DEFAULT_USER_TEMP_PASSWORD
+    scope: RUN_AND_BUILD_TIME
+    value: TempPass@123!
+  - key: SEED_SUPERADMIN_EMAIL
+    scope: RUN_AND_BUILD_TIME
+    value: admin@example.com
+  - key: SEED_SUPERADMIN_PASSWORD
+    scope: RUN_AND_BUILD_TIME
+    value: Admin@123!
+  - key: SEED_SUPERADMIN_NAME
+    scope: RUN_AND_BUILD_TIME
+    value: Prod Admin
+  - key: SEED_SUPERADMIN_FIRST_NAME
+    scope: RUN_AND_BUILD_TIME
+  - key: SEED_SUPERADMIN_LAST_NAME
+    scope: RUN_AND_BUILD_TIME
+  - key: SEED_USER_PASSWORD
+    scope: RUN_AND_BUILD_TIME
+    value: TempPass@123!
+  - key: RECAPTCHA_SECRET_KEY
+    scope: RUN_AND_BUILD_TIME
+  - key: SENTRY_DSN
+    scope: RUN_AND_BUILD_TIME
+
+features:
+  - buildpack-stack=ubuntu-22
+
+ingress:
+  rules:
+    - component:
+        name: react-admin-dashboard-frontend
+      match:
+        authority:
+          exact: ""
+        path:
+          prefix: /
+    - component:
+        name: react-admin-dashboard-backend
+      match:
+        authority:
+          exact: ""
+        path:
+          prefix: /api
+      preserve_path_prefix: true
 
 services:
-  - name: frontend
-    environment_slug: docker
-    github:
-      repo: YOUR_GITHUB_USERNAME/react_admin_dashboard
-      branch: deploy_digital_ocean_and_github
-      deploy_on_push: true
+  - name: react-admin-dashboard-frontend
     dockerfile_path: frontend/Dockerfile
-    source_dir: frontend
-    http_port: 80
-    instance_size_slug: basic-xxs
-    instance_count: 1
-    routes:
-      - path: /
-    envs:
-      - key: BACKEND_HOST
-        scope: RUN_TIME
-        type: GENERAL
-        value: backend
-      - key: BACKEND_PORT
-        scope: RUN_TIME
-        type: GENERAL
-        value: "3000"
-      - key: VITE_APP_NAME
-        scope: RUN_AND_BUILD_TIME
-        type: GENERAL
-        value: React Admin Dashboard
-      - key: VITE_API_URL
-        scope: RUN_AND_BUILD_TIME
-        type: SECRET
-        value: VITE_API_URL
-      - key: VITE_STATE_SIGNATURE_KEY
-        scope: RUN_AND_BUILD_TIME
-        type: SECRET
-        value: VITE_STATE_SIGNATURE_KEY
-      - key: VITE_RECAPTCHA_ENABLED
-        scope: RUN_AND_BUILD_TIME
-        type: GENERAL
-        value: "false"
-      - key: VITE_RECAPTCHA_SITE_KEY
-        scope: RUN_AND_BUILD_TIME
-        type: SECRET
-        value: VITE_RECAPTCHA_SITE_KEY
-
-  - name: backend
-    environment_slug: docker
     github:
-      repo: YOUR_GITHUB_USERNAME/react_admin_dashboard
+      repo: RodrigoZambrana/react_admin_dashboard
       branch: deploy_digital_ocean_and_github
       deploy_on_push: true
-    dockerfile_path: backend/Dockerfile
-    source_dir: backend
-    http_port: 3000
-    instance_size_slug: basic-xxs
+    http_port: 80
     instance_count: 1
-    routes:
-      - path: /api
-        preserve_path_prefix: true
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    source_dir: frontend
+
+  - name: react-admin-dashboard-backend
+    dockerfile_path: backend/Dockerfile
     envs:
-      - key: NODE_ENV
-        scope: RUN_TIME
-        type: GENERAL
-        value: production
-      - key: PORT
-        scope: RUN_TIME
-        type: GENERAL
-        value: "3000"
-      - key: ALLOWED_ORIGINS
-        scope: RUN_TIME
-        type: GENERAL
-        value: https://YOUR_DOMAIN
-      - key: PRISMA_APPLY_MIGRATIONS
-        scope: RUN_TIME
-        type: GENERAL
-        value: "true"
-      - key: RUN_PRISMA_SEED_ON_BOOT
-        scope: RUN_TIME
-        type: GENERAL
-        value: "false"
-      - key: ENABLE_DEMO_SEED
-        scope: RUN_TIME
-        type: GENERAL
-        value: "false"
-      - key: SESSION_TTL_HOURS
-        scope: RUN_TIME
-        type: GENERAL
-        value: "168"
       - key: DATABASE_URL
         scope: RUN_TIME
-        type: SECRET
-        value: DATABASE_URL
-      - key: JWT_SECRET
-        scope: RUN_TIME
-        type: SECRET
-        value: JWT_SECRET
-      - key: COOKIE_SECRET
-        scope: RUN_TIME
-        type: SECRET
-        value: COOKIE_SECRET
-      - key: DEFAULT_USER_TEMP_PASSWORD
-        scope: RUN_TIME
-        type: SECRET
-        value: DEFAULT_USER_TEMP_PASSWORD
-      - key: SEED_SUPERADMIN_EMAIL
-        scope: RUN_TIME
-        type: SECRET
-        value: SEED_SUPERADMIN_EMAIL
-      - key: SEED_SUPERADMIN_PASSWORD
-        scope: RUN_TIME
-        type: SECRET
-        value: SEED_SUPERADMIN_PASSWORD
-      - key: SEED_SUPERADMIN_NAME
-        scope: RUN_TIME
-        type: SECRET
-        value: SEED_SUPERADMIN_NAME
-      - key: SEED_SUPERADMIN_FIRST_NAME
-        scope: RUN_TIME
-        type: SECRET
-        value: SEED_SUPERADMIN_FIRST_NAME
-      - key: SEED_SUPERADMIN_LAST_NAME
-        scope: RUN_TIME
-        type: SECRET
-        value: SEED_SUPERADMIN_LAST_NAME
-      - key: SEED_USER_PASSWORD
-        scope: RUN_TIME
-        type: SECRET
-        value: SEED_USER_PASSWORD
-      - key: RECAPTCHA_SECRET_KEY
-        scope: RUN_TIME
-        type: SECRET
-        value: RECAPTCHA_SECRET_KEY
-      - key: SENTRY_DSN
-        scope: RUN_TIME
-        type: SECRET
-        value: SENTRY_DSN
+        value: ${react-admin-dashboard.DATABASE_URL}
+    github:
+      repo: RodrigoZambrana/react_admin_dashboard
+      branch: deploy_digital_ocean_and_github
+      deploy_on_push: true
+    health_check:
+      failure_threshold: 3
+      http_path: /api/health
+      initial_delay_seconds: 5
+      period_seconds: 10
+      success_threshold: 1
+      timeout_seconds: 5
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    source_dir: backend

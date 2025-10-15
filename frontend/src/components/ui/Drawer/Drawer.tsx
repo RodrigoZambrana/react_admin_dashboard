@@ -2,6 +2,7 @@ import classNames from 'classnames'
 import Modal from 'react-modal'
 import CloseButton from '../CloseButton'
 import { motion } from 'framer-motion'
+import { useCallback, useEffect } from 'react'
 import type ReactModal from 'react-modal'
 import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 
@@ -35,6 +36,7 @@ const Drawer = (props: DrawerProps) => {
         isOpen,
         lockScroll = true,
         onClose,
+        onRequestClose,
         overlayClassName,
         placement = 'right',
         portalClassName,
@@ -47,6 +49,23 @@ const Drawer = (props: DrawerProps) => {
     const onCloseClick = (e: MouseEvent<HTMLSpanElement>) => {
         onClose?.(e)
     }
+
+    const emitClose = useCallback(() => {
+        if (!isOpen) {
+            return
+        }
+        if (onRequestClose) {
+            onRequestClose(new MouseEvent('click') as any)
+        } else if (onClose) {
+            onClose(new MouseEvent('click') as any)
+        }
+    }, [isOpen, onClose, onRequestClose])
+
+    useEffect(() => {
+        const handler = () => emitClose()
+        window.addEventListener('app:drawer-close-all', handler)
+        return () => window.removeEventListener('app:drawer-close-all', handler)
+    }, [emitClose])
 
     const renderCloseButton = <CloseButton onClick={onCloseClick} />
 
@@ -123,6 +142,7 @@ const Drawer = (props: DrawerProps) => {
             ariaHideApp={false}
             isOpen={isOpen}
             closeTimeoutMS={closeTimeoutMS}
+            onRequestClose={onRequestClose}
             {...rest}
         >
             <motion.div

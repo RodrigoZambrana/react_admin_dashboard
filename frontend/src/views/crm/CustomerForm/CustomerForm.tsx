@@ -109,10 +109,18 @@ const useValidationSchema = (t: (k: string) => string) =>
         phoneNumbers: Yup.array()
             .of(
                 Yup.string()
-                    .transform((v) => (v?.trim() === '' ? null : v))
+                    .transform((v) => {
+                        const trimmed = v?.trim?.() ?? ''
+                        return trimmed === '' ? null : trimmed
+                    })
                     .nullable()
-                    .matches(/^(\+?[0-9\s-()]{7,})$/, t('text.validation.invalidPhoneNumber'))
                     .notRequired()
+                    .test('valid-phone', t('text.validation.invalidPhoneNumber'), (value) => {
+                        if (!value) {
+                            return true
+                        }
+                        return /^(\+?[0-9\s-()]{7,})$/.test(String(value).trim())
+                    })
             )
             .compact((v) => v == null)
             .min(0),
@@ -176,15 +184,6 @@ const CustomerFormInner = ({
             <TabContent value="address">
               <AddressForm />
             </TabContent>
-          </div>
-          <div className="px-6 pb-6 flex flex-col sm:flex-row sm:justify-end gap-3">
-            <button
-              type="submit"
-              className="btn btn-solid w-full sm:w-auto"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? t('text.actions.saving') : t('text.actions.save')}
-            </button>
           </div>
         </Tabs>
       </FormContainer>

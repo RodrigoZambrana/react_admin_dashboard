@@ -170,6 +170,7 @@ const CalendarView = (props: CalendarViewProps) => {
                     const viewType =
                         ((arg as unknown as { view?: { type?: string } }).view?.type ?? '')
                     const isTimeGridView = viewType.startsWith('timeGrid')
+                    const isMonthView = viewType === 'dayGridMonth'
                     const showLeading = !(isEnd && !isStart)
                     const textColor = hexColor ? getReadableTextColor(hexColor) : undefined
                     const eventStart = arg.event.start
@@ -190,6 +191,44 @@ const CalendarView = (props: CalendarViewProps) => {
                     const showTime = Boolean(
                         timeLabel && showDot && hasTime && (isTimeGridView || isStart),
                     )
+
+                    if (isMonthView) {
+                        const calendarApi = (arg as unknown as {
+                            view?: { calendar?: { getOption?: (key: string) => unknown } }
+                        }).view?.calendar
+                        const allDayText =
+                            (calendarApi?.getOption?.('allDayText') as string) || 'All day'
+                        const monthLabel = timeLabel || (isAllDay ? allDayText : arg.event.title || '')
+                        return (
+                            <div
+                                className={classNames(
+                                    'custom-calendar-event flex items-center gap-2 text-xs font-semibold',
+                                    !hexColor && paletteColor?.bg,
+                                    !hexColor && paletteColor?.text,
+                                    isEnd &&
+                                        !isStart &&
+                                        'rounded-tl-none! rounded-bl-none! !rtl:rounded-tr-none !rtl:rounded-br-none',
+                                    !isEnd &&
+                                        isStart &&
+                                        'rounded-tr-none! rounded-br-none! !rtl:rounded-tl-none !rtl:rounded-bl-none',
+                                )}
+                                style={hexColor ? { backgroundColor: hexColor, color: textColor } : undefined}
+                                title={arg.event.title || undefined}
+                                aria-label={arg.event.title || monthLabel}
+                            >
+                                {showDot && (
+                                    <span
+                                        className={classNames(
+                                            'inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 border border-transparent',
+                                            !hexColor && (paletteColor?.dot || 'bg-gray-400'),
+                                        )}
+                                        style={hexColor ? { backgroundColor: hexColor } : undefined}
+                                    />
+                                )}
+                                <span className="truncate">{monthLabel}</span>
+                            </div>
+                        )
+                    }
 
                     return (
                         <div

@@ -149,4 +149,10 @@
   .fc-toolbar-chunk {
     @apply flex flex-col sm:flex-row gap-2 w-full sm:w-auto;
   }
+
+  &.calendar--expanded {
+    .fc-view {
+      @apply min-h-[580px] md:min-h-[680px] xl:min-h-[760px];
+    }
+  }
 }

@@ -33,6 +33,7 @@ import CountryCitySelector, {
 } from '@/components/shared/CountryCitySelector'
 import { findCountryByName } from '@/utils/countries'
 import useResponsive from '@/utils/hooks/useResponsive'
+import classNames from 'classnames'
 
 type Item = EditableItem
 
@@ -777,20 +778,60 @@ const OrderNew = () => {
 
                     return (
                         <Form>
-                            <Steps
-                                current={currentStep}
-                                onChange={handleStepChange}
-                                className="mb-6"
-                                vertical={isCompactViewport}
+                            <div
+                                className={classNames(
+                                    'mb-6',
+                                    isCompactViewport && '-mx-3',
+                                )}
                             >
-                                <Steps.Item title={t('text.columns.customer')} />
-                                <Steps.Item title={t('text.titles.products')} />
-                                <Steps.Item title={t('text.titles.shippingAddress')} />
-                                <Steps.Item title={t('text.titles.billingAddress')} />
-                                <Steps.Item title={t('text.titles.shipping')} />
-                                <Steps.Item title={t('text.titles.paymentSummary')} />
-                                <Steps.Item title={t('text.actions.finalize') || 'Finalizar'} />
-                            </Steps>
+                                <div
+                                    className={classNames(
+                                        isCompactViewport &&
+                                            'overflow-x-auto pb-2',
+                                    )}
+                                >
+                                    <Steps
+                                        current={currentStep}
+                                        onChange={handleStepChange}
+                                        className={classNames(
+                                            'gap-3',
+                                            isCompactViewport &&
+                                                'min-w-[640px] flex-nowrap pr-4',
+                                        )}
+                                    >
+                                        <Steps.Item
+                                            title={t('text.columns.customer')}
+                                        />
+                                        <Steps.Item
+                                            title={t('text.titles.products')}
+                                        />
+                                        <Steps.Item
+                                            title={t(
+                                                'text.titles.shippingAddress',
+                                            )}
+                                        />
+                                        <Steps.Item
+                                            title={t(
+                                                'text.titles.billingAddress',
+                                            )}
+                                        />
+                                        <Steps.Item
+                                            title={t('text.titles.shipping')}
+                                        />
+                                        <Steps.Item
+                                            title={t(
+                                                'text.titles.paymentSummary',
+                                            )}
+                                        />
+                                        <Steps.Item
+                                            title={
+                                                t('text.actions.finalize') ||
+                                                'Finalizar'
+                                            }
+                                        />
+                                    </Steps>
+                                </div>
+                            </div>
 
                             {currentStep === 0 && (
                                 <Card bodyClass="p-5">
