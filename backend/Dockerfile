@@ -9,7 +9,7 @@ RUN npm install --legacy-peer-deps
 FROM deps AS build
 WORKDIR /app
 COPY . .
-RUN npm run build
+RUN npm run prisma:generate && npm run build
 
 FROM node:20-alpine AS runtime
 WORKDIR /app
