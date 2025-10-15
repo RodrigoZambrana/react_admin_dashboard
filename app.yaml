@@ -15,6 +15,14 @@ services:
     routes:
       - path: /
     envs:
+      - key: BACKEND_HOST
+        scope: RUN_TIME
+        type: GENERAL
+        value: backend
+      - key: BACKEND_PORT
+        scope: RUN_TIME
+        type: GENERAL
+        value: "3000"
       - key: VITE_APP_NAME
         scope: RUN_AND_BUILD_TIME
         type: GENERAL
