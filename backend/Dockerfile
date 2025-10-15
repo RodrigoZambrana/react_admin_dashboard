@@ -9,6 +9,7 @@ RUN npm install --legacy-peer-deps
 FROM deps AS build
 WORKDIR /app
 COPY . .
+ENV DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public
 RUN npm run prisma:generate && npm run build
 
 FROM node:20-alpine AS runtime
