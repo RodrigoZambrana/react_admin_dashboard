@@ -186,25 +186,27 @@ const CustomerFormDrawer = ({
     return (
         <Drawer
             isOpen={isOpen}
-            bodyClass="p-0"
+            bodyClass="p-0 flex flex-col h-full"
             title={computedTitle || undefined}
             onClose={onClose}
             onRequestClose={onClose}
         >
-            <CustomerForm
-                ref={formRef}
-                customer={(customer ?? {}) as CustomerProps}
-                activeTab={actualTab}
-                onTabChange={setActiveTab}
-                onValuesChange={(values) => {
-                    evaluateAddressComplete(values)
-                    onValuesChange?.(values)
-                }}
-                onValidationStateChange={({ isSubmitting, errors }) => {
-                    handleValidationStateChange({ errors, isSubmitting })
-                }}
-                onFormSubmit={handleFormSubmit}
-            />
+            <div className="flex-1 overflow-y-auto">
+                <CustomerForm
+                    ref={formRef}
+                    customer={(customer ?? {}) as CustomerProps}
+                    activeTab={actualTab}
+                    onTabChange={setActiveTab}
+                    onValuesChange={(values) => {
+                        evaluateAddressComplete(values)
+                        onValuesChange?.(values)
+                    }}
+                    onValidationStateChange={({ isSubmitting, errors }) => {
+                        handleValidationStateChange({ errors, isSubmitting })
+                    }}
+                    onFormSubmit={handleFormSubmit}
+                />
+            </div>
             <StickyFooter
                 className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3"
                 stickyClass="shadow-lg"

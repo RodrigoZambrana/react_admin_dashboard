@@ -306,26 +306,34 @@ const CalendarActivities = () => {
             .sort((a, b) => (a.sortOrder - b.sortOrder) || a.sortValue - b.sortValue)
     }, [eventsByDate, labels, selectedDate])
 
-    const latestActivities = useMemo<CalendarListItem[]>(() => {
+    const upcomingActivities = useMemo<CalendarListItem[]>(() => {
         if (mappedActivities.length === 0) {
             return []
         }
-        return [...mappedActivities]
-            .sort((a, b) => b.sortValue - a.sortValue)
+        const now = dayjs()
+        const upcoming = mappedActivities.filter((item) => {
+            const date = dayjs(item.start)
+            if (!date.isValid()) {
+                return false
+            }
+            return date.isAfter(now)
+        })
+        return upcoming
+            .sort((a, b) => a.sortValue - b.sortValue)
             .slice(0, 20)
     }, [mappedActivities])
 
-    const latestActivityGroups = useMemo<
+    const upcomingActivityGroups = useMemo<
         { key: string; label: string; items: CalendarListItem[] }[]
     >(() => {
-        if (!latestActivities.length) {
+        if (!upcomingActivities.length) {
             return []
         }
         const groups = new Map<
             string,
             { label: string; items: CalendarListItem[] }
         >()
-        latestActivities.forEach((item) => {
+        upcomingActivities.forEach((item) => {
             const date = dayjs(item.start)
             const key = date.isValid()
                 ? date.format('YYYY-MM-DD')
@@ -346,7 +354,7 @@ const CalendarActivities = () => {
             label: value.label,
             items: value.items,
         }))
-    }, [i18n.language, latestActivities, t])
+    }, [i18n.language, upcomingActivities, t])
 
     const searchResults = useMemo<CalendarListItem[]>(() => {
         const term = searchTerm.trim().toLowerCase()
@@ -595,7 +603,11 @@ const CalendarActivities = () => {
 
     const handleCreateActivity = () => {
         const baseDate = selectedDate ? dayjs(selectedDate) : dayjs()
-        const start = baseDate.hour(10).minute(0).second(0).millisecond(0)
+        const now = dayjs()
+        const startBase = baseDate.isSame(now, 'day')
+            ? now
+            : baseDate.hour(10).minute(0).second(0).millisecond(0)
+        const start = startBase.second(0).millisecond(0)
         const end = start.add(1, 'hour')
         calendarDispatch(
             setCalendarSelected({
@@ -750,8 +762,8 @@ const CalendarActivities = () => {
                 <div className="order-4 xl:order-4 xl:col-span-6">
                     <Card>
                         <h5 className="mb-4">
-                            {t('calendar.latestActivities', {
-                                defaultValue: 'Últimas actividades',
+                            {t('calendar.upcomingActivities', {
+                                defaultValue: 'Upcoming activities',
                             })}
                         </h5>
                         {loading ? (
@@ -759,14 +771,14 @@ const CalendarActivities = () => {
                                 <Spinner size={20} />
                                 {t('common.loading', { defaultValue: 'Cargando...' })}
                             </div>
-                        ) : latestActivities.length === 0 ? (
+                        ) : upcomingActivities.length === 0 ? (
                             <div className="text-sm text-gray-500 dark:text-gray-300">
-                                {t('calendar.noLatestActivities', {
-                                    defaultValue: 'No hay actividades recientes para mostrar.',
+                                {t('calendar.noUpcomingActivities', {
+                                    defaultValue: 'No upcoming activities to display.',
                                 })}
                             </div>
                         ) : (
-                            latestActivityGroups.map((group) => (
+                            upcomingActivityGroups.map((group) => (
                                 <div key={group.key} className="mb-4 last:mb-0">
                                     <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
                                         {group.label}
@@ -774,7 +786,7 @@ const CalendarActivities = () => {
                                     <div className="mt-3 flex flex-col">
                                         {group.items.map((item) =>
                                             renderActivityItem(item, {
-                                                keyPrefix: `latest-${group.key}`,
+                                                keyPrefix: `upcoming-${group.key}`,
                                                 showDateLabel: true,
                                                 showActions: false,
                                             }),

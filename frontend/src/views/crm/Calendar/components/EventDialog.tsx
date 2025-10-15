@@ -753,13 +753,20 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                     const handleAllDayToggle = (checked: boolean) => {
                         setFieldValue('allDay', checked)
                         const startBase = dayjs(values.startDate || new Date())
+                        const today = dayjs()
                         const normalizedStart = checked
                             ? normalizeAllDayStart(startBase)
-                            : startBase
-                                  .hour(9)
-                                  .minute(0)
-                                  .second(0)
-                                  .millisecond(0)
+                            : (values.allDay
+                                  ? startBase.isSame(today, 'day')
+                                      ? today
+                                            .second(0)
+                                            .millisecond(0)
+                                      : startBase
+                                            .hour(10)
+                                            .minute(0)
+                                            .second(0)
+                                            .millisecond(0)
+                                  : startBase.second(0).millisecond(0))
 
                         const endBase = values.endDate
                             ? dayjs(values.endDate)
@@ -994,6 +1001,8 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                                                     value={values.startDate ?? undefined}
                                                     onChange={handleStartChange}
                                                     clearable={false}
+                                                    amPm={false}
+                                                    inputFormat="DD-MMM-YYYY HH:mm"
                                                 />
                                             )}
                                         </FormItem>
@@ -1015,6 +1024,8 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                                                     value={values.endDate ?? undefined}
                                                     onChange={handleEndChange}
                                                     clearable={false}
+                                                    amPm={false}
+                                                    inputFormat="DD-MMM-YYYY HH:mm"
                                                 />
                                             )}
                                         </FormItem>

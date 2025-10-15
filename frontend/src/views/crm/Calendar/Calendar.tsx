@@ -260,6 +260,12 @@ const Calendar = () => {
     }
 
     const onEventClick = (arg: EventClickArg) => {
+        const viewType = String(arg.view?.type || '')
+        const eventStart = arg.event.start ? dayjs(arg.event.start) : dayjs()
+        if (tryOpenMobileDayDialog(eventStart, viewType)) {
+            arg.jsEvent?.preventDefault()
+            return
+        }
         const { start, end, id, title } = arg.event
         const fcExtendedProps = (arg.event.extendedProps || {}) as Record<string, unknown>
         const eventData = events.find((evt) => String(evt.id) === String(id))
