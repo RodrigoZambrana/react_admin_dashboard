@@ -382,18 +382,22 @@ const UsersList = () => {
 
     return (
         <Container>
-            <div className="flex items-center justify-between mb-4 gap-2">
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <h3>{t('nav.appsUsers.userList')}</h3>
-                <div className="flex items-center gap-2">
-                    <div className="w-64">
-                        <Input
-                            size="sm"
-                            placeholder={t('text.placeholders.search')}
-                            prefix={<HiOutlineSearch className="text-lg" />}
-                            onChange={(e) => setQuery(e.target.value)}
-                        />
-                    </div>
-                    <Button size="sm" variant="solid" onClick={onCreate}>
+                <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto md:justify-end">
+                    <Input
+                        size="sm"
+                        className="w-full sm:w-64"
+                        placeholder={t('text.placeholders.search')}
+                        prefix={<HiOutlineSearch className="text-lg" />}
+                        onChange={(e) => setQuery(e.target.value)}
+                    />
+                    <Button
+                        size="sm"
+                        variant="solid"
+                        onClick={onCreate}
+                        className="w-full sm:w-auto"
+                    >
                         {t('nav.appsUsers.userNew')}
                     </Button>
                 </div>

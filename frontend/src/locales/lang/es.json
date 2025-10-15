@@ -453,6 +453,13 @@
             "published": "Publicado",
             "stock": "Stock"
         },
+        "mobileNav": {
+            "home": "Inicio",
+            "agenda": "Agenda",
+            "calendar": "Calendario",
+            "addCustomer": "Agregar cliente",
+            "addOrder": "Agregar pedido"
+        },
         "priority": {
             "high": "Alta",
             "medium": "Media",

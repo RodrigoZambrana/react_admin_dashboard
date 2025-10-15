@@ -105,6 +105,7 @@ const PersonalInfoForm = () => {
                     placeholder={t('text.labels.email')}
                     component={Input}
                     prefix={<HiMail className="text-xl" />}
+                    required
                 />
             </FormItem>
             <FieldArray name="phoneNumbers">

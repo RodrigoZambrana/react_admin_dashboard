@@ -5,11 +5,10 @@ import {
     PAGE_CONTAINER_GUTTER_X,
     PAGE_CONTAINER_GUTTER_Y,
 } from '@/constants/theme.constant'
-import Footer from '@/components/template/Footer'
 import type { CommonProps } from '@/@types/common'
 import type { Meta } from '@/@types/routes'
 import type { ElementType, ComponentPropsWithRef } from 'react'
-import type { FooterPageContainerType } from '@/components/template/Footer'
+import MobileBottomNav from '@/components/template/MobileBottomNav'
 
 export interface PageContainerProps extends CommonProps, Meta {
     contained?: boolean
@@ -32,15 +31,17 @@ const PageContainer = (props: PageContainerProps) => {
         header,
         contained = false,
         extraHeader,
-        footer = true,
+        footer: _footer = true,
     } = props
+
+    void _footer
 
     return (
         <div className="h-full flex flex-auto flex-col justify-between">
             <main className="h-full">
                 <div
                     className={classNames(
-                        'page-container relative h-full flex flex-auto flex-col',
+                        'page-container relative h-full flex flex-auto flex-col pb-28 md:pb-0',
                         pageContainerType !== 'gutterless' &&
                             `${PAGE_CONTAINER_GUTTER_X} ${PAGE_CONTAINER_GUTTER_Y}`,
                         pageContainerType === 'contained' &&
@@ -81,13 +82,8 @@ const PageContainer = (props: PageContainerProps) => {
                     )}
                 </div>
             </main>
-            {footer && (
-                <Footer
-                    pageContainerType={
-                        pageContainerType as FooterPageContainerType
-                    }
-                />
-            )}
+            <MobileBottomNav />
+            {/* Footer temporarily disabled */}
         </div>
     )
 }
