@@ -15,7 +15,7 @@ const ModeSwitcher = () => {
     return (
         <div>
             <Switcher
-                defaultChecked={isDark}
+                checked={isDark}
                 onChange={(checked) => onSwitchChange(checked)}
             />
         </div>

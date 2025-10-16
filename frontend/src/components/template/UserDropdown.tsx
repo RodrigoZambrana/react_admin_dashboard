@@ -1,4 +1,3 @@
-import Avatar from '@/components/ui/Avatar'
 import Dropdown from '@/components/ui/Dropdown'
 import withHeaderItem from '@/utils/hoc/withHeaderItem'
 import useAuth from '@/utils/hooks/useAuth'
@@ -10,6 +9,7 @@ import { FiActivity } from 'react-icons/fi'
 import { useTranslation } from 'react-i18next'
 import type { CommonProps } from '@/@types/common'
 import type { JSX } from 'react'
+import UserAvatar from '@/components/shared/UserAvatar'
 
 type DropdownList = {
     labelKey: string
@@ -54,9 +54,9 @@ const _UserDropdown = ({ className }: CommonProps) => {
     }
     const roleLabel = formatRole(primaryRole)
 
-    const UserAvatar = (
+    const UserSummary = (
         <div className={classNames(className, 'flex items-center gap-2')}>
-            <Avatar size={32} shape="circle" src={avatar} />
+            <UserAvatar size={32} shape="circle" src={avatar} />
             <div className="hidden md:block">
                 <div className="font-bold leading-tight">{displayName}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-300 capitalize">
@@ -73,12 +73,12 @@ const _UserDropdown = ({ className }: CommonProps) => {
         <div>
             <Dropdown
                 menuStyle={{ minWidth: 240 }}
-                renderTitle={UserAvatar}
+                renderTitle={UserSummary}
                 placement="bottom-end"
             >
                 <Dropdown.Item variant="header">
                     <div className="py-2 px-3 flex items-center gap-2">
-                        <Avatar shape="circle" src={avatar} />
+                        <UserAvatar shape="circle" src={avatar} />
                         <div>
                             <div className="font-bold text-gray-900 dark:text-gray-100">
                                 {displayName}

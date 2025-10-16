@@ -21,7 +21,7 @@ envs:
     value: "3000"
   - key: VITE_APP_NAME
     scope: RUN_AND_BUILD_TIME
-    value: React Admin Dashboard
+    value: Sistema Administrativo
   - key: VITE_API_URL
     scope: RUN_AND_BUILD_TIME
     value: /api

@@ -2,7 +2,6 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Table from '@/components/ui/Table'
 import Tag from '@/components/ui/Tag'
-import Avatar from '@/components/ui/Avatar'
 import {
     useReactTable,
     getCoreRowModel,
@@ -13,6 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import type { Lead } from '../store'
+import UserAvatar from '@/components/shared/UserAvatar'
 
 type LeadsProps = {
     data?: Lead[]
@@ -24,7 +24,7 @@ const { Tr, Td, TBody, THead, Th } = Table
 const NameColumn = ({ row }: { row: Lead }) => {
     return (
         <div className="flex items-center gap-2">
-            <Avatar shape="circle" size={25} src={row.avatar} />
+            <UserAvatar shape="circle" size={25} src={row.avatar} />
             <span className="font-semibold">{row.name}</span>
         </div>
     )

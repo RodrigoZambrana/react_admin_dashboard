@@ -21,6 +21,13 @@ const PersonalInfoForm = () => {
     const { values, errors, touched } = useFormikContext<FormModel>()
     const phoneNumbers = values.phoneNumbers || ['']
 
+    const translateError = (message?: string) => {
+        if (typeof message !== 'string' || message.trim().length === 0) {
+            return undefined
+        }
+        return t(message, { defaultValue: message })
+    }
+
     return (
         <>
             <FormItem
@@ -105,21 +112,41 @@ const PersonalInfoForm = () => {
                     placeholder={t('text.labels.email')}
                     component={Input}
                     prefix={<HiMail className="text-xl" />}
-                    required
                 />
             </FormItem>
             <FieldArray name="phoneNumbers">
                 {({ push, remove }) => (
                     <div className="flex flex-col gap-3">
                         {phoneNumbers.map((_, index) => {
-                            const error = getIn(errors, `phoneNumbers.${index}`)
-                            const isTouched = getIn(touched, `phoneNumbers.${index}`)
+                            const arrayError =
+                                typeof (errors as any)?.phoneNumbers === 'string'
+                                    ? (errors as any).phoneNumbers
+                                    : undefined
+                            const arrayTouched = Array.isArray((touched as any)?.phoneNumbers)
+                                ? (touched as any).phoneNumbers.some(Boolean)
+                                : Boolean((touched as any)?.phoneNumbers)
+                            const fieldError = getIn(errors, `phoneNumbers.${index}`)
+                            const fieldTouched = getIn(touched, `phoneNumbers.${index}`)
+                            let error: string | undefined
+                            let isTouched: boolean | undefined
+
+                            if (index === 0 && arrayError) {
+                                error = arrayError
+                                isTouched = arrayTouched
+                            } else {
+                                error = fieldError
+                                isTouched = fieldTouched
+                            }
                             return (
                                 <FormItem
                                     key={index}
                                     label={index === 0 ? t('text.labels.phoneNumber') : undefined}
                                     invalid={Boolean(isTouched && error)}
-                                    errorMessage={error as string}
+                                    errorMessage={
+                                        index === 0 && arrayError
+                                            ? undefined
+                                            : translateError(error)
+                                    }
                                 >
                                     <div className="flex flex-col sm:flex-row gap-2">
                                         <Field name={`phoneNumbers.${index}`}>
@@ -143,6 +170,13 @@ const PersonalInfoForm = () => {
                                             )}
                                         </div>
                                     </div>
+                                    {index === 0 &&
+                                        typeof arrayError === 'string' &&
+                                        (isTouched as boolean | undefined) && (
+                                            <span className="text-xs text-red-500">
+                                                {translateError(arrayError)}
+                                            </span>
+                                        )}
                                 </FormItem>
                             )
                         })}

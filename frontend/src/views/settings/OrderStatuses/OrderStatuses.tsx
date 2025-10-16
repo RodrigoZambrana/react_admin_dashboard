@@ -112,9 +112,13 @@ const OrderStatuses = () => {
         <div className="flex flex-col gap-4 h-full">
             <Card className="card-shadow">
                 <h4 className="mb-4">{t('settings.orderStatuses.title')}</h4>
-                <div className="flex gap-3 mb-4 max-w-2xl items-center">
-                    <Input value={name} placeholder={t('settings.orderStatuses.placeholders.name')} onChange={(e) => setName(e.target.value)} />
-                    <div className="w-[220px]">
+                <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:max-w-3xl">
+                    <Input
+                        value={name}
+                        placeholder={t('settings.orderStatuses.placeholders.name')}
+                        onChange={(e) => setName(e.target.value)}
+                    />
+                    <div className="w-full md:w-[220px]">
                         <Select
                             options={colorOptions}
                             value={colorOptions.find((c) => c.value === color) as any}
@@ -132,7 +136,12 @@ const OrderStatuses = () => {
                         <div className={`w-8 h-6 rounded border border-gray-200 dark:border-gray-600 bg-${color}`}></div>
                         <span className="text-sm opacity-80">{t('text.columns.color')}: {color}</span>
                     </div>
-                    <Button loading={loading} onClick={onAdd} variant="solid">
+                    <Button
+                        loading={loading}
+                        onClick={onAdd}
+                        variant="solid"
+                        className="w-full md:w-auto"
+                    >
                         {t('text.actions.add')}
                     </Button>
                 </div>

@@ -9,6 +9,7 @@ import CustomerForm, {
     ADDRESS_REQUIRED_FIELDS,
 } from '@/views/crm/CustomerForm'
 import type { FormikErrors } from 'formik'
+import useResponsive from '@/utils/hooks/useResponsive'
 
 const isNonEmpty = (v: unknown) =>
     v !== undefined && v !== null && (typeof v !== 'string' || v.trim() !== '')
@@ -183,15 +184,21 @@ const CustomerFormDrawer = ({
             ? saveLabel
             : nextLabel
 
+    const { smaller } = useResponsive()
+    const isMobile = smaller.md
+    const drawerWidth = isMobile ? '100%' : 420
+
     return (
         <Drawer
             isOpen={isOpen}
+            width={drawerWidth}
+            className="w-full sm:w-[420px]"
             bodyClass="p-0 flex flex-col h-full"
             title={computedTitle || undefined}
             onClose={onClose}
             onRequestClose={onClose}
         >
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto px-4 pb-28 pt-4 sm:px-6">
                 <CustomerForm
                     ref={formRef}
                     customer={(customer ?? {}) as CustomerProps}

@@ -458,9 +458,9 @@
         "mobileNav": {
             "home": "Inicio",
             "agenda": "Agenda",
-            "calendar": "Calendario",
             "addCustomer": "Agregar cliente",
-            "addOrder": "Agregar pedido"
+            "addOrder": "Agregar pedido",
+            "menu": "Menú"
         },
         "priority": {
             "high": "Alta",
@@ -879,7 +879,7 @@
     },
     "welcome": {
         "step1": {
-            "title": "Bienvenido a bordo, comencemos con Elstar",
+            "title": "Bienvenido a bordo, comencemos con el Sistema Administrativo",
             "subtitle": "Cuéntanos un poco sobre ti para brindarte la mejor experiencia. Solo tomará uno o dos minutos.",
             "getStarted": "Comenzar",
             "skipNow": "Saltar ahora"
@@ -918,7 +918,7 @@
             }
         },
         "step4": {
-            "title": "¿Cuál es tu objetivo principal con Elstar?",
+            "title": "¿Cuál es tu objetivo principal con el Sistema Administrativo?",
             "items": {
                 "startScratch": "Iniciar un proyecto desde cero",
                 "automateTasks": "Automatizar tareas que consumen tiempo",
@@ -927,7 +927,7 @@
             }
         },
         "quickStart": {
-            "title": "🚀 Pongamos en marcha {{app}}",
+            "title": "🚀 Pongamos en marcha el Sistema Administrativo",
             "items": {
                 "completeAccount": {
                     "title": "Completa la información de tu cuenta",
