@@ -15,6 +15,7 @@ import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { TableQueryDto } from './dto/table-query.dto'
+import { UpdateCustomerDto } from './dto/update-customer.dto'
 
 @UseGuards(JwtAuthGuard)
 @Controller('customers')
@@ -122,7 +123,7 @@ export class CustomersController {
         avatar: c.img || '',
         status: 0,
         createdTime: Math.floor(new Date(c.createdAt).getTime() / 1000),
-        email: c.email,
+        email: c.email || '',
         assignee: '',
       })),
       emailSentData: { precent: 25, opened: 50, unopen: 150, total: 200 },
@@ -227,6 +228,7 @@ export class CustomersController {
       const phoneNumbers = sortedPhones.map((p) => p.phone)
       return {
         ...rest,
+        email: rest.email || '',
         firstName: rest.firstName || '',
         lastName: rest.lastName || '',
         statusId: customer.statusId ?? null,
@@ -243,20 +245,35 @@ export class CustomersController {
   }
 
   @Put()
-  async putCustomer(@Body() body: any) {
-    const id = Number(body.id)
-    const rawFirstName = typeof body.firstName === 'string' ? body.firstName : ''
-    const rawLastName = typeof body.lastName === 'string' ? body.lastName : ''
+  async putCustomer(@Body() dto: UpdateCustomerDto) {
+    const id = Number(dto.id ?? 0)
+    const personal =
+      dto.personalInfo && typeof dto.personalInfo === 'object'
+        ? dto.personalInfo
+        : {}
+    const rawFirstName =
+      typeof dto.firstName === 'string'
+        ? dto.firstName
+        : typeof personal.firstName === 'string'
+        ? personal.firstName
+        : ''
+    const rawLastName =
+      typeof dto.lastName === 'string'
+        ? dto.lastName
+        : typeof personal.lastName === 'string'
+        ? personal.lastName
+        : ''
     const firstName = rawFirstName.trim()
     const lastName = rawLastName.trim()
-    const name = body.name || [firstName, lastName].filter(Boolean).join(' ')
-    const personal = body.personalInfo || {}
+    const providedName =
+      typeof dto.name === 'string' && dto.name.trim().length ? dto.name.trim() : ''
+    const name = providedName || [firstName, lastName].filter(Boolean).join(' ')
 
     const coalesce = (primary: any, fallback: any) =>
       primary !== undefined ? primary : fallback
 
     const statusRaw =
-      body.statusId ?? body.status?.id ?? body.status ?? body.statusName ?? null
+      dto.statusId ?? dto.status?.id ?? (dto as any)?.status ?? dto.statusName ?? null
     let statusId: number | null | undefined
     if (statusRaw === null || statusRaw === undefined) {
       statusId = undefined
@@ -279,13 +296,13 @@ export class CustomersController {
     }
 
     const birthdaySource =
-      personal.birthday ?? body.birthday ?? body?.personalInfo?.birthday
+      personal.birthday ?? dto.birthday ?? dto.personalInfo?.birthday
 
-    const incomingPhones = Array.isArray(body.phoneNumbers)
-      ? body.phoneNumbers
+    const incomingPhones = Array.isArray(dto.phoneNumbers)
+      ? dto.phoneNumbers
       : Array.isArray(personal.phoneNumbers)
       ? personal.phoneNumbers
-      : [coalesce(personal.phoneNumber, body.phoneNumber)].filter(Boolean)
+      : [coalesce(personal.phoneNumber, dto.phoneNumber)].filter(Boolean)
 
     const phoneNumbers = (incomingPhones || [])
       .map((phone: any) => (typeof phone === 'string' ? phone.trim() : ''))
@@ -304,45 +321,74 @@ export class CustomersController {
     }
 
     const normalizedEmail =
-      typeof body.email === 'string' && body.email.trim().length
-        ? body.email.trim()
-        : null
+      dto.email === null
+        ? null
+        : typeof dto.email === 'string'
+        ? dto.email.trim()
+        : undefined
 
-    const data: any = {
+    const img = dto.img
+    const location = coalesce(personal.location, dto.location)
+    const titleValue = coalesce(personal.title, dto.title)
+    const facebookValue = coalesce(personal.facebook, dto.facebook)
+    const twitterValue = coalesce(personal.twitter, dto.twitter)
+    const pinterestValue = coalesce(personal.pinterest, dto.pinterest)
+    const linkedInValue = coalesce(personal.linkedIn, dto.linkedIn)
+
+    const createData: Prisma.CustomerUncheckedCreateInput = {
       name,
-      firstName,
+      firstName: firstName || null,
       lastName: lastName || null,
-      email: normalizedEmail,
-      img: body.img,
-      location: coalesce(personal.location, body.location),
-      title: coalesce(personal.title, body.title),
-      facebook: coalesce(personal.facebook, body.facebook),
-      twitter: coalesce(personal.twitter, body.twitter),
-      pinterest: coalesce(personal.pinterest, body.pinterest),
-      linkedIn: coalesce(personal.linkedIn, body.linkedIn),
+      phoneNumber: phoneNumbers[0] ?? null,
     }
 
-    data.phoneNumber = phoneNumbers[0] ?? null
-
+    if (img !== undefined) {
+      createData.img = img
+    }
+    if (location !== undefined) {
+      createData.location = location
+    }
+    if (titleValue !== undefined) {
+      createData.title = titleValue
+    }
+    if (facebookValue !== undefined) {
+      createData.facebook = facebookValue
+    }
+    if (twitterValue !== undefined) {
+      createData.twitter = twitterValue
+    }
+    if (pinterestValue !== undefined) {
+      createData.pinterest = pinterestValue
+    }
+    if (linkedInValue !== undefined) {
+      createData.linkedIn = linkedInValue
+    }
+    if (normalizedEmail !== undefined) {
+      createData.email =
+        typeof normalizedEmail === 'string' && normalizedEmail.length > 0
+          ? normalizedEmail
+          : null
+    }
     if (birthdaySource !== undefined) {
-      data.birthday = birthdaySource
+      createData.birthday = birthdaySource
         ? new Date(birthdaySource)
         : null
     }
-
     if (statusId !== undefined) {
-      data.statusId = statusId
+      createData.statusId = statusId
     }
+
+    const updateData: Prisma.CustomerUncheckedUpdateInput = { ...createData }
 
     let customer
     try {
       if (id) {
         customer = await this.prisma.customer.update({
           where: { id },
-          data,
+          data: updateData,
         })
       } else {
-        if (data.statusId === undefined) {
+        if (createData.statusId === undefined) {
           const activeStatus = await this.prisma.customerStatus.upsert({
             where: {
               name: 'Active',
@@ -353,10 +399,10 @@ export class CustomersController {
               color: '#10B981',
             },
           })
-          data.statusId = activeStatus.id
+          createData.statusId = activeStatus.id
         }
         customer = await this.prisma.customer.create({
-          data,
+          data: createData,
         })
       }
     } catch (error) {
@@ -383,8 +429,8 @@ export class CustomersController {
         })
       }
 
-      if (body.address) {
-        const addr = body.address || {}
+      if (dto.address) {
+        const addr = dto.address || {}
         const normalizeNullable = (value: unknown) => {
           if (value === undefined || value === null) {
             return null
@@ -450,6 +496,9 @@ export class CustomersController {
 
     return {
       ...rest,
+      firstName: rest.firstName || '',
+      lastName: rest.lastName || '',
+      email: rest.email || '',
       phoneNumber: rest.phoneNumber || finalPhoneNumbers[0] || null,
       phoneNumbers: finalPhoneNumbers,
     }
@@ -513,7 +562,7 @@ export class CustomersController {
       name: customer.name,
       firstName: customer.firstName || '',
       lastName: customer.lastName || '',
-      email: customer.email,
+      email: customer.email || '',
       img: customer.img || '',
       role: customer.title || '',
       lastOnline: Math.floor(customer.updatedAt.getTime() / 1000),
