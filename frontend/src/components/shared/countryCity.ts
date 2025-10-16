@@ -20,18 +20,34 @@ const pendingFetches = new Map<string, Promise<CityRow[]>>()
 
 const normalizeCountryKey = (value?: string) => (value || '').trim().toLowerCase()
 
+const parseCsvAsync = (text: string): Promise<CityRow[]> =>
+  new Promise((resolve, reject) => {
+    Papa.parse<CityRow>(text, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (header: string) => header.trim(),
+      worker: typeof Worker !== 'undefined',
+      fastMode: true,
+      complete: (results) => {
+        if (results.errors && results.errors.length) {
+          reject(new Error(results.errors[0]?.message || 'Error parsing CSV'))
+          return
+        }
+        resolve(results.data)
+      },
+      error: (error) => {
+        reject(error)
+      },
+    })
+  })
+
 const fetchRows = async (csvUrl: string): Promise<CityRow[]> => {
   const response = await fetch(csvUrl, { cache: 'force-cache' })
   if (!response.ok) {
     throw new Error(`No se pudo cargar CSV: ${response.status}`)
   }
   const text = await response.text()
-  const parsed = Papa.parse<CityRow>(text, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: (header: string) => header.trim(),
-  })
-  return parsed.data
+  return parseCsvAsync(text)
 }
 
 const ensureRows = async (csvUrl: string): Promise<CityRow[]> => {
