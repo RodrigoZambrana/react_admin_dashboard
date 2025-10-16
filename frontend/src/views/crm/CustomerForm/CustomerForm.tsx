@@ -102,9 +102,21 @@ const addressSchema = (t: (k: string) => string) =>
 // ─────────────────────────────────────────────────────────────
 const useValidationSchema = (t: (k: string) => string) =>
     Yup.object().shape({
-        email: Yup.string().email(t('text.validation.invalidEmail')).required(t('text.validation.emailRequired')),
+        email: Yup.string()
+            .trim()
+            .email(t('text.validation.invalidEmail'))
+            .nullable()
+            .transform((value, originalValue) => {
+                const trimmed = originalValue?.trim?.() ?? ''
+                return trimmed === '' ? null : value
+            }),
         firstName: Yup.string().required(t('text.validation.userNameRequired')),
-        lastName: Yup.string().required(t('text.validation.userNameRequired')),
+        lastName: Yup.string()
+            .nullable()
+            .transform((value, originalValue) => {
+                const trimmed = originalValue?.trim?.() ?? ''
+                return trimmed === '' ? null : value
+            }),
         location: Yup.string(),
         phoneNumbers: Yup.array()
             .of(
@@ -123,7 +135,13 @@ const useValidationSchema = (t: (k: string) => string) =>
                     })
             )
             .compact((v) => v == null)
-            .min(0),
+            .test(
+                'at-least-one-phone',
+                t('text.validation.phoneNumberRequired', {
+                    defaultValue: 'Phone number is required.',
+                }),
+                (values) => (values || []).some((value) => typeof value === 'string' && value.trim().length > 0),
+            ),
         facebook: Yup.string(),
         twitter: Yup.string(),
         pinterest: Yup.string(),

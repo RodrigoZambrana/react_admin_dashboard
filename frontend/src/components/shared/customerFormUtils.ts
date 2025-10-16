@@ -9,10 +9,14 @@ export const composeCustomerPayload = (
     values: CustomerFormModel,
     customer?: (CustomerProps & { id?: string | number }) | null,
 ): CustomerUpsertPayload => {
+    const normalizedFirstName = String(values.firstName || '').trim()
+    const normalizedLastName = String(values.lastName || '').trim()
+    const normalizedEmail = String(values.email || '').trim()
+
     const payload: CustomerUpsertPayload = {
-        firstName: values.firstName,
-        lastName: values.lastName,
-        email: values.email,
+        firstName: normalizedFirstName,
+        lastName: normalizedLastName || undefined,
+        email: normalizedEmail || undefined,
         img: values.img,
         phoneNumber: values.phoneNumber,
         phoneNumbers: values.phoneNumbers,
@@ -53,7 +57,7 @@ export const composeCustomerPayload = (
         }
     }
 
-    const computedName = [values.firstName, values.lastName]
+    const computedName = [normalizedFirstName, normalizedLastName]
         .map((part) => String(part || '').trim())
         .filter((part) => part.length > 0)
         .join(' ')

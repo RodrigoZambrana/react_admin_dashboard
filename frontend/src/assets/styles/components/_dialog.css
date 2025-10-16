@@ -1,7 +1,7 @@
 @layer components {
   .dialog {
     outline: none;
-    @apply mx-auto;
+    @apply mx-auto w-full;
   }
 
   @screen sm {
@@ -29,12 +29,12 @@
   }
 
   .dialog-content {
-    @apply p-6 rounded-lg shadow-xl sm:my-16 relative h-full bg-white dark:bg-gray-800;
+    @apply p-6 rounded-lg shadow-xl relative max-h-[90vh] bg-white dark:bg-gray-800 overflow-y-auto;
   }
 
   .dialog-overlay {
     transition: all 0.15s ease-in-out;
-    @apply inset-0 fixed z-30 bg-black/60 dark:bg-black/80;
+    @apply inset-0 fixed z-30 bg-black/60 dark:bg-black/80 flex items-center justify-center p-4;
   }
 
   .dialog-overlay-after-open {

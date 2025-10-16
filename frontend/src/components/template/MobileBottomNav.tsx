@@ -1,10 +1,10 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, matchPath } from 'react-router-dom'
 import classNames from 'classnames'
 import {
-    HiOutlineCalendar,
     HiOutlineClipboardList,
     HiOutlineHome,
+    HiOutlineMenuAlt2,
     HiOutlinePlusCircle,
     HiOutlineUserAdd,
 } from 'react-icons/hi'
@@ -19,10 +19,13 @@ type MobileNavItem = {
     icon: IconType
     to?: string
     action?: () => void
+    skipCloseAll?: boolean
 }
 
 const NAV_HEIGHT = 72
-const NAV_SPACER = NAV_HEIGHT + 16
+const NAV_GAP = 12
+const SAFE_AREA_INSET = 'env(safe-area-inset-bottom, 0px)'
+const NAV_PLACEHOLDER_HEIGHT = `calc(${NAV_HEIGHT}px + ${NAV_GAP}px + ${SAFE_AREA_INSET})`
 
 const MobileBottomNav = () => {
     const { smaller } = useResponsive()
@@ -46,8 +49,21 @@ const MobileBottomNav = () => {
         setCustomerDrawerOpen(false)
     }, [])
 
+    const openMobileMenu = useCallback(() => {
+        window.dispatchEvent(new Event('app:mobile-nav-toggle'))
+    }, [])
+
     const navItems = useMemo<MobileNavItem[]>(
         () => [
+            {
+                key: 'menu',
+                label: t('text.mobileNav.menu', {
+                    defaultValue: 'Menu',
+                }),
+                icon: HiOutlineMenuAlt2,
+                action: openMobileMenu,
+                skipCloseAll: true,
+            },
             {
                 key: 'home',
                 label: t('text.mobileNav.home', { defaultValue: 'Home' }),
@@ -61,14 +77,6 @@ const MobileBottomNav = () => {
                 }),
                 icon: HiOutlineClipboardList,
                 to: '/app/calendar/activities',
-            },
-            {
-                key: 'calendar',
-                label: t('text.mobileNav.calendar', {
-                    defaultValue: 'Calendar',
-                }),
-                icon: HiOutlineCalendar,
-                to: '/app/calendar/schedule',
             },
             {
                 key: 'addCustomer',
@@ -87,12 +95,15 @@ const MobileBottomNav = () => {
                 to: '/app/sales/order-new',
             },
         ],
-        [t, openCustomerDrawer],
+        [t, openCustomerDrawer, openMobileMenu],
     )
 
     const handleItemClick = (item: MobileNavItem) => {
         if (item.action) {
-            broadcastDrawerClose()
+            closeCustomerDrawer()
+            if (!item.skipCloseAll) {
+                broadcastDrawerClose()
+            }
             item.action()
             return
         }
@@ -102,6 +113,10 @@ const MobileBottomNav = () => {
             navigate(item.to)
         }
     }
+
+    const isCustomerNavActive = useMemo(() => {
+        return location.pathname === '/app/sales/order-new'
+    }, [location.pathname])
 
     const isItemActive = (item: MobileNavItem) => {
         if (!item.to) {
@@ -116,6 +131,22 @@ const MobileBottomNav = () => {
         )
     }
 
+    useEffect(() => {
+        if (!showNav) {
+            return
+        }
+        const previousPadding = document.body.style.paddingBottom
+        document.body.style.paddingBottom = SAFE_AREA_INSET
+        document.body.style.setProperty(
+            '--mobile-bottom-nav-offset',
+            NAV_PLACEHOLDER_HEIGHT,
+        )
+        return () => {
+            document.body.style.paddingBottom = previousPadding
+            document.body.style.removeProperty('--mobile-bottom-nav-offset')
+        }
+    }, [showNav])
+
     if (!showNav) {
         return null
     }
@@ -124,17 +155,25 @@ const MobileBottomNav = () => {
         <>
             <div
                 className="md:hidden"
-                style={{ height: `${NAV_SPACER}px` }}
+                style={{
+                    height: NAV_PLACEHOLDER_HEIGHT,
+                }}
                 aria-hidden="true"
             />
             <nav
                 className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-900/95 backdrop-blur"
-                style={{ height: `${NAV_HEIGHT}px` }}
+                style={{
+                    height: `${NAV_HEIGHT}px`,
+                    paddingBottom: SAFE_AREA_INSET,
+                }}
             >
                 <ul className="flex h-full items-center justify-between px-2 pt-2 pb-3">
                     {navItems.map((item) => {
                         const ActiveIcon = item.icon
-                        const active = isItemActive(item)
+                        const active =
+                            item.key === 'addCustomer'
+                                ? isCustomerNavActive || isCustomerDrawerOpen
+                                : isItemActive(item)
                         return (
                             <li key={item.key} className="flex-1">
                                 <button

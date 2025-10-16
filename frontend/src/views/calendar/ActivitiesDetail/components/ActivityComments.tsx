@@ -2,8 +2,11 @@ import { useMemo, useState } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import Avatar from '@/components/ui/Avatar'
-import { HiOutlineChatAlt2, HiOutlinePencil, HiOutlineTrash } from 'react-icons/hi'
+import {
+    HiOutlineChatAlt2,
+    HiOutlinePencil,
+    HiOutlineTrash,
+} from 'react-icons/hi'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
 import Notification from '@/components/ui/Notification'
@@ -11,6 +14,8 @@ import toast from '@/components/ui/toast'
 import { useAppDispatch, useAppSelector, addComment, updateComment, removeComment } from '../store'
 import { useSelector } from 'react-redux'
 import type { RootState } from '@/store'
+import UserAvatar from '@/components/shared/UserAvatar'
+import { resolveAvatarSrc } from '@/utils/avatar'
 
 type ActivityCommentsProps = {
     activityId: string
@@ -23,6 +28,7 @@ const ActivityComments = ({ activityId }: ActivityCommentsProps) => {
         (state) => state.calendarActivityDetails.data.profileData.comments,
     )
     const currentUser = useSelector((state: RootState) => state.auth.user)
+    const currentUserAvatar = resolveAvatarSrc(currentUser?.avatar)
     const [message, setMessage] = useState('')
     const [submitting, setSubmitting] = useState(false)
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
@@ -181,50 +187,58 @@ const ActivityComments = ({ activityId }: ActivityCommentsProps) => {
                                     })}
                                 </p>
                             )}
-                            {sortedComments.map((comment) => (
-                                <div key={comment.id} className="flex">
-                                    <Avatar
-                                        size={40}
-                                        src={comment.author?.img || '/img/avatars/thumb-1.jpg'}
-                                        shape="circle"
-                                    />
-                                    <div className="ml-2 rtl:mr-2 p-3 rounded-sm w-full bg-gray-50 dark:bg-gray-700/40">
-                                        <div className="flex items-start justify-between gap-3 mb-2">
-                                            <div className="flex flex-wrap items-center text-xs text-gray-500 dark:text-gray-400 gap-2">
-                                                <span className="font-semibold text-gray-900 dark:text-gray-100">
-                                                    {comment.author?.name || comment.author?.email ||
-                                                        t('calendar.comments.anonymous', {
-                                                            defaultValue: 'Usuario',
-                                                        })}
-                                                </span>
-                                                <span className="text-gray-400">•</span>
-                                                <span>{dayjs(comment.createdAt).format('DD MMM YYYY HH:mm')}</span>
-                                            </div>
-                                            {canModifyComment(comment) && editingCommentId !== comment.id && (
-                                                <div className="flex items-center gap-1">
-                                                    <Button
-                                                        size="xs"
-                                                        variant="plain"
-                                                        icon={<HiOutlinePencil />}
-                                                        onClick={() => beginEdit(comment.id, comment.message)}
-                                                    >
-                                                        {t('calendar.comments.edit', {
-                                                            defaultValue: 'Editar',
-                                                        })}
-                                                    </Button>
-                                                    <Button
-                                                        size="xs"
-                                                        variant="plain"
-                                                        icon={<HiOutlineTrash />}
-                                                        loading={deletingId === comment.id}
-                                                        onClick={() => handleDeleteComment(comment.id)}
-                                                    >
-                                                        {t('calendar.comments.delete', {
-                                                            defaultValue: 'Eliminar',
-                                                        })}
-                                                    </Button>
+                            {sortedComments.map((comment) => {
+                                const authorAvatar =
+                                    resolveAvatarSrc(comment.author?.img) ??
+                                    resolveAvatarSrc(
+                                        (comment.author as { avatar?: string | null })?.avatar,
+                                    )
+                                return (
+                                    <div key={comment.id} className="flex">
+                                        <UserAvatar
+                                            size={40}
+                                            src={authorAvatar}
+                                            shape="circle"
+                                        />
+                                        <div className="ml-2 rtl:mr-2 p-3 rounded-sm w-full bg-gray-50 dark:bg-gray-700/40">
+                                            <div className="flex items-start justify-between gap-3 mb-2">
+                                                <div className="flex flex-wrap items-center text-xs text-gray-500 dark:text-gray-400 gap-2">
+                                                    <span className="font-semibold text-gray-900 dark:text-gray-100">
+                                                        {comment.author?.name || comment.author?.email ||
+                                                            t('calendar.comments.anonymous', {
+                                                                defaultValue: 'Usuario',
+                                                            })}
+                                                    </span>
+                                                    <span className="text-gray-400">•</span>
+                                                    <span>
+                                                        {dayjs(comment.createdAt).format('DD MMM YYYY HH:mm')}
+                                                    </span>
                                                 </div>
-                                            )}
+                                                {canModifyComment(comment) && editingCommentId !== comment.id && (
+                                                    <div className="flex items-center gap-1">
+                                                        <Button
+                                                            size="xs"
+                                                            variant="plain"
+                                                            icon={<HiOutlinePencil />}
+                                                            onClick={() => beginEdit(comment.id, comment.message)}
+                                                        >
+                                                            {t('calendar.comments.edit', {
+                                                                defaultValue: 'Editar',
+                                                            })}
+                                                        </Button>
+                                                        <Button
+                                                            size="xs"
+                                                            variant="plain"
+                                                            icon={<HiOutlineTrash />}
+                                                            loading={deletingId === comment.id}
+                                                            onClick={() => handleDeleteComment(comment.id)}
+                                                        >
+                                                            {t('calendar.comments.delete', {
+                                                                defaultValue: 'Eliminar',
+                                                            })}
+                                                        </Button>
+                                                    </div>
+                                                )}
                                         </div>
                                         {editingCommentId === comment.id ? (
                                             <div className="flex flex-col gap-3">
@@ -271,12 +285,13 @@ const ActivityComments = ({ activityId }: ActivityCommentsProps) => {
                                         )}
                                     </div>
                                 </div>
-                            ))}
+                                )
+                            })}
                         </div>
                         <div className="flex items-start gap-3">
-                            <Avatar
+                            <UserAvatar
                                 size={40}
-                                src={currentUser?.avatar || '/img/avatars/thumb-1.jpg'}
+                                src={currentUserAvatar}
                                 shape="circle"
                             />
                             <div className="flex-1">

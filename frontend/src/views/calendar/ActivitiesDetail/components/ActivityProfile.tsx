@@ -127,13 +127,16 @@ const ActivityProfile = ({ data = {}, onEdit }: ActivityProfileProps) => {
     }, [data.allDay, data.time, end, start, t])
 
     const eventTypeLabel = useMemo(() => {
-        const role = (data.role || '').toLowerCase()
-        const fallback = data.eventType || data.role || '-'
+        const explicit = (data.eventType || '').trim()
+        if (explicit.length) {
+            return explicit
+        }
+        const role = (data.role || '').trim().toLowerCase()
         if (!role) {
-            return fallback
+            return data.role || '-'
         }
         return t(`calendar.eventTypes.${role}`, {
-            defaultValue: fallback,
+            defaultValue: data.role || '-',
         })
     }, [data.eventType, data.role, t])
 

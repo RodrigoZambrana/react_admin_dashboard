@@ -4,6 +4,9 @@ import Container from '@/components/shared/Container'
 import EventDialog from './components/EventDialog'
 import Button from '@/components/ui/Button'
 import Dialog from '@/components/ui/Dialog'
+import Notification from '@/components/ui/Notification'
+import toast from '@/components/ui/toast'
+import { HiOutlineTrash, HiPencilAlt } from 'react-icons/hi'
 import reducer, {
     getEvents,
     setSelected,
@@ -17,7 +20,13 @@ import reducer, {
 } from './store'
 import { injectReducer } from '@/store'
 import dayjs, { type Dayjs } from 'dayjs'
-import type { EventDropArg, EventClickArg, DateSelectArg } from '@fullcalendar/core'
+import type {
+    EventDropArg,
+    EventClickArg,
+    DateSelectArg,
+    DayCellMountArg,
+    DayCellUnmountArg,
+} from '@fullcalendar/core'
 import esLocale from '@fullcalendar/core/locales/es'
 import { useTranslation } from 'react-i18next'
 
@@ -39,6 +48,7 @@ const Calendar = () => {
     const fcLocale = i18n.language && i18n.language.startsWith('es') ? 'es' : 'en'
     const [isMobile, setIsMobile] = useState(false)
     const [mobileDayDialog, setMobileDayDialog] = useState<MobileDayDialogState | null>(null)
+    const [mobileDeletingId, setMobileDeletingId] = useState<string | null>(null)
 
     useEffect(() => {
         dispatch(getEvents())
@@ -151,10 +161,17 @@ const Calendar = () => {
 
     const tryOpenMobileDayDialog = useCallback(
         (targetDate: Dayjs, viewType: string) => {
-            if (!isMobile || viewType !== 'dayGridMonth') {
+            const windowWidth =
+                typeof window !== 'undefined' ? window.innerWidth : null
+            const shouldOpen =
+                (viewType === 'dayGridMonth' ||
+                    viewType.startsWith('timeGrid')) &&
+                (isMobile || (windowWidth !== null && windowWidth <= 1024))
+            if (!shouldOpen) {
                 return false
             }
-            const dayEvents = findEventsForDay(targetDate)
+            const normalizedDate = targetDate.startOf('day')
+            const dayEvents = findEventsForDay(normalizedDate)
             if (dayEvents.length === 0) {
                 return false
             }
@@ -165,7 +182,7 @@ const Calendar = () => {
                         dayjs(a.start).valueOf() - dayjs(b.start).valueOf(),
                 )
             setMobileDayDialog({
-                date: targetDate.startOf('day'),
+                date: normalizedDate,
                 events: sorted,
                 viewType,
             })
@@ -211,6 +228,11 @@ const Calendar = () => {
         [t],
     )
 
+    const onDelete = useCallback(
+        (id: string) => dispatch(deleteCalendarEvent(id)).unwrap(),
+        [dispatch],
+    )
+
     const handleMobileEventEdit = useCallback(
         (eventId: string) => {
             const source =
@@ -226,6 +248,125 @@ const Calendar = () => {
             closeMobileDayDialog()
         },
         [closeMobileDayDialog, dispatchEditSelection, events, mobileDayDialog],
+    )
+
+    const handleMobileEventDelete = useCallback(
+        (eventId: string) => {
+            const source =
+                events.find((evt) => String(evt.id) === String(eventId)) ||
+                mobileDayDialog?.events.find(
+                    (evt) => String(evt.id) === String(eventId),
+                )
+            if (!source) {
+                return
+            }
+            const message = t('calendar.confirmDelete', {
+                defaultValue:
+                    '¿Eliminar el evento "{{title}}"? Esta acción no se puede deshacer.',
+                title:
+                    source.title ||
+                    t('calendar.labels.untitled', {
+                        defaultValue: 'Evento sin título',
+                    }),
+            })
+
+            let toastKey: string | undefined
+
+            const closeToast = () => {
+                if (toastKey) {
+                    toast.remove(toastKey)
+                }
+            }
+
+            const confirmDeletion = async () => {
+                closeToast()
+                setMobileDeletingId(eventId)
+                try {
+                    await onDelete(eventId)
+                    let shouldClose = false
+                    setMobileDayDialog((prev) => {
+                        if (!prev) {
+                            return prev
+                        }
+                        const remaining = prev.events.filter(
+                            (evt) => String(evt.id) !== String(eventId),
+                        )
+                        if (remaining.length === 0) {
+                            shouldClose = true
+                        }
+                        return {
+                            ...prev,
+                            events: remaining,
+                        }
+                    })
+                    if (shouldClose) {
+                        closeMobileDayDialog()
+                    }
+                } finally {
+                    setMobileDeletingId((current) =>
+                        current === eventId ? null : current,
+                    )
+                }
+            }
+
+            const notification = (
+                <Notification
+                    type="warning"
+                    title={t('common.confirmation', {
+                        defaultValue: 'Confirmación',
+                    })}
+                    duration={0}
+                    closable
+                >
+                    <div className="space-y-3">
+                        <p>{message}</p>
+                        <div className="flex justify-end gap-2">
+                            <Button
+                                size="sm"
+                                variant="plain"
+                                onClick={closeToast}
+                            >
+                                {t('text.actions.cancel', {
+                                    defaultValue: 'Cancelar',
+                                })}
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="solid"
+                                color="red"
+                                loading={mobileDeletingId === eventId}
+                                onClick={confirmDeletion}
+                            >
+                                {t('text.actions.delete', {
+                                    defaultValue: 'Eliminar',
+                                })}
+                            </Button>
+                        </div>
+                    </div>
+                </Notification>
+            )
+
+            const keyOrPromise = toast.push(notification, {
+                placement: 'top-center',
+                duration: 0,
+            })
+
+            if (keyOrPromise instanceof Promise) {
+                keyOrPromise.then((key) => {
+                    toastKey = key
+                })
+            } else {
+                toastKey = keyOrPromise
+            }
+        },
+        [
+            closeMobileDayDialog,
+            events,
+            mobileDayDialog,
+            mobileDeletingId,
+            onDelete,
+            t,
+        ],
     )
 
     const handleMobileCreate = useCallback(() => {
@@ -264,6 +405,7 @@ const Calendar = () => {
         const eventStart = arg.event.start ? dayjs(arg.event.start) : dayjs()
         if (tryOpenMobileDayDialog(eventStart, viewType)) {
             arg.jsEvent?.preventDefault()
+            arg.jsEvent?.stopPropagation?.()
             return
         }
         const { start, end, id, title } = arg.event
@@ -337,7 +479,49 @@ const Calendar = () => {
         }
     }
 
-    const onDelete = (id: string) => dispatch(deleteCalendarEvent(id)).unwrap()
+    const attachMonthCellHandlers = useCallback(
+        (arg: DayCellMountArg) => {
+            const windowWidth =
+                typeof window !== 'undefined' ? window.innerWidth : null
+            const shouldAttach =
+                arg.view.type === 'dayGridMonth' &&
+                (isMobile || (windowWidth !== null && windowWidth <= 1024))
+            if (!shouldAttach) {
+                return
+            }
+            const el = arg.el as HTMLElement & {
+                __dayClickHandler__?: (event: Event) => void
+            }
+            const handler = (event: Event) => {
+                const jsEvent =
+                    event instanceof MouseEvent
+                        ? event
+                        : new MouseEvent('click', { bubbles: true })
+                arg.view.calendar.trigger('dateClick', {
+                    date: arg.date,
+                    allDay: arg.allDay ?? true,
+                    dayEl: arg.dayEl,
+                    jsEvent,
+                    view: arg.view,
+                })
+            }
+            el.classList.add('cursor-pointer')
+            el.addEventListener('click', handler, true)
+            el.__dayClickHandler__ = handler
+        },
+        [isMobile],
+    )
+
+    const detachMonthCellHandlers = useCallback((arg: DayCellUnmountArg) => {
+        const el = arg.el as HTMLElement & {
+            __dayClickHandler__?: (event: Event) => void
+        }
+        if (el.__dayClickHandler__) {
+            el.removeEventListener('click', el.__dayClickHandler__, true)
+            delete el.__dayClickHandler__
+        }
+        el.classList.remove('cursor-pointer')
+    }, [])
 
     const onEventChange = (arg: EventDropArg) => {
         const existing = events.find((event) => event.id === arg.event.id)
@@ -378,6 +562,8 @@ const Calendar = () => {
                 eventDrop={onEventChange}
                 eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
                 slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
+                dayCellDidMount={attachMonthCellHandlers}
+                dayCellWillUnmount={detachMonthCellHandlers}
             />
             <EventDialog submit={onSubmit} onDelete={onDelete} />
             <Dialog
@@ -405,16 +591,17 @@ const Calendar = () => {
                         <div className="space-y-3">
                             {mobileDayDialog.events.map((event) => {
                                 const color = resolveEventColor(event)
+                                const id = String(event.id)
                                 return (
                                     <div
                                         key={event.id}
                                         role="button"
                                         tabIndex={0}
-                                        onClick={() => handleMobileEventEdit(String(event.id))}
+                                        onClick={() => handleMobileEventEdit(id)}
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter' || e.key === ' ') {
                                                 e.preventDefault()
-                                                handleMobileEventEdit(String(event.id))
+                                                handleMobileEventEdit(id)
                                             }
                                         }}
                                         className="flex items-start justify-between gap-3 rounded-md border border-gray-200 p-3 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-primary-400"
@@ -436,9 +623,35 @@ const Calendar = () => {
                                                 </p>
                                             </div>
                                         </div>
-                                        <span className="text-xs font-semibold uppercase text-primary-600 dark:text-primary-300">
-                                            {t('text.actions.edit', { defaultValue: 'Editar' })}
-                                        </span>
+                                        <div className="flex flex-col items-end gap-1">
+                                            <Button
+                                                size="xs"
+                                                variant="solid"
+                                                icon={<HiPencilAlt className="text-base" />}
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handleMobileEventEdit(id)
+                                                }}
+                                            >
+                                                {t('text.actions.edit', {
+                                                    defaultValue: 'Editar',
+                                                })}
+                                            </Button>
+                                            <Button
+                                                size="xs"
+                                                icon={<HiOutlineTrash className="text-base" />}
+                                                color="red-600"
+                                                loading={mobileDeletingId === id}
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handleMobileEventDelete(id)
+                                                }}
+                                            >
+                                                {t('text.actions.delete', {
+                                                    defaultValue: 'Eliminar',
+                                                })}
+                                            </Button>
+                                        </div>
                                     </div>
                                 )
                             })}

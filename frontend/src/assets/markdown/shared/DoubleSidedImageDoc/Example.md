@@ -6,7 +6,7 @@ const Example = () => {
         <DoubleSidedImage
             src="/img/logo/logo-light-full.png"
             darkModeSrc="/img/logo/logo-dark-full.png"
-            alt="elstar"
+            alt="sistema-administrativo"
         />
     )
 }

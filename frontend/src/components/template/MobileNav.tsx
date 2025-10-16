@@ -1,4 +1,4 @@
-import { useState, Suspense, lazy } from 'react'
+import { useState, Suspense, lazy, useCallback, useEffect } from 'react'
 import classNames from 'classnames'
 import Drawer from '@/components/ui/Drawer'
 import {
@@ -11,6 +11,7 @@ import NavToggle from '@/components/shared/NavToggle'
 import navigationConfig from '@/configs/navigation.config'
 import useResponsive from '@/utils/hooks/useResponsive'
 import { useAppSelector } from '@/store'
+import { useTranslation } from 'react-i18next'
 
 const VerticalMenuContent = lazy(
     () => import('@/components/template/VerticalMenuContent'),
@@ -26,14 +27,15 @@ const MobileNavToggle = withHeaderItem<
 
 const MobileNav = () => {
     const [isOpen, setIsOpen] = useState(false)
+    const { t } = useTranslation()
 
-    const openDrawer = () => {
+    const openDrawer = useCallback(() => {
         setIsOpen(true)
-    }
+    }, [])
 
-    const onDrawerClose = () => {
+    const onDrawerClose = useCallback(() => {
         setIsOpen(false)
-    }
+    }, [])
 
     const themeColor = useAppSelector((state) => state.theme.themeColor)
     const primaryColorLevel = useAppSelector(
@@ -49,6 +51,20 @@ const MobileNav = () => {
     const userAuthority = useAppSelector((state) => state.auth.user.authority)
 
     const { smaller } = useResponsive()
+
+    useEffect(() => {
+        const openHandler = () => openDrawer()
+        const toggleHandler = () => setIsOpen((prev) => !prev)
+        const closeHandler = () => setIsOpen(false)
+        window.addEventListener('app:mobile-nav-open', openHandler)
+        window.addEventListener('app:mobile-nav-toggle', toggleHandler)
+        window.addEventListener('app:drawer-close-all', closeHandler)
+        return () => {
+            window.removeEventListener('app:mobile-nav-open', openHandler)
+            window.removeEventListener('app:mobile-nav-toggle', toggleHandler)
+            window.removeEventListener('app:drawer-close-all', closeHandler)
+        }
+    }, [openDrawer])
 
     const navColor = () => {
         if (navMode === NAV_MODE_THEMED) {
@@ -66,9 +82,20 @@ const MobileNav = () => {
         <>
             {smaller.md && (
                 <>
-                    <div className="text-2xl" onClick={openDrawer}>
-                        <MobileNavToggle toggled={isOpen} />
-                    </div>
+                    <button
+                        type="button"
+                        className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-200"
+                        onClick={openDrawer}
+                        aria-expanded={isOpen}
+                        aria-label={t('text.mobileNav.menu', {
+                            defaultValue: 'Menu',
+                        })}
+                    >
+                        <span className="text-2xl leading-none">
+                            <MobileNavToggle toggled={isOpen} />
+                        </span>
+                        <span>{t('text.mobileNav.menu', { defaultValue: 'Menu' })}</span>
+                    </button>
                     <Drawer
                         title="Navigation"
                         isOpen={isOpen}

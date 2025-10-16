@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import Input from '@/components/ui/Input'
-import Avatar from '@/components/ui/Avatar'
 import Upload from '@/components/ui/Upload'
 import Button from '@/components/ui/Button'
 import Select from '@/components/ui/Select'
@@ -25,6 +24,9 @@ import type { OptionProps, ControlProps } from 'react-select'
 import type { FieldProps, FormikHelpers, FormikProps } from 'formik'
 import { apiUpdateAccountProfile } from '@/services/AccountServices'
 import type { AxiosError } from 'axios'
+import Avatar from '@/components/ui/Avatar'
+import UserAvatar from '@/components/shared/UserAvatar'
+import { resolveAvatarSrc } from '@/utils/avatar'
 
 export type ProfileFormModel = {
     firstName: string
@@ -178,12 +180,15 @@ const Profile = ({ data = {} }: ProfileProps) => {
         ? 'es'
         : 'en'
 
+    const initialAvatar =
+        resolveAvatarSrc(data.avatar) ?? resolveAvatarSrc(authUser?.avatar) ?? ''
+
     const initialValues: ProfileFormModel = {
         firstName: data.firstName ?? fallbackFirstName ?? '',
         lastName:
             data.lastName ?? fallbackLastName ?? (authUser?.lastName ?? ''),
         email: data.email || authUser?.email || '',
-        avatar: data.avatar || authUser?.avatar || '',
+        avatar: initialAvatar,
         lang: data.lang || normalizedLang,
         avatarFile: null,
     }
@@ -331,9 +336,6 @@ const Profile = ({ data = {} }: ProfileProps) => {
                             >
                                 <Field name="avatar">
                                     {({ field, form }: FieldProps<string>) => {
-                                        const avatarProps = field.value
-                                            ? { src: field.value }
-                                            : {}
                                         return (
                                             <Upload
                                                 className="cursor-pointer"
@@ -346,12 +348,11 @@ const Profile = ({ data = {} }: ProfileProps) => {
                                                     handleSetAvatar(form, files)
                                                 }
                                             >
-                                                <Avatar
+                                                <UserAvatar
                                                     className="border-2 border-white dark:border-gray-800 shadow-lg"
                                                     size={60}
                                                     shape="circle"
-                                                    icon={<HiOutlineUser />}
-                                                    {...avatarProps}
+                                                    src={field.value}
                                                 />
                                             </Upload>
                                         )

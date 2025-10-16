@@ -1,4 +1,4 @@
-# elstar-ts
+# sistema-administrativo
 
 ## Configuración de Google reCAPTCHA
 

@@ -245,8 +245,10 @@ export class CustomersController {
   @Put()
   async putCustomer(@Body() body: any) {
     const id = Number(body.id)
-    const firstName = body.firstName || ''
-    const lastName = body.lastName || ''
+    const rawFirstName = typeof body.firstName === 'string' ? body.firstName : ''
+    const rawLastName = typeof body.lastName === 'string' ? body.lastName : ''
+    const firstName = rawFirstName.trim()
+    const lastName = rawLastName.trim()
     const name = body.name || [firstName, lastName].filter(Boolean).join(' ')
     const personal = body.personalInfo || {}
 
@@ -289,11 +291,28 @@ export class CustomersController {
       .map((phone: any) => (typeof phone === 'string' ? phone.trim() : ''))
       .filter((phone: string) => phone.length > 0)
 
+    if (!phoneNumbers.length) {
+      throw new BadRequestException({
+        message: 'text.validation.phoneNumberRequired',
+        errors: [
+          {
+            field: 'phoneNumbers',
+            key: 'text.validation.phoneNumberRequired',
+          },
+        ],
+      })
+    }
+
+    const normalizedEmail =
+      typeof body.email === 'string' && body.email.trim().length
+        ? body.email.trim()
+        : null
+
     const data: any = {
       name,
       firstName,
-      lastName,
-      email: body.email,
+      lastName: lastName || null,
+      email: normalizedEmail,
       img: body.img,
       location: coalesce(personal.location, body.location),
       title: coalesce(personal.title, body.title),

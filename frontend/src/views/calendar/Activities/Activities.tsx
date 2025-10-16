@@ -624,7 +624,7 @@ const CalendarActivities = () => {
     return (
         <Container>
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-                <div className="order-1 xl:order-1 xl:col-span-12">
+                <div className="order-2 xl:order-2 xl:col-span-12">
                     <Card>
                         <h5 className="mb-4">
                             {t('calendar.calendarTitle', { defaultValue: 'Calendario' })}
@@ -674,7 +674,7 @@ const CalendarActivities = () => {
                         />
                     </Card>
                 </div>
-                <div className="order-2 xl:order-2 xl:col-span-12">
+                <div className="order-3 xl:order-3 xl:col-span-12">
                     <Card>
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                             <h5>
@@ -710,7 +710,7 @@ const CalendarActivities = () => {
                         )}
                     </Card>
                 </div>
-                <div className="order-3 xl:order-3 xl:col-span-6">
+                <div className="order-1 xl:order-1 xl:col-span-12">
                     <Card>
                         <div className="flex flex-col gap-4">
                             <div className="flex flex-col gap-3">
@@ -759,7 +759,7 @@ const CalendarActivities = () => {
                         </div>
                     </Card>
                 </div>
-                <div className="order-4 xl:order-4 xl:col-span-6">
+                <div className="order-4 xl:order-4 xl:col-span-12">
                     <Card>
                         <h5 className="mb-4">
                             {t('calendar.upcomingActivities', {
