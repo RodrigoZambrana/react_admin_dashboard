@@ -16,7 +16,7 @@ export const composeCustomerPayload = (
     const payload: CustomerUpsertPayload = {
         firstName: normalizedFirstName,
         lastName: normalizedLastName || undefined,
-        email: normalizedEmail || undefined,
+        email: normalizedEmail.length > 0 ? normalizedEmail : null,
         img: values.img,
         phoneNumber: values.phoneNumber,
         phoneNumbers: values.phoneNumbers,
