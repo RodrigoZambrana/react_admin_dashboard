@@ -320,8 +320,12 @@ export class CustomersController {
       })
     }
 
-    const normalizedEmail =
-      typeof dto.email === 'string' ? dto.email.trim() : undefined
+    const emailSource =
+      dto.email !== undefined
+        ? dto.email
+        : personal.email !== undefined
+        ? personal.email
+        : undefined
 
     const img = dto.img
     const location = coalesce(personal.location, dto.location)
@@ -359,8 +363,8 @@ export class CustomersController {
     if (linkedInValue !== undefined) {
       createData.linkedIn = linkedInValue
     }
-    if (normalizedEmail !== undefined) {
-      createData.email = normalizedEmail.length ? normalizedEmail : null
+    if (emailSource !== undefined) {
+      createData.email = emailSource
     }
     if (birthdaySource !== undefined) {
       createData.birthday = birthdaySource
