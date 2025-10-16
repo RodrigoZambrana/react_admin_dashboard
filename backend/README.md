@@ -14,6 +14,13 @@ Quick Start
 - Seed base data: `npm run prisma:seed`
 - Start dev server: `npm run start:dev`
 
+Aplicar nuevas migraciones en un entorno existente
+- Posicionate en la carpeta del backend: `cd backend`
+- Instala (o actualiza) dependencias si todavía no están presentes: `npm install`
+- Generá el cliente de Prisma para que los tipos reflejen los cambios: `npm run prisma:generate`
+- Aplicá todas las migraciones pendientes contra la base configurada en `DATABASE_URL`: `npm run prisma:migrate`
+- Si necesitás correrlo sin los scripts de npm (por ejemplo en una plataforma en la que sólo tenés acceso al binario), ejecutá `npx prisma migrate deploy`
+
 Environment Configuration & Deployment Notes
 - Cookie behaviour: `AuthController.buildAuthCookieOptions()` sets `secure: true` whenever `NODE_ENV !== 'development'`. In testing/production debes servir la API sobre HTTPS (idealmente desde el mismo origen que el frontend) para que el navegador acepte la cookie `access_token`. Para pruebas HTTP temporales fuera de dev, ejecutá el backend con `NODE_ENV=development` o ajustá ese helper para exponer un toggle.
 - Required environment variables when `NODE_ENV` is not `development`:

@@ -122,7 +122,7 @@ export class CustomersController {
         avatar: c.img || '',
         status: 0,
         createdTime: Math.floor(new Date(c.createdAt).getTime() / 1000),
-        email: c.email,
+        email: c.email || '',
         assignee: '',
       })),
       emailSentData: { precent: 25, opened: 50, unopen: 150, total: 200 },
@@ -227,6 +227,7 @@ export class CustomersController {
       const phoneNumbers = sortedPhones.map((p) => p.phone)
       return {
         ...rest,
+        email: rest.email || '',
         firstName: rest.firstName || '',
         lastName: rest.lastName || '',
         statusId: customer.statusId ?? null,
@@ -245,12 +246,25 @@ export class CustomersController {
   @Put()
   async putCustomer(@Body() body: any) {
     const id = Number(body.id)
-    const rawFirstName = typeof body.firstName === 'string' ? body.firstName : ''
-    const rawLastName = typeof body.lastName === 'string' ? body.lastName : ''
+    const personal =
+      body.personalInfo && typeof body.personalInfo === 'object'
+        ? body.personalInfo
+        : {}
+    const rawFirstName =
+      typeof body.firstName === 'string'
+        ? body.firstName
+        : typeof personal.firstName === 'string'
+        ? personal.firstName
+        : ''
+    const rawLastName =
+      typeof body.lastName === 'string'
+        ? body.lastName
+        : typeof personal.lastName === 'string'
+        ? personal.lastName
+        : ''
     const firstName = rawFirstName.trim()
     const lastName = rawLastName.trim()
     const name = body.name || [firstName, lastName].filter(Boolean).join(' ')
-    const personal = body.personalInfo || {}
 
     const coalesce = (primary: any, fallback: any) =>
       primary !== undefined ? primary : fallback
@@ -450,6 +464,9 @@ export class CustomersController {
 
     return {
       ...rest,
+      firstName: rest.firstName || '',
+      lastName: rest.lastName || '',
+      email: rest.email || '',
       phoneNumber: rest.phoneNumber || finalPhoneNumbers[0] || null,
       phoneNumbers: finalPhoneNumbers,
     }
@@ -513,7 +530,7 @@ export class CustomersController {
       name: customer.name,
       firstName: customer.firstName || '',
       lastName: customer.lastName || '',
-      email: customer.email,
+      email: customer.email || '',
       img: customer.img || '',
       role: customer.title || '',
       lastOnline: Math.floor(customer.updatedAt.getTime() / 1000),
