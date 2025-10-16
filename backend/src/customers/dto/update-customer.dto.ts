@@ -67,17 +67,23 @@ class CustomerPersonalInfoDto {
   @IsString()
   lastName?: string
 
-  @Transform(({ value }) =>
-    value === null || value === undefined
-      ? undefined
-      : typeof value === 'string'
-      ? value.trim()
-      : value,
-  )
+  @Transform(({ value }) => {
+    if (value === undefined) {
+      return undefined
+    }
+    if (value === null) {
+      return null
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      return trimmed.length > 0 ? trimmed : null
+    }
+    return value
+  })
   @IsOptional()
   @ValidateIf((_, value) => typeof value === 'string' && value.length > 0)
   @IsEmail()
-  email?: string
+  email?: string | null
 
   @IsOptional()
   @IsString()
@@ -138,17 +144,23 @@ export class UpdateCustomerDto {
   @IsString()
   lastName?: string
 
-  @Transform(({ value }) =>
-    value === null || value === undefined
-      ? undefined
-      : typeof value === 'string'
-      ? value.trim()
-      : value,
-  )
+  @Transform(({ value }) => {
+    if (value === undefined) {
+      return undefined
+    }
+    if (value === null) {
+      return null
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      return trimmed.length > 0 ? trimmed : null
+    }
+    return value
+  })
   @IsOptional()
   @ValidateIf((_, value) => typeof value === 'string' && value.length > 0)
   @IsEmail()
-  email?: string
+  email?: string | null
 
   @IsOptional()
   @IsString()
