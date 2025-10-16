@@ -113,7 +113,7 @@ model Customer {
   name        String
   firstName   String?
   lastName    String?
-  email       String            @unique
+  email       String?           @unique
   img         String?
   location    String?
   title       String?
