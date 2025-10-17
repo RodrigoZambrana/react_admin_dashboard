@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Upload from '@/components/ui/Upload'
 import Button from '@/components/ui/Button'
 import DoubleSidedImage from '@/components/shared/DoubleSidedImage'
@@ -7,6 +7,7 @@ import toast from '@/components/ui/toast'
 import { HiOutlineDownload, HiOutlineEye, HiOutlineTrash } from 'react-icons/hi'
 import { useTranslation } from 'react-i18next'
 import type { ExpenseAttachment } from '@/services/ExpensesService'
+import Dialog from '@/components/ui/Dialog'
 
 type ExpenseAttachmentsFieldProps = {
     attachments: ExpenseAttachment[]
@@ -55,6 +56,50 @@ const decodeBase64ToBlob = (base64: string, mimeType?: string) => {
     return new Blob([bytes], { type: mimeType || 'application/octet-stream' })
 }
 
+const isPreviewSupported = (mimeType: string) => {
+    if (!mimeType) {
+        return false
+    }
+    if (mimeType.startsWith('image/')) {
+        return true
+    }
+    if (mimeType.startsWith('video/')) {
+        return true
+    }
+    if (mimeType === 'application/pdf') {
+        return true
+    }
+    return false
+}
+
+const inferMimeType = (attachment: ExpenseAttachment, fallbackType: string) => {
+    if (attachment.type && attachment.type.trim().length) {
+        return attachment.type
+    }
+    if (fallbackType && fallbackType.trim().length) {
+        return fallbackType
+    }
+    const extension = attachment.name?.split('.').pop()?.toLowerCase()
+    switch (extension) {
+        case 'jpg':
+        case 'jpeg':
+        case 'png':
+        case 'gif':
+        case 'webp':
+            return `image/${extension === 'jpg' ? 'jpeg' : extension}`
+        case 'svg':
+            return 'image/svg+xml'
+        case 'mp4':
+        case 'webm':
+        case 'ogg':
+            return `video/${extension}`
+        case 'pdf':
+            return 'application/pdf'
+        default:
+            return fallbackType || 'application/octet-stream'
+    }
+}
+
 const bytesToLabel = (size?: number) => {
     if (!size || size <= 0) {
         return ''
@@ -77,6 +122,11 @@ const ExpenseAttachmentsField = ({
 }: ExpenseAttachmentsFieldProps) => {
     const { t } = useTranslation()
     const [processingId, setProcessingId] = useState<string | null>(null)
+    const [preview, setPreview] = useState<{
+        url: string
+        type: string
+        name?: string
+    } | null>(null)
 
     const handleFilesAdded = async (files: File[]) => {
         if (!files.length) {
@@ -134,6 +184,40 @@ const ExpenseAttachmentsField = ({
         URL.revokeObjectURL(blobUrl)
     }
 
+    const openPreview = (blob: Blob, attachment: ExpenseAttachment) => {
+        const mimeType = inferMimeType(
+            attachment,
+            blob.type || 'application/octet-stream',
+        )
+        if (!isPreviewSupported(mimeType)) {
+            return false
+        }
+        const url = URL.createObjectURL(blob)
+        setPreview({
+            url,
+            type: mimeType,
+            name: attachment.name,
+        })
+        return true
+    }
+
+    const closePreview = () => {
+        setPreview((current) => {
+            if (current?.url) {
+                URL.revokeObjectURL(current.url)
+            }
+            return null
+        })
+    }
+
+    useEffect(() => {
+        return () => {
+            if (preview?.url) {
+                URL.revokeObjectURL(preview.url)
+            }
+        }
+    }, [preview?.url])
+
     const resolveBlob = async (
         attachment: ExpenseAttachment,
         mode: 'inline' | 'attachment',
@@ -166,7 +250,10 @@ const ExpenseAttachmentsField = ({
         const blob = await resolveBlob(attachment, 'inline')
         setProcessingId(null)
         if (blob) {
-            openBlobInNewTab(blob)
+            const opened = openPreview(blob, attachment)
+            if (!opened) {
+                openBlobInNewTab(blob)
+            }
             return
         }
         toast.push(
@@ -269,6 +356,7 @@ const ExpenseAttachmentsField = ({
     )
 
     return (
+        <>
         <div className="flex flex-col gap-3">
             <Upload
                 multiple={multiple}
@@ -350,6 +438,60 @@ const ExpenseAttachmentsField = ({
                 </div>
             )}
         </div>
+
+        <Dialog
+            isOpen={Boolean(preview)}
+            onClose={closePreview}
+            onRequestClose={closePreview}
+            width={820}
+            contentClassName="max-h-[90vh] w-full max-w-[90vw]"
+        >
+            {preview ? (
+                <div className="flex flex-col gap-4">
+                    <div>
+                        <h5 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            {preview.name ||
+                                t('calendar.attachments.unnamed', {
+                                    defaultValue: 'Archivo sin nombre',
+                                })}
+                        </h5>
+                        <p className="text-sm text-gray-500 dark:text-gray-300">
+                            {preview.type}
+                        </p>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 p-2 max-h-[70vh] overflow-auto">
+                        {preview.type.startsWith('image/') && (
+                            <img
+                                src={preview.url}
+                                alt={preview.name || 'attachment'}
+                                className="mx-auto max-h-[65vh] rounded"
+                            />
+                        )}
+                        {preview.type.startsWith('video/') && (
+                            // eslint-disable-next-line jsx-a11y/media-has-caption
+                            <video
+                                src={preview.url}
+                                controls
+                                className="w-full max-h-[65vh] rounded bg-black"
+                            />
+                        )}
+                        {preview.type === 'application/pdf' && (
+                            <iframe
+                                src={preview.url}
+                                title={preview.name || 'attachment'}
+                                className="w-full h-[65vh] rounded bg-white"
+                            />
+                        )}
+                    </div>
+                    <div className="flex justify-end">
+                        <Button variant="twoTone" onClick={closePreview}>
+                            {t('text.actions.close', { defaultValue: 'Cerrar' })}
+                        </Button>
+                    </div>
+                </div>
+            ) : null}
+        </Dialog>
+        </>
     )
 }
 

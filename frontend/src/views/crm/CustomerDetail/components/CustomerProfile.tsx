@@ -5,7 +5,7 @@ import Button from '@/components/ui/Button'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
-import { HiPencilAlt, HiOutlineTrash } from 'react-icons/hi'
+import { HiPencilAlt, HiOutlineTrash, HiOutlineUser } from 'react-icons/hi'
 import { FaWhatsapp } from 'react-icons/fa'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -133,7 +133,12 @@ const CustomerProfile = ({ data = {} }: { data?: Partial<Customer> }) => {
             <div className="flex flex-col gap-6">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                     <div className="flex items-center gap-4">
-                        <Avatar size={90} shape="circle" src={data.img} />
+                        <Avatar
+                            size={90}
+                            shape="circle"
+                            src={data.img}
+                            icon={<HiOutlineUser />}
+                        />
                         <div>
                             <h4 className="font-bold">
                                 {[data.firstName, data.lastName]

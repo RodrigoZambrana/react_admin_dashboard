@@ -6,6 +6,11 @@ import { useTranslation } from 'react-i18next'
 import * as Yup from 'yup'
 import PersonalInfoForm from './PersonalInfoForm'
 import AddressForm from './AddressForm'
+import {
+    normalizePhoneNumber,
+    normalizePhoneNumberList,
+    hasDialCodeOnly,
+} from '@/utils/phone'
 
 type BaseCustomerInfo = {
     firstName: string
@@ -80,7 +85,14 @@ type CustomerFormProps = {
 const addressSchema = (t: (k: string) => string) =>
     Yup.object().shape({
         street: Yup.string().required(t('text.validation.enterAddress')),
-        number: Yup.string().required(t('text.validation.enterAddress')),
+        number: Yup.string()
+            .matches(/^\d+$/, {
+                message: t('text.validation.onlyNumbers', {
+                    defaultValue: 'Please enter numbers only.',
+                }),
+                excludeEmptyString: true,
+            })
+            .required(t('text.validation.enterAddress')),
         city: Yup.string().required(t('text.validation.enterCity')),
         state: Yup.string().required(t('text.validation.enterState')),
         // ⬇️ Ya no requerido; acepta '' y lo transforma a null
@@ -122,8 +134,12 @@ const useValidationSchema = (t: (k: string) => string) =>
             .of(
                 Yup.string()
                     .transform((v) => {
-                        const trimmed = v?.trim?.() ?? ''
-                        return trimmed === '' ? null : trimmed
+                        const raw = typeof v === 'string' ? v.trim() : ''
+                        if (!raw || hasDialCodeOnly(raw)) {
+                            return null
+                        }
+                        const normalized = normalizePhoneNumber(raw)
+                        return normalized || null
                     })
                     .nullable()
                     .notRequired()
@@ -131,8 +147,8 @@ const useValidationSchema = (t: (k: string) => string) =>
                         if (!value) {
                             return true
                         }
-                        return /^(\+?[0-9\s-()]{7,})$/.test(String(value).trim())
-                    })
+                        return /^\+\d{6,15}$/.test(value)
+                    }),
             )
             .compact((v) => v == null)
             .test(
@@ -140,7 +156,7 @@ const useValidationSchema = (t: (k: string) => string) =>
                 t('text.validation.phoneNumberRequired', {
                     defaultValue: 'Phone number is required.',
                 }),
-                (values) => (values || []).some((value) => typeof value === 'string' && value.trim().length > 0),
+                (values) => Array.isArray(values) && values.length > 0,
             ),
         facebook: Yup.string(),
         twitter: Yup.string(),
@@ -265,15 +281,39 @@ const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
         comments: primaryAddress.comments || '',
     }
 
+    const extractPhoneValues = (input: unknown): string[] => {
+        if (!Array.isArray(input)) {
+            return []
+        }
+        return input
+            .map((phone) => {
+                if (phone === undefined || phone === null) {
+                    return ''
+                }
+                if (typeof phone === 'string') {
+                    return phone
+                }
+                if (typeof phone === 'number' && Number.isFinite(phone)) {
+                    return String(phone)
+                }
+                if (typeof phone === 'object' && 'phone' in (phone as Record<string, unknown>)) {
+                    const value = (phone as Record<string, unknown>).phone
+                    return typeof value === 'string' ? value : String(value ?? '')
+                }
+                return String(phone)
+            })
+            .filter((value) => value.trim().length > 0)
+    }
+
     const customerPhoneList = (() => {
         if (Array.isArray(customer.phoneNumbers) && customer.phoneNumbers.length) {
-            return customer.phoneNumbers
+            return extractPhoneValues(customer.phoneNumbers)
         }
         if (Array.isArray((customer as any)?.phones) && (customer as any).phones.length) {
-            return (customer as any).phones
+            return extractPhoneValues((customer as any).phones)
         }
         if (Array.isArray(customer.personalInfo?.phoneNumbers) && customer.personalInfo?.phoneNumbers.length) {
-            return customer.personalInfo?.phoneNumbers
+            return extractPhoneValues(customer.personalInfo?.phoneNumbers)
         }
         const legacy =
             customer.phoneNumber ||
@@ -282,10 +322,11 @@ const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
         return legacy ? [legacy] : []
     })()
 
+    const normalizedPhoneNumbers = normalizePhoneNumberList(customerPhoneList)
     const initialPhoneNumber =
-        customerPhoneList[0] ||
-        customer.phoneNumber ||
-        customer.personalInfo?.phoneNumber ||
+        normalizedPhoneNumbers[0] ||
+        normalizePhoneNumber(customer.phoneNumber) ||
+        normalizePhoneNumber(customer.personalInfo?.phoneNumber) ||
         ''
 
     return (
@@ -305,19 +346,18 @@ const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
                 address: defaultAddress,
                 phoneNumber: initialPhoneNumber,
                 phoneNumbers:
-                    customerPhoneList.length > 0
-                        ? customerPhoneList
+                    normalizedPhoneNumbers.length > 0
+                        ? normalizedPhoneNumbers
                         : [''],
             }}
             validateOnMount
             validationSchema={useValidationSchema(t)}
             onSubmit={async (values, { setSubmitting }) => {
-                // Saneamos teléfonos: quitamos vacíos y dejamos al menos un string si no hay
-                const sanitizedPhones = values.phoneNumbers
-                    .map((phone) => phone.trim())
-                    .filter((phone) => phone.length > 0)
-                values.phoneNumbers = sanitizedPhones.length ? sanitizedPhones : ['']
-                values.phoneNumber = values.phoneNumbers[0] || ''
+                const normalizedList = normalizePhoneNumberList(values.phoneNumbers || [])
+                const primaryPhone =
+                    normalizedList[0] || normalizePhoneNumber(values.phoneNumber) || ''
+                values.phoneNumbers = normalizedList.length ? normalizedList : ['']
+                values.phoneNumber = primaryPhone
                 try {
                     await onFormSubmit?.(values)
                 } finally {

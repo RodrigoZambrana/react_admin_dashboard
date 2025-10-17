@@ -1,3 +1,7 @@
+import {
+    normalizePhoneNumber,
+    normalizePhoneNumberList,
+} from '@/utils/phone'
 import type {
     CustomerProps,
     FormModel as CustomerFormModel,
@@ -12,18 +16,21 @@ export const composeCustomerPayload = (
     const normalizedFirstName = String(values.firstName || '').trim()
     const normalizedLastName = String(values.lastName || '').trim()
     const normalizedEmail = String(values.email || '').trim()
+    const normalizedPhoneNumbers = normalizePhoneNumberList(values.phoneNumbers || [])
+    const primaryPhone =
+        normalizedPhoneNumbers[0] || normalizePhoneNumber(values.phoneNumber) || ''
 
     const payload: CustomerUpsertPayload = {
         firstName: normalizedFirstName,
         lastName: normalizedLastName || undefined,
         email: normalizedEmail.length > 0 ? normalizedEmail : null,
         img: values.img,
-        phoneNumber: values.phoneNumber,
-        phoneNumbers: values.phoneNumbers,
+        phoneNumber: primaryPhone || null,
+        phoneNumbers: normalizedPhoneNumbers,
         personalInfo: {
             location: values.location,
-            phoneNumber: values.phoneNumber,
-            phoneNumbers: values.phoneNumbers,
+            phoneNumber: primaryPhone || null,
+            phoneNumbers: normalizedPhoneNumbers,
             facebook: values.facebook,
             twitter: values.twitter,
             pinterest: values.pinterest,
@@ -73,19 +80,18 @@ export const normalizeCustomerForSuccess = (
     saved: Record<string, unknown>,
     formValues: CustomerFormModel,
 ) => {
-    const sanitizedPhones = (formValues.phoneNumbers || [])
-        .map((phone) => phone.trim())
-        .filter((phone) => phone.length > 0)
-    const primaryPhone = sanitizedPhones[0] || formValues.phoneNumber || ''
+    const sanitizedPhones = normalizePhoneNumberList(formValues.phoneNumbers || [])
+    const primaryPhone =
+        sanitizedPhones[0] || normalizePhoneNumber(formValues.phoneNumber) || ''
 
     return {
         ...saved,
-        phoneNumber: primaryPhone,
+        phoneNumber: primaryPhone || null,
         phoneNumbers: sanitizedPhones,
         personalInfo: {
             ...(saved.personalInfo as Record<string, unknown> | undefined),
             location: formValues.location,
-            phoneNumber: primaryPhone,
+            phoneNumber: primaryPhone || null,
             phoneNumbers: sanitizedPhones,
             facebook: formValues.facebook,
             twitter: formValues.twitter,

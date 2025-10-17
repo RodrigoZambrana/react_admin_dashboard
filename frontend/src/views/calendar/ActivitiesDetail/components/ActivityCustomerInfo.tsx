@@ -3,7 +3,12 @@ import Card from '@/components/ui/Card'
 import Avatar from '@/components/ui/Avatar'
 import { useTranslation } from 'react-i18next'
 import type { Customer } from '@/views/crm/CustomerDetail/store'
-import { HiOutlineMail, HiOutlinePhone, HiOutlineLocationMarker } from 'react-icons/hi'
+import {
+    HiOutlineMail,
+    HiOutlinePhone,
+    HiOutlineLocationMarker,
+    HiOutlineUser,
+} from 'react-icons/hi'
 import Button from '@/components/ui/Button'
 import { useNavigate } from 'react-router-dom'
 
@@ -131,7 +136,12 @@ const ActivityCustomerInfo = ({
         <Card>
             <div className="flex flex-col gap-5">
                 <div className="flex items-center gap-4">
-                    <Avatar size={64} shape="circle" src={customer.img} />
+                    <Avatar
+                        size={64}
+                        shape="circle"
+                        src={customer.img}
+                        icon={<HiOutlineUser />}
+                    />
                     <div className="flex flex-col">
                         <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                             {fullName || customer.name ||

@@ -20,26 +20,46 @@ const pendingFetches = new Map<string, Promise<CityRow[]>>()
 
 const normalizeCountryKey = (value?: string) => (value || '').trim().toLowerCase()
 
-const parseCsvAsync = (text: string): Promise<CityRow[]> =>
-  new Promise((resolve, reject) => {
-    Papa.parse<CityRow>(text, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (header: string) => header.trim(),
-      worker: typeof Worker !== 'undefined',
-      fastMode: true,
-      complete: (results) => {
-        if (results.errors && results.errors.length) {
-          reject(new Error(results.errors[0]?.message || 'Error parsing CSV'))
-          return
-        }
-        resolve(results.data)
-      },
-      error: (error) => {
+const baseConfig = {
+  header: true,
+  skipEmptyLines: true,
+  transformHeader: (header: string) => header.trim(),
+  fastMode: true,
+} as const
+
+const parseCsvAsync = async (text: string): Promise<CityRow[]> => {
+  const runParse = (useWorker: boolean) =>
+    new Promise<CityRow[]>((resolve, reject) => {
+      try {
+        Papa.parse<CityRow>(text, {
+          ...baseConfig,
+          worker: useWorker,
+          complete: (results) => {
+            resolve(results.data)
+          },
+          error: (error) => {
+            reject(error)
+          },
+        })
+      } catch (error) {
         reject(error)
-      },
+      }
     })
-  })
+
+  const workerSupported = typeof Worker !== 'undefined'
+
+  if (workerSupported) {
+    try {
+      return await runParse(true)
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[countryCity] Worker parse failed, falling back to main thread parse.', error)
+    }
+  }
+
+  const fallback = await runParse(false)
+  return fallback
+}
 
 const fetchRows = async (csvUrl: string): Promise<CityRow[]> => {
   const response = await fetch(csvUrl, { cache: 'force-cache' })

@@ -4,6 +4,7 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import {
     HiOutlineChatAlt2,
+    HiOutlinePaperAirplane,
     HiOutlinePencil,
     HiOutlineTrash,
 } from 'react-icons/hi'
@@ -244,7 +245,8 @@ const ActivityComments = ({ activityId }: ActivityCommentsProps) => {
                                             <div className="flex flex-col gap-3">
                                                 <Input
                                                     textArea
-                                                    rows={3}
+                                                    rows={4}
+                                                    className="min-h-[120px]"
                                                     value={editingMessage}
                                                     name={`comment-${comment.id}`}
                                                     onChange={(e) =>
@@ -288,33 +290,43 @@ const ActivityComments = ({ activityId }: ActivityCommentsProps) => {
                                 )
                             })}
                         </div>
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-start gap-3 flex-wrap sm:flex-nowrap">
                             <UserAvatar
                                 size={40}
                                 src={currentUserAvatar}
                                 shape="circle"
+                                className="mt-1"
                             />
-                            <div className="flex-1">
+                            <div className="flex-1 flex flex-col gap-2">
                                 <Input
                                     textArea
-                                    rows={3}
+                                    rows={4}
+                                    className="min-h-[140px]"
                                     value={message}
                                     name={`new-comment-${activityId}`}
                                     onChange={(e) => setMessage((e?.target?.value as string) ?? '')}
                                     placeholder={t('calendar.comments.placeholder', {
-                                        defaultValue: 'Escribe un comentario...'
+                                        defaultValue: 'Escribe un comentario...',
                                     })}
                                 />
+                                <div className="flex justify-end">
+                                    <Button
+                                        size="sm"
+                                        variant="solid"
+                                        className="h-11 w-11 rounded-full p-0 flex items-center justify-center"
+                                        onClick={handleSubmit}
+                                        disabled={!message.trim()}
+                                        loading={submitting}
+                                        icon={<HiOutlinePaperAirplane className="text-lg" />}
+                                    >
+                                        <span className="sr-only">
+                                            {t('calendar.comments.add', {
+                                                defaultValue: 'Agregar comentario',
+                                            })}
+                                        </span>
+                                    </Button>
+                                </div>
                             </div>
-                            <Button
-                                size="sm"
-                                variant="solid"
-                                onClick={handleSubmit}
-                                disabled={!message.trim()}
-                                loading={submitting}
-                            >
-                                {t('calendar.comments.add', { defaultValue: 'Agregar comentario' })}
-                            </Button>
                         </div>
                     </div>
                 </div>

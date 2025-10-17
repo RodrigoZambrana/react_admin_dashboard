@@ -34,7 +34,7 @@
 
   .dialog-overlay {
     transition: all 0.15s ease-in-out;
-    @apply inset-0 fixed z-30 bg-black/60 dark:bg-black/80 flex items-center justify-center p-4;
+    @apply inset-0 fixed z-50 bg-black/60 dark:bg-black/80 flex items-center justify-center p-4;
   }
 
   .dialog-overlay-after-open {
