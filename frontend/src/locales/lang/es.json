@@ -736,6 +736,7 @@
             "tooShort": "¡Demasiado corta!",
             "tooLong": "¡Demasiado larga!",
             "lettersNumbersOnly": "Solo letras y números",
+            "onlyNumbers": "Ingrese solo números.",
             "passwordNotMatch": "La contraseña no coincide",
             "selectCountry": "Por favor seleccione país",
             "enterAddress": "Ingrese su dirección",

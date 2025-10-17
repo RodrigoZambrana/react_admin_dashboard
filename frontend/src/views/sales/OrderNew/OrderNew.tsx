@@ -21,7 +21,7 @@ import PaymentSummary from '@/views/sales/OrderDetails/components/PaymentSummary
 import EditableOrderProductsTable, { EditableItem } from '@/views/sales/components/EditableOrderProductsTable'
 import Steps from '@/components/ui/Steps'
 import Avatar from '@/components/ui/Avatar'
-import { HiMail, HiPhone } from 'react-icons/hi'
+import { HiMail, HiPhone, HiOutlineUser } from 'react-icons/hi'
 import AddCustomerDrawer from '@/components/shared/AddCustomerDrawer'
 import type { FormModel as CustomerFormModel } from '@/views/crm/CustomerForm'
 import ProductForm, {
@@ -845,7 +845,7 @@ const OrderNew = () => {
                                         </FormItem>
                                         {values.customerId && (
                                             <div className="flex items-center gap-4 border border-gray-200 dark:border-gray-700 rounded-md p-4">
-                                                <Avatar shape="circle" src={customerDetail?.img} />
+                                                <Avatar shape="circle" src={customerDetail?.img} icon={<HiOutlineUser />} />
                                                 <div>
                                                     <div className="font-semibold">{customerDetail?.name || (customers.find((c) => c.value === values.customerId)?.label)}</div>
                                                     <div className="opacity-80 text-sm flex items-center gap-3">

@@ -4,11 +4,14 @@ import {
   IsBoolean,
   IsEmail,
   IsInt,
+  IsNumberString,
   IsOptional,
   IsString,
   ValidateIf,
   ValidateNested,
 } from 'class-validator'
+
+const sanitizePhoneString = (value: string): string => value.replace(/\s+/g, '')
 
 class CustomerStatusPayloadDto {
   @IsOptional()
@@ -30,7 +33,7 @@ class CustomerAddressDto {
   street?: string
 
   @IsOptional()
-  @IsString()
+  @IsNumberString()
   number?: string
 
   @IsOptional()
@@ -113,10 +116,18 @@ class CustomerPersonalInfoDto {
   @IsString()
   linkedIn?: string
 
+  @Transform(({ value }) => (typeof value === 'string' ? sanitizePhoneString(value) : value))
   @IsOptional()
   @IsString()
   phoneNumber?: string
 
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? (value as unknown[]).map((item) => (typeof item === 'string' ? sanitizePhoneString(item) : item))
+      : typeof value === 'string'
+        ? sanitizePhoneString(value)
+        : value,
+  )
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
@@ -190,10 +201,18 @@ export class UpdateCustomerDto {
   @IsString()
   linkedIn?: string
 
+  @Transform(({ value }) => (typeof value === 'string' ? sanitizePhoneString(value) : value))
   @IsOptional()
   @IsString()
   phoneNumber?: string
 
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? (value as unknown[]).map((item) => (typeof item === 'string' ? sanitizePhoneString(item) : item))
+      : typeof value === 'string'
+        ? sanitizePhoneString(value)
+        : value,
+  )
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

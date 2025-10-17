@@ -14,8 +14,9 @@ const AddressForm = () => {
     const fieldError = (name: string) => getIn(errors, `address.${name}`)
     const fieldTouched = (name: string) => getIn(touched, `address.${name}`)
 
-    const handleInputChange = (name: string) => (value: string) => {
-        setFieldValue(`address.${name}`, value)
+    const handleInputChange = (name: keyof FormModel['address']) => (value: string) => {
+        const sanitizedValue = name === 'number' ? value.replace(/\D/g, '') : value
+        setFieldValue(`address.${name}`, sanitizedValue)
     }
 
     return (
@@ -44,6 +45,8 @@ const AddressForm = () => {
                         {({ field }: FieldProps<string>) => (
                             <Input
                                 {...field}
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 onChange={(e) => handleInputChange('number')(e.target.value)}
                             />
                         )}

@@ -6,7 +6,26 @@ import { HiUserCircle, HiMail, HiPhone, HiOutlineUser } from 'react-icons/hi'
 import { Field, FieldArray, FieldProps, getIn, useFormikContext } from 'formik'
 import { useTranslation } from 'react-i18next'
 import Button from '@/components/ui/Button'
+import Select from '@/components/ui/Select'
+import {
+    countryDialOptions,
+    composePhoneNumber,
+    splitPhoneNumber,
+    DEFAULT_DIAL_CODE,
+    hasDialCodeOnly,
+    type DialOption,
+} from '@/utils/phone'
 import type { FormModel } from './CustomerForm'
+import type { ChangeEvent } from 'react'
+import { useMemo } from 'react'
+import type { FormatOptionLabelMeta } from 'react-select'
+
+const DEFAULT_DIAL_OPTION: DialOption =
+    countryDialOptions.find((option) => option.value === DEFAULT_DIAL_CODE) ?? {
+        label: DEFAULT_DIAL_CODE,
+        value: DEFAULT_DIAL_CODE,
+        shortLabel: DEFAULT_DIAL_CODE,
+    }
 
 const fileToDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
@@ -27,6 +46,20 @@ const PersonalInfoForm = () => {
         }
         return t(message, { defaultValue: message })
     }
+
+    const formatDialOptionLabel = useMemo(
+        () =>
+            (
+                option: DialOption,
+                meta: FormatOptionLabelMeta<DialOption>,
+            ) => {
+                if (meta.context === 'menu') {
+                    return option.label
+                }
+                return option.shortLabel
+            },
+        [],
+    )
 
     return (
         <>
@@ -140,7 +173,11 @@ const PersonalInfoForm = () => {
                             return (
                                 <FormItem
                                     key={index}
-                                    label={index === 0 ? t('text.labels.phoneNumber') : undefined}
+                                    label={
+                                        index === 0
+                                            ? t('text.labels.phoneNumber')
+                                            : undefined
+                                    }
                                     invalid={Boolean(isTouched && error)}
                                     errorMessage={
                                         index === 0 && arrayError
@@ -148,28 +185,121 @@ const PersonalInfoForm = () => {
                                             : translateError(error)
                                     }
                                 >
-                                    <div className="flex flex-col sm:flex-row gap-2">
-                                        <Field name={`phoneNumbers.${index}`}>
-                                            {({ field }: FieldProps<string>) => (
-                                                <Input
-                                                    {...field}
-                                                    placeholder={t('text.labels.phoneNumber')}
-                                                    prefix={<HiPhone className="text-xl" />}
-                                                />
-                                            )}
-                                        </Field>
-                                        <div className="flex sm:items-center gap-2">
-                                            {phoneNumbers.length > 1 && (
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    onClick={() => remove(index)}
-                                                >
-                                                    {t('text.actions.remove')}
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
+                                    <Field name={`phoneNumbers.${index}`}>
+                                        {({ field, form }: FieldProps<string>) => {
+                                            const { dialCode, nationalNumber } = splitPhoneNumber(
+                                                field.value,
+                                                DEFAULT_DIAL_CODE,
+                                            )
+                                            const selectedOption =
+                                                countryDialOptions.find(
+                                                    (option) => option.value === dialCode,
+                                                ) || DEFAULT_DIAL_OPTION
+
+                                            const updatePrimary = (nextValue: string) => {
+                                                if (index === 0) {
+                                                    form.setFieldValue(
+                                                        'phoneNumber',
+                                                        hasDialCodeOnly(nextValue)
+                                                            ? ''
+                                                            : nextValue,
+                                                    )
+                                                }
+                                            }
+
+                                            const handleDialChange = (
+                                                option: DialOption | null,
+                                            ) => {
+                                                const nextDial =
+                                                    option?.value || DEFAULT_DIAL_CODE
+                                                const nextValue = composePhoneNumber(
+                                                    nextDial,
+                                                    nationalNumber,
+                                                    DEFAULT_DIAL_CODE,
+                                                )
+                                                form.setFieldValue(field.name, nextValue)
+                                                updatePrimary(nextValue)
+                                            }
+
+                                            const handleNumberChange = (
+                                                event: ChangeEvent<HTMLInputElement>,
+                                            ) => {
+                                                const digits = event.target.value.replace(/\D/g, '')
+                                                const nextValue = composePhoneNumber(
+                                                    dialCode,
+                                                    digits,
+                                                    DEFAULT_DIAL_CODE,
+                                                )
+                                                form.setFieldValue(field.name, nextValue)
+                                                updatePrimary(nextValue)
+                                            }
+
+                                            const handleBlur = () => {
+                                                form.setFieldTouched(field.name, true, true)
+                                            }
+
+                                            const handleRemove = () => {
+                                                remove(index)
+                                                setTimeout(() => {
+                                                    const nextValues =
+                                                        form.getFieldMeta('phoneNumbers')
+                                                            .value as string[] | undefined
+                                                    const nextPrimary =
+                                                        Array.isArray(nextValues) &&
+                                                        nextValues.length > 0
+                                                            ? nextValues[0]
+                                                            : ''
+                                                    form.setFieldValue(
+                                                        'phoneNumber',
+                                                        hasDialCodeOnly(nextPrimary)
+                                                            ? ''
+                                                            : nextPrimary,
+                                                    )
+                                                }, 0)
+                                            }
+
+                                            return (
+                                                <div className="flex flex-row flex-wrap items-center gap-2">
+                                                    <Select<DialOption>
+                                                        className="min-w-[110px]"
+                                                        options={countryDialOptions}
+                                                        value={selectedOption}
+                                                        formatOptionLabel={formatDialOptionLabel}
+                                                        onChange={(option) =>
+                                                            handleDialChange(
+                                                                (option as DialOption | null) ||
+                                                                    null,
+                                                            )
+                                                        }
+                                                        onBlur={handleBlur}
+                                                    />
+                                                    <Input
+                                                        value={nationalNumber}
+                                                        onChange={handleNumberChange}
+                                                        onBlur={handleBlur}
+                                                        placeholder={t('text.labels.phoneNumber')}
+                                                        prefix={
+                                                            <HiPhone className="text-xl" />
+                                                        }
+                                                        inputMode="numeric"
+                                                        pattern="[0-9]*"
+                                                        autoComplete="off"
+                                                    />
+                                                    <div className="flex sm:items-center gap-2">
+                                                        {phoneNumbers.length > 1 && (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                onClick={handleRemove}
+                                                            >
+                                                                {t('text.actions.remove')}
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )
+                                        }}
+                                    </Field>
                                     {index === 0 &&
                                         typeof arrayError === 'string' &&
                                         (isTouched as boolean | undefined) && (

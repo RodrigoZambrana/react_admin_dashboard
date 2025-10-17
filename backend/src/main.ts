@@ -15,9 +15,11 @@ import cookie from '@fastify/cookie'
 import { SanitizeInputPipe } from './common/pipes/sanitize-input.pipe'
 
 async function bootstrap() {
+  const BODY_LIMIT_BYTES = 15 * 1024 * 1024
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: true }),
+    new FastifyAdapter({ logger: true, bodyLimit: BODY_LIMIT_BYTES }),
   )
 
   await app.register(helmet as any)
@@ -52,7 +54,7 @@ async function bootstrap() {
 
   await app.register(multipart as any, {
     limits: {
-      fileSize: 5 * 1024 * 1024,
+      fileSize: BODY_LIMIT_BYTES,
     },
   })
 

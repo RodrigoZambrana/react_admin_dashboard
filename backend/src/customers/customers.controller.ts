@@ -22,6 +22,95 @@ import { UpdateCustomerDto } from './dto/update-customer.dto'
 export class CustomersController {
   constructor(private prisma: PrismaService) {}
 
+  private readonly defaultCountryCode = '+598'
+
+  private extractPhoneCandidates(source: unknown): string[] {
+    if (!Array.isArray(source)) {
+      return []
+    }
+    return (source as unknown[]).map((item) => {
+      if (item === undefined || item === null) {
+        return ''
+      }
+      if (typeof item === 'string') {
+        return item
+      }
+      if (typeof item === 'number' && Number.isFinite(item)) {
+        return String(item)
+      }
+      if (typeof item === 'object' && item !== null && 'phone' in (item as Record<string, unknown>)) {
+        const candidate = (item as Record<string, unknown>).phone
+        if (candidate === undefined || candidate === null) {
+          return ''
+        }
+        if (typeof candidate === 'string') {
+          return candidate
+        }
+        if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+          return String(candidate)
+        }
+        return String(candidate)
+      }
+      return String(item)
+    }).filter((value) => value.trim().length > 0)
+  }
+
+  private normalizePhoneValue(input: unknown, defaultCountryCode = this.defaultCountryCode): string {
+    if (input === undefined || input === null) {
+      return ''
+    }
+    const raw =
+      typeof input === 'string'
+        ? input
+        : typeof input === 'number' && Number.isFinite(input)
+        ? String(input)
+        : String(input ?? '')
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      return ''
+    }
+    let normalized = trimmed.replace(/[^\d+]+/g, '')
+    if (normalized.startsWith('00')) {
+      normalized = `+${normalized.slice(2)}`
+    }
+    const hasExplicitPrefix = normalized.startsWith('+')
+    if (!hasExplicitPrefix) {
+      normalized = `+${normalized}`
+    }
+    const digits = normalized.slice(1).replace(/\D/g, '')
+    if (!digits) {
+      return ''
+    }
+    const defaultDigits = String(defaultCountryCode || '')
+      .replace(/[^\d]/g, '')
+    if (hasExplicitPrefix) {
+      if (defaultDigits && digits.startsWith(defaultDigits)) {
+        const national = digits.slice(defaultDigits.length).replace(/^0+/, '')
+        if (national.length) {
+          return `+${defaultDigits}${national}`
+        }
+      }
+      return `+${digits}`
+    }
+    const digitsWithoutLeadingZeros = digits.replace(/^0+/, '')
+    if (!digitsWithoutLeadingZeros) {
+      return ''
+    }
+    if (defaultDigits && digitsWithoutLeadingZeros.startsWith(defaultDigits)) {
+      return `+${digitsWithoutLeadingZeros}`
+    }
+    return defaultDigits
+      ? `+${defaultDigits}${digitsWithoutLeadingZeros}`
+      : `+${digitsWithoutLeadingZeros}`
+  }
+
+  private normalizePhoneList(inputs: unknown[]): string[] {
+    const normalized = inputs
+      .map((value) => this.normalizePhoneValue(value))
+      .filter((phone) => phone.length > 0)
+    return Array.from(new Set(normalized))
+  }
+
   private mergeEventMetadata(
     metadata: unknown,
     eventType?: { id: number; name: string; color: string | null } | null,
@@ -298,15 +387,19 @@ export class CustomersController {
     const birthdaySource =
       personal.birthday ?? dto.birthday ?? dto.personalInfo?.birthday
 
-    const incomingPhones = Array.isArray(dto.phoneNumbers)
-      ? dto.phoneNumbers
-      : Array.isArray(personal.phoneNumbers)
-      ? personal.phoneNumbers
-      : [coalesce(personal.phoneNumber, dto.phoneNumber)].filter(Boolean)
+    let phoneCandidates: string[] = []
+    if (Array.isArray(dto.phoneNumbers) && dto.phoneNumbers.length) {
+      phoneCandidates = this.extractPhoneCandidates(dto.phoneNumbers)
+    } else if (Array.isArray(personal.phoneNumbers) && personal.phoneNumbers.length) {
+      phoneCandidates = this.extractPhoneCandidates(personal.phoneNumbers)
+    } else {
+      const legacyPhone = coalesce(personal.phoneNumber, dto.phoneNumber)
+      if (legacyPhone !== undefined && legacyPhone !== null) {
+        phoneCandidates = [legacyPhone]
+      }
+    }
 
-    const phoneNumbers = (incomingPhones || [])
-      .map((phone: any) => (typeof phone === 'string' ? phone.trim() : ''))
-      .filter((phone: string) => phone.length > 0)
+    const phoneNumbers = this.normalizePhoneList(phoneCandidates)
 
     if (!phoneNumbers.length) {
       throw new BadRequestException({
