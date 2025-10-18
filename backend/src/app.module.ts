@@ -10,6 +10,7 @@ import { SalesModule } from './sales/sales.module'
 import { SettingsModule } from './settings/settings.module'
 import { ExpensesModule } from './expenses/expenses.module'
 import { AccountModule } from './account/account.module'
+import { AccountingModule } from './accounting/accounting.module'
 import { ProjectModule } from './project/project.module'
 import { OrdersModule } from './orders/orders.module'
 import { CalendarModule } from './calendar/calendar.module'
@@ -38,6 +39,7 @@ import { ActivitiesModule } from './activities/activities.module'
     SettingsModule,
     ExpensesModule,
     AccountModule,
+    AccountingModule,
     ProjectModule,
     OrdersModule,
     CalendarModule,

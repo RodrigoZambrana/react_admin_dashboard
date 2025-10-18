@@ -7,6 +7,7 @@ import { apiUpsertCustomer } from '@/services/CustomersService'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
 import { useTranslation } from 'react-i18next'
+import { isAxiosError } from 'axios'
 import {
     composeCustomerPayload,
     normalizeCustomerForSuccess,
@@ -66,10 +67,44 @@ const AddCustomerDrawer = ({
 
             onClose()
         } catch (error) {
+            const backendData = isAxiosError(error)
+                ? (error.response?.data as { message?: string; errors?: Array<{ message?: string; key?: string }> } | undefined)
+                : undefined
+
+            const fallbackMessage = t('text.validation.failed', {
+                defaultValue: 'Unable to save customer.',
+            })
+
+            const resolvedMessage = (() => {
+                if (backendData?.message && typeof backendData.message === 'string') {
+                    const fallback =
+                        backendData.errors && backendData.errors.length > 0
+                            ? backendData.errors[0]?.message
+                            : undefined
+                    return t(backendData.message, {
+                        defaultValue: fallback || backendData.message,
+                    })
+                }
+                if (backendData?.errors && backendData.errors.length > 0) {
+                    const first = backendData.errors[0]
+                    if (first?.key) {
+                        return t(first.key, {
+                            defaultValue: first.message || first.key,
+                        })
+                    }
+                    if (first?.message) {
+                        return t(first.message, { defaultValue: first.message })
+                    }
+                }
+                if (error instanceof Error && error.message) {
+                    return error.message
+                }
+                return fallbackMessage
+            })()
+
             toast.push(
                 <Notification title={t('validation.failed')} type="danger">
-                    {(error as any)?.response?.data?.message ||
-                        (error as Error).message}
+                    {resolvedMessage}
                 </Notification>,
                 { placement: 'top-center' },
             )

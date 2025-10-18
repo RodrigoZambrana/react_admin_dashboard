@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import Input from '@/components/ui/Input'
 import Upload from '@/components/ui/Upload'
 import Button from '@/components/ui/Button'
@@ -22,11 +22,13 @@ import i18n from 'i18next'
 import { setLang, setUser, useAppDispatch, useAppSelector } from '@/store'
 import type { OptionProps, ControlProps } from 'react-select'
 import type { FieldProps, FormikHelpers, FormikProps } from 'formik'
-import { apiUpdateAccountProfile } from '@/services/AccountServices'
+import { apiUpdateAccountLanguage, apiUpdateAccountProfile } from '@/services/AccountServices'
 import type { AxiosError } from 'axios'
 import Avatar from '@/components/ui/Avatar'
 import UserAvatar from '@/components/shared/UserAvatar'
 import { resolveAvatarSrc } from '@/utils/avatar'
+import dayjs from 'dayjs'
+import { dateLocales } from '@/locales'
 
 export type ProfileFormModel = {
     firstName: string
@@ -67,6 +69,7 @@ type UpdateProfileResponse = {
         authority?: string[]
         name?: string
         lastName?: string
+        lang?: string
     }
 }
 
@@ -149,12 +152,47 @@ const splitName = (name?: string) => {
     }
 }
 
+const normalizeLanguagePreference = (value?: string | null) => {
+    if (!value) {
+        return undefined
+    }
+    const lowered = value.trim().toLowerCase()
+    if (lowered.startsWith('es')) {
+        return 'es'
+    }
+    if (lowered.startsWith('en')) {
+        return 'en'
+    }
+    return undefined
+}
+
 const Profile = ({ data = {} }: ProfileProps) => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const currentLang = useAppSelector((state) => state.locale.currentLang)
     const authUser = useAppSelector((state) => state.auth.user)
     const avatarPreviewRef = useRef<string | null>(null)
+
+    const profileLang = normalizeLanguagePreference(data.lang)
+    const profileLangSyncedRef = useRef<string | undefined>()
+    const storeLang = normalizeLanguagePreference(currentLang)
+    const i18nLang = normalizeLanguagePreference(i18n.language)
+    const normalizedLang = profileLang ?? storeLang ?? i18nLang ?? 'en'
+
+    const loadLocale = useCallback(async (lang: string) => {
+        const normalized = normalizeLanguagePreference(lang) ?? 'en'
+        const loader = dateLocales[normalized]
+        if (!loader) {
+            dayjs.locale(normalized)
+            return
+        }
+        try {
+            await loader()
+        } catch {
+            // ignore
+        }
+        dayjs.locale(normalized)
+    }, [])
 
     useEffect(() => {
         return () => {
@@ -165,6 +203,28 @@ const Profile = ({ data = {} }: ProfileProps) => {
         }
     }, [])
 
+    useEffect(() => {
+        // Sync locale with backend profile only when the persisted value changes
+        if (!profileLang) {
+            profileLangSyncedRef.current = undefined
+            return
+        }
+
+        if (profileLangSyncedRef.current === profileLang) {
+            return
+        }
+
+        profileLangSyncedRef.current = profileLang
+
+        if (profileLang !== currentLang) {
+            dispatch(setLang(profileLang))
+        }
+
+        if (normalizeLanguagePreference(i18n.language) !== profileLang) {
+            i18n.changeLanguage(profileLang)
+        }
+    }, [currentLang, dispatch, profileLang])
+
     const fallbackNameSource =
         data.name ||
         [authUser?.name, authUser?.lastName].filter(Boolean).join(' ') ||
@@ -173,12 +233,6 @@ const Profile = ({ data = {} }: ProfileProps) => {
         firstName: fallbackFirstName,
         lastName: fallbackLastName,
     } = splitName(fallbackNameSource)
-
-    const normalizedLang = (currentLang || i18n.language || 'en')
-        .toLowerCase()
-        .startsWith('es')
-        ? 'es'
-        : 'en'
 
     const initialAvatar =
         resolveAvatarSrc(data.avatar) ?? resolveAvatarSrc(authUser?.avatar) ?? ''
@@ -189,7 +243,7 @@ const Profile = ({ data = {} }: ProfileProps) => {
             data.lastName ?? fallbackLastName ?? (authUser?.lastName ?? ''),
         email: data.email || authUser?.email || '',
         avatar: initialAvatar,
-        lang: data.lang || normalizedLang,
+        lang: normalizedLang,
         avatarFile: null,
     }
 
@@ -425,11 +479,59 @@ const Profile = ({ data = {} }: ProfileProps) => {
                                                 (option) =>
                                                     option.value === values.lang,
                                             )}
-                                            onChange={(option) => {
+                                            onChange={async (option) => {
                                                 const selected = option?.value || normalizedLang
-                                                form.setFieldValue(field.name, selected)
-                                                dispatch(setLang(selected))
-                                                i18n.changeLanguage(selected)
+                                                if (selected === values.lang) {
+                                                    return
+                                                }
+
+                                                const previousLang =
+                                                    values.lang || normalizedLang
+
+                                                form.setFieldValue(
+                                                    field.name,
+                                                    selected,
+                                                    false,
+                                                )
+                                                form.setFieldTouched(
+                                                    field.name,
+                                                    true,
+                                                    false,
+                                                )
+
+                                                const applyLocale = async (next: string) => {
+                                                    dispatch(setLang(next))
+                                                    i18n.changeLanguage(next)
+                                                    await loadLocale(next)
+                                                }
+
+                                                await applyLocale(selected)
+
+                                                try {
+                                                    await apiUpdateAccountLanguage({
+                                                        lang: selected,
+                                                    })
+                                                } catch (error) {
+                                                    await applyLocale(previousLang)
+                                                    form.setFieldValue(
+                                                        field.name,
+                                                        previousLang,
+                                                        false,
+                                                    )
+                                                    toast.push(
+                                                        <Notification
+                                                            title={t(
+                                                                'account.settings.profile.updateFailed',
+                                                                {
+                                                                    defaultValue:
+                                                                        'We could not update your profile.',
+                                                                },
+                                                            )}
+                                                            type="danger"
+                                                        />,
+                                                        { placement: 'top-center' },
+                                                    )
+                                                }
                                             }}
                                         />
                                     )}

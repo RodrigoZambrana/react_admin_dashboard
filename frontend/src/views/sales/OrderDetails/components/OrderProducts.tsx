@@ -9,11 +9,12 @@ import {
     flexRender,
     createColumnHelper,
 } from '@tanstack/react-table'
-import { NumericFormat } from 'react-number-format'
 import isLastChild from '@/utils/isLastChild'
 import { Link } from 'react-router-dom'
 import Tooltip from '@/components/ui/Tooltip'
 import { HiOutlineEye } from 'react-icons/hi'
+import { useAppSelector } from '@/store'
+import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
 
 type Product = {
     id: string
@@ -24,6 +25,7 @@ type Product = {
     price: number
     quantity: number
     total: number
+    currency?: string
     details: Record<string, string[]>
 }
 
@@ -59,18 +61,10 @@ const ProductColumn = ({ row }: { row: Product }) => {
     )
 }
 
-const PriceAmount = ({ amount }: { amount: number }) => {
-    return (
-        <NumericFormat
-            displayType="text"
-            value={(Math.round(amount * 100) / 100).toFixed(2)}
-            prefix={'$'}
-            thousandSeparator={true}
-        />
-    )
-}
-
-const columns = (t: (k: string) => string) => [
+const columns = (
+    t: (k: string) => string,
+    formatAmount: (value: number, currency?: string) => string,
+) => [
     columnHelper.accessor('name', {
         header: t('text.columns.product'),
         cell: (props) => {
@@ -82,7 +76,7 @@ const columns = (t: (k: string) => string) => [
         header: t('text.columns.price'),
         cell: (props) => {
             const row = props.row.original
-            return <PriceAmount amount={row.price} />
+            return <span>{formatAmount(row.price, row.currency)}</span>
         },
     }),
     columnHelper.accessor('quantity', {
@@ -92,7 +86,7 @@ const columns = (t: (k: string) => string) => [
         header: t('text.columns.total'),
         cell: (props) => {
             const row = props.row.original
-            return <PriceAmount amount={row.total} />
+            return <span>{formatAmount(row.total, row.currency)}</span>
         },
     }),
     columnHelper.display({
@@ -118,10 +112,17 @@ const columns = (t: (k: string) => string) => [
 ]
 
 const OrderProducts = ({ data = [] }: OrderProductsProps) => {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
+    const storeCurrency = useAppSelector((state) => state.currency.code)
+    const defaultCurrency =
+        normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
+    const formatAmount = (value: number, currency?: string) =>
+        formatCurrency(value, currency, i18n.language, {
+            fallbackCurrency: defaultCurrency,
+        })
     const table = useReactTable({
         data,
-        columns: columns(t),
+        columns: columns(t, formatAmount),
         getCoreRowModel: getCoreRowModel(),
     })
 

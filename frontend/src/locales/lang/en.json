@@ -31,6 +31,10 @@
             "orderDetails": "Order Details",
             "addOrder": "Add Order"
         },
+        "appsAccounting": {
+            "accounting": "Accounting",
+            "dashboard": "Dashboard"
+        },
         "appsProducts": {
             "products": "Products"
         },
@@ -699,7 +703,10 @@
             "passwordUpdateFailed": "We could not update the password.",
             "userCreated": "User created",
             "userUpdated": "User updated",
+            "userDeleted": "User deleted",
+            "userDeleteFailed": "We could not delete the user.",
             "userSaveFailed": "We could not save the user.",
+            "deleteUserConfirm": "Are you sure you want to delete this user? This action cannot be undone.",
             "passwordTabRequiresUser": "Create the user before setting a password.",
             "viewPreviousBilling": "View your previous billing"
         },
@@ -875,7 +882,8 @@
     "users": {
         "validation": {
             "duplicateEmail": "A user with that email already exists.",
-            "passwordRequired": "Password is required."
+            "passwordRequired": "Password is required.",
+            "cannotDeleteSelf": "You cannot delete the currently signed-in user."
         }
     },
     "welcome": {
@@ -1101,6 +1109,80 @@
                 "parcel_has_arrived_at_delivery_station": "Parcel has arrived at delivery station",
                 "parcel_has_been_picked_up_by_courier": "Parcel has been picked up by courier",
                 "seller_is_preparing_to_ship_your_parcel": "Seller is preparing to ship your parcel"
+            }
+        }
+    },
+    "accounting": {
+        "dashboard": {
+            "overview": {
+                "title": "Accounting Overview",
+                "subtitle": "Monthly sales, expenses and taxes"
+            },
+            "filters": {
+                "range": {
+                    "label": "Date range",
+                    "options": {
+                        "today": "Today",
+                        "thisWeek": "This week",
+                        "thisMonth": "This month",
+                        "last15Days": "Last 15 days",
+                        "thisYear": "This year",
+                        "custom": "Custom"
+                    }
+                }
+            },
+            "stat": {
+                "sales": "Sales",
+                "expenses": "Expenses",
+                "taxes": "Taxes",
+                "netIncome": "Net income",
+                "totalLabel": "Total for the selected period"
+            },
+            "monthly": {
+                "title": "Monthly statistics",
+                "subtitle": "Aggregated totals by month",
+                "rangeLabel": "Selected range",
+                "empty": "No accounting data for the selected period",
+                "series": {
+                    "sales": "Sales",
+                    "expenses": "Expenses",
+                    "taxes": "Taxes",
+                    "netIncome": "Net income"
+                }
+            },
+            "summary": {
+                "metrics": {
+                    "sales": "Sales",
+                    "expenses": "Expenses",
+                    "taxes": "Taxes",
+                    "liquidIncome": "Liquid income"
+                },
+                "cardTitle": "Summary {{currency}}",
+                "chartTitle": "Bar chart by currency",
+                "chartSubtitle": "Sales, expenses, taxes and liquid income grouped by currency.",
+                "chartEmpty": "Not enough data to display the chart.",
+                "empty": "No transactions recorded yet."
+            },
+            "currencies": {
+                "title": "Movements by currency",
+                "subtitle": "Compare sales, expenses, taxes and results across currencies",
+                "totalsTitle": "Totals by currency",
+                "totalsEmpty": "No movements recorded yet.",
+                "monthlyTitle": "Monthly detail",
+                "monthlyEmpty": "No movements to show.",
+                "table": {
+                    "currency": "Currency",
+                    "sales": "Sales",
+                    "expenses": "Expenses",
+                    "taxes": "Taxes",
+                    "balance": "Balance",
+                    "liquidIncome": "Liquid income"
+                },
+                "labels": {
+                    "iusd": "USD",
+                    "uyu": "UYU",
+                    "other": "Other"
+                }
             }
         }
     },

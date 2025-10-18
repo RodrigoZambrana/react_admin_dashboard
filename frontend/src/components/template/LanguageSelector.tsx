@@ -11,6 +11,10 @@ import dayjs from 'dayjs'
 import i18n from 'i18next'
 import { HiCheck } from 'react-icons/hi'
 import type { CommonProps } from '@/@types/common'
+import { apiUpdateAccountLanguage } from '@/services/AccountServices'
+import toast from '@/components/ui/toast'
+import Notification from '@/components/ui/Notification'
+import { useTranslation } from 'react-i18next'
 
 const languageList = [
     { label: 'English', value: 'en', flag: 'us' },
@@ -21,6 +25,7 @@ const _LanguageSelector = ({ className }: CommonProps) => {
     const [loading, setLoading] = useState(false)
     const locale = useAppSelector((state) => state.locale.currentLang)
     const dispatch = useAppDispatch()
+    const { t } = useTranslation()
 
     const selectLangFlag = useMemo(() => {
         return languageList.find((lang) => lang.value === locale)?.flag
@@ -40,27 +45,58 @@ const _LanguageSelector = ({ className }: CommonProps) => {
         </div>
     )
 
-    const onLanguageSelect = (lang: string) => {
-        const formattedLang = lang.replace(/-([a-z])/g, function (g) {
-            return g[1].toUpperCase()
-        })
+    const ensureDateLocale = async (lang: string) => {
+        const loader = dateLocales[lang]
+        if (loader) {
+            try {
+                await loader()
+            } catch {
+                // ignore load failure
+            }
+        }
+        dayjs.locale(lang)
+    }
+
+    const formatLangCode = (lang: string) =>
+        lang.replace(/-([a-z])/g, (g) => g[1].toUpperCase())
+
+    const onLanguageSelect = async (lang: string) => {
+        if (lang === locale || loading) {
+            return
+        }
+
+        const formattedLang = formatLangCode(lang)
+
+        const previousLocale = locale
+        const previousFormatted = formatLangCode(previousLocale)
 
         setLoading(true)
 
-        const dispatchLang = () => {
-            i18n.changeLanguage(formattedLang)
-            dispatch(setLang(lang))
-            setLoading(false)
+        const applyLocale = (targetLang: string) => {
+            i18n.changeLanguage(targetLang)
+            dispatch(setLang(targetLang))
         }
 
-        dateLocales[formattedLang]()
-            .then(() => {
-                dayjs.locale(formattedLang)
-                dispatchLang()
-            })
-            .catch(() => {
-                dispatchLang()
-            })
+        applyLocale(lang)
+        await ensureDateLocale(formattedLang)
+
+        try {
+            await apiUpdateAccountLanguage({ lang })
+        } catch (error) {
+            applyLocale(previousLocale)
+            await ensureDateLocale(previousFormatted)
+            toast.push(
+                <Notification
+                    title={t('account.settings.profile.updateFailed', {
+                        defaultValue: 'We could not update your profile.',
+                    })}
+                    type="danger"
+                />,
+                { placement: 'top-center' },
+            )
+        } finally {
+            setLoading(false)
+        }
     }
 
     return (

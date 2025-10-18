@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Drawer from '@/components/ui/Drawer'
 import Button from '@/components/ui/Button'
 import StickyFooter from '@/components/shared/StickyFooter'
+import Alert from '@/components/ui/Alert'
 import CustomerForm, {
     FormikRef as CustomerFormikRef,
     FormModel as CustomerFormModel,
@@ -10,6 +11,8 @@ import CustomerForm, {
 } from '@/views/crm/CustomerForm'
 import type { FormikErrors } from 'formik'
 import useResponsive from '@/utils/hooks/useResponsive'
+import { useTranslation } from 'react-i18next'
+import { isAxiosError } from 'axios'
 
 const isNonEmpty = (v: unknown) =>
     v !== undefined && v !== null && (typeof v !== 'string' || v.trim() !== '')
@@ -64,11 +67,13 @@ const CustomerFormDrawer = ({
     onValidationStateChange,
     onAddressCompleteChange,
 }: CustomerFormDrawerProps) => {
+    const { t } = useTranslation()
     const formRef = useRef<CustomerFormikRef>(null)
     const [internalTab, setInternalTab] = useState<TabKey>('personalInfo')
     const [addressComplete, setAddressComplete] = useState(false)
     const [isSubmittingForm, setIsSubmittingForm] = useState(false)
     const [hasValidationErrors, setHasValidationErrors] = useState(true)
+    const [submitError, setSubmitError] = useState<string | null>(null)
     const actualTab = controlledTab ?? internalTab
 
     const setActiveTab = useCallback(
@@ -86,6 +91,7 @@ const CustomerFormDrawer = ({
         setAddressComplete(false)
         setIsSubmittingForm(false)
         setHasValidationErrors(true)
+        setSubmitError(null)
         formRef.current?.resetForm?.()
     }, [])
 
@@ -168,11 +174,130 @@ const CustomerFormDrawer = ({
         [onValidationStateChange],
     )
 
+    const setBackendFieldErrors = useCallback((errors: Array<{ field?: string; key?: string; message?: string }>) => {
+        const formik = formRef.current
+        if (!formik || !errors?.length) {
+            return { personal: false, address: false }
+        }
+
+        let personal = false
+        let address = false
+
+        const resolveTargets = (field?: string): string[] => {
+            switch (field) {
+                case 'phoneNumber':
+                case 'phone':
+                    return ['phoneNumbers.0', 'phoneNumbers', 'phoneNumber']
+                case 'phoneNumbers':
+                    return ['phoneNumbers', 'phoneNumbers.0']
+                case 'email':
+                    return ['email']
+                case 'address.street':
+                case 'street':
+                    return ['address.street']
+                case 'address.number':
+                case 'number':
+                    return ['address.number']
+                case 'address.city':
+                case 'city':
+                    return ['address.city']
+                case 'address.state':
+                case 'state':
+                    return ['address.state']
+                default:
+                    return field ? [field] : []
+            }
+        }
+
+        errors.forEach(({ field, key, message }) => {
+            const translated =
+                key && typeof key === 'string'
+                    ? t(key, { defaultValue: message || key })
+                    : message
+                    ? t(message, { defaultValue: message })
+                    : undefined
+
+            resolveTargets(field).forEach((target) => {
+                if (!target) {
+                    return
+                }
+                formik.setFieldError(target, translated ?? message ?? '')
+                formik.setFieldTouched(target, true, true)
+                if (target.startsWith('address.')) {
+                    address = true
+                } else {
+                    personal = true
+                }
+            })
+        })
+
+        return { personal, address }
+    }, [t])
+
+    const applyBackendError = useCallback((error: unknown) => {
+        if (!isAxiosError(error)) {
+            if (error instanceof Error && error.message) {
+                setSubmitError(error.message)
+            }
+            return
+        }
+
+        const data = error.response?.data as
+            | {
+                  message?: string
+                  errors?: Array<{ field?: string; key?: string; message?: string }>
+              }
+            | undefined
+
+        if (!data) {
+            return
+        }
+
+        const fallbackMessage =
+            Array.isArray(data.errors) && data.errors.length
+                ? data.errors[0]?.message
+                : undefined
+
+        const translatedMessage =
+            typeof data.message === 'string'
+                ? t(data.message, {
+                      defaultValue: fallbackMessage || data.message,
+                  })
+                : fallbackMessage
+
+        if (translatedMessage) {
+            setSubmitError(translatedMessage)
+        }
+
+        if (Array.isArray(data.errors) && data.errors.length) {
+            const { personal, address } = setBackendFieldErrors(data.errors)
+            setHasValidationErrors(true)
+            if (personal) {
+                setActiveTab('personalInfo')
+                markPersonalTouched()
+            } else if (address) {
+                setActiveTab('address')
+                markAddressTouched()
+            }
+        }
+    }, [
+        markAddressTouched,
+        markPersonalTouched,
+        setBackendFieldErrors,
+        setActiveTab,
+        t,
+    ])
+
     const handleFormSubmit = useCallback(async (values: CustomerFormModel) => {
-        await onSubmit(values)
-        onSubmitSuccess?.(values)
-        setHasValidationErrors(true)
-    }, [onSubmit, onSubmitSuccess])
+        setSubmitError(null)
+        try {
+            await onSubmit(values)
+            onSubmitSuccess?.(values)
+            setHasValidationErrors(true)
+        } catch (error) {
+            applyBackendError(error)
+        }
+    }, [applyBackendError, onSubmit, onSubmitSuccess])
 
     const computedTitle = useMemo(() => title || '', [title])
     const cancelLabel = labels?.cancel || 'Cancel'
@@ -199,12 +324,20 @@ const CustomerFormDrawer = ({
             onRequestClose={onClose}
         >
             <div className="flex-1 overflow-y-auto px-4 pb-28 pt-4 sm:px-6">
+                {submitError && (
+                    <Alert showIcon type="danger" className="mb-4">
+                        {submitError}
+                    </Alert>
+                )}
                 <CustomerForm
                     ref={formRef}
                     customer={(customer ?? {}) as CustomerProps}
                     activeTab={actualTab}
                     onTabChange={setActiveTab}
                     onValuesChange={(values) => {
+                        if (submitError) {
+                            setSubmitError(null)
+                        }
                         evaluateAddressComplete(values)
                         onValuesChange?.(values)
                     }}

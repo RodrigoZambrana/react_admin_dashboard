@@ -298,6 +298,24 @@ export async function apiDeleteSystemCurrency<
     })
 }
 
+export async function apiExportSettings<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/configurations/export',
+        method: 'get',
+    })
+}
+
+export async function apiImportSettings<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/configurations/import',
+        method: 'post',
+        data,
+    })
+}
+
 export async function apiGetCalendarEventTypes<T>() {
     return ApiService.fetchData<T>({
         url: '/settings/calendar-event-types',

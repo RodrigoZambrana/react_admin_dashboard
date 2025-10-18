@@ -103,6 +103,12 @@ const appsRoute: Routes = [
         authority: getRolesForFeature(FEATURES.SALES),
     },
     {
+        key: 'appsAccounting.dashboard',
+        path: `${APP_PREFIX_PATH}/accounting/dashboard`,
+        component: lazy(() => import('@/views/accounting/AccountingDashboard')),
+        authority: getRolesForFeature(FEATURES.ACCOUNTING),
+    },
+    {
         key: 'appsExpenses.dashboard',
         path: `${APP_PREFIX_PATH}/expenses/dashboard`,
         component: lazy(() => import('@/views/expenses/ExpensesDashboard/ExpensesDashboard')),
@@ -164,6 +170,15 @@ const appsRoute: Routes = [
         path: `${APP_PREFIX_PATH}/expenses/expense-new`,
         component: lazy(() => import('@/views/expenses/ExpenseNew')),
         authority: getRolesForFeature(FEATURES.EXPENSES),
+    },
+    {
+        key: 'appsExpenses.expenseDetail',
+        path: `${APP_PREFIX_PATH}/expenses/expense-detail/:expenseId`,
+        component: lazy(() => import('@/views/expenses/ExpenseDetail')),
+        authority: getRolesForFeature(FEATURES.EXPENSES),
+        meta: {
+            header: lazy(() => import('@/views/expenses/ExpenseDetail/HeaderTitle')),
+        },
     },
     {
         key: 'appsExpenses.expenseEdit',

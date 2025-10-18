@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MutableRefObject } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type MutableRefObject } from 'react'
 import Card from '@/components/ui/Card'
 import Table from '@/components/ui/Table'
 import Button from '@/components/ui/Button'
@@ -14,7 +14,10 @@ import {
     apiDeleteShippingOption,
     apiGetShippingOptions,
     apiUpdateShippingOption,
+    apiExportSettings,
+    apiImportSettings,
 } from '@/services/SettingsService'
+import { downloadCsvFile, parseCsvFile } from '@/utils/csv'
 
 type ShippingOption = {
     id: number
@@ -63,6 +66,9 @@ const ShippingOptions = () => {
     const [editingValues, setEditingValues] = useState<FormState>(() => buildEmptyState())
     const formPreviewRef = useRef<string | null>(null)
     const editPreviewRef = useRef<string | null>(null)
+    const importInputRef = useRef<HTMLInputElement | null>(null)
+    const [exporting, setExporting] = useState(false)
+    const [importing, setImporting] = useState(false)
 
     const fetch = async () => {
         const res = await apiGetShippingOptions<ShippingOption[]>()
@@ -178,6 +184,111 @@ const ShippingOptions = () => {
                 ...prev,
                 img: '',
             }))
+        }
+    }
+
+    const handleExport = async () => {
+        try {
+            setExporting(true)
+            const res = await apiExportSettings<any>()
+            const rows = Array.isArray(res.data?.shippingOptions)
+                ? res.data.shippingOptions.map((option: any) => ({
+                      name: option?.name ?? '',
+                      deliveryFees: option?.deliveryFees ?? '',
+                      estimatedMin: option?.estimatedMin ?? '',
+                      estimatedMax: option?.estimatedMax ?? '',
+                      img: option?.img ?? '',
+                  }))
+                : []
+            downloadCsvFile('shipping_options.csv', rows)
+        } catch (error: any) {
+            toast.push(
+                <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                    {error?.response?.data?.message || error?.message || String(error)}
+                </Notification>,
+            )
+        } finally {
+            setExporting(false)
+        }
+    }
+
+    const triggerImport = () => {
+        importInputRef.current?.click()
+    }
+
+    const normalizeOptionalNumber = (value: unknown) => {
+        if (value === null || value === undefined || value === '') {
+            return null
+        }
+        const num = Number(value)
+        return Number.isFinite(num) ? num : null
+    }
+
+    const normalizeOptionalInteger = (value: unknown) => {
+        const num = normalizeOptionalNumber(value)
+        return num === null ? null : Math.round(num)
+    }
+
+    const handleImportChange = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        event.target.value = ''
+        if (!file) {
+            return
+        }
+        try {
+            setImporting(true)
+            const rows = await parseCsvFile<Record<string, string | number | null>>(file)
+            const payload = rows
+                .map((row) => {
+                    const name = String(row.name ?? '').trim()
+                    if (!name) {
+                        return null
+                    }
+                    const deliveryFees = normalizeOptionalNumber(row.deliveryFees)
+                    let estimatedMin = normalizeOptionalInteger(row.estimatedMin)
+                    if (estimatedMin !== null && estimatedMin < 0) {
+                        estimatedMin = 0
+                    }
+                    let estimatedMax = normalizeOptionalInteger(row.estimatedMax)
+                    if (estimatedMax !== null && estimatedMin !== null && estimatedMax < estimatedMin) {
+                        estimatedMax = estimatedMin
+                    }
+                    if (estimatedMax === null && estimatedMin !== null) {
+                        estimatedMax = estimatedMin
+                    }
+                    const imgRaw = row.img
+                    const img =
+                        imgRaw === null || imgRaw === undefined
+                            ? null
+                            : String(imgRaw).trim() || null
+                    return {
+                        name,
+                        deliveryFees,
+                        estimatedMin,
+                        estimatedMax,
+                        img,
+                    }
+                })
+                .filter((row): row is NonNullable<typeof row> => Boolean(row))
+            await apiImportSettings({
+                shippingOptions: payload,
+            })
+            toast.push(
+                <Notification type="success" title={t('common.success', { defaultValue: 'Éxito' })}>
+                    {t('settings.shippingOptions.imported', {
+                        defaultValue: 'Opciones importadas correctamente.',
+                    })}
+                </Notification>,
+            )
+            fetch()
+        } catch (error: any) {
+            toast.push(
+                <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                    {error?.response?.data?.message || error?.message || String(error)}
+                </Notification>,
+            )
+        } finally {
+            setImporting(false)
         }
     }
 
@@ -308,7 +419,34 @@ const ShippingOptions = () => {
     return (
         <div className="flex flex-col gap-4 h-full">
             <Card className="card-shadow">
-                <h4 className="mb-4">{t('settings.shippingOptions.title')}</h4>
+                <div className="flex flex-col gap-2 mb-4 md:flex-row md:items-center md:justify-between">
+                    <h4>{t('settings.shippingOptions.title')}</h4>
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            size="sm"
+                            variant="twoTone"
+                            loading={exporting}
+                            onClick={handleExport}
+                        >
+                            {t('text.actions.export')}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="solid"
+                            loading={importing}
+                            onClick={triggerImport}
+                        >
+                            {t('text.actions.import', { defaultValue: 'Importar' })}
+                        </Button>
+                        <input
+                            ref={importInputRef}
+                            type="file"
+                            accept=".csv,text/csv"
+                            className="hidden"
+                            onChange={handleImportChange}
+                        />
+                    </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
                     <Input
                         value={form.name}

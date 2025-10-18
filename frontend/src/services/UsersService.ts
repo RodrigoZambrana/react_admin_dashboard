@@ -44,3 +44,10 @@ export async function apiUpdateUserPassword<T>(
         data,
     })
 }
+
+export async function apiDeleteUser<T>(id: string) {
+    return ApiService.fetchData<T>({
+        url: `/users/${id}`,
+        method: 'delete',
+    })
+}

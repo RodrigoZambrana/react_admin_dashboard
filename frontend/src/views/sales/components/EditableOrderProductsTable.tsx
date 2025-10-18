@@ -9,7 +9,8 @@ import {
     flexRender,
     createColumnHelper,
 } from '@tanstack/react-table'
-import { NumericFormat } from 'react-number-format'
+import { useAppSelector } from '@/store'
+import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
 
 export type EditableItem = {
     productId: string
@@ -54,17 +55,15 @@ const ProductCell = ({ row, showDescription }: { row: EditableItem; showDescript
     )
 }
 
-const PriceText = ({ amount, currency }: { amount: number; currency?: string }) => (
-    <NumericFormat
-        displayType="text"
-        value={(Math.round(amount * 100) / 100).toFixed(2)}
-        prefix={currency ? `${currency} ` : ''}
-        thousandSeparator
-    />
-)
-
 const EditableOrderProductsTable = ({ items, onQtyChange, onRemove, showDescription = true }: Props) => {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
+    const storeCurrency = useAppSelector((state) => state.currency.code)
+    const defaultCurrency =
+        normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
+    const formatAmount = (value: number, currency?: string) =>
+        formatCurrency(value, currency, i18n.language, {
+            fallbackCurrency: defaultCurrency,
+        })
 
     const columns = [
         columnHelper.accessor('name', {
@@ -77,10 +76,12 @@ const EditableOrderProductsTable = ({ items, onQtyChange, onRemove, showDescript
         columnHelper.accessor('price', {
             header: t('text.columns.price'),
             cell: (props) => (
-                <PriceText
-                    amount={props.row.original.price}
-                    currency={props.row.original.currency}
-                />
+                <span>
+                    {formatAmount(
+                        props.row.original.price,
+                        props.row.original.currency,
+                    )}
+                </span>
             ),
         }),
         columnHelper.accessor('qty', {
@@ -104,10 +105,12 @@ const EditableOrderProductsTable = ({ items, onQtyChange, onRemove, showDescript
             cell: (props) => {
                 const { price, qty, currency } = props.row.original
                 return (
-                    <PriceText
-                        amount={(Number(price) || 0) * (Number(qty) || 0)}
-                        currency={currency}
-                    />
+                    <span>
+                        {formatAmount(
+                            (Number(price) || 0) * (Number(qty) || 0),
+                            currency,
+                        )}
+                    </span>
                 )
             },
         }),

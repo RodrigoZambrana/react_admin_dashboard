@@ -6,7 +6,7 @@ import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
 import { HiOutlineDownload, HiOutlineEye, HiOutlineTrash } from 'react-icons/hi'
 import { useTranslation } from 'react-i18next'
-import type { ExpenseAttachment } from '@/services/ExpensesService'
+import { apiFetchExpenseAttachment, type ExpenseAttachment } from '@/services/ExpensesService'
 import Dialog from '@/components/ui/Dialog'
 
 type ExpenseAttachmentsFieldProps = {
@@ -15,6 +15,7 @@ type ExpenseAttachmentsFieldProps = {
     fetchAttachment?: (id: string, mode: 'inline' | 'attachment') => Promise<Blob | null>
     accept?: string
     multiple?: boolean
+    readOnly?: boolean
 }
 
 const readFileAsBase64 = (file: File): Promise<string> =>
@@ -119,6 +120,7 @@ const ExpenseAttachmentsField = ({
     fetchAttachment,
     accept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.zip',
     multiple = true,
+    readOnly = false,
 }: ExpenseAttachmentsFieldProps) => {
     const { t } = useTranslation()
     const [processingId, setProcessingId] = useState<string | null>(null)
@@ -129,6 +131,9 @@ const ExpenseAttachmentsField = ({
     } | null>(null)
 
     const handleFilesAdded = async (files: File[]) => {
+        if (readOnly) {
+            return
+        }
         if (!files.length) {
             return
         }
@@ -233,6 +238,14 @@ const ExpenseAttachmentsField = ({
                 return null
             }
         }
+        if ((!fetchAttachment || !attachment.content) && attachment.id) {
+            try {
+                const response = await apiFetchExpenseAttachment(attachment.id, { mode })
+                return response.data ?? null
+            } catch (error) {
+                return null
+            }
+        }
         if (attachment.url && attachment.url.startsWith('blob:')) {
             try {
                 const response = await fetch(attachment.url)
@@ -283,6 +296,9 @@ const ExpenseAttachmentsField = ({
     }
 
     const handleRemove = (attachment: ExpenseAttachment) => {
+        if (readOnly) {
+            return
+        }
         let toastKey: string | undefined
 
         const closeToast = () => {
@@ -358,37 +374,38 @@ const ExpenseAttachmentsField = ({
     return (
         <>
         <div className="flex flex-col gap-3">
-            <Upload
-                multiple={multiple}
-                fileList={[]}
-                accept={accept}
-                onChange={handleFilesAdded}
-                tip={uploadTip}
-            >
-                {!hasAttachments && (
-                    <div className="my-6 text-center">
-                        <DoubleSidedImage
-                            className="mx-auto"
-                            src="/img/others/upload.png"
-                            darkModeSrc="/img/others/upload-dark.png"
-                        />
-                        <p className="font-semibold">
-                            <span className="text-gray-800 dark:text-white">
-                                {t('expenses.attachments.dropOr', {
-                                    defaultValue: 'Arrastra tu archivo aquí, o ',
-                                })}
-                            </span>
-                            <span className="text-blue-500">
-                                {t('expenses.attachments.browse', { defaultValue: 'buscar' })}
-                            </span>
-                        </p>
-                        <p className="mt-1 opacity-60 dark:text-white">
-                            {uploadTip}
-                        </p>
-                    </div>
-                )}
-            </Upload>
-
+            {!readOnly && (
+                <Upload
+                    multiple={multiple}
+                    fileList={[]}
+                    accept={accept}
+                    onChange={handleFilesAdded}
+                    tip={uploadTip}
+                >
+                    {!hasAttachments && (
+                        <div className="my-6 text-center">
+                            <DoubleSidedImage
+                                className="mx-auto"
+                                src="/img/others/upload.png"
+                                darkModeSrc="/img/others/upload-dark.png"
+                            />
+                            <p className="font-semibold">
+                                <span className="text-gray-800 dark:text-white">
+                                    {t('expenses.attachments.dropOr', {
+                                        defaultValue: 'Arrastra tu archivo aquí, o ',
+                                    })}
+                                </span>
+                                <span className="text-blue-500">
+                                    {t('expenses.attachments.browse', { defaultValue: 'buscar' })}
+                                </span>
+                            </p>
+                            <p className="mt-1 opacity-60 dark:text-white">
+                                {uploadTip}
+                            </p>
+                        </div>
+                    )}
+                </Upload>
+            )}
             {hasAttachments && (
                 <div className="space-y-2">
                     {attachments.map((attachment) => (
@@ -425,13 +442,15 @@ const ExpenseAttachmentsField = ({
                                     onClick={() => handleDownload(attachment)}
                                     aria-label={t('text.actions.download', { defaultValue: 'Descargar' })}
                                 />
-                                <Button
-                                    size="xs"
-                                    variant="plain"
-                                    icon={<HiOutlineTrash />}
-                                    onClick={() => handleRemove(attachment)}
-                                    aria-label={t('text.actions.delete', { defaultValue: 'Eliminar' })}
-                                />
+                                {!readOnly && (
+                                    <Button
+                                        size="xs"
+                                        variant="plain"
+                                        icon={<HiOutlineTrash />}
+                                        onClick={() => handleRemove(attachment)}
+                                        aria-label={t('text.actions.delete', { defaultValue: 'Eliminar' })}
+                                    />
+                                )}
                             </div>
                         </div>
                     ))}

@@ -13,6 +13,7 @@ export type SignInResponse = {
         email: string
         name?: string
         lastName?: string
+        lang?: string
     }
 }
 

@@ -60,6 +60,7 @@ model User {
   email                 String                 @unique
   img                   String?
   role                  Role                   @default(USER)
+  lang                  String                 @default("en")
   country               String?
   countryCode           String?
   city                  String?

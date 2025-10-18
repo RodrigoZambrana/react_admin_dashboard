@@ -10,6 +10,7 @@ import {
   Post,
   UseGuards,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -190,7 +191,7 @@ export class CustomersController {
     if (errors.length) {
       response.errors = errors
     }
-    throw new BadRequestException(response)
+    throw new ConflictException(response)
   }
 
   @Get('dashboard')
@@ -399,7 +400,37 @@ export class CustomersController {
       }
     }
 
-    const phoneNumbers = this.normalizePhoneList(phoneCandidates)
+    let phoneNumbers = this.normalizePhoneList(phoneCandidates)
+
+    if (!phoneNumbers.length && id) {
+      const existingCustomer = await this.prisma.customer.findUnique({
+        where: { id },
+        select: {
+          phoneNumber: true,
+          phones: {
+            select: {
+              phone: true,
+              isPrimary: true,
+            },
+          },
+        },
+      })
+
+      if (existingCustomer) {
+        const sortedExistingPhones = (existingCustomer.phones || []).sort((a, b) =>
+          a.isPrimary === b.isPrimary ? 0 : a.isPrimary ? -1 : 1,
+        )
+        const fallbackPhones = sortedExistingPhones.length
+          ? sortedExistingPhones.map((entry) => entry.phone)
+          : existingCustomer.phoneNumber
+            ? [existingCustomer.phoneNumber]
+            : []
+        if (fallbackPhones.length) {
+          // Reuse stored phones when the payload omits them (e.g. status-only updates).
+          phoneNumbers = this.normalizePhoneList(fallbackPhones)
+        }
+      }
+    }
 
     if (!phoneNumbers.length) {
       throw new BadRequestException({
@@ -647,6 +678,58 @@ export class CustomersController {
       .sort((a, b) => (a.isPrimary === b.isPrimary ? 0 : a.isPrimary ? -1 : 1))
       .map((p) => p.phone)
 
+    const metadataFilters: Prisma.CalendarEventWhereInput[] = []
+    const customerIdString = String(customer.id)
+    const customerIdNumber = customer.id
+    const metadataPaths = ['customerId', 'customerID', 'crmId', 'userId', 'linkedCustomerId', 'linkedUserId']
+    for (const path of metadataPaths) {
+      metadataFilters.push({ metadata: { path: [path], equals: customerIdString } } as Prisma.CalendarEventWhereInput)
+      metadataFilters.push({ metadata: { path: [path], equals: customerIdNumber } } as Prisma.CalendarEventWhereInput)
+    }
+    const activitiesRaw =
+      metadataFilters.length > 0
+        ? await this.prisma.calendarEvent.findMany({
+            where: { OR: metadataFilters },
+            orderBy: { startAt: 'desc' },
+            take: 50,
+            include: {
+              eventType: true,
+            },
+          })
+        : []
+    const activities = activitiesRaw.map((event) => {
+      const metadata = this.mergeEventMetadata(event.metadata, event.eventType ?? undefined)
+      const color =
+        event.color ||
+        event.eventType?.color ||
+        (metadata && typeof metadata === 'object' ? ((metadata as Record<string, unknown>).color as string | undefined) : null) ||
+        null
+      const eventTypeName =
+        (metadata && typeof metadata === 'object'
+          ? ((metadata as Record<string, unknown>).eventTypeName as string | undefined)
+          : undefined) ||
+        event.eventType?.name ||
+        event.type ||
+        ''
+      const startTimestamp = Math.floor(new Date(event.startAt).getTime() / 1000)
+      const endTimestamp = event.endAt ? Math.floor(new Date(event.endAt).getTime() / 1000) : null
+      const locationLabel =
+        (metadata && typeof metadata === 'object'
+          ? ((metadata as Record<string, unknown>).locationLabel as string | undefined)
+          : undefined) || event.location || ''
+      return {
+        id: String(event.id),
+        title: event.title,
+        description: event.description || '',
+        type: eventTypeName,
+        color,
+        startDate: startTimestamp,
+        endDate: endTimestamp,
+        allDay: Boolean(event.allDay),
+        location: locationLabel,
+      }
+    })
+
     return {
       id: String(customer.id),
       name: customer.name,
@@ -674,6 +757,7 @@ export class CustomersController {
       },
       addresses: customer.addresses,
       orders,
+      activities,
     }
   }
 

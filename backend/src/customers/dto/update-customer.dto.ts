@@ -13,9 +13,61 @@ import {
 
 const sanitizePhoneString = (value: string): string => value.replace(/\s+/g, '')
 
+const coerceOptionalInt = (input: unknown): number | undefined => {
+  if (input === undefined) {
+    return undefined
+  }
+  if (input === null || input === '') {
+    return undefined
+  }
+  const raw =
+    typeof input === 'number'
+      ? input
+      : typeof input === 'string'
+        ? Number(input.trim())
+        : Number(String(input))
+  if (!Number.isFinite(raw)) {
+    return undefined
+  }
+  const int = Math.trunc(raw)
+  return Number.isFinite(int) ? int : undefined
+}
+
+const coerceNullableInt = (input: unknown): number | null | undefined => {
+  if (input === undefined) {
+    return undefined
+  }
+  if (input === null) {
+    return null
+  }
+  if (typeof input === 'string') {
+    const trimmed = input.trim()
+    if (!trimmed.length) {
+      return null
+    }
+    const parsed = Number(trimmed)
+    if (!Number.isFinite(parsed)) {
+      return undefined
+    }
+    return Math.trunc(parsed)
+  }
+  if (typeof input === 'number') {
+    if (!Number.isFinite(input)) {
+      return undefined
+    }
+    return Math.trunc(input)
+  }
+  const parsed = Number(String(input))
+  if (!Number.isFinite(parsed)) {
+    return undefined
+  }
+  return Math.trunc(parsed)
+}
+
 class CustomerStatusPayloadDto {
   @IsOptional()
   @IsInt()
+  @Transform(({ value }) => coerceOptionalInt(value))
   id?: number
 
   @IsOptional()
@@ -141,6 +193,7 @@ class CustomerPersonalInfoDto {
 export class UpdateCustomerDto {
   @IsOptional()
   @IsInt()
+  @Transform(({ value }) => coerceOptionalInt(value))
   id?: number
 
   @IsOptional()
@@ -234,8 +287,10 @@ export class UpdateCustomerDto {
   address?: CustomerAddressDto
 
   @IsOptional()
+  @Transform(({ value }) => coerceNullableInt(value))
+  @ValidateIf((_, value) => value !== null)
   @IsInt()
-  statusId?: number
+  statusId?: number | null
 
   @IsOptional()
   @IsString()

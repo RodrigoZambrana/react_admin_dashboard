@@ -34,6 +34,8 @@ import CountryCitySelector, {
 import { findCountryByName } from '@/utils/countries'
 import useResponsive from '@/utils/hooks/useResponsive'
 import classNames from 'classnames'
+import { useAppSelector } from '@/store'
+import { normalizeCurrencyCode, formatCurrency } from '@/utils/currency'
 
 type Item = EditableItem
 
@@ -47,7 +49,7 @@ type ShippingOption = {
 }
 
 const OrderNew = () => {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
     const navigate = useNavigate()
     const location = useLocation()
     const [customers, setCustomers] = useState<{ value: string; label: string }[]>([])
@@ -71,6 +73,9 @@ const OrderNew = () => {
     const formikRef = useRef<FormikProps<any>>(null)
     const { smaller } = useResponsive()
     const isCompactViewport = smaller.md
+    const storeCurrency = useAppSelector((state) => state.currency.code)
+    const defaultCurrency =
+        normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
     const shippingVendorOptions = useMemo(
         () =>
             shippingOptions.length
@@ -126,7 +131,7 @@ const OrderNew = () => {
                     value: String(p.id),
                     label: p.name,
                     price: Number(p.salePrice ?? p.price) || 0,
-                    currency: p.currency,
+                    currency: normalizeCurrencyCode(p.currency, defaultCurrency) || defaultCurrency,
                     img: p.img,
                     description: p.description,
                 })) || []
@@ -160,7 +165,7 @@ const OrderNew = () => {
             }
         }
         load()
-    }, [])
+    }, [defaultCurrency])
 
     useEffect(() => {
         const sp = new URLSearchParams(location.search)
@@ -383,6 +388,17 @@ const OrderNew = () => {
                     )
                     const tax = Math.round(total * (taxRate / (100 + taxRate)) * 100) / 100
                     const grandTotal = Math.round((total + deliveryFee) * 100) / 100
+                    const orderCurrency =
+                        normalizeCurrencyCode(
+                            values.items.find((it) => it.currency)?.currency,
+                            defaultCurrency,
+                        ) || defaultCurrency
+                    const formattedOrderTotal = formatCurrency(
+                        total,
+                        orderCurrency,
+                        i18n.language,
+                        { fallbackCurrency: defaultCurrency },
+                    )
                     const addItem = (
                         pid: string,
                         option?: {
@@ -398,13 +414,16 @@ const OrderNew = () => {
                         if (!p) return
                         const exists = values.items.find((it) => it.productId === pid)
                         if (exists) return
+                        const currencyCode =
+                            normalizeCurrencyCode(p.currency, defaultCurrency) ||
+                            defaultCurrency
                         setFieldValue('items', [
                             ...values.items,
                             {
                                 productId: pid,
                                 name: p.label,
                                 price: p.price,
-                                currency: p.currency,
+                                currency: currencyCode,
                                 qty: 1,
                                 img: p.img,
                                 description: p.description,
@@ -433,7 +452,9 @@ const OrderNew = () => {
                                         value: String(p.id),
                                         label: p.name,
                                         price: Number(p.salePrice ?? p.price) || 0,
-                                        currency: p.currency,
+                                        currency:
+                                            normalizeCurrencyCode(p.currency, defaultCurrency) ||
+                                            defaultCurrency,
                                         img: p.img,
                                         description: p.description,
                                     })) || []
@@ -442,12 +463,15 @@ const OrderNew = () => {
                                     (p: any) => String(p.name) === String(formData.name),
                                 )
                                 if (created) {
+                                    const createdCurrency =
+                                        normalizeCurrencyCode(created.currency, defaultCurrency) ||
+                                        defaultCurrency
                                     const option =
                                         pOpts.find((opt) => opt.value === String(created.id)) ?? {
                                             value: String(created.id),
                                             label: created.name,
                                             price: Number(created.salePrice ?? created.price) || 0,
-                                            currency: created.currency,
+                                            currency: createdCurrency,
                                             img: created.img,
                                             description: created.description,
                                         }
@@ -873,7 +897,9 @@ const OrderNew = () => {
                                             <div className="flex items-center gap-2">
                                                 <Select className="w-80" options={products} onChange={(opt) => addItem((opt as any).value)} placeholder={t('text.placeholders.searchProduct')} />
                                                 <Button type="button" onClick={() => setNewProductOpen(true)}>{t('text.actions.add')} {t('text.titles.products')}</Button>
-                                                <div className="font-semibold ml-auto">{t('text.columns.total')}: ${total.toFixed(2)}</div>
+                                                <div className="font-semibold ml-auto">
+                                                    {t('text.columns.total')}: {formattedOrderTotal}
+                                                </div>
                                             </div>
                                             <div className="mt-4">
                                                 <EditableOrderProductsTable items={values.items as any} onQtyChange={changeQty} onRemove={removeItem} showDescription={false} />
@@ -1208,8 +1234,10 @@ const OrderNew = () => {
                                             tax,
                                             deliveryFees: deliveryFee,
                                             total: grandTotal,
+                                            currency: orderCurrency,
                                         }}
                                         taxRate={taxRate}
+                                        currency={orderCurrency}
                                     />
                                     <Card bodyClass="p-5">
                                         <h4 className="mb-4">{t('text.columns.paymentMethod')}</h4>
@@ -1307,7 +1335,7 @@ const OrderNew = () => {
                                             brand: '',
                                             vendor: '',
                                             description: '',
-                                            currency: 'UYU',
+                                            currency: defaultCurrency as any,
                                         }}
                                         onDiscard={closeNewProductDrawer}
                                         onFormSubmit={handleCreateProduct}

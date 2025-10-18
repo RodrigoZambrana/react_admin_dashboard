@@ -6,6 +6,7 @@ import DoubleSidedImage from '@/components/shared/DoubleSidedImage'
 import CustomerProfile from './components/CustomerProfile'
 import OrdersHistory from './components/OrdersHistory'
 import CustomerAddresses from './components/CustomerAddresses'
+import ActivitiesHistory from './components/ActivitiesHistory'
 import reducer, { getCustomer, useAppDispatch, useAppSelector } from './store'
 
 import { injectReducer } from '@/store'
@@ -49,6 +50,9 @@ const CustomerDetail = () => {
                             customerId={String(data.id)}
                             className="mt-0"
                         />
+                        <AdaptableCard>
+                            <ActivitiesHistory />
+                        </AdaptableCard>
                         <AdaptableCard>
                             <OrdersHistory />
                         </AdaptableCard>
