@@ -596,6 +596,7 @@ export const orderDetailsData = [
             tax: 105.72,
             deliveryFees: 15,
             total: 1870.72,
+            currency: 'USD',
         },
         shipping: {
             deliveryFees: 15,
@@ -646,6 +647,7 @@ export const orderDetailsData = [
                 price: 252,
                 quantity: 2,
                 total: 504,
+                currency: 'USD',
                 details: {
                     color: ['White'],
                     size: ['One size'],
@@ -659,6 +661,7 @@ export const orderDetailsData = [
                 price: 389,
                 quantity: 1,
                 total: 389,
+                currency: 'USD',
                 details: {
                     color: ['Red'],
                     gender: ['Unisex'],
@@ -672,6 +675,7 @@ export const orderDetailsData = [
                 price: 869,
                 quantity: 1,
                 total: 869,
+                currency: 'USD',
                 details: {
                     color: ['Red'],
                 },

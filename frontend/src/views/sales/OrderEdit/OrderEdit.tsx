@@ -26,11 +26,13 @@ import AddCustomerDrawer from '@/components/shared/AddCustomerDrawer'
 import type { FormModel as CustomerFormModel } from '@/views/crm/CustomerForm'
 import ProductForm from '@/views/sales/ProductForm'
 import useResponsive from '@/utils/hooks/useResponsive'
+import { useAppSelector } from '@/store'
+import { normalizeCurrencyCode, formatCurrency } from '@/utils/currency'
 
 type Item = EditableItem
 
 const OrderEdit = () => {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
     const navigate = useNavigate()
     const { orderId } = useParams()
     const { smaller } = useResponsive()
@@ -53,6 +55,9 @@ const OrderEdit = () => {
     const [newCustomerOpen, setNewCustomerOpen] = useState(false)
     const [newProductOpen, setNewProductOpen] = useState(false)
     const [taxRate, setTaxRate] = useState(22)
+    const storeCurrency = useAppSelector((state) => state.currency.code)
+    const defaultCurrency =
+        normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
 
     useEffect(() => {
         const load = async () => {
@@ -65,7 +70,9 @@ const OrderEdit = () => {
                     value: String(p.id),
                     label: p.name,
                     price: Number(p.salePrice ?? p.price) || 0,
-                    currency: p.currency,
+                    currency:
+                        normalizeCurrencyCode(p.currency, defaultCurrency) ||
+                        defaultCurrency,
                     img: p.img,
                     description: p.description,
                 })),
@@ -88,12 +95,15 @@ const OrderEdit = () => {
                 paymentMehod: String(data.paymentMehod || 'Cash'),
                 items: (data.items || []).map((it: any) => {
                     const p = pArray.find((x: any) => String(x.id) === String(it.productId))
+                    const currencyCode =
+                        normalizeCurrencyCode(p?.currency, defaultCurrency) ||
+                        defaultCurrency
                     return {
                         productId: String(it.productId),
                         name: it.name,
                         price: Number(it.price) || 0,
                         qty: Number(it.qty) || 1,
-                        currency: p?.currency,
+                        currency: currencyCode,
                         img: p?.img,
                         description: p?.description,
                     }
@@ -111,7 +121,7 @@ const OrderEdit = () => {
             }
         }
         if (orderId) load()
-    }, [orderId])
+    }, [orderId, defaultCurrency])
 
     if (!initial) return null
 
@@ -158,6 +168,17 @@ const OrderEdit = () => {
                     const deliveryFee = Number((values as any).shipping?.deliveryFees || 0)
                     const tax = Math.round(total * (taxRate / (100 + taxRate)) * 100) / 100
                     const grandTotal = Math.round((total + deliveryFee) * 100) / 100
+                    const orderCurrency =
+                        normalizeCurrencyCode(
+                            values.items.find((it: Item) => it.currency)?.currency,
+                            defaultCurrency,
+                        ) || defaultCurrency
+                    const formattedOrderTotal = formatCurrency(
+                        total,
+                        orderCurrency,
+                        i18n.language,
+                        { fallbackCurrency: defaultCurrency },
+                    )
                     const addItem = (
                         pid: string,
                         option?: {
@@ -173,13 +194,16 @@ const OrderEdit = () => {
                         if (!p) return
                         const exists = values.items.find((it: Item) => it.productId === pid)
                         if (exists) return
+                        const currencyCode =
+                            normalizeCurrencyCode(p.currency, defaultCurrency) ||
+                            defaultCurrency
                         setFieldValue('items', [
                             ...values.items,
                             {
                                 productId: pid,
                                 name: p.label,
                                 price: p.price,
-                                currency: p.currency,
+                                currency: currencyCode,
                                 qty: 1,
                                 img: p.img,
                                 description: p.description,
@@ -344,7 +368,9 @@ const OrderEdit = () => {
                                                     placeholder={t('text.placeholders.searchProduct')}
                                                 />
                                                 <Button type="button" onClick={() => setNewProductOpen(true)}>{t('text.actions.add')} {t('text.titles.products')}</Button>
-                                                <div className="font-semibold ml-auto">{t('text.columns.total')}: ${total.toFixed(2)}</div>
+                                                <div className="font-semibold ml-auto">
+                                                    {t('text.columns.total')}: {formattedOrderTotal}
+                                                </div>
                                             </div>
                                             <div className="mt-4">
                                                 <EditableOrderProductsTable items={values.items as any} onQtyChange={changeQty} onRemove={removeItem} showDescription={false} />
@@ -447,8 +473,10 @@ const OrderEdit = () => {
                                             tax,
                                             deliveryFees: deliveryFee,
                                             total: grandTotal,
+                                            currency: orderCurrency,
                                         }}
                                         taxRate={taxRate}
+                                        currency={orderCurrency}
                                     />
                                     <Card bodyClass="p-5">
                                         <h4 className="mb-4">{t('text.columns.paymentMethod')}</h4>
@@ -524,7 +552,7 @@ const OrderEdit = () => {
                                         brand: '',
                                         vendor: '',
                                         description: '',
-                                        currency: 'UYU',
+                                        currency: defaultCurrency as any,
                                     }}
                                     onDiscard={() => setNewProductOpen(false)}
                                     onFormSubmit={async (formData, setSubmitting) => {
@@ -542,7 +570,9 @@ const OrderEdit = () => {
                                                         value: String(p.id),
                                                         label: p.name,
                                                         price: Number(p.salePrice ?? p.price) || 0,
-                                                        currency: p.currency,
+                                                        currency:
+                                                            normalizeCurrencyCode(p.currency, defaultCurrency) ||
+                                                            defaultCurrency,
                                                         img: p.img,
                                                         description: p.description,
                                                     })) || []
@@ -556,7 +586,9 @@ const OrderEdit = () => {
                                                             value: String(created.id),
                                                             label: created.name,
                                                             price: Number(created.salePrice ?? created.price) || 0,
-                                                            currency: created.currency,
+                                                            currency:
+                                                                normalizeCurrencyCode(created.currency, defaultCurrency) ||
+                                                                defaultCurrency,
                                                             img: created.img,
                                                             description: created.description,
                                                         }

@@ -177,6 +177,42 @@ const buildEventsByDate = (events: CalendarActivityEvent[]): EventsByDate => {
     return record
 }
 
+const expandUpcomingOccurrences = (
+    event: CalendarEventDto,
+    labels: { allDayLabel: string; noDescription: string },
+): CalendarListItem[] => {
+    const baseItem = mapEventToListItem(event, labels)
+    const occurrences: CalendarListItem[] = []
+    const start = dayjs(event.start)
+    if (!start.isValid()) {
+        return occurrences
+    }
+    const endCandidate = event.end ? dayjs(event.end) : start
+    const end = endCandidate.isBefore(start) ? start : endCandidate
+    const today = dayjs().startOf('day')
+    let cursor = start.startOf('day')
+    const last = end.startOf('day')
+    while (cursor.isBefore(last) || cursor.isSame(last)) {
+        if (cursor.isAfter(today)) {
+            const isFirstDay = cursor.isSame(start, 'day')
+            const occurrenceStart = isFirstDay ? start : cursor.startOf('day')
+            const normalizedStart = occurrenceStart.isValid()
+                ? occurrenceStart
+                : cursor.startOf('day')
+            occurrences.push({
+                ...baseItem,
+                start: normalizedStart.toISOString(),
+                sortValue: normalizedStart.valueOf(),
+                sortOrder: isFirstDay ? baseItem.sortOrder : 0,
+                dateLabel: cursor.format('DD/MM/YYYY'),
+                timeLabel: isFirstDay ? baseItem.timeLabel : labels.allDayLabel,
+            })
+        }
+        cursor = cursor.add(1, 'day')
+    }
+    return occurrences
+}
+
 const mapEventToListItem = (
     event: CalendarEventDto,
     labels: { allDayLabel: string; noDescription: string },
@@ -307,21 +343,16 @@ const CalendarActivities = () => {
     }, [eventsByDate, labels, selectedDate])
 
     const upcomingActivities = useMemo<CalendarListItem[]>(() => {
-        if (mappedActivities.length === 0) {
+        if (allActivities.length === 0) {
             return []
         }
-        const now = dayjs()
-        const upcoming = mappedActivities.filter((item) => {
-            const date = dayjs(item.start)
-            if (!date.isValid()) {
-                return false
-            }
-            return date.isAfter(now)
-        })
-        return upcoming
+        const occurrences = allActivities.flatMap((event) =>
+            expandUpcomingOccurrences(event, labels),
+        )
+        return occurrences
             .sort((a, b) => a.sortValue - b.sortValue)
             .slice(0, 20)
-    }, [mappedActivities])
+    }, [allActivities, labels])
 
     const upcomingActivityGroups = useMemo<
         { key: string; label: string; items: CalendarListItem[] }[]

@@ -30,6 +30,41 @@ type ThemeConfigPayload = {
     sideNavCollapse: boolean
   }
 }
+type BasicStatusConfig = { name: string; color?: string | null }
+type OrderStatusConfig = BasicStatusConfig & { code?: number | null }
+type NamedEntityConfig = { name: string }
+type ShippingOptionConfig = {
+  name: string
+  deliveryFees?: number | null
+  estimatedMin?: number | null
+  estimatedMax?: number | null
+  img?: string | null
+}
+type CalendarEventTypeConfig = {
+  name: string
+  color?: string | null
+  description?: string | null
+}
+type SystemConfigExport = {
+  taxRate: number
+  currencies: string[]
+  themeConfig: ThemeConfigPayload
+}
+type SettingsExportPayload = {
+  meta: { exportedAt: string; version: number }
+  orderStatuses: OrderStatusConfig[]
+  customerStatuses: BasicStatusConfig[]
+  expenseStatuses: BasicStatusConfig[]
+  expenseCategories: NamedEntityConfig[]
+  productCategories: NamedEntityConfig[]
+  paymentMethods: NamedEntityConfig[]
+  shippingOptions: ShippingOptionConfig[]
+  calendarEventTypes: CalendarEventTypeConfig[]
+  systemConfig: SystemConfigExport
+}
+type SettingsImportPayload = Partial<Omit<SettingsExportPayload, 'meta'>> & {
+  meta?: Partial<SettingsExportPayload['meta']>
+}
 import type { FastifyRequest } from 'fastify'
 import { parseSingleFileMultipart } from '../common/uploads/multipart'
 import {
@@ -158,9 +193,12 @@ export class SettingsController {
     return ['USD', 'UYU']
   }
 
-  private async saveCurrencies(codes: string[]) {
+  private async saveCurrencies(
+    codes: string[],
+    client: PrismaService | Prisma.TransactionClient = this.prisma,
+  ) {
     const unique = Array.from(new Set(codes))
-    await this.prisma.systemConfig.upsert({
+    await client.systemConfig.upsert({
       where: { key: 'currencies' },
       update: { value: JSON.stringify(unique) },
       create: { key: 'currencies', value: JSON.stringify(unique) },
@@ -193,6 +231,35 @@ export class SettingsController {
         : trimmed.toLowerCase()
     }
     return trimmed
+  }
+
+  private normalizeOptionalColor(value: unknown) {
+    if (value === null || value === undefined) {
+      return null
+    }
+    const trimmed = String(value).trim()
+    if (!trimmed) {
+      return null
+    }
+    return this.normalizeColor(trimmed)
+  }
+
+  private sanitizeName(value: unknown) {
+    const name = String(value ?? '').trim()
+    return name.length ? name : null
+  }
+
+  private parseOptionalNumber(value: unknown) {
+    if (value === null || value === undefined || value === '') {
+      return null
+    }
+    const num = Number(value)
+    return Number.isFinite(num) ? num : null
+  }
+
+  private parseOptionalInteger(value: unknown) {
+    const num = this.parseOptionalNumber(value)
+    return num === null ? null : Math.round(num)
   }
 
   private async ensureCalendarEventTypesSeeded() {
@@ -482,6 +549,505 @@ export class SettingsController {
     await this.prisma.shippingOption.delete({ where: { id } })
     await deleteShippingLogo(existing.img)
     return true
+  }
+
+  // Configuration import/export
+  @Get('configurations/export')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  async exportConfigurations(): Promise<SettingsExportPayload> {
+    const [
+      orderStatuses,
+      customerStatuses,
+      expenseStatuses,
+      expenseCategories,
+      productCategories,
+      paymentMethods,
+      shippingOptions,
+      calendarEventTypes,
+      systemConfigs,
+    ] = await Promise.all([
+      this.prisma.orderStatus.findMany({ orderBy: { code: 'asc' } }),
+      this.prisma.customerStatus.findMany({ orderBy: { id: 'asc' } }),
+      this.prisma.expenseStatus.findMany({ orderBy: { id: 'asc' } }),
+      this.prisma.expenseCategory.findMany({ orderBy: { id: 'asc' } }),
+      this.prisma.productCategory.findMany({ orderBy: { id: 'asc' } }),
+      this.prisma.paymentMethod.findMany({ orderBy: { id: 'asc' } }),
+      this.prisma.shippingOption.findMany({ orderBy: { id: 'asc' } }),
+      this.prisma.calendarEventType.findMany({ orderBy: { id: 'asc' } }),
+      this.prisma.systemConfig.findMany(),
+    ])
+
+    const systemConfigMap = new Map(systemConfigs.map((cfg) => [cfg.key, cfg.value]))
+
+    const taxRateRaw = systemConfigMap.get('taxRate')
+    const parsedTaxRate = Number(taxRateRaw ?? '22')
+    const taxRate = Number.isFinite(parsedTaxRate) ? parsedTaxRate : 22
+
+    let themeConfig = this.defaultThemeConfig
+    const themeConfigRaw = systemConfigMap.get('themeConfig')
+    if (themeConfigRaw) {
+      try {
+        const parsed = JSON.parse(themeConfigRaw)
+        themeConfig = this.sanitizeThemeConfig(parsed)
+      } catch {
+        themeConfig = this.defaultThemeConfig
+      }
+    }
+
+    let currencies = ['USD', 'UYU']
+    const currenciesRaw = systemConfigMap.get('currencies')
+    if (currenciesRaw) {
+      try {
+        const parsed = JSON.parse(currenciesRaw)
+        if (Array.isArray(parsed)) {
+          const normalized = parsed
+            .map((item) => this.normalizeCurrency(item))
+            .filter((item): item is string => Boolean(item))
+          if (normalized.length) {
+            currencies = normalized
+          }
+        }
+      } catch {
+        // keep defaults
+      }
+    }
+
+    return {
+      meta: { exportedAt: new Date().toISOString(), version: 1 },
+      orderStatuses: orderStatuses.map(({ name, color, code }) => ({
+        name,
+        color,
+        code,
+      })),
+      customerStatuses: customerStatuses.map(({ name, color }) => ({
+        name,
+        color,
+      })),
+      expenseStatuses: expenseStatuses.map(({ name, color }) => ({
+        name,
+        color,
+      })),
+      expenseCategories: expenseCategories.map(({ name }) => ({ name })),
+      productCategories: productCategories.map(({ name }) => ({ name })),
+      paymentMethods: paymentMethods.map(({ name }) => ({ name })),
+      shippingOptions: shippingOptions.map(
+        ({ name, deliveryFees, estimatedMin, estimatedMax, img }) => ({
+          name,
+          deliveryFees,
+          estimatedMin,
+          estimatedMax,
+          img,
+        }),
+      ),
+      calendarEventTypes: calendarEventTypes.map(({ name, color, description }) => ({
+        name,
+        color,
+        description,
+      })),
+      systemConfig: {
+        taxRate,
+        currencies,
+        themeConfig,
+      },
+    }
+  }
+
+  @Post('configurations/import')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  async importConfigurations(@Body() payload: SettingsImportPayload) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new BadRequestException('Invalid payload')
+    }
+
+    const readArray = (value: unknown, field: string): unknown[] => {
+      if (value === null || value === undefined) {
+        return []
+      }
+      if (!Array.isArray(value)) {
+        throw new BadRequestException(`${field} must be an array`)
+      }
+      return value
+    }
+
+    const collectNamedItems = <T>(
+      source: unknown[],
+      builder: (raw: Record<string, unknown>, name: string) => T | null,
+    ): T[] => {
+      const map = new Map<string, T>()
+      for (const entry of source) {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+          continue
+        }
+        const raw = entry as Record<string, unknown>
+        const name = this.sanitizeName(raw['name'])
+        if (!name || map.has(name)) {
+          continue
+        }
+        const result = builder(raw, name)
+        if (result) {
+          map.set(name, result)
+        }
+      }
+      return Array.from(map.values())
+    }
+
+    const hasOrderStatuses = Object.prototype.hasOwnProperty.call(payload, 'orderStatuses')
+    const hasCustomerStatuses = Object.prototype.hasOwnProperty.call(payload, 'customerStatuses')
+    const hasExpenseStatuses = Object.prototype.hasOwnProperty.call(payload, 'expenseStatuses')
+    const hasExpenseCategories = Object.prototype.hasOwnProperty.call(payload, 'expenseCategories')
+    const hasProductCategories = Object.prototype.hasOwnProperty.call(payload, 'productCategories')
+    const hasPaymentMethods = Object.prototype.hasOwnProperty.call(payload, 'paymentMethods')
+    const hasShippingOptions = Object.prototype.hasOwnProperty.call(payload, 'shippingOptions')
+    const hasCalendarEventTypes = Object.prototype.hasOwnProperty.call(
+      payload,
+      'calendarEventTypes',
+    )
+    const hasSystemConfig = Object.prototype.hasOwnProperty.call(payload, 'systemConfig')
+
+    if (
+      hasOrderStatuses &&
+      payload.orderStatuses !== undefined &&
+      payload.orderStatuses !== null &&
+      !Array.isArray(payload.orderStatuses)
+    ) {
+      throw new BadRequestException('orderStatuses must be an array')
+    }
+
+    const sanitizedOrderStatuses: { name: string; code: number; color: string | null }[] = []
+    if (hasOrderStatuses) {
+      const items = Array.isArray(payload.orderStatuses) ? payload.orderStatuses : []
+      const usedCodes = new Set<number>()
+      let nextCode = 0
+      for (const entry of items) {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+          continue
+        }
+        const raw = entry as Record<string, unknown>
+        const name = this.sanitizeName(raw['name'])
+        if (!name) {
+          continue
+        }
+        let code = this.parseOptionalInteger(raw['code'])
+        if (code !== null && code < 0) {
+          code = null
+        }
+        if (code === null) {
+          while (usedCodes.has(nextCode)) {
+            nextCode += 1
+          }
+          code = nextCode
+          nextCode += 1
+        } else {
+          while (usedCodes.has(code)) {
+            code += 1
+          }
+          nextCode = code + 1
+        }
+        usedCodes.add(code)
+        sanitizedOrderStatuses.push({
+          name,
+          code,
+          color: this.normalizeOptionalColor(raw['color']),
+        })
+      }
+    }
+
+    const sanitizedCustomerStatuses = hasCustomerStatuses
+      ? collectNamedItems(
+          readArray(payload.customerStatuses as unknown, 'customerStatuses'),
+          (raw, name) => ({
+            name,
+            color: this.normalizeOptionalColor(raw['color']),
+          }),
+        )
+      : []
+
+    const sanitizedExpenseStatuses = hasExpenseStatuses
+      ? collectNamedItems(
+          readArray(payload.expenseStatuses as unknown, 'expenseStatuses'),
+          (raw, name) => ({
+            name,
+            color: this.normalizeOptionalColor(raw['color']),
+          }),
+        )
+      : []
+
+    const sanitizedExpenseCategories = hasExpenseCategories
+      ? collectNamedItems(
+          readArray(payload.expenseCategories as unknown, 'expenseCategories'),
+          (_, name) => ({ name }),
+        )
+      : []
+
+    const sanitizedProductCategories = hasProductCategories
+      ? collectNamedItems(
+          readArray(payload.productCategories as unknown, 'productCategories'),
+          (_, name) => ({ name }),
+        )
+      : []
+
+    const sanitizedPaymentMethods = hasPaymentMethods
+      ? collectNamedItems(
+          readArray(payload.paymentMethods as unknown, 'paymentMethods'),
+          (_, name) => ({ name }),
+        )
+      : []
+
+    const sanitizedShippingOptions = hasShippingOptions
+      ? collectNamedItems(
+          readArray(payload.shippingOptions as unknown, 'shippingOptions'),
+          (raw, name) => {
+            const deliveryFees = this.parseOptionalNumber(raw['deliveryFees'])
+            let estimatedMin = this.parseOptionalInteger(raw['estimatedMin'])
+            if (estimatedMin !== null && estimatedMin < 0) {
+              estimatedMin = 0
+            }
+            let estimatedMax = this.parseOptionalInteger(raw['estimatedMax'])
+            if (estimatedMax !== null && estimatedMin !== null && estimatedMax < estimatedMin) {
+              estimatedMax = estimatedMin
+            }
+            if (estimatedMax === null && estimatedMin !== null) {
+              estimatedMax = estimatedMin
+            }
+            const imgRaw = raw['img']
+            let img: string | null = null
+            if (imgRaw !== null && imgRaw !== undefined) {
+              const trimmed = String(imgRaw).trim()
+              if (trimmed) {
+                img = trimmed
+              }
+            }
+            return {
+              name,
+              deliveryFees,
+              estimatedMin,
+              estimatedMax,
+              img,
+            }
+          },
+        )
+      : []
+
+    const sanitizedCalendarEventTypes = hasCalendarEventTypes
+      ? collectNamedItems(
+          readArray(payload.calendarEventTypes as unknown, 'calendarEventTypes'),
+          (raw, name) => {
+            const color = this.normalizeOptionalColor(raw['color']) ?? '#2563eb'
+            const descriptionRaw = raw['description']
+            let description: string | null = null
+            if (descriptionRaw !== null && descriptionRaw !== undefined) {
+              const trimmed = String(descriptionRaw).trim()
+              if (trimmed) {
+                description = trimmed
+              }
+            }
+            return {
+              name,
+              color,
+              description,
+            }
+          },
+        )
+      : []
+
+    if (hasCalendarEventTypes && sanitizedCalendarEventTypes.length === 0) {
+      sanitizedCalendarEventTypes.push(
+        ...this.defaultCalendarEventTypes.map((item) => ({
+          name: item.name,
+          color: this.normalizeColor(item.color),
+          description: null,
+        })),
+      )
+    }
+
+    const systemConfigUpdates: {
+      taxRate?: number
+      currencies?: string[]
+      themeConfig?: ThemeConfigPayload
+    } = {}
+
+    if (hasSystemConfig) {
+      const rawConfig = payload.systemConfig as unknown
+      if (
+        rawConfig !== null &&
+        (typeof rawConfig !== 'object' || Array.isArray(rawConfig))
+      ) {
+        throw new BadRequestException('systemConfig must be an object')
+      }
+      if (rawConfig && typeof rawConfig === 'object' && !Array.isArray(rawConfig)) {
+        const config = rawConfig as Record<string, unknown>
+        if (Object.prototype.hasOwnProperty.call(config, 'taxRate')) {
+          const taxRateValue = this.parseOptionalNumber(config['taxRate'])
+          if (taxRateValue === null) {
+            throw new BadRequestException('taxRate must be a valid number')
+          }
+          systemConfigUpdates.taxRate = taxRateValue
+        }
+        if (Object.prototype.hasOwnProperty.call(config, 'currencies')) {
+          const currenciesValue = config['currencies']
+          if (!Array.isArray(currenciesValue) || !currenciesValue.length) {
+            throw new BadRequestException(
+              'systemConfig.currencies must be a non-empty array',
+            )
+          }
+          const currencyArray = currenciesValue as unknown[]
+          const normalizedCurrencies = currencyArray
+            .map((code) => this.normalizeCurrency(code))
+            .filter((code): code is string => Boolean(code))
+          if (!normalizedCurrencies.length) {
+            throw new BadRequestException(
+              'systemConfig.currencies must include at least one valid code',
+            )
+          }
+          systemConfigUpdates.currencies = normalizedCurrencies
+        }
+        if (Object.prototype.hasOwnProperty.call(config, 'themeConfig')) {
+          const themeValue = config['themeConfig']
+          if (!themeValue || typeof themeValue !== 'object' || Array.isArray(themeValue)) {
+            throw new BadRequestException('themeConfig must be an object')
+          }
+          systemConfigUpdates.themeConfig = this.sanitizeThemeConfig(
+            themeValue as Partial<ThemeConfigPayload>,
+          )
+        }
+      }
+    }
+
+    const summary: Record<string, number> = {}
+
+    await this.prisma.$transaction(async (tx) => {
+      if (hasOrderStatuses) {
+        await tx.orderStatus.deleteMany({})
+        if (sanitizedOrderStatuses.length) {
+          await tx.orderStatus.createMany({
+            data: sanitizedOrderStatuses.map(({ name, color, code }) => ({
+              name,
+              color: color ?? null,
+              code,
+            })),
+          })
+        }
+        summary.orderStatuses = sanitizedOrderStatuses.length
+      }
+
+      if (hasCustomerStatuses) {
+        await tx.customerStatus.deleteMany({})
+        if (sanitizedCustomerStatuses.length) {
+          await tx.customerStatus.createMany({
+            data: sanitizedCustomerStatuses.map(({ name, color }) => ({
+              name,
+              color: color ?? null,
+            })),
+          })
+        }
+        summary.customerStatuses = sanitizedCustomerStatuses.length
+      }
+
+      if (hasExpenseStatuses) {
+        await tx.expenseStatus.deleteMany({})
+        if (sanitizedExpenseStatuses.length) {
+          await tx.expenseStatus.createMany({
+            data: sanitizedExpenseStatuses.map(({ name, color }) => ({
+              name,
+              color: color ?? null,
+            })),
+          })
+        }
+        summary.expenseStatuses = sanitizedExpenseStatuses.length
+      }
+
+      if (hasExpenseCategories) {
+        await tx.expenseCategory.deleteMany({})
+        if (sanitizedExpenseCategories.length) {
+          await tx.expenseCategory.createMany({
+            data: sanitizedExpenseCategories.map(({ name }) => ({ name })),
+          })
+        }
+        summary.expenseCategories = sanitizedExpenseCategories.length
+      }
+
+      if (hasProductCategories) {
+        await tx.productCategory.deleteMany({})
+        if (sanitizedProductCategories.length) {
+          await tx.productCategory.createMany({
+            data: sanitizedProductCategories.map(({ name }) => ({ name })),
+          })
+        }
+        summary.productCategories = sanitizedProductCategories.length
+      }
+
+      if (hasPaymentMethods) {
+        await tx.paymentMethod.deleteMany({})
+        if (sanitizedPaymentMethods.length) {
+          await tx.paymentMethod.createMany({
+            data: sanitizedPaymentMethods.map(({ name }) => ({ name })),
+          })
+        }
+        summary.paymentMethods = sanitizedPaymentMethods.length
+      }
+
+      if (hasShippingOptions) {
+        await tx.shippingOption.deleteMany({})
+        if (sanitizedShippingOptions.length) {
+          await tx.shippingOption.createMany({
+            data: sanitizedShippingOptions.map(
+              ({ name, deliveryFees, estimatedMin, estimatedMax, img }) => ({
+                name,
+                deliveryFees,
+                estimatedMin,
+                estimatedMax,
+                img,
+              }),
+            ),
+          })
+        }
+        summary.shippingOptions = sanitizedShippingOptions.length
+      }
+
+      if (hasCalendarEventTypes) {
+        await tx.calendarEventType.deleteMany({})
+        if (sanitizedCalendarEventTypes.length) {
+          await tx.calendarEventType.createMany({
+            data: sanitizedCalendarEventTypes.map(({ name, color, description }) => ({
+              name,
+              color,
+              description: description ?? null,
+            })),
+          })
+        }
+        summary.calendarEventTypes = sanitizedCalendarEventTypes.length
+      }
+
+      if (hasSystemConfig) {
+        if (systemConfigUpdates.taxRate !== undefined) {
+          await tx.systemConfig.upsert({
+            where: { key: 'taxRate' },
+            update: { value: String(systemConfigUpdates.taxRate) },
+            create: { key: 'taxRate', value: String(systemConfigUpdates.taxRate) },
+          })
+          summary.taxRate = 1
+        }
+        if (systemConfigUpdates.currencies) {
+          await this.saveCurrencies(systemConfigUpdates.currencies, tx)
+          summary.currencies = systemConfigUpdates.currencies.length
+        }
+        if (systemConfigUpdates.themeConfig) {
+          await tx.systemConfig.upsert({
+            where: { key: 'themeConfig' },
+            update: { value: JSON.stringify(systemConfigUpdates.themeConfig) },
+            create: {
+              key: 'themeConfig',
+              value: JSON.stringify(systemConfigUpdates.themeConfig),
+            },
+          })
+          summary.themeConfig = 1
+        }
+      }
+    })
+
+    return { success: true, summary }
   }
 
   // System Config

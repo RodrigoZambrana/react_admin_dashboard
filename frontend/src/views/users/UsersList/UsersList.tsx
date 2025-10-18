@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import Container from '@/components/shared/Container'
 import Card from '@/components/ui/Card'
 import Avatar from '@/components/ui/Avatar'
-import { HiOutlineUser, HiOutlineSearch } from 'react-icons/hi'
+import { HiOutlineUser, HiOutlineSearch, HiOutlineTrash } from 'react-icons/hi'
 import Input from '@/components/ui/Input'
 import {
     apiCreateUser,
     apiGetUsers,
     apiUpdateUser,
     apiUpdateUserPassword,
+    apiDeleteUser,
 } from '@/services/UsersService'
 import Select from '@/components/ui/Select'
 import { useTranslation } from 'react-i18next'
@@ -91,6 +92,7 @@ const UsersList = () => {
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [editing, setEditing] = useState<UserFormValues | null>(null)
     const [activeTab, setActiveTab] = useState<'details' | 'password'>('details')
+    const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
     const avatarPreviewRef = useRef<string | null>(null)
     const { t } = useTranslation()
     const location = useLocation()
@@ -184,6 +186,51 @@ const UsersList = () => {
         setDrawerOpen(false)
         setEditing(null)
         setActiveTab('details')
+    }
+
+    const handleDeleteUser = async (user: User) => {
+        const confirmMessage = t('text.messages.deleteUserConfirm', {
+            defaultValue:
+                'Are you sure you want to delete this user? This action cannot be undone.',
+        })
+        const confirmed =
+            typeof window !== 'undefined' ? window.confirm(confirmMessage) : true
+        if (!confirmed) {
+            return
+        }
+        try {
+            setDeletingUserId(String(user.id))
+            await apiDeleteUser<{ success: boolean }>(String(user.id))
+            setUsers((prev) =>
+                prev.filter((existing) => String(existing.id) !== String(user.id)),
+            )
+            if (editing?.id && String(editing.id) === String(user.id)) {
+                handleDrawerClose()
+            }
+            toast.push(
+                <Notification
+                    title={t('text.messages.userDeleted', {
+                        defaultValue: 'User deleted',
+                    })}
+                    type="success"
+                />,
+                { placement: 'top-center' },
+            )
+        } catch (error) {
+            const err = error as AxiosError<{ message?: string }>
+            const fallbackMessage = t('text.messages.userDeleteFailed', {
+                defaultValue: 'We could not delete the user.',
+            })
+            const message = err.response?.data?.message
+                ? t(err.response.data.message, { defaultValue: fallbackMessage })
+                : fallbackMessage
+            toast.push(
+                <Notification title={message} type="danger" />,
+                { placement: 'top-center' },
+            )
+        } finally {
+            setDeletingUserId(null)
+        }
     }
 
     const onCreate = () => {
@@ -404,15 +451,48 @@ const UsersList = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filtered.map((user) => (
-                    <Card key={user.id} onClick={() => onEdit(user)} className="cursor-pointer">
-                        <div className="flex items-center gap-3">
-                            <Avatar src={user.img || undefined} shape="circle" icon={<HiOutlineUser />} />
-                            <div>
-                                <div className="font-semibold">
-                                    {([user.name, user.lastName].filter(Boolean).join(' ') || user.email || '').trim()}
+                    <Card
+                        key={user.id}
+                        onClick={() => onEdit(user)}
+                        className="cursor-pointer"
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <Avatar
+                                    src={user.img || undefined}
+                                    shape="circle"
+                                    icon={<HiOutlineUser />}
+                                />
+                                <div>
+                                    <div className="font-semibold">
+                                        {(
+                                            [user.name, user.lastName]
+                                                .filter(Boolean)
+                                                .join(' ') || user.email || ''
+                                        ).trim()}
+                                    </div>
+                                    <div className="text-sm opacity-70">{user.email}</div>
                                 </div>
-                                <div className="text-sm opacity-70">{user.email}</div>
                             </div>
+                            <Button
+                                size="sm"
+                                variant="plain"
+                                icon={<HiOutlineTrash />}
+                                loading={deletingUserId === String(user.id)}
+                                disabled={
+                                    Boolean(
+                                        deletingUserId &&
+                                            deletingUserId !== String(user.id),
+                                    )
+                                }
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    handleDeleteUser(user)
+                                }}
+                                aria-label={t('text.actions.delete', {
+                                    defaultValue: 'Delete',
+                                })}
+                            />
                         </div>
                     </Card>
                 ))}

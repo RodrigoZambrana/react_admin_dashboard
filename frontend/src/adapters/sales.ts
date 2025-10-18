@@ -1,4 +1,5 @@
 /* eslint-disable  @typescript-eslint/no-explicit-any */
+import { normalizeCurrencyCode } from '@/utils/currency'
 export function toUnixSeconds(date: any): number {
   try {
     const d = date ? new Date(date) : new Date()
@@ -28,11 +29,24 @@ export function adaptOrderToDetailsView(o: any) {
     shippingLogo: '',
     shippingVendor: o.shippingVendor || '',
   }
+  const detectedCurrency = (() => {
+    if (Array.isArray(o.items)) {
+      for (const item of o.items) {
+        const code = normalizeCurrencyCode(item?.product?.currency || item?.currency)
+        if (code) {
+          return code
+        }
+      }
+    }
+    return undefined
+  })()
+  const normalizedCurrency = normalizeCurrencyCode(detectedCurrency)
   const paymentSummary = {
     subTotal: Number(o.subTotal || 0),
     tax: Number(o.tax || 0),
     deliveryFees: Number(o.deliveryFees || 0),
     total: Number(o.grandTotal || 0),
+    currency: normalizedCurrency,
   }
   const product = Array.isArray(o.items)
     ? o.items.map((it: any) => ({
@@ -44,6 +58,9 @@ export function adaptOrderToDetailsView(o: any) {
         price: Number(it.price || 0),
         quantity: Number(it.qty || 0),
         total: Number(it.price || 0) * Number(it.qty || 0),
+        currency:
+          normalizeCurrencyCode(it?.product?.currency || it?.currency, normalizedCurrency) ||
+          normalizedCurrency,
         details: {},
       }))
     : []

@@ -4,7 +4,7 @@ import { apiGetExpenseStatuses, apiGetPaymentMethods } from '@/services/Settings
 import { apiUpdateExpense } from '@/services/ExpensesService'
 import Tooltip from '@/components/ui/Tooltip'
 import DataTable from '@/components/shared/DataTable'
-import { HiOutlineEye, HiOutlineTrash } from 'react-icons/hi'
+import { HiOutlineEye, HiOutlinePencil, HiOutlineTrash } from 'react-icons/hi'
 import { NumericFormat } from 'react-number-format'
 import classNames from 'classnames'
 import {
@@ -99,7 +99,7 @@ const ExpenseIdColumn = ({ row }: { row: Expense }) => {
     const navigate = useNavigate()
 
     const onView = useCallback(() => {
-        navigate(`/app/expenses/expense-edit/${row.id}`)
+        navigate(`/app/expenses/expense-detail/${row.id}`)
     }, [navigate, row])
 
     return (
@@ -124,6 +124,9 @@ const ActionColumn = ({ row }: { row: Expense }) => {
     }
 
     const onView = useCallback(() => {
+        navigate(`/app/expenses/expense-detail/${row.id}`)
+    }, [navigate, row])
+    const onEdit = useCallback(() => {
         navigate(`/app/expenses/expense-edit/${row.id}`)
     }, [navigate, row])
 
@@ -135,6 +138,14 @@ const ActionColumn = ({ row }: { row: Expense }) => {
                     onClick={onView}
                 >
                     <HiOutlineEye />
+                </span>
+            </Tooltip>
+            <Tooltip title={t('text.actions.edit')}>
+                <span
+                    className={`cursor-pointer p-2 hover:${textTheme}`}
+                    onClick={onEdit}
+                >
+                    <HiOutlinePencil />
                 </span>
             </Tooltip>
             <Tooltip title={t('text.actions.delete')}>

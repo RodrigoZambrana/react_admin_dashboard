@@ -55,6 +55,7 @@ import {
     crmFakeApi,
     salesFakeApi,
     expensesFakeApi,
+    accountingFakeApi,
     accountFakeApi,
     cryptoFakeApi,
     authFakeApi,
@@ -126,6 +127,7 @@ export function mockServer({ environment = 'test' }) {
             crmFakeApi(this, apiPrefix)
             salesFakeApi(this, apiPrefix)
             expensesFakeApi(this, apiPrefix)
+            accountingFakeApi(this, apiPrefix)
             settingsFakeApi(this, apiPrefix)
             accountFakeApi(this, apiPrefix)
             authFakeApi(this, apiPrefix)

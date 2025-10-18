@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Put,
+  Delete,
   UseGuards,
   Request,
 } from '@nestjs/common'
@@ -231,6 +232,36 @@ export class UsersController {
       }
       throw error
     }
+  }
+
+  @Delete(':id')
+  async delete(@Param('id') id: string, @Request() req: FastifyRequest) {
+    const userId = Number(id)
+    if (!Number.isInteger(userId)) {
+      throw new BadRequestException('users.validation.invalidUser')
+    }
+
+    const authUser = (req as unknown as { user?: { sub?: number } }).user
+    const requesterId = Number(authUser?.sub)
+    if (Number.isInteger(requesterId) && requesterId === userId) {
+      throw new BadRequestException('users.validation.cannotDeleteSelf')
+    }
+
+    try {
+      await this.prisma.user.delete({
+        where: { id: userId },
+      })
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new BadRequestException('users.validation.invalidUser')
+      }
+      throw error
+    }
+
+    return { success: true }
   }
 
   @Put(':id/password')

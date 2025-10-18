@@ -31,6 +31,10 @@
             "orderDetails": "Detalles del pedido",
             "addOrder": "Agregar pedido"
         },
+        "appsAccounting": {
+            "accounting": "Contabilidad",
+            "dashboard": "Resumen"
+        },
         "appsProducts": {
             "products": "Productos"
         },
@@ -699,7 +703,10 @@
             "passwordUpdateFailed": "No pudimos actualizar la contraseña.",
             "userCreated": "Usuario creado",
             "userUpdated": "Usuario actualizado",
+            "userDeleted": "Usuario eliminado",
+            "userDeleteFailed": "No pudimos eliminar el usuario.",
             "userSaveFailed": "No pudimos guardar el usuario.",
+            "deleteUserConfirm": "¿Seguro que quieres eliminar este usuario? Esta acción no se puede deshacer.",
             "passwordTabRequiresUser": "Crea el usuario antes de establecer una contraseña.",
             "viewPreviousBilling": "Ver su facturación anterior"
         },
@@ -875,7 +882,8 @@
     "users": {
         "validation": {
             "duplicateEmail": "Ya existe un usuario con ese correo.",
-            "passwordRequired": "La contraseña es obligatoria."
+            "passwordRequired": "La contraseña es obligatoria.",
+            "cannotDeleteSelf": "No puedes eliminar el usuario actualmente autenticado."
         }
     },
     "welcome": {
@@ -1101,6 +1109,80 @@
                 "parcel_has_arrived_at_delivery_station": "El paquete ha llegado al centro de entrega",
                 "parcel_has_been_picked_up_by_courier": "El paquete ha sido recogido por el mensajero",
                 "seller_is_preparing_to_ship_your_parcel": "El vendedor está preparando el envío de su paquete"
+            }
+        }
+    },
+    "accounting": {
+        "dashboard": {
+            "overview": {
+                "title": "Resumen de contabilidad",
+                "subtitle": "Ventas, gastos e impuestos mensuales"
+            },
+            "filters": {
+                "range": {
+                    "label": "Rango de fechas",
+                    "options": {
+                        "today": "Hoy",
+                        "thisWeek": "Esta semana",
+                        "thisMonth": "Este mes",
+                        "last15Days": "Últimos 15 días",
+                        "thisYear": "Este año",
+                        "custom": "Personalizado"
+                    }
+                }
+            },
+            "stat": {
+                "sales": "Ventas",
+                "expenses": "Gastos",
+                "taxes": "Impuestos",
+                "netIncome": "Ingresos",
+                "totalLabel": "Total del período seleccionado"
+            },
+            "monthly": {
+                "title": "Estadísticas mensuales",
+                "subtitle": "Totales acumulados por mes",
+                "rangeLabel": "Rango seleccionado",
+                "empty": "No hay datos de contabilidad para el período seleccionado",
+                "series": {
+                    "sales": "Ventas",
+                    "expenses": "Gastos",
+                    "taxes": "Impuestos",
+                    "netIncome": "Ingresos"
+                }
+            },
+            "summary": {
+                "metrics": {
+                    "sales": "Ventas",
+                    "expenses": "Gastos",
+                    "taxes": "Impuestos",
+                    "liquidIncome": "Ingreso líquido"
+                },
+                "cardTitle": "Resumen {{currency}}",
+                "chartTitle": "Gráfico por moneda",
+                "chartSubtitle": "Ventas, gastos, impuestos e ingreso líquido agrupados por moneda.",
+                "chartEmpty": "No hay datos suficientes para mostrar el gráfico.",
+                "empty": "Aún no hay movimientos registrados."
+            },
+            "currencies": {
+                "title": "Movimientos por moneda",
+                "subtitle": "Compara ventas, gastos, impuestos y resultados por moneda",
+                "totalsTitle": "Totales por moneda",
+                "totalsEmpty": "Aún no hay movimientos registrados.",
+                "monthlyTitle": "Detalle mensual",
+                "monthlyEmpty": "No hay movimientos para mostrar.",
+                "table": {
+                    "currency": "Moneda",
+                    "sales": "Ventas",
+                    "expenses": "Gastos",
+                    "taxes": "Impuestos",
+                    "balance": "Saldo",
+                    "liquidIncome": "Ingreso líquido"
+                },
+                "labels": {
+                    "iusd": "USD",
+                    "uyu": "UYU",
+                    "other": "Otros"
+                }
             }
         }
     },

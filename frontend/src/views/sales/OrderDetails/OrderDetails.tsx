@@ -28,6 +28,7 @@ type SalesOrderDetailsResponse = {
         tax: number
         deliveryFees: number
         total: number
+        currency?: string
     }
     shipping?: {
         deliveryFees: number
@@ -44,6 +45,7 @@ type SalesOrderDetailsResponse = {
         price: number
         quantity: number
         total: number
+        currency?: string
         details: Record<string, string[]>
     }[]
     activity?: {
@@ -195,7 +197,11 @@ const OrderDetails = () => {
                             <div className="w-full">
                                 <OrderProducts data={data.product} />
                                 <div className="xl:grid grid-cols-2 gap-4">
-                                    <PaymentSummary data={data.paymentSummary} taxRate={taxRate} />
+                                    <PaymentSummary
+                                        data={data.paymentSummary}
+                                        taxRate={taxRate}
+                                        currency={data.paymentSummary?.currency}
+                                    />
                                     <ShippingInfo data={data.shipping} />
                                 </div>
                                 <Activity data={data.activity} />

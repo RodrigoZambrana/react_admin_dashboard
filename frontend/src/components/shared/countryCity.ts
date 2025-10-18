@@ -10,6 +10,8 @@ export type CityRow = {
   name?: string
 }
 
+type RawCityRow = Record<string, string | undefined>
+
 type CacheEntry = {
   rows: CityRow[] | null
   error: string | null
@@ -20,10 +22,22 @@ const pendingFetches = new Map<string, Promise<CityRow[]>>()
 
 const normalizeCountryKey = (value?: string) => (value || '').trim().toLowerCase()
 
+const trimHeader = (header: string) => header.trim()
+
+const normalizeRow = (row: RawCityRow): CityRow => {
+  const normalized: CityRow = {}
+  for (const [rawKey, value] of Object.entries(row)) {
+    const key = trimHeader(rawKey)
+    if (key === 'country_name' || key === 'name') {
+      normalized[key as keyof CityRow] = value
+    }
+  }
+  return normalized
+}
+
 const baseConfig = {
   header: true,
   skipEmptyLines: true,
-  transformHeader: (header: string) => header.trim(),
   fastMode: true,
 } as const
 
@@ -31,16 +45,22 @@ const parseCsvAsync = async (text: string): Promise<CityRow[]> => {
   const runParse = (useWorker: boolean) =>
     new Promise<CityRow[]>((resolve, reject) => {
       try {
-        Papa.parse<CityRow>(text, {
+        const config: Papa.ParseConfig<RawCityRow> = {
           ...baseConfig,
           worker: useWorker,
           complete: (results) => {
-            resolve(results.data)
+            resolve(results.data.map(normalizeRow))
           },
           error: (error) => {
             reject(error)
           },
-        })
+        }
+
+        if (!useWorker) {
+          config.transformHeader = trimHeader
+        }
+
+        Papa.parse<RawCityRow>(text, config)
       } catch (error) {
         reject(error)
       }

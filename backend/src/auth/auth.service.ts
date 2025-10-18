@@ -7,6 +7,17 @@ import { SESSION_TTL_MILLISECONDS } from './auth.config'
 
 const RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
 
+const normalizeLanguagePreference = (value?: string | null) => {
+  const normalized = (value || '').trim().toLowerCase()
+  if (normalized.startsWith('es')) {
+    return 'es'
+  }
+  if (normalized.startsWith('en')) {
+    return 'en'
+  }
+  return 'en'
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -90,7 +101,9 @@ export class AuthService {
     img?: string | null
     name?: string | null
     lastName?: string | null
+    lang?: string | null
   }) {
+    const lang = normalizeLanguagePreference(user.lang)
     const payload = {
       sub: user.id,
       email: user.email,
@@ -99,6 +112,7 @@ export class AuthService {
       role: user.role,
       name: user.name || '',
       lastName: user.lastName || '',
+      lang,
     }
     const token = this.jwt.sign(payload)
     const expiresAt = new Date(Date.now() + SESSION_TTL_MILLISECONDS).toISOString()
@@ -111,6 +125,7 @@ export class AuthService {
         email: user.email,
         name: user.name || '',
         lastName: user.lastName || '',
+        lang,
       },
     }
   }

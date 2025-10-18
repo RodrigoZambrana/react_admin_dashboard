@@ -412,13 +412,116 @@ export async function apiGetCustomersStatistic<T>() {
     return apiGetCustomerStatistics<T>()
 }
 
+const toFiniteInt = (value: unknown): number | undefined => {
+    if (value === undefined || value === null || value === '') {
+        return undefined
+    }
+    const numeric =
+        typeof value === 'number'
+            ? value
+            : typeof value === 'string'
+              ? Number(value.trim())
+              : Number((value as any)?.toString?.() ?? Number.NaN)
+    if (!Number.isFinite(numeric)) {
+        return undefined
+    }
+    const int = Math.trunc(numeric)
+    return Number.isFinite(int) ? int : undefined
+}
+
+const toNullableInt = (value: unknown): number | null | undefined => {
+    if (value === undefined) {
+        return undefined
+    }
+    if (value === null) {
+        return null
+    }
+    if (value === '') {
+        return null
+    }
+    if (typeof value === 'string') {
+        const trimmed = value.trim()
+        if (!trimmed.length) {
+            return null
+        }
+        const parsed = Number(trimmed)
+        if (!Number.isFinite(parsed)) {
+            return undefined
+        }
+        return Math.trunc(parsed)
+    }
+    if (typeof value === 'number') {
+        if (!Number.isFinite(value)) {
+            return undefined
+        }
+        return Math.trunc(value)
+    }
+    const parsed = Number((value as any)?.toString?.() ?? Number.NaN)
+    if (!Number.isFinite(parsed)) {
+        return undefined
+    }
+    return Math.trunc(parsed)
+}
+
+const cloneShallow = <T extends Record<string, unknown>>(input: T): Record<string, unknown> => {
+    const output: Record<string, unknown> = {}
+    Object.keys(input).forEach((key) => {
+        output[key] = input[key]
+    })
+    return output
+}
+
+const normalizeCustomerUpsertPayload = (data: Record<string, unknown>) => {
+    const payload = cloneShallow(data)
+
+    if ('id' in payload) {
+        const normalizedId = toFiniteInt(payload.id)
+        if (normalizedId !== undefined) {
+            payload.id = normalizedId
+        } else {
+            delete payload.id
+        }
+    }
+
+    const nestedStatus = payload.status && typeof payload.status === 'object' && payload.status !== null
+        ? { ...(payload.status as Record<string, unknown>) }
+        : undefined
+
+    if (nestedStatus) {
+        const nestedId = toNullableInt(nestedStatus.id)
+        if (nestedId === null) {
+            nestedStatus.id = null
+        } else if (nestedId !== undefined) {
+            nestedStatus.id = nestedId
+        } else {
+            delete nestedStatus.id
+        }
+        payload.status = nestedStatus
+    }
+
+    const statusSource =
+        payload.statusId ??
+        (nestedStatus ? nestedStatus.id : undefined)
+
+    const normalizedStatusId = toNullableInt(statusSource)
+    if (normalizedStatusId === null) {
+        payload.statusId = null
+    } else if (normalizedStatusId !== undefined) {
+        payload.statusId = normalizedStatusId
+    } else if ('statusId' in payload) {
+        delete payload.statusId
+    }
+
+    return payload
+}
+
 export async function apiUpsertCustomer<T, U extends Record<string, unknown>>(
     data: U,
 ) {
     return ApiService.fetchData<T>({
         url: '/customers',
         method: 'put',
-        data,
+        data: normalizeCustomerUpsertPayload(data as Record<string, unknown>),
     })
 }
 

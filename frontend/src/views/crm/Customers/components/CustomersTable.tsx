@@ -259,9 +259,24 @@ const Customers = () => {
                             ...customer,
                         }))
 
+                        const normalizedStatusId = (() => {
+                            const value = option.value as unknown
+                            if (value === undefined || value === null || value === '') {
+                                return null
+                            }
+                            if (typeof value === 'number') {
+                                return value
+                            }
+                            const parsed = Number(value)
+                            if (Number.isFinite(parsed)) {
+                                return parsed
+                            }
+                            return String(value)
+                        })()
+
                         const updatedCustomer: Customer = {
                             ...row,
-                            statusId: option.value,
+                            statusId: normalizedStatusId,
                             status: option.label,
                             statusName: option.label,
                         }

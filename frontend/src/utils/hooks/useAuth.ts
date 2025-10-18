@@ -3,6 +3,7 @@ import {
     setUser,
     signInSuccess,
     signOutSuccess,
+    setLang,
     useAppSelector,
     useAppDispatch,
 } from '@/store'
@@ -13,6 +14,20 @@ import useQuery from './useQuery'
 import type { SignInCredential, SignUpCredential } from '@/@types/auth'
 
 type Status = 'success' | 'failed'
+
+const normalizeLanguagePreference = (lang?: string | null) => {
+    if (!lang) {
+        return null
+    }
+    const lowered = lang.trim().toLowerCase()
+    if (lowered.startsWith('es')) {
+        return 'es'
+    }
+    if (lowered.startsWith('en')) {
+        return 'en'
+    }
+    return null
+}
 
 function useAuth() {
     const dispatch = useAppDispatch()
@@ -64,6 +79,10 @@ function useAuth() {
                     dispatch(
                         setUser(userPayload),
                     )
+                    const langPreference = normalizeLanguagePreference(resp.data.user.lang)
+                    if (langPreference) {
+                        dispatch(setLang(langPreference))
+                    }
                 }
                 const redirectUrl = query.get(REDIRECT_URL_KEY)
                 navigate(
@@ -116,6 +135,10 @@ function useAuth() {
                     dispatch(
                         setUser(userPayload),
                     )
+                    const langPreference = normalizeLanguagePreference(resp.data.user.lang)
+                    if (langPreference) {
+                        dispatch(setLang(langPreference))
+                    }
                 }
                 const redirectUrl = query.get(REDIRECT_URL_KEY)
                 navigate(

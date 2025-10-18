@@ -73,3 +73,11 @@ export async function apiUpdateAccountPassword<T, U extends Record<string, unkno
         data,
     })
 }
+
+export async function apiUpdateAccountLanguage<T, U extends { lang: string }>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/account/setting/language',
+        method: 'put',
+        data,
+    })
+}

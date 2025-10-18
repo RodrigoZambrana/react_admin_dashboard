@@ -42,6 +42,17 @@ const normalizeRequiredString = (value: string, field: string) => {
   return trimmed
 }
 
+const normalizeLanguagePreference = (value?: string | null) => {
+  const normalized = (value || '').trim().toLowerCase()
+  if (normalized.startsWith('es')) {
+    return 'es'
+  }
+  if (normalized.startsWith('en')) {
+    return 'en'
+  }
+  return 'en'
+}
+
 const HALF_DAY_IN_MS = 12 * 60 * 60 * 1000
 
 @UseGuards(JwtAuthGuard)
@@ -242,7 +253,7 @@ export class AccountController {
 
   @Get('setting')
   async setting(@Request() req: FastifyRequest) {
-    const authUser = (req as unknown as { user?: { sub?: number; email?: string; name?: string; lastName?: string; avatar?: string | null } }).user
+    const authUser = (req as unknown as { user?: { sub?: number; email?: string; name?: string; lastName?: string; avatar?: string | null; lang?: string | null } }).user
     const userId = Number(authUser?.sub)
     const fallbackEmail = authUser?.email || 'admin@example.com'
     const fallbackFirstName =
@@ -253,11 +264,12 @@ export class AccountController {
     let firstName = fallbackFirstName
     let lastName = fallbackLastName
     let avatar = normalizeNullableString(authUser?.avatar) || ''
+    let lang = normalizeLanguagePreference(authUser?.lang || null)
 
     if (Number.isInteger(userId)) {
       const dbUser = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: { email: true, name: true, lastName: true, img: true },
+        select: { email: true, name: true, lastName: true, img: true, lang: true },
       })
       if (dbUser) {
         email = dbUser.email || fallbackEmail
@@ -266,6 +278,7 @@ export class AccountController {
         lastName =
           normalizeNullableString(dbUser.lastName) || fallbackLastName || ''
         avatar = normalizeNullableString(dbUser.img) || avatar || ''
+        lang = normalizeLanguagePreference(dbUser.lang)
       }
     }
 
@@ -280,7 +293,7 @@ export class AccountController {
         name,
         lastName,
         avatar: resolvedAvatar || '/img/avatars/thumb-1.jpg',
-        lang: 'en',
+        lang,
       },
       loginHistory,
     }
@@ -468,7 +481,7 @@ export class AccountController {
     )
     const lastName = normalizeNullableString(fields.lastName)
     const email = normalizeRequiredString(fields.email ?? '', 'email').toLowerCase()
-    const lang = (fields.lang || 'en').trim() || 'en'
+    const lang = normalizeLanguagePreference(fields.lang)
 
     const existing = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -478,6 +491,7 @@ export class AccountController {
         lastName: true,
         email: true,
         role: true,
+        lang: true,
       },
     })
 
@@ -500,6 +514,7 @@ export class AccountController {
           lastName,
           email,
           img: avatarToPersist ?? null,
+          lang,
         },
         select: {
           id: true,
@@ -508,6 +523,7 @@ export class AccountController {
           email: true,
           img: true,
           role: true,
+          lang: true,
         },
       })
 
@@ -515,6 +531,7 @@ export class AccountController {
       const previousLastName = normalizeNullableString(existing.lastName) || ''
       const previousEmail = (existing.email || '').toLowerCase()
       const previousAvatar = currentAvatar
+      const previousLang = normalizeLanguagePreference(existing.lang)
       const updatedFields: string[] = []
 
       if (previousFirstName !== firstName) {
@@ -528,6 +545,9 @@ export class AccountController {
       }
       if ((previousAvatar || null) !== (avatarToPersist || null)) {
         updatedFields.push('Avatar')
+      }
+      if (previousLang !== lang) {
+        updatedFields.push('Language')
       }
 
       if (updatedFields.length) {
@@ -553,6 +573,7 @@ export class AccountController {
           authority: [updated.role],
           name: updated.name || '',
           lastName: updated.lastName || '',
+          lang,
         },
       }
     } catch (error) {
@@ -567,5 +588,47 @@ export class AccountController {
       }
       throw error
     }
+  }
+
+  @Put('setting/language')
+  async updateLanguage(
+    @Request() req: FastifyRequest,
+    @Body() body: { lang?: string },
+  ) {
+    const authUser = (req as unknown as { user?: { sub?: number } })?.user
+    const userId = Number(authUser?.sub)
+
+    if (!Number.isInteger(userId)) {
+      throw new BadRequestException('account.settings.profile.userNotFound')
+    }
+
+    if (!body || typeof body.lang !== 'string') {
+      throw new BadRequestException('validation.fieldInvalid')
+    }
+
+    const nextLang = normalizeLanguagePreference(body.lang)
+
+    const existing = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { lang: true },
+    })
+
+    if (!existing) {
+      throw new BadRequestException('account.settings.profile.userNotFound')
+    }
+
+    const currentLang = normalizeLanguagePreference(existing.lang)
+    if (currentLang === nextLang) {
+      return { lang: currentLang }
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lang: nextLang },
+    })
+
+    await this.userActivity.recordProfileUpdate(userId, ['Language'], req)
+
+    return { lang: nextLang }
   }
 }

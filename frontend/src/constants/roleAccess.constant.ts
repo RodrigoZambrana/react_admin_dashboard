@@ -7,6 +7,7 @@ export const FEATURES = {
     CALENDAR: 'CALENDAR',
     ACTIVITIES: 'ACTIVITIES',
     EXPENSES: 'EXPENSES',
+    ACCOUNTING: 'ACCOUNTING',
     ACCOUNT: 'ACCOUNT',
     USERS: 'USERS',
     SETTINGS: 'SETTINGS',
@@ -21,6 +22,7 @@ export const FEATURE_LABELS: Record<Feature, string> = {
     [FEATURES.CALENDAR]: 'Agenda',
     [FEATURES.ACTIVITIES]: 'Actividades',
     [FEATURES.EXPENSES]: 'Gastos',
+    [FEATURES.ACCOUNTING]: 'Contabilidad',
     [FEATURES.ACCOUNT]: 'Cuenta',
     [FEATURES.USERS]: 'Usuarios',
     [FEATURES.SETTINGS]: 'Configuración',
@@ -33,6 +35,7 @@ const CORE_FEATURES: Feature[] = [
     FEATURES.CALENDAR,
     FEATURES.ACTIVITIES,
     FEATURES.EXPENSES,
+    FEATURES.ACCOUNTING,
     FEATURES.ACCOUNT,
 ]
 
