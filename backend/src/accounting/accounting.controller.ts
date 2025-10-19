@@ -3,7 +3,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { PrismaService } from '../prisma/prisma.service'
 import { DashboardFilterDto } from './dto/dashboard.dto'
 import { Prisma } from '@prisma/client'
-import { calculateOrderLineTotals, roundCurrency as roundPrice } from '../sales/utils/pricing'
+import { decimalToNumber, roundCurrency as roundPrice } from '../sales/utils/pricing'
 
 type CurrencyKey = 'IUSD' | 'UYU' | 'OTHER'
 
@@ -124,10 +124,18 @@ export class AccountingController {
           date: true,
           grandTotal: true,
           tax: true,
+          orderCurrency: true,
           items: {
             select: {
               price: true,
               qty: true,
+              unitCurrency: true,
+              unitAmount: true,
+              unitAmountOrderCurrency: true,
+              unitCostOrderCurrency: true,
+              unitCostAmount: true,
+              unitCostCurrency: true,
+              conversionRate: true,
               product: {
                 select: {
                   currency: true,
@@ -189,29 +197,78 @@ export class AccountingController {
 
       if (Array.isArray(order.items) && order.items.length > 0) {
         for (const item of order.items) {
-          const { saleTotal, costTotal } = calculateOrderLineTotals({
-            price: item.price,
-            qty: item.qty,
-            product: item.product ?? undefined,
-          })
-          const currencyKey = this.extractCurrencyKey(item.product?.currency)
-          acc.salesByCurrency[currencyKey] += saleTotal
-          const { vat: saleVat } = this.computeVat(saleTotal)
-          acc.salesVatByCurrency[currencyKey] += saleVat
+          const qty = Number(item.qty ?? 0)
+          const normalizedQty = Number.isFinite(qty) && qty > 0 ? qty : 0
+          const unitPriceOrder = decimalToNumber(item.price)
+          const saleTotalOrderCurrency = this.roundCurrency(unitPriceOrder * normalizedQty)
+          orderSales += saleTotalOrderCurrency
 
-          if (costTotal > 0) {
-            const { vat: costVat } = this.computeVat(costTotal)
-            acc.purchaseVatByCurrency[currencyKey] += costVat
+          const unitAmountOriginal = (() => {
+            if (item.unitAmount !== null && item.unitAmount !== undefined) {
+              return decimalToNumber(item.unitAmount)
+            }
+            if (
+              item.unitAmountOrderCurrency !== null &&
+              item.unitAmountOrderCurrency !== undefined &&
+              item.conversionRate !== null &&
+              item.conversionRate !== undefined
+            ) {
+              const derivedRate = decimalToNumber(item.conversionRate)
+              if (Number.isFinite(derivedRate) && derivedRate !== 0) {
+                const amountOrder = decimalToNumber(item.unitAmountOrderCurrency)
+                return amountOrder / derivedRate
+              }
+            }
+            if (item.product?.currency) {
+              return decimalToNumber(item.product?.salePrice)
+            }
+            return unitPriceOrder
+          })()
+          const saleTotalOriginal = this.roundCurrency(unitAmountOriginal * normalizedQty)
+          const saleCurrencyRaw =
+            item.unitCurrency ?? item.product?.currency ?? order.orderCurrency ?? null
+          const saleCurrencyKey = this.extractCurrencyKey(saleCurrencyRaw)
+          acc.salesByCurrency[saleCurrencyKey] += saleTotalOriginal
+          const { vat: saleVatOriginal } = this.computeVat(saleTotalOriginal)
+          acc.salesVatByCurrency[saleCurrencyKey] += saleVatOriginal
+
+          const unitCostOriginal = (() => {
+            if (item.unitCostAmount !== null && item.unitCostAmount !== undefined) {
+              return decimalToNumber(item.unitCostAmount)
+            }
+            if (
+              item.unitCostOrderCurrency !== null &&
+              item.unitCostOrderCurrency !== undefined &&
+              item.conversionRate !== null &&
+              item.conversionRate !== undefined
+            ) {
+              const derivedRate = decimalToNumber(item.conversionRate)
+              if (Number.isFinite(derivedRate) && derivedRate !== 0) {
+                const costOrder = decimalToNumber(item.unitCostOrderCurrency)
+                return costOrder / derivedRate
+              }
+            }
+            if (item.product?.costPrice !== undefined && item.product?.costPrice !== null) {
+              return decimalToNumber(item.product?.costPrice)
+            }
+            return 0
+          })()
+          const costTotalOriginal = this.roundCurrency(unitCostOriginal * normalizedQty)
+          if (costTotalOriginal > 0) {
+            const costCurrencyRaw =
+              item.unitCostCurrency ?? item.unitCurrency ?? item.product?.currency ?? order.orderCurrency ?? null
+            const costCurrencyKey = this.extractCurrencyKey(costCurrencyRaw)
+            const { vat: costVatOriginal } = this.computeVat(costTotalOriginal)
+            acc.purchaseVatByCurrency[costCurrencyKey] += costVatOriginal
           }
-          orderSales += saleTotal
         }
       }
 
       if (orderSales <= 0) {
-        const fallbackTotal = Number(order.grandTotal ?? 0)
+        const fallbackTotal = decimalToNumber(order.grandTotal)
         const normalizedFallback = Number.isFinite(fallbackTotal) ? fallbackTotal : 0
         if (normalizedFallback !== 0) {
-          const currencyKey = this.extractCurrencyKey(null)
+          const currencyKey = this.extractCurrencyKey(order.orderCurrency ?? null)
           acc.salesByCurrency[currencyKey] += normalizedFallback
           const { vat: saleVat } = this.computeVat(normalizedFallback)
           acc.salesVatByCurrency[currencyKey] += saleVat
@@ -225,7 +282,7 @@ export class AccountingController {
     for (const expense of expenses) {
       const expenseDate = new Date(expense.date)
       const acc = ensureAccumulator(expenseDate)
-      const amount = Number(expense.amount ?? 0)
+      const amount = decimalToNumber(expense.amount)
       const normalizedAmount = Number.isFinite(amount) ? amount : 0
       const currencyKey = this.extractCurrencyKey(expense.currency)
       acc.expenses += normalizedAmount

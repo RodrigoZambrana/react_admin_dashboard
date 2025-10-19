@@ -298,6 +298,17 @@ export async function apiDeleteSystemCurrency<
     })
 }
 
+export async function apiUpdateExchangeRates<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/system-config/exchange-rates',
+        method: 'put',
+        data,
+    })
+}
+
 export async function apiExportSettings<T>() {
     return ApiService.fetchData<T>({
         url: '/settings/configurations/export',

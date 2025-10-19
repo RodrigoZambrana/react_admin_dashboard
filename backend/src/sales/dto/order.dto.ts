@@ -28,6 +28,20 @@ export class OrderItemDto {
   @IsString()
   @IsSafeString()
   description?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  currency?: string
+
+  @IsOptional()
+  @IsNumber()
+  unitPrice?: number
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  unitCurrency?: string
 }
 
 export class AddressDto {
@@ -104,6 +118,11 @@ export class CreateOrderDto {
   @IsString()
   @IsSafeString()
   paymentMehod!: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  orderCurrency?: string
 
   @IsArray()
   @ValidateNested({ each: true })

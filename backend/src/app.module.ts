@@ -18,6 +18,7 @@ import { TasksModule } from './tasks/tasks.module'
 import { NotificationModule } from './notification/notification.module'
 import { HealthModule } from './health/health.module'
 import { ActivitiesModule } from './activities/activities.module'
+import { CurrencyModule } from './common/currency/currency.module'
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ActivitiesModule } from './activities/activities.module'
       ],
     }),
     PrismaModule,
+    CurrencyModule,
     AuthModule,
     UsersModule,
     CustomersModule,

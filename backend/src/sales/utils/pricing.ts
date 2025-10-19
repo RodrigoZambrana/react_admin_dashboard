@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client'
+
 export const SALE_MARKUP = 1.3
 
 export function decimalToNumber(value: unknown): number {
@@ -16,9 +18,13 @@ export function decimalToNumber(value: unknown): number {
   return 0
 }
 
-export function roundCurrency(value: number): number {
-  if (!Number.isFinite(value)) return 0
-  return Math.round((value + Number.EPSILON) * 100) / 100
+export function roundCurrency(value: Prisma.Decimal.Value): number {
+  try {
+    const decimal = new Prisma.Decimal(value ?? 0).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+    return Number(decimal.toString())
+  } catch (error) {
+    return 0
+  }
 }
 
 export function salePriceFromCost(cost: number): number {
@@ -38,7 +44,7 @@ export function derivePricingFromLegacyPrice(legacyPrice: number) {
 
 export type OrderLineInput = {
   qty?: number | null
-  price?: number | null
+  price?: unknown
   product?: {
     salePrice?: unknown
     costPrice?: unknown
@@ -49,8 +55,8 @@ export function calculateOrderLineTotals(input: OrderLineInput) {
   const quantityRaw = Number(input.qty ?? 0)
   const quantity = Number.isFinite(quantityRaw) ? quantityRaw : 0
   const saleUnit =
-    input.price !== null && input.price !== undefined && Number.isFinite(Number(input.price))
-      ? Number(input.price)
+    input.price !== null && input.price !== undefined
+      ? decimalToNumber(input.price)
       : decimalToNumber(input.product?.salePrice)
   const costUnit = decimalToNumber(input.product?.costPrice)
   const saleTotal = roundCurrency(quantity * saleUnit)

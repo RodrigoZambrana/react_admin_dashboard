@@ -13,6 +13,12 @@ const SUPERADMIN_LAST_NAME = process.env.SEED_SUPERADMIN_LAST_NAME || ''
 const ENABLE_DEMO_SEED = process.env.ENABLE_DEMO_SEED === 'true'
 const DEMO_PASSWORD = process.env.SEED_USER_PASSWORD || 'User@123!'
 
+const DEFAULT_ORDER_STATUSES: Prisma.OrderStatusCreateInput[] = [
+  { code: 0, name: 'Pagado', color: 'emerald-500' },
+  { code: 1, name: 'Pendiente', color: 'amber-500' },
+  { code: 2, name: 'Cancelado', color: 'red-500' },
+]
+
 function maskSecret(value: string) {
   if (!value) return '(empty)'
   if (value.length <= 4) return '****'
@@ -624,9 +630,31 @@ async function seedDemoData(superAdminEmail?: string) {
   }
 }
 
+async function seedDefaultOrderStatuses() {
+  if (ENABLE_DEMO_SEED) {
+    return
+  }
+  const count = await prisma.orderStatus.count()
+  if (count > 0) {
+    return
+  }
+  console.log('[seed] Seeding default order statuses...')
+  for (const status of DEFAULT_ORDER_STATUSES) {
+    await prisma.orderStatus.upsert({
+      where: { code: status.code },
+      update: {
+        name: status.name,
+        color: status.color ?? null,
+      },
+      create: status,
+    })
+  }
+}
+
 async function main() {
   const superAdmin = await seedSuperAdmin()
   await seedDemoData(superAdmin?.email || SUPERADMIN_EMAIL)
+  await seedDefaultOrderStatuses()
 }
 
 main()

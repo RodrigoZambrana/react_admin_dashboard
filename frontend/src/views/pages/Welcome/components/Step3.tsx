@@ -129,7 +129,7 @@ const Step3 = ({ onNext, onBack }: Step3Props) => {
                                 </FormContainer>
                             </Form>
                         )
-                    })}
+                    }}
                 </Formik>
             </div>
         </div>

@@ -16,6 +16,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Prisma } from '@prisma/client'
 import { Roles, ROLES } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
+import { CurrencyConversionService } from '../common/currency/currency-conversion.service'
+import { STANDARD_CURRENCIES } from '../common/currency/currency.constants'
 
 type ThemeConfigPayload = {
   themeColor: string
@@ -45,9 +47,12 @@ type CalendarEventTypeConfig = {
   color?: string | null
   description?: string | null
 }
+type ExchangeRateExport = { quote: string; rate: string; updatedAt: Date | null }
 type SystemConfigExport = {
   taxRate: number
   currencies: string[]
+  currencyBase: string
+  exchangeRates: ExchangeRateExport[]
   themeConfig: ThemeConfigPayload
 }
 type SettingsExportPayload = {
@@ -75,13 +80,22 @@ import {
 
 @Controller('settings')
 export class SettingsController {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private currencyConversion: CurrencyConversionService,
+  ) {}
 
   private readonly defaultCalendarEventTypes = [
     { name: 'Reunión', color: '#2563eb' },
     { name: 'Tarea', color: '#059669' },
     { name: 'Taller', color: '#7c3aed' },
     { name: 'Otro', color: '#6b7280' },
+  ]
+
+  private readonly defaultOrderStatuses: OrderStatusConfig[] = [
+    { code: 0, name: 'Pagado', color: 'emerald-500' },
+    { code: 1, name: 'Pendiente', color: 'amber-500' },
+    { code: 2, name: 'Cancelado', color: 'red-500' },
   ]
 
   private readonly defaultThemeConfig: ThemeConfigPayload = {
@@ -165,47 +179,6 @@ export class SettingsController {
     return next
   }
 
-  private normalizeCurrency(code?: unknown) {
-    if (!code) return null
-    const trimmed = String(code).trim().toUpperCase()
-    if (!/^[A-Z]{3,5}$/.test(trimmed)) {
-      return null
-    }
-    return trimmed
-  }
-
-  private async loadCurrencies(): Promise<string[]> {
-    const record = await this.prisma.systemConfig.findUnique({ where: { key: 'currencies' } })
-    if (!record) {
-      return ['USD', 'UYU']
-    }
-    try {
-      const parsed = JSON.parse(record.value)
-      if (Array.isArray(parsed)) {
-        const normalized = parsed
-          .map((item) => this.normalizeCurrency(item))
-          .filter((item): item is string => Boolean(item))
-        return normalized.length ? normalized : ['USD', 'UYU']
-      }
-    } catch (error) {
-      // fall through to default
-    }
-    return ['USD', 'UYU']
-  }
-
-  private async saveCurrencies(
-    codes: string[],
-    client: PrismaService | Prisma.TransactionClient = this.prisma,
-  ) {
-    const unique = Array.from(new Set(codes))
-    await client.systemConfig.upsert({
-      where: { key: 'currencies' },
-      update: { value: JSON.stringify(unique) },
-      create: { key: 'currencies', value: JSON.stringify(unique) },
-    })
-    return unique
-  }
-
   private parseNumber(value: unknown, fallback: number) {
     if (value === null || value === undefined || value === '') {
       return fallback
@@ -275,10 +248,31 @@ export class SettingsController {
     }
   }
 
+  private async ensureOrderStatusesSeeded() {
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.orderStatus.count()
+      if (existing > 0) {
+        return
+      }
+      await tx.orderStatus.createMany({
+        data: this.defaultOrderStatuses.map((status, index) => ({
+          name: status.name,
+          color: this.normalizeOptionalColor(status.color),
+          code:
+            status.code !== undefined && status.code !== null
+              ? this.parseInteger(status.code, index)
+              : index,
+        })),
+        skipDuplicates: true,
+      })
+    })
+  }
+
   // Order Statuses
   @Get('order-statuses')
   @UseGuards(JwtAuthGuard)
-  getOrderStatuses() {
+  async getOrderStatuses() {
+    await this.ensureOrderStatusesSeeded()
     return this.prisma.orderStatus.findMany({ orderBy: { id: 'asc' } })
   }
   @Post('order-statuses/create')
@@ -602,7 +596,7 @@ export class SettingsController {
         const parsed = JSON.parse(currenciesRaw)
         if (Array.isArray(parsed)) {
           const normalized = parsed
-            .map((item) => this.normalizeCurrency(item))
+            .map((item) => this.currencyConversion.normalizeCurrency(item))
             .filter((item): item is string => Boolean(item))
           if (normalized.length) {
             currencies = normalized
@@ -612,6 +606,15 @@ export class SettingsController {
         // keep defaults
       }
     }
+
+    const currencyBase = await this.currencyConversion.getBaseCurrency()
+    const exchangeRateRecords = await this.currencyConversion.listRates(currencyBase)
+    const exchangeRates: ExchangeRateExport[] = exchangeRateRecords.map((rate) => ({
+      quote: rate.quote,
+      rate: rate.rate.toString(),
+      updatedAt: rate.updatedAt ?? null,
+    }))
+    exchangeRates.unshift({ quote: currencyBase, rate: '1', updatedAt: null })
 
     return {
       meta: { exportedAt: new Date().toISOString(), version: 1 },
@@ -648,6 +651,8 @@ export class SettingsController {
       systemConfig: {
         taxRate,
         currencies,
+        currencyBase,
+        exchangeRates,
         themeConfig,
       },
     }
@@ -865,6 +870,8 @@ export class SettingsController {
     const systemConfigUpdates: {
       taxRate?: number
       currencies?: string[]
+      currencyBase?: string
+      exchangeRates?: { quote: string; rate: number }[]
       themeConfig?: ThemeConfigPayload
     } = {}
 
@@ -894,7 +901,7 @@ export class SettingsController {
           }
           const currencyArray = currenciesValue as unknown[]
           const normalizedCurrencies = currencyArray
-            .map((code) => this.normalizeCurrency(code))
+            .map((code) => this.currencyConversion.normalizeCurrency(code))
             .filter((code): code is string => Boolean(code))
           if (!normalizedCurrencies.length) {
             throw new BadRequestException(
@@ -902,6 +909,34 @@ export class SettingsController {
             )
           }
           systemConfigUpdates.currencies = normalizedCurrencies
+        }
+        if (Object.prototype.hasOwnProperty.call(config, 'currencyBase')) {
+          const base = this.currencyConversion.normalizeCurrency(config['currencyBase'])
+          if (!base) {
+            throw new BadRequestException('currencyBase must be a valid currency code')
+          }
+          systemConfigUpdates.currencyBase = base
+        }
+        if (Object.prototype.hasOwnProperty.call(config, 'exchangeRates')) {
+          const ratesValue = config['exchangeRates']
+          if (ratesValue !== undefined && ratesValue !== null) {
+            if (!Array.isArray(ratesValue)) {
+              throw new BadRequestException('exchangeRates must be an array of rate objects')
+            }
+            const normalizedRates = (ratesValue as unknown[])
+              .map((entry) => {
+                if (!entry || typeof entry !== 'object') return null
+                const rateEntry = entry as { quote?: unknown; rate?: unknown }
+                const quote = this.currencyConversion.normalizeCurrency(rateEntry.quote)
+                const rateNumber = Number(rateEntry.rate)
+                if (!quote || !Number.isFinite(rateNumber) || rateNumber <= 0) {
+                  return null
+                }
+                return { quote, rate: rateNumber }
+              })
+              .filter((entry): entry is { quote: string; rate: number } => Boolean(entry))
+            systemConfigUpdates.exchangeRates = normalizedRates
+          }
         }
         if (Object.prototype.hasOwnProperty.call(config, 'themeConfig')) {
           const themeValue = config['themeConfig']
@@ -916,6 +951,11 @@ export class SettingsController {
     }
 
     const summary: Record<string, number> = {}
+    let resolvedBaseForRates: string | undefined
+    if (systemConfigUpdates.exchangeRates) {
+      resolvedBaseForRates =
+        systemConfigUpdates.currencyBase ?? (await this.currencyConversion.getBaseCurrency())
+    }
 
     await this.prisma.$transaction(async (tx) => {
       if (hasOrderStatuses) {
@@ -1030,8 +1070,17 @@ export class SettingsController {
           summary.taxRate = 1
         }
         if (systemConfigUpdates.currencies) {
-          await this.saveCurrencies(systemConfigUpdates.currencies, tx)
+          await this.currencyConversion.setEnabledCurrencies(systemConfigUpdates.currencies, tx)
           summary.currencies = systemConfigUpdates.currencies.length
+        }
+        let currentBase = resolvedBaseForRates
+        if (systemConfigUpdates.currencyBase) {
+          currentBase = await this.currencyConversion.setBaseCurrency(systemConfigUpdates.currencyBase, tx)
+          summary.currencyBase = 1
+        }
+        if (systemConfigUpdates.exchangeRates && currentBase) {
+          await this.currencyConversion.replaceRates(currentBase, systemConfigUpdates.exchangeRates, tx)
+          summary.exchangeRates = systemConfigUpdates.exchangeRates.length
         }
         if (systemConfigUpdates.themeConfig) {
           await tx.systemConfig.upsert({
@@ -1057,16 +1106,50 @@ export class SettingsController {
     const cfg = await this.prisma.systemConfig.findMany()
     const map = new Map(cfg.map((c) => [c.key, c.value]))
     const taxRate = Number(map.get('taxRate') ?? '22')
+    const baseCurrency = await this.currencyConversion.getBaseCurrency()
+    const exchangeRates = await this.currencyConversion.listRates(baseCurrency)
+    const ratesPayload: { quote: string; rate: number; updatedAt: Date | null }[] = exchangeRates.map((rate) => ({
+      quote: rate.quote,
+      rate: Number(rate.rate.toString()),
+      updatedAt: rate.updatedAt ?? null,
+    }))
+    ratesPayload.unshift({ quote: baseCurrency, rate: 1, updatedAt: null })
+
     return {
       taxRate: Number.isNaN(taxRate) ? 22 : taxRate,
-      currencies: await this.loadCurrencies(),
+      currencies: await this.currencyConversion.getEnabledCurrencies(),
+      currencyBase: baseCurrency,
+      exchangeRates: ratesPayload,
+      currencyOptions: this.currencyConversion.getStandardCurrencies(),
     }
   }
 
   @Put('system-config')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async updateSystemConfig(@Body() body: { taxRate?: number }) {
+  async updateSystemConfig(
+    @Body() body: { taxRate?: number; currencyBase?: string; currencies?: string[] },
+  ) {
+    if (body.currencies) {
+      const normalized = body.currencies
+        .map((code) => this.currencyConversion.normalizeCurrency(code))
+        .filter((code): code is string => Boolean(code))
+      if (!normalized.length) {
+        throw new BadRequestException('At least one valid currency must be provided')
+      }
+      await this.currencyConversion.setEnabledCurrencies(normalized)
+    }
+    if (body.currencyBase) {
+      const base = this.currencyConversion.normalizeCurrency(body.currencyBase)
+      if (!base) {
+        throw new BadRequestException('Invalid base currency')
+      }
+      const enabled = await this.currencyConversion.getEnabledCurrencies()
+      if (!enabled.includes(base)) {
+        await this.currencyConversion.setEnabledCurrencies([base, ...enabled])
+      }
+      await this.currencyConversion.setBaseCurrency(base)
+    }
     if (body.taxRate !== undefined) {
       const value = Number(body.taxRate)
       if (!Number.isNaN(value)) {
@@ -1114,34 +1197,83 @@ export class SettingsController {
   @Get('system-config/currencies')
   @UseGuards(JwtAuthGuard)
   async getCurrencies() {
-    return this.loadCurrencies()
+    return this.currencyConversion.getEnabledCurrencies()
+  }
+
+  @Get('system-config/currencies/options')
+  @UseGuards(JwtAuthGuard)
+  async getCurrencyOptions() {
+    return STANDARD_CURRENCIES
+  }
+
+  @Get('system-config/exchange-rates')
+  @UseGuards(JwtAuthGuard)
+  async getExchangeRates() {
+    const baseCurrency = await this.currencyConversion.getBaseCurrency()
+    const rates = await this.currencyConversion.listRates(baseCurrency)
+    return {
+      baseCurrency,
+      rates: rates.map((rate) => ({
+        quote: rate.quote,
+        rate: Number(rate.rate.toString()),
+        updatedAt: rate.updatedAt,
+      })),
+    }
+  }
+
+  @Put('system-config/exchange-rates')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  async updateExchangeRates(
+    @Body()
+    body: {
+      baseCurrency?: string
+      rates?: Array<{ quote: string; rate: number }>
+    },
+  ) {
+    let baseCurrency = await this.currencyConversion.getBaseCurrency()
+    if (body.baseCurrency) {
+      baseCurrency = await this.currencyConversion.setBaseCurrency(body.baseCurrency)
+    }
+    let updatedRates = await this.currencyConversion.listRates(baseCurrency)
+    if (Array.isArray(body.rates)) {
+      updatedRates = await this.currencyConversion.replaceRates(baseCurrency, body.rates)
+    }
+    return {
+      baseCurrency,
+      rates: updatedRates.map((rate) => ({
+        quote: rate.quote,
+        rate: Number(rate.rate.toString()),
+        updatedAt: rate.updatedAt,
+      })),
+    }
   }
 
   @Post('system-config/currencies')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async createCurrency(@Body() body: { code: string }) {
-    const code = this.normalizeCurrency(body.code)
+    const code = this.currencyConversion.normalizeCurrency(body.code)
     if (!code) {
       throw new BadRequestException('Invalid currency code')
     }
-    const current = await this.loadCurrencies()
+    const current = await this.currencyConversion.getEnabledCurrencies()
     if (current.includes(code)) {
       throw new BadRequestException('Currency already exists')
     }
-    return this.saveCurrencies([...current, code])
+    return this.currencyConversion.setEnabledCurrencies([...current, code])
   }
 
   @Put('system-config/currencies')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async updateCurrency(@Body() body: { current: string; next: string }) {
-    const currentCode = this.normalizeCurrency(body.current)
-    const nextCode = this.normalizeCurrency(body.next)
+    const currentCode = this.currencyConversion.normalizeCurrency(body.current)
+    const nextCode = this.currencyConversion.normalizeCurrency(body.next)
     if (!currentCode || !nextCode) {
       throw new BadRequestException('Invalid currency code')
     }
-    const list = await this.loadCurrencies()
+    const list = await this.currencyConversion.getEnabledCurrencies()
     if (!list.includes(currentCode)) {
       throw new BadRequestException('Currency not found')
     }
@@ -1152,18 +1284,18 @@ export class SettingsController {
       throw new BadRequestException('Currency already exists')
     }
     const updated = list.map((item) => (item === currentCode ? nextCode : item))
-    return this.saveCurrencies(updated)
+    return this.currencyConversion.setEnabledCurrencies(updated)
   }
 
   @Delete('system-config/currencies')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async deleteCurrency(@Body() body: { code: string }) {
-    const code = this.normalizeCurrency(body.code)
+    const code = this.currencyConversion.normalizeCurrency(body.code)
     if (!code) {
       throw new BadRequestException('Invalid currency code')
     }
-    const list = await this.loadCurrencies()
+    const list = await this.currencyConversion.getEnabledCurrencies()
     if (!list.includes(code)) {
       throw new BadRequestException('Currency not found')
     }
@@ -1171,7 +1303,7 @@ export class SettingsController {
     if (!updated.length) {
       throw new BadRequestException('At least one currency must remain')
     }
-    return this.saveCurrencies(updated)
+    return this.currencyConversion.setEnabledCurrencies(updated)
   }
 
   @Get('calendar-event-types')

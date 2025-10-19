@@ -21,6 +21,7 @@ import useThemeClass from '@/utils/hooks/useThemeClass'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import cloneDeep from 'lodash/cloneDeep'
+import { normalizeCurrencyCode } from '@/utils/currency'
 import dayjs from 'dayjs'
 import type {
     DataTableResetHandle,
@@ -38,6 +39,7 @@ type Order = {
     paymentMehod: string
     paymentIdendifier: string
     totalAmount: number
+    orderCurrency?: string
 }
 
 const sortKeyMap: Record<string, string> = {
@@ -110,6 +112,7 @@ const OrdersTable = () => {
     )
     const loading = useAppSelector((state) => state.salesOrderList.data.loading)
     const data = useAppSelector((state) => state.salesOrderList.data.orderList)
+    const storeCurrency = useAppSelector((state) => state.currency.code)
 
     // Mantener el último estado para callbacks estables
     const tableStateRef = useRef({ pageIndex, pageSize, sort, query })
@@ -252,12 +255,13 @@ const OrdersTable = () => {
                 header: t('text.columns.total'),
                 accessorKey: 'totalAmount',
                 cell: (props) => {
-                    const { totalAmount } = props.row.original
+                    const { totalAmount, orderCurrency } = props.row.original
+                    const normalizedCurrency = normalizeCurrencyCode(orderCurrency, storeCurrency)
                     return (
                         <NumericFormat
                             displayType="text"
                             value={(Math.round(totalAmount * 100) / 100).toFixed(2)}
-                            prefix={'$'}
+                            prefix={normalizedCurrency ? `${normalizedCurrency} ` : ''}
                             thousandSeparator
                         />
                     )
@@ -265,7 +269,7 @@ const OrdersTable = () => {
             },
             { header: '', id: 'action', enableSorting: false, cell: (p) => <ActionColumn row={p.row.original} /> },
         ],
-        [t, statuses, paymentMethods, selectStyles, dispatch],
+        [t, statuses, paymentMethods, selectStyles, dispatch, storeCurrency],
     )
 
     const onPaginationChange = (page: number) => {

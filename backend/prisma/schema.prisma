@@ -211,15 +211,18 @@ model Order {
   billingZip            String?
   billingSameAsShipping Boolean        @default(false)
   shippingVendor        String? // e.g., FedEx
-  deliveryFees          Float?         @default(0)
+  deliveryFees          Decimal?       @default(0) @db.Decimal(18, 2)
   estimatedMin          Int?           @default(1)
   estimatedMax          Int?           @default(3)
   comment               String?
   statusId              Int?
   status                OrderStatus?   @relation(fields: [statusId], references: [id], onDelete: SetNull)
-  subTotal              Float          @default(0)
-  tax                   Float          @default(0)
-  grandTotal            Float          @default(0)
+  subTotal              Decimal        @default(0) @db.Decimal(18, 2)
+  tax                   Decimal        @default(0) @db.Decimal(18, 2)
+  grandTotal            Decimal        @default(0) @db.Decimal(18, 2)
+  orderCurrency         String         @default("UYU")
+  fxBase                String?
+  fxRates               Json?
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
   items                 OrderItem[]
@@ -232,10 +235,17 @@ model OrderItem {
   productId   Int?
   product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
   name        String
-  price       Float    @default(0)
+  price       Decimal  @default(0) @db.Decimal(18, 2)
   qty         Int      @default(1)
   img         String?
   description String?
+  unitAmount              Decimal? @db.Decimal(18, 4)
+  unitCurrency            String?
+  unitAmountOrderCurrency Decimal? @db.Decimal(18, 4)
+  conversionRate          Decimal? @db.Decimal(18, 8)
+  unitCostAmount          Decimal? @db.Decimal(18, 4)
+  unitCostCurrency        String?
+  unitCostOrderCurrency   Decimal? @db.Decimal(18, 4)
 }
 
 model PaymentMethod {
@@ -243,6 +253,17 @@ model PaymentMethod {
   name     String    @unique
   orders   Order[]
   expenses Expense[]
+}
+
+model CurrencyRate {
+  id        Int      @id @default(autoincrement())
+  base      String
+  quote     String
+  rate      Decimal  @db.Decimal(18, 8)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([base, quote])
 }
 
 model ShippingOption {
@@ -270,7 +291,7 @@ model Expense {
   title            String
   name             String?
   description      String?
-  amount           Float               @default(0)
+  amount           Decimal             @default(0) @db.Decimal(18, 2)
   date             DateTime            @default(now())
   currency         String?             @db.VarChar(8)
   categoryId       Int?

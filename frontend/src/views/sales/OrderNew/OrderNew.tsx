@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Formik, Form, Field, getIn, type FormikProps } from 'formik'
 import { FormContainer, FormItem } from '@/components/ui/Form'
 import Input from '@/components/ui/Input'
@@ -15,7 +15,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { apiGetCustomers, apiGetCustomerDetails } from '@/services/CustomersService'
 import { apiGetSalesProducts, apiCreateSalesOrder, apiCreateSalesProduct } from '@/services/SalesService'
 import * as Yup from 'yup'
-import { apiGetPaymentMethods, apiGetShippingOptions, apiGetSystemConfig } from '@/services/SettingsService'
+import { apiGetPaymentMethods, apiGetShippingOptions } from '@/services/SettingsService'
 import Checkbox from '@/components/ui/Checkbox'
 import PaymentSummary from '@/views/sales/OrderDetails/components/PaymentSummary'
 import EditableOrderProductsTable, { EditableItem } from '@/views/sales/components/EditableOrderProductsTable'
@@ -33,9 +33,11 @@ import CountryCitySelector, {
 } from '@/components/shared/CountryCitySelector'
 import { findCountryByName } from '@/utils/countries'
 import useResponsive from '@/utils/hooks/useResponsive'
+import { useExchangeRates } from '@/utils/hooks/useExchangeRates'
 import classNames from 'classnames'
 import { useAppSelector } from '@/store'
 import { normalizeCurrencyCode, formatCurrency } from '@/utils/currency'
+import type { BaseCurrencySnapshot } from '@/store/slices/currency/currencySlice'
 
 type Item = EditableItem
 
@@ -52,6 +54,24 @@ const OrderNew = () => {
     const { t, i18n } = useTranslation()
     const navigate = useNavigate()
     const location = useLocation()
+    const storeCurrency = useAppSelector((state) => state.currency.code)
+    const defaultCurrency =
+        normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
+    const fallbackCurrencyList = useMemo(() => {
+        const baseList = [defaultCurrency, 'USD', 'UYU']
+        const normalized = baseList
+            .map((code) => normalizeCurrencyCode(code, defaultCurrency) || defaultCurrency)
+            .filter((code): code is string => Boolean(code))
+        return Array.from(new Set(normalized))
+    }, [defaultCurrency])
+    const fallbackCurrencyOptions = useMemo(
+        () =>
+            fallbackCurrencyList.map((code) => ({
+                value: code,
+                label: code,
+            })),
+        [fallbackCurrencyList],
+    )
     const [customers, setCustomers] = useState<{ value: string; label: string }[]>([])
     const [products, setProducts] = useState<
         {
@@ -71,11 +91,9 @@ const OrderNew = () => {
     const [newProductOpen, setNewProductOpen] = useState(false)
     const [taxRate, setTaxRate] = useState(22)
     const formikRef = useRef<FormikProps<any>>(null)
+    const initialDataLoadKeyRef = useRef<string | null>(null)
     const { smaller } = useResponsive()
     const isCompactViewport = smaller.md
-    const storeCurrency = useAppSelector((state) => state.currency.code)
-    const defaultCurrency =
-        normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
     const shippingVendorOptions = useMemo(
         () =>
             shippingOptions.length
@@ -89,6 +107,88 @@ const OrderNew = () => {
                   })),
         [shippingOptions],
     )
+
+    const {
+        snapshot: exchangeSnapshot,
+        convert,
+        refresh: refreshExchangeRates,
+        ensureSnapshot: ensureExchangeSnapshot,
+    } = useExchangeRates({
+        autoRefresh: true,
+        fallbackBase: defaultCurrency,
+        fallbackCurrencies: fallbackCurrencyList,
+        fallbackOptions: fallbackCurrencyOptions,
+    })
+    const currencyBase = exchangeSnapshot.base
+    const currencies = exchangeSnapshot.currencies
+    const currencyOptions = exchangeSnapshot.options
+    const roundCurrencyValue = useCallback(
+        (value: number) => Math.round((Number(value) + Number.EPSILON) * 100) / 100,
+        [],
+    )
+
+    const convertItemToCurrency = useCallback(
+        (
+            item: Item,
+            targetCurrency: string,
+            snapshotOverride?: BaseCurrencySnapshot,
+        ): Item => {
+            const snapshot = snapshotOverride ?? exchangeSnapshot
+            const baseCurrencyValue = snapshot.base
+            const unitCurrency =
+                normalizeCurrencyCode(item.unitCurrency ?? item.currency, baseCurrencyValue) ||
+                baseCurrencyValue
+            const target =
+                normalizeCurrencyCode(targetCurrency, baseCurrencyValue) || baseCurrencyValue
+            const unitPrice =
+                Number.isFinite(item.unitPrice) && item.unitPrice !== undefined
+                    ? Number(item.unitPrice)
+                    : Number(item.price) || 0
+            const { value, missingRates } = convert(unitPrice, unitCurrency, target, {
+                snapshot,
+            })
+            const hasMissing = missingRates.length > 0 || !Number.isFinite(value)
+            return {
+                ...item,
+                unitPrice,
+                unitCurrency,
+                price: hasMissing ? roundCurrencyValue(unitPrice) : roundCurrencyValue(value),
+                currency: hasMissing ? unitCurrency : target,
+            }
+        },
+        [convert, exchangeSnapshot, roundCurrencyValue],
+    )
+
+    const resolvedCurrencyOptions = useMemo(
+        () => (currencyOptions.length ? currencyOptions : fallbackCurrencyOptions),
+        [currencyOptions, fallbackCurrencyOptions],
+    )
+
+    const enabledOrderCurrencyOptions = useMemo(
+        () =>
+            resolvedCurrencyOptions.filter((option) =>
+                currencies.includes(option.value),
+            ),
+        [resolvedCurrencyOptions, currencies],
+    )
+
+    const getCurrencyLabel = useCallback(
+        (code: string) => {
+            const normalized = normalizeCurrencyCode(code, currencyBase) || currencyBase
+            const option =
+                resolvedCurrencyOptions.find((item) => item.value === normalized) ||
+                fallbackCurrencyOptions.find((item) => item.value === normalized)
+            return option?.label ?? normalized
+        },
+        [currencyBase, resolvedCurrencyOptions, fallbackCurrencyOptions],
+    )
+
+    const orderCurrencyLabel = t('sales.orders.orderCurrencyLabel', {
+        defaultValue: 'Order currency',
+    })
+    const orderCurrencyPlaceholder = t('sales.orders.orderCurrencyPlaceholder', {
+        defaultValue: 'Select order currency',
+    })
 
     const addProduct = async (data: ProductFormModel) => {
         const response = await apiCreateSalesProduct<
@@ -119,53 +219,148 @@ const OrderNew = () => {
     }
 
     useEffect(() => {
+        const loadKey = JSON.stringify({ defaultCurrency })
+        if (initialDataLoadKeyRef.current === loadKey) {
+            return
+        }
+        initialDataLoadKeyRef.current = loadKey
+
         const load = async () => {
-            // customers
-            const cRes = await apiGetCustomers<{ data: { id: string | number; name: string }[] }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' } as any)
-            const cOpts = ((cRes as any).data?.data || []).map((c: any) => ({ value: String(c.id), label: c.name }))
-            setCustomers(cOpts)
-            // products
-            const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({ pageIndex: 1, pageSize: 100, sort: { key: 'name', order: 'asc' }, query: '' })
-            const pOpts =
-                (pRes as any).data?.data?.map((p: any) => ({
-                    value: String(p.id),
-                    label: p.name,
-                    price: Number(p.salePrice ?? p.price) || 0,
-                    currency: normalizeCurrencyCode(p.currency, defaultCurrency) || defaultCurrency,
-                    img: p.img,
-                    description: p.description,
-                })) || []
-            setProducts(pOpts)
-            // payment methods
-            const mRes = await apiGetPaymentMethods<{ id: number | string; name: string }[]>()
-            const mOpts = (mRes.data as any[]).map((m) => ({ value: String(m.name || m.id), label: m.name }))
-            setMethods(mOpts)
             try {
-                const sRes = await apiGetShippingOptions<ShippingOption[]>()
-                const sOpts = ((sRes as any).data || []) as ShippingOption[]
-                setShippingOptions(
-                    sOpts.map((opt) => ({
-                        ...opt,
-                        deliveryFees: Number(opt.deliveryFees ?? 0),
-                        estimatedMin: Number(opt.estimatedMin ?? 0),
-                        estimatedMax: Number(
-                            opt.estimatedMax ?? opt.estimatedMin ?? 0,
-                        ),
-                    })),
-                )
-            } catch {
-                setShippingOptions([])
-            }
-            try {
-                const cfg = await apiGetSystemConfig<{ taxRate?: number }>()
-                const rate = Number((cfg.data as any)?.taxRate)
-                if (!Number.isNaN(rate)) setTaxRate(rate)
-            } catch {
-                // ignore, keep default
+                const cRes = await apiGetCustomers<{ data: { id: string | number; name: string }[] }, any>({
+                    pageIndex: 1,
+                    pageSize: 100,
+                    sort: { key: 'name', order: 'asc' },
+                    query: '',
+                } as any)
+                const cOpts = ((cRes as any).data?.data || []).map((c: any) => ({
+                    value: String(c.id),
+                    label: c.name,
+                }))
+                setCustomers(cOpts)
+
+                const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({
+                    pageIndex: 1,
+                    pageSize: 100,
+                    sort: { key: 'name', order: 'asc' },
+                    query: '',
+                })
+                const pOpts =
+                    (pRes as any).data?.data?.map((p: any) => ({
+                        value: String(p.id),
+                        label: p.name,
+                        price: Number(p.salePrice ?? p.price) || 0,
+                        currency:
+                            normalizeCurrencyCode(p.currency, defaultCurrency) ||
+                            defaultCurrency,
+                        img: p.img,
+                        description: p.description,
+                    })) || []
+                setProducts(pOpts)
+
+                const mRes = await apiGetPaymentMethods<{ id: number | string; name: string }[]>()
+                const mOpts = (mRes.data as any[]).map((m) => ({
+                    value: String(m.name || m.id),
+                    label: m.name,
+                }))
+                setMethods(mOpts)
+
+                try {
+                    const sRes = await apiGetShippingOptions<ShippingOption[]>()
+                    const sOpts = ((sRes as any).data || []) as ShippingOption[]
+                    setShippingOptions(
+                        sOpts.map((opt) => ({
+                            ...opt,
+                            deliveryFees: Number(opt.deliveryFees ?? 0),
+                            estimatedMin: Number(opt.estimatedMin ?? 0),
+                            estimatedMax: Number(opt.estimatedMax ?? opt.estimatedMin ?? 0),
+                        })),
+                    )
+                } catch {
+                    setShippingOptions([])
+                }
+
+                try {
+                    const result = await refreshExchangeRates()
+                    const payload = result?.payload
+                    const snapshot = result?.snapshot ?? exchangeSnapshot
+                    const newTaxRate = Number(payload?.taxRate)
+                    if (!Number.isNaN(newTaxRate) && newTaxRate > 0) {
+                        setTaxRate(newTaxRate)
+                    }
+                    const formik = formikRef.current
+                    if (formik) {
+                        const previousOrderCurrency =
+                            normalizeCurrencyCode(
+                                (formik.values as any)?.orderCurrency,
+                                snapshot.base,
+                            ) || snapshot.base
+                        const nextOrderCurrency = snapshot.base
+                        formik.setFieldValue('orderCurrency', nextOrderCurrency, false)
+                        const existingItems: Item[] = (formik.values as any)?.items || []
+                        if (existingItems.length) {
+                            const updatedItems = existingItems.map((item) =>
+                                convertItemToCurrency(
+                                    {
+                                        ...item,
+                                        unitPrice:
+                                            Number.isFinite(item.unitPrice) &&
+                                            item.unitPrice !== undefined
+                                                ? Number(item.unitPrice)
+                                                : Number(item.price) || 0,
+                                        unitCurrency:
+                                            normalizeCurrencyCode(
+                                                item.unitCurrency ?? item.currency,
+                                                previousOrderCurrency,
+                                            ) || previousOrderCurrency,
+                                    },
+                                    nextOrderCurrency,
+                                    snapshot,
+                                ),
+                            )
+                            formik.setFieldValue('items', updatedItems, false)
+                        }
+                        const currentDeliveryFee = Number(
+                            (formik.values as any)?.shipping?.deliveryFees ?? 0,
+                        )
+                        if (currentDeliveryFee) {
+                            const { value } = convert(
+                                currentDeliveryFee,
+                                previousOrderCurrency,
+                                nextOrderCurrency,
+                                { snapshot },
+                            )
+                            if (Number.isFinite(value)) {
+                                formik.setFieldValue(
+                                    'shipping.deliveryFees',
+                                    roundCurrencyValue(value),
+                                    false,
+                                )
+                            }
+                        }
+                    }
+                } catch (error: unknown) {
+                    const message =
+                        (error as any)?.response?.data?.message ||
+                        (error instanceof Error ? error.message : String(error))
+                    toast.push(
+                        <Notification title={t('validation.failed')} type="danger">
+                            {message}
+                        </Notification>,
+                        { placement: 'top-center' },
+                    )
+                }
+            } finally {
+                if (initialDataLoadKeyRef.current === loadKey) {
+                    initialDataLoadKeyRef.current = null
+                }
             }
         }
-        load()
-    }, [defaultCurrency])
+
+        load().catch(() => {
+            initialDataLoadKeyRef.current = null
+        })
+    }, [convert, convertItemToCurrency, defaultCurrency, exchangeSnapshot, refreshExchangeRates, roundCurrencyValue, t])
 
     useEffect(() => {
         const sp = new URLSearchParams(location.search)
@@ -192,10 +387,17 @@ const OrderNew = () => {
         if (!existing) {
             const first = shippingOptions[0]
             formik.setFieldValue('shipping.shippingVendor', first.name)
-            formik.setFieldValue(
-                'shipping.deliveryFees',
-                first.deliveryFees ?? 0,
+            const currentOrderCurrency =
+                normalizeCurrencyCode((formik.values as any)?.orderCurrency, currencyBase) ||
+                currencyBase
+            const { value } = convert(
+                Number(first.deliveryFees ?? 0),
+                currencyBase,
+                currentOrderCurrency,
             )
+            if (Number.isFinite(value)) {
+                formik.setFieldValue('shipping.deliveryFees', roundCurrencyValue(value))
+            }
             formik.setFieldValue(
                 'shipping.estimatedMin',
                 first.estimatedMin ?? 0,
@@ -205,7 +407,7 @@ const OrderNew = () => {
                 first.estimatedMax ?? first.estimatedMin ?? 0,
             )
         }
-    }, [shippingOptions])
+    }, [convert, currencyBase, roundCurrencyValue, shippingOptions])
 
     return (
         <Container className="h-full">
@@ -216,6 +418,7 @@ const OrderNew = () => {
                     customerId: '',
                     date: new Date(),
                     paymentMehod: 'Cash',
+                    orderCurrency: defaultCurrency,
                     items: [] as Item[],
                     shippingAddress: {
                         street: '',
@@ -235,7 +438,7 @@ const OrderNew = () => {
                         state: 'Uruguay',
                         countryCode: 'UY',
                     },
-                    billingSameAsShipping: false,
+                    billingSameAsShipping: true,
                     shipping: {
                         shippingVendor: '',
                         deliveryFees: 0,
@@ -250,6 +453,13 @@ const OrderNew = () => {
                         .typeError(t('text.validation.invalidDate'))
                         .required(t('text.validation.dateRequired')),
                     paymentMehod: Yup.string().required('Payment method is required'),
+                    orderCurrency: Yup.string()
+                        .trim()
+                        .required(
+                            t('validation.fieldRequired', {
+                                field: orderCurrencyLabel,
+                            }),
+                        ),
                     shippingAddress: Yup.object().shape({
                         street: Yup.string().required(t('text.validation.enterAddress')),
                         number: Yup.string().required(t('text.validation.enterAddress')),
@@ -280,6 +490,8 @@ const OrderNew = () => {
                         .min(1, t('sales.orders.validation.itemsRequired') as string),
                 })}
                 onSubmit={async (values) => {
+                    const orderCurrencyValue =
+                        normalizeCurrencyCode(values.orderCurrency, currencyBase) || currencyBase
                     const normalizeAddress = (addr: typeof values.shippingAddress) => ({
                         street: addr.street,
                         number: addr.number,
@@ -300,14 +512,26 @@ const OrderNew = () => {
                         // Backend expects ISO 8601 date string (IsDateString)
                         date: values.date ? new Date(values.date as any).toISOString() : undefined,
                         paymentMehod: String(values.paymentMehod || 'Cash'),
-                        items: values.items.map((it) => ({
-                            productId: String(it.productId),
-                            name: it.name,
-                            price: Number(it.price) || 0,
-                            qty: Number(it.qty) || 1,
-                            img: it.img,
-                            description: it.description,
-                        })),
+                        orderCurrency: orderCurrencyValue,
+                        items: values.items.map((it) => {
+                            const rawUnitPrice = Number(it.unitPrice)
+                            return {
+                                productId: String(it.productId),
+                                name: it.name,
+                                price: Number(it.price) || 0,
+                                qty: Number(it.qty) || 1,
+                                img: it.img,
+                                description: it.description,
+                                currency: orderCurrencyValue,
+                                unitPrice: Number.isFinite(rawUnitPrice)
+                                    ? rawUnitPrice
+                                    : Number(it.price) || 0,
+                                unitCurrency:
+                                    normalizeCurrencyCode(it.unitCurrency, orderCurrencyValue) ||
+                                    normalizeCurrencyCode(it.currency, orderCurrencyValue) ||
+                                    orderCurrencyValue,
+                            }
+                        }),
                         shippingAddress,
                         billingAddress,
                         billingSameAsShipping: Boolean(values.billingSameAsShipping),
@@ -382,24 +606,50 @@ const OrderNew = () => {
             >
                 {({ values, setFieldValue, errors, touched, setFieldTouched }) => {
                     const deliveryFee = Number(values.shipping?.deliveryFees ?? 0)
+                    const orderCurrencyValue =
+                        normalizeCurrencyCode(values.orderCurrency, currencyBase) || currencyBase
+                    const orderCurrencyOptions =
+                        enabledOrderCurrencyOptions.length
+                            ? enabledOrderCurrencyOptions
+                            : resolvedCurrencyOptions
+                    const orderCurrencySelected =
+                        orderCurrencyOptions.find((opt) => opt.value === orderCurrencyValue) || {
+                            value: orderCurrencyValue,
+                            label: getCurrencyLabel(orderCurrencyValue),
+                        }
                     const total = values.items.reduce(
                         (runningTotal, it) => runningTotal + (it.price || 0) * (it.qty || 0),
                         0,
                     )
                     const tax = Math.round(total * (taxRate / (100 + taxRate)) * 100) / 100
                     const grandTotal = Math.round((total + deliveryFee) * 100) / 100
-                    const orderCurrency =
-                        normalizeCurrencyCode(
-                            values.items.find((it) => it.currency)?.currency,
-                            defaultCurrency,
-                        ) || defaultCurrency
                     const formattedOrderTotal = formatCurrency(
                         total,
-                        orderCurrency,
+                        orderCurrencyValue,
                         i18n.language,
                         { fallbackCurrency: defaultCurrency },
                     )
-                    const addItem = (
+                    const convertWithRetry = async (
+                        amount: number,
+                        fromCurrency: string,
+                        toCurrency: string,
+                    ) => {
+                        const attempt = convert(amount, fromCurrency, toCurrency)
+                        if (attempt.missingRates.length === 0 && Number.isFinite(attempt.value)) {
+                            return attempt
+                        }
+                        try {
+                            const refreshed = await refreshExchangeRates()
+                            const snapshotOverride = refreshed?.snapshot ?? attempt.snapshot
+                            return convert(amount, fromCurrency, toCurrency, {
+                                snapshot: snapshotOverride,
+                            })
+                        } catch {
+                            return attempt
+                        }
+                    }
+
+                    const addItem = async (
                         pid: string,
                         option?: {
                             value: string
@@ -414,24 +664,122 @@ const OrderNew = () => {
                         if (!p) return
                         const exists = values.items.find((it) => it.productId === pid)
                         if (exists) return
-                        const currencyCode =
-                            normalizeCurrencyCode(p.currency, defaultCurrency) ||
-                            defaultCurrency
-                        setFieldValue('items', [
-                            ...values.items,
-                            {
-                                productId: pid,
-                                name: p.label,
-                                price: p.price,
-                                currency: currencyCode,
-                                qty: 1,
-                                img: p.img,
-                                description: p.description,
-                            },
-                        ])
+                        const productCurrency =
+                            normalizeCurrencyCode(p.currency, currencyBase) || currencyBase
+                        const unitPrice = Number(p.price) || 0
+                        const conversion = await convertWithRetry(
+                            unitPrice,
+                            productCurrency,
+                            orderCurrencyValue,
+                        )
+                        if (
+                            conversion.missingRates.length ||
+                            !Number.isFinite(conversion.value)
+                        ) {
+                            toast.push(
+                                <Notification title={t('validation.failed')} type="danger">
+                                    {t('sales.orders.exchangeRateMissing', {
+                                        defaultValue:
+                                            'Missing exchange rate for the selected currency conversion.',
+                                    })}
+                                </Notification>,
+                                { placement: 'top-center' },
+                            )
+                            return
+                        }
+                        const convertedPrice = roundCurrencyValue(conversion.value)
+                        const nextItem: Item = {
+                            productId: pid,
+                            name: p.label,
+                            price: convertedPrice,
+                            currency: orderCurrencyValue,
+                            qty: 1,
+                            img: p.img,
+                            description: p.description,
+                            unitPrice,
+                            unitCurrency: productCurrency,
+                        }
+                        setFieldValue('items', [...values.items, nextItem])
                     }
                     const removeItem = (pid: string) => setFieldValue('items', values.items.filter((it) => it.productId !== pid))
                     const changeQty = (pid: string, qty: number) => setFieldValue('items', values.items.map((it) => (it.productId === pid ? { ...it, qty } : it)))
+
+                    const handleOrderCurrencySelect = async (option: unknown) => {
+                        const nextValue =
+                            normalizeCurrencyCode(
+                                (option as { value?: string } | null)?.value,
+                                currencyBase,
+                            ) || currencyBase
+                        if (nextValue === orderCurrencyValue) {
+                            return
+                        }
+
+                        const evaluateSnapshot = (snapshot: BaseCurrencySnapshot) => {
+                            const itemsMissing = values.items.some((item) => {
+                                const unitCurrency =
+                                    normalizeCurrencyCode(
+                                        item.unitCurrency ?? item.currency,
+                                        snapshot.base,
+                                    ) || snapshot.base
+                                const unitPrice =
+                                    Number.isFinite(item.unitPrice) &&
+                                    item.unitPrice !== undefined
+                                        ? Number(item.unitPrice)
+                                        : Number(item.price) || 0
+                                const result = convert(unitPrice, unitCurrency, nextValue, {
+                                    snapshot,
+                                })
+                                return result.missingRates.length > 0
+                            })
+                            const deliveryFeeValue = Number(values.shipping?.deliveryFees ?? 0)
+                            const deliveryResult = convert(
+                                deliveryFeeValue,
+                                orderCurrencyValue,
+                                nextValue,
+                                { snapshot },
+                            )
+                            const missing =
+                                itemsMissing || deliveryResult.missingRates.length > 0
+                            return { snapshot, deliveryResult, missing }
+                        }
+
+                        let snapshot = await ensureExchangeSnapshot()
+                        let attempt = evaluateSnapshot(snapshot)
+                        if (attempt.missing) {
+                            try {
+                                const refreshed = await refreshExchangeRates()
+                                if (refreshed?.snapshot) {
+                                    snapshot = refreshed.snapshot
+                                    attempt = evaluateSnapshot(snapshot)
+                                }
+                            } catch {
+                                // ignore and fall through to error toast
+                            }
+                        }
+
+                        if (attempt.missing) {
+                            toast.push(
+                                <Notification title={t('validation.failed')} type="danger">
+                                    {t('sales.orders.exchangeRateMissing', {
+                                        defaultValue:
+                                            'Missing exchange rate for the selected currency conversion.',
+                                    })}
+                                </Notification>,
+                                { placement: 'top-center' },
+                            )
+                            return
+                        }
+
+                        const convertedItems = values.items.map((item) =>
+                            convertItemToCurrency(item, nextValue, snapshot),
+                        )
+                        const convertedFee = Number.isFinite(attempt.deliveryResult.value)
+                            ? roundCurrencyValue(attempt.deliveryResult.value)
+                            : Number(values.shipping?.deliveryFees ?? 0)
+                        setFieldValue('orderCurrency', nextValue)
+                        setFieldValue('items', convertedItems)
+                        setFieldValue('shipping.deliveryFees', convertedFee)
+                    }
 
                     const handleCreateProduct = async (
                         formData: ProductFormModel,
@@ -475,7 +823,7 @@ const OrderNew = () => {
                                             img: created.img,
                                             description: created.description,
                                         }
-                                    addItem(String(created.id), option)
+                                    await addItem(String(created.id), option)
                                 }
                                 toast.push(
                                     <Notification
@@ -885,6 +1233,42 @@ const OrderNew = () => {
                                                 </div>
                                             </div>
                                         )}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                                            <FormItem
+                                                label={orderCurrencyLabel}
+                                                invalid={Boolean(getIn(touched, 'orderCurrency') && getIn(errors, 'orderCurrency'))}
+                                                errorMessage={getIn(errors, 'orderCurrency') as string}
+                                            >
+                                                <Select
+                                                    placeholder={orderCurrencyPlaceholder}
+                                                    options={orderCurrencyOptions}
+                                                    value={orderCurrencySelected as any}
+                                                    isSearchable
+                                                    isClearable={false}
+                                                    isDisabled={orderCurrencyOptions.length <= 1}
+                                                    onChange={(option) => {
+                                                        void handleOrderCurrencySelect(option)
+                                                        setFieldTouched('orderCurrency', true, false)
+                                                    }}
+                                                />
+                                            </FormItem>
+                                            <FormItem
+                                                label={t('text.columns.paymentMethod')}
+                                                invalid={Boolean(getIn(touched, 'paymentMehod') && getIn(errors, 'paymentMehod'))}
+                                                errorMessage={getIn(errors, 'paymentMehod') as string}
+                                            >
+                                                <Select
+                                                    className="w-full max-w-xs"
+                                                    options={methods}
+                                                    value={methods.find((m) => m.value === values.paymentMehod) as any}
+                                                    onChange={(opt) => {
+                                                        const nextValue = (opt as any)?.value ?? ''
+                                                        setFieldValue('paymentMehod', nextValue)
+                                                        setFieldTouched('paymentMehod', true, false)
+                                                    }}
+                                                />
+                                            </FormItem>
+                                        </div>
                                     </FormContainer>
                                 </Card>
                             )}
@@ -895,7 +1279,17 @@ const OrderNew = () => {
                                     <FormContainer>
                                         <FormItem label={t('text.columns.product')} invalid={!!(touched as any).items && !!(errors as any).items} errorMessage={(errors as any).items as any}>
                                             <div className="flex items-center gap-2">
-                                                <Select className="w-80" options={products} onChange={(opt) => addItem((opt as any).value)} placeholder={t('text.placeholders.searchProduct')} />
+                                                <Select
+                                                    className="w-80"
+                                                    options={products}
+                                                    onChange={(opt) => {
+                                                        const value = (opt as any)?.value
+                                                        if (value) {
+                                                            void addItem(value)
+                                                        }
+                                                    }}
+                                                    placeholder={t('text.placeholders.searchProduct')}
+                                                />
                                                 <Button type="button" onClick={() => setNewProductOpen(true)}>{t('text.actions.add')} {t('text.titles.products')}</Button>
                                                 <div className="font-semibold ml-auto">
                                                     {t('text.columns.total')}: {formattedOrderTotal}
@@ -1138,9 +1532,16 @@ const OrderNew = () => {
                                                         (item) => item.name === value,
                                                     )
                                                     if (selected) {
+                                                        const { value: convertedDelivery } = convert(
+                                                            Number(selected.deliveryFees ?? 0),
+                                                            currencyBase,
+                                                            orderCurrencyValue,
+                                                        )
                                                         setFieldValue(
                                                             'shipping.deliveryFees',
-                                                            selected.deliveryFees ?? 0,
+                                                            Number.isFinite(convertedDelivery)
+                                                                ? roundCurrencyValue(convertedDelivery)
+                                                                : Number(selected.deliveryFees ?? 0),
                                                         )
                                                         setFieldValue(
                                                             'shipping.estimatedMin',
@@ -1234,18 +1635,16 @@ const OrderNew = () => {
                                             tax,
                                             deliveryFees: deliveryFee,
                                             total: grandTotal,
-                                            currency: orderCurrency,
+                                            currency: orderCurrencyValue,
                                         }}
                                         taxRate={taxRate}
-                                        currency={orderCurrency}
+                                        currency={orderCurrencyValue}
                                     />
                                     <Card bodyClass="p-5">
                                         <h4 className="mb-4">{t('text.columns.paymentMethod')}</h4>
-                                        <FormContainer>
-                                            <FormItem label={t('text.columns.paymentMethod')}>
-                                                <Select options={methods} value={methods.find((m) => m.value === values.paymentMehod) as any} onChange={(opt) => setFieldValue('paymentMehod', (opt as any).value)} />
-                                            </FormItem>
-                                        </FormContainer>
+                                        <div className="text-sm font-medium">
+                                            {methods.find((m) => m.value === values.paymentMehod)?.label || t('text.labels.notSelected', { defaultValue: 'Not selected' })}
+                                        </div>
                                     </Card>
                                 </div>
                             )}
@@ -1253,6 +1652,14 @@ const OrderNew = () => {
                             {currentStep === 6 && (
                                 <Card bodyClass="p-5">
                                     <h4 className="mb-4">{t('text.actions.finalize') || 'Finalize'}</h4>
+                                    <div className="flex flex-col gap-2 mb-4 text-sm font-medium">
+                                        <div>
+                                            {orderCurrencyLabel}: {orderCurrencySelected?.label || getCurrencyLabel(orderCurrencyValue)}
+                                        </div>
+                                        <div>
+                                            {t('text.columns.paymentMethod')}: {methods.find((m) => m.value === values.paymentMehod)?.label || t('text.labels.notSelected', { defaultValue: 'Not selected' })}
+                                        </div>
+                                    </div>
                                     <FormContainer>
                                         <FormItem label={t('text.columns.comments')}>
                                             <Field as={Input} name="comment" textArea rows={4} />
@@ -1285,7 +1692,7 @@ const OrderNew = () => {
                                             type="button"
                                             variant="solid"
                                             disabled={
-                                                (currentStep === 0 && !values.customerId) ||
+                                                (currentStep === 0 && (!values.customerId || !values.orderCurrency || !values.paymentMehod)) ||
                                                 (currentStep === 1 && (values.items || []).length === 0) ||
                                                 (currentStep === 2 && shippingIncomplete) ||
                                                 (currentStep === 3 && billingIncomplete)

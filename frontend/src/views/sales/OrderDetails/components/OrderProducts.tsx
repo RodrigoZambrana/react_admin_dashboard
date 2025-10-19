@@ -15,7 +15,6 @@ import Tooltip from '@/components/ui/Tooltip'
 import { HiOutlineEye } from 'react-icons/hi'
 import { useAppSelector } from '@/store'
 import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
-
 type Product = {
     id: string
     productId?: string
@@ -26,11 +25,16 @@ type Product = {
     quantity: number
     total: number
     currency?: string
+    unitCurrency?: string
+    unitAmount?: number
+    unitAmountOrderCurrency?: number
+    conversionRate?: number
     details: Record<string, string[]>
 }
 
 type OrderProductsProps = {
     data?: Product[]
+    orderCurrency?: string
 }
 
 const { Tr, Th, Td, THead, TBody } = Table
@@ -64,6 +68,8 @@ const ProductColumn = ({ row }: { row: Product }) => {
 const columns = (
     t: (k: string) => string,
     formatAmount: (value: number, currency?: string) => string,
+    orderCurrency: string,
+    defaultCurrency: string,
 ) => [
     columnHelper.accessor('name', {
         header: t('text.columns.product'),
@@ -76,7 +82,24 @@ const columns = (
         header: t('text.columns.price'),
         cell: (props) => {
             const row = props.row.original
-            return <span>{formatAmount(row.price, row.currency)}</span>
+            const displayCurrency =
+                normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
+            const unitCurrency =
+                normalizeCurrencyCode(row.unitCurrency, displayCurrency) || displayCurrency
+            const showOriginal =
+                unitCurrency !== displayCurrency &&
+                Number.isFinite(row.unitAmount) &&
+                Number(row.unitAmount) !== 0
+            return (
+                <span>
+                    {formatAmount(row.price ?? 0, displayCurrency)}
+                    {showOriginal && (
+                        <span className="block text-xs opacity-70">
+                            {formatAmount(row.unitAmount ?? 0, unitCurrency)} ({unitCurrency})
+                        </span>
+                    )}
+                </span>
+            )
         },
     }),
     columnHelper.accessor('quantity', {
@@ -86,7 +109,30 @@ const columns = (
         header: t('text.columns.total'),
         cell: (props) => {
             const row = props.row.original
-            return <span>{formatAmount(row.total, row.currency)}</span>
+            const displayCurrency =
+                normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
+            const unitCurrency =
+                normalizeCurrencyCode(row.unitCurrency, displayCurrency) || displayCurrency
+            const price = Number(row.price) || 0
+            const total = price * (Number(row.quantity) || 0)
+            const showOriginal =
+                unitCurrency !== displayCurrency &&
+                Number.isFinite(row.unitAmount) &&
+                Number(row.unitAmount) !== 0
+            return (
+                <span>
+                    {formatAmount(total, displayCurrency)}
+                    {showOriginal && (
+                        <span className="block text-xs opacity-70">
+                            {formatAmount(
+                                (row.unitAmount ?? 0) * (row.quantity ?? 0),
+                                unitCurrency,
+                            )}{' '}
+                            ({unitCurrency})
+                        </span>
+                    )}
+                </span>
+            )
         },
     }),
     columnHelper.display({
@@ -111,18 +157,20 @@ const columns = (
     }),
 ]
 
-const OrderProducts = ({ data = [] }: OrderProductsProps) => {
+const OrderProducts = ({ data = [], orderCurrency }: OrderProductsProps) => {
     const { t, i18n } = useTranslation()
     const storeCurrency = useAppSelector((state) => state.currency.code)
     const defaultCurrency =
         normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
+    const normalizedOrderCurrency =
+        normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
     const formatAmount = (value: number, currency?: string) =>
         formatCurrency(value, currency, i18n.language, {
             fallbackCurrency: defaultCurrency,
         })
     const table = useReactTable({
         data,
-        columns: columns(t, formatAmount),
+        columns: columns(t, formatAmount, normalizedOrderCurrency, defaultCurrency),
         getCoreRowModel: getCoreRowModel(),
     })
 

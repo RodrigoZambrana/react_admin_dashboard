@@ -344,7 +344,7 @@ export class ExpensesController {
       _sum: { amount: true },
       _count: true,
     })
-    const total = aggregate._sum.amount ?? 0
+    const total = Number(aggregate._sum.amount ?? 0)
     const count = typeof aggregate._count === 'number' ? aggregate._count : 0
 
     const expenses = await this.prisma.expense.findMany({

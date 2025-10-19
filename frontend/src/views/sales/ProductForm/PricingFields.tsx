@@ -29,6 +29,7 @@ type PricingFieldsProps = {
     errors: FormikErrors<FormFieldsName>
     currency: CurrencyCode
     onCurrencyChange: (code: CurrencyCode) => void
+    currencyOptions: { value: CurrencyCode; label: string }[]
 }
 
 const PriceInput = (props: InputProps) => {
@@ -55,7 +56,7 @@ const NumericFormatInput = ({
 }
 
 const PricingFields = (props: PricingFieldsProps) => {
-    const { touched, errors, currency, onCurrencyChange } = props
+    const { touched, errors, currency, onCurrencyChange, currencyOptions } = props
     const { t } = useTranslation()
     const [salePriceManuallyEdited, setSalePriceManuallyEdited] = useState(false)
 
@@ -113,8 +114,9 @@ const PricingFields = (props: PricingFieldsProps) => {
                                 <InputGroup.Addon className="px-0">
                                     <CurrencySelector
                                         embedded
-                                        selectClassName="w-24"
+                                        selectClassName="w-28"
                                         value={currency}
+                                        options={currencyOptions}
                                         onChange={(code) => {
                                             onCurrencyChange(code)
                                         }}

@@ -32,7 +32,7 @@ export function adaptOrderToDetailsView(o: any) {
   const detectedCurrency = (() => {
     if (Array.isArray(o.items)) {
       for (const item of o.items) {
-        const code = normalizeCurrencyCode(item?.product?.currency || item?.currency)
+        const code = normalizeCurrencyCode(item?.unitCurrency || item?.product?.currency || item?.currency)
         if (code) {
           return code
         }
@@ -40,13 +40,15 @@ export function adaptOrderToDetailsView(o: any) {
     }
     return undefined
   })()
-  const normalizedCurrency = normalizeCurrencyCode(detectedCurrency)
+  const normalizedOrderCurrency =
+    normalizeCurrencyCode(o.orderCurrency, detectedCurrency) ||
+    normalizeCurrencyCode(detectedCurrency)
   const paymentSummary = {
     subTotal: Number(o.subTotal || 0),
     tax: Number(o.tax || 0),
     deliveryFees: Number(o.deliveryFees || 0),
     total: Number(o.grandTotal || 0),
-    currency: normalizedCurrency,
+    currency: normalizedOrderCurrency,
   }
   const product = Array.isArray(o.items)
     ? o.items.map((it: any) => ({
@@ -55,12 +57,17 @@ export function adaptOrderToDetailsView(o: any) {
         name: it.name,
         productCode: it.product?.productCode || '',
         img: it.img || '',
-        price: Number(it.price || 0),
+        price: Number(it.price ?? 0),
         quantity: Number(it.qty || 0),
-        total: Number(it.price || 0) * Number(it.qty || 0),
-        currency:
-          normalizeCurrencyCode(it?.product?.currency || it?.currency, normalizedCurrency) ||
-          normalizedCurrency,
+        total: Number(it.price ?? 0) * Number(it.qty || 0),
+        currency: normalizedOrderCurrency,
+        unitCurrency:
+          normalizeCurrencyCode(it.unitCurrency, normalizedOrderCurrency) ||
+          normalizeCurrencyCode(it?.product?.currency || it?.currency, normalizedOrderCurrency) ||
+          normalizedOrderCurrency,
+        unitAmount: Number(it.unitAmount ?? it.unitPrice ?? 0),
+        unitAmountOrderCurrency: Number(it.unitAmountOrderCurrency ?? it.price ?? 0),
+        conversionRate: Number(it.conversionRate ?? 1),
         details: {},
       }))
     : []
