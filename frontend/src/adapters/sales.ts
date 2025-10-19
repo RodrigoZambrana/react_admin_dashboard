@@ -1,5 +1,11 @@
 /* eslint-disable  @typescript-eslint/no-explicit-any */
 import { normalizeCurrencyCode } from '@/utils/currency'
+
+export type FxSnapshot = {
+  base: string
+  rates: Record<string, number>
+  generatedAt?: string
+}
 export function toUnixSeconds(date: any): number {
   try {
     const d = date ? new Date(date) : new Date()
@@ -71,6 +77,28 @@ export function adaptOrderToDetailsView(o: any) {
         details: {},
       }))
     : []
+  const fxSnapshot = (() => {
+    const raw = o.fxRates
+    const normalizedBase = normalizeCurrencyCode(raw?.base, normalizedOrderCurrency) || normalizedOrderCurrency
+    if (!raw || typeof raw !== 'object' || !normalizedBase) {
+      if (normalizedOrderCurrency) {
+        return { base: normalizedOrderCurrency, rates: { [normalizedOrderCurrency]: 1 } } as FxSnapshot
+      }
+      return undefined
+    }
+    const rates: Record<string, number> = {}
+    if (raw?.rates && typeof raw.rates === 'object') {
+      Object.entries(raw.rates as Record<string, string | number>).forEach(([key, value]) => {
+        const code = normalizeCurrencyCode(key, normalizedBase) || normalizeCurrencyCode(key) || key.toUpperCase()
+        const numeric = Number(value)
+        if (code && Number.isFinite(numeric) && numeric > 0) {
+          rates[code] = numeric
+        }
+      })
+    }
+    rates[normalizedBase] = rates[normalizedBase] ?? 1
+    return { base: normalizedBase, rates, generatedAt: raw.generatedAt } as FxSnapshot
+  })()
   const customer = o.customer
     ? {
         id: o.customer.id,
@@ -101,5 +129,6 @@ export function adaptOrderToDetailsView(o: any) {
     product,
     activity: [],
     customer,
+    fxSnapshot,
   }
 }

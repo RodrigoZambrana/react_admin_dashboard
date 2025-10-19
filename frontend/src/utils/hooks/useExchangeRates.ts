@@ -138,29 +138,28 @@ export const useExchangeRates = (options: UseExchangeRatesOptions = {}) => {
                 normalizeCurrencyCode(toCurrency, snapshot.base) || snapshot.base
 
             const missingRates: CurrencyCode[] = []
-            let amountInBase = amount
+            const base = snapshot.base
+            const rateFrom = normalizedFrom === base ? 1 : Number(snapshot.rates[normalizedFrom])
+            const rateTo = normalizedTo === base ? 1 : Number(snapshot.rates[normalizedTo])
 
-            if (normalizedFrom !== snapshot.base) {
-                const rateFrom = snapshot.rates[normalizedFrom]
-                if (!Number.isFinite(rateFrom) || rateFrom <= 0) {
-                    missingRates.push(normalizedFrom)
-                } else {
-                    amountInBase = amount * rateFrom
-                }
+            if (!Number.isFinite(rateFrom) || rateFrom <= 0) {
+                missingRates.push(normalizedFrom)
+            }
+            if (!Number.isFinite(rateTo) || rateTo <= 0) {
+                missingRates.push(normalizedTo)
             }
 
-            let converted = amountInBase
-            if (normalizedTo !== snapshot.base) {
-                const rateTo = snapshot.rates[normalizedTo]
-                if (!Number.isFinite(rateTo) || rateTo <= 0) {
-                    missingRates.push(normalizedTo)
-                } else {
-                    converted = amountInBase / rateTo
-                }
+            if (missingRates.length) {
+                return { value: Number.NaN, missingRates, snapshot }
             }
+
+            const amountInBase = normalizedFrom === base ? amount : amount * (rateFrom as number)
+            const converted = normalizedTo === base
+                ? amountInBase
+                : amountInBase / (rateTo as number)
 
             return {
-                value: missingRates.length ? Number.NaN : converted,
+                value: converted,
                 missingRates,
                 snapshot,
             }
