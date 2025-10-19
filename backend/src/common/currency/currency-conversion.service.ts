@@ -230,39 +230,39 @@ export class CurrencyConversionService {
     if (!normalizedFrom || !normalizedTo) {
       throw new BadRequestException('Invalid currency conversion request')
     }
-    if (normalizedFrom === normalizedTo) {
-      const rounded = roundDecimal(amount, options?.amountScale ?? 4)
-      return {
-        amount: rounded,
-        rate: roundDecimal(1, options?.rateScale ?? 8),
-      }
-    }
-
     const base = snapshot.base
     const rates = snapshot.rates
-    const baseRateFrom = rates[normalizedFrom] ?? (normalizedFrom === base ? new Prisma.Decimal(1) : null)
-    const baseRateTo = rates[normalizedTo] ?? (normalizedTo === base ? new Prisma.Decimal(1) : null)
-    if (!baseRateFrom) {
+    const amountScale = options?.amountScale ?? 4
+    const rateScale = options?.rateScale ?? 8
+
+    const rateFrom = normalizedFrom === base ? new Prisma.Decimal(1) : rates[normalizedFrom]
+    const rateTo = normalizedTo === base ? new Prisma.Decimal(1) : rates[normalizedTo]
+
+    if (!rateFrom) {
       throw new BadRequestException(`Missing exchange rate for ${base} -> ${normalizedFrom}`)
     }
-    if (!baseRateTo) {
+    if (!rateTo) {
       throw new BadRequestException(`Missing exchange rate for ${base} -> ${normalizedTo}`)
     }
 
-    const amountDecimal = roundDecimal(amount, options?.amountScale ?? 4)
-    let converted: Prisma.Decimal
-    let effectiveRate: Prisma.Decimal
+    const amountDecimal = roundDecimal(amount, amountScale)
 
-    if (normalizedFrom === base) {
-      effectiveRate = roundDecimal(baseRateTo, options?.rateScale ?? 8)
-      converted = roundDecimal(multiplyDecimals(amountDecimal, effectiveRate), options?.amountScale ?? 4)
-    } else if (normalizedTo === base) {
-      effectiveRate = roundDecimal(divideDecimals(1, baseRateFrom), options?.rateScale ?? 8)
-      converted = roundDecimal(multiplyDecimals(amountDecimal, effectiveRate), options?.amountScale ?? 4)
-    } else {
-      const amountInBase = divideDecimals(amountDecimal, baseRateFrom)
-      converted = roundDecimal(multiplyDecimals(amountInBase, baseRateTo), options?.amountScale ?? 4)
-      effectiveRate = roundDecimal(divideDecimals(baseRateTo, baseRateFrom), options?.rateScale ?? 8)
+    let amountInBase = amountDecimal
+    if (normalizedFrom !== base) {
+      amountInBase = roundDecimal(multiplyDecimals(amountInBase, rateFrom), amountScale)
+    }
+
+    let converted = amountInBase
+    if (normalizedTo !== base) {
+      converted = roundDecimal(divideDecimals(converted, rateTo), amountScale)
+    }
+
+    let effectiveRate = roundDecimal(1, rateScale)
+    if (normalizedFrom !== base) {
+      effectiveRate = roundDecimal(multiplyDecimals(effectiveRate, rateFrom), rateScale)
+    }
+    if (normalizedTo !== base) {
+      effectiveRate = roundDecimal(divideDecimals(effectiveRate, rateTo), rateScale)
     }
 
     return {

@@ -15,6 +15,9 @@ import Tooltip from '@/components/ui/Tooltip'
 import { HiOutlineEye } from 'react-icons/hi'
 import { useAppSelector } from '@/store'
 import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
+import type { FxSnapshot } from '@/adapters/sales'
+import { convertAmountWithSnapshot } from '@/utils/fxConversion'
+
 type Product = {
     id: string
     productId?: string
@@ -35,6 +38,7 @@ type Product = {
 type OrderProductsProps = {
     data?: Product[]
     orderCurrency?: string
+    fxSnapshot?: FxSnapshot
 }
 
 const { Tr, Th, Td, THead, TBody } = Table
@@ -65,11 +69,45 @@ const ProductColumn = ({ row }: { row: Product }) => {
     )
 }
 
+const getNumeric = (value?: number | null) => {
+    const numeric = Number(value)
+    return Number.isFinite(numeric) ? numeric : undefined
+}
+
+const resolvePriceInOrderCurrency = (
+    row: Product,
+    orderCurrency: string,
+    fxSnapshot?: FxSnapshot,
+) => {
+    const explicitPrice = getNumeric(row.price)
+    if (explicitPrice !== undefined) {
+        return explicitPrice
+    }
+    const orderUnitAmount = getNumeric(row.unitAmountOrderCurrency)
+    if (orderUnitAmount !== undefined) {
+        return orderUnitAmount
+    }
+    const unitAmount = getNumeric(row.unitAmount)
+    const unitCurrency =
+        normalizeCurrencyCode(row.unitCurrency, orderCurrency) || orderCurrency
+    if (unitAmount !== undefined && unitCurrency) {
+        const converted = convertAmountWithSnapshot(unitAmount, unitCurrency, orderCurrency, fxSnapshot)
+        if (converted !== undefined) {
+            return converted
+        }
+        if (Number.isFinite(row.conversionRate) && row.conversionRate) {
+            return unitAmount * Number(row.conversionRate)
+        }
+    }
+    return 0
+}
+
 const columns = (
     t: (k: string) => string,
     formatAmount: (value: number, currency?: string) => string,
     orderCurrency: string,
     defaultCurrency: string,
+    fxSnapshot?: FxSnapshot,
 ) => [
     columnHelper.accessor('name', {
         header: t('text.columns.product'),
@@ -86,13 +124,18 @@ const columns = (
                 normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
             const unitCurrency =
                 normalizeCurrencyCode(row.unitCurrency, displayCurrency) || displayCurrency
+            const resolvedPrice = resolvePriceInOrderCurrency(
+                row,
+                displayCurrency,
+                fxSnapshot,
+            )
             const showOriginal =
                 unitCurrency !== displayCurrency &&
                 Number.isFinite(row.unitAmount) &&
                 Number(row.unitAmount) !== 0
             return (
                 <span>
-                    {formatAmount(row.price ?? 0, displayCurrency)}
+                    {formatAmount(resolvedPrice, displayCurrency)}
                     {showOriginal && (
                         <span className="block text-xs opacity-70">
                             {formatAmount(row.unitAmount ?? 0, unitCurrency)} ({unitCurrency})
@@ -113,7 +156,11 @@ const columns = (
                 normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
             const unitCurrency =
                 normalizeCurrencyCode(row.unitCurrency, displayCurrency) || displayCurrency
-            const price = Number(row.price) || 0
+            const price = resolvePriceInOrderCurrency(
+                row,
+                displayCurrency,
+                fxSnapshot,
+            )
             const total = price * (Number(row.quantity) || 0)
             const showOriginal =
                 unitCurrency !== displayCurrency &&
@@ -157,7 +204,7 @@ const columns = (
     }),
 ]
 
-const OrderProducts = ({ data = [], orderCurrency }: OrderProductsProps) => {
+const OrderProducts = ({ data = [], orderCurrency, fxSnapshot }: OrderProductsProps) => {
     const { t, i18n } = useTranslation()
     const storeCurrency = useAppSelector((state) => state.currency.code)
     const defaultCurrency =
@@ -170,7 +217,7 @@ const OrderProducts = ({ data = [], orderCurrency }: OrderProductsProps) => {
         })
     const table = useReactTable({
         data,
-        columns: columns(t, formatAmount, normalizedOrderCurrency, defaultCurrency),
+        columns: columns(t, formatAmount, normalizedOrderCurrency, defaultCurrency, fxSnapshot),
         getCoreRowModel: getCoreRowModel(),
     })
 

@@ -883,10 +883,22 @@ export class OrdersController {
       },
     })
     if (!order) return null
+    const previousOrdersCount = await this.prisma.order.count({
+      where: {
+        customerId: order.customerId,
+        id: { not: order.id },
+      },
+    })
+    const customer = order.customer
+      ? {
+          ...order.customer,
+          previousOrder: previousOrdersCount,
+        }
+      : null
     return {
       id: order.id,
       date: order.date,
-      customer: order.customer,
+      customer,
       items: order.items.map((item) => ({
         ...item,
         price: Number(item.price?.toString?.() ?? item.price ?? 0),

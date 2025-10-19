@@ -202,6 +202,7 @@ const OrderDetails = () => {
                                 <OrderProducts
                                     data={data.product}
                                     orderCurrency={data.paymentSummary?.currency}
+                                    fxSnapshot={data.fxSnapshot}
                                 />
                                 <div className="xl:grid grid-cols-2 gap-4">
                                     <PaymentSummary
