@@ -125,7 +125,7 @@ const Step4 = ({ onNext, onBack }: Step4Props) => {
                                 </FormContainer>
                             </Form>
                         )
-                    })}
+                    }}
                 </Formik>
             </div>
         </div>

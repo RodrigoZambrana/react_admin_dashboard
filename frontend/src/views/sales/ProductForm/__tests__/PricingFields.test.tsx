@@ -12,10 +12,16 @@ vi.mock('@/components/shared/AdaptableCard', () => ({
 }))
 
 vi.mock('@/components/shared/CurrencySelector', () => ({
-  default: ({ onChange, value }: { onChange: (code: string) => void; value: string }) => (
+  default: ({ onChange, value, options }: { onChange: (code: string) => void; value: string; options?: { value: string; label: string }[] }) => (
     <select data-testid="currency-selector" value={value} onChange={(event) => onChange(event.target.value)}>
-      <option value="UYU">UYU</option>
-      <option value="USD">USD</option>
+      {(options || [
+        { value: 'UYU', label: 'UYU' },
+        { value: 'USD', label: 'USD' },
+      ]).map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
     </select>
   ),
 }))
@@ -48,6 +54,10 @@ const renderPricingFields = () => {
               touched={formik.touched as any}
               errors={formik.errors as any}
               currency={formik.values.currency as any}
+              currencyOptions={[
+                { value: 'UYU', label: 'UYU' },
+                { value: 'USD', label: 'USD' },
+              ]}
               onCurrencyChange={(code) => formik.setFieldValue('currency', code)}
             />
           </Form>

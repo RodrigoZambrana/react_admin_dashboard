@@ -88,6 +88,9 @@ const OrderEdit = () => {
             }
             const oRes = await apiGetSalesOrder<any, { id: string }>({ id: orderId as string })
             const data = (oRes as any).data || (oRes as any)
+            const orderCurrencyValue =
+                normalizeCurrencyCode(data.orderCurrency, defaultCurrency) ||
+                defaultCurrency
             setInitial({
                 id: data.id,
                 customerId: String(data.customerId || ''),
@@ -95,15 +98,19 @@ const OrderEdit = () => {
                 paymentMehod: String(data.paymentMehod || 'Cash'),
                 items: (data.items || []).map((it: any) => {
                     const p = pArray.find((x: any) => String(x.id) === String(it.productId))
-                    const currencyCode =
-                        normalizeCurrencyCode(p?.currency, defaultCurrency) ||
-                        defaultCurrency
+                    const unitCurrency =
+                        normalizeCurrencyCode(it.unitCurrency, orderCurrencyValue) ||
+                        normalizeCurrencyCode(p?.currency, orderCurrencyValue) ||
+                        orderCurrencyValue
+                    const unitAmount = Number(it.unitAmount ?? it.unitPrice ?? it.price) || 0
                     return {
                         productId: String(it.productId),
                         name: it.name,
                         price: Number(it.price) || 0,
                         qty: Number(it.qty) || 1,
-                        currency: currencyCode,
+                        currency: orderCurrencyValue,
+                        unitPrice: unitAmount,
+                        unitCurrency,
                         img: p?.img,
                         description: p?.description,
                     }
@@ -113,6 +120,7 @@ const OrderEdit = () => {
                 billingSameAsShipping: false,
                 shipping: { shippingVendor: data.shippingVendor || 'FedEx', deliveryFees: Number(data.deliveryFees || 0), estimatedMin: Number(data.estimatedMin || 1), estimatedMax: Number(data.estimatedMax || 3) },
                 comment: data.comment || '',
+                orderCurrency: orderCurrencyValue,
             })
             if (data.customerId) {
                 const res = await apiGetCustomerDetails<any, { id: string }>({ id: data.customerId })
@@ -142,11 +150,29 @@ const OrderEdit = () => {
                         .min(1, t('sales.orders.validation.itemsRequired') as string),
                 })}
                 onSubmit={async (values) => {
+                const normalizedOrderCurrency =
+                    normalizeCurrencyCode((values as any).orderCurrency, defaultCurrency) ||
+                    defaultCurrency
                 const payload = {
                     ...values,
                     customer: customers.find((c) => c.value === values.customerId)?.label || '',
                     date: values.date ? Math.floor((values.date as any).getTime() / 1000) : Math.floor(Date.now() / 1000),
-                    items: values.items.map((it: Item) => ({ productId: it.productId, name: it.name, price: it.price, qty: it.qty })),
+                    orderCurrency: normalizedOrderCurrency,
+                    items: values.items.map((it: Item) => {
+                        const rawUnitPrice = Number(it.unitPrice)
+                        return {
+                            productId: it.productId,
+                            name: it.name,
+                            price: Number(it.price) || 0,
+                            qty: Number(it.qty) || 1,
+                            currency: normalizedOrderCurrency,
+                            unitPrice: Number.isFinite(rawUnitPrice) ? rawUnitPrice : Number(it.price) || 0,
+                            unitCurrency:
+                                normalizeCurrencyCode(it.unitCurrency, normalizedOrderCurrency) ||
+                                normalizeCurrencyCode(it.currency, normalizedOrderCurrency) ||
+                                normalizedOrderCurrency,
+                        }
+                    }),
                     billingAddress: (values as any).billingSameAsShipping ? (values as any).shippingAddress : (values as any).billingAddress,
                 }
                 const res = await apiSaveSalesOrder<boolean, any>(payload)
@@ -169,10 +195,8 @@ const OrderEdit = () => {
                     const tax = Math.round(total * (taxRate / (100 + taxRate)) * 100) / 100
                     const grandTotal = Math.round((total + deliveryFee) * 100) / 100
                     const orderCurrency =
-                        normalizeCurrencyCode(
-                            values.items.find((it: Item) => it.currency)?.currency,
-                            defaultCurrency,
-                        ) || defaultCurrency
+                        normalizeCurrencyCode((values as any).orderCurrency, defaultCurrency) ||
+                        defaultCurrency
                     const formattedOrderTotal = formatCurrency(
                         total,
                         orderCurrency,
@@ -207,6 +231,8 @@ const OrderEdit = () => {
                                 qty: 1,
                                 img: p.img,
                                 description: p.description,
+                                unitPrice: p.price,
+                                unitCurrency: currencyCode,
                             },
                         ])
                     }

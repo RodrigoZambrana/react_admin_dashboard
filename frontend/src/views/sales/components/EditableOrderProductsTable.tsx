@@ -20,6 +20,8 @@ export type EditableItem = {
     img?: string
     description?: string
     currency?: string
+    unitPrice?: number
+    unitCurrency?: string
 }
 
 type Props = {

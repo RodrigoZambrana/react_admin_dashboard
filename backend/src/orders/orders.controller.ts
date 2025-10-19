@@ -19,7 +19,14 @@ import type { FastifyRequest } from 'fastify'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateOrderDto } from '../sales/dto/order.dto'
-import { calculateOrderLineTotals, roundCurrency } from '../sales/utils/pricing'
+import { CurrencyConversionService, CurrencyRatesSnapshot } from '../common/currency/currency-conversion.service'
+import {
+  decimal,
+  roundDecimal,
+  multiplyDecimals,
+  addDecimals,
+  divideDecimals,
+} from '../common/currency/money.util'
 
 const ORDER_LIST_INCLUDE = {
   customer: true,
@@ -43,12 +50,226 @@ type OrderSortKey =
 @UseGuards(JwtAuthGuard)
 @Controller('orders')
 export class OrdersController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly currencyConversion: CurrencyConversionService,
+  ) {}
 
   private async getTaxRate() {
     const cfg = await this.prisma.systemConfig.findUnique({ where: { key: 'taxRate' } })
     const val = Number(cfg?.value ?? '22')
     return Number.isNaN(val) ? 22 : val
+  }
+
+  private serializeFxSnapshot(snapshot: CurrencyRatesSnapshot) {
+    const rates: Record<string, string> = {}
+    for (const [currency, rate] of Object.entries(snapshot.rates)) {
+      rates[currency] = rate.toFixed(8)
+    }
+    return {
+      base: snapshot.base,
+      generatedAt: snapshot.generatedAt,
+      rates,
+    }
+  }
+
+  private async getDefaultOrderStatus(preferredCode = 3) {
+    const preferred = await this.prisma.orderStatus.findUnique({ where: { code: preferredCode } })
+    if (preferred) {
+      return preferred
+    }
+    return this.prisma.orderStatus.findFirst({ orderBy: { code: 'asc' } })
+  }
+
+  private async prepareOrderMonetaryData(
+    dto: CreateOrderDto,
+    taxRate: number,
+  ): Promise<{
+    orderCurrency: string
+    snapshot: CurrencyRatesSnapshot
+    items: Prisma.OrderItemCreateWithoutOrderInput[]
+    subTotal: Prisma.Decimal
+    tax: Prisma.Decimal
+    grandTotal: Prisma.Decimal
+    delivery: Prisma.Decimal
+  }> {
+    const requestedOrderCurrency = dto.orderCurrency
+      ? this.currencyConversion.normalizeCurrency(dto.orderCurrency)
+      : null
+    const normalizedOrderCurrency =
+      requestedOrderCurrency ?? (await this.currencyConversion.getBaseCurrency())
+    if (!normalizedOrderCurrency) {
+      throw new BadRequestException('Invalid order currency')
+    }
+    const enabledCurrencies = await this.currencyConversion.getEnabledCurrencies()
+    if (requestedOrderCurrency && !enabledCurrencies.includes(normalizedOrderCurrency)) {
+      throw new BadRequestException('Order currency is not enabled in the system')
+    }
+    const orderCurrency = normalizedOrderCurrency
+
+    const productIds = dto.items
+      .map((item) => Number(item.productId))
+      .filter((id) => Number.isFinite(id) && id > 0)
+
+    const products = productIds.length
+      ? await this.prisma.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, currency: true, salePrice: true, costPrice: true, name: true },
+        })
+      : []
+    const productMap = new Map(products.map((product) => [product.id, product]))
+
+    const requiredCurrencies = new Set<string>([orderCurrency])
+
+    const itemMeta = dto.items.map((item) => {
+      const numericProductId = Number(item.productId)
+      const product =
+        Number.isFinite(numericProductId) && numericProductId > 0
+          ? productMap.get(numericProductId) ?? null
+          : null
+      const providedCurrency = item.currency ? this.currencyConversion.normalizeCurrency(item.currency) : null
+      if (item.currency && !providedCurrency) {
+        throw new BadRequestException(`Invalid currency provided for item "${item.name}"`)
+      }
+      const explicitUnitCurrencyRaw = (item as unknown as { unitCurrency?: string })?.unitCurrency
+      const explicitUnitCurrency = explicitUnitCurrencyRaw
+        ? this.currencyConversion.normalizeCurrency(explicitUnitCurrencyRaw)
+        : null
+      if (explicitUnitCurrencyRaw && !explicitUnitCurrency) {
+        throw new BadRequestException(`Invalid unit currency provided for item "${item.name}"`)
+      }
+      const productCurrency = product?.currency
+        ? this.currencyConversion.normalizeCurrency(product.currency)
+        : null
+      if (product?.currency && !productCurrency) {
+        throw new BadRequestException(`Unsupported currency configured for product "${product.name}"`)
+      }
+      if (productCurrency) {
+        requiredCurrencies.add(productCurrency)
+      }
+      const unitCurrency = explicitUnitCurrency ?? productCurrency ?? providedCurrency ?? orderCurrency
+      requiredCurrencies.add(unitCurrency)
+      if (providedCurrency) {
+        requiredCurrencies.add(providedCurrency)
+      }
+      const priceCurrency = providedCurrency ?? orderCurrency
+      requiredCurrencies.add(priceCurrency)
+      const qtyRaw = Number(item.qty ?? 1)
+      const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? Math.round(qtyRaw) : 1
+      const priceValue = Number(item.price)
+      const fallbackPrice = Number(product?.salePrice ?? 0)
+      const rawPrice = Number.isFinite(priceValue) ? priceValue : fallbackPrice
+      const explicitUnitPriceValue = Number((item as unknown as { unitPrice?: number })?.unitPrice)
+      const explicitUnitAmount = Number.isFinite(explicitUnitPriceValue)
+        ? roundDecimal(explicitUnitPriceValue, 4)
+        : null
+      const unitCost = product?.costPrice ? roundDecimal(product.costPrice, 4) : null
+      const costCurrency = productCurrency ?? explicitUnitCurrency ?? providedCurrency ?? orderCurrency
+      if (unitCost && costCurrency) {
+        requiredCurrencies.add(costCurrency)
+      }
+      return {
+        item,
+        product,
+        priceCurrency,
+        rawPrice,
+        unitCurrency,
+        qty,
+        numericProductId,
+        explicitUnitAmount,
+        unitCost,
+        costCurrency,
+      }
+    })
+
+    const snapshot = await this.currencyConversion.buildRatesSnapshot(Array.from(requiredCurrencies))
+    let subTotal = decimal(0)
+    const createItems: Prisma.OrderItemCreateWithoutOrderInput[] = []
+
+    for (const meta of itemMeta) {
+      const qtyDecimal = decimal(meta.qty)
+      let unitAmount: Prisma.Decimal
+      if (meta.explicitUnitAmount !== null && meta.explicitUnitAmount !== undefined) {
+        unitAmount = roundDecimal(meta.explicitUnitAmount, 4)
+      } else if (meta.priceCurrency !== meta.unitCurrency) {
+        const sourceAmount = roundDecimal(meta.rawPrice, 4)
+        const sourceConversion = this.currencyConversion.convertWithSnapshot(
+          sourceAmount,
+          meta.priceCurrency,
+          meta.unitCurrency,
+          snapshot,
+          { amountScale: 4, rateScale: 8 },
+        )
+        unitAmount = roundDecimal(sourceConversion.amount, 4)
+      } else {
+        unitAmount = roundDecimal(meta.rawPrice, 4)
+      }
+
+      const conversion = this.currencyConversion.convertWithSnapshot(
+        unitAmount,
+        meta.unitCurrency,
+        orderCurrency,
+        snapshot,
+        { amountScale: 4, rateScale: 8 },
+      )
+      const unitAmountOrderCurrency = conversion.amount
+      const conversionRate = conversion.rate
+      const unitPriceRounded = roundDecimal(unitAmountOrderCurrency, 2)
+      const lineTotal = roundDecimal(multiplyDecimals(unitPriceRounded, qtyDecimal), 2)
+      subTotal = subTotal.plus(lineTotal)
+
+      let unitCostOrderCurrency: Prisma.Decimal | null = null
+      if (meta.unitCost) {
+        const costConversion = this.currencyConversion.convertWithSnapshot(
+          meta.unitCost,
+          meta.costCurrency,
+          orderCurrency,
+          snapshot,
+          { amountScale: 4, rateScale: 8 },
+        )
+        unitCostOrderCurrency = costConversion.amount
+      }
+
+      const itemData: Prisma.OrderItemCreateWithoutOrderInput = {
+        product:
+          meta.product && meta.numericProductId
+            ? { connect: { id: meta.numericProductId } }
+            : undefined,
+        name: meta.item.name,
+        price: unitPriceRounded.toFixed(2),
+        qty: meta.qty,
+        img: meta.item.img ?? null,
+        description: meta.item.description ?? null,
+        unitAmount: unitAmount.toFixed(4),
+        unitCurrency: meta.unitCurrency,
+        unitAmountOrderCurrency: unitAmountOrderCurrency.toFixed(4),
+        conversionRate: conversionRate.toFixed(8),
+        unitCostAmount: meta.unitCost ? meta.unitCost.toFixed(4) : undefined,
+        unitCostCurrency: meta.unitCost ? meta.costCurrency : undefined,
+        unitCostOrderCurrency: unitCostOrderCurrency ? unitCostOrderCurrency.toFixed(4) : undefined,
+      }
+      createItems.push(itemData)
+    }
+
+    if (!createItems.length) {
+      throw new BadRequestException('Order items are invalid or empty')
+    }
+
+    const delivery = roundDecimal(dto.shipping?.deliveryFees ?? 0, 2)
+    const taxRateDecimal = decimal(taxRate)
+    const taxFraction = divideDecimals(taxRateDecimal, addDecimals(decimal(100), taxRateDecimal))
+    const tax = roundDecimal(multiplyDecimals(subTotal, taxFraction), 2)
+    const grandTotal = roundDecimal(addDecimals(subTotal, delivery), 2)
+
+    return {
+      orderCurrency,
+      snapshot,
+      items: createItems,
+      subTotal,
+      tax,
+      grandTotal,
+      delivery,
+    }
   }
 
   private resolveScalarParam(raw: unknown): string {
@@ -391,7 +612,7 @@ export class OrdersController {
       include: ORDER_LIST_INCLUDE,
     })
 
-    const defaultStatus = await this.prisma.orderStatus.findUnique({ where: { code: 3 } })
+    const defaultStatus = await this.getDefaultOrderStatus()
 
     const data = orders.map((o: OrderWithRelations) => ({
       id: String(o.id),
@@ -400,7 +621,8 @@ export class OrdersController {
       status: (o.statusId ?? defaultStatus?.id) || 0,
       paymentMehod: o.paymentMethod?.name || '',
       paymentIdendifier: '',
-      totalAmount: o.grandTotal,
+      totalAmount: Number(o.grandTotal?.toString?.() ?? o.grandTotal ?? 0),
+      orderCurrency: o.orderCurrency,
     }))
     return { data, total }
   }
@@ -416,7 +638,7 @@ export class OrdersController {
       orderBy,
       include: ORDER_LIST_INCLUDE,
     })
-    const defaultStatus = await this.prisma.orderStatus.findUnique({ where: { code: 3 } })
+    const defaultStatus = await this.getDefaultOrderStatus()
 
     const header: unknown[] = [
       'id',
@@ -428,6 +650,9 @@ export class OrdersController {
       'statusName',
       'paymentMethod',
       'grandTotal',
+      'orderCurrency',
+      'fxBase',
+      'fxRates',
       'subTotal',
       'tax',
       'deliveryFees',
@@ -454,6 +679,9 @@ export class OrdersController {
         statusName,
         order.paymentMethod?.name ?? '',
         order.grandTotal !== null && order.grandTotal !== undefined ? order.grandTotal.toFixed(2) : '',
+        order.orderCurrency ?? '',
+        order.fxBase ?? '',
+        order.fxRates ? JSON.stringify(order.fxRates) : '',
         order.subTotal !== null && order.subTotal !== undefined ? order.subTotal.toFixed(2) : '',
         order.tax !== null && order.tax !== undefined ? order.tax.toFixed(2) : '',
         order.deliveryFees !== null && order.deliveryFees !== undefined ? order.deliveryFees.toFixed(2) : '',
@@ -501,7 +729,7 @@ export class OrdersController {
       throw new BadRequestException(`Missing required columns: ${missingColumns.join(', ')}`)
     }
 
-    const defaultStatus = await this.prisma.orderStatus.findUnique({ where: { code: 3 } })
+    const defaultStatus = await this.getDefaultOrderStatus()
     const statusById = new Map<number, number>()
     const statusByName = new Map<string, number>()
     if (defaultStatus?.id) {
@@ -514,6 +742,24 @@ export class OrdersController {
 
     const errors: { row: number; message: string }[] = []
     let imported = 0
+
+    const enabledCurrencies = await this.currencyConversion.getEnabledCurrencies()
+    const baseCurrency = await this.currencyConversion.getBaseCurrency()
+    const defaultOrderCurrency =
+      this.currencyConversion.normalizeCurrency(enabledCurrencies[0]) ?? baseCurrency
+    const baseRates = await this.currencyConversion.listRates(baseCurrency)
+    const defaultFxRates = {
+      base: baseCurrency,
+      generatedAt: new Date().toISOString(),
+      rates: baseRates.reduce(
+        (acc, rate) => {
+          acc[rate.quote] = new Prisma.Decimal(rate.rate).toFixed(8)
+          return acc
+        },
+        { [baseCurrency]: '1' } as Record<string, string>,
+      ),
+    }
+    const cloneDefaultFxRates = () => JSON.parse(JSON.stringify(defaultFxRates))
 
     for (let i = 0; i < rows.length; i += 1) {
       const row = rows[i]
@@ -555,6 +801,32 @@ export class OrdersController {
         const subTotal = subTotalCell ? this.parseNumber(subTotalCell) : grandTotal
         const tax = this.parseNumber(this.getCell(row, columnIndex, 'tax'))
         const deliveryFees = this.parseNumber(this.getCell(row, columnIndex, 'deliveryFees'))
+        const orderCurrencyRaw = this.getCell(row, columnIndex, 'orderCurrency')
+        const orderCurrency =
+          this.currencyConversion.normalizeCurrency(orderCurrencyRaw) ?? defaultOrderCurrency
+        const fxBaseRaw = this.getCell(row, columnIndex, 'fxBase')
+        const fxBase = this.currencyConversion.normalizeCurrency(fxBaseRaw) ?? defaultFxRates.base
+        const fxRatesCell = this.getCell(row, columnIndex, 'fxRates')
+        let fxRates: any = cloneDefaultFxRates()
+        if (fxRatesCell) {
+          try {
+            const parsed = JSON.parse(fxRatesCell)
+            if (parsed && typeof parsed === 'object') {
+              fxRates = parsed
+            }
+          } catch {
+            fxRates = cloneDefaultFxRates()
+          }
+        }
+        if (!fxRates || typeof fxRates !== 'object') {
+          fxRates = cloneDefaultFxRates()
+        }
+        fxRates.base = fxBase
+        if (!fxRates.rates || typeof fxRates.rates !== 'object') {
+          fxRates.rates = { [fxBase]: '1' }
+        } else if (!fxRates.rates[fxBase]) {
+          fxRates.rates[fxBase] = '1'
+        }
 
         await this.prisma.order.create({
           data: {
@@ -574,6 +846,9 @@ export class OrdersController {
             subTotal,
             tax,
             deliveryFees,
+            orderCurrency,
+            fxBase,
+            fxRates,
           },
         })
         imported += 1
@@ -612,13 +887,30 @@ export class OrdersController {
       id: order.id,
       date: order.date,
       customer: order.customer,
-      items: order.items,
+      items: order.items.map((item) => ({
+        ...item,
+        price: Number(item.price?.toString?.() ?? item.price ?? 0),
+        unitAmount: item.unitAmount ? Number(item.unitAmount.toString()) : null,
+        unitAmountOrderCurrency: item.unitAmountOrderCurrency
+          ? Number(item.unitAmountOrderCurrency.toString())
+          : null,
+        conversionRate: item.conversionRate ? Number(item.conversionRate.toString()) : null,
+        unitCostAmount: item.unitCostAmount ? Number(item.unitCostAmount.toString()) : null,
+        unitCostOrderCurrency: item.unitCostOrderCurrency
+          ? Number(item.unitCostOrderCurrency.toString())
+          : null,
+        unitCurrency: item.unitCurrency ?? null,
+        unitCostCurrency: item.unitCostCurrency ?? null,
+      })),
       paymentMethod: order.paymentMethod,
       status: order.status,
-      subTotal: order.subTotal,
-      tax: order.tax,
-      deliveryFees: order.deliveryFees,
-      grandTotal: order.grandTotal,
+      subTotal: Number(order.subTotal?.toString?.() ?? order.subTotal ?? 0),
+      tax: Number(order.tax?.toString?.() ?? order.tax ?? 0),
+      deliveryFees: order.deliveryFees === null ? null : Number(order.deliveryFees.toString()),
+      grandTotal: Number(order.grandTotal?.toString?.() ?? order.grandTotal ?? 0),
+      orderCurrency: order.orderCurrency,
+      fxBase: order.fxBase,
+      fxRates: order.fxRates,
       comment: order.comment,
     }
   }
@@ -629,35 +921,10 @@ export class OrdersController {
     if (!customerId) throw new BadRequestException('sales.orders.validation.customerRequired')
     if (!Array.isArray(dto.items) || dto.items.length === 0) throw new BadRequestException('sales.orders.validation.itemsRequired')
 
-    const createItems: Prisma.OrderItemCreateWithoutOrderInput[] = []
-    let subTotal = 0
-    for (const item of dto.items) {
-      const pricing = calculateOrderLineTotals({ qty: item.qty, price: item.price })
-      const numericProductId = Number(item.productId)
-      createItems.push({
-        product:
-          Number.isFinite(numericProductId) && numericProductId > 0
-            ? { connect: { id: numericProductId } }
-            : undefined,
-        name: item.name,
-        price: roundCurrency(Number(item.price) || 0),
-        qty: item.qty ?? 1,
-        img: item.img ?? null,
-        description: item.description ?? null,
-      })
-      subTotal += pricing.saleTotal
-    }
-
-    const delivery = roundCurrency(dto.shipping?.deliveryFees ?? 0)
     const taxRate = await this.getTaxRate()
-    const tax = roundCurrency(subTotal * (taxRate / (100 + taxRate)))
-    const grandTotal = roundCurrency(subTotal + delivery)
+    const monetary = await this.prepareOrderMonetaryData(dto, taxRate)
 
-    if (createItems.length === 0) {
-      throw new BadRequestException('Order items are invalid or empty')
-    }
-
-    const completedStatus = await this.prisma.orderStatus.findUnique({ where: { code: 3 } })
+    const completedStatus = await this.getDefaultOrderStatus()
 
     const composeAddress = (addr?: any) => {
       if (!addr) return undefined
@@ -732,14 +999,17 @@ export class OrdersController {
         shippingVendor: dto.shipping?.shippingVendor,
         statusId: completedStatus?.id,
         paymentMethodId,
-        deliveryFees: delivery,
+        deliveryFees: monetary.delivery.toFixed(2),
         estimatedMin: dto.shipping?.estimatedMin,
         estimatedMax: dto.shipping?.estimatedMax,
         comment: dto.comment,
-        subTotal,
-        tax,
-        grandTotal,
-        items: { create: createItems },
+        subTotal: monetary.subTotal.toFixed(2),
+        tax: monetary.tax.toFixed(2),
+        grandTotal: monetary.grandTotal.toFixed(2),
+        orderCurrency: monetary.orderCurrency,
+        fxBase: monetary.snapshot.base,
+        fxRates: this.serializeFxSnapshot(monetary.snapshot),
+        items: { create: monetary.items },
       },
     })
     return true
@@ -756,33 +1026,8 @@ export class OrdersController {
       throw new BadRequestException('sales.orders.validation.itemsRequired')
     }
 
-    const createItems: Prisma.OrderItemCreateWithoutOrderInput[] = []
-    let subTotal = 0
-    for (const item of dto.items) {
-      const pricing = calculateOrderLineTotals({ qty: item.qty, price: item.price })
-      const numericProductId = Number(item.productId)
-      createItems.push({
-        product:
-          Number.isFinite(numericProductId) && numericProductId > 0
-            ? { connect: { id: numericProductId } }
-            : undefined,
-        name: item.name,
-        price: roundCurrency(Number(item.price) || 0),
-        qty: item.qty ?? 1,
-        img: item.img ?? null,
-        description: item.description ?? null,
-      })
-      subTotal += pricing.saleTotal
-    }
-
-    if (createItems.length === 0) {
-      throw new BadRequestException('Order items are invalid or empty')
-    }
-
-    const delivery = roundCurrency(dto.shipping?.deliveryFees ?? 0)
     const taxRate = await this.getTaxRate()
-    const tax = roundCurrency(subTotal * (taxRate / (100 + taxRate)))
-    const grandTotal = roundCurrency(subTotal + delivery)
+    const monetary = await this.prepareOrderMonetaryData(dto, taxRate)
 
     const composeAddress = (addr?: any) => {
       if (!addr) return undefined
@@ -847,16 +1092,19 @@ export class OrdersController {
         billingState: billingFromShipping?.state ?? null,
         shippingVendor: dto.shipping?.shippingVendor,
         paymentMethodId,
-        deliveryFees: delivery,
+        deliveryFees: monetary.delivery.toFixed(2),
         estimatedMin: dto.shipping?.estimatedMin,
         estimatedMax: dto.shipping?.estimatedMax,
         comment: dto.comment,
-        subTotal,
-        tax,
-        grandTotal,
+        subTotal: monetary.subTotal.toFixed(2),
+        tax: monetary.tax.toFixed(2),
+        grandTotal: monetary.grandTotal.toFixed(2),
+        orderCurrency: monetary.orderCurrency,
+        fxBase: monetary.snapshot.base,
+        fxRates: this.serializeFxSnapshot(monetary.snapshot),
         items: {
           deleteMany: {},
-          create: createItems,
+          create: monetary.items,
         },
       },
     })

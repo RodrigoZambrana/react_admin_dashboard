@@ -46,6 +46,10 @@ type SalesOrderDetailsResponse = {
         quantity: number
         total: number
         currency?: string
+        unitCurrency?: string
+        unitAmount?: number
+        unitAmountOrderCurrency?: number
+        conversionRate?: number
         details: Record<string, string[]>
     }[]
     activity?: {
@@ -195,7 +199,10 @@ const OrderDetails = () => {
                         </div>
                         <div className="xl:flex gap-4">
                             <div className="w-full">
-                                <OrderProducts data={data.product} />
+                                <OrderProducts
+                                    data={data.product}
+                                    orderCurrency={data.paymentSummary?.currency}
+                                />
                                 <div className="xl:grid grid-cols-2 gap-4">
                                     <PaymentSummary
                                         data={data.paymentSummary}
