@@ -1,7 +1,8 @@
 import { lazy } from 'react'
 import type { Routes } from '@/@types/routes'
+import { applyClientRouteOverrides } from '../clientConfig'
 
-const authRoute: Routes = [
+const baseAuthRoute: Routes = [
     {
         key: 'accessDenied',
         path: `/access-denied`,
@@ -39,5 +40,10 @@ const authRoute: Routes = [
         authority: [],
     },
 ]
+
+const authRoute: Routes = applyClientRouteOverrides(
+    baseAuthRoute,
+    'public',
+)
 
 export default authRoute

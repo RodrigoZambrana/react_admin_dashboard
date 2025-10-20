@@ -1,4 +1,6 @@
 import { THEME_ENUM } from '@/constants/theme.constant'
+import { clientConfig } from './clientConfig'
+import deepMerge from '@/utils/deepMerge'
 import {
     Direction,
     Mode,
@@ -27,7 +29,7 @@ export type ThemeConfig = {
  * Since some configurations need to be match with specific themes,
  * we recommend to use the configuration that generated from demo.
  */
-export const themeConfig: ThemeConfig = {
+const baseThemeConfig: ThemeConfig = {
     themeColor: 'indigo',
     direction: THEME_ENUM.DIR_LTR,
     mode: THEME_ENUM.MODE_LIGHT,
@@ -41,3 +43,8 @@ export const themeConfig: ThemeConfig = {
         sideNavCollapse: false,
     },
 }
+
+export const themeConfig: ThemeConfig = deepMerge(
+    baseThemeConfig,
+    clientConfig.frontend?.theme ?? {},
+)

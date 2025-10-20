@@ -1,3 +1,5 @@
+import { clientConfig } from './clientConfig'
+
 export type AppConfig = {
     apiPrefix: string
     authenticatedEntryPath: string
@@ -12,7 +14,7 @@ const isRecaptchaEnabled =
     String(import.meta.env.VITE_RECAPTCHA_ENABLED || '').toLowerCase() === 'true'
 const siteKey = isRecaptchaEnabled ? import.meta.env.VITE_RECAPTCHA_SITE_KEY || '' : ''
 
-const appConfig: AppConfig = {
+const baseAppConfig: AppConfig = {
     apiPrefix: '/api',
     authenticatedEntryPath: '/app/sales/dashboard',
     unAuthenticatedEntryPath: '/sign-in',
@@ -20,6 +22,16 @@ const appConfig: AppConfig = {
     locale: 'en',
     enableMock: false,
     recaptchaSiteKey: siteKey,
+}
+
+const overrideAppConfig = clientConfig.frontend?.app ?? {}
+const cleanedOverrides = Object.fromEntries(
+    Object.entries(overrideAppConfig).filter(([, value]) => value !== undefined),
+) as Partial<AppConfig>
+
+const appConfig: AppConfig = {
+    ...baseAppConfig,
+    ...cleanedOverrides,
 }
 
 export default appConfig
