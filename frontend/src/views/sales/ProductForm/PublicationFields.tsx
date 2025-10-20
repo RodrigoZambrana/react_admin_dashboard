@@ -92,11 +92,7 @@ const PublicationFields = ({
                         <Field name="published">
                             {({ field, form }: FieldProps) => (
                                 <Switcher
-                                    defaultChecked={
-                                        typeof values.published === 'boolean'
-                                            ? (values.published as boolean)
-                                            : true
-                                    }
+                                    checked={Boolean(field.value)}
                                     onChange={(checked) =>
                                         form.setFieldValue(field.name, checked)
                                     }

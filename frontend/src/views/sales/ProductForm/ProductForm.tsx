@@ -18,6 +18,12 @@ import type { CurrencyCode } from '@/store'
 import { useAppSelector } from '@/store'
 import { apiGetSystemConfig } from '@/services/SettingsService'
 import { deriveInventoryStatus } from '@/utils/inventory'
+import {
+    DEFAULT_SALES_UNIT,
+    SALES_UNIT_VALUES,
+    type SalesUnit,
+} from '@/constants/product.constant'
+import { sanitizeString } from '@/utils/security/inputGuards'
 
 const sanitizeCurrencyCode = (value?: string | null): CurrencyCode | undefined => {
     if (typeof value !== 'string') {
@@ -67,11 +73,13 @@ type InitialData = {
     published?: boolean
     permanentStock?: boolean
     currency?: CurrencyCode
+    unitOfMeasure?: SalesUnit
 }
 
 export type FormModel = Omit<InitialData, 'tags' | 'permanentStock'> & {
     tags: string[]
     permanentStock: boolean
+    unitOfMeasure: SalesUnit
 }
 
 export type SetSubmitting = (isSubmitting: boolean) => void
@@ -107,6 +115,9 @@ const validationSchema = (t: (k: string) => string) =>
             .nullable()
             .typeError(t('text.validation.categoryRequired'))
             .required(t('text.validation.categoryRequired')),
+        unitOfMeasure: Yup.mixed<SalesUnit>()
+            .oneOf(SALES_UNIT_VALUES)
+            .required(t('text.validation.unitOfMeasureRequired')),
     })
 
 const DeleteProductButton = ({ onDelete }: { onDelete: OnDelete }) => {
@@ -172,8 +183,10 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
             brand: '',
             vendor: '',
             description: '',
+            published: false,
             permanentStock: false,
             currency: 'UYU',
+            unitOfMeasure: DEFAULT_SALES_UNIT,
         },
         onFormSubmit,
         onDiscard,
@@ -328,12 +341,15 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                     published:
                         typeof initialData.published === 'boolean'
                             ? initialData.published
-                            : true,
+                            : false,
                     currency: (initialData.currency || 'UYU') as CurrencyCode,
                     tags: Array.isArray(initialData?.tags)
                         ? (initialData.tags as string[])
                         : [],
                     permanentStock: Boolean(initialData.permanentStock),
+                    unitOfMeasure:
+                        (initialData.unitOfMeasure ??
+                            DEFAULT_SALES_UNIT) as SalesUnit,
                 }}
                 validationSchema={validationSchema(t)}
                 onSubmit={(values: FormModel, { setSubmitting }) => {
@@ -345,6 +361,9 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                         return tag
                     })
                     formData.currency = ((formData.currency || 'UYU') as string).toUpperCase()
+                    if (typeof formData.description === 'string') {
+                        formData.description = sanitizeString(formData.description)
+                    }
                     // Normalize numeric fields to numbers
                     ;(['salePrice', 'costPrice', 'stock', 'status', 'bulkDiscountPrice', 'categoryId'] as const).forEach((k) => {
                         const v: any = (formData as any)[k]

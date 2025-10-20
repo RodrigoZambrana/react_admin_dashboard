@@ -25,6 +25,11 @@ import type {
     OnSortParam,
     ColumnDef,
 } from '@/components/shared/DataTable'
+import {
+    DEFAULT_SALES_UNIT,
+    getSalesUnitLabel,
+    type SalesUnit,
+} from '@/constants/product.constant'
 
 type Product = {
     id: string
@@ -41,6 +46,7 @@ type Product = {
     vendor?: string
     permanentStock?: boolean
     currency?: string
+    unitOfMeasure?: SalesUnit
 }
 
 const ActionColumn = ({ row }: { row: Product }) => {
@@ -205,6 +211,19 @@ const ProductTable = () => {
                 },
             },
             {
+                header: t('text.labels.unitOfMeasure'),
+                accessorKey: 'unitOfMeasure',
+                enableSorting: false,
+                cell: (props) => {
+                    const unit = props.row.original.unitOfMeasure ?? DEFAULT_SALES_UNIT
+                    return (
+                        <span>
+                            {getSalesUnitLabel(unit, t)}
+                        </span>
+                    )
+                },
+            },
+            {
                 header: t('text.labels.brand'),
                 accessorKey: 'brand',
                 cell: (props) => {
@@ -260,7 +279,7 @@ const ProductTable = () => {
                     return (
                         <div className="min-w-[120px]">
                             <Switcher
-                                defaultChecked={checked}
+                                checked={checked}
                                 onChange={(v) => onToggle(v)}
                             />
                         </div>
@@ -272,15 +291,16 @@ const ProductTable = () => {
                 accessorKey: 'published',
                 cell: (props) => {
                     const row = props.row.original
-                    const checked = typeof row.published === 'boolean' ? row.published : true
+                    const checked = typeof row.published === 'boolean' ? row.published : false
                     const onToggle = async (val: boolean) => {
+                        updateProductRow(row.id, { published: val })
                         await apiPutSalesProduct<boolean, { id: number; published: boolean }>({ id: Number(row.id), published: val })
                         // refresh to reflect server state
                         fetchData()
                     }
                     return (
                         <div className="min-w-[120px]">
-                            <Switcher defaultChecked={checked} onChange={(v) => onToggle(v)} />
+                            <Switcher checked={checked} onChange={(v) => onToggle(v)} />
                         </div>
                     )
                 },

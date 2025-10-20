@@ -11,7 +11,7 @@ import {
   StreamableFile,
   UseGuards,
 } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { Prisma, SalesUnit } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { UpsertProductDto, UpdateProductDto, TableQueryDto as ProductQuery } from './dto/product.dto'
@@ -31,6 +31,12 @@ type ProductSortKey =
   | 'status'
   | 'published'
   | 'category'
+
+const SALES_UNIT_KEYWORDS: Record<SalesUnit, string[]> = {
+  [SalesUnit.UNIT]: ['unit', 'units', 'unidad', 'unidades', 'u'],
+  [SalesUnit.SQUARE_METER]: ['squaremeter', 'squaremeters', 'metroscuadrados', 'metrocuadrado', 'metroscuadrado', 'm2', 'sqm', 'mt2'],
+  [SalesUnit.LINEAR_METER]: ['linearmeter', 'linearmeters', 'metrolineal', 'metroslineales', 'ml', 'lm'],
+}
 
 @UseGuards(JwtAuthGuard)
 @Controller('sales')
@@ -331,6 +337,28 @@ export class SalesController {
     const normalized = str.toLowerCase()
     if (['1', 'true', 'yes', 'y', 'si', 'sí', 'on'].includes(normalized)) return true
     if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false
+    return undefined
+  }
+
+  private parseSalesUnit(raw: unknown): SalesUnit | undefined {
+    if (raw === null || raw === undefined) return undefined
+    const str = raw.toString().trim()
+    if (!str) return undefined
+    const upper = str.toUpperCase()
+    if ((Object.values(SalesUnit) as string[]).includes(upper)) {
+      return upper as SalesUnit
+    }
+    const normalized = str
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[^\w]+/g, '')
+
+    for (const [unit, keywords] of Object.entries(SALES_UNIT_KEYWORDS) as [SalesUnit, string[]][]) {
+      if (keywords.includes(normalized)) {
+        return unit
+      }
+    }
+
     return undefined
   }
 
@@ -720,6 +748,7 @@ export class SalesController {
         salePrice: true,
         costPrice: true,
         currency: true,
+        unitOfMeasure: true,
         stock: true,
         permanentStock: true,
         status: true,
@@ -739,6 +768,7 @@ export class SalesController {
       salePrice: decimalToNumber(p.salePrice),
       costPrice: decimalToNumber(p.costPrice),
       currency: p.currency,
+      unitOfMeasure: p.unitOfMeasure,
       stock: p.stock,
       permanentStock: p.permanentStock,
       status: this.deriveInventoryStatus(p.stock, p.permanentStock),
@@ -778,6 +808,7 @@ export class SalesController {
       'salePrice',
       'costPrice',
       'currency',
+      'unitOfMeasure',
       'stock',
       'status',
       'statusLabel',
@@ -813,6 +844,7 @@ export class SalesController {
         salePriceValue,
         costPriceValue,
         product.currency ?? '',
+        product.unitOfMeasure ?? SalesUnit.UNIT,
         product.stock ?? 0,
         statusValue,
         statusLabel[statusValue] ?? '',
@@ -878,6 +910,9 @@ export class SalesController {
         const tags = this.splitTags(this.getCell(row, columnIndex, 'tags'))
         const currencyRaw = this.normalizeOptionalString(this.getCell(row, columnIndex, 'currency', ['currencycode']))
         const currency = currencyRaw ? currencyRaw.toUpperCase() : undefined
+        const unitRaw = this.normalizeOptionalString(
+          this.getCell(row, columnIndex, 'unitOfMeasure', ['salesUnit', 'unit', 'unitType', 'unidadVenta', 'unidad', 'unidad_de_venta'])
+        )
 
         const salePriceRaw = this.getCell(row, columnIndex, 'salePrice', ['price', 'precioVenta', 'precioventa', 'precio_venta'])
         const stockRaw = this.getCell(row, columnIndex, 'stock')
@@ -896,6 +931,7 @@ export class SalesController {
         const permanentStock = this.parseOptionalBoolean(permanentRaw)
         const published = this.parseOptionalBoolean(publishedRaw)
         const createdAt = this.parseDate(createdAtRaw)
+        const unitOfMeasure = this.parseSalesUnit(unitRaw)
 
         const resolvedCostPrice =
           costPrice !== undefined
@@ -933,6 +969,7 @@ export class SalesController {
             salePrice: resolvedSalePrice,
             costPrice: resolvedCostPrice,
             currency: (currency ?? 'UYU').toUpperCase(),
+            unitOfMeasure: unitOfMeasure ?? SalesUnit.UNIT,
             stock: Math.round(normalizedStock),
             permanentStock: normalizedPermanent,
             status,
@@ -942,7 +979,7 @@ export class SalesController {
             tags: tags ?? [],
             brand: brand ?? undefined,
             vendor: vendor ?? undefined,
-            published: published ?? true,
+            published: published ?? false,
           }
           if (categoryId) {
             createData.category = { connect: { id: categoryId } }
@@ -975,6 +1012,7 @@ export class SalesController {
           if (brand !== undefined) updateData.brand = brand
           if (vendor !== undefined) updateData.vendor = vendor
           if (published !== undefined) updateData.published = published
+          if (unitOfMeasure !== undefined) updateData.unitOfMeasure = unitOfMeasure
           if (categoryId) {
             updateData.category = { connect: { id: categoryId } }
           }
@@ -1042,6 +1080,7 @@ export class SalesController {
         salePrice: roundCurrency(dto.salePrice),
         costPrice: roundCurrency(dto.costPrice),
         currency: (dto.currency || 'UYU').toUpperCase(),
+        unitOfMeasure: dto.unitOfMeasure ?? SalesUnit.UNIT,
         stock: dto.stock,
         permanentStock,
         status,
@@ -1051,7 +1090,7 @@ export class SalesController {
         tags,
         brand: dto.brand,
         vendor: dto.vendor,
-        published: dto.published ?? true,
+        published: dto.published ?? false,
         images: dto.imgList && dto.imgList.length ? {
           create: dto.imgList.map((im, idx) => ({ name: im.name, img: im.img, sortOrder: idx }))
         } : undefined,
@@ -1091,6 +1130,8 @@ export class SalesController {
         dto.currency === undefined
           ? undefined
           : (dto.currency || 'UYU').toUpperCase(),
+      unitOfMeasure:
+        dto.unitOfMeasure === undefined ? undefined : dto.unitOfMeasure,
       // only update published if provided
       published: dto.published === undefined ? undefined : dto.published,
     }

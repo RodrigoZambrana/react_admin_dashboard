@@ -12,7 +12,15 @@ Esta guía describe la estructura y el flujo de trabajo para mantener múltiples
 - **Variantes de cliente (`clients/<slug>`)**  
   - Contienen únicamente overrides o extensiones necesarias para cada cliente.  
   - Pueden habilitar/deshabilitar módulos, ajustar rutas, branding, límites, etc.  
-  - Ejemplo incluido: `retail`.
+  - Ejemplos incluidos: `retail`, `urucortinas`.
+
+### Clientes configurados actualmente
+
+| Slug          | Descripción breve                              | Back/Front overrides clave |
+| ------------- | ------------------------------------------------ | --------------------------- |
+| `core`        | Base compartida para todos los despliegues       | Valores por defecto         |
+| `retail`      | Demo retail con módulo de fidelización extra     | Ruta de lealtad, flags contables apagados |
+| `urucortinas` | Variante inicial para el cliente UruCortinas     | Idioma `es`, tema teal      |
 
 - **Inyección en tiempo de ejecución**  
   - Backend: `ClientConfigModule` expone un provider global (`CLIENT_CONFIG`) para consultar la configuración activa.  

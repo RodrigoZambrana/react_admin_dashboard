@@ -20,6 +20,10 @@ import ProductForm, {
     OnDeleteCallback,
 } from '@/views/sales/ProductForm'
 import isEmpty from 'lodash/isEmpty'
+import {
+    DEFAULT_SALES_UNIT,
+    type SalesUnit,
+} from '@/constants/product.constant'
 
 injectReducer('salesProductEdit', reducer)
 
@@ -152,9 +156,12 @@ const ProductEdit = () => {
               published:
                   typeof (productData as any).published === 'boolean'
                       ? (productData as any).published
-                      : true,
+                      : false,
               permanentStock: Boolean((productData as any).permanentStock),
               currency: ((productData as any).currency || 'UYU') as string,
+              unitOfMeasure: (
+                  (productData as any).unitOfMeasure ?? DEFAULT_SALES_UNIT
+              ) as SalesUnit,
           }
         : undefined
 

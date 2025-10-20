@@ -563,6 +563,11 @@
             "disabled": "Disabled",
             "archive": "Archive"
         },
+        "salesUnit": {
+            "UNIT": "Unit",
+            "SQUARE_METER": "Square meter",
+            "LINEAR_METER": "Linear meter"
+        },
         "labels": {
             "firstName": "First name",
             "lastName": "Last name",
@@ -578,6 +583,7 @@
             "productName": "Product Name",
             "code": "Code",
             "description": "Description",
+            "unitOfMeasure": "Sales unit",
             "sku": "SKU",
             "bulkDiscountPrice": "Bulk Discount Price",
             "taxRatePercent": "Tax Rate(%)",
@@ -743,6 +749,7 @@
             "stockNumber": "Stock must be a number",
             "stockMin": "Stock cannot be negative",
             "categoryRequired": "Category Required",
+            "unitOfMeasureRequired": "Sales unit is required",
             "invalidEmail": "Invalid email",
             "emailRequired": "Email Required",
             "userNameRequired": "User Name Required",
