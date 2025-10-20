@@ -27,6 +27,7 @@ export type ActivityOrder = {
     status: string
     amount: number
     date: number
+    currency?: string
 }
 
 export type ActivityEntity = {

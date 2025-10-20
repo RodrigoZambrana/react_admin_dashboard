@@ -1,0 +1,11 @@
+export const DEFAULT_COMPANY_PROFILE = {
+    legalName: 'Sistema Administrativo, Inc.',
+    tradeName: 'Sistema Administrativo',
+    taxId: 'RUC 1234567890',
+    email: 'facturacion@sistemadministrativo.com',
+    phone: '(123) 456-7890',
+    website: 'www.sistemadministrativo.com',
+    addressLine1: '9498 Harvard Street',
+    addressLine2: 'Fairfield, Chicago Town 06824',
+    logo: null as string | null,
+} as const

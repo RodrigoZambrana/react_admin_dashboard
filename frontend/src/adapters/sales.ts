@@ -16,13 +16,96 @@ export function toUnixSeconds(date: any): number {
 }
 
 export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
-  if (!o) return { line1: '', line2: '', line3: '', line4: '' }
-  const l1 = o[`${prefix}Address1`] || ''
-  const l2 = o[`${prefix}Address2`] || ''
-  const city = o[`${prefix}City`] || ''
-  const state = o[`${prefix}State`] || ''
-  const l3 = [city, state].filter(Boolean).join(', ')
-  return { line1: l1, line2: l2, line3: l3, line4: '' }
+  const getFirstNonEmpty = (...values: Array<unknown>) => {
+    for (const value of values) {
+      if (typeof value === 'string') {
+        const trimmed = value.trim()
+        if (trimmed.length > 0) {
+          return trimmed
+        }
+      }
+    }
+    return ''
+  }
+
+  if (!o) {
+    return { line1: '', line2: '', line3: '', line4: '' }
+  }
+
+  const nestedAddress =
+    ((typeof o[`${prefix}Address`] === 'object' && o[`${prefix}Address`]) ||
+      (typeof o[prefix] === 'object' && o[prefix]) ||
+      {}) as Record<string, unknown>
+  const nestedValues = (...keys: string[]) => keys.map((key) => nestedAddress[key])
+
+  const nestedLine1 = (() => {
+    const street = getFirstNonEmpty(
+      ...nestedValues('street', 'addressLine1', 'line1', 'lineOne'),
+    )
+    const number = getFirstNonEmpty(...nestedValues('number'))
+    if (!street && !number) {
+      return ''
+    }
+    return [street, number].filter(Boolean).join(' ').trim()
+  })()
+
+  const nestedLine2 = (() => {
+    const apartment = getFirstNonEmpty(
+      ...nestedValues('apartment', 'unit'),
+    )
+    const corner = getFirstNonEmpty(...nestedValues('corner'))
+    const addressLine2 = getFirstNonEmpty(
+      ...nestedValues('addressLine2', 'line2', 'lineTwo'),
+    )
+    const parts = [addressLine2]
+    if (apartment) {
+      parts.push(`Apt ${apartment}`)
+    }
+    if (corner) {
+      parts.push(corner)
+    }
+    return parts.filter(Boolean).join(' • ')
+  })()
+
+  const line1 = getFirstNonEmpty(
+    o[`${prefix}Address1`],
+    nestedLine1,
+  )
+  const line2 = getFirstNonEmpty(
+    o[`${prefix}Address2`],
+    nestedLine2,
+  )
+  const city = getFirstNonEmpty(
+    o[`${prefix}City`],
+    ...nestedValues('city'),
+  )
+  const stateOrRegion = getFirstNonEmpty(
+    o[`${prefix}State`],
+    ...nestedValues('state', 'region', 'province', 'country'),
+  )
+  const zip = getFirstNonEmpty(
+    o[`${prefix}Zip`],
+    ...nestedValues('zip', 'postalCode', 'postal_code'),
+  )
+  const country = getFirstNonEmpty(
+    ...nestedValues('country'),
+    o[`${prefix}Country`],
+  )
+
+  const line3 = [city, stateOrRegion].filter(Boolean).join(', ')
+  const line4Parts = [zip]
+  if (country && country !== stateOrRegion) {
+    line4Parts.push(country)
+  } else if (!zip && country) {
+    line4Parts.push(country)
+  }
+
+  return {
+    line1,
+    line2,
+    line3,
+    line4: line4Parts.filter(Boolean).join(' • '),
+  }
 }
 
 export function adaptOrderToDetailsView(o: any) {
@@ -75,6 +158,7 @@ export function adaptOrderToDetailsView(o: any) {
         unitAmountOrderCurrency: Number(it.unitAmountOrderCurrency ?? it.price ?? 0),
         conversionRate: Number(it.conversionRate ?? 1),
         details: {},
+        comments: typeof it.comments === 'string' && it.comments.trim() ? it.comments.trim() : undefined,
       }))
     : []
   const fxSnapshot = (() => {
@@ -119,6 +203,15 @@ export function adaptOrderToDetailsView(o: any) {
       }
     : undefined
   const payementStatus = o.paymentMethodId ? 0 : 1
+  const comment = (() => {
+    if (typeof o.comment === 'string') {
+      return o.comment.trim()
+    }
+    if (typeof o.comments === 'string') {
+      return o.comments.trim()
+    }
+    return ''
+  })()
   return {
     id: String(o.id),
     progressStatus: o.statusId || 0,
@@ -130,5 +223,6 @@ export function adaptOrderToDetailsView(o: any) {
     activity: [],
     customer,
     fxSnapshot,
+    comment,
   }
 }

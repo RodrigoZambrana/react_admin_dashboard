@@ -227,6 +227,12 @@ const appsRoute: Routes = [
     },
     // Settings
     {
+        key: 'appsSettings.companyProfile',
+        path: `${APP_PREFIX_PATH}/settings/company-profile`,
+        component: lazy(() => import('@/views/settings/CompanyProfile')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+    },
+    {
         key: 'appsSettings.orderStatuses',
         path: `${APP_PREFIX_PATH}/settings/order-statuses`,
         component: lazy(() => import('@/views/settings/OrderStatuses')),

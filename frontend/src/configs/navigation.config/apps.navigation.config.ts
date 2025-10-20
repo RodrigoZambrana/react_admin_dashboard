@@ -200,6 +200,16 @@ const appsNavigationConfig: NavigationTree[] = [
                 authority: getRolesForFeature(FEATURES.SETTINGS),
                 subMenu: [
                     {
+                        key: 'appsSettings.companyProfile',
+                        path: `${APP_PREFIX_PATH}/settings/company-profile`,
+                        title: 'Company Profile',
+                        translateKey: 'nav.appsSettings.companyProfile',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
+                        subMenu: [],
+                    },
+                    {
                         key: 'appsSettings.orderStatuses',
                         path: `${APP_PREFIX_PATH}/settings/order-statuses`,
                         title: 'Order Statuses',

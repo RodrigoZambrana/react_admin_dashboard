@@ -11,6 +11,7 @@ import Button from '@/components/ui/Button'
 import ExpenseAttachmentsField from '@/views/expenses/components/ExpenseAttachmentsField'
 import { apiGetExpense, type ExpenseAttachment } from '@/services/ExpensesService'
 import { useAppSelector } from '@/store'
+import { resolveTextDirection } from '@/utils/textDirection'
 
 type ExpenseDetailRecord = {
     id: string
@@ -213,7 +214,10 @@ const ExpenseDetail = () => {
                                         <h6 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">
                                             {t('text.columns.comments')}
                                         </h6>
-                                        <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line">
+                                        <p
+                                            className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line"
+                                            dir={resolveTextDirection(data.note)}
+                                        >
                                             {data.note}
                                         </p>
                                     </div>

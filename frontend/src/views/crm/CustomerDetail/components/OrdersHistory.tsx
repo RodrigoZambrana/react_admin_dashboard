@@ -9,12 +9,12 @@ import {
     useReactTable,
     createColumnHelper,
 } from '@tanstack/react-table'
-import { NumericFormat } from 'react-number-format'
 import { CustomerOrder } from '../store'
 import { useSelector } from 'react-redux'
 import dayjs from 'dayjs'
 import { Link } from 'react-router-dom'
 import Button from '@/components/ui/Button'
+import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
 
 const { Tr, Th, Td, THead, TBody, Sorter } = Table
 
@@ -29,7 +29,10 @@ const statusColor: Record<string, string> = {
 
 const columnHelper = createColumnHelper<CustomerOrder>()
 
-const columns = (t: (k: string) => string) => [
+const columns = (
+    t: (k: string) => string,
+    formatAmount: (value?: number, currency?: string) => string,
+) => [
     columnHelper.accessor('id', {
         header: t('text.columns.reference'),
         cell: (props) => {
@@ -74,12 +77,9 @@ const columns = (t: (k: string) => string) => [
         cell: (props) => {
             const row = props.row.original
             return (
-                <NumericFormat
-                    displayType="text"
-                    value={(Math.round(row.amount * 100) / 100).toFixed(2)}
-                    prefix={'$'}
-                    thousandSeparator
-                />
+                <span>
+                    {formatAmount(row.amount, row.currency)}
+                </span>
             )
         },
     }),
@@ -121,10 +121,19 @@ const OrdersHistory = () => {
         }[]
     >([])
 
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
+    const storeCurrency = useSelector(
+        (state: any) => state.currency?.code,
+    )
+    const defaultCurrency =
+        normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
+    const formatAmount = (value?: number, currency?: string) =>
+        formatCurrency(value, currency, i18n.language, {
+            fallbackCurrency: defaultCurrency,
+        })
     const table = useReactTable({
         data,
-        columns: columns(t),
+        columns: columns(t, formatAmount),
         state: {
             sorting,
         },

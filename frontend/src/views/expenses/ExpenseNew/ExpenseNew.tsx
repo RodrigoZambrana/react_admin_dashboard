@@ -17,7 +17,7 @@ import { apiGetPaymentMethods, apiGetExpenseStatuses } from '@/services/Settings
 import toast from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
 import { HiOutlineAdjustments } from 'react-icons/hi'
-import CurrencySelector from '@/components/shared/CurrencySelector'
+import SelectAcceptedCurrencies from '@/components/shared/SelectAcceptedCurrencies'
 import type { CurrencyCode } from '@/store'
 import InputGroup from '@/components/ui/InputGroup'
 import ExpenseAttachmentsField from '@/views/expenses/components/ExpenseAttachmentsField'
@@ -158,7 +158,7 @@ const ExpenseNew = () => {
                                     {({ field, form }: any) => (
                                         <InputGroup>
                                             <InputGroup.Addon className="px-0">
-                                                <CurrencySelector
+                                                <SelectAcceptedCurrencies
                                                     embedded
                                                     selectClassName="w-24"
                                                     value={values.currency as CurrencyCode}

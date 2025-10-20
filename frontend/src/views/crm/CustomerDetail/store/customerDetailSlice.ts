@@ -23,6 +23,7 @@ export type CustomerOrder = {
     statusCode?: number | null
     amount: number
     date: number
+    currency?: string
 }
 
 export type CustomerActivity = {

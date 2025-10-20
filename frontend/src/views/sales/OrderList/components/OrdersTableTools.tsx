@@ -241,7 +241,7 @@ const OrdersTableTools = () => {
     }, [composeExportParams, exporting, t])
 
     return (
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
             <input
                 ref={fileInputRef}
                 type="file"
@@ -249,8 +249,8 @@ const OrdersTableTools = () => {
                 className="hidden"
                 onChange={onFileChange}
             />
-            <Link to="/app/sales/order-new">
-                <Button variant="solid" size="sm" icon={<HiPlusCircle />}>
+            <Link className="w-full lg:w-auto" to="/app/sales/order-new">
+                <Button className="w-full whitespace-nowrap lg:w-auto" variant="solid" size="sm" icon={<HiPlusCircle />}>
                     {t('text.actions.add')}
                 </Button>
             </Link>

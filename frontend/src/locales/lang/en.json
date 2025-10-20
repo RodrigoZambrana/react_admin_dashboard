@@ -73,6 +73,7 @@
         },
         "appsSettings": {
             "settings": "Settings",
+            "companyProfile": "Company Profile",
             "orderStatuses": "Order Statuses",
             "products": "Products",
             "customerStatuses": "Customer Statuses",
@@ -412,6 +413,7 @@
             "shippingAddress": "Shipping Address",
             "billingAddress": "Billing address",
             "comments": "Comments",
+            "conversionSnapshot": "Conversion snapshot",
             "description": "Description",
             "role": "Role",
             "activityDetails": "Activity Details",
@@ -457,7 +459,8 @@
             "assignees": "Assignees",
             "actions": "Actions",
             "published": "Published",
-            "stock": "Stock"
+            "stock": "Stock",
+            "comments": "Comments"
         },
         "mobileNav": {
             "home": "Home",
@@ -473,6 +476,7 @@
         },
         "actions": {
             "view": "View",
+            "viewInvoice": "View invoice",
             "delete": "Delete",
             "export": "Export",
             "addProduct": "Add Product",
@@ -529,6 +533,7 @@
             "url": "URL",
             "eventTitle": "Please enter title",
             "leaveComment": "Leave a comment",
+            "enterComment": "Add a note for this product",
             "quickSearchMember": "Quick search member",
             "ticketTitle": "Please enter ticket title",
             "writeComment": "Write comment",
@@ -612,12 +617,22 @@
             "inProgress": "In Progress",
             "linkedTickets": "Linked tickets",
             "recipient": "Recipient",
+            "billTo": "Bill to",
+            "address": "Address",
             "storyPoint": "{{count}} story point",
             "createdOn": "Created on",
             "assignees": "Assignees",
             "tags": "Tags",
             "membersAvailable": "members available",
             "otherPaymentMethods": "Other payment methods",
+            "issuedBy": "Issued by",
+            "invoiceNumber": "Invoice number",
+            "issuedOn": "Issue date",
+            "taxId": "Tax ID",
+            "website": "Website",
+            "baseCurrency": "Base currency",
+            "conversionRates": "Conversion rates",
+            "snapshotGeneratedAt": "Snapshot generated at",
             "primary": "Primary",
             "expired": "Expired",
             "about": "About",
@@ -699,6 +714,7 @@
             "billingUpdated": "Billing information updated",
             "appInstalled": "App installed",
             "invoiceNote": "Invoice was created on a computer and is valid without the signature and seal.",
+            "invoiceDownloadError": "We couldn't generate the invoice PDF. Please try again.",
             "passwordUpdated": "Password updated",
             "passwordUpdateFailed": "We could not update the password.",
             "userCreated": "User created",
@@ -1044,6 +1060,25 @@
                 "customerRequired": "Customer is required",
                 "itemsRequired": "Please add at least one product",
                 "customerAddressRequired": "Customer must have a primary address"
+            },
+            "summary": {
+                "purchaseSummaryTitle": "Purchase summary",
+                "purchaseSummaryNote": "Amounts shown in {{currency}}.",
+                "totalDue": "Total due",
+                "orderOverview": "Order overview",
+                "shippingDetails": "Shipping details",
+                "contactDetails": "Contact details",
+                "subtotal": "Subtotal",
+                "tax": "Estimated tax",
+                "productsSelected": "Products selected",
+                "totalUnits": "Total units",
+                "logistics": "Shipping & contact",
+                "estimatedDelivery": "Estimated delivery",
+                "days": "days",
+                "notAvailable": "Not available",
+                "unknownCustomer": "Unassigned customer",
+                "noContact": "No contact details provided",
+                "notesAndScheduling": "Notes & scheduling"
             }
         },
         "productForm": {
@@ -1532,6 +1567,49 @@
             },
             "errors": {
                 "invalidImageType": "Unsupported file type. Please upload a JPG, PNG, WEBP, GIF, or SVG image."
+            }
+        },
+        "companyProfile": {
+            "title": "Company information",
+            "subtitle": "Customize the company data displayed on invoices and other documents.",
+            "fields": {
+                "legalName": "Legal name",
+                "tradeName": "Trade name",
+                "taxId": "Tax ID",
+                "phone": "Phone",
+                "email": "Email",
+                "website": "Website",
+                "addressLine1": "Address line 1",
+                "addressLine2": "Address line 2",
+                "logo": "Logo"
+            },
+            "placeholders": {
+                "legalName": "Sistema Administrativo, Inc.",
+                "tradeName": "Sistema Administrativo",
+                "taxId": "RUC 1234567890",
+                "phone": "(123) 456-7890",
+                "email": "facturacion@sistemadministrativo.com",
+                "website": "www.sistemadministrativo.com",
+                "addressLine1": "9498 Harvard Street",
+                "addressLine2": "Fairfield, Chicago Town 06824"
+            },
+            "labels": {
+                "noLogo": "No logo selected"
+            },
+            "actions": {
+                "uploadLogo": "Upload logo",
+                "removeLogo": "Remove",
+                "resetLogo": "Reset"
+            },
+            "logoHint": "PNG, JPG, WEBP or GIF up to 512 KB.",
+            "errors": {
+                "logoUnsupported": "Unsupported file format. Use PNG, JPG, WEBP or GIF.",
+                "logoTooLarge": "Logo must not exceed 512 KB.",
+                "logoInvalid": "Unable to read the selected file."
+            },
+            "updated": {
+                "title": "Company information updated",
+                "desc": "Details saved successfully."
             }
         },
         "systemConfig": {

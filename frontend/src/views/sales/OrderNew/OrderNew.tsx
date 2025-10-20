@@ -37,6 +37,7 @@ import { useExchangeRates } from '@/utils/hooks/useExchangeRates'
 import classNames from 'classnames'
 import { useAppSelector } from '@/store'
 import { normalizeCurrencyCode, formatCurrency } from '@/utils/currency'
+import { resolveTextDirection } from '@/utils/textDirection'
 import type { BaseCurrencySnapshot } from '@/store/slices/currency/currencySlice'
 
 type Item = EditableItem
@@ -368,7 +369,7 @@ const OrderNew = () => {
         if (s) {
             const n = Number(s)
             if (!Number.isNaN(n)) {
-                setCurrentStep(Math.max(0, Math.min(6, n)))
+                setCurrentStep(Math.max(0, Math.min(3, n)))
             }
         }
         const openProduct = sp.get('addProduct')
@@ -522,6 +523,7 @@ const OrderNew = () => {
                                 qty: Number(it.qty) || 1,
                                 img: it.img,
                                 description: it.description,
+                                comments: it.comments,
                                 currency: orderCurrencyValue,
                                 unitPrice: Number.isFinite(rawUnitPrice)
                                     ? rawUnitPrice
@@ -552,7 +554,7 @@ const OrderNew = () => {
                             </Notification>,
                             { placement: 'top-center' },
                         )
-                        setCurrentStep(2)
+                        setCurrentStep(0)
                         return
                     }
 
@@ -565,7 +567,7 @@ const OrderNew = () => {
                                 </Notification>,
                                 { placement: 'top-center' },
                             )
-                            setCurrentStep(3)
+                            setCurrentStep(0)
                             return
                         }
                     }
@@ -629,6 +631,86 @@ const OrderNew = () => {
                         i18n.language,
                         { fallbackCurrency: defaultCurrency },
                     )
+                    const formattedTax = formatCurrency(
+                        tax,
+                        orderCurrencyValue,
+                        i18n.language,
+                        { fallbackCurrency: defaultCurrency },
+                    )
+                    const formattedDeliveryFee = formatCurrency(
+                        deliveryFee,
+                        orderCurrencyValue,
+                        i18n.language,
+                        { fallbackCurrency: defaultCurrency },
+                    )
+                    const formattedGrandTotal = formatCurrency(
+                        grandTotal,
+                        orderCurrencyValue,
+                        i18n.language,
+                        { fallbackCurrency: defaultCurrency },
+                    )
+                    const getAddressLines = (addr?: typeof values.shippingAddress) => {
+                        if (!addr) {
+                            return []
+                        }
+                        const composed = [
+                            [addr.street, addr.number]
+                                .filter(Boolean)
+                                .join(' ')
+                                .trim(),
+                            addr.corner,
+                            addr.apartment,
+                            [addr.city, addr.state]
+                                .filter(Boolean)
+                                .join(', ')
+                                .trim(),
+                            addr.countryCode,
+                        ]
+                        return composed.filter(
+                            (line) => Boolean(line && line.length),
+                        ) as string[]
+                    }
+                    const shippingAddressLines = getAddressLines(values.shippingAddress)
+                    const billingAddressLines = values.billingSameAsShipping
+                        ? shippingAddressLines
+                        : getAddressLines(values.billingAddress)
+                    const paymentMethodLabel =
+                        methods.find((m) => m.value === values.paymentMehod)?.label ||
+                        t('text.labels.notSelected', { defaultValue: 'Not selected' })
+                    const shippingVendorRaw =
+                        (values.shipping?.shippingVendor as string | undefined) || ''
+                    const trimmedShippingVendor = shippingVendorRaw.trim()
+                    const hasShippingVendor = Boolean(trimmedShippingVendor)
+                    const shippingVendorLabel = hasShippingVendor
+                        ? trimmedShippingVendor
+                        : t('text.labels.notSelected', { defaultValue: 'Not selected' })
+                    const estimatedMin = Number(values.shipping?.estimatedMin ?? 0)
+                    const estimatedMax = Number(values.shipping?.estimatedMax ?? 0)
+                    const estimatedRange =
+                        estimatedMin || estimatedMax
+                            ? estimatedMin && estimatedMax
+                                ? estimatedMin === estimatedMax
+                                    ? `${estimatedMin} ${t('sales.orders.summary.days', {
+                                          defaultValue: 'days',
+                                      })}`
+                                    : `${estimatedMin}-${estimatedMax} ${t('sales.orders.summary.days', {
+                                          defaultValue: 'days',
+                                      })}`
+                                : `${estimatedMin || estimatedMax} ${t('sales.orders.summary.days', {
+                                      defaultValue: 'days',
+                                  })}`
+                            : t('sales.orders.summary.notAvailable', { defaultValue: 'Not available' })
+                    const customerOption = customers.find(
+                        (opt) => opt.value === values.customerId,
+                    )
+                    const customerName =
+                        customerDetail?.name ||
+                        customerOption?.label ||
+                        t('sales.orders.summary.unknownCustomer', {
+                            defaultValue: 'Unassigned customer',
+                        })
+                    const customerEmail = customerDetail?.email
+                    const customerPhone = customerDetail?.personalInfo?.phoneNumbers?.[0]
                     const convertWithRetry = async (
                         amount: number,
                         fromCurrency: string,
@@ -698,11 +780,19 @@ const OrderNew = () => {
                             description: p.description,
                             unitPrice,
                             unitCurrency: productCurrency,
+                            comments: '',
                         }
                         setFieldValue('items', [...values.items, nextItem])
                     }
                     const removeItem = (pid: string) => setFieldValue('items', values.items.filter((it) => it.productId !== pid))
                     const changeQty = (pid: string, qty: number) => setFieldValue('items', values.items.map((it) => (it.productId === pid ? { ...it, qty } : it)))
+                    const changeComment = (pid: string, comments: string) =>
+                        setFieldValue(
+                            'items',
+                            values.items.map((it) =>
+                                it.productId === pid ? { ...it, comments } : it,
+                            ),
+                        )
 
                     const handleOrderCurrencySelect = async (option: unknown) => {
                         const nextValue =
@@ -978,18 +1068,17 @@ const OrderNew = () => {
                         : isAddressComplete(values.billingAddress)
                     const shippingIncomplete = !shippingComplete
                     const billingIncomplete = !values.billingSameAsShipping && !billingComplete
+                    const addressesComplete = shippingComplete && billingComplete
+                    const addressesIncomplete = shippingIncomplete || billingIncomplete
 
                     // Steps controls
                     const hasCustomer = Boolean(values.customerId)
                     const hasItems = (values.items || []).length > 0
                     const stepUnlocks = [
                         true,
-                        hasCustomer,
-                        hasCustomer && hasItems,
-                        shippingComplete,
-                        shippingComplete,
-                        billingComplete,
-                        billingComplete,
+                        hasCustomer && addressesComplete,
+                        hasCustomer && hasItems && addressesComplete,
+                        hasCustomer && hasItems && addressesComplete,
                     ]
 
                     let maxNavigableStep = 0
@@ -1008,28 +1097,18 @@ const OrderNew = () => {
                     }
 
                     const goNext = () => {
-                        if (currentStep === 0 && !(values as any).customerId) {
-                            setFieldTouched('customerId', true)
-                            toast.push(
-                                <Notification title={t('validation.failed')} type="danger">
-                                    {t('sales.orders.validation.customerRequired')}
-                                </Notification>,
-                                { placement: 'top-center' },
-                            )
-                            return
-                        }
-                        if (currentStep === 1 && (values.items || []).length === 0) {
-                            setFieldTouched('items', true)
-                            toast.push(
-                                <Notification title={t('validation.failed')} type="danger">
-                                    {t('sales.orders.validation.itemsRequired')}
-                                </Notification>,
-                                { placement: 'top-center' },
-                            )
-                            return
-                        }
-                        if (currentStep === 2) {
-                            if (!isAddressComplete(values.shippingAddress)) {
+                        if (currentStep === 0) {
+                            if (!(values as any).customerId) {
+                                setFieldTouched('customerId', true)
+                                toast.push(
+                                    <Notification title={t('validation.failed')} type="danger">
+                                        {t('sales.orders.validation.customerRequired')}
+                                    </Notification>,
+                                    { placement: 'top-center' },
+                                )
+                                return
+                            }
+                            if (!shippingComplete || !billingComplete) {
                                 toast.push(
                                     <Notification title={t('validation.failed')} type="danger">
                                         {t('sales.orders.validation.customerAddressRequired')}
@@ -1042,18 +1121,17 @@ const OrderNew = () => {
                                 syncBillingWithShipping()
                             }
                         }
-                        if (currentStep === 3 && !values.billingSameAsShipping) {
-                            if (!isAddressComplete(values.billingAddress)) {
-                                toast.push(
-                                    <Notification title={t('validation.failed')} type="danger">
-                                        {t('sales.orders.validation.customerAddressRequired')}
-                                    </Notification>,
-                                    { placement: 'top-center' },
-                                )
-                                return
-                            }
+                        if (currentStep === 1 && (values.items || []).length === 0) {
+                            setFieldTouched('items', true)
+                            toast.push(
+                                <Notification title={t('validation.failed')} type="danger">
+                                    {t('sales.orders.validation.itemsRequired')}
+                                </Notification>,
+                                { placement: 'top-center' },
+                            )
+                            return
                         }
-                        setCurrentStep((c) => Math.min(c + 1, 6))
+                        setCurrentStep((c) => Math.min(c + 1, 3))
                     }
                     const goPrev = () => setCurrentStep((c) => Math.max(c - 1, 0))
 
@@ -1150,26 +1228,21 @@ const OrderNew = () => {
 
                     return (
                         <Form>
-                            <div
+                            <Card
                                 className={classNames(
                                     'mb-6',
                                     isCompactViewport && '-mx-3',
                                 )}
+                                bodyClass={classNames(
+                                    'w-full px-4 py-4 md:px-6',
+                                    isCompactViewport && 'py-3',
+                                )}
                             >
-                                <div
-                                    className={classNames(
-                                        isCompactViewport &&
-                                            'overflow-x-auto pb-2',
-                                    )}
-                                >
+                                <div className="w-full overflow-x-auto">
                                     <Steps
                                         current={currentStep}
                                         onChange={handleStepChange}
-                                        className={classNames(
-                                            'gap-3',
-                                            isCompactViewport &&
-                                                'min-w-[640px] flex-nowrap pr-4',
-                                        )}
+                                        className="flex-nowrap gap-4 px-1 md:px-2 w-full min-w-[420px]"
                                     >
                                         <Steps.Item
                                             title={t('text.columns.customer')}
@@ -1178,22 +1251,7 @@ const OrderNew = () => {
                                             title={t('text.titles.products')}
                                         />
                                         <Steps.Item
-                                            title={t(
-                                                'text.titles.shippingAddress',
-                                            )}
-                                        />
-                                        <Steps.Item
-                                            title={t(
-                                                'text.titles.billingAddress',
-                                            )}
-                                        />
-                                        <Steps.Item
                                             title={t('text.titles.shipping')}
-                                        />
-                                        <Steps.Item
-                                            title={t(
-                                                'text.titles.paymentSummary',
-                                            )}
                                         />
                                         <Steps.Item
                                             title={
@@ -1203,309 +1261,340 @@ const OrderNew = () => {
                                         />
                                     </Steps>
                                 </div>
-                            </div>
+                            </Card>
 
                             {currentStep === 0 && (
-                                <Card bodyClass="p-5">
-                                    <h4 className="mb-4">{t('text.columns.customer')}</h4>
-                                    <FormContainer>
-                                        <FormItem label={t('text.labels.recipient')} invalid={!!(touched as any).customerId && !!(errors as any).customerId} errorMessage={(errors as any).customerId as any}>
-                                            <div className="flex items-center gap-2">
-                                                <Select className="w-80" options={customers} value={customers.find((c) => c.value === values.customerId) as any} onChange={onCustomerChange} />
-                                                <Button type="button" onClick={() => setNewCustomerOpen(true)}>{t('text.actions.add')} {t('text.columns.customer')}</Button>
-                                            </div>
-                                        </FormItem>
-                                        {values.customerId && (
-                                            <div className="flex items-center gap-4 border border-gray-200 dark:border-gray-700 rounded-md p-4">
-                                                <Avatar shape="circle" src={customerDetail?.img} icon={<HiOutlineUser />} />
-                                                <div>
-                                                    <div className="font-semibold">{customerDetail?.name || (customers.find((c) => c.value === values.customerId)?.label)}</div>
-                                                    <div className="opacity-80 text-sm flex items-center gap-3">
-                                                        {customerDetail?.email && (
-                                                            <span className="flex items-center gap-1"><HiMail /> {customerDetail?.email}</span>
-                                                        )}
-                                                        {customerDetail?.personalInfo?.phoneNumbers?.length ? (
-                                                            <span className="flex items-center gap-1">
-                                                                <HiPhone /> {customerDetail?.personalInfo?.phoneNumbers?.[0]}
-                                                            </span>
-                                                        ) : null}
+                                <div className="flex flex-col gap-5">
+                                    <Card bodyClass="p-5">
+                                        <h4 className="mb-4">{t('text.columns.customer')}</h4>
+                                        <FormContainer>
+                                            <FormItem label={t('text.labels.recipient')} invalid={!!(touched as any).customerId && !!(errors as any).customerId} errorMessage={(errors as any).customerId as any}>
+                                                <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
+                                                    <div className="flex w-full flex-col gap-3 md:flex-row md:flex-1">
+                                                        <Select className="w-full md:flex-1 md:min-w-[280px]" options={customers} value={customers.find((c) => c.value === values.customerId) as any} onChange={onCustomerChange} />
+                                                        <Button className="w-full whitespace-nowrap md:w-auto md:flex-shrink-0" type="button" onClick={() => setNewCustomerOpen(true)}>{t('text.actions.add')} {t('text.columns.customer')}</Button>
                                                     </div>
                                                 </div>
+                                            </FormItem>
+                                            {values.customerId && (
+                                                <div className="flex items-center gap-4 border border-gray-200 dark:border-gray-700 rounded-md p-4">
+                                                    <Avatar shape="circle" src={customerDetail?.img} icon={<HiOutlineUser />} />
+                                                    <div>
+                                                        <div className="font-semibold">{customerDetail?.name || (customers.find((c) => c.value === values.customerId)?.label)}</div>
+                                                        <div className="opacity-80 text-sm flex items-center gap-3">
+                                                            {customerDetail?.email && (
+                                                                <span className="flex items-center gap-1"><HiMail /> {customerDetail?.email}</span>
+                                                            )}
+                                                            {customerDetail?.personalInfo?.phoneNumbers?.length ? (
+                                                                <span className="flex items-center gap-1">
+                                                                    <HiPhone /> {customerDetail?.personalInfo?.phoneNumbers?.[0]}
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                                                <FormItem
+                                                    label={orderCurrencyLabel}
+                                                    invalid={Boolean(getIn(touched, 'orderCurrency') && getIn(errors, 'orderCurrency'))}
+                                                    errorMessage={getIn(errors, 'orderCurrency') as string}
+                                                >
+                                                    <Select
+                                                        placeholder={orderCurrencyPlaceholder}
+                                                        options={orderCurrencyOptions}
+                                                        value={orderCurrencySelected as any}
+                                                        isSearchable
+                                                        isClearable={false}
+                                                        isDisabled={orderCurrencyOptions.length <= 1}
+                                                        onChange={(option) => {
+                                                            void handleOrderCurrencySelect(option)
+                                                            setFieldTouched('orderCurrency', true, false)
+                                                        }}
+                                                    />
+                                                </FormItem>
+                                                <FormItem
+                                                    label={t('text.columns.paymentMethod')}
+                                                    invalid={Boolean(getIn(touched, 'paymentMehod') && getIn(errors, 'paymentMehod'))}
+                                                    errorMessage={getIn(errors, 'paymentMehod') as string}
+                                                >
+                                                    <Select
+                                                        className="w-full max-w-xs"
+                                                        options={methods}
+                                                        value={methods.find((m) => m.value === values.paymentMehod) as any}
+                                                        onChange={(opt) => {
+                                                            const nextValue = (opt as any)?.value ?? ''
+                                                            setFieldValue('paymentMehod', nextValue)
+                                                            setFieldTouched('paymentMehod', true, false)
+                                                        }}
+                                                    />
+                                                </FormItem>
                                             </div>
-                                        )}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                                            <FormItem
-                                                label={orderCurrencyLabel}
-                                                invalid={Boolean(getIn(touched, 'orderCurrency') && getIn(errors, 'orderCurrency'))}
-                                                errorMessage={getIn(errors, 'orderCurrency') as string}
+                                        </FormContainer>
+                                    </Card>
+                                    <Card bodyClass="p-5">
+                                        <h4 className="mb-4">{t('text.titles.shippingAddress')}</h4>
+                                        <FormContainer>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <FormItem
+                                                    label={t('text.labels.street')}
+                                                    invalid={Boolean(getIn(touched, 'shippingAddress.street') && getIn(errors, 'shippingAddress.street'))}
+                                                    errorMessage={getIn(errors, 'shippingAddress.street') as string}
+                                                >
+                                                    <Field name="shippingAddress.street">
+                                                        {({ field, form }) => (
+                                                            <Input
+                                                                {...field}
+                                                                onChange={(e) => {
+                                                                    form.setFieldValue(field.name, e.target.value)
+                                                                    if (values.billingSameAsShipping) {
+                                                                        form.setFieldValue('billingAddress.street', e.target.value)
+                                                                    }
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </Field>
+                                                </FormItem>
+                                                <FormItem
+                                                    label={t('text.labels.number')}
+                                                    invalid={Boolean(getIn(touched, 'shippingAddress.number') && getIn(errors, 'shippingAddress.number'))}
+                                                    errorMessage={getIn(errors, 'shippingAddress.number') as string}
+                                                >
+                                                    <Field name="shippingAddress.number">
+                                                        {({ field, form }) => (
+                                                            <Input
+                                                                {...field}
+                                                                onChange={(e) => {
+                                                                    form.setFieldValue(field.name, e.target.value)
+                                                                    if (values.billingSameAsShipping) {
+                                                                        form.setFieldValue('billingAddress.number', e.target.value)
+                                                                    }
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </Field>
+                                                </FormItem>
+                                                <FormItem label={t('text.labels.corner')}>
+                                                    <Field name="shippingAddress.corner">
+                                                        {({ field, form }) => (
+                                                            <Input
+                                                                {...field}
+                                                                onChange={(e) => {
+                                                                    form.setFieldValue(field.name, e.target.value)
+                                                                    if (values.billingSameAsShipping) {
+                                                                        form.setFieldValue('billingAddress.corner', e.target.value)
+                                                                    }
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </Field>
+                                                </FormItem>
+                                                <FormItem label={t('text.labels.apartment')}>
+                                                    <Field name="shippingAddress.apartment">
+                                                        {({ field, form }) => (
+                                                            <Input
+                                                                {...field}
+                                                                onChange={(e) => {
+                                                                    form.setFieldValue(field.name, e.target.value)
+                                                                    if (values.billingSameAsShipping) {
+                                                                        form.setFieldValue('billingAddress.apartment', e.target.value)
+                                                                    }
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </Field>
+                                                </FormItem>
+                                            </div>
+                                            <div className="mt-3">
+                                                <FormItem
+                                                    label={`${t('text.labels.country')} / ${t('text.labels.city')}`}
+                                                    invalid={showShippingLocationError}
+                                                    errorMessage={shippingLocationErrorMessage}
+                                                >
+                                                    <CountryCitySelector
+                                                        value={{
+                                                            countryCode:
+                                                                values.shippingAddress?.countryCode,
+                                                            countryName:
+                                                                values.shippingAddress?.state,
+                                                            city: values.shippingAddress?.city,
+                                                        }}
+                                                        onChange={handleShippingLocationChange}
+                                                        countryPlaceholder={t('text.labels.country')}
+                                                        cityPlaceholder={t('text.labels.city')}
+                                                    />
+                                                </FormItem>
+                                            </div>
+                                            {/* Zip removed */}
+                                        </FormContainer>
+                                    </Card>
+                                    <Card bodyClass="p-5">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h4>{t('text.titles.billingAddress')}</h4>
+                                            <Checkbox
+                                                checked={(values as any).billingSameAsShipping}
+                                                onChange={(checked) => {
+                                                    setFieldValue('billingSameAsShipping', checked)
+                                                    if (checked) {
+                                                        setFieldValue('billingAddress', {
+                                                            ...values.shippingAddress,
+                                                        })
+                                                    }
+                                                }}
                                             >
-                                                <Select
-                                                    placeholder={orderCurrencyPlaceholder}
-                                                    options={orderCurrencyOptions}
-                                                    value={orderCurrencySelected as any}
-                                                    isSearchable
-                                                    isClearable={false}
-                                                    isDisabled={orderCurrencyOptions.length <= 1}
-                                                    onChange={(option) => {
-                                                        void handleOrderCurrencySelect(option)
-                                                        setFieldTouched('orderCurrency', true, false)
-                                                    }}
-                                                />
-                                            </FormItem>
-                                            <FormItem
-                                                label={t('text.columns.paymentMethod')}
-                                                invalid={Boolean(getIn(touched, 'paymentMehod') && getIn(errors, 'paymentMehod'))}
-                                                errorMessage={getIn(errors, 'paymentMehod') as string}
-                                            >
-                                                <Select
-                                                    className="w-full max-w-xs"
-                                                    options={methods}
-                                                    value={methods.find((m) => m.value === values.paymentMehod) as any}
-                                                    onChange={(opt) => {
-                                                        const nextValue = (opt as any)?.value ?? ''
-                                                        setFieldValue('paymentMehod', nextValue)
-                                                        setFieldTouched('paymentMehod', true, false)
-                                                    }}
-                                                />
-                                            </FormItem>
+                                                {t('text.labels.sameAsShipping') || 'Use shipping address'}
+                                            </Checkbox>
                                         </div>
-                                    </FormContainer>
-                                </Card>
+                                        <FormContainer>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <FormItem
+                                                    label={t('text.labels.street')}
+                                                    invalid={Boolean(getIn(touched, 'billingAddress.street') && getIn(errors, 'billingAddress.street'))}
+                                                    errorMessage={getIn(errors, 'billingAddress.street') as string}
+                                                >
+                                                    <Field name="billingAddress.street">
+                                                        {({ field, form }) => (
+                                                            <Input
+                                                                {...field}
+                                                                disabled={values.billingSameAsShipping}
+                                                                onChange={(e) => {
+                                                                    form.setFieldValue(field.name, e.target.value)
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </Field>
+                                                </FormItem>
+                                                <FormItem
+                                                    label={t('text.labels.number')}
+                                                    invalid={Boolean(getIn(touched, 'billingAddress.number') && getIn(errors, 'billingAddress.number'))}
+                                                    errorMessage={getIn(errors, 'billingAddress.number') as string}
+                                                >
+                                                    <Field name="billingAddress.number">
+                                                        {({ field, form }) => (
+                                                            <Input
+                                                                {...field}
+                                                                disabled={values.billingSameAsShipping}
+                                                                onChange={(e) => {
+                                                                    form.setFieldValue(field.name, e.target.value)
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </Field>
+                                                </FormItem>
+                                                <FormItem label={t('text.labels.corner') || 'Corner'}>
+                                                    <Field name="billingAddress.corner">
+                                                        {({ field, form }) => (
+                                                            <Input
+                                                                {...field}
+                                                                disabled={values.billingSameAsShipping}
+                                                                onChange={(e) => form.setFieldValue(field.name, e.target.value)}
+                                                            />
+                                                        )}
+                                                    </Field>
+                                                </FormItem>
+                                                <FormItem label={t('text.labels.apartment') || 'Apartment'}>
+                                                    <Field name="billingAddress.apartment">
+                                                        {({ field, form }) => (
+                                                            <Input
+                                                                {...field}
+                                                                disabled={values.billingSameAsShipping}
+                                                                onChange={(e) => form.setFieldValue(field.name, e.target.value)}
+                                                            />
+                                                        )}
+                                                    </Field>
+                                                </FormItem>
+                                            </div>
+                                            <div className="mt-3">
+                                                <FormItem
+                                                    label={`${t('text.labels.country')} / ${t('text.labels.city')}`}
+                                                    invalid={showBillingLocationError}
+                                                    errorMessage={billingLocationErrorMessage}
+                                                >
+                                                    <CountryCitySelector
+                                                        value={{
+                                                            countryCode:
+                                                                values.billingAddress?.countryCode,
+                                                            countryName:
+                                                                values.billingAddress?.state,
+                                                            city: values.billingAddress?.city,
+                                                        }}
+                                                        onChange={handleBillingLocationChange}
+                                                        countryPlaceholder={t('text.labels.country')}
+                                                        cityPlaceholder={t('text.labels.city')}
+                                                        disabled={values.billingSameAsShipping}
+                                                    />
+                                                </FormItem>
+                                            </div>
+                                            {/* Zip removed */}
+                                        </FormContainer>
+                                    </Card>
+                                </div>
                             )}
 
                             {currentStep === 1 && (
-                                <Card bodyClass="p-5">
-                                    <h4 className="mb-4">{t('text.titles.products')}</h4>
-                                    <FormContainer>
-                                        <FormItem label={t('text.columns.product')} invalid={!!(touched as any).items && !!(errors as any).items} errorMessage={(errors as any).items as any}>
-                                            <div className="flex items-center gap-2">
-                                                <Select
-                                                    className="w-80"
-                                                    options={products}
-                                                    onChange={(opt) => {
-                                                        const value = (opt as any)?.value
-                                                        if (value) {
-                                                            void addItem(value)
-                                                        }
-                                                    }}
-                                                    placeholder={t('text.placeholders.searchProduct')}
-                                                />
-                                                <Button type="button" onClick={() => setNewProductOpen(true)}>{t('text.actions.add')} {t('text.titles.products')}</Button>
-                                                <div className="font-semibold ml-auto">
-                                                    {t('text.columns.total')}: {formattedOrderTotal}
+                                <div className="flex flex-col gap-6">
+                                    <Card bodyClass="p-5">
+                                        <h4 className="mb-4">{t('text.titles.products')}</h4>
+                                        <FormContainer>
+                                            <FormItem label={t('text.columns.product')} invalid={!!(touched as any).items && !!(errors as any).items} errorMessage={(errors as any).items as any}>
+                                                <div className="flex flex-col gap-3">
+                                                    <Select
+                                                        className="w-full md:w-80"
+                                                        options={products}
+                                                        onChange={(opt) => {
+                                                            const value = (opt as any)?.value
+                                                            if (value) {
+                                                                void addItem(value)
+                                                            }
+                                                        }}
+                                                        placeholder={t('text.placeholders.searchProduct')}
+                                                    />
+                                                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                                        <Button
+                                                            className="w-full md:w-auto"
+                                                            type="button"
+                                                            onClick={() => setNewProductOpen(true)}
+                                                        >
+                                                            {t('text.actions.add')} {t('text.titles.products')}
+                                                        </Button>
+                                                        <div className="font-semibold md:ml-auto">
+                                                            {t('text.columns.total')}: {formattedOrderTotal}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div className="mt-4">
-                                                <EditableOrderProductsTable items={values.items as any} onQtyChange={changeQty} onRemove={removeItem} showDescription={false} />
-                                            </div>
-                                        </FormItem>
-                                    </FormContainer>
-                                </Card>
+                                                <div className="mt-4">
+                                                    <EditableOrderProductsTable
+                                                        items={values.items as any}
+                                                        onQtyChange={changeQty}
+                                                        onRemove={removeItem}
+                                                        showDescription={false}
+                                                        showComments
+                                                        onCommentChange={changeComment}
+                                                    />
+                                                </div>
+                                            </FormItem>
+                                        </FormContainer>
+                                    </Card>
+                                    <div className="flex flex-col items-stretch xl:flex-row xl:justify-end">
+                                        <div className="w-full xl:max-w-md">
+                                            <PaymentSummary
+                                                data={{
+                                                    subTotal: total,
+                                                    tax,
+                                                    deliveryFees: deliveryFee,
+                                                    total: grandTotal,
+                                                    currency: orderCurrencyValue,
+                                                }}
+                                                taxRate={taxRate}
+                                                currency={orderCurrencyValue}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                             )}
+
 
                             {currentStep === 2 && (
-                                <Card bodyClass="p-5">
-                                    <h4 className="mb-4">{t('text.titles.shippingAddress')}</h4>
-                                    <FormContainer>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <FormItem
-                                                label={t('text.labels.street')}
-                                                invalid={Boolean(getIn(touched, 'shippingAddress.street') && getIn(errors, 'shippingAddress.street'))}
-                                                errorMessage={getIn(errors, 'shippingAddress.street') as string}
-                                            >
-                                                <Field name="shippingAddress.street">
-                                                    {({ field, form }) => (
-                                                        <Input
-                                                            {...field}
-                                                            onChange={(e) => {
-                                                                form.setFieldValue(field.name, e.target.value)
-                                                                if (values.billingSameAsShipping) {
-                                                                    form.setFieldValue('billingAddress.street', e.target.value)
-                                                                }
-                                                            }}
-                                                        />
-                                                    )}
-                                                </Field>
-                                            </FormItem>
-                                            <FormItem
-                                                label={t('text.labels.number')}
-                                                invalid={Boolean(getIn(touched, 'shippingAddress.number') && getIn(errors, 'shippingAddress.number'))}
-                                                errorMessage={getIn(errors, 'shippingAddress.number') as string}
-                                            >
-                                                <Field name="shippingAddress.number">
-                                                    {({ field, form }) => (
-                                                        <Input
-                                                            {...field}
-                                                            onChange={(e) => {
-                                                                form.setFieldValue(field.name, e.target.value)
-                                                                if (values.billingSameAsShipping) {
-                                                                    form.setFieldValue('billingAddress.number', e.target.value)
-                                                                }
-                                                            }}
-                                                        />
-                                                    )}
-                                                </Field>
-                                            </FormItem>
-                                            <FormItem label={t('text.labels.corner')}>
-                                                <Field name="shippingAddress.corner">
-                                                    {({ field, form }) => (
-                                                        <Input
-                                                            {...field}
-                                                            onChange={(e) => {
-                                                                form.setFieldValue(field.name, e.target.value)
-                                                                if (values.billingSameAsShipping) {
-                                                                    form.setFieldValue('billingAddress.corner', e.target.value)
-                                                                }
-                                                            }}
-                                                        />
-                                                    )}
-                                                </Field>
-                                            </FormItem>
-                        <FormItem label={t('text.labels.apartment')}>
-                                                <Field name="shippingAddress.apartment">
-                                                    {({ field, form }) => (
-                                                        <Input
-                                                            {...field}
-                                                            onChange={(e) => {
-                                                                form.setFieldValue(field.name, e.target.value)
-                                                                if (values.billingSameAsShipping) {
-                                                                    form.setFieldValue('billingAddress.apartment', e.target.value)
-                                                                }
-                                                            }}
-                                                        />
-                                                    )}
-                                                </Field>
-                                            </FormItem>
-                                        </div>
-                                        <div className="mt-3">
-                                            <FormItem
-                                                label={`${t('text.labels.country')} / ${t('text.labels.city')}`}
-                                                invalid={showShippingLocationError}
-                                                errorMessage={shippingLocationErrorMessage}
-                                            >
-                                                <CountryCitySelector
-                                                    value={{
-                                                        countryCode:
-                                                            values.shippingAddress?.countryCode,
-                                                        countryName:
-                                                            values.shippingAddress?.state,
-                                                        city: values.shippingAddress?.city,
-                                                    }}
-                                                    onChange={handleShippingLocationChange}
-                                                    countryPlaceholder={t('text.labels.country')}
-                                                    cityPlaceholder={t('text.labels.city')}
-                                                />
-                                            </FormItem>
-                                        </div>
-                                        {/* Zip removed */}
-                                    </FormContainer>
-                                </Card>
-                            )}
-
-                            {currentStep === 3 && (
-                                <Card bodyClass="p-5">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <h4>{t('text.titles.billingAddress')}</h4>
-                                        <Checkbox
-                                            checked={(values as any).billingSameAsShipping}
-                                            onChange={(checked) => {
-                                                setFieldValue('billingSameAsShipping', checked)
-                                                if (checked) {
-                                                    setFieldValue('billingAddress', {
-                                                        ...values.shippingAddress,
-                                                    })
-                                                }
-                                            }}
-                                        >
-                                            {t('text.labels.sameAsShipping') || 'Use shipping address'}
-                                        </Checkbox>
-                                    </div>
-                                    <FormContainer>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <FormItem
-                                                label={t('text.labels.street')}
-                                                invalid={Boolean(getIn(touched, 'billingAddress.street') && getIn(errors, 'billingAddress.street'))}
-                                                errorMessage={getIn(errors, 'billingAddress.street') as string}
-                                            >
-                                                <Field name="billingAddress.street">
-                                                    {({ field, form }) => (
-                                                        <Input
-                                                            {...field}
-                                                            disabled={values.billingSameAsShipping}
-                                                            onChange={(e) => {
-                                                                form.setFieldValue(field.name, e.target.value)
-                                                            }}
-                                                        />
-                                                    )}
-                                                </Field>
-                                            </FormItem>
-                                            <FormItem
-                                                label={t('text.labels.number')}
-                                                invalid={Boolean(getIn(touched, 'billingAddress.number') && getIn(errors, 'billingAddress.number'))}
-                                                errorMessage={getIn(errors, 'billingAddress.number') as string}
-                                            >
-                                                <Field name="billingAddress.number">
-                                                    {({ field, form }) => (
-                                                        <Input
-                                                            {...field}
-                                                            disabled={values.billingSameAsShipping}
-                                                            onChange={(e) => {
-                                                                form.setFieldValue(field.name, e.target.value)
-                                                            }}
-                                                        />
-                                                    )}
-                                                </Field>
-                                            </FormItem>
-                                            <FormItem label={t('text.labels.corner') || 'Corner'}>
-                                                <Field name="billingAddress.corner">
-                                                    {({ field, form }) => (
-                                                        <Input
-                                                            {...field}
-                                                            disabled={values.billingSameAsShipping}
-                                                            onChange={(e) => form.setFieldValue(field.name, e.target.value)}
-                                                        />
-                                                    )}
-                                                </Field>
-                                            </FormItem>
-                                            <FormItem label={t('text.labels.apartment') || 'Apartment'}>
-                                                <Field name="billingAddress.apartment">
-                                                    {({ field, form }) => (
-                                                        <Input
-                                                            {...field}
-                                                            disabled={values.billingSameAsShipping}
-                                                            onChange={(e) => form.setFieldValue(field.name, e.target.value)}
-                                                        />
-                                                    )}
-                                                </Field>
-                                            </FormItem>
-                                        </div>
-                                        <div className="mt-3">
-                                            <FormItem
-                                                label={`${t('text.labels.country')} / ${t('text.labels.city')}`}
-                                                invalid={showBillingLocationError}
-                                                errorMessage={billingLocationErrorMessage}
-                                            >
-                                                <CountryCitySelector
-                                                    value={{
-                                                        countryCode:
-                                                            values.billingAddress?.countryCode,
-                                                        countryName:
-                                                            values.billingAddress?.state,
-                                                        city: values.billingAddress?.city,
-                                                    }}
-                                                    onChange={handleBillingLocationChange}
-                                                    countryPlaceholder={t('text.labels.country')}
-                                                    cityPlaceholder={t('text.labels.city')}
-                                                    disabled={values.billingSameAsShipping}
-                                                />
-                                            </FormItem>
-                                        </div>
-                                        {/* Zip removed */}
-                                    </FormContainer>
-                                </Card>
-                            )}
-
-                            {currentStep === 4 && (
                                 <Card bodyClass="p-5">
                                     <h4 className="mb-4">{t('text.titles.shipping')}</h4>
                                     <FormContainer>
@@ -1627,58 +1716,193 @@ const OrderNew = () => {
                                 </Card>
                             )}
 
-                            {currentStep === 5 && (
-                                <div className="xl:grid grid-cols-2 gap-4">
-                                    <PaymentSummary
-                                        data={{
-                                            subTotal: total,
-                                            tax,
-                                            deliveryFees: deliveryFee,
-                                            total: grandTotal,
-                                            currency: orderCurrencyValue,
-                                        }}
-                                        taxRate={taxRate}
-                                        currency={orderCurrencyValue}
-                                    />
-                                    <Card bodyClass="p-5">
-                                        <h4 className="mb-4">{t('text.columns.paymentMethod')}</h4>
-                                        <div className="text-sm font-medium">
-                                            {methods.find((m) => m.value === values.paymentMehod)?.label || t('text.labels.notSelected', { defaultValue: 'Not selected' })}
-                                        </div>
-                                    </Card>
-                                </div>
-                            )}
-
-                            {currentStep === 6 && (
-                                <Card bodyClass="p-5">
-                                    <h4 className="mb-4">{t('text.actions.finalize') || 'Finalize'}</h4>
-                                    <div className="flex flex-col gap-2 mb-4 text-sm font-medium">
-                                        <div>
-                                            {orderCurrencyLabel}: {orderCurrencySelected?.label || getCurrencyLabel(orderCurrencyValue)}
-                                        </div>
-                                        <div>
-                                            {t('text.columns.paymentMethod')}: {methods.find((m) => m.value === values.paymentMehod)?.label || t('text.labels.notSelected', { defaultValue: 'Not selected' })}
+                            {currentStep === 3 && (
+                                <div className="flex flex-col gap-6">
+                                    <div className="grid gap-4 xl:grid-cols-2">
+                                        <Card bodyClass="p-5">
+                                            <h4 className="mb-4">
+                                                {t('sales.orders.summary.orderOverview', {
+                                                    defaultValue: 'Order overview',
+                                                })}
+                                            </h4>
+                                            <div className="space-y-2 text-sm">
+                                                {[
+                                                    {
+                                                        label: orderCurrencyLabel,
+                                                        value:
+                                                            orderCurrencySelected?.label ||
+                                                            getCurrencyLabel(orderCurrencyValue),
+                                                    },
+                                                    {
+                                                        label: t('text.columns.paymentMethod'),
+                                                        value: paymentMethodLabel,
+                                                    },
+                                                    {
+                                                        label: t('sales.orders.summary.subtotal', {
+                                                            defaultValue: 'Subtotal',
+                                                        }),
+                                                        value: formattedOrderTotal,
+                                                    },
+                                                    {
+                                                        label: t('sales.orders.summary.tax', {
+                                                            defaultValue: 'Estimated tax',
+                                                        }),
+                                                        value: formattedTax,
+                                                    },
+                                                    {
+                                                        label: t('text.labels.deliveryFee'),
+                                                        value: formattedDeliveryFee,
+                                                    },
+                                                    {
+                                                        label: t('sales.orders.summary.totalDue', {
+                                                            defaultValue: 'Total due',
+                                                        }),
+                                                        value: formattedGrandTotal,
+                                                    },
+                                                ].map(({ label, value }) => (
+                                                    <div
+                                                        key={label as string}
+                                                        className="flex items-center justify-between gap-4"
+                                                    >
+                                                        <span className="text-gray-500 dark:text-gray-400">
+                                                            {label}
+                                                        </span>
+                                                        <span className="font-medium text-right">
+                                                            {value}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </Card>
+                                        <div className="flex flex-col gap-4">
+                                            {hasShippingVendor && (
+                                                <Card bodyClass="p-5">
+                                                    <h4 className="mb-4">
+                                                        {t('sales.orders.summary.shippingDetails', {
+                                                            defaultValue: 'Shipping details',
+                                                        })}
+                                                    </h4>
+                                                    <div className="space-y-2 text-sm">
+                                                        <div className="flex items-center justify-between gap-4">
+                                                            <span className="text-gray-500 dark:text-gray-400">
+                                                                {t('text.labels.vendor')}
+                                                            </span>
+                                                            <span className="font-medium text-right">
+                                                                {shippingVendorLabel}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between gap-4">
+                                                            <span className="text-gray-500 dark:text-gray-400">
+                                                                {t('sales.orders.summary.estimatedDelivery', {
+                                                                    defaultValue: 'Estimated delivery',
+                                                                })}
+                                                            </span>
+                                                            <span className="font-medium text-right">
+                                                                {estimatedRange}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between gap-4">
+                                                            <span className="text-gray-500 dark:text-gray-400">
+                                                                {t('text.labels.deliveryFee')}
+                                                            </span>
+                                                            <span className="font-medium text-right">
+                                                                {formattedDeliveryFee}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </Card>
+                                            )}
+                                            <Card bodyClass="p-5">
+                                                <h4 className="mb-4">
+                                                    {t('text.columns.customer')}
+                                                </h4>
+                                                <div className="space-y-2 text-sm">
+                                                    <div className="font-medium text-base">{customerName}</div>
+                                                    <div className="flex flex-col gap-1 text-gray-600 dark:text-gray-400">
+                                                        {customerEmail ? <span>{customerEmail}</span> : null}
+                                                        {customerPhone ? <span>{customerPhone}</span> : null}
+                                                        {!customerEmail && !customerPhone ? (
+                                                            <span>
+                                                                {t('sales.orders.summary.noContact', {
+                                                                    defaultValue: 'No contact details provided',
+                                                                })}
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
+                                                </div>
+                                            </Card>
                                         </div>
                                     </div>
-                                    <FormContainer>
-                                        <FormItem label={t('text.columns.comments')}>
-                                            <Field as={Input} name="comment" textArea rows={4} />
-                                        </FormItem>
-                                        <FormItem
-                                            label={t('text.labels.date')}
-                                            invalid={Boolean(getIn(touched, 'date') && getIn(errors, 'date'))}
-                                            errorMessage={getIn(errors, 'date') as string}
-                                        >
-                                            <DatePicker
-                                                value={values.date as any}
-                                                onChange={(val) => {
-                                                    setFieldValue('date', val)
-                                                    setFieldTouched('date', true, false)
-                                                }}
-                                            />
-                                        </FormItem>
-                                    </FormContainer>
-                                </Card>
+                                    <div className="grid gap-4 xl:grid-cols-2">
+                                        <Card bodyClass="p-5">
+                                            <h4 className="mb-4">{t('text.titles.shippingAddress')}</h4>
+                                            {shippingAddressLines.length ? (
+                                                <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                                    {shippingAddressLines.map((line) => (
+                                                        <div key={`shipping-${line}`}>{line}</div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                    {t('sales.orders.summary.notAvailable', {
+                                                        defaultValue: 'Not available',
+                                                    })}
+                                                </div>
+                                            )}
+                                        </Card>
+                                        <Card bodyClass="p-5">
+                                            <h4 className="mb-4">{t('text.titles.billingAddress')}</h4>
+                                            {values.billingSameAsShipping ? (
+                                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                                    {t('text.labels.sameAsShipping') || 'Use shipping address'}
+                                                </div>
+                                            ) : billingAddressLines.length ? (
+                                                <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                                    {billingAddressLines.map((line) => (
+                                                        <div key={`billing-${line}`}>{line}</div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                    {t('sales.orders.summary.notAvailable', {
+                                                        defaultValue: 'Not available',
+                                                    })}
+                                                </div>
+                                            )}
+                                        </Card>
+                                    </div>
+                                    <Card bodyClass="p-5">
+                                        <h4 className="mb-4">
+                                            {t('sales.orders.summary.notesAndScheduling', {
+                                                defaultValue: 'Notes & scheduling',
+                                            })}
+                                        </h4>
+                                        <FormContainer>
+                                            <FormItem label={t('text.columns.comments')}>
+                                                <Field
+                                                    as={Input}
+                                                    name="comment"
+                                                    textArea
+                                                    rows={4}
+                                                    dir={resolveTextDirection(values.comment)}
+                                                />
+                                            </FormItem>
+                                            <FormItem
+                                                label={t('text.labels.date')}
+                                                invalid={Boolean(getIn(touched, 'date') && getIn(errors, 'date'))}
+                                                errorMessage={getIn(errors, 'date') as string}
+                                            >
+                                                <DatePicker
+                                                    value={values.date as any}
+                                                    onChange={(val) => {
+                                                        setFieldValue('date', val)
+                                                        setFieldTouched('date', true, false)
+                                                    }}
+                                                />
+                                            </FormItem>
+                                        </FormContainer>
+                                    </Card>
+                                </div>
                             )}
 
                             <div className="flex items-center justify-between mt-6">
@@ -1687,22 +1911,20 @@ const OrderNew = () => {
                                 </div>
                                 <div className="flex gap-2">
                                     <Button type="button" disabled={currentStep === 0} onClick={goPrev}>{t('text.actions.back')}</Button>
-                                    {currentStep < 6 && (
+                                    {currentStep < 3 && (
                                         <Button
                                             type="button"
                                             variant="solid"
                                             disabled={
-                                                (currentStep === 0 && (!values.customerId || !values.orderCurrency || !values.paymentMehod)) ||
-                                                (currentStep === 1 && (values.items || []).length === 0) ||
-                                                (currentStep === 2 && shippingIncomplete) ||
-                                                (currentStep === 3 && billingIncomplete)
+                                                (currentStep === 0 && (!values.customerId || !values.orderCurrency || !values.paymentMehod || addressesIncomplete)) ||
+                                                (currentStep === 1 && (values.items || []).length === 0)
                                             }
                                             onClick={goNext}
                                         >
                                             {t('text.actions.next')}
                                         </Button>
                                     )}
-                                    {currentStep === 6 && (
+                                    {currentStep === 3 && (
                                         <Button variant="solid" type="submit">{t('text.actions.save')}</Button>
                                     )}
                                 </div>

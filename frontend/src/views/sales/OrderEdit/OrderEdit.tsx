@@ -28,6 +28,7 @@ import ProductForm from '@/views/sales/ProductForm'
 import useResponsive from '@/utils/hooks/useResponsive'
 import { useAppSelector } from '@/store'
 import { normalizeCurrencyCode, formatCurrency } from '@/utils/currency'
+import { resolveTextDirection } from '@/utils/textDirection'
 
 type Item = EditableItem
 
@@ -113,6 +114,7 @@ const OrderEdit = () => {
                         unitCurrency,
                         img: p?.img,
                         description: p?.description,
+                        comments: typeof it.comments === 'string' ? it.comments : '',
                     }
                 }),
                 shippingAddress: data.shippingAddress || { addressLine1: '', addressLine2: '', city: '', state: '' },
@@ -166,6 +168,7 @@ const OrderEdit = () => {
                             price: Number(it.price) || 0,
                             qty: Number(it.qty) || 1,
                             currency: normalizedOrderCurrency,
+                            comments: it.comments,
                             unitPrice: Number.isFinite(rawUnitPrice) ? rawUnitPrice : Number(it.price) || 0,
                             unitCurrency:
                                 normalizeCurrencyCode(it.unitCurrency, normalizedOrderCurrency) ||
@@ -233,11 +236,19 @@ const OrderEdit = () => {
                                 description: p.description,
                                 unitPrice: p.price,
                                 unitCurrency: currencyCode,
+                                comments: '',
                             },
                         ])
                     }
                     const removeItem = (pid: string) => setFieldValue('items', values.items.filter((it: Item) => it.productId !== pid))
                     const changeQty = (pid: string, qty: number) => setFieldValue('items', values.items.map((it: Item) => (it.productId === pid ? { ...it, qty } : it)))
+                    const changeComment = (pid: string, comments: string) =>
+                        setFieldValue(
+                            'items',
+                            values.items.map((it: Item) =>
+                                it.productId === pid ? { ...it, comments } : it,
+                            ),
+                        )
                     const onCustomerChange = async (opt: any) => {
                         const id = opt?.value
                         setFieldValue('customerId', id)
@@ -399,7 +410,14 @@ const OrderEdit = () => {
                                                 </div>
                                             </div>
                                             <div className="mt-4">
-                                                <EditableOrderProductsTable items={values.items as any} onQtyChange={changeQty} onRemove={removeItem} showDescription={false} />
+                                                <EditableOrderProductsTable
+                                                    items={values.items as any}
+                                                    onQtyChange={changeQty}
+                                                    onRemove={removeItem}
+                                                    showDescription={false}
+                                                    showComments
+                                                    onCommentChange={changeComment}
+                                                />
                                             </div>
                                         </FormItem>
                                     </FormContainer>
@@ -520,7 +538,13 @@ const OrderEdit = () => {
                                     <h4 className="mb-4">{t('text.actions.finalize') || 'Finalizar'}</h4>
                                     <FormContainer>
                                         <FormItem label={t('text.columns.comments')}>
-                                            <Field as={Input} name="comment" textArea rows={4} />
+                                            <Field
+                                                as={Input}
+                                                name="comment"
+                                                textArea
+                                                rows={4}
+                                                dir={resolveTextDirection(values.comment)}
+                                            />
                                         </FormItem>
                                         <FormItem label={t('text.labels.date')}>
                                             <DatePicker value={values.date as any} onChange={(val) => setFieldValue('date', val)} />

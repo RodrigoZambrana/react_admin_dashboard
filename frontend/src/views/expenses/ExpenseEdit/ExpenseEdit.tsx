@@ -18,7 +18,7 @@ import Notification from '@/components/ui/Notification'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { HiOutlineAdjustments } from 'react-icons/hi'
-import CurrencySelector from '@/components/shared/CurrencySelector'
+import SelectAcceptedCurrencies from '@/components/shared/SelectAcceptedCurrencies'
 import type { CurrencyCode } from '@/store'
 import InputGroup from '@/components/ui/InputGroup'
 import ExpenseAttachmentsField from '@/views/expenses/components/ExpenseAttachmentsField'
@@ -264,7 +264,7 @@ const ExpenseEdit = () => {
                                     {({ field, form }: any) => (
                                         <InputGroup>
                                             <InputGroup.Addon className="px-0">
-                                                <CurrencySelector
+                                                <SelectAcceptedCurrencies
                                                     embedded
                                                     selectClassName="w-24"
                                                     value={values.currency as CurrencyCode}

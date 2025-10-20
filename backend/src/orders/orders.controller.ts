@@ -14,7 +14,7 @@ import {
   StreamableFile,
   UseGuards,
 } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { Prisma, CustomerAddress } from '@prisma/client'
 import type { FastifyRequest } from 'fastify'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { PrismaService } from '../prisma/prisma.service'
@@ -240,6 +240,7 @@ export class OrdersController {
         qty: meta.qty,
         img: meta.item.img ?? null,
         description: meta.item.description ?? null,
+        comments: meta.item.comments?.trim?.() ? meta.item.comments.trim() : null,
         unitAmount: unitAmount.toFixed(4),
         unitCurrency: meta.unitCurrency,
         unitAmountOrderCurrency: unitAmountOrderCurrency.toFixed(4),
@@ -876,25 +877,96 @@ export class OrdersController {
     const order = await this.prisma.order.findUnique({
       where: { id },
       include: {
-        customer: true,
+        customer: {
+          include: {
+            addresses: {
+              orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+            },
+          },
+        },
         items: { include: { product: true } },
         paymentMethod: true,
         status: true,
       },
     })
     if (!order) return null
+    const customerAddresses = order.customer?.addresses ?? []
+    const primaryAddress =
+      customerAddresses.find((addr) => addr.isPrimary) ?? customerAddresses[0] ?? null
+    const secondaryAddress =
+      customerAddresses.find((addr) => !addr.isPrimary && addr.id !== primaryAddress?.id) ?? null
+
+    const normalizeString = (value?: string | null) => {
+      if (typeof value !== 'string') {
+        return null
+      }
+      const trimmed = value.trim()
+      return trimmed.length ? trimmed : null
+    }
+
+    const formatLine1 = (addr: CustomerAddress | null) => {
+      if (!addr) {
+        return null
+      }
+      const line = [normalizeString(addr.street), normalizeString(addr.number)]
+        .filter((segment): segment is string => Boolean(segment))
+        .join(' ')
+      return line.length ? line : null
+    }
+
+    const formatLine2 = (addr: CustomerAddress | null) => {
+      if (!addr) {
+        return null
+      }
+      const apartment = normalizeString(addr.apartment)
+      const corner = normalizeString(addr.corner)
+      const parts = [
+        apartment ? `Apt ${apartment}` : null,
+        corner,
+      ].filter((segment): segment is string => Boolean(segment))
+      if (!parts.length) {
+        return null
+      }
+      return parts.join(' • ')
+    }
+
+    const shippingAddressSource = primaryAddress
+    const billingAddressSource = secondaryAddress ?? primaryAddress
+
+    const shippingAddress1 =
+      normalizeString(order.shippingAddress1) ?? formatLine1(shippingAddressSource)
+    const shippingAddress2 =
+      normalizeString(order.shippingAddress2) ?? formatLine2(shippingAddressSource)
+    const shippingCity =
+      normalizeString(order.shippingCity) ?? normalizeString(shippingAddressSource?.city)
+    const shippingState =
+      normalizeString(order.shippingState) ?? normalizeString(shippingAddressSource?.country)
+    const billingAddress1 =
+      normalizeString(order.billingAddress1) ?? formatLine1(billingAddressSource)
+    const billingAddress2 =
+      normalizeString(order.billingAddress2) ?? formatLine2(billingAddressSource)
+    const billingCity =
+      normalizeString(order.billingCity) ?? normalizeString(billingAddressSource?.city)
+    const billingState =
+      normalizeString(order.billingState) ?? normalizeString(billingAddressSource?.country)
+
     const previousOrdersCount = await this.prisma.order.count({
       where: {
         customerId: order.customerId,
         id: { not: order.id },
       },
     })
+
     const customer = order.customer
-      ? {
-          ...order.customer,
-          previousOrder: previousOrdersCount,
-        }
+      ? (() => {
+          const { addresses: _addresses, ...rest } = order.customer
+          return {
+            ...rest,
+            previousOrder: previousOrdersCount,
+          }
+        })()
       : null
+
     return {
       id: order.id,
       date: order.date,
@@ -913,6 +985,7 @@ export class OrdersController {
           : null,
         unitCurrency: item.unitCurrency ?? null,
         unitCostCurrency: item.unitCostCurrency ?? null,
+        comments: item.comments ?? null,
       })),
       paymentMethod: order.paymentMethod,
       status: order.status,
@@ -924,6 +997,20 @@ export class OrdersController {
       fxBase: order.fxBase,
       fxRates: order.fxRates,
       comment: order.comment,
+      billingSameAsShipping: order.billingSameAsShipping,
+      shippingAddress1: shippingAddress1 ?? null,
+      shippingAddress2: shippingAddress2 ?? null,
+      shippingCity: shippingCity ?? null,
+      shippingState: shippingState ?? null,
+      shippingZip: normalizeString(order.shippingZip),
+      billingAddress1: billingAddress1 ?? null,
+      billingAddress2: billingAddress2 ?? null,
+      billingCity: billingCity ?? null,
+      billingState: billingState ?? null,
+      billingZip: normalizeString(order.billingZip),
+      shippingVendor: order.shippingVendor ?? null,
+      estimatedMin: order.estimatedMin ?? null,
+      estimatedMax: order.estimatedMax ?? null,
     }
   }
 
