@@ -12,7 +12,7 @@ import {
 import type { FastifyRequest } from 'fastify'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { PrismaService } from '../prisma/prisma.service'
-import { Prisma, UserActivityType } from '@prisma/client'
+import { Prisma, UserActivityType, CustomerAddress } from '@prisma/client'
 import {
   normalizeAvatarPath,
   persistAvatarFile,
@@ -22,6 +22,7 @@ import { parseSingleFileMultipart } from '../common/uploads/multipart'
 import { UserActivityService } from '../user-activity/user-activity.service'
 import * as bcrypt from 'bcrypt'
 import { assertStrongPassword } from '../common/validation/assert-strong-password'
+import { buildImageDataUrl, ensureNodeBuffer } from '../common/images/image.utils'
 
 const normalizeNullableString = (value?: string | null) => {
   if (value === undefined || value === null) {
@@ -59,6 +60,18 @@ const HALF_DAY_IN_MS = 12 * 60 * 60 * 1000
 @Controller('account')
 export class AccountController {
   private readonly activityPageSize = 2
+  private readonly companySingletonKey = 'default'
+  private readonly defaultCompanyProfile = {
+    legalName: 'Sistema Administrativo, Inc.',
+    tradeName: 'Sistema Administrativo',
+    taxId: 'RUC 1234567890',
+    email: 'facturacion@sistemadministrativo.com',
+    phone: '(123) 456-7890',
+    website: 'www.sistemadministrativo.com',
+    addressLine1: '9498 Harvard Street',
+    addressLine2: 'Fairfield, Chicago Town 06824',
+    logo: null as string | null,
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -84,6 +97,38 @@ export class AccountController {
 
   private formatActivityType(type: UserActivityType) {
     return type.replace(/_/g, '-')
+  }
+
+  private mapCompanyProfile(
+    profile?:
+      | {
+          legalName: string
+          tradeName: string
+          taxId: string | null
+          email: string | null
+          phone: string | null
+          website: string | null
+          addressLine1: string | null
+          addressLine2: string | null
+          logo: Buffer | Uint8Array | null
+        }
+      | null,
+  ) {
+    if (!profile) {
+      return { ...this.defaultCompanyProfile }
+    }
+    const logoBuffer = ensureNodeBuffer(profile.logo)
+    return {
+      legalName: profile.legalName || this.defaultCompanyProfile.legalName,
+      tradeName: profile.tradeName || this.defaultCompanyProfile.tradeName,
+      taxId: profile.taxId ?? null,
+      email: profile.email ?? null,
+      phone: profile.phone ?? null,
+      website: profile.website ?? null,
+      addressLine1: profile.addressLine1 ?? null,
+      addressLine2: profile.addressLine2 ?? null,
+      logo: logoBuffer ? buildImageDataUrl(logoBuffer) : null,
+    }
   }
 
   private normalizeFilterTypes(filter?: string[]) {
@@ -310,8 +355,135 @@ export class AccountController {
   }
 
   @Get('invoice')
-  invoice(@Query('id') id: string) {
-    return { id, items: [] }
+  async invoice(@Query('id') id: string) {
+    const normalizeString = (value?: string | null) => {
+      if (typeof value !== 'string') {
+        return null
+      }
+      const trimmed = value.trim()
+      return trimmed.length ? trimmed : null
+    }
+
+    const composeLine1 = (addr: CustomerAddress | null) => {
+      if (!addr) return null
+      const street = normalizeString(addr.street)
+      const number = normalizeString(addr.number)
+      if (street && number) {
+        return `${street} ${number}`
+      }
+      return street ?? number
+    }
+
+    const composeLine2 = (addr: CustomerAddress | null) => {
+      if (!addr) return null
+      const apartment = normalizeString(addr.apartment)
+      const corner = normalizeString(addr.corner)
+      const parts = [apartment ? `Apt ${apartment}` : null, corner].filter(
+        (segment): segment is string => Boolean(segment),
+      )
+      return parts.length ? parts.join(' • ') : null
+    }
+
+    const buildAddressLines = ({
+      line1,
+      line2,
+      city,
+      state,
+      zip,
+      fallback,
+    }: {
+      line1?: string | null
+      line2?: string | null
+      city?: string | null
+      state?: string | null
+      zip?: string | null
+      fallback: CustomerAddress | null
+    }) => {
+      const resolvedLine1 = normalizeString(line1) ?? composeLine1(fallback)
+      const resolvedLine2 = normalizeString(line2) ?? composeLine2(fallback)
+      const resolvedCity = normalizeString(city) ?? normalizeString(fallback?.city)
+      const resolvedState = normalizeString(state) ?? normalizeString(fallback?.country)
+      const resolvedZip = normalizeString(zip)
+      const cityState = [resolvedCity, resolvedState]
+        .filter((segment): segment is string => Boolean(segment))
+        .join(', ')
+      return [
+        resolvedLine1,
+        resolvedLine2,
+        cityState.length ? cityState : null,
+        resolvedZip,
+      ].filter((segment): segment is string => Boolean(segment))
+    }
+
+    let resolvedAddress: string[] = []
+    const numericId = Number(id)
+    if (Number.isInteger(numericId) && numericId > 0) {
+      const order = await this.prisma.order.findUnique({
+        where: { id: numericId },
+        include: {
+          customer: {
+            include: {
+              addresses: {
+                orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+              },
+            },
+          },
+        },
+      })
+      if (order) {
+        const addresses = order.customer?.addresses ?? []
+        const primaryAddress =
+          addresses.find((address) => address.isPrimary) ?? addresses[0] ?? null
+        const secondaryAddress =
+          addresses.find(
+            (address) => !address.isPrimary && address.id !== primaryAddress?.id,
+          ) ?? null
+
+        const billingLines = buildAddressLines({
+          line1: order.billingAddress1,
+          line2: order.billingAddress2,
+          city: order.billingCity,
+          state: order.billingState,
+          zip: order.billingZip,
+          fallback: secondaryAddress ?? primaryAddress,
+        })
+        const shippingLines = buildAddressLines({
+          line1: order.shippingAddress1,
+          line2: order.shippingAddress2,
+          city: order.shippingCity,
+          state: order.shippingState,
+          zip: order.shippingZip,
+          fallback: primaryAddress ?? secondaryAddress,
+        })
+        resolvedAddress =
+          billingLines.length > 0
+            ? billingLines
+            : shippingLines.length > 0
+            ? shippingLines
+            : []
+      }
+    }
+
+    const companyProfile = await this.prisma.companyProfile.findUnique({
+      where: { singleton: this.companySingletonKey },
+      select: {
+        legalName: true,
+        tradeName: true,
+        taxId: true,
+        email: true,
+        phone: true,
+        website: true,
+        addressLine1: true,
+        addressLine2: true,
+        logo: true,
+      },
+    })
+    return {
+      id,
+      address: resolvedAddress,
+      items: [],
+      company: this.mapCompanyProfile(companyProfile),
+    }
   }
 
   @Post('log')

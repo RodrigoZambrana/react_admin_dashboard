@@ -73,6 +73,7 @@
         },
         "appsSettings": {
             "settings": "Configuración",
+            "companyProfile": "Datos de la empresa",
             "orderStatuses": "Estados de pedidos",
             "products": "Productos",
             "customerStatuses": "Estados de clientes",
@@ -406,6 +407,7 @@
             "shippingAddress": "Dirección de envío",
             "billingAddress": "Dirección de facturación",
             "comments": "Comentarios",
+            "conversionSnapshot": "Resumen de conversión",
             "description": "Descripción",
             "role": "Rol",
             "activityDetails": "Detalle de actividad",
@@ -457,7 +459,8 @@
             "assignees": "Asignados",
             "actions": "Acciones",
             "published": "Publicado",
-            "stock": "Stock"
+            "stock": "Stock",
+            "comments": "Comentarios"
         },
         "mobileNav": {
             "home": "Inicio",
@@ -473,6 +476,7 @@
         },
         "actions": {
             "view": "Ver",
+            "viewInvoice": "Ver factura",
             "delete": "Eliminar",
             "export": "Exportar",
             "addProduct": "Agregar producto",
@@ -529,6 +533,7 @@
             "url": "URL",
             "eventTitle": "Ingrese el título",
             "leaveComment": "Deja un comentario",
+            "enterComment": "Agrega una nota para este producto",
             "quickSearchMember": "Búsqueda rápida de miembro",
             "ticketTitle": "Ingrese el título del ticket",
             "writeComment": "Escribir comentario",
@@ -612,12 +617,22 @@
             "inProgress": "En progreso",
             "linkedTickets": "Tickets vinculados",
             "recipient": "Destinatario",
+            "billTo": "Facturar a",
+            "address": "Dirección",
             "storyPoint": "{{count}} punto de historia",
             "createdOn": "Creado el",
             "assignees": "Asignados",
             "tags": "Etiquetas",
             "membersAvailable": "miembros disponibles",
             "otherPaymentMethods": "Otros métodos de pago",
+            "issuedBy": "Emitido por",
+            "invoiceNumber": "Número de factura",
+            "issuedOn": "Fecha emisión",
+            "taxId": "RUC",
+            "website": "Sitio web",
+            "baseCurrency": "Moneda base",
+            "conversionRates": "Tasas de conversión",
+            "snapshotGeneratedAt": "Generado el",
             "primary": "Principal",
             "expired": "Vence",
             "about": "Acerca de",
@@ -699,6 +714,7 @@
             "billingUpdated": "Información de facturación actualizada",
             "appInstalled": "Aplicación instalada",
             "invoiceNote": "La factura se creó en una computadora y es válida sin la firma y el sello.",
+            "invoiceDownloadError": "No pudimos generar el PDF de la factura. Inténtalo nuevamente.",
             "passwordUpdated": "Contraseña actualizada",
             "passwordUpdateFailed": "No pudimos actualizar la contraseña.",
             "userCreated": "Usuario creado",
@@ -1016,6 +1032,8 @@
         },
         "orders": {
             "title": "Pedidos confirmados",
+            "orderCurrencyLabel": "Moneda del pedido",
+            "orderCurrencyPlaceholder": "Selecciona la moneda del pedido",
             "delete": {
                 "title": "Eliminar orden",
                 "confirm": "¿Seguro que deseas eliminar esta orden? Todos los registros relacionados serán eliminados. Esta acción no se puede deshacer.",
@@ -1044,6 +1062,25 @@
                 "customerRequired": "El cliente es obligatorio",
                 "itemsRequired": "Agregue al menos un producto",
                 "customerAddressRequired": "El cliente debe tener una dirección principal"
+            },
+            "summary": {
+                "purchaseSummaryTitle": "Resumen de la compra",
+                "purchaseSummaryNote": "Montos expresados en {{currency}}.",
+                "totalDue": "Total a pagar",
+                "orderOverview": "Resumen del pedido",
+                "shippingDetails": "Detalles de envío",
+                "contactDetails": "Datos de contacto",
+                "subtotal": "Subtotal",
+                "tax": "Impuestos estimados",
+                "productsSelected": "Productos seleccionados",
+                "totalUnits": "Unidades totales",
+                "logistics": "Envío y contacto",
+                "estimatedDelivery": "Entrega estimada",
+                "days": "días",
+                "notAvailable": "No disponible",
+                "unknownCustomer": "Cliente sin asignar",
+                "noContact": "Sin datos de contacto",
+                "notesAndScheduling": "Notas y programación"
             }
         },
         "productForm": {
@@ -1532,6 +1569,49 @@
             },
             "errors": {
                 "invalidImageType": "Tipo de archivo no soportado. Sube una imagen JPG, PNG, WEBP, GIF o SVG."
+            }
+        },
+        "companyProfile": {
+            "title": "Datos de la empresa",
+            "subtitle": "Personaliza los datos de la empresa que se muestran en las facturas y otros documentos.",
+            "fields": {
+                "legalName": "Razón social",
+                "tradeName": "Nombre comercial",
+                "taxId": "RUC",
+                "phone": "Teléfono",
+                "email": "Correo electrónico",
+                "website": "Sitio web",
+                "addressLine1": "Dirección (línea 1)",
+                "addressLine2": "Dirección (línea 2)",
+                "logo": "Logo"
+            },
+            "placeholders": {
+                "legalName": "Sistema Administrativo, Inc.",
+                "tradeName": "Sistema Administrativo",
+                "taxId": "RUC 1234567890",
+                "phone": "(123) 456-7890",
+                "email": "facturacion@sistemadministrativo.com",
+                "website": "www.sistemadministrativo.com",
+                "addressLine1": "9498 Harvard Street",
+                "addressLine2": "Fairfield, Chicago Town 06824"
+            },
+            "labels": {
+                "noLogo": "Sin logo seleccionado"
+            },
+            "actions": {
+                "uploadLogo": "Subir logo",
+                "removeLogo": "Quitar",
+                "resetLogo": "Restablecer"
+            },
+            "logoHint": "PNG, JPG, WEBP o GIF de hasta 512 KB.",
+            "errors": {
+                "logoUnsupported": "Formato no soportado. Usa PNG, JPG, WEBP o GIF.",
+                "logoTooLarge": "El logo no debe superar los 512 KB.",
+                "logoInvalid": "No se pudo leer el archivo seleccionado."
+            },
+            "updated": {
+                "title": "Datos de la empresa actualizados",
+                "desc": "Los datos se guardaron correctamente."
             }
         },
         "systemConfig": {

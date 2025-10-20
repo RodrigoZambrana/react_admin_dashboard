@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import classNames from 'classnames'
 import Tag from '@/components/ui/Tag'
 import Loading from '@/components/shared/Loading'
@@ -9,14 +9,15 @@ import PaymentSummary from './components/PaymentSummary'
 import ShippingInfo from './components/ShippingInfo'
 import Activity from './components/Activity'
 import CustomerInfo from './components/CustomerInfo'
-import { HiOutlineCalendar } from 'react-icons/hi'
+import { HiOutlineCalendar, HiOutlineDocumentText } from 'react-icons/hi'
 import { apiGetSalesOrderDetails } from '@/services/SalesService'
 import { apiGetOrderStatuses, apiGetSystemConfig } from '@/services/SettingsService'
 import { adaptOrderToDetailsView } from '@/adapters/sales'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import isEmpty from 'lodash/isEmpty'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
+import Button from '@/components/ui/Button'
 
 type SalesOrderDetailsResponse = {
     id?: string
@@ -51,6 +52,7 @@ type SalesOrderDetailsResponse = {
         unitAmountOrderCurrency?: number
         conversionRate?: number
         details: Record<string, string[]>
+        comments?: string
     }[]
     activity?: {
         date: number
@@ -80,26 +82,12 @@ type SalesOrderDetailsResponse = {
             line4: string
         }
     }
-}
-
-type PayementStatus = {
-    label: string
-    class: string
-}
-
-const paymentStatus: Record<number, PayementStatus> = {
-    0: {
-        label: 'Paid',
-        class: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-100',
-    },
-    1: {
-        label: 'Unpaid',
-        class: 'text-red-500 bg-red-100 dark:text-red-100 dark:bg-red-500/20',
-    },
+    comment?: string
 }
 
 const OrderDetails = () => {
     const location = useLocation()
+    const navigate = useNavigate()
 
     const [loading, setLoading] = useState(true)
     const [data, setData] = useState<SalesOrderDetailsResponse>({})
@@ -147,55 +135,70 @@ const OrderDetails = () => {
     }, [])
 
     const { t } = useTranslation()
+
+    const currentOrderStatus = useMemo(() => {
+        const sid = Number(data.progressStatus)
+        if (!Number.isFinite(sid)) {
+            return undefined
+        }
+        return orderStatuses.find((x) => x.id === sid)
+    }, [data.progressStatus, orderStatuses])
+
+    const productStatusClasses = useMemo(() => {
+        const colorToken = currentOrderStatus?.color || 'gray-500'
+        const [baseColor] = String(colorToken).split('-')
+        const color = baseColor || 'gray'
+        return [
+            `bg-${color}-100`,
+            `text-${color}-600`,
+            `dark:bg-${color}-500/20`,
+            `dark:text-${color}-100`,
+        ]
+    }, [currentOrderStatus])
+
+    const onViewInvoice = useCallback(() => {
+        if (!data.id) return
+        navigate(`/app/account/invoice/${data.id}`)
+    }, [data.id, navigate])
     return (
         <Container className="h-full">
             <Loading loading={loading}>
                 {!isEmpty(data) && (
                     <>
                         <div className="mb-6">
-                            <div className="flex items-center mb-2">
-                                <h3>
-                                    <span>{t('text.columns.order')}</span>
-                                    <span className="ltr:ml-2 rtl:mr-2">
-                                        #{data.id}
+                            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                <div>
+                                    <div className="flex items-center mb-2">
+                                        <h3>
+                                            <span>{t('text.columns.order')}</span>
+                                            <span className="ltr:ml-2 rtl:mr-2">
+                                                #{data.id}
+                                            </span>
+                                        </h3>
+                                        {currentOrderStatus && (
+                                            <Tag className={classNames('border-0 rounded-md ltr:ml-2 rtl:mr-2', ...productStatusClasses)}>
+                                                {currentOrderStatus.name}
+                                            </Tag>
+                                        )}
+                                    </div>
+                                    <span className="flex items-center">
+                                        <HiOutlineCalendar className="text-lg" />
+                                        <span className="ltr:ml-1 rtl:mr-1">
+                                            {dayjs
+                                                .unix(data.dateTime || 0)
+                                                .format('ddd DD-MMM-YYYY, hh:mm A')}
+                                        </span>
                                     </span>
-                                </h3>
-                                <Tag
-                                    className={classNames(
-                                        'border-0 rounded-md ltr:ml-2 rtl:mr-2',
-                                        paymentStatus[data.payementStatus || 0]?.class,
-                                    )}
+                                </div>
+                                <Button
+                                    size="sm"
+                                    variant="solid"
+                                    icon={<HiOutlineDocumentText />}
+                                    onClick={onViewInvoice}
                                 >
-                                    {t(
-                                        `text.status.${
-                                            (paymentStatus[data.payementStatus || 0]?.label || 'Paid').toLowerCase()
-                                        }`,
-                                    )}
-                                </Tag>
-                                {(() => {
-                                    const sid = (data.progressStatus || 0) as number
-                                    const s = orderStatuses.find((x) => x.id === sid)
-                                    if (!s) return null
-                                    const [name] = String(s.color || 'gray-500').split('-')
-                                    const bg = `bg-${name}-100`
-                                    const text = `text-${name}-600`
-                                    const darkBg = `dark:bg-${name}-500/20`
-                                    const darkText = `dark:text-${name}-100`
-                                    return (
-                                        <Tag className={classNames('border-0 rounded-md ltr:ml-2 rtl:mr-2', bg, text, darkBg, darkText)}>
-                                            {s.name}
-                                        </Tag>
-                                    )
-                                })()}
+                                    {t('text.actions.viewInvoice', { defaultValue: 'View invoice' })}
+                                </Button>
                             </div>
-                            <span className="flex items-center">
-                                <HiOutlineCalendar className="text-lg" />
-                                <span className="ltr:ml-1 rtl:mr-1">
-                                    {dayjs
-                                        .unix(data.dateTime || 0)
-                                        .format('ddd DD-MMM-YYYY, hh:mm A')}
-                                </span>
-                            </span>
                         </div>
                         <div className="xl:flex gap-4">
                             <div className="w-full">
@@ -204,18 +207,16 @@ const OrderDetails = () => {
                                     orderCurrency={data.paymentSummary?.currency}
                                     fxSnapshot={data.fxSnapshot}
                                 />
-                                <div className="xl:grid grid-cols-2 gap-4">
-                                    <PaymentSummary
-                                        data={data.paymentSummary}
-                                        taxRate={taxRate}
-                                        currency={data.paymentSummary?.currency}
-                                    />
-                                    <ShippingInfo data={data.shipping} />
-                                </div>
+                                <PaymentSummary
+                                    data={data.paymentSummary}
+                                    taxRate={taxRate}
+                                    currency={data.paymentSummary?.currency}
+                                />
                                 <Activity data={data.activity} />
                             </div>
-                            <div className="xl:max-w-[360px] w-full">
+                            <div className="xl:max-w-[360px] w-full space-y-4">
                                 <CustomerInfo data={data.customer} />
+                                <ShippingInfo data={data.shipping} />
                             </div>
                         </div>
                     </>

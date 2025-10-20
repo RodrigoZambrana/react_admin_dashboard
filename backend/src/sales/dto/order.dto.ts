@@ -32,6 +32,11 @@ export class OrderItemDto {
   @IsOptional()
   @IsString()
   @IsSafeString()
+  comments?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
   currency?: string
 
   @IsOptional()

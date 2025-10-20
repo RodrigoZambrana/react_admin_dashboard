@@ -14,10 +14,16 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Prisma } from '@prisma/client'
+import type { CompanyProfile } from '@prisma/client'
 import { Roles, ROLES } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
 import { CurrencyConversionService } from '../common/currency/currency-conversion.service'
 import { STANDARD_CURRENCIES } from '../common/currency/currency.constants'
+import {
+  buildImageDataUrl,
+  detectImageMimeType,
+  ensureNodeBuffer,
+} from '../common/images/image.utils'
 
 type ThemeConfigPayload = {
   themeColor: string
@@ -66,9 +72,32 @@ type SettingsExportPayload = {
   shippingOptions: ShippingOptionConfig[]
   calendarEventTypes: CalendarEventTypeConfig[]
   systemConfig: SystemConfigExport
+  companyProfile: CompanyProfileResponse
 }
 type SettingsImportPayload = Partial<Omit<SettingsExportPayload, 'meta'>> & {
   meta?: Partial<SettingsExportPayload['meta']>
+}
+type CompanyProfileResponse = {
+  legalName: string
+  tradeName: string
+  taxId?: string | null
+  email?: string | null
+  phone?: string | null
+  website?: string | null
+  addressLine1?: string | null
+  addressLine2?: string | null
+  logo?: string | null
+}
+type CompanyProfilePayload = {
+  legalName?: unknown
+  tradeName?: unknown
+  taxId?: unknown
+  email?: unknown
+  phone?: unknown
+  website?: unknown
+  addressLine1?: unknown
+  addressLine2?: unknown
+  logo?: unknown
 }
 import type { FastifyRequest } from 'fastify'
 import { parseSingleFileMultipart } from '../common/uploads/multipart'
@@ -84,6 +113,8 @@ export class SettingsController {
     private prisma: PrismaService,
     private currencyConversion: CurrencyConversionService,
   ) {}
+
+  private readonly companySingletonKey = 'default'
 
   private readonly defaultCalendarEventTypes = [
     { name: 'Reunión', color: '#2563eb' },
@@ -110,6 +141,109 @@ export class SettingsController {
       type: 'modern',
       sideNavCollapse: false,
     },
+  }
+
+  private readonly defaultCompanyProfile: CompanyProfileResponse = {
+    legalName: 'Sistema Administrativo, Inc.',
+    tradeName: 'Sistema Administrativo',
+    taxId: 'RUC 1234567890',
+    email: 'facturacion@sistemadministrativo.com',
+    phone: '(123) 456-7890',
+    website: 'www.sistemadministrativo.com',
+    addressLine1: '9498 Harvard Street',
+    addressLine2: 'Fairfield, Chicago Town 06824',
+    logo: null,
+  }
+
+  private readonly maxLogoSizeBytes = 512 * 1024
+
+  private mapCompanyProfile(record?: CompanyProfile | null): CompanyProfileResponse {
+    if (!record) {
+      return { ...this.defaultCompanyProfile }
+    }
+    const logoBuffer = ensureNodeBuffer(record.logo)
+    return {
+      legalName: record.legalName,
+      tradeName: record.tradeName,
+      taxId: record.taxId ?? null,
+      email: record.email ?? null,
+      phone: record.phone ?? null,
+      website: record.website ?? null,
+      addressLine1: record.addressLine1 ?? null,
+      addressLine2: record.addressLine2 ?? null,
+      logo: logoBuffer ? buildImageDataUrl(logoBuffer) : null,
+    }
+  }
+
+  private buildCompanyProfileData(body: CompanyProfilePayload) {
+    const legalName = this.sanitizeName(body.legalName)
+    if (!legalName) {
+      throw new BadRequestException('settings.companyProfile.legalNameRequired')
+    }
+    const tradeName = this.sanitizeName(body.tradeName)
+    if (!tradeName) {
+      throw new BadRequestException('settings.companyProfile.tradeNameRequired')
+    }
+
+    const optional = (value: unknown) => this.sanitizeName(value)
+
+    return {
+      legalName,
+      tradeName,
+      taxId: optional(body.taxId),
+      email: optional(body.email),
+      phone: optional(body.phone),
+      website: optional(body.website),
+      addressLine1: optional(body.addressLine1),
+      addressLine2: optional(body.addressLine2),
+    }
+  }
+
+  private parseLogoInput(value: unknown): Buffer | null | undefined {
+    if (value === undefined) {
+      return undefined
+    }
+    if (value === null) {
+      return null
+    }
+    if (typeof value !== 'string') {
+      throw new BadRequestException('settings.companyProfile.logoInvalid')
+    }
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return null
+    }
+
+    let base64Payload = trimmed
+    if (trimmed.startsWith('data:')) {
+      const match = trimmed.match(/^data:([^;]+);base64,(.+)$/)
+      if (!match) {
+        throw new BadRequestException('settings.companyProfile.logoInvalid')
+      }
+      base64Payload = match[2]
+    }
+
+    let buffer: Buffer
+    try {
+      buffer = Buffer.from(base64Payload, 'base64')
+    } catch {
+      throw new BadRequestException('settings.companyProfile.logoInvalid')
+    }
+
+    if (!buffer || buffer.length === 0) {
+      throw new BadRequestException('settings.companyProfile.logoInvalid')
+    }
+
+    if (buffer.length > this.maxLogoSizeBytes) {
+      throw new BadRequestException('settings.companyProfile.logoTooLarge')
+    }
+
+    const mimeType = detectImageMimeType(buffer)
+    if (!mimeType) {
+      throw new BadRequestException('settings.companyProfile.logoUnsupported')
+    }
+
+    return buffer
   }
 
   private sanitizeThemeConfig(payload: Partial<ThemeConfigPayload>): ThemeConfigPayload {
@@ -266,6 +400,38 @@ export class SettingsController {
         skipDuplicates: true,
       })
     })
+  }
+
+  @Get('company-profile')
+  @UseGuards(JwtAuthGuard)
+  async getCompanyProfile() {
+    const profile = await this.prisma.companyProfile.findUnique({
+      where: { singleton: this.companySingletonKey },
+    })
+    return this.mapCompanyProfile(profile)
+  }
+
+  @Put('company-profile')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  async updateCompanyProfile(@Body() body: CompanyProfilePayload) {
+    const data = this.buildCompanyProfileData(body)
+    const logoBuffer = this.parseLogoInput(body.logo)
+    const updateData: Prisma.CompanyProfileUpdateInput = {
+      ...data,
+      ...(logoBuffer !== undefined ? { logo: logoBuffer } : {}),
+    }
+    const createData: Prisma.CompanyProfileCreateInput = {
+      singleton: this.companySingletonKey,
+      ...data,
+      ...(logoBuffer !== undefined ? { logo: logoBuffer } : {}),
+    }
+    const updated = await this.prisma.companyProfile.upsert({
+      where: { singleton: this.companySingletonKey },
+      update: updateData,
+      create: createData,
+    })
+    return this.mapCompanyProfile(updated)
   }
 
   // Order Statuses
@@ -560,6 +726,7 @@ export class SettingsController {
       shippingOptions,
       calendarEventTypes,
       systemConfigs,
+      companyProfile,
     ] = await Promise.all([
       this.prisma.orderStatus.findMany({ orderBy: { code: 'asc' } }),
       this.prisma.customerStatus.findMany({ orderBy: { id: 'asc' } }),
@@ -570,6 +737,9 @@ export class SettingsController {
       this.prisma.shippingOption.findMany({ orderBy: { id: 'asc' } }),
       this.prisma.calendarEventType.findMany({ orderBy: { id: 'asc' } }),
       this.prisma.systemConfig.findMany(),
+      this.prisma.companyProfile.findUnique({
+        where: { singleton: this.companySingletonKey },
+      }),
     ])
 
     const systemConfigMap = new Map(systemConfigs.map((cfg) => [cfg.key, cfg.value]))
@@ -655,6 +825,7 @@ export class SettingsController {
         exchangeRates,
         themeConfig,
       },
+      companyProfile: this.mapCompanyProfile(companyProfile),
     }
   }
 
@@ -710,6 +881,7 @@ export class SettingsController {
       'calendarEventTypes',
     )
     const hasSystemConfig = Object.prototype.hasOwnProperty.call(payload, 'systemConfig')
+    const hasCompanyProfile = Object.prototype.hasOwnProperty.call(payload, 'companyProfile')
 
     if (
       hasOrderStatuses &&
@@ -864,6 +1036,25 @@ export class SettingsController {
           color: this.normalizeColor(item.color),
           description: null,
         })),
+      )
+    }
+
+    let companyProfileData: ReturnType<typeof this.buildCompanyProfileData> | null = null
+    let companyProfileLogo: Buffer | null | undefined = undefined
+    if (hasCompanyProfile) {
+      const rawProfile = payload.companyProfile as unknown
+      if (
+        !rawProfile ||
+        typeof rawProfile !== 'object' ||
+        Array.isArray(rawProfile)
+      ) {
+        throw new BadRequestException('companyProfile must be an object')
+      }
+      companyProfileData = this.buildCompanyProfileData(
+        rawProfile as CompanyProfilePayload,
+      )
+      companyProfileLogo = this.parseLogoInput(
+        (rawProfile as CompanyProfilePayload).logo,
       )
     }
 
@@ -1058,6 +1249,24 @@ export class SettingsController {
           })
         }
         summary.calendarEventTypes = sanitizedCalendarEventTypes.length
+      }
+
+      if (hasCompanyProfile && companyProfileData) {
+        const updateCompanyProfileData: Prisma.CompanyProfileUpdateInput = {
+          ...companyProfileData,
+          ...(companyProfileLogo !== undefined ? { logo: companyProfileLogo } : {}),
+        }
+        const createCompanyProfileData: Prisma.CompanyProfileCreateInput = {
+          singleton: this.companySingletonKey,
+          ...companyProfileData,
+          ...(companyProfileLogo !== undefined ? { logo: companyProfileLogo } : {}),
+        }
+        await tx.companyProfile.upsert({
+          where: { singleton: this.companySingletonKey },
+          update: updateCompanyProfileData,
+          create: createCompanyProfileData,
+        })
+        summary.companyProfile = 1
       }
 
       if (hasSystemConfig) {

@@ -2,7 +2,6 @@ import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Table from '@/components/ui/Table'
-import Avatar from '@/components/ui/Avatar'
 import {
     useReactTable,
     getCoreRowModel,
@@ -10,13 +9,11 @@ import {
     createColumnHelper,
 } from '@tanstack/react-table'
 import isLastChild from '@/utils/isLastChild'
-import { Link } from 'react-router-dom'
-import Tooltip from '@/components/ui/Tooltip'
-import { HiOutlineEye } from 'react-icons/hi'
 import { useAppSelector } from '@/store'
 import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
 import type { FxSnapshot } from '@/adapters/sales'
 import { convertAmountWithSnapshot } from '@/utils/fxConversion'
+import { resolveTextDirection } from '@/utils/textDirection'
 
 type Product = {
     id: string
@@ -33,6 +30,7 @@ type Product = {
     unitAmountOrderCurrency?: number
     conversionRate?: number
     details: Record<string, string[]>
+    comments?: string
 }
 
 type OrderProductsProps = {
@@ -46,25 +44,31 @@ const { Tr, Th, Td, THead, TBody } = Table
 const columnHelper = createColumnHelper<Product>()
 
 const ProductColumn = ({ row }: { row: Product }) => {
+    const details = row.details ?? {}
+    const detailKeys = Object.keys(details)
     return (
-        <div className="flex">
-            <Avatar size={90} src={row.img} />
-            <div className="ltr:ml-2 rtl:mr-2">
-                <h6 className="mb-1">{row.name}</h6>
-                {Object.keys(row.details).map((key, i) => (
-                    <div key={key + i} className="mb-1">
-                        <span className="capitalize">{key}: </span>
-                        {row.details[key].map((item, j) => (
-                            <Fragment key={item + j}>
-                                <span className="font-semibold">{item}</span>
-                                {!isLastChild(row.details[key], j) && (
-                                    <span>, </span>
-                                )}
-                            </Fragment>
-                        ))}
-                    </div>
-                ))}
-            </div>
+        <div>
+            <h6 className="mb-1 font-semibold">{row.name}</h6>
+            {row.productCode && (
+                <div className="mb-2 text-sm text-gray-500 dark:text-gray-300">
+                    {row.productCode}
+                </div>
+            )}
+            {detailKeys.map((key, i) => (
+                <div key={`${key}${i}`} className="mb-1 text-sm">
+                    <span className="capitalize text-gray-500 dark:text-gray-400">
+                        {key}:{' '}
+                    </span>
+                    {details[key]?.map((item, j) => (
+                        <Fragment key={`${item}${j}`}>
+                            <span className="font-medium text-gray-800 dark:text-gray-100">
+                                {item}
+                            </span>
+                            {!isLastChild(details[key], j) && <span>, </span>}
+                        </Fragment>
+                    ))}
+                </div>
+            ))}
         </div>
     )
 }
@@ -121,32 +125,38 @@ const columns = (
         cell: (props) => {
             const row = props.row.original
             const displayCurrency =
-                normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
-            const unitCurrency =
-                normalizeCurrencyCode(row.unitCurrency, displayCurrency) || displayCurrency
+                normalizeCurrencyCode(orderCurrency, defaultCurrency) ||
+                defaultCurrency
             const resolvedPrice = resolvePriceInOrderCurrency(
                 row,
                 displayCurrency,
                 fxSnapshot,
             )
-            const showOriginal =
-                unitCurrency !== displayCurrency &&
-                Number.isFinite(row.unitAmount) &&
-                Number(row.unitAmount) !== 0
             return (
-                <span>
-                    {formatAmount(resolvedPrice, displayCurrency)}
-                    {showOriginal && (
-                        <span className="block text-xs opacity-70">
-                            {formatAmount(row.unitAmount ?? 0, unitCurrency)} ({unitCurrency})
-                        </span>
-                    )}
-                </span>
+                <span>{formatAmount(resolvedPrice, displayCurrency)}</span>
             )
         },
     }),
     columnHelper.accessor('quantity', {
         header: t('text.columns.quantity'),
+    }),
+    columnHelper.accessor('comments', {
+        header: t('text.columns.comments'),
+        cell: (props) => {
+            const value = props.row.original.comments
+            const text =
+                typeof value === 'string' && value.trim().length > 0
+                    ? value
+                    : '—'
+            return (
+                <span
+                    className="whitespace-pre-wrap"
+                    dir={resolveTextDirection(value)}
+                >
+                    {text}
+                </span>
+            )
+        },
     }),
     columnHelper.accessor('total', {
         header: t('text.columns.total'),
@@ -154,51 +164,14 @@ const columns = (
             const row = props.row.original
             const displayCurrency =
                 normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
-            const unitCurrency =
-                normalizeCurrencyCode(row.unitCurrency, displayCurrency) || displayCurrency
             const price = resolvePriceInOrderCurrency(
                 row,
                 displayCurrency,
                 fxSnapshot,
             )
             const total = price * (Number(row.quantity) || 0)
-            const showOriginal =
-                unitCurrency !== displayCurrency &&
-                Number.isFinite(row.unitAmount) &&
-                Number(row.unitAmount) !== 0
             return (
-                <span>
-                    {formatAmount(total, displayCurrency)}
-                    {showOriginal && (
-                        <span className="block text-xs opacity-70">
-                            {formatAmount(
-                                (row.unitAmount ?? 0) * (row.quantity ?? 0),
-                                unitCurrency,
-                            )}{' '}
-                            ({unitCurrency})
-                        </span>
-                    )}
-                </span>
-            )
-        },
-    }),
-    columnHelper.display({
-        id: 'actions',
-        header: '',
-        cell: (props) => {
-            const row = props.row.original
-            if (!row.productId) return null
-            return (
-                <div className="flex justify-end text-lg">
-                    <Tooltip title={t('text.actions.view')}>
-                        <Link
-                            to={`/app/products/edit/${row.productId}`}
-                            className="p-2 text-indigo-600 hover:text-indigo-500"
-                        >
-                            <HiOutlineEye />
-                        </Link>
-                    </Tooltip>
-                </div>
+                <span>{formatAmount(total, displayCurrency)}</span>
             )
         },
     }),

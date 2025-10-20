@@ -385,6 +385,24 @@ export async function apiDeletePaymentMethod<
     })
 }
 
+export async function apiGetCompanyProfile<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/company-profile',
+        method: 'get',
+    })
+}
+
+export async function apiUpdateCompanyProfile<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/company-profile',
+        method: 'put',
+        data,
+    })
+}
+
 export async function apiGetCountries<T>() {
     return ApiService.fetchData<T>({
         url: '/settings/countries',

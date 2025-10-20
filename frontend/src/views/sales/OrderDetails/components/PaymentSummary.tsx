@@ -58,6 +58,9 @@ const PaymentSummary = ({ data, taxRate, currency }: PaymentSummaryProps) => {
         typeof taxRate === 'number'
             ? t('text.labels.taxWithRate', { rate: taxRate })
             : t('text.labels.tax')
+    const totalLabel = t('sales.orders.summary.totalDue', {
+        defaultValue: 'Total due',
+    })
     return (
         <Card className="mb-4">
             <h5 className="mb-4">{t('text.titles.paymentSummary')}</h5>
@@ -80,7 +83,7 @@ const PaymentSummary = ({ data, taxRate, currency }: PaymentSummaryProps) => {
                 <hr className="mb-3" />
                 <PaymentInfo
                     isLast
-                    label={t('text.columns.total')}
+                    label={totalLabel}
                     value={data?.total}
                     format={formatValue}
                 />

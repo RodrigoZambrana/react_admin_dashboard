@@ -2,7 +2,7 @@ import { useEffect, useCallback, useMemo, useRef, useState } from 'react'
 import Select from '@/components/ui/Select'
 import Tooltip from '@/components/ui/Tooltip'
 import DataTable from '@/components/shared/DataTable'
-import { HiOutlineEye, HiOutlineTrash } from 'react-icons/hi'
+import { HiOutlineDocumentText, HiOutlineEye, HiOutlineTrash } from 'react-icons/hi'
 import { NumericFormat } from 'react-number-format'
 import {
     setSelectedRows,
@@ -85,11 +85,19 @@ const ActionColumn = ({ row }: { row: Order }) => {
     const onView = useCallback(() => {
         navigate(`/app/sales/order-details/${row.id}`)
     }, [navigate, row])
+    const onInvoice = useCallback(() => {
+        navigate(`/app/account/invoice/${row.id}`)
+    }, [navigate, row])
     return (
         <div className="flex justify-end text-lg">
             <Tooltip title={t('text.actions.view')}>
                 <span className={`cursor-pointer p-2 hover:${textTheme}`} onClick={onView}>
                     <HiOutlineEye />
+                </span>
+            </Tooltip>
+            <Tooltip title={t('text.titles.invoice')}>
+                <span className={`cursor-pointer p-2 hover:${textTheme}`} onClick={onInvoice}>
+                    <HiOutlineDocumentText />
                 </span>
             </Tooltip>
             <Tooltip title={t('text.actions.delete')}>

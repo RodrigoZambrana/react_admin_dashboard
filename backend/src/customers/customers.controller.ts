@@ -17,6 +17,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { TableQueryDto } from './dto/table-query.dto'
 import { UpdateCustomerDto } from './dto/update-customer.dto'
+import { decimalToNumber } from '../common/currency/money.util'
 
 @UseGuards(JwtAuthGuard)
 @Controller('customers')
@@ -666,14 +667,21 @@ export class CustomersController {
       },
     })
     if (!customer) return null
-    const orders = (customer.orders || []).map((o) => ({
-      id: String(o.id),
-      status: o.status?.name || '',
-      statusCode: o.status?.code,
-      amount: o.grandTotal || 0,
-      date: Math.floor(new Date(o.date).getTime() / 1000),
-      itemCount: (o.items || []).reduce((sum, it) => sum + (it.qty || 0), 0),
-    }))
+    const orders = (customer.orders || []).map((o) => {
+      const amount = decimalToNumber(o.grandTotal, 2)
+      const currencyRaw =
+        typeof o.orderCurrency === 'string' ? o.orderCurrency.trim() : ''
+      const currency = currencyRaw.length ? currencyRaw : undefined
+      return {
+        id: String(o.id),
+        status: o.status?.name || '',
+        statusCode: o.status?.code,
+        amount,
+        currency,
+        date: Math.floor(new Date(o.date).getTime() / 1000),
+        itemCount: (o.items || []).reduce((sum, it) => sum + (it.qty || 0), 0),
+      }
+    })
     const phoneNumbers = (customer.phones || [])
       .sort((a, b) => (a.isPrimary === b.isPrimary ? 0 : a.isPrimary ? -1 : 1))
       .map((p) => p.phone)

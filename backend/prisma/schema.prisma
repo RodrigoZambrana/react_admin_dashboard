@@ -239,6 +239,7 @@ model OrderItem {
   qty         Int      @default(1)
   img         String?
   description String?
+  comments    String?
   unitAmount              Decimal? @db.Decimal(18, 4)
   unitCurrency            String?
   unitAmountOrderCurrency Decimal? @db.Decimal(18, 4)
@@ -465,6 +466,22 @@ model CalendarEventComment {
   author    User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   message   String
   createdAt DateTime      @default(now())
+}
+
+model CompanyProfile {
+  id            Int      @id @default(autoincrement())
+  singleton     String   @default("default") @unique
+  legalName     String
+  tradeName     String
+  taxId         String?
+  email         String?
+  phone         String?
+  website       String?
+  addressLine1  String?
+  addressLine2  String?
+  logo          Bytes?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model CustomerAddress {

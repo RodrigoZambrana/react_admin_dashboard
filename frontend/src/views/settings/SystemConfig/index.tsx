@@ -60,7 +60,6 @@ const SystemConfig = () => {
     const [editingRate, setEditingRate] = useState<string>('')
     const [currencyBase, setCurrencyBase] = useState<string>(FALLBACK_CURRENCY_CODES[0])
     const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({})
-    const [savingRates, setSavingRates] = useState(false)
     const [currencyAction, setCurrencyAction] = useState<
         | { type: 'add' }
         | { type: 'update'; code: string }
@@ -89,11 +88,6 @@ const SystemConfig = () => {
     const addCurrencyRatePlaceholder = t('settings.systemConfig.exchangeRates.placeholder', {
         defaultValue: 'Enter rate',
     })
-
-    const nonBaseCurrencies = useMemo(
-        () => currencies.filter((code) => code !== currencyBase),
-        [currencies, currencyBase],
-    )
 
     const ensureCurrencyPresence = useCallback((list: string[], baseCode: string) => {
         const normalized = list
@@ -572,88 +566,6 @@ const SystemConfig = () => {
         }
     }
 
-    const handleRateChange = (code: string, value: string) => {
-        if (code === currencyBase) {
-            return
-        }
-        if (value === '') {
-            setExchangeRates((prev) => ({
-                ...prev,
-                [code]: 0,
-            }))
-            return
-        }
-        const numeric = Number(value)
-        if (!Number.isFinite(numeric)) {
-            return
-        }
-        setExchangeRates((prev) => ({
-            ...prev,
-            [code]: numeric,
-        }))
-    }
-
-    const handleSaveRates = async () => {
-        if (!nonBaseCurrencies.length) {
-            toast.push(
-                <Notification title={t('settings.systemConfig.exchangeRates.title', { defaultValue: 'Exchange rates' })} type="info">
-                    {t('settings.systemConfig.exchangeRates.empty', {
-                        defaultValue: 'Add another currency to configure conversion rates.',
-                    })}
-                </Notification>,
-                { placement: 'top-center' },
-            )
-            return
-        }
-        const invalidCodes = nonBaseCurrencies.filter((code) => !(exchangeRates[code] > 0))
-        if (invalidCodes.length) {
-            toast.push(
-                <Notification title={t('validation.failed')} type="danger">
-                    {t('settings.systemConfig.exchangeRates.validation.positive', {
-                        defaultValue: 'Please provide a conversion rate greater than zero for {{currency}}.',
-                        currency: invalidCodes[0],
-                    })}
-                </Notification>,
-                { placement: 'top-center' },
-            )
-            return
-        }
-        const payloadRates = nonBaseCurrencies.map((code) => ({
-            quote: code,
-            rate: Number(exchangeRates[code]),
-        }))
-        setSavingRates(true)
-        try {
-            await apiUpdateExchangeRates<
-                boolean,
-                {
-                    baseCurrency?: string
-                    rates?: { quote: string; rate: number }[]
-                }
-            >({
-                baseCurrency: currencyBase,
-                rates: payloadRates,
-            })
-            toast.push(
-                <Notification title={t('settings.systemConfig.exchangeRates.title', { defaultValue: 'Exchange rates' })} type="success">
-                    {t('settings.systemConfig.exchangeRates.updated', {
-                        defaultValue: 'Exchange rates have been updated successfully.',
-                    })}
-                </Notification>,
-                { placement: 'top-center' },
-            )
-        } catch (error: any) {
-            toast.push(
-                <Notification title={t('validation.failed')} type="danger">
-                    {error?.response?.data?.message || error?.message || String(error)}
-                </Notification>,
-                { placement: 'top-center' },
-            )
-        } finally {
-            setSavingRates(false)
-        }
-    }
-
     return (
         <Loading loading={loading}>
             <div className="flex flex-col gap-6">
@@ -987,72 +899,6 @@ const SystemConfig = () => {
                                 })}
                             </TBody>
                         </Table>
-                    </div>
-                </Card>
-                <Card>
-                    <div className="flex flex-col gap-4">
-                        <div>
-                            <h4 className="mb-1">
-                                {t('settings.systemConfig.exchangeRates.title', {
-                                    defaultValue: 'Exchange rates',
-                                })}
-                            </h4>
-                            <p className="text-sm opacity-70">
-                                {t('settings.systemConfig.exchangeRates.desc', {
-                                    defaultValue: 'Set conversion rates relative to the base currency.',
-                                })}
-                            </p>
-                        </div>
-                        <div className="text-sm">
-                            {t('settings.systemConfig.exchangeRates.baseLabel', {
-                                defaultValue: 'Base currency: {{currency}}',
-                                currency: currencyBase,
-                            })}
-                        </div>
-                        <div className="flex flex-col gap-3">
-                            {nonBaseCurrencies.length === 0 ? (
-                                <p className="text-sm opacity-70">
-                                    {t('settings.systemConfig.exchangeRates.empty', {
-                                        defaultValue: 'Add another currency to configure conversion rates.',
-                                    })}
-                                </p>
-                            ) : (
-                                nonBaseCurrencies.map((code) => {
-                                        const rateValue = exchangeRates[code]
-                                        const displayValue =
-                                            rateValue === undefined || Number.isNaN(rateValue)
-                                                ? ''
-                                                : String(rateValue)
-                                        return (
-                                            <div
-                                                key={code}
-                                                className="flex flex-col sm:flex-row sm:items-center gap-2"
-                                            >
-                                                <div className="min-w-[200px] text-sm font-medium">
-                                                    {getCurrencyLabel(code)}
-                                                </div>
-                                                <Input
-                                                    className="sm:max-w-[180px]"
-                                                    type="number"
-                                                    min={0}
-                                                    step="0.000001"
-                                                    value={displayValue}
-                                                    onChange={(e) => handleRateChange(code, e.target.value)}
-                                                />
-                                            </div>
-                                        )
-                                    })
-                            )}
-                        </div>
-                        {nonBaseCurrencies.length > 0 && (
-                            <div className="flex justify-end">
-                                <Button variant="solid" loading={savingRates} onClick={handleSaveRates}>
-                                    {t('settings.systemConfig.exchangeRates.actions.save', {
-                                        defaultValue: 'Save exchange rates',
-                                    })}
-                                </Button>
-                            </div>
-                        )}
                     </div>
                 </Card>
             </div>

@@ -28,8 +28,25 @@ type CustomerInfoProps = {
     }
 }
 
+const normalizeLines = (address?: {
+    line1?: string
+    line2?: string
+    line3?: string
+    line4?: string
+}) =>
+    [
+        address?.line1,
+        address?.line2,
+        address?.line3,
+        address?.line4,
+    ]
+        .map((line) => (typeof line === 'string' ? line.trim() : ''))
+        .filter((line) => line.length > 0)
+
 const CustomerInfo = ({ data }: CustomerInfoProps) => {
     const { t } = useTranslation()
+    const shippingLines = normalizeLines(data?.shippingAddress)
+    const billingLines = normalizeLines(data?.billingAddress)
     return (
         <Card>
             <h5 className="mb-4">{t('text.columns.customer')}</h5>
@@ -63,19 +80,21 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
             </IconText>
             <hr className="my-5" />
             <h6 className="mb-4">{t('text.titles.shippingAddress')}</h6>
-            <address className="not-italic">
-                <div className="mb-1">{data?.shippingAddress?.line1}</div>
-                <div className="mb-1">{data?.shippingAddress?.line2}</div>
-                <div className="mb-1">{data?.shippingAddress?.line3}</div>
-                <div>{data?.shippingAddress?.line4}</div>
+            <address className="not-italic space-y-1">
+                {shippingLines.length > 0 ? (
+                    shippingLines.map((line) => <div key={line}>{line}</div>)
+                ) : (
+                    <div>—</div>
+                )}
             </address>
             <hr className="my-5" />
             <h6 className="mb-4">{t('text.titles.billingAddress')}</h6>
-            <address className="not-italic">
-                <div className="mb-1">{data?.billingAddress?.line1}</div>
-                <div className="mb-1">{data?.billingAddress?.line2}</div>
-                <div className="mb-1">{data?.billingAddress?.line3}</div>
-                <div>{data?.billingAddress?.line4}</div>
+            <address className="not-italic space-y-1">
+                {billingLines.length > 0 ? (
+                    billingLines.map((line) => <div key={line}>{line}</div>)
+                ) : (
+                    <div>—</div>
+                )}
             </address>
         </Card>
     )
