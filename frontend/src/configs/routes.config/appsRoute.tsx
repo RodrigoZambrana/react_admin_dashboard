@@ -2,8 +2,9 @@ import { lazy } from 'react'
 import { APP_PREFIX_PATH } from '@/constants/route.constant'
 import { FEATURES, getRolesForFeature } from '@/constants/roleAccess.constant'
 import type { Routes } from '@/@types/routes'
+import { applyClientRouteOverrides } from '../clientConfig'
 
-const appsRoute: Routes = [
+const baseAppsRoute: Routes = [
     // Calendar
     {
         key: 'appsCalendar.activities',
@@ -297,5 +298,10 @@ const appsRoute: Routes = [
         },
     },
 ]
+
+const appsRoute: Routes = applyClientRouteOverrides(
+    baseAppsRoute,
+    'protected',
+)
 
 export default appsRoute

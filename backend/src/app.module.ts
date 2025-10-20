@@ -19,10 +19,12 @@ import { NotificationModule } from './notification/notification.module'
 import { HealthModule } from './health/health.module'
 import { ActivitiesModule } from './activities/activities.module'
 import { CurrencyModule } from './common/currency/currency.module'
+import { ClientConfigModule } from './config/client-config.module'
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ClientConfigModule,
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => [
