@@ -4,6 +4,7 @@ import {
     apiDeleteSalesProducts,
 } from '@/services/SalesService'
 import type { TableQueries } from '@/@types/common'
+import type { SalesUnit } from '@/constants/product.constant'
 
 type Product = {
     id: string
@@ -19,6 +20,7 @@ type Product = {
     vendor?: string
     permanentStock?: boolean
     currency?: string
+    unitOfMeasure?: SalesUnit
 }
 
 type Products = Product[]

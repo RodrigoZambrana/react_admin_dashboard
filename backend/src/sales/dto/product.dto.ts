@@ -1,6 +1,7 @@
-import { IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator'
+import { IsArray, IsBoolean, IsEnum, IsIn, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator'
 import { Type } from 'class-transformer'
 import { IsSafeString } from '../../common/validation/is-safe-string.decorator'
+import { SalesUnit } from '@prisma/client'
 
 class ProductImagePayload {
   @IsSafeString()
@@ -67,6 +68,10 @@ export class UpsertProductDto {
   @IsString()
   @IsSafeString()
   currency?: string
+
+  @IsOptional()
+  @IsEnum(SalesUnit)
+  unitOfMeasure?: SalesUnit
 
   @IsNumber()
   @Type(() => Number)
@@ -158,6 +163,10 @@ export class UpdateProductDto {
   @IsString()
   @IsSafeString()
   currency?: string
+
+  @IsOptional()
+  @IsEnum(SalesUnit)
+  unitOfMeasure?: SalesUnit
 
   @IsOptional()
   @IsNumber()

@@ -563,6 +563,11 @@
             "disabled": "Deshabilitado",
             "archive": "Archivado"
         },
+        "salesUnit": {
+            "UNIT": "Unidad",
+            "SQUARE_METER": "Metro cuadrado",
+            "LINEAR_METER": "Metro lineal"
+        },
         "labels": {
             "firstName": "Nombre",
             "lastName": "Apellido",
@@ -578,6 +583,7 @@
             "productName": "Nombre del producto",
             "code": "Código",
             "description": "Descripción",
+            "unitOfMeasure": "Unidad de venta",
             "sku": "SKU",
             "bulkDiscountPrice": "Precio con descuento por volumen",
             "taxRatePercent": "Tasa de impuesto(%)",
@@ -743,6 +749,7 @@
             "stockNumber": "El stock debe ser un número",
             "stockMin": "El stock no puede ser negativo",
             "categoryRequired": "Categoría requerida",
+            "unitOfMeasureRequired": "La unidad de venta es obligatoria",
             "invalidEmail": "Correo inválido",
             "emailRequired": "Correo requerido",
             "userNameRequired": "Nombre de usuario requerido",

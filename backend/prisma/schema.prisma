@@ -36,6 +36,12 @@ enum UserActivityType {
   SECURITY_ALERT
 }
 
+enum SalesUnit {
+  UNIT
+  SQUARE_METER
+  LINEAR_METER
+}
+
 // Notification
 model Notification {
   id            Int      @id @default(autoincrement())
@@ -155,6 +161,7 @@ model Product {
   salePrice         Decimal          @default(0) @map("precio_venta") @db.Decimal(12, 2)
   costPrice         Decimal          @default(0) @map("precio_costo") @db.Decimal(12, 2)
   currency          String           @default("UYU")
+  unitOfMeasure     SalesUnit        @default(UNIT)
   stock             Int              @default(0)
   permanentStock    Boolean          @default(false)
   status            Int              @default(0) // 0=inStock,1=limited,2=outOfStock

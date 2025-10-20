@@ -4,6 +4,7 @@ import {
     apiPutSalesProduct,
     apiDeleteSalesProducts,
 } from '@/services/SalesService'
+import type { SalesUnit } from '@/constants/product.constant'
 
 type ProductData = {
     id?: number
@@ -28,6 +29,7 @@ type ProductData = {
     vendor?: string
     permanentStock?: boolean
     currency?: string
+    unitOfMeasure?: SalesUnit
 }
 
 export type SalesProductEditState = {

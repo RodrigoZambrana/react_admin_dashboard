@@ -346,7 +346,7 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
         )
         let data = sanitizeProducts.map((p: any) => ({
             ...p,
-            published: typeof p.published === 'boolean' ? p.published : true,
+            published: typeof p.published === 'boolean' ? p.published : false,
         }))
         let total = products.length
 
@@ -387,7 +387,7 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
         const id = queryParams.id
         const product = schema.db.productsData.find(id as string)
         if (product && typeof (product as any).published !== 'boolean') {
-            ;(product as any).published = true
+            ;(product as any).published = false
         }
         return product
     })
@@ -407,7 +407,7 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
         (schema, { requestBody }) => {
             const data = JSON.parse(requestBody)
             if (typeof data.published !== 'boolean') {
-                data.published = true
+                data.published = false
             }
             schema.db.productsData.insert(data)
             return true
