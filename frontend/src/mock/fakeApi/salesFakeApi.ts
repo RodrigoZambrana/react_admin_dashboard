@@ -3,6 +3,7 @@ import sortBy, { Primer } from '@/utils/sortBy'
 import paginate from '@/utils/paginate'
 import dayjs from 'dayjs'
 import type { Server } from 'miragejs'
+import { calculateLineTotal } from '@/utils/salesUnitCalculation'
 
 export default function salesFakeApi(server: Server, apiPrefix: string) {
     server.post(`${apiPrefix}/sales/dashboard`, (schema, { requestBody }) => {
@@ -509,7 +510,15 @@ export default function salesFakeApi(server: Server, apiPrefix: string) {
         const data = JSON.parse(requestBody)
         if (Array.isArray(data.items)) {
             data.totalAmount = data.items.reduce(
-                (sum: number, it: any) => sum + (Number(it.price) || 0) * (Number(it.qty) || 0),
+                (sum: number, it: any) =>
+                    sum +
+                    calculateLineTotal({
+                        unitPrice: Number(it.unitPrice ?? it.price) || 0,
+                        qty: Number(it.qty) || 0,
+                        unitOfMeasure: it.unitOfMeasure ?? it.pricingMethod,
+                        pricingMethod: it.pricingMethod,
+                        customAttributes: it.customAttributes,
+                    }),
                 0,
             )
         }

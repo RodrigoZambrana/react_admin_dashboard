@@ -8,26 +8,16 @@ import {
     deleteOrders,
     getOrders,
     useAppDispatch,
-    useAppSelector,
+    useSalesOrderListData,
 } from '../store'
-import { useTranslation } from 'react-i18next'
+import { useSalesDocumentI18n } from '../../context/useSalesDocumentI18n'
 
 const OrderDeleteConfirmation = () => {
     const dispatch = useAppDispatch()
-    const selectedRows = useAppSelector(
-        (state) => state.salesOrderList.data.selectedRows,
-    )
-    const selectedRow = useAppSelector(
-        (state) => state.salesOrderList.data.selectedRow,
-    )
-    const deleteMode = useAppSelector(
-        (state) => state.salesOrderList.data.deleteMode,
-    )
-    const tableData = useAppSelector(
-        (state) => state.salesOrderList.data.tableData,
-    )
+    const salesOrderState = useSalesOrderListData()
+    const { selectedRows, selectedRow, deleteMode, tableData } = salesOrderState
 
-    const { t } = useTranslation()
+    const { t, tDoc, resource } = useSalesDocumentI18n()
 
     const onDialogClose = () => {
         dispatch(setDeleteMode(''))
@@ -41,13 +31,13 @@ const OrderDeleteConfirmation = () => {
         dispatch(setDeleteMode(''))
 
         if (deleteMode === 'single') {
-            const success = await deleteOrders({ id: selectedRow })
+            const success = await deleteOrders({ id: selectedRow }, resource)
             deleteSucceed(success)
             dispatch(setSelectedRow([]))
         }
 
         if (deleteMode === 'batch') {
-            const success = await deleteOrders({ id: selectedRows })
+            const success = await deleteOrders({ id: selectedRows }, resource)
             deleteSucceed(success, selectedRows.length)
             dispatch(setSelectedRows([]))
         }
@@ -55,15 +45,18 @@ const OrderDeleteConfirmation = () => {
 
     const deleteSucceed = (success: boolean, orders = 0) => {
         if (success) {
-            dispatch(getOrders(tableData))
+            if (tableData) {
+                dispatch(getOrders({ ...tableData, resource }))
+            }
             toast.push(
                 <Notification
-                    title={t('sales.orders.delete.titleSuccess')}
+                    title={tDoc('delete.titleSuccess')}
                     type="success"
                     duration={2500}
                 >
-                    {deleteMode === 'single' && t('sales.orders.delete.single')}
-                    {deleteMode === 'batch' && t('sales.orders.delete.batch', { count: orders })}
+                    {deleteMode === 'single' && tDoc('delete.single')}
+                    {deleteMode === 'batch' &&
+                        tDoc('delete.batch', { count: orders })}
                 </Notification>,
                 {
                     placement: 'top-center',
@@ -76,14 +69,14 @@ const OrderDeleteConfirmation = () => {
         <ConfirmDialog
             isOpen={deleteMode === 'single' || deleteMode === 'batch'}
             type="danger"
-            title={t('sales.orders.delete.title')}
+            title={tDoc('delete.title')}
             confirmButtonColor="red-600"
             onClose={onDialogClose}
             onRequestClose={onDialogClose}
             onCancel={onDialogClose}
             onConfirm={onDelete}
         >
-            <p>{t('sales.orders.delete.confirm')}</p>
+            <p>{tDoc('delete.confirm')}</p>
         </ConfirmDialog>
     )
 }

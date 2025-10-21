@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsDateString, IsNumber, IsOptional, IsString, ValidateNested, IsNotEmpty } from 'class-validator'
+import { IsArray, IsBoolean, IsDateString, IsNumber, IsOptional, IsString, ValidateNested, IsNotEmpty, IsObject } from 'class-validator'
 import { Type } from 'class-transformer'
 import { IsSafeString } from '../../common/validation/is-safe-string.decorator'
 
@@ -37,6 +37,11 @@ export class OrderItemDto {
   @IsOptional()
   @IsString()
   @IsSafeString()
+  specifications?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
   currency?: string
 
   @IsOptional()
@@ -47,6 +52,15 @@ export class OrderItemDto {
   @IsString()
   @IsSafeString()
   unitCurrency?: string
+
+  @IsOptional()
+  @IsObject()
+  customAttributes?: Record<string, unknown>
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  pricingMethod?: string
 }
 
 export class AddressDto {
@@ -128,6 +142,10 @@ export class CreateOrderDto {
   @IsString()
   @IsSafeString()
   orderCurrency?: string
+
+  @IsOptional()
+  @IsDateString()
+  validUntil?: string
 
   @IsArray()
   @ValidateNested({ each: true })

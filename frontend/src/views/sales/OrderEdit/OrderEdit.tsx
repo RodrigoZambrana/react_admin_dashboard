@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Formik, Form, Field } from 'formik'
 import { FormContainer, FormItem } from '@/components/ui/Form'
 import Input from '@/components/ui/Input'
@@ -29,11 +29,32 @@ import useResponsive from '@/utils/hooks/useResponsive'
 import { useAppSelector } from '@/store'
 import { normalizeCurrencyCode, formatCurrency } from '@/utils/currency'
 import { resolveTextDirection } from '@/utils/textDirection'
+import { useSalesDocumentI18n } from '../context/useSalesDocumentI18n'
+import { DEFAULT_SALES_UNIT, type SalesUnit } from '@/constants/product.constant'
+import { calculateLineTotal, getDerivedUnitPrice } from '@/utils/salesUnitCalculation'
 
 type Item = EditableItem
 
 const OrderEdit = () => {
-    const { t, i18n } = useTranslation()
+    const { i18n } = useTranslation()
+    const { t, tDoc, resource, routes, mode } = useSalesDocumentI18n()
+    const docMessage = useCallback(
+        (key: string, fallbackKey: string, defaultValue: string) =>
+            tDoc(key, {
+                defaultValue: t(fallbackKey, { defaultValue }),
+            }),
+        [t, tDoc],
+    )
+    const validationCustomerRequired = docMessage(
+        'validation.customerRequired',
+        'sales.orders.validation.customerRequired',
+        'Customer is required',
+    )
+    const validationItemsRequired = docMessage(
+        'validation.itemsRequired',
+        'sales.orders.validation.itemsRequired',
+        'Add at least one product',
+    )
     const navigate = useNavigate()
     const { orderId } = useParams()
     const { smaller } = useResponsive()
@@ -47,6 +68,8 @@ const OrderEdit = () => {
             currency?: string
             img?: string
             description?: string
+            unitOfMeasure?: SalesUnit
+            specifications?: string
         }[]
     >([])
     const [methods, setMethods] = useState<{ value: string; label: string }[]>([])
@@ -59,6 +82,11 @@ const OrderEdit = () => {
     const storeCurrency = useAppSelector((state) => state.currency.code)
     const defaultCurrency =
         normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
+    const roundCurrencyValue = useCallback(
+        (value: number) =>
+            Math.round((Number(value) + Number.EPSILON) * 100) / 100,
+        [],
+    )
 
     useEffect(() => {
         const load = async () => {
@@ -76,6 +104,11 @@ const OrderEdit = () => {
                         defaultCurrency,
                     img: p.img,
                     description: p.description,
+                    unitOfMeasure: (p.unitOfMeasure || DEFAULT_SALES_UNIT) as SalesUnit,
+                    specifications:
+                        typeof p.specifications === 'string'
+                            ? p.specifications
+                            : undefined,
                 })),
             )
             const mRes = await apiGetPaymentMethods<{ id: number | string; name: string }[]>()
@@ -87,7 +120,7 @@ const OrderEdit = () => {
             } catch {
                 // ignore, keep default
             }
-            const oRes = await apiGetSalesOrder<any, { id: string }>({ id: orderId as string })
+            const oRes = await apiGetSalesOrder<any, { id: string }>({ id: orderId as string }, resource)
             const data = (oRes as any).data || (oRes as any)
             const orderCurrencyValue =
                 normalizeCurrencyCode(data.orderCurrency, defaultCurrency) ||
@@ -96,6 +129,7 @@ const OrderEdit = () => {
                 id: data.id,
                 customerId: String(data.customerId || ''),
                 date: data.date ? new Date(data.date) : new Date(),
+                validUntil: data.validUntil ? new Date(data.validUntil) : null,
                 paymentMehod: String(data.paymentMehod || 'Cash'),
                 items: (data.items || []).map((it: any) => {
                     const p = pArray.find((x: any) => String(x.id) === String(it.productId))
@@ -103,18 +137,51 @@ const OrderEdit = () => {
                         normalizeCurrencyCode(it.unitCurrency, orderCurrencyValue) ||
                         normalizeCurrencyCode(p?.currency, orderCurrencyValue) ||
                         orderCurrencyValue
-                    const unitAmount = Number(it.unitAmount ?? it.unitPrice ?? it.price) || 0
-                    return {
+                    const unitAmountOrderCurrency =
+                        Number(
+                            it.unitAmountOrderCurrency ??
+                                it.unitAmount ??
+                                it.unitPrice ??
+                                it.price,
+                        ) || 0
+                    const customAttributes =
+                        it.customAttributes && typeof it.customAttributes === 'object'
+                            ? { ...it.customAttributes }
+                            : {}
+                    const pricingMethod =
+                        (typeof it.pricingMethodSnapshot === 'string' && it.pricingMethodSnapshot) ||
+                        (typeof it.pricingMethod === 'string' && it.pricingMethod) ||
+                        (typeof it.unitOfMeasure === 'string' && it.unitOfMeasure) ||
+                        (p?.unitOfMeasure as string | undefined) ||
+                        DEFAULT_SALES_UNIT
+                    const baseItem: Item = {
                         productId: String(it.productId),
                         name: it.name,
-                        price: Number(it.price) || 0,
                         qty: Number(it.qty) || 1,
                         currency: orderCurrencyValue,
-                        unitPrice: unitAmount,
+                        price: 0,
+                        unitPrice: unitAmountOrderCurrency,
                         unitCurrency,
                         img: p?.img,
                         description: p?.description,
+                        specifications:
+                            typeof it.specifications === 'string'
+                                ? it.specifications
+                                : typeof p?.specifications === 'string'
+                                ? p?.specifications
+                                : undefined,
                         comments: typeof it.comments === 'string' ? it.comments : '',
+                        customAttributes,
+                        pricingMethod,
+                        unitOfMeasure: pricingMethod,
+                        specSummary: typeof it.specSummary === 'string' ? it.specSummary : undefined,
+                    }
+                    const derivedPrice = roundCurrencyValue(
+                        getDerivedUnitPrice(baseItem),
+                    )
+                    return {
+                        ...baseItem,
+                        price: derivedPrice,
                     }
                 }),
                 shippingAddress: data.shippingAddress || { addressLine1: '', addressLine2: '', city: '', state: '' },
@@ -131,16 +198,24 @@ const OrderEdit = () => {
             }
         }
         if (orderId) load()
-    }, [orderId, defaultCurrency])
+    }, [orderId, defaultCurrency, resource])
 
     if (!initial) return null
 
     return (
         <Container className="h-full">
-            <h3 className="mb-6">{t('nav.appsSales.orderList')} · {t('text.actions.edit')}</h3>
+            <h3 className="mb-6">
+                {tDoc('listNavLabel', {
+                    defaultValue: t('nav.appsSales.orderList'),
+                })}
+                {' · '}
+                {tDoc('editAction', {
+                    defaultValue: t('text.actions.edit'),
+                })}
+            </h3>
             <Formik initialValues={initial} enableReinitialize 
                 validationSchema={Yup.object().shape({
-                    customerId: Yup.string().required(t('sales.orders.validation.customerRequired') as string),
+                    customerId: Yup.string().required(validationCustomerRequired),
                     items: Yup.array()
                         .of(
                             Yup.object().shape({
@@ -149,7 +224,7 @@ const OrderEdit = () => {
                                 price: Yup.number().min(0).required(),
                             }),
                         )
-                        .min(1, t('sales.orders.validation.itemsRequired') as string),
+                        .min(1, validationItemsRequired),
                 })}
                 onSubmit={async (values) => {
                 const normalizedOrderCurrency =
@@ -158,10 +233,21 @@ const OrderEdit = () => {
                 const payload = {
                     ...values,
                     customer: customers.find((c) => c.value === values.customerId)?.label || '',
-                    date: values.date ? Math.floor((values.date as any).getTime() / 1000) : Math.floor(Date.now() / 1000),
+                    date: values.date ? new Date(values.date as any).toISOString() : undefined,
+                    validUntil: values.validUntil
+                        ? new Date(values.validUntil as any).toISOString()
+                        : undefined,
                     orderCurrency: normalizedOrderCurrency,
                     items: values.items.map((it: Item) => {
                         const rawUnitPrice = Number(it.unitPrice)
+                        const customAttributes =
+                            it.customAttributes && Object.keys(it.customAttributes).length > 0
+                                ? it.customAttributes
+                                : undefined
+                        const pricingMethod =
+                            (typeof it.pricingMethod === 'string' && it.pricingMethod.trim()) ||
+                            (typeof it.unitOfMeasure === 'string' && it.unitOfMeasure.trim()) ||
+                            undefined
                         return {
                             productId: it.productId,
                             name: it.name,
@@ -174,24 +260,41 @@ const OrderEdit = () => {
                                 normalizeCurrencyCode(it.unitCurrency, normalizedOrderCurrency) ||
                                 normalizeCurrencyCode(it.currency, normalizedOrderCurrency) ||
                                 normalizedOrderCurrency,
+                            customAttributes,
+                            pricingMethod,
+                            specSummary:
+                                typeof it.specSummary === 'string'
+                                    ? it.specSummary
+                                    : undefined,
+                            specifications:
+                                typeof it.specifications === 'string'
+                                    ? it.specifications
+                                    : undefined,
                         }
                     }),
                     billingAddress: (values as any).billingSameAsShipping ? (values as any).shippingAddress : (values as any).billingAddress,
                 }
-                const res = await apiSaveSalesOrder<boolean, any>(payload)
+                const res = await apiSaveSalesOrder<boolean, any>(payload, resource)
                 if ((res as any).data || (res as any) === true) {
                     toast.push(
-                        <Notification title={t('sales.orders.updated.title')} type="success">
-                            {t('sales.orders.updated.desc')}
+                        <Notification
+                            title={docMessage('updated.title', 'sales.orders.updated.title', 'Document updated successfully')}
+                            type="success"
+                        >
+                            {docMessage(
+                                'updated.desc',
+                                'sales.orders.updated.desc',
+                                'The document was updated successfully.',
+                            )}
                         </Notification>,
                         { placement: 'top-center' },
                     )
-                    navigate('/app/sales/order-list')
+                    navigate(routes.list)
                 }
             }}>
                 {({ values, setFieldValue, errors, touched }) => {
                     const total = values.items.reduce(
-                        (sum: number, it: Item) => sum + (it.price || 0) * (it.qty || 0),
+                        (sum: number, item: Item) => sum + calculateLineTotal(item),
                         0,
                     )
                     const deliveryFee = Number((values as any).shipping?.deliveryFees || 0)
@@ -215,6 +318,8 @@ const OrderEdit = () => {
                             currency?: string
                             img?: string
                             description?: string
+                            unitOfMeasure?: SalesUnit
+                            specifications?: string
                         },
                     ) => {
                         const p = option ?? products.find((x) => x.value === pid)
@@ -224,21 +329,33 @@ const OrderEdit = () => {
                         const currencyCode =
                             normalizeCurrencyCode(p.currency, defaultCurrency) ||
                             defaultCurrency
-                        setFieldValue('items', [
-                            ...values.items,
-                            {
-                                productId: pid,
-                                name: p.label,
-                                price: p.price,
-                                currency: currencyCode,
-                                qty: 1,
-                                img: p.img,
-                                description: p.description,
-                                unitPrice: p.price,
-                                unitCurrency: currencyCode,
-                                comments: '',
-                            },
-                        ])
+                        const baseItem: Item = {
+                            productId: pid,
+                            name: p.label,
+                            price: 0,
+                            currency: currencyCode,
+                            qty: 1,
+                            img: p.img,
+                            description: p.description,
+                            specifications:
+                                typeof p.specifications === 'string'
+                                    ? p.specifications
+                                    : undefined,
+                            unitPrice: Number(p.price) || 0,
+                            unitCurrency: currencyCode,
+                            comments: '',
+                            customAttributes: {},
+                            pricingMethod: p.unitOfMeasure ?? DEFAULT_SALES_UNIT,
+                            unitOfMeasure: p.unitOfMeasure ?? DEFAULT_SALES_UNIT,
+                        }
+                        const derivedPrice = roundCurrencyValue(
+                            getDerivedUnitPrice(baseItem),
+                        )
+                        const nextItem: Item = {
+                            ...baseItem,
+                            price: derivedPrice,
+                        }
+                        setFieldValue('items', [...values.items, nextItem])
                     }
                     const removeItem = (pid: string) => setFieldValue('items', values.items.filter((it: Item) => it.productId !== pid))
                     const changeQty = (pid: string, qty: number) => setFieldValue('items', values.items.map((it: Item) => (it.productId === pid ? { ...it, qty } : it)))
@@ -249,6 +366,40 @@ const OrderEdit = () => {
                                 it.productId === pid ? { ...it, comments } : it,
                             ),
                         )
+                    const handleItemChange = (
+                        pid: string,
+                        patch: Partial<Item>,
+                    ) => {
+                        setFieldValue(
+                            'items',
+                            values.items.map((it: Item) => {
+                                if (it.productId !== pid) {
+                                    return it
+                                }
+                                const next: Item = {
+                                    ...it,
+                                    ...patch,
+                                }
+                                if (patch.customAttributes !== undefined) {
+                                    next.customAttributes = patch.customAttributes
+                                }
+                                if (patch.pricingMethod !== undefined) {
+                                    next.pricingMethod = patch.pricingMethod
+                                }
+                                if (patch.unitOfMeasure !== undefined) {
+                                    next.unitOfMeasure = patch.unitOfMeasure
+                                }
+                                if (patch.specSummary !== undefined) {
+                                    next.specSummary = patch.specSummary
+                                }
+                                const derivedPrice = roundCurrencyValue(
+                                    getDerivedUnitPrice(next),
+                                )
+                                next.price = derivedPrice
+                                return next
+                            }),
+                        )
+                    }
                     const onCustomerChange = async (opt: any) => {
                         const id = opt?.value
                         setFieldValue('customerId', id)
@@ -417,6 +568,9 @@ const OrderEdit = () => {
                                                     showDescription={false}
                                                     showComments
                                                     onCommentChange={changeComment}
+                                                    onItemChange={handleItemChange}
+                                                    showCustomAttributes={mode === 'budget'}
+                                                    showUnitColumn={mode !== 'budget'}
                                                 />
                                             </div>
                                         </FormItem>
@@ -549,6 +703,16 @@ const OrderEdit = () => {
                                         <FormItem label={t('text.labels.date')}>
                                             <DatePicker value={values.date as any} onChange={(val) => setFieldValue('date', val)} />
                                         </FormItem>
+                                        <FormItem
+                                            label={docMessage('validUntilLabel', 'sales.orders.validUntilLabel', 'Valid until')}
+                                            invalid={Boolean((touched as any).validUntil && (errors as any).validUntil)}
+                                            errorMessage={(errors as any).validUntil as any}
+                                        >
+                                            <DatePicker
+                                                value={values.validUntil as any}
+                                                onChange={(val) => setFieldValue('validUntil', val)}
+                                            />
+                                        </FormItem>
                                     </FormContainer>
                                 </Card>
                             )}
@@ -625,6 +789,10 @@ const OrderEdit = () => {
                                                             defaultCurrency,
                                                         img: p.img,
                                                         description: p.description,
+                                                        specifications:
+                                                            typeof p.specifications === 'string'
+                                                                ? p.specifications
+                                                                : undefined,
                                                     })) || []
                                                 setProducts(formattedOptions)
                                                 const created = (pRes as any).data?.data?.find(
@@ -641,6 +809,10 @@ const OrderEdit = () => {
                                                                 defaultCurrency,
                                                             img: created.img,
                                                             description: created.description,
+                                                            specifications:
+                                                                typeof created.specifications === 'string'
+                                                                    ? created.specifications
+                                                                    : undefined,
                                                         }
                                                     addItem(String(created.id), option)
                                                 }

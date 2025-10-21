@@ -29,7 +29,15 @@
             "productNew": "Agregar producto",
             "orderList": "Pedidos confirmados",
             "orderDetails": "Detalles del pedido",
-            "addOrder": "Agregar pedido"
+            "addOrder": "Agregar pedido",
+            "budgetList": "Presupuestos",
+            "budgetNew": "Agregar presupuesto"
+        },
+        "appsBudgets": {
+            "budgets": "Presupuestos",
+            "list": "Lista de presupuestos",
+            "summary": "Calculo Rápido",
+            "new": "Nuevo presupuesto"
         },
         "appsAccounting": {
             "accounting": "Contabilidad",
@@ -404,6 +412,7 @@
             "available": "Disponible",
             "password": "Contraseña",
             "invoice": "Factura",
+            "budget": "Presupuesto",
             "shippingAddress": "Dirección de envío",
             "billingAddress": "Dirección de facturación",
             "comments": "Comentarios",
@@ -441,12 +450,13 @@
             "name": "Nombre",
             "category": "Categoría",
             "quantity": "Cantidad",
-            "price": "Precio",
+            "price": "Precio Unitario",
             "salePrice": "Precio de venta",
             "costPrice": "Precio de costo",
             "product": "Producto",
             "reference": "Referencia",
             "amount": "Monto",
+            "taxCreditEligible": "Genera crédito fiscal",
             "createdTime": "Hora de creación",
             "assignee": "Asignado a",
             "sold": "Vendido",
@@ -460,7 +470,8 @@
             "actions": "Acciones",
             "published": "Publicado",
             "stock": "Stock",
-            "comments": "Comentarios"
+            "comments": "Comentarios",
+            "specifications": "Especificaciones"
         },
         "mobileNav": {
             "home": "Inicio",
@@ -494,12 +505,15 @@
             "updatePassword": "Actualizar contraseña",
             "done": "Listo",
             "comment": "Comentar",
+            "copy": "Copiar",
+            "copied": "Copiado",
             "remove": "Quitar",
             "add": "Agregar",
             "addMore": "Agregar más",
             "download": "Descargar",
             "import": "Importar",
             "send": "Enviar",
+            "generateMessage": "Generar mensaje",
             "change": "Cambiar",
             "rename": "Renombrar",
             "filter": "Filtrar",
@@ -534,6 +548,7 @@
             "eventTitle": "Ingrese el título",
             "leaveComment": "Deja un comentario",
             "enterComment": "Agrega una nota para este producto",
+            "specifications": "Especificaciones del producto",
             "quickSearchMember": "Búsqueda rápida de miembro",
             "ticketTitle": "Ingrese el título del ticket",
             "writeComment": "Escribir comentario",
@@ -583,7 +598,12 @@
             "productName": "Nombre del producto",
             "code": "Código",
             "description": "Descripción",
+            "specifications": "Especificaciones",
             "unitOfMeasure": "Unidad de venta",
+            "widthMeters": "Ancho (m)",
+            "heightMeters": "Altura (m)",
+            "linearMeters": "Metros lineales (m)",
+            "estimatedQuantity": "Cantidad estimada: {{value}} {{unit}}",
             "sku": "SKU",
             "bulkDiscountPrice": "Precio con descuento por volumen",
             "taxRatePercent": "Tasa de impuesto(%)",
@@ -623,8 +643,10 @@
             "inProgress": "En progreso",
             "linkedTickets": "Tickets vinculados",
             "recipient": "Destinatario",
+            "name": "Nombre",
             "billTo": "Facturar a",
             "address": "Dirección",
+            "budgetValidity": "Vigencia del presupuesto",
             "storyPoint": "{{count}} punto de historia",
             "createdOn": "Creado el",
             "assignees": "Asignados",
@@ -633,6 +655,7 @@
             "otherPaymentMethods": "Otros métodos de pago",
             "issuedBy": "Emitido por",
             "invoiceNumber": "Número de factura",
+            "budgetNumber": "Número de presupuesto",
             "issuedOn": "Fecha emisión",
             "taxId": "RUC",
             "website": "Sitio web",
@@ -674,6 +697,11 @@
             "ticketTitle": "Título del ticket",
             "untitledBoard": "Tablero sin título",
             "untitledCard": "Tarjeta sin título"
+        },
+        "specs": {
+            "width": "Ancho",
+            "height": "Alto",
+            "length": "Largo"
         },
         "date": {
             "monthsShort": {
@@ -1039,8 +1067,12 @@
         },
         "orders": {
             "title": "Pedidos confirmados",
+            "addAction": "Agregar Pedido",
             "orderCurrencyLabel": "Moneda del pedido",
             "orderCurrencyPlaceholder": "Selecciona la moneda del pedido",
+            "invoiceAction": "Ver factura",
+            "validUntilLabel": "Válido hasta",
+            "editAction": "Editar pedido",
             "delete": {
                 "title": "Eliminar orden",
                 "confirm": "¿Seguro que deseas eliminar esta orden? Todos los registros relacionados serán eliminados. Esta acción no se puede deshacer.",
@@ -1068,7 +1100,8 @@
             "validation": {
                 "customerRequired": "El cliente es obligatorio",
                 "itemsRequired": "Agregue al menos un producto",
-                "customerAddressRequired": "El cliente debe tener una dirección principal"
+                "customerAddressRequired": "El cliente debe tener una dirección principal",
+                "quantityPositive": "La cantidad debe ser mayor que 0"
             },
             "summary": {
                 "purchaseSummaryTitle": "Resumen de la compra",
@@ -1088,6 +1121,19 @@
                 "unknownCustomer": "Cliente sin asignar",
                 "noContact": "Sin datos de contacto",
                 "notesAndScheduling": "Notas y programación"
+            }
+        },
+        "documents": {
+            "squareSummary": "Ancho: {{width}} m · Alto: {{height}} m",
+            "linearSummary": "Metros lineales: {{length}} m",
+            "noExtraAttributes": "No requiere información adicional.",
+            "quickMessage": {
+                "title": "Mensaje generado",
+                "header": "Cantidad Producto Especificaciones Comentarios Total (Precio unitario)",
+                "perUnit": "c/u",
+                "totalLabel": "Total a pagar",
+                "copyError": "No se pudo copiar el mensaje.",
+                "measurementMissing": "Completa las medidas requeridas (ancho, alto, largo) antes de continuar."
             }
         },
         "productForm": {
@@ -1153,6 +1199,30 @@
                 "parcel_has_arrived_at_delivery_station": "El paquete ha llegado al centro de entrega",
                 "parcel_has_been_picked_up_by_courier": "El paquete ha sido recogido por el mensajero",
                 "seller_is_preparing_to_ship_your_parcel": "El vendedor está preparando el envío de su paquete"
+            }
+        },
+        "budgets": {
+            "title": "Presupuestos",
+            "addAction": "Crear presupuesto",
+            "invoiceAction": "Descargar presupuesto",
+            "validUntilLabel": "Válido hasta",
+            "editAction": "Editar presupuesto",
+            "importSuccess": "Se importaron {{imported}} presupuestos.",
+            "importSuccessWithErrors": "Presupuestos importados: {{imported}}. Registros con error: {{failed}}.",
+            "importError": "No fue posible importar los presupuestos.",
+            "importErrorRow": "Fila {{row}}: {{message}}",
+            "importErrorMore": "Se omitieron {{count}} errores adicionales.",
+            "exportSuccess": "Archivo CSV de presupuestos generado correctamente.",
+            "exportError": "No fue posible generar el CSV de presupuestos.",
+            "delete": {
+                "title": "Eliminar presupuesto",
+                "confirm": "¿Seguro que deseas eliminar este presupuesto? Esta acción no se puede deshacer.",
+                "titleSuccess": "Presupuesto eliminado",
+                "single": "Presupuesto eliminado correctamente",
+                "batch": "{{count}} presupuestos eliminados correctamente"
+            },
+            "table": {
+                "id": "Presupuesto"
             }
         }
     },
@@ -1692,6 +1762,11 @@
             "product": "¡Producto no encontrado!",
             "order": "¡Orden no encontrada!",
             "user": "¡Usuario no encontrado!"
+        },
+        "labels": {
+            "yes": "Sí",
+            "no": "No",
+            "notSpecified": "No indicado"
         }
     },
     "notification": {

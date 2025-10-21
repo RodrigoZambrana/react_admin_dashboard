@@ -22,6 +22,7 @@ type Expense = {
     amount: number
     note?: string
     currency?: string | null
+    taxCreditEligible: boolean
 }
 
 type Expenses = Expense[]

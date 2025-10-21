@@ -3,7 +3,7 @@ import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import Button from '@/components/ui/Button'
 import DatePicker from '@/components/ui/DatePicker'
-import { Field, Form, Formik } from 'formik'
+import { Field, Form, Formik, type FieldProps } from 'formik'
 import { useTranslation } from 'react-i18next'
 import {
     apiGetExpense,
@@ -22,6 +22,7 @@ import SelectAcceptedCurrencies from '@/components/shared/SelectAcceptedCurrenci
 import type { CurrencyCode } from '@/store'
 import InputGroup from '@/components/ui/InputGroup'
 import ExpenseAttachmentsField from '@/views/expenses/components/ExpenseAttachmentsField'
+import Switcher from '@/components/ui/Switcher'
 
 type ExpenseForm = {
     id: string
@@ -35,6 +36,7 @@ type ExpenseForm = {
     note?: string
     currency: string
     attachments: ExpenseAttachment[]
+    taxCreditEligible: boolean
 }
 
 const defaultCategories: Array<{ value: string; label: string }> = []
@@ -81,6 +83,10 @@ const ExpenseEdit = () => {
                 attachments: Array.isArray(data.attachments)
                     ? (data.attachments as ExpenseAttachment[])
                     : [],
+                taxCreditEligible:
+                    data.taxCreditEligible !== undefined && data.taxCreditEligible !== null
+                        ? Boolean(data.taxCreditEligible)
+                        : true,
             })
 
             const [catRes, statusRes, methodRes] = await Promise.all([
@@ -137,6 +143,7 @@ const ExpenseEdit = () => {
             description: values.note,
             currency: values.currency ? values.currency.toUpperCase() : null,
             attachments: values.attachments || [],
+            taxCreditEligible: values.taxCreditEligible,
         }
         const res = await apiUpdateExpense<boolean, typeof payload>(payload)
         if (res.data) {
@@ -243,6 +250,18 @@ const ExpenseEdit = () => {
                                             defaultValue: 'Ej: Nº de recibo, comprobante, etc.',
                                         })}
                                     />
+                                </FormItem>
+                                <FormItem label={t('text.columns.taxCreditEligible')}>
+                                    <Field name="taxCreditEligible">
+                                        {({ field, form }: FieldProps<boolean>) => (
+                                            <Switcher
+                                                checked={Boolean(field.value)}
+                                                onChange={(checked) =>
+                                                    form.setFieldValue(field.name, checked)
+                                                }
+                                            />
+                                        )}
+                                    </Field>
                                 </FormItem>
                             </div>
                             <FormItem label={t('text.titles.attachments')}>

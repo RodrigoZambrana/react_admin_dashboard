@@ -29,7 +29,15 @@
             "productNew": "New Product",
             "orderList": "Order List",
             "orderDetails": "Order Details",
-            "addOrder": "Add Order"
+            "addOrder": "Add Order",
+            "budgetList": "Budgets",
+            "budgetNew": "Add Budget"
+        },
+        "appsBudgets": {
+            "budgets": "Budgets",
+            "list": "Budget List",
+            "summary": "Budget Summary",
+            "new": "New Budget"
         },
         "appsAccounting": {
             "accounting": "Accounting",
@@ -63,6 +71,7 @@
             "account": "Account",
             "settings": "Settings",
             "invoice": "Invoice",
+            "budget": "Budget",
             "activityLog": "Activity Log",
             "kycForm": "KYC Form"
         },
@@ -410,6 +419,7 @@
             "available": "Available",
             "password": "Password",
             "invoice": "Invoice",
+            "budget": "Budget",
             "shippingAddress": "Shipping Address",
             "billingAddress": "Billing address",
             "comments": "Comments",
@@ -441,12 +451,13 @@
             "name": "Name",
             "category": "Category",
             "quantity": "Quantity",
-            "price": "Price",
+            "price": "Unit Price",
             "salePrice": "Sale price",
             "costPrice": "Cost price",
             "product": "Product",
             "reference": "Reference",
             "amount": "Amount",
+            "taxCreditEligible": "Generates tax credit",
             "createdTime": "Created Time",
             "assignee": "Assignee",
             "sold": "Sold",
@@ -460,7 +471,8 @@
             "actions": "Actions",
             "published": "Published",
             "stock": "Stock",
-            "comments": "Comments"
+            "comments": "Comments",
+            "specifications": "Specifications"
         },
         "mobileNav": {
             "home": "Home",
@@ -493,12 +505,15 @@
             "submit": "Submit",
             "done": "Done",
             "comment": "Comment",
+            "copy": "Copy",
+            "copied": "Copied",
             "remove": "Remove",
             "add": "Add",
             "addMore": "Add More",
             "download": "Download",
             "import": "Import",
             "send": "Send",
+            "generateMessage": "Generate message",
             "change": "Change",
             "rename": "Rename",
             "filter": "Filter",
@@ -534,6 +549,7 @@
             "eventTitle": "Please enter title",
             "leaveComment": "Leave a comment",
             "enterComment": "Add a note for this product",
+            "specifications": "Product specifications",
             "quickSearchMember": "Quick search member",
             "ticketTitle": "Please enter ticket title",
             "writeComment": "Write comment",
@@ -583,7 +599,12 @@
             "productName": "Product Name",
             "code": "Code",
             "description": "Description",
+            "specifications": "Specifications",
             "unitOfMeasure": "Sales unit",
+            "widthMeters": "Width (m)",
+            "heightMeters": "Height (m)",
+            "linearMeters": "Linear meters (m)",
+            "estimatedQuantity": "Estimated quantity: {{value}} {{unit}}",
             "sku": "SKU",
             "bulkDiscountPrice": "Bulk Discount Price",
             "taxRatePercent": "Tax Rate(%)",
@@ -623,8 +644,10 @@
             "inProgress": "In Progress",
             "linkedTickets": "Linked tickets",
             "recipient": "Recipient",
+            "name": "Name",
             "billTo": "Bill to",
             "address": "Address",
+            "budgetValidity": "Budget validity",
             "storyPoint": "{{count}} story point",
             "createdOn": "Created on",
             "assignees": "Assignees",
@@ -633,6 +656,7 @@
             "otherPaymentMethods": "Other payment methods",
             "issuedBy": "Issued by",
             "invoiceNumber": "Invoice number",
+            "budgetNumber": "Budget number",
             "issuedOn": "Issue date",
             "taxId": "Tax ID",
             "website": "Website",
@@ -674,6 +698,11 @@
             "ticketTitle": "Ticket title",
             "untitledBoard": "Untitled Board",
             "untitledCard": "Untitled Card"
+        },
+        "specs": {
+            "width": "Width",
+            "height": "Height",
+            "length": "Length"
         },
         "date": {
             "monthsShort": {
@@ -1039,6 +1068,10 @@
         },
         "orders": {
             "title": "Orders",
+            "addAction": "New Order",
+            "invoiceAction": "View invoice",
+            "validUntilLabel": "Valid until",
+            "editAction": "Edit order",
             "delete": {
                 "title": "Delete order",
                 "confirm": "Are you sure you want to delete this order? All record related to this order will be deleted as well. This action cannot be undone.",
@@ -1066,7 +1099,8 @@
             "validation": {
                 "customerRequired": "Customer is required",
                 "itemsRequired": "Please add at least one product",
-                "customerAddressRequired": "Customer must have a primary address"
+                "customerAddressRequired": "Customer must have a primary address",
+                "quantityPositive": "Quantity must be greater than 0"
             },
             "summary": {
                 "purchaseSummaryTitle": "Purchase summary",
@@ -1086,6 +1120,43 @@
                 "unknownCustomer": "Unassigned customer",
                 "noContact": "No contact details provided",
                 "notesAndScheduling": "Notes & scheduling"
+            }
+        },
+        "documents": {
+            "squareSummary": "Width: {{width}} m · Height: {{height}} m",
+            "linearSummary": "Linear meters: {{length}} m",
+            "noExtraAttributes": "No additional details required.",
+            "quickMessage": {
+                "title": "Generated message",
+                "header": "Quantity Product Specifications Comments Total (Unit price)",
+                "perUnit": "each",
+                "totalLabel": "Total due",
+                "copyError": "We couldn't copy the message.",
+                "measurementMissing": "Complete the required measurements (width, height, length) before continuing."
+            }
+        },
+        "budgets": {
+            "title": "Budgets",
+            "addAction": "Create budget",
+            "invoiceAction": "Download budget",
+            "validUntilLabel": "Valid until",
+            "editAction": "Edit budget",
+            "importSuccess": "Successfully imported {{imported}} budgets.",
+            "importSuccessWithErrors": "Budgets imported: {{imported}}. {{failed}} rows returned errors.",
+            "importError": "We couldn't import the budgets.",
+            "importErrorRow": "Row {{row}}: {{message}}",
+            "importErrorMore": "{{count}} additional errors were omitted.",
+            "exportSuccess": "Budget CSV generated successfully.",
+            "exportError": "We couldn't generate the budget CSV.",
+            "delete": {
+                "title": "Delete budget",
+                "confirm": "Are you sure you want to delete this budget? This action cannot be undone.",
+                "titleSuccess": "Budget deleted",
+                "single": "Budget deleted successfully",
+                "batch": "{{count}} budgets deleted successfully"
+            },
+            "table": {
+                "id": "Budget"
             }
         },
         "productForm": {
@@ -1690,6 +1761,11 @@
             "product": "No product found!",
             "order": "No order found!",
             "user": "No user found!"
+        },
+        "labels": {
+            "yes": "Yes",
+            "no": "No",
+            "notSpecified": "Not specified"
         }
     },
     "notification": {

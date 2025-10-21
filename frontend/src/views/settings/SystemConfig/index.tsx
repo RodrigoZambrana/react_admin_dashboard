@@ -22,15 +22,21 @@ import {
 } from '@/services/SettingsService'
 import { useAppDispatch } from '@/store'
 import { setAvailableCurrencies } from '@/store/slices/currency/currencySlice'
+import { formatCurrencyOptionLabel, getCurrencyDefinition } from '@/utils/currency'
 
 const { Tr, Td, THead, Th, TBody } = Table
 
 const FALLBACK_CURRENCY_CODES = ['USD', 'UYU'] as const
 const FALLBACK_CURRENCY_OPTIONS: { value: string; label: string; description?: string }[] =
-    FALLBACK_CURRENCY_CODES.map((code) => ({
-        value: code,
-        label: code,
-    }))
+    FALLBACK_CURRENCY_CODES.map((code) => {
+        const definition = getCurrencyDefinition(code)
+        const description = definition?.label ?? code
+        return {
+            value: code,
+            label: formatCurrencyOptionLabel(code, description),
+            description,
+        }
+    })
 
 const SystemConfig = () => {
     const { t } = useTranslation()
@@ -66,15 +72,6 @@ const SystemConfig = () => {
         | { type: 'delete'; code: string }
         | null
     >(null)
-
-    const buildOptionLabel = useCallback((code: string, text?: string, symbol?: string) => {
-        const parts = [code]
-        if (text) {
-            parts.push(text)
-        }
-        const suffix = symbol ? `(${symbol})` : undefined
-        return suffix ? `${parts.join(' · ')} ${suffix}` : parts.join(' · ')
-    }, [])
 
     const currencyBaseLabel = t('settings.systemConfig.currencyBase.label', {
         defaultValue: 'Base currency',
@@ -140,9 +137,9 @@ const SystemConfig = () => {
     const getCurrencyLabel = useCallback(
         (code: string) => {
             const option = resolvedCurrencyOptions.find((item) => item.value === code)
-            return option?.label ?? buildOptionLabel(code)
+            return option?.label ?? formatCurrencyOptionLabel(code)
         },
-        [buildOptionLabel, resolvedCurrencyOptions],
+        [resolvedCurrencyOptions],
     )
 
     const syncStoreCurrencies = useCallback(
@@ -209,16 +206,12 @@ const SystemConfig = () => {
                 const base = rawBase.trim().toUpperCase()
                 setCurrencyBase(base)
                 const value = Number(data.taxRate)
-                const fallbackWithLabels = FALLBACK_CURRENCY_OPTIONS.map((item) => ({
-                    value: item.value,
-                    label: buildOptionLabel(item.value, item.description, undefined),
-                    description: item.description,
-                }))
+                const fallbackWithLabels = [...FALLBACK_CURRENCY_OPTIONS]
                 const optionList =
                     Array.isArray(data.currencyOptions) && data.currencyOptions.length
                         ? data.currencyOptions.map((item) => ({
                               value: (item.code || '').trim().toUpperCase(),
-                              label: buildOptionLabel(
+                              label: formatCurrencyOptionLabel(
                                   (item.code || '').trim().toUpperCase(),
                                   item.label,
                                   item.symbol,
@@ -255,7 +248,7 @@ const SystemConfig = () => {
             }
         }
         load()
-    }, [buildOptionLabel, deriveRateRecord, ensureCurrencyPresence, syncStoreCurrencies])
+    }, [deriveRateRecord, ensureCurrencyPresence, syncStoreCurrencies])
 
     useEffect(() => {
         if (currenciesLoaded) {

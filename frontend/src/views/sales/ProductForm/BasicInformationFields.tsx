@@ -3,6 +3,7 @@ import AdaptableCard from '@/components/shared/AdaptableCard'
 import RichTextEditor from '@/components/shared/RichTextEditor'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
+import Textarea from '@/components/ui/Textarea'
 import { FormItem } from '@/components/ui/Form'
 import { Field, FormikErrors, FormikTouched, FieldProps } from 'formik'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +16,7 @@ type FormFieldsName = {
     name: string
     productCode: string
     description: string
+    specifications: string
     unitOfMeasure: string
 }
 
@@ -109,6 +111,29 @@ const BasicInformationFields = (props: BasicInformationFields) => {
                             onChange={(val) =>
                                 form.setFieldValue(field.name, val)
                             }
+                        />
+                    )}
+                </Field>
+            </FormItem>
+            <FormItem
+                label={t('text.labels.specifications', {
+                    defaultValue: 'Especificaciones',
+                })}
+                labelClass="justify-start!"
+                invalid={Boolean(
+                    errors.specifications && touched.specifications,
+                )}
+                errorMessage={errors.specifications}
+            >
+                <Field name="specifications">
+                    {({ field }: FieldProps<string>) => (
+                        <Textarea
+                            {...field}
+                            autoComplete="off"
+                            rows={4}
+                            placeholder={t('text.placeholders.specifications', {
+                                defaultValue: 'Especificaciones del producto',
+                            })}
                         />
                     )}
                 </Field>

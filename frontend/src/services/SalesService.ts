@@ -1,5 +1,10 @@
 import ApiService from './ApiService'
 
+export type SalesDocumentResource = 'orders' | 'budgets'
+
+const documentEndpoint = (resource: SalesDocumentResource) =>
+    resource === 'budgets' ? '/budgets' : '/orders'
+
 export async function apiGetSalesDashboardData<
     T extends Record<string, unknown>,
     U extends Record<string, unknown>,
@@ -85,9 +90,10 @@ export async function apiCreateSalesProduct<
 
 export async function apiGetSalesOrders<T, U extends Record<string, unknown>>(
     params: U,
+    resource: SalesDocumentResource = 'orders',
 ) {
     return ApiService.fetchData<T>({
-        url: '/orders',
+        url: documentEndpoint(resource),
         method: 'get',
         params,
     })
@@ -96,9 +102,9 @@ export async function apiGetSalesOrders<T, U extends Record<string, unknown>>(
 export async function apiDeleteSalesOrders<
     T,
     U extends Record<string, unknown>,
->(data: U) {
+>(data: U, resource: SalesDocumentResource = 'orders') {
     return ApiService.fetchData<T>({
-        url: '/orders',
+        url: documentEndpoint(resource),
         method: 'delete',
         data,
     })
@@ -107,18 +113,18 @@ export async function apiDeleteSalesOrders<
 export async function apiExportSalesOrders<
     T = Blob,
     U extends Record<string, unknown> = Record<string, unknown>,
->(params: U) {
+>(params: U, resource: SalesDocumentResource = 'orders') {
     return ApiService.fetchData<T>({
-        url: '/orders/export',
+        url: `${documentEndpoint(resource)}/export`,
         method: 'get',
         params,
         responseType: 'blob',
     })
 }
 
-export async function apiImportSalesOrders<T>(data: FormData) {
+export async function apiImportSalesOrders<T>(data: FormData, resource: SalesDocumentResource = 'orders') {
     return ApiService.fetchData<T>({
-        url: '/orders/import',
+        url: `${documentEndpoint(resource)}/import`,
         method: 'post',
         data,
     })
@@ -127,9 +133,9 @@ export async function apiImportSalesOrders<T>(data: FormData) {
 export async function apiGetSalesOrderDetails<
     T,
     U extends Record<string, unknown>,
->(params: U) {
+>(params: U, resource: SalesDocumentResource = 'orders') {
     return ApiService.fetchData<T>({
-        url: `/orders/${(params as any).id}/details`,
+        url: `${documentEndpoint(resource)}/${(params as any).id}/details`,
         method: 'get',
     })
 }
@@ -137,9 +143,9 @@ export async function apiGetSalesOrderDetails<
 export async function apiUpdateSalesOrderStatus<
     T,
     U extends Record<string, unknown>,
->(data: U) {
+>(data: U, resource: SalesDocumentResource = 'orders') {
     return ApiService.fetchData<T>({
-        url: `/orders/${(data as any).id}/status`,
+        url: `${documentEndpoint(resource)}/${(data as any).id}/status`,
         method: 'put',
         data,
     })
@@ -148,9 +154,9 @@ export async function apiUpdateSalesOrderStatus<
 export async function apiUpdateSalesOrderPaymentMethod<
     T,
     U extends Record<string, unknown>,
->(data: U) {
+>(data: U, resource: SalesDocumentResource = 'orders') {
     return ApiService.fetchData<T>({
-        url: `/orders/${(data as any).id}/payment-method`,
+        url: `${documentEndpoint(resource)}/${(data as any).id}/payment-method`,
         method: 'put',
         data,
     })
@@ -159,9 +165,10 @@ export async function apiUpdateSalesOrderPaymentMethod<
 // Orders CRUD
 export async function apiGetSalesOrder<T, U extends Record<string, unknown>>(
     params: U,
+    resource: SalesDocumentResource = 'orders',
 ) {
     return ApiService.fetchData<T>({
-        url: `/orders/${(params as any).id}/details`,
+        url: `${documentEndpoint(resource)}/${(params as any).id}/details`,
         method: 'get',
     })
 }
@@ -169,9 +176,9 @@ export async function apiGetSalesOrder<T, U extends Record<string, unknown>>(
 export async function apiCreateSalesOrder<
     T,
     U extends Record<string, unknown>,
->(data: U) {
+>(data: U, resource: SalesDocumentResource = 'orders') {
     return ApiService.fetchData<T>({
-        url: '/orders',
+        url: documentEndpoint(resource),
         method: 'post',
         data,
     })
@@ -180,10 +187,24 @@ export async function apiCreateSalesOrder<
 export async function apiSaveSalesOrder<
     T,
     U extends Record<string, unknown>,
->(data: U) {
+>(data: U, resource: SalesDocumentResource = 'orders') {
     return ApiService.fetchData<T>({
-        url: `/orders/${(data as any).id}`,
+        url: `${documentEndpoint(resource)}/${(data as any).id}`,
         method: 'put',
         data,
+    })
+}
+
+export async function apiSendBudget<T>(id: number) {
+    return ApiService.fetchData<T>({
+        url: `/budgets/${id}/send`,
+        method: 'post',
+    })
+}
+
+export async function apiConfirmBudget<T>(id: number) {
+    return ApiService.fetchData<T>({
+        url: `/budgets/${id}/confirm`,
+        method: 'post',
     })
 }

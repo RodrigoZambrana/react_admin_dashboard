@@ -42,6 +42,11 @@ enum SalesUnit {
   LINEAR_METER
 }
 
+enum DocumentType {
+  ORDER
+  BUDGET
+}
+
 // Notification
 model Notification {
   id            Int      @id @default(autoincrement())
@@ -82,6 +87,7 @@ model User {
   calendarComments      CalendarEventComment[]
   activities            UserActivity[]
   devices               UserDevice[]
+  convertedOrders       Order[]                @relation("OrderConvertedBy")
 }
 
 model UserDevice {
@@ -156,6 +162,7 @@ model Product {
   productCode       String?
   img               String?
   description       String?
+  specifications    String?
   categoryId        Int?
   category          ProductCategory? @relation(fields: [categoryId], references: [id])
   salePrice         Decimal          @default(0) @map("precio_venta") @db.Decimal(12, 2)
@@ -201,6 +208,7 @@ model SystemConfig {
 // Sales Orders
 model Order {
   id                    Int            @id @default(autoincrement())
+  documentType          DocumentType   @default(ORDER)
   customerId            Int
   customer              Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
   date                  DateTime       @default(now())
@@ -230,30 +238,58 @@ model Order {
   orderCurrency         String         @default("UYU")
   fxBase                String?
   fxRates               Json?
+  currencySnapshot      String?
+  taxRateSnapshot       Decimal?       @db.Decimal(18, 4)
+  priceListIdSnapshot   Int?
+  exchangeRateSnapshot  Json?
+  validUntil            DateTime?
+  originId              Int?
+  origin                Order?         @relation("OrderOrigin", fields: [originId], references: [id], onDelete: SetNull)
+  convertedOrderId      Int?
+  convertedOrder        Order?         @relation("OrderConversion", fields: [convertedOrderId], references: [id], onDelete: SetNull)
+  convertedAt           DateTime?
+  convertedBy           Int?
+  convertedByUser       User?          @relation("OrderConvertedBy", fields: [convertedBy], references: [id], onDelete: SetNull)
+  version               Int            @default(1)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
   items                 OrderItem[]
+  conversions           Order[]        @relation("OrderOrigin")
+  budgetSource          Order?         @relation("OrderConversion")
+
+  @@unique([originId])
+  @@unique([convertedOrderId])
+  @@index([documentType, statusId, customerId, createdAt])
+  @@index([documentType, createdAt])
+  @@index([validUntil])
 }
 
 model OrderItem {
-  id          Int      @id @default(autoincrement())
-  orderId     Int
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId   Int?
-  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  name        String
-  price       Decimal  @default(0) @db.Decimal(18, 2)
-  qty         Int      @default(1)
-  img         String?
-  description String?
-  comments    String?
-  unitAmount              Decimal? @db.Decimal(18, 4)
+  id                      Int        @id @default(autoincrement())
+  orderId                 Int
+  order                   Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId               Int?
+  product                 Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+  name                    String
+  price                   Decimal    @default(0) @db.Decimal(18, 2)
+  qty                     Int        @default(1)
+  img                     String?
+  description             String?
+  comments                String?
+  unitAmount              Decimal?   @db.Decimal(18, 4)
   unitCurrency            String?
-  unitAmountOrderCurrency Decimal? @db.Decimal(18, 4)
-  conversionRate          Decimal? @db.Decimal(18, 8)
-  unitCostAmount          Decimal? @db.Decimal(18, 4)
+  unitAmountOrderCurrency Decimal?   @db.Decimal(18, 4)
+  conversionRate          Decimal?   @db.Decimal(18, 8)
+  unitCostAmount          Decimal?   @db.Decimal(18, 4)
   unitCostCurrency        String?
-  unitCostOrderCurrency   Decimal? @db.Decimal(18, 4)
+  unitCostOrderCurrency   Decimal?   @db.Decimal(18, 4)
+  customAttributes        Json?      @default("{}")
+  pricingMethodSnapshot   SalesUnit?
+  unitPriceSnapshot       Decimal?   @db.Decimal(18, 4)
+  skuSnapshot             String?
+  nameSnapshot            String?
+  specSummary             String?
+  specJson                Json?      @default("{}")
 }
 
 model PaymentMethod {
@@ -309,6 +345,7 @@ model Expense {
   paymentMethodId  Int?
   paymentMethod    PaymentMethod?      @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
   paymentReference String?
+  taxCreditEligible Boolean            @default(true)
   attachments      ExpenseAttachment[]
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
@@ -476,19 +513,19 @@ model CalendarEventComment {
 }
 
 model CompanyProfile {
-  id            Int      @id @default(autoincrement())
-  singleton     String   @default("default") @unique
-  legalName     String
-  tradeName     String
-  taxId         String?
-  email         String?
-  phone         String?
-  website       String?
-  addressLine1  String?
-  addressLine2  String?
-  logo          Bytes?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  singleton    String   @unique @default("default")
+  legalName    String
+  tradeName    String
+  taxId        String?
+  email        String?
+  phone        String?
+  website      String?
+  addressLine1 String?
+  addressLine2 String?
+  logo         Bytes?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model CustomerAddress {

@@ -5,24 +5,24 @@ import {
     getOrders,
     setTableData,
     useAppDispatch,
-    useAppSelector,
+    useSalesOrderListData,
     setSelectedRows,
 } from '../store'
+import type { SalesTableQueries } from '../store'
 import debounce from 'lodash/debounce'
 import cloneDeep from 'lodash/cloneDeep'
-import type { TableQueries } from '@/@types/common'
 import type { ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSalesDocumentI18n } from '../../context/useSalesDocumentI18n'
 
 const OrderTableSearch = () => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
+    const { resource } = useSalesDocumentI18n()
 
     const searchInput = useRef<HTMLInputElement>(null)
 
-    const tableData = useAppSelector(
-        (state) => state.salesOrderList.data.tableData,
-    )
+    const { tableData } = useSalesOrderListData()
 
     const debounceFn = debounce(handleDebounceFn, 500)
 
@@ -39,10 +39,10 @@ const OrderTableSearch = () => {
         }
     }
 
-    const fetchData = (data: TableQueries) => {
+    const fetchData = (data: SalesTableQueries) => {
         dispatch(setSelectedRows([]))
-        dispatch(setTableData(data))
-        dispatch(getOrders(data))
+        dispatch(setTableData({ ...data, resource }))
+        dispatch(getOrders({ ...data, resource }))
     }
 
     const onEdit = (e: ChangeEvent<HTMLInputElement>) => {

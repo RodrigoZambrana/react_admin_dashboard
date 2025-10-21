@@ -21,7 +21,8 @@ import PaymentSummary from '@/views/sales/OrderDetails/components/PaymentSummary
 import EditableOrderProductsTable, { EditableItem } from '@/views/sales/components/EditableOrderProductsTable'
 import Steps from '@/components/ui/Steps'
 import Avatar from '@/components/ui/Avatar'
-import { HiMail, HiPhone, HiOutlineUser } from 'react-icons/hi'
+import { HiMail, HiPhone, HiOutlineUser, HiOutlineCheck } from 'react-icons/hi'
+import { CgCopy } from 'react-icons/cg'
 import AddCustomerDrawer from '@/components/shared/AddCustomerDrawer'
 import type { FormModel as CustomerFormModel } from '@/views/crm/CustomerForm'
 import ProductForm, {
@@ -36,9 +37,17 @@ import useResponsive from '@/utils/hooks/useResponsive'
 import { useExchangeRates } from '@/utils/hooks/useExchangeRates'
 import classNames from 'classnames'
 import { useAppSelector } from '@/store'
-import { normalizeCurrencyCode, formatCurrency } from '@/utils/currency'
+import {
+    normalizeCurrencyCode,
+    formatCurrency,
+    formatCurrencyOptionLabel,
+    STANDARD_FALLBACK_CURRENCIES,
+} from '@/utils/currency'
 import { resolveTextDirection } from '@/utils/textDirection'
 import type { BaseCurrencySnapshot } from '@/store/slices/currency/currencySlice'
+import { useSalesDocumentI18n } from '../context/useSalesDocumentI18n'
+import { DEFAULT_SALES_UNIT, type SalesUnit } from '@/constants/product.constant'
+import { calculateLineTotal, getDerivedUnitPrice, resolveSalesUnit } from '@/utils/salesUnitCalculation'
 
 type Item = EditableItem
 
@@ -52,14 +61,61 @@ type ShippingOption = {
 }
 
 const OrderNew = () => {
-    const { t, i18n } = useTranslation()
+    const { i18n } = useTranslation()
+    const {
+        t,
+        tDoc,
+        resource,
+        routes,
+        mode,
+        customerRequired,
+        layoutMode,
+    } = useSalesDocumentI18n()
+    const itemsOnlyMode = layoutMode === 'itemsOnly'
+    const docMessage = useCallback(
+        (key: string, fallbackKey: string, defaultValue: string) =>
+            tDoc(key, {
+                defaultValue: t(fallbackKey, { defaultValue }),
+            }),
+        [t, tDoc],
+    )
+    const docSummary = useCallback(
+        (key: string, defaultValue: string) =>
+            docMessage(`summary.${key}`, `sales.orders.summary.${key}`, defaultValue),
+        [docMessage],
+    )
+    const validationCustomerRequired = docMessage(
+        'validation.customerRequired',
+        'sales.orders.validation.customerRequired',
+        'Customer is required',
+    )
+    const validationItemsRequired = docMessage(
+        'validation.itemsRequired',
+        'sales.orders.validation.itemsRequired',
+        'Add at least one product',
+    )
+    const validationQuantityPositive = docMessage(
+        'validation.quantityPositive',
+        'sales.orders.validation.quantityPositive',
+        'Quantity must be greater than 0',
+    )
+    const validationCustomerAddressRequired = docMessage(
+        'validation.customerAddressRequired',
+        'sales.orders.validation.customerAddressRequired',
+        'The customer must have a primary address',
+    )
+    const exchangeRateMissingMessage = docMessage(
+        'exchangeRateMissing',
+        'sales.orders.exchangeRateMissing',
+        'Missing exchange rate for the selected currency conversion.',
+    )
     const navigate = useNavigate()
     const location = useLocation()
     const storeCurrency = useAppSelector((state) => state.currency.code)
     const defaultCurrency =
         normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
     const fallbackCurrencyList = useMemo(() => {
-        const baseList = [defaultCurrency, 'USD', 'UYU']
+        const baseList = [defaultCurrency, ...STANDARD_FALLBACK_CURRENCIES]
         const normalized = baseList
             .map((code) => normalizeCurrencyCode(code, defaultCurrency) || defaultCurrency)
             .filter((code): code is string => Boolean(code))
@@ -69,7 +125,7 @@ const OrderNew = () => {
         () =>
             fallbackCurrencyList.map((code) => ({
                 value: code,
-                label: code,
+                label: formatCurrencyOptionLabel(code),
             })),
         [fallbackCurrencyList],
     )
@@ -82,17 +138,22 @@ const OrderNew = () => {
             currency?: string
             img?: string
             description?: string
+            unitOfMeasure?: SalesUnit
+            specifications?: string
         }[]
     >([])
     const [methods, setMethods] = useState<{ value: string; label: string }[]>([])
     const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([])
     const [customerDetail, setCustomerDetail] = useState<any | null>(null)
-    const [currentStep, setCurrentStep] = useState(0)
+    const [currentStep, setCurrentStep] = useState(() => (itemsOnlyMode ? 1 : 0))
     const [newCustomerOpen, setNewCustomerOpen] = useState(false)
     const [newProductOpen, setNewProductOpen] = useState(false)
     const [taxRate, setTaxRate] = useState(22)
+    const [quickMessage, setQuickMessage] = useState<string | null>(null)
+    const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle')
     const formikRef = useRef<FormikProps<any>>(null)
     const initialDataLoadKeyRef = useRef<string | null>(null)
+    const quickMessageRef = useRef<HTMLDivElement | null>(null)
     const { smaller } = useResponsive()
     const isCompactViewport = smaller.md
     const shippingVendorOptions = useMemo(
@@ -108,6 +169,29 @@ const OrderNew = () => {
                   })),
         [shippingOptions],
     )
+    const defaultValidUntil = useMemo<Date | null>(() => {
+        if (mode !== 'budget') {
+            return null
+        }
+        const validUntil = new Date()
+        validUntil.setDate(validUntil.getDate() + 15)
+        return validUntil
+    }, [mode])
+
+    useEffect(() => {
+        if (!quickMessage || !quickMessageRef.current) {
+            return
+        }
+        quickMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, [quickMessage])
+
+    useEffect(() => {
+        if (copyStatus === 'idle') {
+            return
+        }
+        const timer = window.setTimeout(() => setCopyStatus('idle'), 2000)
+        return () => window.clearTimeout(timer)
+    }, [copyStatus])
 
     const {
         snapshot: exchangeSnapshot,
@@ -124,9 +208,200 @@ const OrderNew = () => {
     const currencies = exchangeSnapshot.currencies
     const currencyOptions = exchangeSnapshot.options
     const roundCurrencyValue = useCallback(
-        (value: number) => Math.round((Number(value) + Number.EPSILON) * 100) / 100,
-        [],
+        (value: number) => {
+            const numeric = Number(value)
+            if (!Number.isFinite(numeric)) {
+                return 0
+            }
+            if (mode === 'budget') {
+                return Math.ceil(numeric)
+            }
+            return Math.round((numeric + Number.EPSILON) * 100) / 100
+        },
+        [mode],
     )
+
+    const clearQuickMessage = useCallback(() => {
+        setQuickMessage(null)
+        setCopyStatus('idle')
+    }, [])
+
+    const hasRequiredMeasurements = useCallback((item: Item) => {
+        const unit = resolveSalesUnit(item.unitOfMeasure, item.pricingMethod)
+        if (unit === 'UNIT') {
+            return true
+        }
+        const attrs = item.customAttributes
+        if (!attrs || typeof attrs !== 'object') {
+            return false
+        }
+        const readPositiveNumber = (key: string) => {
+            const raw = (attrs as Record<string, unknown>)[key]
+            if (raw === null || raw === undefined) {
+                return undefined
+            }
+            if (typeof raw === 'number') {
+                return Number.isFinite(raw) && raw > 0 ? raw : undefined
+            }
+            const numeric = Number(raw)
+            return Number.isFinite(numeric) && numeric > 0 ? numeric : undefined
+        }
+        if (unit === 'SQUARE_METER') {
+            return (
+                readPositiveNumber('width') !== undefined &&
+                readPositiveNumber('height') !== undefined
+            )
+        }
+        if (unit === 'LINEAR_METER') {
+            return readPositiveNumber('length') !== undefined
+        }
+        return true
+    }, [])
+
+    const ensureMeasurementsFilled = useCallback(
+        (items: Item[]) => {
+            if (!items.length) {
+                return true
+            }
+            const incomplete = items.filter(
+                (item) => !hasRequiredMeasurements(item),
+            )
+            if (!incomplete.length) {
+                return true
+            }
+            const baseMessage = t('sales.documents.quickMessage.measurementMissing', {
+                defaultValue:
+                    'Completa las medidas requeridas (ancho, alto, largo) antes de continuar.',
+            })
+            const productNames = incomplete
+                .map((item) =>
+                    typeof item.name === 'string' ? item.name.trim() : '',
+                )
+                .filter((name) => name.length > 0)
+            const detailSuffix = productNames.length
+                ? ` (${productNames.join(', ')})`
+                : ''
+            toast.push(
+                <Notification title={t('validation.failed')} type="danger">
+                    {`${baseMessage}${detailSuffix}`}
+                </Notification>,
+                { placement: 'top-center' },
+            )
+            return false
+        },
+        [hasRequiredMeasurements, t],
+    )
+
+    const ensurePositiveQuantity = useCallback((value: unknown) => {
+        const numeric = Number(value)
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+            return { qty: 1, valid: false }
+        }
+        return { qty: numeric, valid: true }
+    }, [])
+
+    const composeQuickBudgetMessage = useCallback(
+        ({
+            items,
+            currency,
+            grandTotal,
+        }: {
+            items: Item[]
+            currency: string
+            grandTotal: number
+        }) => {
+            if (!items.length) {
+                return ''
+            }
+            const perUnitLabel = t('sales.documents.quickMessage.perUnit', {
+                defaultValue: 'c/u',
+            })
+            const lines = items.map((item) => {
+                const parts: string[] = []
+                const qtyValue = Number(item.qty ?? 0)
+                parts.push(
+                    Number.isFinite(qtyValue) && qtyValue > 0 ? String(qtyValue) : '0',
+                )
+                if (item.name) {
+                    parts.push(item.name.trim())
+                }
+                const specsRaw =
+                    (typeof item.specSummary === 'string' && item.specSummary.trim()) ||
+                    (typeof item.specifications === 'string' &&
+                        item.specifications.trim()) ||
+                    ''
+                if (specsRaw) {
+                    const specSegments = specsRaw
+                        .split(/\r?\n/)
+                        .map((segment) => segment.trim())
+                        .filter(Boolean)
+                    parts.push(...specSegments)
+                }
+                const commentsRaw =
+                    typeof item.comments === 'string' ? item.comments.trim() : ''
+                if (commentsRaw) {
+                    parts.push(commentsRaw.replace(/\s+/g, ' '))
+                }
+                const lineTotal = roundCurrencyValue(calculateLineTotal(item))
+                const formattedLineTotal = formatCurrency(
+                    lineTotal,
+                    currency,
+                    i18n.language,
+                    { fallbackCurrency: defaultCurrency },
+                )
+                const derivedUnitPrice = getDerivedUnitPrice(item)
+                const normalizedUnitPrice = Number.isFinite(derivedUnitPrice)
+                    ? roundCurrencyValue(derivedUnitPrice)
+                    : roundCurrencyValue(item.price)
+                const formattedUnitPrice = formatCurrency(
+                    normalizedUnitPrice,
+                    currency,
+                    i18n.language,
+                    { fallbackCurrency: defaultCurrency },
+                )
+                const showUnitPriceDetail =
+                    Number.isFinite(qtyValue) && qtyValue > 1
+                const totalPart = showUnitPriceDetail
+                    ? `${formattedLineTotal} (${formattedUnitPrice} ${perUnitLabel})`
+                    : formattedLineTotal
+                parts.push(totalPart)
+                return parts.filter(Boolean).join(' ')
+            })
+            const totalLabel = t('sales.documents.quickMessage.totalLabel', {
+                defaultValue: 'Total a pagar',
+            })
+            const formattedGrandTotal = formatCurrency(
+                grandTotal,
+                currency,
+                i18n.language,
+                { fallbackCurrency: defaultCurrency },
+            )
+            return [...lines, `${totalLabel}: ${formattedGrandTotal}`].join(
+                '\n',
+            )
+        },
+        [defaultCurrency, i18n.language, roundCurrencyValue, t],
+    )
+
+    const copyQuickMessage = useCallback(async () => {
+        if (!quickMessage) {
+            return
+        }
+        try {
+            await navigator.clipboard.writeText(quickMessage)
+            setCopyStatus('success')
+        } catch {
+            setCopyStatus('error')
+            toast.push(
+                <Notification title={t('validation.failed')} type="danger">
+                    {t('sales.documents.quickMessage.copyError', {
+                        defaultValue: 'No se pudo copiar el mensaje.',
+                    })}
+                </Notification>,
+                { placement: 'top-center' },
+            )
+        }
+    }, [quickMessage, t])
 
     const convertItemToCurrency = useCallback(
         (
@@ -149,12 +424,20 @@ const OrderNew = () => {
                 snapshot,
             })
             const hasMissing = missingRates.length > 0 || !Number.isFinite(value)
-            return {
+            const nextUnitCurrency = hasMissing ? unitCurrency : target
+            const convertedUnitPrice = hasMissing
+                ? roundCurrencyValue(unitPrice)
+                : roundCurrencyValue(value)
+            const nextItem: Item = {
                 ...item,
-                unitPrice,
-                unitCurrency,
-                price: hasMissing ? roundCurrencyValue(unitPrice) : roundCurrencyValue(value),
-                currency: hasMissing ? unitCurrency : target,
+                unitPrice: convertedUnitPrice,
+                unitCurrency: nextUnitCurrency,
+                currency: nextUnitCurrency,
+            }
+            const derivedPrice = roundCurrencyValue(getDerivedUnitPrice(nextItem))
+            return {
+                ...nextItem,
+                price: derivedPrice,
             }
         },
         [convert, exchangeSnapshot, roundCurrencyValue],
@@ -184,12 +467,21 @@ const OrderNew = () => {
         [currencyBase, resolvedCurrencyOptions, fallbackCurrencyOptions],
     )
 
-    const orderCurrencyLabel = t('sales.orders.orderCurrencyLabel', {
-        defaultValue: 'Order currency',
-    })
-    const orderCurrencyPlaceholder = t('sales.orders.orderCurrencyPlaceholder', {
-        defaultValue: 'Select order currency',
-    })
+    const orderCurrencyLabel = docMessage(
+        'orderCurrencyLabel',
+        'sales.orders.orderCurrencyLabel',
+        'Order currency',
+    )
+    const orderCurrencyPlaceholder = docMessage(
+        'orderCurrencyPlaceholder',
+        'sales.orders.orderCurrencyPlaceholder',
+        'Select order currency',
+    )
+    const recipientLabel = customerRequired
+        ? t('text.labels.recipient')
+        : `${t('text.labels.recipient')} ${t('text.labels.optionalHint', {
+              defaultValue: '(Opcional)',
+          })}`
 
     const addProduct = async (data: ProductFormModel) => {
         const response = await apiCreateSalesProduct<
@@ -256,6 +548,11 @@ const OrderNew = () => {
                             defaultCurrency,
                         img: p.img,
                         description: p.description,
+                        unitOfMeasure: (p.unitOfMeasure || DEFAULT_SALES_UNIT) as SalesUnit,
+                        specifications:
+                            typeof p.specifications === 'string'
+                                ? p.specifications
+                                : undefined,
                     })) || []
                 setProducts(pOpts)
 
@@ -364,22 +661,30 @@ const OrderNew = () => {
     }, [convert, convertItemToCurrency, defaultCurrency, exchangeSnapshot, refreshExchangeRates, roundCurrencyValue, t])
 
     useEffect(() => {
+        if (itemsOnlyMode) {
+            setCurrentStep(1)
+        }
+    }, [itemsOnlyMode])
+
+    useEffect(() => {
         const sp = new URLSearchParams(location.search)
-        const s = sp.get('step')
-        if (s) {
-            const n = Number(s)
-            if (!Number.isNaN(n)) {
-                setCurrentStep(Math.max(0, Math.min(3, n)))
+        if (!itemsOnlyMode) {
+            const s = sp.get('step')
+            if (s) {
+                const n = Number(s)
+                if (!Number.isNaN(n)) {
+                    setCurrentStep(Math.max(0, Math.min(3, n)))
+                }
             }
         }
         const openProduct = sp.get('addProduct')
         if (openProduct === '1' || openProduct === 'true') {
             setNewProductOpen(true)
         }
-    }, [location.search])
+    }, [itemsOnlyMode, location.search])
 
     useEffect(() => {
-        if (!shippingOptions.length || !formikRef.current) {
+        if (itemsOnlyMode || !shippingOptions.length || !formikRef.current) {
             return
         }
         const formik = formikRef.current
@@ -396,9 +701,12 @@ const OrderNew = () => {
                 currencyBase,
                 currentOrderCurrency,
             )
-            if (Number.isFinite(value)) {
-                formik.setFieldValue('shipping.deliveryFees', roundCurrencyValue(value))
-            }
+            formik.setFieldValue(
+                'shipping.deliveryFees',
+                Number.isFinite(value)
+                    ? roundCurrencyValue(value)
+                    : roundCurrencyValue(Number(first.deliveryFees ?? 0)),
+            )
             formik.setFieldValue(
                 'shipping.estimatedMin',
                 first.estimatedMin ?? 0,
@@ -408,16 +716,29 @@ const OrderNew = () => {
                 first.estimatedMax ?? first.estimatedMin ?? 0,
             )
         }
-    }, [convert, currencyBase, roundCurrencyValue, shippingOptions])
+    }, [convert, currencyBase, itemsOnlyMode, roundCurrencyValue, shippingOptions])
+
+    const pageTitle = tDoc('title', {
+        defaultValue: t('sales.orders.title', { defaultValue: 'Orders' }),
+    })
+    const listNavLabel = tDoc('listNavLabel', {
+        defaultValue: t('nav.appsSales.orderList'),
+    })
+    const addActionLabel = tDoc('addAction', {
+        defaultValue: t('text.actions.add'),
+    })
+    const pageHeading =
+        layoutMode === 'itemsOnly' ? pageTitle : `${listNavLabel} · ${addActionLabel}`
 
     return (
         <Container className="h-full">
-            <h3 className="mb-6">{t('nav.appsSales.orderList')} · {t('text.actions.add')}</h3>
+            <h3 className="mb-6">{pageHeading}</h3>
             <Formik
                 innerRef={formikRef}
                 initialValues={{
                     customerId: '',
                     date: new Date(),
+                    validUntil: defaultValidUntil,
                     paymentMehod: 'Cash',
                     orderCurrency: defaultCurrency,
                     items: [] as Item[],
@@ -449,10 +770,17 @@ const OrderNew = () => {
                     comment: '',
                 }}
                 validationSchema={Yup.object().shape({
-                    customerId: Yup.string().required(t('sales.orders.validation.customerRequired') as string),
+                    customerId: customerRequired
+                        ? Yup.string().required(validationCustomerRequired)
+                        : Yup.string()
+                              .transform((value) => (value === '' ? undefined : value))
+                              .nullable(),
                     date: Yup.date()
                         .typeError(t('text.validation.invalidDate'))
                         .required(t('text.validation.dateRequired')),
+                    validUntil: Yup.date()
+                        .nullable()
+                        .typeError(t('text.validation.invalidDate')),
                     paymentMehod: Yup.string().required('Payment method is required'),
                     orderCurrency: Yup.string()
                         .trim()
@@ -461,25 +789,49 @@ const OrderNew = () => {
                                 field: orderCurrencyLabel,
                             }),
                         ),
-                    shippingAddress: Yup.object().shape({
-                        street: Yup.string().required(t('text.validation.enterAddress')),
-                        number: Yup.string().required(t('text.validation.enterAddress')),
-                        city: Yup.string().required(t('text.validation.enterCity')),
-                        state: Yup.string().required(t('text.validation.enterState')),
-                        countryCode: Yup.string().required(t('text.validation.selectCountry')),
-                        corner: Yup.string().nullable(),
-                        apartment: Yup.string().nullable(),
-                    }),
+                    shippingAddress: itemsOnlyMode
+                        ? Yup.object().shape({
+                              street: Yup.string(),
+                              number: Yup.string(),
+                              city: Yup.string(),
+                              state: Yup.string(),
+                              countryCode: Yup.string(),
+                              corner: Yup.string().nullable(),
+                              apartment: Yup.string().nullable(),
+                          })
+                        : Yup.object().shape({
+                              street: Yup.string().required(t('text.validation.enterAddress')),
+                              number: Yup.string().required(t('text.validation.enterAddress')),
+                              city: Yup.string().required(t('text.validation.enterCity')),
+                              state: Yup.string().required(t('text.validation.enterState')),
+                              countryCode: Yup.string().required(
+                                  t('text.validation.selectCountry'),
+                              ),
+                              corner: Yup.string().nullable(),
+                              apartment: Yup.string().nullable(),
+                          }),
                     billingSameAsShipping: Yup.boolean(),
-                    billingAddress: Yup.object().shape({
-                        street: Yup.string().required(t('text.validation.enterAddress')),
-                        number: Yup.string().required(t('text.validation.enterAddress')),
-                        city: Yup.string().required(t('text.validation.enterCity')),
-                        state: Yup.string().required(t('text.validation.enterState')),
-                        countryCode: Yup.string().required(t('text.validation.selectCountry')),
-                        corner: Yup.string().nullable(),
-                        apartment: Yup.string().nullable(),
-                    }),
+                    billingAddress: itemsOnlyMode
+                        ? Yup.object().shape({
+                              street: Yup.string(),
+                              number: Yup.string(),
+                              city: Yup.string(),
+                              state: Yup.string(),
+                              countryCode: Yup.string(),
+                              corner: Yup.string().nullable(),
+                              apartment: Yup.string().nullable(),
+                          })
+                        : Yup.object().shape({
+                              street: Yup.string().required(t('text.validation.enterAddress')),
+                              number: Yup.string().required(t('text.validation.enterAddress')),
+                              city: Yup.string().required(t('text.validation.enterCity')),
+                              state: Yup.string().required(t('text.validation.enterState')),
+                              countryCode: Yup.string().required(
+                                  t('text.validation.selectCountry'),
+                              ),
+                              corner: Yup.string().nullable(),
+                              apartment: Yup.string().nullable(),
+                          }),
                     items: Yup.array()
                         .of(
                             Yup.object().shape({
@@ -488,11 +840,54 @@ const OrderNew = () => {
                                 price: Yup.number().min(0).required(),
                             }),
                         )
-                        .min(1, t('sales.orders.validation.itemsRequired') as string),
+                        .min(1, validationItemsRequired),
                 })}
                 onSubmit={async (values) => {
                     const orderCurrencyValue =
                         normalizeCurrencyCode(values.orderCurrency, currencyBase) || currencyBase
+
+                    if (itemsOnlyMode) {
+                        if (!ensureMeasurementsFilled(values.items as Item[])) {
+                            return
+                        }
+                        const deliveryFee = roundCurrencyValue(
+                            Number(values.shipping?.deliveryFees ?? 0),
+                        )
+                        const lineTotals = values.items.map((item) =>
+                            roundCurrencyValue(calculateLineTotal(item)),
+                        )
+                        const rawTotal = lineTotals.reduce(
+                            (accumulator, lineTotal) => accumulator + lineTotal,
+                            0,
+                        )
+                        const total = roundCurrencyValue(rawTotal)
+                        const grandTotal = roundCurrencyValue(total + deliveryFee)
+                        const message = composeQuickBudgetMessage({
+                            items: values.items as Item[],
+                            currency: orderCurrencyValue,
+                            grandTotal,
+                        })
+                        if (!message) {
+                            toast.push(
+                                <Notification title={t('validation.failed')} type="danger">
+                                    {validationItemsRequired}
+                                </Notification>,
+                                { placement: 'top-center' },
+                            )
+                            return
+                        }
+                        setCopyStatus('idle')
+                        setQuickMessage(message)
+                        return
+                    }
+
+                    const normalizePriceValue = (value: unknown) => {
+                        const numeric = Number(value)
+                        if (!Number.isFinite(numeric)) {
+                            return 0
+                        }
+                        return mode === 'budget' ? roundCurrencyValue(numeric) : numeric
+                    }
                     const normalizeAddress = (addr: typeof values.shippingAddress) => ({
                         street: addr.street,
                         number: addr.number,
@@ -509,29 +904,51 @@ const OrderNew = () => {
                         : normalizeAddress(values.billingAddress)
 
                     const payload = {
-                        customerId: String(values.customerId || ''),
+                        customerId: values.customerId ? String(values.customerId) : undefined,
                         // Backend expects ISO 8601 date string (IsDateString)
                         date: values.date ? new Date(values.date as any).toISOString() : undefined,
+                        validUntil: values.validUntil
+                            ? new Date(values.validUntil as any).toISOString()
+                            : undefined,
                         paymentMehod: String(values.paymentMehod || 'Cash'),
                         orderCurrency: orderCurrencyValue,
                         items: values.items.map((it) => {
                             const rawUnitPrice = Number(it.unitPrice)
+                            const normalizedUnitPrice = Number.isFinite(rawUnitPrice)
+                                ? normalizePriceValue(rawUnitPrice)
+                                : normalizePriceValue(it.price)
+                            const customAttrs =
+                                it.customAttributes && Object.keys(it.customAttributes).length > 0
+                                    ? it.customAttributes
+                                    : undefined
+                            const pricingMethod =
+                                (typeof it.pricingMethod === 'string' && it.pricingMethod.trim()) ||
+                                (typeof it.unitOfMeasure === 'string' && it.unitOfMeasure.trim()) ||
+                                undefined
                             return {
                                 productId: String(it.productId),
                                 name: it.name,
-                                price: Number(it.price) || 0,
+                                price: normalizePriceValue(it.price),
                                 qty: Number(it.qty) || 1,
                                 img: it.img,
                                 description: it.description,
                                 comments: it.comments,
                                 currency: orderCurrencyValue,
-                                unitPrice: Number.isFinite(rawUnitPrice)
-                                    ? rawUnitPrice
-                                    : Number(it.price) || 0,
+                                unitPrice: normalizedUnitPrice,
                                 unitCurrency:
                                     normalizeCurrencyCode(it.unitCurrency, orderCurrencyValue) ||
                                     normalizeCurrencyCode(it.currency, orderCurrencyValue) ||
                                     orderCurrencyValue,
+                                customAttributes: customAttrs,
+                                pricingMethod,
+                                specSummary:
+                                    typeof it.specSummary === 'string'
+                                        ? it.specSummary
+                                        : undefined,
+                                specifications:
+                                    typeof it.specifications === 'string'
+                                        ? it.specifications
+                                        : undefined,
                             }
                         }),
                         shippingAddress,
@@ -539,49 +956,76 @@ const OrderNew = () => {
                         billingSameAsShipping: Boolean(values.billingSameAsShipping),
                         shipping: {
                             shippingVendor: values.shipping?.shippingVendor,
-                            deliveryFees: Number(values.shipping?.deliveryFees ?? 0),
+                            deliveryFees: normalizePriceValue(
+                                values.shipping?.deliveryFees ?? 0,
+                            ),
                             estimatedMin: Number(values.shipping?.estimatedMin ?? 0),
                             estimatedMax: Number(values.shipping?.estimatedMax ?? 0),
                         },
                         comment: values.comment,
                     }
-                    // Ensure shipping address is filled
-                    const saddr = values.shippingAddress || {}
-                    if (!saddr.street || !saddr.number || !saddr.state || !saddr.city || !saddr.countryCode) {
-                        toast.push(
-                            <Notification title={t('validation.failed')} type="danger">
-                                {t('sales.orders.validation.customerAddressRequired')}
-                            </Notification>,
-                            { placement: 'top-center' },
-                        )
-                        setCurrentStep(0)
-                        return
-                    }
-
-                    if (!values.billingSameAsShipping) {
-                        const baddr = values.billingAddress || {}
-                        if (!baddr.street || !baddr.number || !baddr.state || !baddr.city || !baddr.countryCode) {
+                    if (!itemsOnlyMode) {
+                        // Ensure shipping address is filled
+                        const saddr = values.shippingAddress || {}
+                        if (
+                            !saddr.street ||
+                            !saddr.number ||
+                            !saddr.state ||
+                            !saddr.city ||
+                            !saddr.countryCode
+                        ) {
                             toast.push(
                                 <Notification title={t('validation.failed')} type="danger">
-                                    {t('sales.orders.validation.customerAddressRequired')}
+                                    {validationCustomerAddressRequired}
                                 </Notification>,
                                 { placement: 'top-center' },
                             )
                             setCurrentStep(0)
                             return
                         }
+
+                        if (!values.billingSameAsShipping) {
+                            const baddr = values.billingAddress || {}
+                            if (
+                                !baddr.street ||
+                                !baddr.number ||
+                                !baddr.state ||
+                                !baddr.city ||
+                                !baddr.countryCode
+                            ) {
+                                toast.push(
+                                    <Notification title={t('validation.failed')} type="danger">
+                                        {validationCustomerAddressRequired}
+                                    </Notification>,
+                                    { placement: 'top-center' },
+                                )
+                                setCurrentStep(0)
+                                return
+                            }
+                        }
                     }
 
                     try {
-                        const res = await apiCreateSalesOrder<boolean, any>(payload)
+                        const res = await apiCreateSalesOrder<boolean, any>(payload, resource)
                         if ((res as any).data || (res as any) === true) {
                             toast.push(
-                                <Notification title={t('sales.orders.created.title')} type="success">
-                                    {t('sales.orders.created.desc')}
+                                <Notification
+                                    title={docMessage(
+                                        'created.title',
+                                        'sales.orders.created.title',
+                                        'Document created successfully',
+                                    )}
+                                    type="success"
+                                >
+                                    {docMessage(
+                                        'created.desc',
+                                        'sales.orders.created.desc',
+                                        'The document was created successfully.',
+                                    )}
                                 </Notification>,
                                 { placement: 'top-center' },
                             )
-                            navigate('/app/sales/order-list')
+                            navigate(routes.list)
                         }
                     } catch (e: any) {
                         const errs = e?.response?.data?.errors as { field: string; key: string }[]
@@ -607,7 +1051,9 @@ const OrderNew = () => {
                 }}
             >
                 {({ values, setFieldValue, errors, touched, setFieldTouched }) => {
-                    const deliveryFee = Number(values.shipping?.deliveryFees ?? 0)
+                    const deliveryFee = roundCurrencyValue(
+                        Number(values.shipping?.deliveryFees ?? 0),
+                    )
                     const orderCurrencyValue =
                         normalizeCurrencyCode(values.orderCurrency, currencyBase) || currencyBase
                     const orderCurrencyOptions =
@@ -619,12 +1065,22 @@ const OrderNew = () => {
                             value: orderCurrencyValue,
                             label: getCurrencyLabel(orderCurrencyValue),
                         }
-                    const total = values.items.reduce(
-                        (runningTotal, it) => runningTotal + (it.price || 0) * (it.qty || 0),
+                    const lineTotals =
+                        mode === 'budget'
+                            ? values.items.map((item) =>
+                                  roundCurrencyValue(calculateLineTotal(item)),
+                              )
+                            : values.items.map((item) => calculateLineTotal(item))
+                    const rawTotal = lineTotals.reduce(
+                        (runningTotal, lineTotal) => runningTotal + lineTotal,
                         0,
                     )
-                    const tax = Math.round(total * (taxRate / (100 + taxRate)) * 100) / 100
-                    const grandTotal = Math.round((total + deliveryFee) * 100) / 100
+                    const total =
+                        mode === 'budget'
+                            ? rawTotal
+                            : roundCurrencyValue(rawTotal)
+                    const tax = roundCurrencyValue(total * (taxRate / (100 + taxRate)))
+                    const grandTotal = roundCurrencyValue(total + deliveryFee)
                     const formattedOrderTotal = formatCurrency(
                         total,
                         orderCurrencyValue,
@@ -686,29 +1142,22 @@ const OrderNew = () => {
                         : t('text.labels.notSelected', { defaultValue: 'Not selected' })
                     const estimatedMin = Number(values.shipping?.estimatedMin ?? 0)
                     const estimatedMax = Number(values.shipping?.estimatedMax ?? 0)
+                    const daysLabel = docSummary('days', 'days')
                     const estimatedRange =
                         estimatedMin || estimatedMax
                             ? estimatedMin && estimatedMax
                                 ? estimatedMin === estimatedMax
-                                    ? `${estimatedMin} ${t('sales.orders.summary.days', {
-                                          defaultValue: 'days',
-                                      })}`
-                                    : `${estimatedMin}-${estimatedMax} ${t('sales.orders.summary.days', {
-                                          defaultValue: 'days',
-                                      })}`
-                                : `${estimatedMin || estimatedMax} ${t('sales.orders.summary.days', {
-                                      defaultValue: 'days',
-                                  })}`
-                            : t('sales.orders.summary.notAvailable', { defaultValue: 'Not available' })
+                                    ? `${estimatedMin} ${daysLabel}`
+                                    : `${estimatedMin}-${estimatedMax} ${daysLabel}`
+                                : `${estimatedMin || estimatedMax} ${daysLabel}`
+                            : docSummary('notAvailable', 'Not available')
                     const customerOption = customers.find(
                         (opt) => opt.value === values.customerId,
                     )
                     const customerName =
                         customerDetail?.name ||
                         customerOption?.label ||
-                        t('sales.orders.summary.unknownCustomer', {
-                            defaultValue: 'Unassigned customer',
-                        })
+                        docSummary('unknownCustomer', 'Unassigned customer')
                     const customerEmail = customerDetail?.email
                     const customerPhone = customerDetail?.personalInfo?.phoneNumbers?.[0]
                     const convertWithRetry = async (
@@ -740,8 +1189,13 @@ const OrderNew = () => {
                             currency?: string
                             img?: string
                             description?: string
+                            unitOfMeasure?: SalesUnit
+                            specifications?: string
                         },
                     ) => {
+                        if (!ensureMeasurementsFilled(values.items as Item[])) {
+                            return
+                        }
                         const p = option ?? products.find((x) => x.value === pid)
                         if (!p) return
                         const exists = values.items.find((it) => it.productId === pid)
@@ -760,39 +1214,124 @@ const OrderNew = () => {
                         ) {
                             toast.push(
                                 <Notification title={t('validation.failed')} type="danger">
-                                    {t('sales.orders.exchangeRateMissing', {
-                                        defaultValue:
-                                            'Missing exchange rate for the selected currency conversion.',
-                                    })}
+                                    {exchangeRateMissingMessage}
                                 </Notification>,
                                 { placement: 'top-center' },
                             )
                             return
                         }
-                        const convertedPrice = roundCurrencyValue(conversion.value)
-                        const nextItem: Item = {
+                        const convertedUnitPrice = roundCurrencyValue(conversion.value)
+                        const baseItem: Item = {
                             productId: pid,
                             name: p.label,
-                            price: convertedPrice,
+                            price: 0,
                             currency: orderCurrencyValue,
                             qty: 1,
                             img: p.img,
                             description: p.description,
-                            unitPrice,
-                            unitCurrency: productCurrency,
+                            specifications:
+                                typeof p.specifications === 'string'
+                                    ? p.specifications
+                                    : undefined,
+                            unitPrice: convertedUnitPrice,
+                            unitCurrency: orderCurrencyValue,
                             comments: '',
+                            customAttributes: {},
+                            pricingMethod: p.unitOfMeasure ?? DEFAULT_SALES_UNIT,
+                            unitOfMeasure: p.unitOfMeasure ?? DEFAULT_SALES_UNIT,
                         }
+                        const derivedPrice = roundCurrencyValue(
+                            getDerivedUnitPrice(baseItem),
+                        )
+                        const nextItem: Item = {
+                            ...baseItem,
+                            price: derivedPrice,
+                        }
+                        clearQuickMessage()
                         setFieldValue('items', [...values.items, nextItem])
                     }
-                    const removeItem = (pid: string) => setFieldValue('items', values.items.filter((it) => it.productId !== pid))
-                    const changeQty = (pid: string, qty: number) => setFieldValue('items', values.items.map((it) => (it.productId === pid ? { ...it, qty } : it)))
-                    const changeComment = (pid: string, comments: string) =>
+                    const removeItem = (pid: string) => {
+                        clearQuickMessage()
+                        setFieldValue(
+                            'items',
+                            values.items.filter((it) => it.productId !== pid),
+                        )
+                    }
+                    const changeQty = (pid: string, qty: number) => {
+                        clearQuickMessage()
+                        const { qty: normalizedQty, valid } = ensurePositiveQuantity(qty)
+                        if (!valid) {
+                            toast.push(
+                                <Notification title={t('validation.failed')} type="danger">
+                                    {validationQuantityPositive}
+                                </Notification>,
+                                { placement: 'top-center' },
+                            )
+                        }
+                        setFieldValue(
+                            'items',
+                            values.items.map((it) =>
+                                it.productId === pid ? { ...it, qty: normalizedQty } : it,
+                            ),
+                        )
+                    }
+                    const changeComment = (pid: string, comments: string) => {
+                        clearQuickMessage()
                         setFieldValue(
                             'items',
                             values.items.map((it) =>
                                 it.productId === pid ? { ...it, comments } : it,
                             ),
                         )
+                    }
+                    const handleItemChange = (
+                        pid: string,
+                        patch: Partial<Item>,
+                    ) => {
+                        clearQuickMessage()
+                        setFieldValue(
+                            'items',
+                            values.items.map((it: Item) => {
+                                if (it.productId !== pid) {
+                                    return it
+                                }
+                                const next: Item = {
+                                    ...it,
+                                    ...patch,
+                                }
+                                if (patch.customAttributes !== undefined) {
+                                    next.customAttributes = patch.customAttributes
+                                }
+                                if (patch.pricingMethod !== undefined) {
+                                    next.pricingMethod = patch.pricingMethod
+                                }
+                                if (patch.unitOfMeasure !== undefined) {
+                                    next.unitOfMeasure = patch.unitOfMeasure
+                                }
+                                if (patch.specSummary !== undefined) {
+                                    next.specSummary = patch.specSummary
+                                }
+                                if (patch.qty !== undefined) {
+                                    const { qty: normalizedQty, valid } =
+                                        ensurePositiveQuantity(patch.qty)
+                                    next.qty = normalizedQty
+                                    if (!valid) {
+                                        toast.push(
+                                            <Notification title={t('validation.failed')} type="danger">
+                                                {validationQuantityPositive}
+                                            </Notification>,
+                                            { placement: 'top-center' },
+                                        )
+                                    }
+                                }
+                                const derivedPrice = roundCurrencyValue(
+                                    getDerivedUnitPrice(next),
+                                )
+                                next.price = derivedPrice
+                                return next
+                            }),
+                        )
+                    }
 
                     const handleOrderCurrencySelect = async (option: unknown) => {
                         const nextValue =
@@ -850,10 +1389,7 @@ const OrderNew = () => {
                         if (attempt.missing) {
                             toast.push(
                                 <Notification title={t('validation.failed')} type="danger">
-                                    {t('sales.orders.exchangeRateMissing', {
-                                        defaultValue:
-                                            'Missing exchange rate for the selected currency conversion.',
-                                    })}
+                                    {exchangeRateMissingMessage}
                                 </Notification>,
                                 { placement: 'top-center' },
                             )
@@ -865,8 +1401,9 @@ const OrderNew = () => {
                         )
                         const convertedFee = Number.isFinite(attempt.deliveryResult.value)
                             ? roundCurrencyValue(attempt.deliveryResult.value)
-                            : Number(values.shipping?.deliveryFees ?? 0)
+                            : roundCurrencyValue(Number(values.shipping?.deliveryFees ?? 0))
                         setFieldValue('orderCurrency', nextValue)
+                        clearQuickMessage()
                         setFieldValue('items', convertedItems)
                         setFieldValue('shipping.deliveryFees', convertedFee)
                     }
@@ -895,6 +1432,11 @@ const OrderNew = () => {
                                             defaultCurrency,
                                         img: p.img,
                                         description: p.description,
+                                        unitOfMeasure: (p.unitOfMeasure || DEFAULT_SALES_UNIT) as SalesUnit,
+                                        specifications:
+                                            typeof p.specifications === 'string'
+                                                ? p.specifications
+                                                : undefined,
                                     })) || []
                                 setProducts(pOpts)
                                 const created = (pRes as any).data?.data?.find(
@@ -912,6 +1454,7 @@ const OrderNew = () => {
                                             currency: createdCurrency,
                                             img: created.img,
                                             description: created.description,
+                                            unitOfMeasure: (created.unitOfMeasure || DEFAULT_SALES_UNIT) as SalesUnit,
                                         }
                                     await addItem(String(created.id), option)
                                 }
@@ -1062,24 +1605,46 @@ const OrderNew = () => {
                         }
                     }
 
-                    const shippingComplete = isAddressComplete(values.shippingAddress)
-                    const billingComplete = values.billingSameAsShipping
-                        ? shippingComplete
-                        : isAddressComplete(values.billingAddress)
-                    const shippingIncomplete = !shippingComplete
-                    const billingIncomplete = !values.billingSameAsShipping && !billingComplete
-                    const addressesComplete = shippingComplete && billingComplete
-                    const addressesIncomplete = shippingIncomplete || billingIncomplete
+                    const shippingComplete = itemsOnlyMode
+                        ? true
+                        : isAddressComplete(values.shippingAddress)
+                    const billingComplete = itemsOnlyMode
+                        ? true
+                        : values.billingSameAsShipping
+                              ? shippingComplete
+                              : isAddressComplete(values.billingAddress)
+                    const addressesComplete = itemsOnlyMode
+                        ? true
+                        : shippingComplete && billingComplete
+                    const addressesIncomplete = !addressesComplete
 
                     // Steps controls
                     const hasCustomer = Boolean(values.customerId)
-                    const hasItems = (values.items || []).length > 0
-                    const stepUnlocks = [
-                        true,
-                        hasCustomer && addressesComplete,
-                        hasCustomer && hasItems && addressesComplete,
-                        hasCustomer && hasItems && addressesComplete,
-                    ]
+                    const customerStepSatisfied = customerRequired ? hasCustomer : true
+                    const selectedItems = ((values.items || []) as Item[]).filter(Boolean)
+                    const hasItems = selectedItems.length > 0
+                    const measurementRequirementActive = mode === 'budget' && !itemsOnlyMode
+                    const itemsHaveRequiredMeasurements = !measurementRequirementActive
+                        ? true
+                        : selectedItems.every((item) => hasRequiredMeasurements(item))
+                    const itemsHavePositiveQuantities = selectedItems.every((item) => {
+                        const numeric = Number(item.qty)
+                        return Number.isFinite(numeric) && numeric > 0
+                    })
+                    const itemsReady =
+                        hasItems && itemsHavePositiveQuantities && itemsHaveRequiredMeasurements
+                    const stepUnlocks = itemsOnlyMode
+                        ? [true, true, true, true]
+                        : [
+                              true,
+                              customerRequired
+                                  ? customerStepSatisfied && addressesComplete
+                                  : true,
+                              customerRequired
+                                  ? customerStepSatisfied && itemsReady && addressesComplete
+                                  : itemsReady,
+                              customerStepSatisfied && itemsReady && addressesComplete,
+                          ]
 
                     let maxNavigableStep = 0
                     for (let i = 0; i < stepUnlocks.length; i += 1) {
@@ -1091,27 +1656,33 @@ const OrderNew = () => {
                     }
 
                     const handleStepChange = (nextStep: number) => {
+                        if (itemsOnlyMode) {
+                            return
+                        }
                         if (nextStep <= maxNavigableStep) {
                             setCurrentStep(nextStep)
                         }
                     }
 
                     const goNext = () => {
+                        if (itemsOnlyMode) {
+                            return
+                        }
                         if (currentStep === 0) {
-                            if (!(values as any).customerId) {
+                            if (customerRequired && !(values as any).customerId) {
                                 setFieldTouched('customerId', true)
                                 toast.push(
                                     <Notification title={t('validation.failed')} type="danger">
-                                        {t('sales.orders.validation.customerRequired')}
+                                        {validationCustomerRequired}
                                     </Notification>,
                                     { placement: 'top-center' },
                                 )
                                 return
                             }
-                            if (!shippingComplete || !billingComplete) {
+                            if (customerRequired && (!shippingComplete || !billingComplete)) {
                                 toast.push(
                                     <Notification title={t('validation.failed')} type="danger">
-                                        {t('sales.orders.validation.customerAddressRequired')}
+                                        {validationCustomerAddressRequired}
                                     </Notification>,
                                     { placement: 'top-center' },
                                 )
@@ -1125,15 +1696,34 @@ const OrderNew = () => {
                             setFieldTouched('items', true)
                             toast.push(
                                 <Notification title={t('validation.failed')} type="danger">
-                                    {t('sales.orders.validation.itemsRequired')}
+                                    {validationItemsRequired}
                                 </Notification>,
                                 { placement: 'top-center' },
                             )
                             return
                         }
+                        if (currentStep === 1 && !itemsHavePositiveQuantities) {
+                            setFieldTouched('items', true)
+                            toast.push(
+                                <Notification title={t('validation.failed')} type="danger">
+                                    {validationQuantityPositive}
+                                </Notification>,
+                                { placement: 'top-center' },
+                            )
+                            return
+                        }
+                        if (currentStep === 1 && measurementRequirementActive && !itemsHaveRequiredMeasurements) {
+                            ensureMeasurementsFilled(selectedItems)
+                            return
+                        }
                         setCurrentStep((c) => Math.min(c + 1, 3))
                     }
-                    const goPrev = () => setCurrentStep((c) => Math.max(c - 1, 0))
+                    const goPrev = () => {
+                        if (itemsOnlyMode) {
+                            return
+                        }
+                        setCurrentStep((c) => Math.max(c - 1, 0))
+                    }
 
                     const onCustomerChange = async (opt: any) => {
                         const id = opt?.value
@@ -1228,47 +1818,49 @@ const OrderNew = () => {
 
                     return (
                         <Form>
-                            <Card
-                                className={classNames(
-                                    'mb-6',
-                                    isCompactViewport && '-mx-3',
-                                )}
-                                bodyClass={classNames(
-                                    'w-full px-4 py-4 md:px-6',
-                                    isCompactViewport && 'py-3',
-                                )}
-                            >
-                                <div className="w-full overflow-x-auto">
-                                    <Steps
-                                        current={currentStep}
-                                        onChange={handleStepChange}
-                                        className="flex-nowrap gap-4 px-1 md:px-2 w-full min-w-[420px]"
-                                    >
-                                        <Steps.Item
-                                            title={t('text.columns.customer')}
-                                        />
-                                        <Steps.Item
-                                            title={t('text.titles.products')}
-                                        />
-                                        <Steps.Item
-                                            title={t('text.titles.shipping')}
-                                        />
-                                        <Steps.Item
-                                            title={
-                                                t('text.actions.finalize') ||
-                                                'Finalizar'
-                                            }
-                                        />
-                                    </Steps>
-                                </div>
-                            </Card>
+                            {!itemsOnlyMode && (
+                                <Card
+                                    className={classNames(
+                                        'mb-6',
+                                        isCompactViewport && '-mx-3',
+                                    )}
+                                    bodyClass={classNames(
+                                        'w-full px-4 py-4 md:px-6',
+                                        isCompactViewport && 'py-3',
+                                    )}
+                                >
+                                    <div className="w-full overflow-x-auto">
+                                        <Steps
+                                            current={currentStep}
+                                            onChange={handleStepChange}
+                                            className="flex-nowrap gap-4 px-1 md:px-2 w-full min-w-[420px]"
+                                        >
+                                            <Steps.Item
+                                                title={t('text.columns.customer')}
+                                            />
+                                            <Steps.Item
+                                                title={t('text.titles.products')}
+                                            />
+                                            <Steps.Item
+                                                title={t('text.titles.shipping')}
+                                            />
+                                            <Steps.Item
+                                                title={
+                                                    t('text.actions.finalize') ||
+                                                    'Finalizar'
+                                                }
+                                            />
+                                        </Steps>
+                                    </div>
+                                </Card>
+                            )}
 
                             {currentStep === 0 && (
                                 <div className="flex flex-col gap-5">
                                     <Card bodyClass="p-5">
                                         <h4 className="mb-4">{t('text.columns.customer')}</h4>
                                         <FormContainer>
-                                            <FormItem label={t('text.labels.recipient')} invalid={!!(touched as any).customerId && !!(errors as any).customerId} errorMessage={(errors as any).customerId as any}>
+                                            <FormItem label={recipientLabel} invalid={!!(touched as any).customerId && !!(errors as any).customerId} errorMessage={(errors as any).customerId as any}>
                                                 <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
                                                     <div className="flex w-full flex-col gap-3 md:flex-row md:flex-1">
                                                         <Select className="w-full md:flex-1 md:min-w-[280px]" options={customers} value={customers.find((c) => c.value === values.customerId) as any} onChange={onCustomerChange} />
@@ -1558,7 +2150,11 @@ const OrderNew = () => {
                                                             {t('text.actions.add')} {t('text.titles.products')}
                                                         </Button>
                                                         <div className="font-semibold md:ml-auto">
-                                                            {t('text.columns.total')}: {formattedOrderTotal}
+                                                            {itemsOnlyMode
+                                                                ? `${t('sales.documents.quickMessage.totalLabel', {
+                                                                      defaultValue: 'Total a pagar',
+                                                                  })}: ${formattedGrandTotal}`
+                                                                : `${t('text.columns.total')}: ${formattedOrderTotal}`}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1570,26 +2166,69 @@ const OrderNew = () => {
                                                         showDescription={false}
                                                         showComments
                                                         onCommentChange={changeComment}
+                                                        onItemChange={handleItemChange}
+                                                        showCustomAttributes={mode === 'budget'}
+                                                        showUnitColumn={mode !== 'budget'}
+                                                        roundAmount={roundCurrencyValue}
                                                     />
                                                 </div>
                                             </FormItem>
                                         </FormContainer>
                                     </Card>
-                                    <div className="flex flex-col items-stretch xl:flex-row xl:justify-end">
-                                        <div className="w-full xl:max-w-md">
-                                            <PaymentSummary
-                                                data={{
-                                                    subTotal: total,
-                                                    tax,
-                                                    deliveryFees: deliveryFee,
-                                                    total: grandTotal,
-                                                    currency: orderCurrencyValue,
-                                                }}
-                                                taxRate={taxRate}
-                                                currency={orderCurrencyValue}
-                                            />
+                                    {!itemsOnlyMode && (
+                                        <div className="flex flex-col items-stretch xl:flex-row xl:justify-end">
+                                            <div className="w-full xl:max-w-md">
+                                                <PaymentSummary
+                                                    data={{
+                                                        subTotal: total,
+                                                        tax,
+                                                        deliveryFees: deliveryFee,
+                                                        total: grandTotal,
+                                                        currency: orderCurrencyValue,
+                                                    }}
+                                                    taxRate={taxRate}
+                                                    currency={orderCurrencyValue}
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
+                                    {itemsOnlyMode && quickMessage && (
+                                        <div ref={quickMessageRef} className="mt-4">
+                                            <Card bodyClass="p-5">
+                                                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                                    <h4 className="text-base font-semibold">
+                                                        {t('sales.documents.quickMessage.title', {
+                                                            defaultValue: 'Mensaje generado',
+                                                        })}
+                                                    </h4>
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="solid"
+                                                        icon={
+                                                            copyStatus === 'success' ? (
+                                                                <HiOutlineCheck />
+                                                            ) : (
+                                                                <CgCopy />
+                                                            )
+                                                        }
+                                                        onClick={copyQuickMessage}
+                                                    >
+                                                        {copyStatus === 'success'
+                                                            ? t('text.actions.copied', {
+                                                                  defaultValue: 'Copiado',
+                                                              })
+                                                            : t('text.actions.copy', {
+                                                                  defaultValue: 'Copiar',
+                                                              })}
+                                                    </Button>
+                                                </div>
+                                                <pre className="mt-4 whitespace-pre-wrap text-sm bg-gray-50 dark:bg-gray-700 p-4 rounded border border-dashed border-gray-200 dark:border-gray-600">
+                                                    {quickMessage}
+                                                </pre>
+                                            </Card>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -1614,6 +2253,7 @@ const OrderNew = () => {
                                                 onChange={(opt) => {
                                                     const value = (opt as any)?.value ?? ''
                                                     setFieldValue('shipping.shippingVendor', value)
+                                                    clearQuickMessage()
                                                     if (!value) {
                                                         return
                                                     }
@@ -1630,7 +2270,7 @@ const OrderNew = () => {
                                                             'shipping.deliveryFees',
                                                             Number.isFinite(convertedDelivery)
                                                                 ? roundCurrencyValue(convertedDelivery)
-                                                                : Number(selected.deliveryFees ?? 0),
+                                                                : roundCurrencyValue(Number(selected.deliveryFees ?? 0)),
                                                         )
                                                         setFieldValue(
                                                             'shipping.estimatedMin',
@@ -1721,9 +2361,7 @@ const OrderNew = () => {
                                     <div className="grid gap-4 xl:grid-cols-2">
                                         <Card bodyClass="p-5">
                                             <h4 className="mb-4">
-                                                {t('sales.orders.summary.orderOverview', {
-                                                    defaultValue: 'Order overview',
-                                                })}
+                                                {docSummary('orderOverview', 'Order overview')}
                                             </h4>
                                             <div className="space-y-2 text-sm">
                                                 {[
@@ -1738,15 +2376,11 @@ const OrderNew = () => {
                                                         value: paymentMethodLabel,
                                                     },
                                                     {
-                                                        label: t('sales.orders.summary.subtotal', {
-                                                            defaultValue: 'Subtotal',
-                                                        }),
+                                                        label: docSummary('subtotal', 'Subtotal'),
                                                         value: formattedOrderTotal,
                                                     },
                                                     {
-                                                        label: t('sales.orders.summary.tax', {
-                                                            defaultValue: 'Estimated tax',
-                                                        }),
+                                                        label: docSummary('tax', 'Estimated tax'),
                                                         value: formattedTax,
                                                     },
                                                     {
@@ -1754,9 +2388,7 @@ const OrderNew = () => {
                                                         value: formattedDeliveryFee,
                                                     },
                                                     {
-                                                        label: t('sales.orders.summary.totalDue', {
-                                                            defaultValue: 'Total due',
-                                                        }),
+                                                        label: docSummary('totalDue', 'Total due'),
                                                         value: formattedGrandTotal,
                                                     },
                                                 ].map(({ label, value }) => (
@@ -1778,9 +2410,7 @@ const OrderNew = () => {
                                             {hasShippingVendor && (
                                                 <Card bodyClass="p-5">
                                                     <h4 className="mb-4">
-                                                        {t('sales.orders.summary.shippingDetails', {
-                                                            defaultValue: 'Shipping details',
-                                                        })}
+                                                        {docSummary('shippingDetails', 'Shipping details')}
                                                     </h4>
                                                     <div className="space-y-2 text-sm">
                                                         <div className="flex items-center justify-between gap-4">
@@ -1793,9 +2423,7 @@ const OrderNew = () => {
                                                         </div>
                                                         <div className="flex items-center justify-between gap-4">
                                                             <span className="text-gray-500 dark:text-gray-400">
-                                                                {t('sales.orders.summary.estimatedDelivery', {
-                                                                    defaultValue: 'Estimated delivery',
-                                                                })}
+                                                                {docSummary('estimatedDelivery', 'Estimated delivery')}
                                                             </span>
                                                             <span className="font-medium text-right">
                                                                 {estimatedRange}
@@ -1823,9 +2451,10 @@ const OrderNew = () => {
                                                         {customerPhone ? <span>{customerPhone}</span> : null}
                                                         {!customerEmail && !customerPhone ? (
                                                             <span>
-                                                                {t('sales.orders.summary.noContact', {
-                                                                    defaultValue: 'No contact details provided',
-                                                                })}
+                                                                {docSummary(
+                                                                    'noContact',
+                                                                    'No contact details provided',
+                                                                )}
                                                             </span>
                                                         ) : null}
                                                     </div>
@@ -1844,9 +2473,7 @@ const OrderNew = () => {
                                                 </div>
                                             ) : (
                                                 <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                    {t('sales.orders.summary.notAvailable', {
-                                                        defaultValue: 'Not available',
-                                                    })}
+                                                    {docSummary('notAvailable', 'Not available')}
                                                 </div>
                                             )}
                                         </Card>
@@ -1864,18 +2491,14 @@ const OrderNew = () => {
                                                 </div>
                                             ) : (
                                                 <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                    {t('sales.orders.summary.notAvailable', {
-                                                        defaultValue: 'Not available',
-                                                    })}
+                                                    {docSummary('notAvailable', 'Not available')}
                                                 </div>
                                             )}
                                         </Card>
                                     </div>
                                     <Card bodyClass="p-5">
                                         <h4 className="mb-4">
-                                            {t('sales.orders.summary.notesAndScheduling', {
-                                                defaultValue: 'Notes & scheduling',
-                                            })}
+                                            {docSummary('notesAndScheduling', 'Notes & scheduling')}
                                         </h4>
                                         <FormContainer>
                                             <FormItem label={t('text.columns.comments')}>
@@ -1900,35 +2523,78 @@ const OrderNew = () => {
                                                     }}
                                                 />
                                             </FormItem>
+                                            <FormItem
+                                                label={docMessage('validUntilLabel', 'sales.orders.validUntilLabel', 'Valid until')}
+                                                invalid={Boolean(
+                                                    getIn(touched, 'validUntil') &&
+                                                        getIn(errors, 'validUntil'),
+                                                )}
+                                                errorMessage={getIn(errors, 'validUntil') as string}
+                                            >
+                                                <DatePicker
+                                                    value={values.validUntil as any}
+                                                    onChange={(val) => {
+                                                        setFieldValue('validUntil', val)
+                                                        setFieldTouched('validUntil', true, false)
+                                                    }}
+                                                />
+                                            </FormItem>
                                         </FormContainer>
                                     </Card>
                                 </div>
                             )}
 
-                            <div className="flex items-center justify-between mt-6">
-                                <div>
-                                    <Button type="button" onClick={() => navigate(-1)}>{t('text.actions.cancel')}</Button>
+                            {itemsOnlyMode ? (
+                                <div className="flex items-center justify-between mt-6">
+                                    <Button type="button" onClick={() => navigate(-1)}>
+                                        {t('text.actions.cancel')}
+                                    </Button>
+                                    <Button
+                                        variant="solid"
+                                        type="submit"
+                                        disabled={(values.items || []).length === 0}
+                                    >
+                                        {t('text.actions.generateMessage', {
+                                            defaultValue: 'Generar mensaje',
+                                        })}
+                                    </Button>
                                 </div>
-                                <div className="flex gap-2">
-                                    <Button type="button" disabled={currentStep === 0} onClick={goPrev}>{t('text.actions.back')}</Button>
-                                    {currentStep < 3 && (
-                                        <Button
-                                            type="button"
-                                            variant="solid"
-                                            disabled={
-                                                (currentStep === 0 && (!values.customerId || !values.orderCurrency || !values.paymentMehod || addressesIncomplete)) ||
-                                                (currentStep === 1 && (values.items || []).length === 0)
-                                            }
-                                            onClick={goNext}
-                                        >
-                                            {t('text.actions.next')}
+                            ) : (
+                                <div className="flex items-center justify-between mt-6">
+                                    <div>
+                                        <Button type="button" onClick={() => navigate(-1)}>
+                                            {t('text.actions.cancel')}
                                         </Button>
-                                    )}
-                                    {currentStep === 3 && (
-                                        <Button variant="solid" type="submit">{t('text.actions.save')}</Button>
-                                    )}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button type="button" disabled={currentStep === 0} onClick={goPrev}>
+                                            {t('text.actions.back')}
+                                        </Button>
+                                        {currentStep < 3 && (
+                                            <Button
+                                                type="button"
+                                                variant="solid"
+                                                disabled={
+                                                    (currentStep === 0 &&
+                                                        (!customerStepSatisfied ||
+                                                            !values.orderCurrency ||
+                                                            !values.paymentMehod ||
+                                                            (customerRequired && addressesIncomplete))) ||
+                                                    (currentStep === 1 && (values.items || []).length === 0)
+                                                }
+                                                onClick={goNext}
+                                            >
+                                                {t('text.actions.next')}
+                                            </Button>
+                                        )}
+                                        {currentStep === 3 && (
+                                            <Button variant="solid" type="submit">
+                                                {t('text.actions.save')}
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             <AddCustomerDrawer
                                 isOpen={newCustomerOpen}

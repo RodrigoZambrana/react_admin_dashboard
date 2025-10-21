@@ -1,17 +1,25 @@
 import { useCallback, useRef, useState, type ChangeEvent } from 'react'
 import dayjs from 'dayjs'
+import { Link } from 'react-router-dom'
 import Button from '@/components/ui/Button'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
 import { HiDownload, HiOutlineTrash, HiPlusCircle, HiUpload } from 'react-icons/hi'
 import OrderTableSearch from './OrderTableSearch'
-import { getOrders, setDeleteMode, useAppDispatch, useAppSelector } from '../store'
-import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
-import { apiExportSalesOrders, apiImportSalesOrders } from '@/services/SalesService'
+import {
+    getOrders,
+    setDeleteMode,
+    useAppDispatch,
+    useSalesOrderListData,
+} from '../store'
+import {
+    apiExportSalesOrders,
+    apiImportSalesOrders,
+} from '@/services/SalesService'
+import { useSalesDocumentI18n } from '../../context/useSalesDocumentI18n'
 
 const BatchDeleteButton = () => {
-    const { t } = useTranslation()
+    const { t } = useSalesDocumentI18n()
     const dispatch = useAppDispatch()
 
     const onBatchDelete = () => {
@@ -32,14 +40,11 @@ const BatchDeleteButton = () => {
 }
 
 const OrdersTableTools = () => {
-    const { t } = useTranslation()
+    const { t, tDoc, resource, routes } = useSalesDocumentI18n()
     const dispatch = useAppDispatch()
-    const selectedRows = useAppSelector(
-        (state) => state.salesOrderList.data.selectedRows,
-    )
-    const tableData = useAppSelector(
-        (state) => state.salesOrderList.data.tableData,
-    )
+    const salesOrderState = useSalesOrderListData()
+    const { selectedRows, tableData } = salesOrderState
+    const currentResource = tableData.resource ?? resource
     const [exporting, setExporting] = useState(false)
     const [importing, setImporting] = useState(false)
     const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -53,9 +58,10 @@ const OrdersTableTools = () => {
                 pageSize,
                 sort,
                 query,
+                resource: currentResource,
             }),
         )
-    }, [dispatch, tableData])
+    }, [currentResource, dispatch, tableData])
 
     const composeExportParams = useCallback(() => {
         const params: Record<string, unknown> = {}
@@ -94,7 +100,7 @@ const OrdersTableTools = () => {
                     imported?: number
                     failed?: number
                     errors?: { row: number; message: string }[]
-                }>(formData)
+                }>(formData, resource)
                 const payload = (response?.data ?? {}) as {
                     success?: boolean
                     imported?: number
@@ -109,14 +115,14 @@ const OrdersTableTools = () => {
                     ? 'warning'
                     : 'success'
                 const summaryMessage = hasErrors
-                    ? t('sales.orders.importSuccessWithErrors', {
+                    ? tDoc('importSuccessWithErrors', {
                           defaultValue:
-                              'Pedidos importados: {{imported}}. Registros con error: {{failed}}.',
+                              'Documentos importados: {{imported}}. Registros con error: {{failed}}.',
                           imported: importedCount,
                           failed: failedCount,
                       })
-                    : t('sales.orders.importSuccess', {
-                          defaultValue: 'Se importaron {{imported}} pedidos.',
+                    : tDoc('importSuccess', {
+                          defaultValue: 'Se importaron {{imported}} documentos.',
                           imported: importedCount,
                       })
                 toast.push(
@@ -132,9 +138,8 @@ const OrdersTableTools = () => {
                             {hasErrors &&
                                 errors.slice(0, 3).map((err, idx) => (
                                     <div key={`${err.row}-${idx}`} className="text-xs mt-1">
-                                        {t('sales.orders.importErrorRow', {
-                                            defaultValue:
-                                                'Fila {{row}}: {{message}}',
+                                        {tDoc('importErrorRow', {
+                                            defaultValue: 'Fila {{row}}: {{message}}',
                                             row: err?.row ?? '?',
                                             message: err?.message ?? '',
                                         })}
@@ -142,7 +147,7 @@ const OrdersTableTools = () => {
                                 ))}
                             {hasErrors && errors.length > 3 && (
                                 <div className="text-xs mt-2 opacity-80">
-                                    {t('sales.orders.importErrorMore', {
+                                    {tDoc('importErrorMore', {
                                         defaultValue:
                                             'Se omitieron {{count}} errores adicionales.',
                                         count: errors.length - 3,
@@ -156,7 +161,7 @@ const OrdersTableTools = () => {
                 refreshOrders()
             } catch (error) {
                 // eslint-disable-next-line no-console
-                console.error('orders/import', error)
+                console.error(`${resource}/import`, error)
                 const responseMessage =
                     (error as any)?.response?.data?.message ??
                     (error as any)?.message ??
@@ -166,9 +171,9 @@ const OrdersTableTools = () => {
                         ? t(responseMessage, {
                               defaultValue: responseMessage,
                           })
-                        : t('sales.orders.importError', {
+                        : tDoc('importError', {
                               defaultValue:
-                                  'No fue posible importar los pedidos.',
+                                  'No fue posible importar los documentos.',
                           })
                 toast.push(
                     <Notification
@@ -189,7 +194,7 @@ const OrdersTableTools = () => {
                 }
             }
         },
-        [refreshOrders, t],
+        [refreshOrders, resource, t, tDoc],
     )
 
     const onExport = useCallback(async () => {
@@ -197,15 +202,21 @@ const OrdersTableTools = () => {
         setExporting(true)
         try {
             const params = composeExportParams()
-            const response = await apiExportSalesOrders<Blob, Record<string, unknown>>(params)
-            const blob = response.data instanceof Blob
-                ? response.data
-                : new Blob([String(response.data ?? '')], { type: 'text/csv;charset=utf-8;' })
+            const response = await apiExportSalesOrders<Blob, Record<string, unknown>>(
+                params,
+                resource,
+            )
+            const blob =
+                response.data instanceof Blob
+                    ? response.data
+                    : new Blob([String(response.data ?? '')], {
+                          type: 'text/csv;charset=utf-8;',
+                      })
             const url = window.URL.createObjectURL(blob)
             const link = document.createElement('a')
             const timestamp = dayjs().format('YYYYMMDD-HHmmss')
             link.href = url
-            link.setAttribute('download', `orders-${timestamp}.csv`)
+            link.setAttribute('download', `${resource}-${timestamp}.csv`)
             document.body.appendChild(link)
             link.click()
             document.body.removeChild(link)
@@ -216,7 +227,7 @@ const OrdersTableTools = () => {
                     type="success"
                     duration={2500}
                 >
-                    {t('sales.orders.exportSuccess', {
+                    {tDoc('exportSuccess', {
                         defaultValue: 'Archivo CSV generado correctamente.',
                     })}
                 </Notification>,
@@ -229,7 +240,7 @@ const OrdersTableTools = () => {
                     type="danger"
                     duration={3000}
                 >
-                    {t('sales.orders.exportError', {
+                    {tDoc('exportError', {
                         defaultValue: 'No fue posible generar el CSV.',
                     })}
                 </Notification>,
@@ -238,7 +249,7 @@ const OrdersTableTools = () => {
         } finally {
             setExporting(false)
         }
-    }, [composeExportParams, exporting, t])
+    }, [composeExportParams, exporting, resource, t, tDoc])
 
     return (
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
@@ -249,9 +260,14 @@ const OrdersTableTools = () => {
                 className="hidden"
                 onChange={onFileChange}
             />
-            <Link className="w-full lg:w-auto" to="/app/sales/order-new">
-                <Button className="w-full whitespace-nowrap lg:w-auto" variant="solid" size="sm" icon={<HiPlusCircle />}>
-                    {t('text.actions.add')}
+            <Link className="w-full lg:w-auto" to={routes.create}>
+                <Button
+                    className="w-full whitespace-nowrap lg:w-auto"
+                    variant="solid"
+                    size="sm"
+                    icon={<HiPlusCircle />}
+                >
+                    {tDoc('addAction', { defaultValue: 'Agregar Pedido' })}
                 </Button>
             </Link>
             {selectedRows.length > 0 && <BatchDeleteButton />}

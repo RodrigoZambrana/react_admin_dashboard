@@ -9,6 +9,7 @@ import {
     type CurrencyCode,
 } from '@/store'
 import { apiGetSystemCurrencies } from '@/services/SettingsService'
+import { formatCurrencyOptionLabel, STANDARD_FALLBACK_CURRENCIES } from '@/utils/currency'
 
 type Size = 'sm' | 'md' | 'lg'
 
@@ -26,10 +27,12 @@ type CurrencySelectorProps = CommonProps & {
     options?: CurrencyOption[]
 }
 
-const fallbackValues: CurrencyCode[] = ['UYU', 'USD']
+const fallbackValues: CurrencyCode[] = Array.from(
+    new Set<CurrencyCode>(['UYU', 'USD', ...STANDARD_FALLBACK_CURRENCIES]),
+)
 const fallbackOptions: CurrencyOption[] = fallbackValues.map((code) => ({
     value: code,
-    label: code,
+    label: formatCurrencyOptionLabel(code),
 }))
 
 const CurrencySelector = ({
@@ -75,10 +78,16 @@ const CurrencySelector = ({
 
     const resolvedOptions: CurrencyOption[] = useMemo(() => {
         if (options && Array.isArray(options)) {
-            return options
+            return options.map((item) => ({
+                value: item.value,
+                label: formatCurrencyOptionLabel(item.value, item.label),
+            }))
         }
         const source = availableList.length ? availableList : fallbackValues
-        return source.map((value) => ({ value, label: value }))
+        return source.map((value) => ({
+            value,
+            label: formatCurrencyOptionLabel(value),
+        }))
     }, [availableList, options])
 
     const currentValue = value ?? currency

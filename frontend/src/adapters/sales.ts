@@ -1,5 +1,11 @@
 /* eslint-disable  @typescript-eslint/no-explicit-any */
 import { normalizeCurrencyCode } from '@/utils/currency'
+import {
+  calculateLineTotal,
+  getDerivedUnitPrice,
+  getEffectiveQuantity,
+  resolveSalesUnit,
+} from '@/utils/salesUnitCalculation'
 
 export type FxSnapshot = {
   base: string
@@ -111,6 +117,7 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
 export function adaptOrderToDetailsView(o: any) {
   if (!o) return {}
   const dateTime = toUnixSeconds(o.date)
+  const validUntil = o.validUntil ? toUnixSeconds(o.validUntil) : undefined
   const shipping = {
     deliveryFees: Number(o.deliveryFees || 0),
     estimatedMin: Number(o.estimatedMin || 0),
@@ -140,26 +147,69 @@ export function adaptOrderToDetailsView(o: any) {
     currency: normalizedOrderCurrency,
   }
   const product = Array.isArray(o.items)
-    ? o.items.map((it: any) => ({
-        id: String(it.id),
-        productId: it.productId ? String(it.productId) : undefined,
-        name: it.name,
-        productCode: it.product?.productCode || '',
-        img: it.img || '',
-        price: Number(it.price ?? 0),
-        quantity: Number(it.qty || 0),
-        total: Number(it.price ?? 0) * Number(it.qty || 0),
-        currency: normalizedOrderCurrency,
-        unitCurrency:
-          normalizeCurrencyCode(it.unitCurrency, normalizedOrderCurrency) ||
-          normalizeCurrencyCode(it?.product?.currency || it?.currency, normalizedOrderCurrency) ||
-          normalizedOrderCurrency,
-        unitAmount: Number(it.unitAmount ?? it.unitPrice ?? 0),
-        unitAmountOrderCurrency: Number(it.unitAmountOrderCurrency ?? it.price ?? 0),
-        conversionRate: Number(it.conversionRate ?? 1),
-        details: {},
-        comments: typeof it.comments === 'string' && it.comments.trim() ? it.comments.trim() : undefined,
-      }))
+    ? o.items.map((it: any) => {
+        const rawQty = Number(it.qty ?? 0)
+        const customAttributes =
+          it.customAttributes &&
+          typeof it.customAttributes === 'object' &&
+          Object.keys(it.customAttributes).length > 0
+            ? { ...it.customAttributes }
+            : undefined
+        const resolvedUnit = resolveSalesUnit(
+          it.pricingMethodSnapshot,
+          (typeof it.pricingMethod === 'string' && it.pricingMethod) ||
+            (typeof it.unitOfMeasure === 'string' && it.unitOfMeasure) ||
+            undefined,
+        )
+        const priceForCalculation = Number(
+          it.unitAmountOrderCurrency ??
+            it.price ??
+            it.unitAmount ??
+            it.unitPrice ??
+            0,
+        )
+        const computeItem = {
+          price: priceForCalculation,
+          unitPrice: priceForCalculation,
+          qty: rawQty,
+          unitOfMeasure: resolvedUnit,
+          pricingMethod: resolvedUnit,
+          customAttributes,
+        }
+        const derivedUnitPrice = getDerivedUnitPrice(computeItem)
+        const computedTotal = calculateLineTotal(computeItem)
+        return {
+          id: String(it.id),
+          productId: it.productId ? String(it.productId) : undefined,
+          name: it.name,
+          productCode: it.product?.productCode || '',
+          img: it.img || '',
+          price: derivedUnitPrice,
+          quantity: rawQty,
+          qty: rawQty,
+          total: computedTotal,
+          currency: normalizedOrderCurrency,
+          unitCurrency:
+            normalizeCurrencyCode(it.unitCurrency, normalizedOrderCurrency) ||
+            normalizeCurrencyCode(it?.product?.currency || it?.currency, normalizedOrderCurrency) ||
+            normalizedOrderCurrency,
+          unitAmount: Number(it.unitAmount ?? it.unitPrice ?? 0),
+          unitAmountOrderCurrency: Number(it.unitAmountOrderCurrency ?? it.price ?? 0),
+          unitPrice: priceForCalculation,
+          conversionRate: Number(it.conversionRate ?? 1),
+          details: {},
+          comments: typeof it.comments === 'string' && it.comments.trim() ? it.comments.trim() : undefined,
+          specSummary: typeof it.specSummary === 'string' && it.specSummary.trim() ? it.specSummary.trim() : undefined,
+          specifications:
+            typeof (it.specifications ?? it.product?.specifications) === 'string'
+                ? String(it.specifications ?? it.product?.specifications).trim() || undefined
+                : undefined,
+          customAttributes,
+          unitOfMeasure: resolvedUnit,
+          pricingMethod: resolvedUnit,
+          effectiveQuantity: getEffectiveQuantity(computeItem),
+        }
+      })
     : []
   const fxSnapshot = (() => {
     const raw = o.fxRates
@@ -217,6 +267,7 @@ export function adaptOrderToDetailsView(o: any) {
     progressStatus: o.statusId || 0,
     payementStatus,
     dateTime,
+    validUntil,
     paymentSummary,
     shipping,
     product,

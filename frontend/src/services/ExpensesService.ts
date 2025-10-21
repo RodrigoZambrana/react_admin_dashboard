@@ -23,6 +23,11 @@ const mapExpenseRecord = (expense: any) => {
         return expense
     }
     const record = { ...expense }
+    if (record.taxCreditEligible === undefined || record.taxCreditEligible === null) {
+        record.taxCreditEligible = true
+    } else {
+        record.taxCreditEligible = Boolean(record.taxCreditEligible)
+    }
     if (Array.isArray(record.attachments)) {
         record.attachments = record.attachments.map(mapApiAttachmentToDto)
     }

@@ -133,5 +133,24 @@
             "utilsDoc": "工具",
             "changeLog": "更新日志"
         }
+    },
+    "text": {
+        "actions": {
+            "copy": "复制",
+            "copied": "已复制",
+            "generateMessage": "生成消息"
+        }
+    },
+    "sales": {
+        "documents": {
+            "quickMessage": {
+                "title": "生成的消息",
+                "header": "数量 产品 规格 备注 总计（单价）",
+                "perUnit": "每个",
+                "totalLabel": "应付总额",
+                "copyError": "无法复制消息。",
+                "measurementMissing": "请先填写所需的尺寸（宽度、高度、长度）后再继续。"
+            }
+        }
     }
 }

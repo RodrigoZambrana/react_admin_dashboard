@@ -7,6 +7,117 @@ import {
 import { ROLE_HIERARCHY } from '@/constants/roles.constant'
 import { FEATURES, getRolesForFeature } from '@/constants/roleAccess.constant'
 import type { NavigationTree } from '@/@types/navigation'
+import { clientConfig } from '@/configs/clientConfig'
+
+const hasBudgetsFeature = Boolean(clientConfig.featureFlags?.BUDGETS)
+const isUrucortinas = clientConfig.slug === 'urucortinas'
+
+const salesSubMenu: NavigationTree[] = [
+    {
+        key: 'appsSales.dashboard',
+        path: `${APP_PREFIX_PATH}/sales/dashboard`,
+        title: 'Dashboard',
+        translateKey: 'nav.appsSales.dashboard',
+        icon: '',
+        type: NAV_ITEM_TYPE_ITEM,
+        authority: getRolesForFeature(FEATURES.SALES),
+        subMenu: [],
+    },
+    {
+        key: 'appsSales.orderList',
+        path: `${APP_PREFIX_PATH}/sales/order-list`,
+        title: 'Order List',
+        translateKey: 'nav.appsSales.orderList',
+        icon: '',
+        type: NAV_ITEM_TYPE_ITEM,
+        authority: getRolesForFeature(FEATURES.SALES),
+        subMenu: [],
+    },
+    {
+        key: 'appsSales.orderNew',
+        path: `${APP_PREFIX_PATH}/sales/order-new`,
+        title: 'Add Order',
+        translateKey: 'nav.appsSales.addOrder',
+        icon: '',
+        type: NAV_ITEM_TYPE_ITEM,
+        authority: getRolesForFeature(FEATURES.SALES),
+        subMenu: [],
+    },
+]
+
+if (hasBudgetsFeature && !isUrucortinas) {
+    salesSubMenu.splice(
+        2,
+        0,
+        {
+            key: 'appsSales.budgetList',
+            path: `${APP_PREFIX_PATH}/sales/budget-list`,
+            title: 'Budgets',
+            translateKey: 'nav.appsSales.budgetList',
+            icon: '',
+            type: NAV_ITEM_TYPE_ITEM,
+            authority: getRolesForFeature(FEATURES.SALES),
+            subMenu: [],
+        },
+        {
+            key: 'appsSales.budgetNew',
+            path: `${APP_PREFIX_PATH}/sales/budget-new`,
+            title: 'New Budget',
+            translateKey: 'nav.appsSales.budgetNew',
+            icon: '',
+            type: NAV_ITEM_TYPE_ITEM,
+            authority: getRolesForFeature(FEATURES.SALES),
+            subMenu: [],
+        },
+    )
+}
+
+
+let budgetsNavigation: NavigationTree | null = null
+
+if (isUrucortinas && hasBudgetsFeature) {
+    budgetsNavigation = {
+        key: 'apps.budgets',
+        path: '',
+        title: 'Budgets',
+        translateKey: 'nav.appsBudgets.budgets',
+        icon: 'budgets',
+        type: NAV_ITEM_TYPE_COLLAPSE,
+        authority: getRolesForFeature(FEATURES.SALES),
+        subMenu: [
+            {
+                key: 'appsSales.budgetList',
+                path: `${APP_PREFIX_PATH}/sales/budget-list`,
+                title: 'Budget List',
+                translateKey: 'nav.appsBudgets.list',
+                icon: '',
+                type: NAV_ITEM_TYPE_ITEM,
+                authority: getRolesForFeature(FEATURES.SALES),
+                subMenu: [],
+            },
+            {
+                key: 'appsBudgets.summary',
+                path: `${APP_PREFIX_PATH}/sales/budget-quick`,
+                title: 'Budget Summary',
+                translateKey: 'nav.appsBudgets.summary',
+                icon: '',
+                type: NAV_ITEM_TYPE_ITEM,
+                authority: getRolesForFeature(FEATURES.SALES),
+                subMenu: [],
+            },
+            {
+                key: 'appsSales.budgetNew',
+                path: `${APP_PREFIX_PATH}/sales/budget-new`,
+                title: 'New Budget',
+                translateKey: 'nav.appsBudgets.new',
+                icon: '',
+                type: NAV_ITEM_TYPE_ITEM,
+                authority: getRolesForFeature(FEATURES.SALES),
+                subMenu: [],
+            },
+        ],
+    }
+}
 
 const appsNavigationConfig: NavigationTree[] = [
     {
@@ -27,38 +138,7 @@ const appsNavigationConfig: NavigationTree[] = [
                 icon: 'sales',
                 type: NAV_ITEM_TYPE_COLLAPSE,
                 authority: getRolesForFeature(FEATURES.SALES),
-                subMenu: [
-                    {
-                        key: 'appsSales.dashboard',
-                        path: `${APP_PREFIX_PATH}/sales/dashboard`,
-                        title: 'Dashboard',
-                        translateKey: 'nav.appsSales.dashboard',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.SALES),
-                        subMenu: [],
-                    },
-                    {
-                        key: 'appsSales.orderList',
-                        path: `${APP_PREFIX_PATH}/sales/order-list`,
-                        title: 'Order List',
-                        translateKey: 'nav.appsSales.orderList',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.SALES),
-                        subMenu: [],
-                    },
-                    {
-                        key: 'appsSales.orderNew',
-                        path: `${APP_PREFIX_PATH}/sales/order-new`,
-                        title: 'Add Order',
-                        translateKey: 'nav.appsSales.addOrder',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.SALES),
-                        subMenu: [],
-                    },
-                ],
+                subMenu: salesSubMenu,
             },
             // Clientes
             {
@@ -336,5 +416,16 @@ const appsNavigationConfig: NavigationTree[] = [
         ],
     },
 ]
+
+if (budgetsNavigation) {
+    const appsRoot = appsNavigationConfig[0]
+    if (appsRoot?.subMenu) {
+        const salesIndex = appsRoot.subMenu.findIndex(
+            (item) => item.key === 'apps.sales',
+        )
+        const insertIndex = salesIndex >= 0 ? salesIndex + 1 : appsRoot.subMenu.length
+        appsRoot.subMenu.splice(insertIndex, 0, budgetsNavigation)
+    }
+}
 
 export default appsNavigationConfig

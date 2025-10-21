@@ -48,6 +48,7 @@ export const expensesDashboardData = {
             paymentMehod: 'card',
             paymentIdendifier: '•••• 6165',
             amount: 168.2,
+            taxCreditEligible: true,
         },
         {
             id: 'E-1002',
@@ -57,6 +58,7 @@ export const expensesDashboardData = {
             paymentMehod: 'card',
             paymentIdendifier: '•••• 7128',
             amount: 89.99,
+            taxCreditEligible: false,
         },
         {
             id: 'E-1003',
@@ -66,6 +68,7 @@ export const expensesDashboardData = {
             paymentMehod: 'mp',
             paymentIdendifier: '••••@company.com',
             amount: 25,
+            taxCreditEligible: true,
         },
     ],
     expensesByCategoriesData: {
@@ -85,6 +88,7 @@ export const expensesData = [
         paymentIdendifier: '•••• 6165',
         amount: 168.2,
         note: 'EC2 & S3 usage',
+        taxCreditEligible: true,
     },
     {
         id: 'E-1002',
@@ -96,6 +100,7 @@ export const expensesData = [
         paymentIdendifier: '•••• 7128',
         amount: 89.99,
         note: 'Team license',
+        taxCreditEligible: false,
     },
     {
         id: 'E-1003',
@@ -107,6 +112,7 @@ export const expensesData = [
         paymentIdendifier: '••••@company.com',
         amount: 25,
         note: 'Pro plan',
+        taxCreditEligible: true,
     },
     {
         id: 'E-1004',
@@ -118,6 +124,7 @@ export const expensesData = [
         paymentIdendifier: '•••• 0921',
         amount: 420,
         note: 'Client meeting flight',
+        taxCreditEligible: false,
     },
 ]
 

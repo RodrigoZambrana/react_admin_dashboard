@@ -20,6 +20,8 @@ import ProductDeleteConfirmation from './ProductDeleteConfirmation'
 import { useNavigate } from 'react-router-dom'
 import cloneDeep from 'lodash/cloneDeep'
 import { deriveInventoryStatus } from '@/utils/inventory'
+import { resolveTextDirection } from '@/utils/textDirection'
+import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
 import type {
     DataTableResetHandle,
     OnSortParam,
@@ -47,6 +49,7 @@ type Product = {
     permanentStock?: boolean
     currency?: string
     unitOfMeasure?: SalesUnit
+    specifications?: string
 }
 
 const ActionColumn = ({ row }: { row: Product }) => {
@@ -97,7 +100,7 @@ const ProductColumn = ({ row }: { row: Product }) => {
 }
 
 const ProductTable = () => {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
     const tableRef = useRef<DataTableResetHandle>(null)
 
     const dispatch = useAppDispatch()
@@ -148,14 +151,17 @@ const ProductTable = () => {
     )
 
     const defaultCurrency = useAppSelector((state) => state.currency.code)
+    const fallbackCurrency = useMemo(
+        () => normalizeCurrencyCode(defaultCurrency, 'UYU') || 'UYU',
+        [defaultCurrency],
+    )
 
     const formatCurrencyValue = useCallback(
-        (amount: number, currency?: string) => {
-            const numericAmount = Number.isFinite(amount) ? amount : 0
-            const code = (currency || defaultCurrency || '').toUpperCase()
-            return `${code} ${numericAmount.toFixed(2)}`
-        },
-        [defaultCurrency],
+        (amount: number, currency?: string) =>
+            formatCurrency(amount, currency, i18n.language, {
+                fallbackCurrency,
+            }),
+        [fallbackCurrency, i18n.language],
     )
 
     const resolveStockStatus = useMemo(() => {
@@ -237,6 +243,28 @@ const ProductTable = () => {
                 cell: (props) => {
                     const vendor = (props.row.original as any).vendor
                     return <span>{vendor || '-'}</span>
+                },
+            },
+            {
+                header: t('text.columns.specifications', {
+                    defaultValue: 'Especificaciones',
+                }),
+                accessorKey: 'specifications',
+                enableSorting: false,
+                cell: (props) => {
+                    const raw = props.row.original.specifications
+                    const text =
+                        typeof raw === 'string' && raw.trim().length > 0
+                            ? raw.trim()
+                            : '—'
+                    return (
+                        <span
+                            className="whitespace-pre-wrap text-sm"
+                            dir={resolveTextDirection(text)}
+                        >
+                            {text}
+                        </span>
+                    )
                 },
             },
             {

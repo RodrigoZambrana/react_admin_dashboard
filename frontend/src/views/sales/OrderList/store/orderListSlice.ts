@@ -9,6 +9,7 @@ import {
     apiDeleteSalesOrders,
 } from '@/services/SalesService'
 import type { TableQueries } from '@/@types/common'
+import type { SalesDocumentResource } from '@/services/SalesService'
 
 type Order = {
     id: string
@@ -28,20 +29,25 @@ type GetSalesOrdersResponse = {
     total: number
 }
 
+export type SalesTableQueries = TableQueries & {
+    resource: SalesDocumentResource
+}
+
 export type SalesOrderListState = {
     loading: boolean
     orderList: Orders
-    tableData: TableQueries
+    tableData: SalesTableQueries
     deleteMode: 'single' | 'batch' | ''
     selectedRows: string[]
     selectedRow: string
+    currentResource: SalesDocumentResource
 }
 
 export const SLICE_NAME = 'salesOrderList'
 
 export const getOrders = createAsyncThunk(
     SLICE_NAME + '/getOrders',
-    async (data: TableQueries) => {
+    async (data: TableQueries & { resource?: SalesDocumentResource }) => {
         const pageIndex =
             typeof data.pageIndex === 'number' && !Number.isNaN(data.pageIndex)
                 ? data.pageIndex
@@ -71,23 +77,31 @@ export const getOrders = createAsyncThunk(
             }
         }
 
+        const resource: SalesDocumentResource = data.resource ?? 'orders'
+
         const response = await apiGetSalesOrders<
             GetSalesOrdersResponse,
             Record<string, unknown>
-        >(params)
-        return response.data
+        >(params, resource)
+        return {
+            resource,
+            ...response.data,
+        }
     },
 )
 
-export const deleteOrders = async (data: { id: string | string[] }) => {
+export const deleteOrders = async (
+    data: { id: string | string[] },
+    resource: SalesDocumentResource,
+) => {
     const response = await apiDeleteSalesOrders<
         boolean,
         { id: string | string[] }
-    >(data)
+    >(data, resource)
     return response.data
 }
 
-const initialState: SalesOrderListState = {
+export const initialState: SalesOrderListState = {
     loading: false,
     orderList: [],
     tableData: {
@@ -99,10 +113,12 @@ const initialState: SalesOrderListState = {
             order: '',
             key: '',
         },
+        resource: 'orders',
     },
     selectedRows: [],
     selectedRow: '',
     deleteMode: '',
+    currentResource: 'orders',
 }
 
 const orderListSlice = createSlice({
@@ -113,7 +129,13 @@ const orderListSlice = createSlice({
             state.orderList = action.payload
         },
         setTableData: (state, action) => {
-            state.tableData = action.payload
+            state.tableData = {
+                ...state.tableData,
+                ...action.payload,
+            }
+            if (action.payload.resource) {
+                state.currentResource = action.payload.resource
+            }
         },
         setSelectedRows: (state, action) => {
             state.selectedRows = action.payload
@@ -144,6 +166,8 @@ const orderListSlice = createSlice({
             .addCase(getOrders.fulfilled, (state, action) => {
                 state.orderList = action.payload.data
                 state.tableData.total = action.payload.total
+                state.tableData.resource = action.payload.resource
+                state.currentResource = action.payload.resource
                 state.loading = false
             })
             .addCase(getOrders.pending, (state) => {

@@ -45,6 +45,7 @@ type Expense = {
     amount: number
     note?: string
     currency?: string | null
+    taxCreditEligible: boolean
 }
 
 const sortKeyMap: Record<string, string> = {
@@ -371,6 +372,18 @@ const ExpensesTable = () => {
                         />
                     )
                 },
+            },
+            {
+                header: t('text.columns.taxCreditEligible'),
+                accessorKey: 'taxCreditEligible',
+                enableSorting: false,
+                cell: (props) => (
+                    <span>
+                        {props.row.original.taxCreditEligible
+                            ? t('common.labels.yes', { defaultValue: 'Yes' })
+                            : t('common.labels.no', { defaultValue: 'No' })}
+                    </span>
+                ),
             },
             {
                 header: '',
