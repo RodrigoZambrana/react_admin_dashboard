@@ -47,6 +47,30 @@ enum DocumentType {
   BUDGET
 }
 
+enum InboxChannelType {
+  EMAIL
+  WHATSAPP
+  MESSENGER
+  INSTAGRAM
+  SMS
+  OTHER
+}
+
+enum InboxMessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum InboxMessageEventType {
+  CREATED
+  FETCHED
+  FLAG_UPDATED
+  MOVED
+  SENT
+  SYNCED
+  ERROR
+}
+
 // Notification
 model Notification {
   id            Int      @id @default(autoincrement())
@@ -542,4 +566,93 @@ model CustomerAddress {
   isPrimary  Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model InboxAccount {
+  id             String           @id @default(cuid())
+  displayName    String?
+  address        String?
+  channel        InboxChannelType
+  active         Boolean          @default(true)
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  messages       InboxMessage[]
+  syncStates     InboxSyncState[]
+
+  @@unique([channel, address])
+}
+
+model InboxMessage {
+  id               String                 @id @default(cuid())
+  accountId        String
+  account          InboxAccount           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  channel          InboxChannelType
+  remoteId         String
+  threadRemoteId   String?
+  subject          String?
+  snippet          String?
+  previewText      String?
+  fromAddress      String?
+  fromName         String?
+  toAddresses      String[]
+  ccAddresses      String[]
+  bccAddresses     String[]
+  replyToAddresses String[]
+  direction        InboxMessageDirection
+  folder           String?
+  isRead           Boolean                @default(false)
+  isStarred        Boolean                @default(false)
+  isSpam           Boolean                @default(false)
+  hasAttachments   Boolean                @default(false)
+  sentAt           DateTime?
+  receivedAt       DateTime?
+  metadata         Json?
+  attachments      InboxAttachment[]
+  events           InboxMessageEvent[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@unique([accountId, channel, remoteId])
+  @@index([accountId, folder])
+  @@index([accountId, isRead])
+  @@index([accountId, sentAt])
+}
+
+model InboxAttachment {
+  id          String        @id @default(cuid())
+  messageId   String
+  message     InboxMessage  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  remoteId    String?
+  fileName    String?
+  contentType String?
+  size        Int?
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+}
+
+model InboxSyncState {
+  id         String           @id @default(cuid())
+  accountId  String
+  account    InboxAccount     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  channel    InboxChannelType
+  folder     String
+  lastRemoteId String?
+  lastSyncAt DateTime?
+  metadata   Json?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([accountId, channel, folder])
+}
+
+model InboxMessageEvent {
+  id         Int                    @id @default(autoincrement())
+  messageId  String
+  message    InboxMessage           @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  type       InboxMessageEventType
+  payload    Json?
+  occurredAt DateTime               @default(now())
+
+  @@index([messageId, occurredAt])
 }

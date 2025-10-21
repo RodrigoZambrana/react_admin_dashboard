@@ -17,6 +17,7 @@ import {
     toggleSidebar,
     toggleMobileSidebar,
     updateReply,
+    fetchInboxMessages,
     useAppDispatch,
     useAppSelector,
 } from '../store'
@@ -87,6 +88,18 @@ const MailList = () => {
         (state) => state.crmMail.data.selectedCategory,
     )
 
+    const inboxState = useAppSelector((state) => state.crmMail.data.inbox)
+    const selectedInboxAccountId = inboxState.selectedAccountId
+    const selectedInboxMailboxId = inboxState.selectedMailboxId
+    const inboxMessagesKey =
+        selectedInboxAccountId && selectedInboxMailboxId
+            ? `${selectedInboxAccountId}:${selectedInboxMailboxId}`
+            : null
+    const hasInboxMessages = Boolean(
+        inboxMessagesKey &&
+            inboxState.messagesByMailbox[inboxMessagesKey]?.length,
+    )
+
     const direction = useAppSelector((state) => state.theme.direction)
 
     const navigate = useNavigate()
@@ -109,6 +122,29 @@ const MailList = () => {
         fetchData(category)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.pathname])
+
+    useEffect(() => {
+        if (
+            !selectedInboxAccountId ||
+            !selectedInboxMailboxId ||
+            inboxState.messagesLoading ||
+            hasInboxMessages
+        ) {
+            return
+        }
+        dispatch(
+            fetchInboxMessages({
+                accountId: selectedInboxAccountId,
+                mailbox: selectedInboxMailboxId,
+            }),
+        )
+    }, [
+        dispatch,
+        hasInboxMessages,
+        inboxState.messagesLoading,
+        selectedInboxAccountId,
+        selectedInboxMailboxId,
+    ])
 
     const parseHtml = (content: string) => {
         if (!content) {

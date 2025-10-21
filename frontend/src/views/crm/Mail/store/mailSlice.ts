@@ -1,5 +1,14 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { apiGetCustomerMails, apiGetCustomerMail } from '@/services/CustomersService'
+import {
+    apiGetInboxAccounts,
+    apiGetInboxMailboxes,
+    apiGetInboxMessages,
+    type InboxAccountDto,
+    type InboxMailboxDto,
+    type InboxMessageListResponse,
+    type InboxMessageSummaryDto,
+} from '@/services/InboxService'
 
 export type Category = {
     category: string
@@ -44,6 +53,22 @@ type GetCrmMailRequest = { id: string }
 
 type GetCrmMailResponse = Mail
 
+type InboxMessagesByMailbox = Record<string, InboxMessageSummaryDto[]>
+type InboxMailboxesByAccount = Record<string, InboxMailboxDto[]>
+type InboxCursorByMailbox = Record<string, string | null | undefined>
+
+type InboxState = {
+    accounts: InboxAccountDto[]
+    accountsLoading: boolean
+    mailboxesByAccount: InboxMailboxesByAccount
+    mailboxesLoading: boolean
+    messagesByMailbox: InboxMessagesByMailbox
+    messagesLoading: boolean
+    nextCursorByMailbox: InboxCursorByMailbox
+    selectedAccountId?: string
+    selectedMailboxId?: string
+}
+
 export type MailState = {
     mailListLoading: boolean
     mailLoading: boolean
@@ -55,6 +80,7 @@ export type MailState = {
     selectedCategory: Partial<Category>
     reply: boolean
     newMessageDialog: boolean
+    inbox: InboxState
 }
 
 export const SLICE_NAME = 'crmMail'
@@ -81,6 +107,55 @@ export const getMail = createAsyncThunk(
     },
 )
 
+export const fetchInboxAccounts = createAsyncThunk(
+    `${SLICE_NAME}/fetchInboxAccounts`,
+    async () => {
+        const response = await apiGetInboxAccounts()
+        return response.data
+    },
+)
+
+export const fetchInboxMailboxes = createAsyncThunk(
+    `${SLICE_NAME}/fetchInboxMailboxes`,
+    async ({ accountId }: { accountId: string }) => {
+        const response = await apiGetInboxMailboxes(accountId)
+        return {
+            accountId,
+            mailboxes: response.data,
+        }
+    },
+)
+
+export const fetchInboxMessages = createAsyncThunk(
+    `${SLICE_NAME}/fetchInboxMessages`,
+    async ({
+        accountId,
+        mailbox,
+        cursor,
+        limit,
+        since,
+    }: {
+        accountId: string
+        mailbox: string
+        cursor?: string
+        limit?: number
+        since?: string
+    }) => {
+        const response = await apiGetInboxMessages({
+            accountId,
+            mailbox,
+            cursor,
+            limit,
+            since,
+        })
+        return {
+            accountId,
+            mailbox,
+            result: response.data,
+        }
+    },
+)
+
 const initialState: MailState = {
     mailListLoading: false,
     mailLoading: false,
@@ -92,6 +167,17 @@ const initialState: MailState = {
     selectedCategory: {},
     reply: false,
     newMessageDialog: false,
+    inbox: {
+        accounts: [],
+        accountsLoading: false,
+        mailboxesByAccount: {},
+        mailboxesLoading: false,
+        messagesByMailbox: {},
+        messagesLoading: false,
+        nextCursorByMailbox: {},
+        selectedAccountId: undefined,
+        selectedMailboxId: undefined,
+    },
 }
 
 const mailSlice = createSlice({
@@ -125,6 +211,12 @@ const mailSlice = createSlice({
         updateSelectedCategory: (state, action) => {
             state.selectedCategory = action.payload
         },
+        setSelectedInboxAccount: (state, action) => {
+            state.inbox.selectedAccountId = action.payload
+        },
+        setSelectedInboxMailbox: (state, action) => {
+            state.inbox.selectedMailboxId = action.payload
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -142,6 +234,49 @@ const mailSlice = createSlice({
             .addCase(getMail.pending, (state) => {
                 state.mailLoading = true
             })
+            .addCase(fetchInboxAccounts.pending, (state) => {
+                state.inbox.accountsLoading = true
+            })
+            .addCase(fetchInboxAccounts.fulfilled, (state, action) => {
+                state.inbox.accountsLoading = false
+                state.inbox.accounts = action.payload
+                if (!state.inbox.selectedAccountId && action.payload.length > 0) {
+                    state.inbox.selectedAccountId = action.payload[0].id
+                }
+            })
+            .addCase(fetchInboxAccounts.rejected, (state) => {
+                state.inbox.accountsLoading = false
+            })
+            .addCase(fetchInboxMailboxes.pending, (state) => {
+                state.inbox.mailboxesLoading = true
+            })
+            .addCase(fetchInboxMailboxes.fulfilled, (state, action) => {
+                state.inbox.mailboxesLoading = false
+                state.inbox.mailboxesByAccount[action.payload.accountId] =
+                    action.payload.mailboxes
+                if (
+                    !state.inbox.selectedMailboxId &&
+                    action.payload.mailboxes.length > 0
+                ) {
+                    state.inbox.selectedMailboxId = action.payload.mailboxes[0].id
+                }
+            })
+            .addCase(fetchInboxMailboxes.rejected, (state) => {
+                state.inbox.mailboxesLoading = false
+            })
+            .addCase(fetchInboxMessages.pending, (state) => {
+                state.inbox.messagesLoading = true
+            })
+            .addCase(fetchInboxMessages.fulfilled, (state, action) => {
+                state.inbox.messagesLoading = false
+                const key = `${action.payload.accountId}:${action.payload.mailbox}`
+                state.inbox.messagesByMailbox[key] = action.payload.result.items
+                state.inbox.nextCursorByMailbox[key] =
+                    action.payload.result.nextCursor ?? null
+            })
+            .addCase(fetchInboxMessages.rejected, (state) => {
+                state.inbox.messagesLoading = false
+            })
     },
 })
 
@@ -154,6 +289,8 @@ export const {
     toggleMobileSidebar,
     toggleNewMessageDialog,
     updateSelectedCategory,
+    setSelectedInboxAccount,
+    setSelectedInboxMailbox,
 } = mailSlice.actions
 
 export default mailSlice.reducer

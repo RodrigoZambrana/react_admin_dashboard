@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import classNames from 'classnames'
 import Menu from '@/components/ui/Menu'
 import Badge from '@/components/ui/Badge'
@@ -10,6 +10,9 @@ import {
     updateSelectedCategory,
     toggleMobileSidebar,
     updateMailId,
+    fetchInboxAccounts,
+    fetchInboxMailboxes,
+    setSelectedInboxMailbox,
     useAppDispatch,
     useAppSelector,
 } from '../store'
@@ -24,7 +27,7 @@ type MenuBase = {
 }
 
 type Group = MenuBase & {
-    icon: JSX.Element
+    icon?: JSX.Element
 }
 
 type Label = MenuBase & {
@@ -44,12 +47,100 @@ const MailSideBarContent = () => {
         (state) => state.crmMail.data.selectedCategory,
     )
 
+    const inboxState = useAppSelector((state) => state.crmMail.data.inbox)
+    const inboxAccounts = inboxState.accounts
+    const inboxAccountsLoading = inboxState.accountsLoading
+    const selectedInboxAccountId = inboxState.selectedAccountId
+    const inboxMailboxesByAccount = inboxState.mailboxesByAccount
+    const inboxMailboxesLoading = inboxState.mailboxesLoading
+    const selectedInboxMailboxId = inboxState.selectedMailboxId
+
+    const accountMailboxes = selectedInboxAccountId
+        ? inboxMailboxesByAccount[selectedInboxAccountId] ?? []
+        : []
+
+    const dynamicMailboxGroups = useMemo<Group[]>(
+        () =>
+            accountMailboxes.map((mailbox) => ({
+                value: mailbox.id,
+                label: mailbox.label || mailbox.id,
+            })),
+        [accountMailboxes],
+    )
+
+    const dynamicMailboxMap = useMemo<Record<string, Group>>(() => {
+        return dynamicMailboxGroups.reduce<Record<string, Group>>(
+            (acc, mailbox) => {
+                acc[mailbox.value] = mailbox
+                return acc
+            },
+            {},
+        )
+    }, [dynamicMailboxGroups])
+
     const direction = useAppSelector((state) => state.theme.direction)
 
+    useEffect(() => {
+        if (!inboxAccountsLoading && inboxAccounts.length === 0) {
+            dispatch(fetchInboxAccounts())
+        }
+    }, [dispatch, inboxAccountsLoading, inboxAccounts.length])
+
+    useEffect(() => {
+        if (!selectedInboxAccountId) {
+            return
+        }
+        if (
+            inboxMailboxesByAccount[selectedInboxAccountId] &&
+            inboxMailboxesByAccount[selectedInboxAccountId]?.length > 0
+        ) {
+            return
+        }
+        if (inboxMailboxesLoading) {
+            return
+        }
+        dispatch(fetchInboxMailboxes({ accountId: selectedInboxAccountId }))
+    }, [
+        dispatch,
+        inboxMailboxesByAccount,
+        inboxMailboxesLoading,
+        selectedInboxAccountId,
+    ])
+
+    useEffect(() => {
+        if (!selectedInboxMailboxId && dynamicMailboxGroups.length > 0) {
+            dispatch(setSelectedInboxMailbox(dynamicMailboxGroups[0].value))
+        }
+    }, [dispatch, selectedInboxMailboxId, dynamicMailboxGroups])
+
+    const getCategory = (value: string) => {
+        let category = value
+        if (category === 'mail') {
+            category = 'inbox'
+        }
+        const dynamicMatch =
+            dynamicMailboxMap[category] ??
+            dynamicMailboxGroups.find(
+                (mailbox) => mailbox.value.toLowerCase() === category.toLowerCase(),
+            )
+        if (dynamicMatch) {
+            return dynamicMatch
+        }
+        const categories = [...groupList, ...labelList]
+        return {
+            value: category,
+            label: categories.find((cat) => cat.value === category)?.label,
+        }
+    }
+
     const onMenuClick = (category: Group | Label) => {
+        const normalized = getCategory(category.value)
         dispatch(updateMailId(''))
-        dispatch(updateSelectedCategory(getCategory(category.value)))
-        navigate(`/app/crm/mail/${category.value}`, { replace: true })
+        dispatch(updateSelectedCategory(normalized))
+        if (dynamicMailboxMap[normalized.value]) {
+            dispatch(setSelectedInboxMailbox(normalized.value))
+        }
+        navigate(`/app/crm/mail/${normalized.value}`, { replace: true })
     }
 
     useEffect(() => {
@@ -59,18 +150,16 @@ const MailSideBarContent = () => {
         const selected = getCategory(path)
         dispatch(updateSelectedCategory(selected))
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [dynamicMailboxMap])
 
-    const getCategory = (value: string) => {
-        const categories = [...groupList, ...labelList]
-        let category = value
-        if (category === 'mail') {
-            category = 'inbox'
+    const primaryMenuItems: Group[] =
+        dynamicMailboxGroups.length > 0 ? dynamicMailboxGroups : groupList
+
+    const resolveMenuLabel = (menu: Group) => {
+        if (dynamicMailboxMap[menu.value]) {
+            return dynamicMailboxMap[menu.value].label
         }
-        return {
-            value: category,
-            label: categories.find((cat) => cat.value === category)?.label,
-        }
+        return t(`crm.mail.categories.${menu.value}`)
     }
 
     return (
@@ -81,7 +170,7 @@ const MailSideBarContent = () => {
                         <h3>{t('crm.mail.mailbox')}</h3>
                     </div>
                     <Menu variant="transparent" className="mx-2 mb-10">
-                        {groupList.map((menu) => (
+                        {primaryMenuItems.map((menu) => (
                             <MenuItem
                                 key={menu.value}
                                 eventKey={menu.value}
@@ -92,10 +181,12 @@ const MailSideBarContent = () => {
                                 }`}
                                 onSelect={() => onMenuClick(menu)}
                             >
-                                <span className="text-2xl ltr:mr-2 rtl:ml-2">
-                                    {menu.icon}
-                                </span>
-                                <span>{t(`crm.mail.categories.${menu.value}`)}</span>
+                                {menu.icon && (
+                                    <span className="text-2xl ltr:mr-2 rtl:ml-2">
+                                        {menu.icon}
+                                    </span>
+                                )}
+                                <span>{resolveMenuLabel(menu)}</span>
                             </MenuItem>
                         ))}
                     </Menu>
