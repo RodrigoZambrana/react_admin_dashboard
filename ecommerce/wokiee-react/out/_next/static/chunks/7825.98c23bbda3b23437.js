@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[7825],{87825:function(n,s,e){e.r(s);var a=e(85893);s.default=n=>{let{value:s,type:e}=n;return(0,a.jsxs)("span",{className:"countdown-section",children:[(0,a.jsx)("span",{className:"countdown-amount",children:s}),(0,a.jsx)("span",{className:"countdown-period",children:e})]})}}}]);
