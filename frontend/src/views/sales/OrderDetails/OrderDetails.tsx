@@ -9,7 +9,7 @@ import PaymentSummary from './components/PaymentSummary'
 import ShippingInfo from './components/ShippingInfo'
 import Activity from './components/Activity'
 import CustomerInfo from './components/CustomerInfo'
-import { HiOutlineCalendar, HiOutlineDocumentText } from 'react-icons/hi'
+import { HiOutlineCalendar, HiOutlineDocumentText, HiOutlinePencil } from 'react-icons/hi'
 import { apiGetSalesOrderDetails } from '@/services/SalesService'
 import { apiGetOrderStatuses, apiGetSystemConfig } from '@/services/SettingsService'
 import { adaptOrderToDetailsView } from '@/adapters/sales'
@@ -232,14 +232,26 @@ const OrderDetails = () => {
                                         </span>
                                     ) : null}
                                 </div>
-                                <Button
-                                    size="sm"
-                                    variant="solid"
-                                    icon={<HiOutlineDocumentText />}
-                                    onClick={onViewInvoice}
-                                >
-                                    {invoiceLabel}
-                                </Button>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {data.id && (
+                                        <Button
+                                            size="sm"
+                                            variant="twoTone"
+                                            icon={<HiOutlinePencil />}
+                                            onClick={() => navigate(`${routes.edit}/${data.id}`)}
+                                        >
+                                            {t('text.actions.edit')}
+                                        </Button>
+                                    )}
+                                    <Button
+                                        size="sm"
+                                        variant="solid"
+                                        icon={<HiOutlineDocumentText />}
+                                        onClick={onViewInvoice}
+                                    >
+                                        {invoiceLabel}
+                                    </Button>
+                                </div>
                             </div>
                         </div>
                         <div className="xl:flex gap-4">

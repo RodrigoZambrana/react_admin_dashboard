@@ -20,6 +20,7 @@ type Order = {
     paymentIdendifier: string
     totalAmount: number
     orderCurrency?: string
+    validUntil?: number | string | null
 }
 
 type Orders = Order[]
