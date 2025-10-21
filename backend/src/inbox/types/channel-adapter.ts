@@ -91,6 +91,10 @@ export type ChannelSendAttachmentInput = {
 
 export type ChannelSendMessageInput = {
   subject: string
+  from?: {
+    address: string
+    name?: string
+  }
   body: {
     html?: string
     text?: string
@@ -116,6 +120,7 @@ export type ChannelSetFlagsInput = {
   seen?: boolean
   starred?: boolean
   spam?: boolean
+  metadata?: Record<string, unknown>
 }
 
 export interface ChannelAdapter {
