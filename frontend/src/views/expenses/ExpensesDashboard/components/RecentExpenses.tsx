@@ -24,6 +24,7 @@ type Expense = {
     paymentMethodId?: number | null
     paymentMethodName?: string
     amount: number
+    taxCreditEligible: boolean
 }
 
 type RecentExpensesProps = {
@@ -71,6 +72,16 @@ const columns = (t: (key: string, opts?: any) => string) => [
     }),
     columnHelper.accessor('vendor', {
         header: t('expenses.latestExpenses.columns.vendor'),
+    }),
+    columnHelper.accessor('taxCreditEligible', {
+        header: t('text.columns.taxCreditEligible'),
+        cell: (props) => (
+            <span>
+                {props.row.original.taxCreditEligible
+                    ? t('common.labels.yes', { defaultValue: 'Yes' })
+                    : t('common.labels.no', { defaultValue: 'No' })}
+            </span>
+        ),
     }),
     columnHelper.accessor('amount', {
         header: t('text.columns.amount'),

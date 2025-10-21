@@ -18,12 +18,14 @@ import isEmpty from 'lodash/isEmpty'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import Button from '@/components/ui/Button'
+import { useSalesDocumentI18n } from '../context/useSalesDocumentI18n'
 
 type SalesOrderDetailsResponse = {
     id?: string
     progressStatus?: number
     payementStatus?: number
     dateTime?: number
+    validUntil?: number
     paymentSummary?: {
         subTotal: number
         tax: number
@@ -45,6 +47,7 @@ type SalesOrderDetailsResponse = {
         img: string
         price: number
         quantity: number
+        qty?: number
         total: number
         currency?: string
         unitCurrency?: string
@@ -53,6 +56,13 @@ type SalesOrderDetailsResponse = {
         conversionRate?: number
         details: Record<string, string[]>
         comments?: string
+        specSummary?: string
+        specifications?: string
+        customAttributes?: Record<string, unknown>
+        unitOfMeasure?: string | null
+        pricingMethod?: string | null
+        effectiveQuantity?: number
+        unitPrice?: number
     }[]
     activity?: {
         date: number
@@ -93,11 +103,13 @@ const OrderDetails = () => {
     const [data, setData] = useState<SalesOrderDetailsResponse>({})
     const [orderStatuses, setOrderStatuses] = useState<{ id: number; name: string; color: string }[]>([])
     const [taxRate, setTaxRate] = useState<number>()
+    const { t } = useTranslation()
+    const { tDoc, resource, routes } = useSalesDocumentI18n()
 
     useEffect(() => {
         fetchData()
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [resource])
 
     const fetchData = async () => {
         const id = location.pathname.substring(
@@ -108,7 +120,7 @@ const OrderDetails = () => {
             const response = await apiGetSalesOrderDetails<
                 SalesOrderDetailsResponse,
                 { id: string }
-            >({ id })
+            >({ id }, resource)
             if (response) {
                 setLoading(false)
                 // Backend returns raw Order; map to unified view shape
@@ -133,8 +145,23 @@ const OrderDetails = () => {
             })
             .catch(() => setTaxRate(undefined))
     }, [])
-
-    const { t } = useTranslation()
+    const docMessage = useCallback(
+        (key: string, fallbackKey: string, defaultValue: string) =>
+            tDoc(key, {
+                defaultValue: t(fallbackKey, { defaultValue }),
+            }),
+        [t, tDoc],
+    )
+    const invoiceLabel = docMessage(
+        'invoiceAction',
+        'sales.orders.invoiceAction',
+        t('text.actions.viewInvoice', { defaultValue: 'View invoice' }),
+    )
+    const validUntilLabel = docMessage(
+        'validUntilLabel',
+        'sales.orders.validUntilLabel',
+        'Valid until',
+    )
 
     const currentOrderStatus = useMemo(() => {
         const sid = Number(data.progressStatus)
@@ -158,8 +185,8 @@ const OrderDetails = () => {
 
     const onViewInvoice = useCallback(() => {
         if (!data.id) return
-        navigate(`/app/account/invoice/${data.id}`)
-    }, [data.id, navigate])
+        navigate(`${routes.invoice}/${data.id}`)
+    }, [data.id, navigate, routes.invoice])
     return (
         <Container className="h-full">
             <Loading loading={loading}>
@@ -170,7 +197,11 @@ const OrderDetails = () => {
                                 <div>
                                     <div className="flex items-center mb-2">
                                         <h3>
-                                            <span>{t('text.columns.order')}</span>
+                                            <span>
+                                                {tDoc('detailsTitle', {
+                                                    defaultValue: t('text.columns.order'),
+                                                })}
+                                            </span>
                                             <span className="ltr:ml-2 rtl:mr-2">
                                                 #{data.id}
                                             </span>
@@ -189,6 +220,17 @@ const OrderDetails = () => {
                                                 .format('ddd DD-MMM-YYYY, hh:mm A')}
                                         </span>
                                     </span>
+                                    {data.validUntil ? (
+                                        <span className="flex items-center">
+                                            <HiOutlineDocumentText className="text-lg" />
+                                            <span className="ltr:ml-1 rtl:mr-1">
+                                                {validUntilLabel}:{' '}
+                                                {dayjs
+                                                    .unix(data.validUntil)
+                                                    .format('ddd DD-MMM-YYYY')}
+                                            </span>
+                                        </span>
+                                    ) : null}
                                 </div>
                                 <Button
                                     size="sm"
@@ -196,7 +238,7 @@ const OrderDetails = () => {
                                     icon={<HiOutlineDocumentText />}
                                     onClick={onViewInvoice}
                                 >
-                                    {t('text.actions.viewInvoice', { defaultValue: 'View invoice' })}
+                                    {invoiceLabel}
                                 </Button>
                             </div>
                         </div>

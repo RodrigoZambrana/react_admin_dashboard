@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react'
+import { forwardRef, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { FormContainer } from '@/components/ui/Form'
 import Button from '@/components/ui/Button'
@@ -24,6 +24,7 @@ import {
     type SalesUnit,
 } from '@/constants/product.constant'
 import { sanitizeString } from '@/utils/security/inputGuards'
+import { formatCurrencyOptionLabel } from '@/utils/currency'
 
 const sanitizeCurrencyCode = (value?: string | null): CurrencyCode | undefined => {
     if (typeof value !== 'string') {
@@ -70,6 +71,7 @@ type InitialData = {
     brand?: string
     vendor?: string
     description?: string
+    specifications?: string
     published?: boolean
     permanentStock?: boolean
     currency?: CurrencyCode
@@ -183,6 +185,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
             brand: '',
             vendor: '',
             description: '',
+            specifications: '',
             published: false,
             permanentStock: false,
             currency: 'UYU',
@@ -228,19 +231,6 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
             areCurrencyListsEqual(prev, derived) ? prev : derived,
         )
     }, [currencyState?.loaded, storeCurrencyInfo])
-
-    const formatCurrencyOptionLabel = useCallback(
-        (code: string, text?: string, symbol?: string) => {
-            const parts = [code]
-            const trimmedText = text?.trim()
-            if (trimmedText) {
-                parts.push(trimmedText)
-            }
-            const suffix = symbol?.trim()
-            return suffix ? `${parts.join(' · ')} (${suffix})` : parts.join(' · ')
-        },
-        [],
-    )
 
     useEffect(() => {
         let ignore = false
@@ -303,7 +293,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
         return () => {
             ignore = true
         }
-    }, [formatCurrencyOptionLabel, storeCurrencyInfo.base])
+    }, [storeCurrencyInfo.base])
 
     const allowedCurrencyOptions = useMemo(
         () => {
@@ -334,6 +324,10 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                 initialValues={{
                     ...initialData,
                     id: Number(initialData.id ?? 0),
+                    specifications:
+                        typeof initialData.specifications === 'string'
+                            ? initialData.specifications
+                            : '',
                     categoryId:
                         initialData.categoryId !== undefined && initialData.categoryId !== null
                             ? Number(initialData.categoryId)
@@ -363,6 +357,9 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                     formData.currency = ((formData.currency || 'UYU') as string).toUpperCase()
                     if (typeof formData.description === 'string') {
                         formData.description = sanitizeString(formData.description)
+                    }
+                    if (typeof formData.specifications === 'string') {
+                        formData.specifications = sanitizeString(formData.specifications)
                     }
                     // Normalize numeric fields to numbers
                     ;(['salePrice', 'costPrice', 'stock', 'status', 'bulkDiscountPrice', 'categoryId'] as const).forEach((k) => {

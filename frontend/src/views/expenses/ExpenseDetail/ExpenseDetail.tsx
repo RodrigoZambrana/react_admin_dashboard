@@ -12,6 +12,7 @@ import ExpenseAttachmentsField from '@/views/expenses/components/ExpenseAttachme
 import { apiGetExpense, type ExpenseAttachment } from '@/services/ExpensesService'
 import { useAppSelector } from '@/store'
 import { resolveTextDirection } from '@/utils/textDirection'
+import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
 
 type ExpenseDetailRecord = {
     id: string
@@ -26,17 +27,7 @@ type ExpenseDetailRecord = {
     paymentReference?: string
     note?: string
     currency?: string | null
-}
-
-const formatCurrency = (value: number, currency: string) => {
-    try {
-        return new Intl.NumberFormat(undefined, {
-            style: 'currency',
-            currency,
-        }).format(value)
-    } catch (error) {
-        return `${currency} ${value.toFixed(2)}`
-    }
+    taxCreditEligible: boolean
 }
 
 const FieldItem = ({ label, value }: { label: string; value: ReactNode }) => (
@@ -51,13 +42,17 @@ const FieldItem = ({ label, value }: { label: string; value: ReactNode }) => (
 const ExpenseDetail = () => {
     const { expenseId } = useParams()
     const navigate = useNavigate()
-    const { t } = useTranslation()
-    const currencyFallback = useAppSelector((state) => state.currency.code) || 'USD'
+    const { t, i18n } = useTranslation()
+    const storeCurrency = useAppSelector((state) => state.currency.code)
 
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [data, setData] = useState<ExpenseDetailRecord | null>(null)
     const [attachments, setAttachments] = useState<ExpenseAttachment[]>([])
+    const fallbackCurrency = useMemo(
+        () => normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU',
+        [storeCurrency],
+    )
 
     const fetchExpense = useCallback(async (id: string) => {
         setLoading(true)
@@ -84,6 +79,10 @@ const ExpenseDetail = () => {
                 paymentReference: payload.paymentReference || '',
                 note: payload.note || payload.description || '',
                 currency: payload.currency || null,
+                taxCreditEligible:
+                    payload?.taxCreditEligible !== undefined && payload?.taxCreditEligible !== null
+                        ? Boolean(payload.taxCreditEligible)
+                        : true,
             }
             setData(normalized)
             setAttachments(Array.isArray(payload.attachments) ? payload.attachments : [])
@@ -105,13 +104,13 @@ const ExpenseDetail = () => {
         fetchExpense(expenseId)
     }, [expenseId, fetchExpense])
 
-    const currencyCode = data?.currency || currencyFallback
     const formattedAmount = useMemo(() => {
-        if (data) {
-            return formatCurrency(data.amount, currencyCode)
-        }
-        return formatCurrency(0, currencyCode)
-    }, [data, currencyCode])
+        const amount = data?.amount ?? 0
+        const currency = data?.currency ?? fallbackCurrency
+        return formatCurrency(amount, currency, i18n.language, {
+            fallbackCurrency,
+        })
+    }, [data, fallbackCurrency, i18n.language])
 
     const handleEdit = () => {
         if (data) {
@@ -146,13 +145,29 @@ const ExpenseDetail = () => {
                 value: data?.paymentReference || '-',
             },
             {
+                label: t('text.columns.taxCreditEligible', {
+                    defaultValue: 'Genera crédito fiscal',
+                }),
+                value: data?.taxCreditEligible
+                    ? t('common.labels.yes', { defaultValue: 'Sí' })
+                    : t('common.labels.no', { defaultValue: 'No' }),
+            },
+            {
                 label: t('text.columns.date'),
                 value: data?.date
                     ? dayjs.unix(data.date).format('DD/MM/YYYY')
                     : t('common.labels.notSpecified', { defaultValue: 'No indicado' }),
             },
         ],
-        [data?.vendor, data?.categoryName, data?.paymentMethodName, data?.paymentReference, data?.date, t],
+        [
+            data?.vendor,
+            data?.categoryName,
+            data?.paymentMethodName,
+            data?.paymentReference,
+            data?.taxCreditEligible,
+            data?.date,
+            t,
+        ],
     )
 
     const statusBadge = data?.statusName ? (

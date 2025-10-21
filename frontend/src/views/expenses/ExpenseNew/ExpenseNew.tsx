@@ -3,7 +3,7 @@ import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import DatePicker from '@/components/ui/DatePicker'
 import Button from '@/components/ui/Button'
-import { Field, Form, Formik } from 'formik'
+import { Field, Form, Formik, type FieldProps } from 'formik'
 import * as Yup from 'yup'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -21,6 +21,7 @@ import SelectAcceptedCurrencies from '@/components/shared/SelectAcceptedCurrenci
 import type { CurrencyCode } from '@/store'
 import InputGroup from '@/components/ui/InputGroup'
 import ExpenseAttachmentsField from '@/views/expenses/components/ExpenseAttachmentsField'
+import Switcher from '@/components/ui/Switcher'
 
 type ExpenseForm = {
     date: Date | null
@@ -33,6 +34,7 @@ type ExpenseForm = {
     note?: string
     currency: string
     attachments: ExpenseAttachment[]
+    taxCreditEligible: boolean
 }
 
 const defaultCategories: Array<{ value: string; label: string }> = []
@@ -107,6 +109,7 @@ const ExpenseNew = () => {
         note: '',
         currency: 'UYU',
         attachments: [],
+        taxCreditEligible: true,
     }
 
     const onSubmit = async (values: ExpenseForm) => {
@@ -125,6 +128,7 @@ const ExpenseNew = () => {
             note: values.note?.trim() || null,
             currency: values.currency ? values.currency.toUpperCase() : null,
             attachments: values.attachments || [],
+            taxCreditEligible: values.taxCreditEligible,
         }
         const res = await apiCreateExpense<boolean, typeof payload>(payload)
         if (res.data) {
@@ -169,6 +173,18 @@ const ExpenseNew = () => {
                                             </InputGroup.Addon>
                                             <Input {...field} form={form} type="number" step="0.01" min="0" />
                                         </InputGroup>
+                                    )}
+                                </Field>
+                            </FormItem>
+                            <FormItem label={t('text.columns.taxCreditEligible')}>
+                                <Field name="taxCreditEligible">
+                                    {({ field, form }: FieldProps<boolean>) => (
+                                        <Switcher
+                                            checked={Boolean(field.value)}
+                                            onChange={(checked) =>
+                                                form.setFieldValue(field.name, checked)
+                                            }
+                                        />
                                     )}
                                 </Field>
                             </FormItem>

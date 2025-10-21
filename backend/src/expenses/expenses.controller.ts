@@ -200,6 +200,35 @@ export class ExpensesController {
     return normalized.slice(0, 8)
   }
 
+  private normalizeBooleanFlag(value: unknown): boolean | undefined {
+    if (value === undefined) {
+      return undefined
+    }
+    if (typeof value === 'boolean') {
+      return value
+    }
+    if (typeof value === 'number') {
+      if (Number.isNaN(value)) {
+        return undefined
+      }
+      return value !== 0
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase()
+      if (!normalized) {
+        return undefined
+      }
+      if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) {
+        return true
+      }
+      if (['false', '0', 'no', 'n', 'off'].includes(normalized)) {
+        return false
+      }
+      return undefined
+    }
+    return undefined
+  }
+
   private resolveScalarParam(raw: unknown): string {
     if (Array.isArray(raw)) {
       for (const item of raw) {
@@ -493,6 +522,7 @@ export class ExpensesController {
       paymentReference: e.paymentReference || '',
       amount: e.amount,
       currency: e.currency || null,
+      taxCreditEligible: Boolean(e.taxCreditEligible),
       attachments: this.serializeAttachments(e.attachments ?? [], { includeContent: false }),
     }))
 
@@ -597,6 +627,7 @@ export class ExpensesController {
       amount: e.amount,
       note: e.description || '',
       currency: e.currency || null,
+      taxCreditEligible: Boolean(e.taxCreditEligible),
       attachments: this.serializeAttachments(e.attachments ?? [], { includeContent: false }),
     }))
     return { data, total }
@@ -646,6 +677,7 @@ export class ExpensesController {
       description: expense.description || '',
       note: expense.description || '',
       currency: expense.currency || null,
+      taxCreditEligible: Boolean(expense.taxCreditEligible),
       attachments: this.serializeAttachments(expense.attachments ?? [], {
         includeContent: false,
       }),
@@ -704,6 +736,12 @@ export class ExpensesController {
           ? paymentReferenceInput.toString().trim() || null
           : null
     const currencyInput = this.normalizeCurrency(body.currency ?? body.currencyCode)
+    const taxCreditRaw =
+      body?.taxCreditEligible ??
+      body?.taxCredit ??
+      body?.eligibleForTaxCredit ??
+      body?.generatesTaxCredit
+    const taxCreditEligible = this.normalizeBooleanFlag(taxCreditRaw)
 
     const data: Prisma.ExpenseCreateInput = {
       title: vendor || name,
@@ -712,6 +750,7 @@ export class ExpensesController {
       amount,
       date,
       paymentReference,
+      taxCreditEligible: taxCreditEligible ?? true,
     }
 
     if (currencyInput === undefined) {
@@ -783,6 +822,12 @@ export class ExpensesController {
     const paymentReferenceInput =
       body.paymentReference ?? body.paymentIdendifier ?? body.reference
     const currencyInput = this.normalizeCurrency(body.currency ?? body.currencyCode)
+    const taxCreditRaw =
+      body.taxCreditEligible ??
+      body.taxCredit ??
+      body.eligibleForTaxCredit ??
+      body.generatesTaxCredit
+    const taxCreditEligible = this.normalizeBooleanFlag(taxCreditRaw)
 
     const data: Prisma.ExpenseUpdateInput = {}
 
@@ -811,6 +856,9 @@ export class ExpensesController {
 
     if (currencyInput !== undefined) {
       data.currency = currencyInput
+    }
+    if (taxCreditEligible !== undefined) {
+      data.taxCreditEligible = taxCreditEligible
     }
 
     if (categoryId !== undefined) {

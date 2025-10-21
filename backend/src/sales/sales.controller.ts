@@ -665,7 +665,13 @@ export class SalesController {
     // Top products by sold qty
     const products = await this.prisma.product.findMany()
     const topProducts = products
-      .map((p) => ({ id: String(p.id), name: p.name, img: p.img || '', sold: qtyByProduct.get(p.id) || 0 }))
+      .map((p) => ({
+        id: String(p.id),
+        name: p.name,
+        img: p.img || '',
+        sold: qtyByProduct.get(p.id) || 0,
+        specifications: (p as any).specifications ?? undefined,
+      }))
       .filter((p) => p.sold > 0)
       .sort((a, b) => b.sold - a.sold)
       .slice(0, 6)
@@ -757,6 +763,7 @@ export class SalesController {
         brand: true,
         vendor: true,
         category: { select: { name: true } },
+        specifications: true,
       },
     })
     const data = rows.map((p) => ({
@@ -776,6 +783,7 @@ export class SalesController {
       tags: (p as any).tags || [],
       brand: p.brand || '',
       vendor: p.vendor || '',
+      specifications: p.specifications ?? '',
     }))
     return { data, total }
   }
@@ -815,6 +823,7 @@ export class SalesController {
       'permanentStock',
       'published',
       'tags',
+      'specifications',
       'createdAt',
       'updatedAt',
     ]
@@ -851,6 +860,7 @@ export class SalesController {
         product.permanentStock ? 'true' : 'false',
         product.published ? 'true' : 'false',
         tags,
+        product.specifications ?? '',
         Number.isNaN(created.getTime()) ? '' : created.toISOString(),
         Number.isNaN(updated.getTime()) ? '' : updated.toISOString(),
       ]
@@ -1076,6 +1086,7 @@ export class SalesController {
         productCode: dto.productCode,
         img: dto.img,
         description: dto.description,
+        specifications: dto.specifications?.trim?.() ? dto.specifications.trim() : null,
         categoryId: dto.categoryId,
         salePrice: roundCurrency(dto.salePrice),
         costPrice: roundCurrency(dto.costPrice),
@@ -1115,6 +1126,12 @@ export class SalesController {
       productCode: dto.productCode,
       img: dto.img,
       description: dto.description,
+      specifications:
+        dto.specifications === undefined
+          ? undefined
+          : dto.specifications?.trim?.()
+          ? dto.specifications.trim()
+          : null,
       salePrice: normalizedSalePrice,
       costPrice: normalizedCostPrice,
       stock: dto.stock,

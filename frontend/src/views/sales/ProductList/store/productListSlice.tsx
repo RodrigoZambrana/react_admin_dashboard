@@ -21,6 +21,7 @@ type Product = {
     permanentStock?: boolean
     currency?: string
     unitOfMeasure?: SalesUnit
+    specifications?: string
 }
 
 type Products = Product[]

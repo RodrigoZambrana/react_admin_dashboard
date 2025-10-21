@@ -150,6 +150,7 @@ const ProductEdit = () => {
               status: Number(productData.status ?? 0),
               bulkDiscountPrice: Number(productData.bulkDiscountPrice ?? 0),
               description: productData.description ?? '',
+              specifications: (productData as any).specifications ?? '',
               tags: (productData as any).tags ?? [],
               brand: productData.brand ?? '',
               vendor: productData.vendor ?? '',

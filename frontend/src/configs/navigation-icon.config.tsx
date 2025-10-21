@@ -37,6 +37,7 @@ const navigationIcon: NavigationIcons = {
     project: <HiOutlineChartSquareBar />,
     crm: <HiOutlineUserGroup />,
     sales: <HiOutlineTrendingUp />,
+    budgets: <HiOutlineDocumentText />,
     crypto: <HiOutlineCurrencyDollar />,
     expenses: <HiOutlineCurrencyDollar />,
     accounting: <HiOutlineCash />,

@@ -5,7 +5,7 @@ import Logo from '@/components/template/Logo'
 import { DEFAULT_COMPANY_PROFILE } from '@/constants/companyProfile.constant'
 import { useLocation } from 'react-router-dom'
 import { apiGetAccountInvoiceData } from '@/services/AccountServices'
-import { apiGetSalesOrderDetails } from '@/services/SalesService'
+import { apiGetSalesOrderDetails, type SalesDocumentResource } from '@/services/SalesService'
 import { apiGetSystemConfig } from '@/services/SettingsService'
 import { HiOutlineDownload } from 'react-icons/hi'
 import { useAppSelector } from '@/store'
@@ -408,9 +408,13 @@ type Invoice = {
     product: Product[]
     paymentSummary: Summary
     comment?: string
+    validUntil?: number | string | null
 }
 
-type GetAccountInvoiceDataRequest = { id: string }
+type GetAccountInvoiceDataRequest = {
+    id: string
+    resource?: SalesDocumentResource
+}
 
 type CompanyProfileApi = {
     legalName?: string | null
@@ -439,6 +443,10 @@ type InvoiceApiResponse = Partial<Invoice> & { company?: CompanyProfileApi }
 
 type GetAccountInvoiceDataResponse = InvoiceApiResponse
 
+type InvoiceContentProps = {
+    resource?: SalesDocumentResource
+}
+
 type AddressLines = {
     line1?: string
     line2?: string
@@ -457,11 +465,20 @@ type InvoiceCustomerDetails = {
 type InvoiceOrderDetails = {
     id?: string
     dateTime?: number
+    validUntil?: number | string | null
     paymentSummary?: Summary
     product?: Product[]
     customer?: InvoiceCustomerDetails
     fxSnapshot?: FxSnapshot
     comment?: string
+}
+
+type BudgetInfoItem = {
+    key: string
+    label: string
+    value: string | string[]
+    isAddress?: boolean
+    fullWidth?: boolean
 }
 
 const DEFAULT_COMPANY_DETAILS: CompanyDetails = {
@@ -548,7 +565,44 @@ const valueOrDash = (value?: string | null) => {
     return trimmed && trimmed.length > 0 ? trimmed : '—'
 }
 
-const InvoiceContent = () => {
+const formatDateValue = (value: unknown): string => {
+    if (value === null || value === undefined) {
+        return ''
+    }
+    if (value instanceof Date) {
+        const parsed = dayjs(value)
+        return parsed.isValid() ? parsed.format('DD/MM/YYYY') : ''
+    }
+    if (typeof value === 'number') {
+        if (!Number.isFinite(value) || value <= 0) {
+            return ''
+        }
+        const dayjsInstance =
+            value > 1e12 ? dayjs(value) : dayjs.unix(value)
+        return dayjsInstance.isValid()
+            ? dayjsInstance.format('DD/MM/YYYY')
+            : ''
+    }
+    if (typeof value === 'string') {
+        const trimmed = value.trim()
+        if (!trimmed) {
+            return ''
+        }
+        const numeric = Number(trimmed)
+        if (Number.isFinite(numeric) && numeric > 0) {
+            const dayjsInstance =
+                numeric > 1e12 ? dayjs(numeric) : dayjs.unix(numeric)
+            if (dayjsInstance.isValid()) {
+                return dayjsInstance.format('DD/MM/YYYY')
+            }
+        }
+        const parsed = dayjs(trimmed)
+        return parsed.isValid() ? parsed.format('DD/MM/YYYY') : ''
+    }
+    return ''
+}
+
+const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
     const { t } = useTranslation()
 
     const location = useLocation()
@@ -567,6 +621,17 @@ const InvoiceContent = () => {
     const mode = useAppSelector((state) => state.theme.mode)
     const storeCurrency = useAppSelector((state) => state.currency.code)
 
+    const isBudgetDocument = resource === 'budgets'
+    const documentNumberLabel = isBudgetDocument
+        ? t('text.labels.budgetNumber', {
+              defaultValue: 'Budget number',
+          })
+        : t('text.labels.invoiceNumber')
+    const documentTitle = isBudgetDocument
+        ? t('text.titles.budget', { defaultValue: 'Budget' })
+        : t('text.titles.invoice')
+    const showBillingAddress = !isBudgetDocument
+
     const loadInvoice = useCallback(async () => {
         const id = location.pathname.substring(
             location.pathname.lastIndexOf('/') + 1,
@@ -580,11 +645,11 @@ const InvoiceContent = () => {
                 apiGetAccountInvoiceData<
                     GetAccountInvoiceDataResponse,
                     GetAccountInvoiceDataRequest
-                >({ id }),
+                >({ id, resource }),
                 apiGetSalesOrderDetails<
                     unknown,
                     { id: string }
-                >({ id }),
+                >({ id }, resource),
             ])
 
             if (
@@ -621,6 +686,7 @@ const InvoiceContent = () => {
                         product: mapped.product as Product[],
                         customer: mapped.customer as InvoiceCustomerDetails,
                         fxSnapshot: mapped.fxSnapshot,
+                        validUntil: mapped.validUntil,
                         comment:
                             typeof mapped.comment === 'string'
                                 ? mapped.comment
@@ -635,7 +701,7 @@ const InvoiceContent = () => {
         } finally {
             setLoading(false)
         }
-    }, [location.pathname])
+    }, [location.pathname, resource])
 
     useEffect(() => {
         loadInvoice()
@@ -832,8 +898,16 @@ const InvoiceContent = () => {
     }, [data.product, orderData])
 
     const invoiceDate = orderData?.dateTime ?? data.dateTime
+    const rawValidUntil = orderData?.validUntil ?? data.validUntil
     const invoiceId = orderData?.id ?? data?.id
-
+    const formattedInvoiceDate = useMemo(
+        () => formatDateValue(invoiceDate),
+        [invoiceDate],
+    )
+    const formattedValidUntil = useMemo(
+        () => formatDateValue(rawValidUntil),
+        [rawValidUntil],
+    )
     const customer = orderData?.customer
     const recipientName =
         customer?.name ?? data.recipient ?? ''
@@ -886,6 +960,88 @@ const InvoiceContent = () => {
         return fallbackAddressLines
     }, [rawBillingAddressLines, rawShippingAddressLines, fallbackAddressLines])
 
+    const budgetAddressLines = useMemo(() => {
+        if (shippingAddressLines.length > 0) {
+            return shippingAddressLines
+        }
+        if (billingAddressLines.length > 0) {
+            return billingAddressLines
+        }
+        return fallbackAddressLines
+    }, [billingAddressLines, fallbackAddressLines, shippingAddressLines])
+
+    const budgetInfoItems = useMemo<BudgetInfoItem[]>(() => {
+        if (!isBudgetDocument) {
+            return []
+        }
+        const invoiceIdText =
+            invoiceId === undefined || invoiceId === null
+                ? ''
+                : String(invoiceId)
+        const budgetValidityLabel = t('text.labels.budgetValidity', {
+            defaultValue: t('sales.orders.validUntilLabel', {
+                defaultValue: 'Valid until',
+            }),
+        })
+        const nameLabel = t('text.labels.name', {
+            defaultValue: t('text.labels.billTo'),
+        })
+        const addressLabel = t('text.labels.address')
+        return [
+            {
+                key: 'document-number',
+                label: documentNumberLabel,
+                value: valueOrDash(invoiceIdText),
+            },
+            {
+                key: 'issued-on',
+                label: t('text.labels.issuedOn'),
+                value: invoiceDate
+                    ? formattedInvoiceDate
+                    : t('text.labels.unknownDate'),
+            },
+            {
+                key: 'valid-until',
+                label: budgetValidityLabel,
+                value: valueOrDash(formattedValidUntil),
+            },
+            {
+                key: 'name',
+                label: nameLabel,
+                value: valueOrDash(customerFullName),
+            },
+            {
+                key: 'email',
+                label: t('text.labels.email'),
+                value: valueOrDash(customerEmail),
+            },
+            {
+                key: 'phone',
+                label: t('text.labels.phone'),
+                value: valueOrDash(customerPhone),
+            },
+            {
+                key: 'address',
+                label: addressLabel,
+                value: budgetAddressLines,
+                isAddress: true,
+                fullWidth: true,
+            },
+        ]
+    }, [
+        budgetAddressLines,
+        customerEmail,
+        customerFullName,
+        customerPhone,
+        documentNumberLabel,
+        formattedInvoiceDate,
+        formattedValidUntil,
+        invoiceDate,
+        invoiceId,
+        isBudgetDocument,
+        t,
+    ])
+
     const orderCurrency = useMemo(() => {
         const candidates = [
             paymentSummaryWithTaxRate?.currency,
@@ -915,19 +1071,6 @@ const InvoiceContent = () => {
         return typeof first === 'string' ? first.trim() : ''
     }, [data.comment, orderData?.comment])
 
-    const formattedInvoiceDate = useMemo(() => {
-        if (invoiceDate === undefined || invoiceDate === null) {
-            return ''
-        }
-        const numericDate = Number(invoiceDate)
-        if (!Number.isFinite(numericDate) || numericDate <= 0) {
-            return ''
-        }
-        const dayjsInstance =
-            numericDate > 1e12 ? dayjs(numericDate) : dayjs.unix(numericDate)
-        return dayjsInstance.format('DD/MM/YYYY')
-    }, [invoiceDate])
-
     const hasContent =
         Boolean(orderData) ||
         Boolean(data && Object.keys(data).length > 0)
@@ -950,7 +1093,7 @@ const InvoiceContent = () => {
                                 />
                                 <div className="text-right md:text-left">
                                     <h4 className="text-xl font-semibold">
-                                        {t('text.titles.invoice')}{' '}
+                                        {documentTitle}{' '}
                                         <span className="text-primary-600">
                                             #{invoiceId}
                                         </span>
@@ -1028,92 +1171,129 @@ const InvoiceContent = () => {
                                     </div>
                                 </div>
                                 <div className="rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-700">
-                                    <div className="grid gap-6 sm:grid-cols-2">
-                                        <div className="space-y-4">
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                    {t('text.labels.issuedBy')}
-                                                </p>
-                                                <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                    {companyDetails.legalName}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                    {t('text.labels.invoiceNumber')}
-                                                </p>
-                                                <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                    {invoiceId}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                    {t('text.labels.issuedOn')}
-                                                </p>
-                                                <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                    {invoiceDate
-                                                        ? formattedInvoiceDate
-                                                        : t('text.labels.unknownDate')}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-4">
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                    {t('text.labels.billTo')}
-                                                </p>
-                                                <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                    {valueOrDash(customerFullName)}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                    {t('text.labels.email')}
-                                                </p>
-                                                <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                    {valueOrDash(customerEmail)}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                    {t('text.labels.phone')}
-                                                </p>
-                                                <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                    {valueOrDash(customerPhone)}
-                                                </p>
-                                            </div>
+                                    {isBudgetDocument ? (
+                                        <div className="grid gap-6">
                                             <div className="grid gap-4 sm:grid-cols-2">
+                                                {budgetInfoItems.map((item) => (
+                                                    <div
+                                                        key={item.key}
+                                                        className={`space-y-1 ${item.fullWidth ? 'sm:col-span-2' : ''}`}
+                                                    >
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                            {item.label}
+                                                        </p>
+                                                        {item.isAddress ? (
+                                                            <address className="mt-1 space-y-1 not-italic text-gray-800 dark:text-gray-100">
+                                                                {Array.isArray(item.value) &&
+                                                                item.value.length > 0 ? (
+                                                                    item.value.map((line, index) => (
+                                                                        <div key={`${item.key}-${index}`}>{line}</div>
+                                                                    ))
+                                                                ) : (
+                                                                    <div>{valueOrDash()}</div>
+                                                                )}
+                                                            </address>
+                                                        ) : (
+                                                            <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
+                                                                {Array.isArray(item.value)
+                                                                    ? valueOrDash()
+                                                                    : item.value}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="grid gap-6 sm:grid-cols-2">
+                                            <div className="space-y-4">
                                                 <div>
                                                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                        {t('text.titles.shippingAddress')}
+                                                        {t('text.labels.issuedBy')}
                                                     </p>
-                                                    <address className="mt-1 not-italic space-y-1 text-gray-800 dark:text-gray-100">
-                                                        {shippingAddressLines.length > 0 ? (
-                                                            shippingAddressLines.map((line, index) => (
-                                                                <div key={`shipping-${index}`}>{line}</div>
-                                                            ))
-                                                        ) : (
-                                                            <div>{valueOrDash()}</div>
-                                                        )}
-                                                    </address>
+                                                    <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
+                                                        {companyDetails.legalName}
+                                                    </p>
                                                 </div>
                                                 <div>
                                                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                        {t('text.titles.billingAddress')}
+                                                        {documentNumberLabel}
                                                     </p>
-                                                    <address className="mt-1 not-italic space-y-1 text-gray-800 dark:text-gray-100">
-                                                        {billingAddressLines.length > 0 ? (
-                                                            billingAddressLines.map((line, index) => (
-                                                                <div key={`billing-${index}`}>{line}</div>
-                                                            ))
-                                                        ) : (
-                                                            <div>{valueOrDash()}</div>
-                                                        )}
-                                                    </address>
+                                                    <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
+                                                        {invoiceId}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                        {t('text.labels.issuedOn')}
+                                                    </p>
+                                                    <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
+                                                        {invoiceDate
+                                                            ? formattedInvoiceDate
+                                                            : t('text.labels.unknownDate')}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                        {t('text.labels.billTo')}
+                                                    </p>
+                                                    <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
+                                                        {valueOrDash(customerFullName)}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                        {t('text.labels.email')}
+                                                    </p>
+                                                    <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
+                                                        {valueOrDash(customerEmail)}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                        {t('text.labels.phone')}
+                                                    </p>
+                                                    <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
+                                                        {valueOrDash(customerPhone)}
+                                                    </p>
+                                                </div>
+                                                <div className="grid gap-4 sm:grid-cols-2">
+                                                    <div>
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                            {t('text.titles.shippingAddress')}
+                                                        </p>
+                                                        <address className="mt-1 space-y-1 not-italic text-gray-800 dark:text-gray-100">
+                                                            {shippingAddressLines.length > 0 ? (
+                                                                shippingAddressLines.map((line, index) => (
+                                                                    <div key={`shipping-${index}`}>{line}</div>
+                                                                ))
+                                                            ) : (
+                                                                <div>{valueOrDash()}</div>
+                                                            )}
+                                                        </address>
+                                                    </div>
+                                                    {showBillingAddress && (
+                                                        <div>
+                                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                                {t('text.titles.billingAddress')}
+                                                            </p>
+                                                            <address className="mt-1 space-y-1 not-italic text-gray-800 dark:text-gray-100">
+                                                                {billingAddressLines.length > 0 ? (
+                                                                    billingAddressLines.map((line, index) => (
+                                                                        <div key={`billing-${index}`}>{line}</div>
+                                                                    ))
+                                                                ) : (
+                                                                    <div>{valueOrDash()}</div>
+                                                                )}
+                                                            </address>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1123,6 +1303,7 @@ const InvoiceContent = () => {
                                 summary={paymentSummaryWithTaxRate}
                                 orderCurrency={orderCurrency}
                                 fxSnapshot={orderData?.fxSnapshot}
+                                resource={resource}
                             />
                             <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                                 <h6 className="font-semibold text-gray-700 dark:text-gray-200">

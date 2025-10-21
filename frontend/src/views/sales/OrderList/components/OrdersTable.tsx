@@ -14,12 +14,12 @@ import {
     setTableData,
     useAppDispatch,
     useAppSelector,
+    useSalesOrderListData,
 } from '../store'
 import { apiGetOrderStatuses, apiGetPaymentMethods } from '@/services/SettingsService'
 import { apiUpdateSalesOrderStatus, apiUpdateSalesOrderPaymentMethod } from '@/services/SalesService'
 import useThemeClass from '@/utils/hooks/useThemeClass'
 import { useNavigate } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
 import cloneDeep from 'lodash/cloneDeep'
 import { normalizeCurrencyCode } from '@/utils/currency'
 import dayjs from 'dayjs'
@@ -30,6 +30,7 @@ import type {
     Row,
 } from '@/components/shared/DataTable'
 import type { StylesConfig } from 'react-select'
+import { useSalesDocumentI18n } from '../../context/useSalesDocumentI18n'
 
 type Order = {
     id: string
@@ -60,34 +61,31 @@ const normalizeSort = (s?: OnSortParam | { key?: string; order?: string } | null
     return { key, order: order as 'asc' | 'desc' }
 }
 
-const OrderColumn = ({ row }: { row: Order }) => {
+const OrderColumnCell = ({ row, onView }: { row: Order; onView: () => void }) => {
     const { textTheme } = useThemeClass()
-    const navigate = useNavigate()
-    const onView = useCallback(() => {
-        navigate(`/app/sales/order-details/${row.id}`)
-    }, [navigate, row])
     return (
-        <span className={`cursor-pointer select-none font-semibold hover:${textTheme}`} onClick={onView}>
+        <span
+            className={`cursor-pointer select-none font-semibold hover:${textTheme}`}
+            onClick={onView}
+        >
             #{row.id}
         </span>
     )
 }
 
-const ActionColumn = ({ row }: { row: Order }) => {
-    const dispatch = useAppDispatch()
+const ActionColumnCell = ({
+    onView,
+    onInvoice,
+    onDelete,
+    invoiceLabel,
+}: {
+    onView: () => void
+    onInvoice: () => void
+    onDelete: () => void
+    invoiceLabel: string
+}) => {
     const { textTheme } = useThemeClass()
-    const navigate = useNavigate()
-    const { t } = useTranslation()
-    const onDelete = () => {
-        dispatch(setDeleteMode('single'))
-        dispatch(setSelectedRow([row.id]))
-    }
-    const onView = useCallback(() => {
-        navigate(`/app/sales/order-details/${row.id}`)
-    }, [navigate, row])
-    const onInvoice = useCallback(() => {
-        navigate(`/app/account/invoice/${row.id}`)
-    }, [navigate, row])
+    const { t } = useSalesDocumentI18n()
     return (
         <div className="flex justify-end text-lg">
             <Tooltip title={t('text.actions.view')}>
@@ -95,7 +93,7 @@ const ActionColumn = ({ row }: { row: Order }) => {
                     <HiOutlineEye />
                 </span>
             </Tooltip>
-            <Tooltip title={t('text.titles.invoice')}>
+            <Tooltip title={invoiceLabel}>
                 <span className={`cursor-pointer p-2 hover:${textTheme}`} onClick={onInvoice}>
                     <HiOutlineDocumentText />
                 </span>
@@ -113,41 +111,49 @@ const OrdersTable = () => {
     const tableRef = useRef<DataTableResetHandle>(null)
 
     const dispatch = useAppDispatch()
-    const { t } = useTranslation()
+    const navigate = useNavigate()
+    const { t, tDoc, resource: contextResource, routes } = useSalesDocumentI18n()
 
-    const { pageIndex, pageSize, sort, query, total } = useAppSelector(
-        (state) => state.salesOrderList.data.tableData,
-    )
-    const loading = useAppSelector((state) => state.salesOrderList.data.loading)
-    const data = useAppSelector((state) => state.salesOrderList.data.orderList)
+    const salesOrderState = useSalesOrderListData()
+    const { tableData: tableDataState, loading, orderList: data } = salesOrderState
+    const { pageIndex, pageSize, sort, query, total } = tableDataState
+    const currentResource = contextResource
     const storeCurrency = useAppSelector((state) => state.currency.code)
 
-    // Mantener el último estado para callbacks estables
-    const tableStateRef = useRef({ pageIndex, pageSize, sort, query })
-    useEffect(() => {
-        tableStateRef.current = { pageIndex, pageSize, sort, query }
-    }, [pageIndex, pageSize, sort, query])
-
-    const defaultOrderStatuses = useMemo(
-        () => [
+    const defaultOrderStatuses = useMemo(() => {
+        if (currentResource === 'budgets') {
+            return [
+                { id: 1000, name: 'Borrador', color: 'slate-400' },
+                { id: 1010, name: 'Enviado', color: 'sky-500' },
+                { id: 1020, name: 'Aceptado', color: 'emerald-500' },
+            ]
+        }
+        return [
             { id: 0, name: 'Pagado', color: 'emerald-500' },
             { id: 1, name: 'Pendiente', color: 'amber-500' },
             { id: 2, name: 'Cancelado', color: 'red-500' },
-        ],
-        [],
-    )
+        ]
+    }, [currentResource])
     const [statuses, setStatuses] = useState<{ id: number; name: string; color: string }[]>(defaultOrderStatuses)
     const [paymentMethods, setPaymentMethods] = useState<{ value: string; label: string }[]>([])
 
     const fetchData = useCallback(() => {
         const normalized = normalizeSort(sort as any)
-        dispatch(getOrders({ pageIndex, pageSize, sort: normalized, query }))
-    }, [dispatch, pageIndex, pageSize, sort, query])
+        dispatch(
+            getOrders({
+                pageIndex,
+                pageSize,
+                sort: normalized,
+                query,
+                resource: currentResource,
+            }),
+        )
+    }, [dispatch, pageIndex, pageSize, sort, query, currentResource])
 
     useEffect(() => {
         dispatch(setSelectedRows([]))
         fetchData()
-    }, [dispatch, fetchData, pageIndex, pageSize, sort])
+    }, [dispatch, fetchData])
 
     useEffect(() => {
         const fetchStatuses = async () => {
@@ -172,8 +178,8 @@ const OrdersTable = () => {
     }, [data])
 
     const tableData = useMemo(
-        () => ({ pageIndex, pageSize, sort, query, total }),
-        [pageIndex, pageSize, sort, query, total],
+        () => ({ pageIndex, pageSize, sort, query, total, resource: currentResource }),
+        [pageIndex, pageSize, sort, query, total, currentResource],
     )
 
     const selectStyles = useMemo<StylesConfig<any, false>>(
@@ -184,13 +190,49 @@ const OrdersTable = () => {
         [],
     )
 
+    const handleView = useCallback(
+        (id: string) => {
+            navigate(`${routes.details}/${id}`)
+        },
+        [navigate, routes.details],
+    )
+
+    const handleInvoice = useCallback(
+        (id: string) => {
+            navigate(`${routes.invoice}/${id}`)
+        },
+        [navigate, routes.invoice],
+    )
+
+    const handleDelete = useCallback(
+        (id: string) => {
+            dispatch(setDeleteMode('single'))
+            dispatch(setSelectedRow([id]))
+        },
+        [dispatch],
+    )
+
     const columns: ColumnDef<Order>[] = useMemo(
         () => [
-            { header: t('text.columns.order'), accessorKey: 'id', cell: (p) => <OrderColumn row={p.row.original} /> },
+            {
+                header: tDoc('table.id', {
+                    defaultValue:
+                        currentResource === 'budgets' ? 'Presupuesto' : 'Pedido',
+                }),
+                accessorKey: 'id',
+                cell: (p) => (
+                    <OrderColumnCell
+                        row={p.row.original}
+                        onView={() => handleView(p.row.original.id)}
+                    />
+                ),
+            },
             {
                 header: t('text.columns.date'),
                 accessorKey: 'date',
-                cell: (p) => <span>{dayjs.unix(p.row.original.date).format('DD/MM/YYYY')}</span>,
+                cell: (p) => (
+                    <span>{dayjs.unix(p.row.original.date).format('DD/MM/YYYY')}</span>
+                ),
             },
             { header: t('text.columns.customer'), accessorKey: 'customer' },
             {
@@ -198,25 +240,44 @@ const OrdersTable = () => {
                 accessorKey: 'status',
                 cell: (props) => {
                     const row = props.row.original
-                    const statusId = typeof row.status === 'string' ? parseInt(row.status as any, 10) : (row.status as number)
+                    const statusId =
+                        typeof row.status === 'string'
+                            ? parseInt(row.status as any, 10)
+                            : (row.status as number)
                     const s = statuses.find((x) => x.id === statusId)
-                    const options = statuses.map((x) => ({ value: x.id, label: x.name, color: x.color }))
+                    const options = statuses.map((x) => ({
+                        value: x.id,
+                        label: x.name,
+                        color: x.color,
+                    }))
                     const onChange = async (opt: any) => {
-                        await apiUpdateSalesOrderStatus<boolean, { id: string; status: number }>({ id: row.id, status: opt.value })
-                        const st = tableStateRef.current
+                        await apiUpdateSalesOrderStatus<boolean, { id: string; status: number }>(
+                            { id: row.id, status: opt.value },
+                            currentResource,
+                        )
                         dispatch(setSelectedRows([]))
-                        dispatch(getOrders({ pageIndex: st.pageIndex, pageSize: st.pageSize, sort: normalizeSort(st.sort as any), query: st.query }))
+                        fetchData()
                     }
                     return (
-                        <div className="min-w-[140px]">
+                        <div className="min-w-[160px]">
                             <Select
                                 size="sm"
                                 options={options}
-                                value={{ value: s?.id ?? statusId, label: s?.name ?? String(statusId), color: s?.color ?? 'gray-500' } as any}
+                                value={
+                                    {
+                                        value: s?.id ?? statusId,
+                                        label: s?.name ?? String(statusId),
+                                        color: s?.color ?? 'gray-500',
+                                    } as any
+                                }
                                 formatOptionLabel={(option: any) => (
                                     <div className="flex items-center">
                                         <span className={`badge-dot bg-${option.color}`}></span>
-                                        <span className={`ml-2 rtl:mr-2 capitalize font-semibold text-${option.color}`}>{option.label}</span>
+                                        <span
+                                            className={`ml-2 rtl:mr-2 capitalize font-semibold text-${option.color}`}
+                                        >
+                                            {option.label}
+                                        </span>
                                     </div>
                                 )}
                                 styles={selectStyles}
@@ -233,19 +294,26 @@ const OrdersTable = () => {
                     const row = props.row.original
                     const current =
                         paymentMethods.find((m) => m.value === row.paymentMehod) ||
-                        (row.paymentMehod ? { value: row.paymentMehod, label: row.paymentMehod } : undefined)
+                        (row.paymentMehod
+                            ? { value: row.paymentMehod, label: row.paymentMehod }
+                            : undefined)
                     const onChange = async (opt: any) => {
-                        await apiUpdateSalesOrderPaymentMethod<boolean, { id: string; paymentMehod: string }>({
-                            id: row.id,
-                            paymentMehod: (opt as any)?.value ?? '',
-                        })
-                        const st = tableStateRef.current
+                        await apiUpdateSalesOrderPaymentMethod<
+                            boolean,
+                            { id: string; paymentMehod: string }
+                        >(
+                            {
+                                id: row.id,
+                                paymentMehod: (opt as any)?.value ?? '',
+                            },
+                            currentResource,
+                        )
                         dispatch(setSelectedRows([]))
-                        dispatch(getOrders({ pageIndex: st.pageIndex, pageSize: st.pageSize, sort: normalizeSort(st.sort as any), query: st.query }))
+                        fetchData()
                     }
                     return (
-                        <div className="flex items-center min-w-[180px]">
-                            <div className="w-[160px]">
+                        <div className="flex items-center min-w-[200px]">
+                            <div className="w-[180px]">
                                 <Select
                                     size="sm"
                                     options={paymentMethods}
@@ -264,7 +332,10 @@ const OrdersTable = () => {
                 accessorKey: 'totalAmount',
                 cell: (props) => {
                     const { totalAmount, orderCurrency } = props.row.original
-                    const normalizedCurrency = normalizeCurrencyCode(orderCurrency, storeCurrency)
+                    const normalizedCurrency = normalizeCurrencyCode(
+                        orderCurrency,
+                        storeCurrency,
+                    )
                     return (
                         <NumericFormat
                             displayType="text"
@@ -275,14 +346,42 @@ const OrdersTable = () => {
                     )
                 },
             },
-            { header: '', id: 'action', enableSorting: false, cell: (p) => <ActionColumn row={p.row.original} /> },
+            {
+                header: '',
+                id: 'action',
+                enableSorting: false,
+                cell: (p) => (
+                    <ActionColumnCell
+                        onView={() => handleView(p.row.original.id)}
+                        onInvoice={() => handleInvoice(p.row.original.id)}
+                        onDelete={() => handleDelete(p.row.original.id)}
+                        invoiceLabel={tDoc('invoiceAction', {
+                            defaultValue: 'Documento',
+                        })}
+                    />
+                ),
+            },
         ],
-        [t, statuses, paymentMethods, selectStyles, dispatch, storeCurrency],
+        [
+            t,
+            tDoc,
+            statuses,
+            paymentMethods,
+            selectStyles,
+            handleView,
+            handleInvoice,
+            handleDelete,
+            storeCurrency,
+            dispatch,
+            fetchData,
+            currentResource,
+        ],
     )
 
     const onPaginationChange = (page: number) => {
         const newTableData = cloneDeep(tableData)
         newTableData.pageIndex = page
+        newTableData.resource = currentResource
         dispatch(setTableData(newTableData))
         dispatch(setSelectedRows([]))
     }
@@ -291,6 +390,7 @@ const OrdersTable = () => {
         const newTableData = cloneDeep(tableData)
         newTableData.pageSize = Number(value)
         newTableData.pageIndex = 1
+        newTableData.resource = currentResource
         dispatch(setTableData(newTableData))
         dispatch(setSelectedRows([]))
     }
@@ -298,6 +398,7 @@ const OrdersTable = () => {
     const onSort = (nextSort: OnSortParam) => {
         const newTableData = cloneDeep(tableData)
         newTableData.sort = normalizeSort(nextSort) as any
+        newTableData.resource = currentResource
         dispatch(setTableData(newTableData))
         dispatch(setSelectedRows([]))
     }

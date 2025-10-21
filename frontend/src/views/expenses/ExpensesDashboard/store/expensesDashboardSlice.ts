@@ -34,6 +34,7 @@ export type DashboardData = {
         paymentReference?: string
         amount: number
         currency?: string | null
+        taxCreditEligible: boolean
     }[]
     expensesByCategoriesData?: {
         labels: string[]

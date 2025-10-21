@@ -17,6 +17,12 @@ const DEFAULT_ORDER_STATUSES: Prisma.OrderStatusCreateInput[] = [
   { code: 0, name: 'Pagado', color: 'emerald-500' },
   { code: 1, name: 'Pendiente', color: 'amber-500' },
   { code: 2, name: 'Cancelado', color: 'red-500' },
+  { code: 1000, name: 'Presupuesto - Borrador', color: '#9ca3af' },
+  { code: 1010, name: 'Presupuesto - Enviado', color: '#3b82f6' },
+  { code: 1020, name: 'Presupuesto - Aceptado', color: '#10b981' },
+  { code: 1030, name: 'Presupuesto - Convertido', color: '#22c55e' },
+  { code: 1040, name: 'Presupuesto - Cancelado', color: '#ef4444' },
+  { code: 1050, name: 'Presupuesto - Expirado', color: '#f97316' },
 ]
 
 function maskSecret(value: string) {
@@ -94,6 +100,12 @@ async function seedDemoData(superAdminEmail?: string) {
     { code: 2, name: 'Shipped', color: '#8b5cf6' },
     { code: 3, name: 'Completed', color: '#16a34a' },
     { code: 4, name: 'Cancelled', color: '#ef4444' },
+    { code: 1000, name: 'Presupuesto - Borrador', color: '#9ca3af' },
+    { code: 1010, name: 'Presupuesto - Enviado', color: '#3b82f6' },
+    { code: 1020, name: 'Presupuesto - Aceptado', color: '#10b981' },
+    { code: 1030, name: 'Presupuesto - Convertido', color: '#22c55e' },
+    { code: 1040, name: 'Presupuesto - Cancelado', color: '#ef4444' },
+    { code: 1050, name: 'Presupuesto - Expirado', color: '#f97316' },
   ]
   for (const s of oStatuses) {
     await prisma.orderStatus.upsert({
@@ -601,6 +613,7 @@ async function seedDemoData(superAdminEmail?: string) {
         categoryId: eCats[i % eCats.length]?.id,
         statusId: expenseStatusId ?? undefined,
         paymentMethodId: paymentMethod?.id,
+        taxCreditEligible: i % 4 !== 0,
       },
     })
   }

@@ -21,6 +21,7 @@ const config: ClientVariantConfig = {
     ACCOUNT: true,
     USERS: true,
     SETTINGS: true,
+    BUDGETS: true,
   },
   backend: {
     rateLimit: {

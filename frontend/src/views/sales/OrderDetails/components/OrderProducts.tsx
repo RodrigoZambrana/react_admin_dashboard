@@ -14,6 +14,12 @@ import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
 import type { FxSnapshot } from '@/adapters/sales'
 import { convertAmountWithSnapshot } from '@/utils/fxConversion'
 import { resolveTextDirection } from '@/utils/textDirection'
+import {
+    calculateLineTotal,
+    getDerivedUnitPrice,
+    getEffectiveQuantity,
+    resolveSalesUnit,
+} from '@/utils/salesUnitCalculation'
 
 type Product = {
     id: string
@@ -23,6 +29,7 @@ type Product = {
     img: string
     price: number
     quantity: number
+    qty?: number
     total: number
     currency?: string
     unitCurrency?: string
@@ -31,6 +38,13 @@ type Product = {
     conversionRate?: number
     details: Record<string, string[]>
     comments?: string
+    specSummary?: string
+    specifications?: string
+    customAttributes?: Record<string, unknown>
+    unitOfMeasure?: string | null
+    pricingMethod?: string | null
+    effectiveQuantity?: number
+    unitPrice?: number
 }
 
 type OrderProductsProps = {
@@ -78,6 +92,50 @@ const getNumeric = (value?: number | null) => {
     return Number.isFinite(numeric) ? numeric : undefined
 }
 
+const formatSpecKey = (key: string) =>
+    key
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+
+const resolveSpecifications = (row: Product) => {
+    const parts: string[] = []
+    if (typeof row.specSummary === 'string') {
+        const trimmed = row.specSummary.trim()
+        if (trimmed) {
+            parts.push(trimmed)
+        }
+    }
+    if (typeof row.specifications === 'string') {
+        const trimmed = row.specifications.trim()
+        if (trimmed) {
+            parts.push(trimmed)
+        }
+    }
+    const attrs = row.customAttributes
+    if (!attrs || typeof attrs !== 'object') {
+        return parts.join('\n') || undefined
+    }
+    const entries = Object.entries(attrs).filter(([, value]) => {
+        if (value === null || value === undefined) {
+            return false
+        }
+        const text = String(value).trim()
+        return text.length > 0
+    })
+    if (!entries.length) {
+        return parts.join('\n') || undefined
+    }
+    const attributesSummary = entries
+        .map(([key, value]) => `${formatSpecKey(key)}: ${value}`)
+        .join(', ')
+    if (attributesSummary) {
+        parts.push(attributesSummary)
+    }
+    return parts.join('\n') || undefined
+}
+
 const resolvePriceInOrderCurrency = (
     row: Product,
     orderCurrency: string,
@@ -120,25 +178,55 @@ const columns = (
             return <ProductColumn row={row} />
         },
     }),
-    columnHelper.accessor('price', {
-        header: t('text.columns.price'),
+    columnHelper.accessor('quantity', {
+        header: t('text.columns.quantity'),
         cell: (props) => {
             const row = props.row.original
-            const displayCurrency =
-                normalizeCurrencyCode(orderCurrency, defaultCurrency) ||
-                defaultCurrency
-            const resolvedPrice = resolvePriceInOrderCurrency(
-                row,
-                displayCurrency,
-                fxSnapshot,
+            const unit = resolveSalesUnit(
+                row.unitOfMeasure,
+                row.pricingMethod,
             )
+            const effectiveQuantity =
+                row.effectiveQuantity ??
+                getEffectiveQuantity({
+                    qty: row.quantity,
+                    unitOfMeasure: row.unitOfMeasure,
+                    pricingMethod: row.pricingMethod,
+                    customAttributes: row.customAttributes,
+                })
+            const formattedQuantity = Number.isFinite(effectiveQuantity)
+                ? effectiveQuantity.toFixed(2)
+                : '0.00'
+            if (unit === 'UNIT') {
+                return <span>{Number(row.quantity) || 0}</span>
+            }
+            const measurementSuffix =
+                unit === 'SQUARE_METER' ? 'm²' : unit === 'LINEAR_METER' ? 'm' : ''
             return (
-                <span>{formatAmount(resolvedPrice, displayCurrency)}</span>
+                <span>
+                    {formattedQuantity}
+                    {measurementSuffix ? ` ${measurementSuffix}` : ''}
+                </span>
             )
         },
     }),
-    columnHelper.accessor('quantity', {
-        header: t('text.columns.quantity'),
+    columnHelper.display({
+        id: 'specifications',
+        header: t('text.columns.specifications', {
+            defaultValue: 'Especificaciones',
+        }),
+        cell: (props) => {
+            const row = props.row.original
+            const summary = resolveSpecifications(row)
+            return (
+                <span
+                    className="whitespace-pre-wrap"
+                    dir={resolveTextDirection(summary)}
+                >
+                    {summary || '—'}
+                </span>
+            )
+        },
     }),
     columnHelper.accessor('comments', {
         header: t('text.columns.comments'),
@@ -158,20 +246,53 @@ const columns = (
             )
         },
     }),
+    columnHelper.accessor('price', {
+        header: t('text.columns.price'),
+        cell: (props) => {
+            const row = props.row.original
+            const displayCurrency =
+                normalizeCurrencyCode(orderCurrency, defaultCurrency) ||
+                defaultCurrency
+            const baseUnitPrice = resolvePriceInOrderCurrency(
+                row,
+                displayCurrency,
+                fxSnapshot,
+            )
+            const derivedPrice = getDerivedUnitPrice({
+                unitPrice: baseUnitPrice,
+                unitOfMeasure: row.unitOfMeasure,
+                pricingMethod: row.pricingMethod,
+                customAttributes: row.customAttributes,
+            })
+            return (
+                <span>{formatAmount(derivedPrice, displayCurrency)}</span>
+            )
+        },
+    }),
     columnHelper.accessor('total', {
         header: t('text.columns.total'),
         cell: (props) => {
             const row = props.row.original
             const displayCurrency =
                 normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
-            const price = resolvePriceInOrderCurrency(
-                row,
-                displayCurrency,
-                fxSnapshot,
-            )
-            const total = price * (Number(row.quantity) || 0)
+            const storedTotal = Number(row.total)
+            if (Number.isFinite(storedTotal)) {
+                return (
+                    <span>{formatAmount(storedTotal, displayCurrency)}</span>
+                )
+            }
+            const baseUnitPrice =
+                getNumeric(row.unitPrice) ??
+                resolvePriceInOrderCurrency(row, displayCurrency, fxSnapshot)
+            const fallbackTotal = calculateLineTotal({
+                unitPrice: baseUnitPrice,
+                qty: row.quantity,
+                unitOfMeasure: row.unitOfMeasure,
+                pricingMethod: row.pricingMethod,
+                customAttributes: row.customAttributes,
+            })
             return (
-                <span>{formatAmount(total, displayCurrency)}</span>
+                <span>{formatAmount(fallbackTotal, displayCurrency)}</span>
             )
         },
     }),

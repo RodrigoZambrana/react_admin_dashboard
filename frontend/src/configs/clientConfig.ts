@@ -39,15 +39,90 @@ const clientModules = import.meta.glob<ClientModule>(
     { eager: true },
 )
 
+const resolveAvailableClientSlugs = (): string[] =>
+    Array.from(
+        new Set(
+            Object.keys(clientModules).map((key) => {
+                const normalised = key.replace(/\\/g, '/')
+                return normalised.replace('../clients/', '').split('/')[0]
+            }),
+        ),
+    )
+
+const resolvedAvailableClientSlugs = resolveAvailableClientSlugs()
+
 const sanitiseSlug = (slug: string): string =>
-    slug.replace(/[^a-z0-9_-]/gi, '')
+    slug.replace(/[^a-z0-9_-]/gi, '').toLowerCase()
+
+const normaliseSlugForMatch = (slug: string): string =>
+    slug.replace(/[^a-z0-9]/gi, '').toLowerCase()
+
+const findAvailableSlug = (slug: string): string | undefined => {
+    const sanitised = sanitiseSlug(slug)
+    if (!sanitised) {
+        return undefined
+    }
+
+    const directMatch = resolvedAvailableClientSlugs.find(
+        (available) => sanitiseSlug(available) === sanitised,
+    )
+    if (directMatch) {
+        return directMatch
+    }
+
+    const normalisedInput = normaliseSlugForMatch(sanitised)
+    return resolvedAvailableClientSlugs.find(
+        (available) => normaliseSlugForMatch(available) === normalisedInput,
+    )
+}
+
+const matchFromCandidates = (
+    candidates: (string | null | undefined)[],
+): string | undefined => {
+    for (const candidate of candidates) {
+        if (!candidate) {
+            continue
+        }
+        const match = findAvailableSlug(candidate.trim())
+        if (match) {
+            return match
+        }
+    }
+    return undefined
+}
+
+const getSlugFromUrl = (): string | undefined => {
+    if (typeof window === 'undefined') {
+        return undefined
+    }
+
+    const { location } = window
+    const searchParams = new URLSearchParams(location.search)
+
+    const queryMatch = matchFromCandidates(
+        ['client', 'slug', 'tenant'].map((key) =>
+            searchParams.get(key),
+        ),
+    )
+    if (queryMatch) {
+        return queryMatch
+    }
+
+    const pathSegments = location.pathname.split('/').filter(Boolean)
+    return matchFromCandidates(pathSegments)
+}
 
 const resolveSlugFromEnv = (): string => {
     const slug = import.meta.env.VITE_CLIENT_SLUG
-    if (typeof slug !== 'string' || !slug.trim()) {
-        return DEFAULT_SLUG
+
+    const envMatch =
+        typeof slug === 'string' ? findAvailableSlug(slug.trim()) : undefined
+    if (envMatch) {
+        return envMatch
     }
-    return sanitiseSlug(slug.trim())
+
+    const urlMatch = getSlugFromUrl()
+    return urlMatch ?? DEFAULT_SLUG
 }
 
 const resolveModuleBySlug = (
@@ -87,14 +162,7 @@ export const clientConfig = Object.freeze({
     },
 }) as ClientVariantConfig
 
-export const availableClientSlugs = Array.from(
-    new Set(
-        Object.keys(clientModules).map((key) => {
-            const normalised = key.replace(/\\/g, '/')
-            return normalised.replace('../clients/', '').split('/')[0]
-        }),
-    ),
-)
+export const availableClientSlugs = [...resolvedAvailableClientSlugs]
 
 export const applyClientRouteOverrides = (
     routes: Routes,

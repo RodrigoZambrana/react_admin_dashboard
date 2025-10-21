@@ -50,6 +50,11 @@ export class UpsertProductDto {
   @IsSafeString()
   description?: string
 
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  specifications?: string
+
   @IsNumber()
   @Type(() => Number)
   categoryId!: number
@@ -141,6 +146,11 @@ export class UpdateProductDto {
   @IsString()
   @IsSafeString()
   description?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  specifications?: string
 
   @IsOptional()
   @IsNumber()

@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import {
   STANDARD_CURRENCY_CODES,
   STANDARD_CURRENCIES,
+  STANDARD_DEFAULT_CURRENCIES,
   type StandardCurrencyOption,
 } from './currency.constants'
 import {
@@ -28,7 +29,7 @@ export type CurrencyConversionResult = {
 
 @Injectable()
 export class CurrencyConversionService {
-  private readonly fallbackCurrencies = ['USD', 'UYU'] as const
+  private readonly fallbackCurrencies = STANDARD_DEFAULT_CURRENCIES
 
   constructor(private readonly prisma: PrismaService) {}
 

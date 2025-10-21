@@ -24,6 +24,7 @@ type ProductData = {
     status?: number
     bulkDiscountPrice?: number
     description?: string
+    specifications?: string
     tags?: string[]
     brand?: string
     vendor?: string

@@ -1,4 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { STANDARD_FALLBACK_CURRENCIES } from '@/utils/currency'
 
 export type CurrencyCode = string
 
@@ -26,7 +27,9 @@ export type CurrencyState = {
     exchangeError?: string
 }
 
-const fallbackCurrencies: CurrencyCode[] = ['UYU', 'USD']
+const fallbackCurrencies: CurrencyCode[] = Array.from(
+    new Set<CurrencyCode>(['UYU', 'USD', ...STANDARD_FALLBACK_CURRENCIES]),
+)
 
 const initialState: CurrencyState = {
     code: 'UYU',

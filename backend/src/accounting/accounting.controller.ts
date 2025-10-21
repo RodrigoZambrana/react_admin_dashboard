@@ -149,7 +149,7 @@ export class AccountingController {
       }),
       this.prisma.expense.findMany({
         where: expenseWhere,
-        select: { date: true, amount: true, currency: true },
+        select: { date: true, amount: true, currency: true, taxCreditEligible: true },
       }),
     ])
 
@@ -287,8 +287,10 @@ export class AccountingController {
       const currencyKey = this.extractCurrencyKey(expense.currency)
       acc.expenses += normalizedAmount
       acc.expensesByCurrency[currencyKey] += normalizedAmount
-      const { vat: expenseVat } = this.computeVat(normalizedAmount)
-      acc.purchaseVatByCurrency[currencyKey] += expenseVat
+      if (expense.taxCreditEligible) {
+        const { vat: expenseVat } = this.computeVat(normalizedAmount)
+        acc.purchaseVatByCurrency[currencyKey] += expenseVat
+      }
     }
 
     let rangeStart: Date | undefined
