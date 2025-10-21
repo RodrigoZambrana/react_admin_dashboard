@@ -2,7 +2,7 @@ import { useEffect, useCallback, useMemo, useRef, useState } from 'react'
 import Select from '@/components/ui/Select'
 import Tooltip from '@/components/ui/Tooltip'
 import DataTable from '@/components/shared/DataTable'
-import { HiOutlineDocumentText, HiOutlineEye, HiOutlineTrash } from 'react-icons/hi'
+import { HiOutlineDocumentText, HiOutlineEye, HiOutlineTrash, HiOutlinePencil } from 'react-icons/hi'
 import { NumericFormat } from 'react-number-format'
 import {
     setSelectedRows,
@@ -41,11 +41,13 @@ type Order = {
     paymentIdendifier: string
     totalAmount: number
     orderCurrency?: string
+    validUntil?: number | string | null
 }
 
 const sortKeyMap: Record<string, string> = {
     id: 'id',
     date: 'date',
+    validUntil: 'validUntil',
     customer: 'customer',
     status: 'status',
     paymentMehod: 'paymentMehod', // 👈 tal cual back
@@ -75,11 +77,13 @@ const OrderColumnCell = ({ row, onView }: { row: Order; onView: () => void }) =>
 
 const ActionColumnCell = ({
     onView,
+    onEdit,
     onInvoice,
     onDelete,
     invoiceLabel,
 }: {
     onView: () => void
+    onEdit: () => void
     onInvoice: () => void
     onDelete: () => void
     invoiceLabel: string
@@ -91,6 +95,11 @@ const ActionColumnCell = ({
             <Tooltip title={t('text.actions.view')}>
                 <span className={`cursor-pointer p-2 hover:${textTheme}`} onClick={onView}>
                     <HiOutlineEye />
+                </span>
+            </Tooltip>
+            <Tooltip title={t('text.actions.edit')}>
+                <span className={`cursor-pointer p-2 hover:${textTheme}`} onClick={onEdit}>
+                    <HiOutlinePencil />
                 </span>
             </Tooltip>
             <Tooltip title={invoiceLabel}>
@@ -197,6 +206,13 @@ const OrdersTable = () => {
         [navigate, routes.details],
     )
 
+    const handleEdit = useCallback(
+        (id: string) => {
+            navigate(`${routes.edit}/${id}`)
+        },
+        [navigate, routes.edit],
+    )
+
     const handleInvoice = useCallback(
         (id: string) => {
             navigate(`${routes.invoice}/${id}`)
@@ -212,8 +228,8 @@ const OrdersTable = () => {
         [dispatch],
     )
 
-    const columns: ColumnDef<Order>[] = useMemo(
-        () => [
+    const columns: ColumnDef<Order>[] = useMemo(() => {
+        const baseColumns: ColumnDef<Order>[] = [
             {
                 header: tDoc('table.id', {
                     defaultValue:
@@ -346,37 +362,65 @@ const OrdersTable = () => {
                     )
                 },
             },
-            {
-                header: '',
-                id: 'action',
-                enableSorting: false,
-                cell: (p) => (
-                    <ActionColumnCell
-                        onView={() => handleView(p.row.original.id)}
-                        onInvoice={() => handleInvoice(p.row.original.id)}
-                        onDelete={() => handleDelete(p.row.original.id)}
-                        invoiceLabel={tDoc('invoiceAction', {
-                            defaultValue: 'Documento',
-                        })}
-                    />
-                ),
-            },
-        ],
-        [
-            t,
-            tDoc,
-            statuses,
-            paymentMethods,
-            selectStyles,
-            handleView,
-            handleInvoice,
-            handleDelete,
-            storeCurrency,
-            dispatch,
-            fetchData,
-            currentResource,
-        ],
-    )
+        ]
+
+        if (currentResource === 'budgets') {
+            const validUntilHeader = tDoc('validUntilLabel', {
+                defaultValue: t('sales.orders.validUntilLabel', {
+                    defaultValue: 'Valid until',
+                }),
+            })
+            baseColumns.splice(2, 0, {
+                header: validUntilHeader,
+                accessorKey: 'validUntil',
+                cell: (props) => {
+                    const row = props.row.original
+                    const raw = row.validUntil ?? (row as any)?.valid_until ?? null
+                    if (!raw) {
+                        return <span>—</span>
+                    }
+                    const parsed = dayjs(raw)
+                    if (!parsed.isValid()) {
+                        return <span>—</span>
+                    }
+                    return <span>{parsed.format('DD/MM/YYYY')}</span>
+                },
+            })
+        }
+
+        baseColumns.push({
+            header: '',
+            id: 'action',
+            enableSorting: false,
+            cell: (p) => (
+                <ActionColumnCell
+                    onView={() => handleView(p.row.original.id)}
+                    onEdit={() => handleEdit(p.row.original.id)}
+                    onInvoice={() => handleInvoice(p.row.original.id)}
+                    onDelete={() => handleDelete(p.row.original.id)}
+                    invoiceLabel={tDoc('invoiceAction', {
+                        defaultValue: 'Documento',
+                    })}
+                />
+            ),
+        })
+
+        return baseColumns
+    }, [
+        t,
+        tDoc,
+        statuses,
+        paymentMethods,
+        selectStyles,
+        handleView,
+        handleEdit,
+        handleInvoice,
+        handleDelete,
+        storeCurrency,
+        dispatch,
+        fetchData,
+        currentResource,
+    ])
 
     const onPaginationChange = (page: number) => {
         const newTableData = cloneDeep(tableData)

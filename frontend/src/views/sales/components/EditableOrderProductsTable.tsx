@@ -292,19 +292,25 @@ const EditableOrderProductsTable = ({
 
     const composeSquareMeterSummary = useCallback(
         (width?: number, height?: number) => {
-                if (!Number.isFinite(width) || !Number.isFinite(height)) {
-                    return undefined
-                }
-                const numericWidth = Number(width)
-                const numericHeight = Number(height)
-                const formattedWidth = formatMeasurementValue(numericWidth)
-                const formattedHeight = formatMeasurementValue(numericHeight)
-                return t('sales.documents.squareSummary', {
-                    width: formattedWidth,
-                    height: formattedHeight,
-                    defaultValue: `Ancho: ${formattedWidth} m · Alto: ${formattedHeight} m`,
-                })
-            },
+            if (!Number.isFinite(width) || !Number.isFinite(height)) {
+                return undefined
+            }
+            const numericWidth = Number(width)
+            const numericHeight = Number(height)
+            const formattedWidth = formatMeasurementValue(numericWidth)
+            const formattedHeight = formatMeasurementValue(numericHeight)
+            const widthLabel = t('text.specs.width', {
+                defaultValue: 'Width',
+            })
+            const heightLabel = t('text.specs.height', {
+                defaultValue: 'Height',
+            })
+            return t('sales.documents.squareSummary', {
+                width: formattedWidth,
+                height: formattedHeight,
+                defaultValue: `${widthLabel}: ${formattedWidth} m · ${heightLabel}: ${formattedHeight} m`,
+            })
+        },
         [formatMeasurementValue, t],
     )
 
@@ -315,9 +321,12 @@ const EditableOrderProductsTable = ({
             }
             const numericLength = Number(length)
             const formattedLength = formatMeasurementValue(numericLength)
+            const lengthLabel = t('text.specs.length', {
+                defaultValue: 'Length',
+            })
             return t('sales.documents.linearSummary', {
                 length: formattedLength,
-                defaultValue: `Metros lineales: ${formattedLength} m`,
+                defaultValue: `${lengthLabel}: ${formattedLength} m`,
             })
         },
         [formatMeasurementValue, t],

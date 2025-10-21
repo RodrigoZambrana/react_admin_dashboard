@@ -37,6 +37,7 @@ import useResponsive from '@/utils/hooks/useResponsive'
 import { useExchangeRates } from '@/utils/hooks/useExchangeRates'
 import classNames from 'classnames'
 import { useAppSelector } from '@/store'
+import dayjs from 'dayjs'
 import {
     normalizeCurrencyCode,
     formatCurrency,
@@ -2364,46 +2365,67 @@ const OrderNew = () => {
                                                 {docSummary('orderOverview', 'Order overview')}
                                             </h4>
                                             <div className="space-y-2 text-sm">
-                                                {[
-                                                    {
-                                                        label: orderCurrencyLabel,
-                                                        value:
-                                                            orderCurrencySelected?.label ||
-                                                            getCurrencyLabel(orderCurrencyValue),
-                                                    },
-                                                    {
-                                                        label: t('text.columns.paymentMethod'),
-                                                        value: paymentMethodLabel,
-                                                    },
-                                                    {
-                                                        label: docSummary('subtotal', 'Subtotal'),
-                                                        value: formattedOrderTotal,
-                                                    },
-                                                    {
-                                                        label: docSummary('tax', 'Estimated tax'),
-                                                        value: formattedTax,
-                                                    },
-                                                    {
-                                                        label: t('text.labels.deliveryFee'),
-                                                        value: formattedDeliveryFee,
-                                                    },
-                                                    {
-                                                        label: docSummary('totalDue', 'Total due'),
-                                                        value: formattedGrandTotal,
-                                                    },
-                                                ].map(({ label, value }) => (
-                                                    <div
-                                                        key={label as string}
-                                                        className="flex items-center justify-between gap-4"
-                                                    >
-                                                        <span className="text-gray-500 dark:text-gray-400">
-                                                            {label}
-                                                        </span>
-                                                        <span className="font-medium text-right">
-                                                            {value}
-                                                        </span>
-                                                    </div>
-                                                ))}
+                                                {(() => {
+                                                    const overviewItems = [
+                                                        {
+                                                            label: orderCurrencyLabel,
+                                                            value:
+                                                                orderCurrencySelected?.label ||
+                                                                getCurrencyLabel(orderCurrencyValue),
+                                                        },
+                                                        {
+                                                            label: t('text.columns.paymentMethod'),
+                                                            value: paymentMethodLabel,
+                                                        },
+                                                        {
+                                                            label: t('text.labels.date'),
+                                                            value: values.date
+                                                                ? dayjs(values.date as any).format('DD/MM/YYYY')
+                                                                : docSummary('notAvailable', 'Not available'),
+                                                        },
+                                                        {
+                                                            label: docMessage(
+                                                                'validUntilLabel',
+                                                                'sales.orders.validUntilLabel',
+                                                                'Valid until',
+                                                            ),
+                                                            value: values.validUntil
+                                                                ? dayjs(values.validUntil as any).format(
+                                                                      'DD/MM/YYYY',
+                                                                  )
+                                                                : docSummary('notAvailable', 'Not available'),
+                                                        },
+                                                        {
+                                                            label: docSummary('subtotal', 'Subtotal'),
+                                                            value: formattedOrderTotal,
+                                                        },
+                                                        {
+                                                            label: docSummary('tax', 'Estimated tax'),
+                                                            value: formattedTax,
+                                                        },
+                                                        {
+                                                            label: t('text.labels.deliveryFee'),
+                                                            value: formattedDeliveryFee,
+                                                        },
+                                                        {
+                                                            label: docSummary('totalDue', 'Total due'),
+                                                            value: formattedGrandTotal,
+                                                        },
+                                                    ]
+                                                    return overviewItems.map(({ label, value }) => (
+                                                        <div
+                                                            key={label as string}
+                                                            className="flex items-center justify-between gap-4"
+                                                        >
+                                                            <span className="text-gray-500 dark:text-gray-400">
+                                                                {label}
+                                                            </span>
+                                                            <span className="font-medium text-right">
+                                                                {value}
+                                                            </span>
+                                                        </div>
+                                                    ))
+                                                })()}
                                             </div>
                                         </Card>
                                         <div className="flex flex-col gap-4">
