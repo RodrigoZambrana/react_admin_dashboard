@@ -3,6 +3,7 @@ import classNames from 'classnames'
 import ScrollBar from '@/components/ui/ScrollBar'
 import Avatar from '@/components/ui/Avatar'
 import Button from '@/components/ui/Button'
+import Tag from '@/components/ui/Tag'
 import Loading from '@/components/shared/Loading'
 import useTwColorByName from '@/utils/hooks/useTwColorByName'
 import { resolveAvatarSrc } from '@/utils/avatar'
@@ -32,10 +33,14 @@ import type { MouseEvent } from 'react'
 import type { Mail } from '../store'
 import { getAttachmentIcon } from '../utils/attachments'
 import { buildConversationKey } from '../utils/conversations'
+import { labelList } from '../constants'
+import { resolveLabelBadge } from '../utils/labels'
 
 type AggregatedMail = Mail & {
     conversationMailIds: Array<string | number>
 }
+
+type MailMessage = Mail['message'][number]
 
 type ToggleButtonProps = {
     sideBarExpand: boolean
@@ -77,6 +82,54 @@ const formatMailDate = (mail: Mail) => {
         }
     }
     return mail.message?.[0]?.date ?? ''
+}
+
+const getMessageTimestampValue = (message?: MailMessage | null) => {
+    if (!message) {
+        return null
+    }
+    const sources = [message.receivedAt, message.sentAt, message.date]
+    for (const source of sources) {
+        if (!source) {
+            continue
+        }
+        const parsed = Date.parse(source)
+        if (!Number.isNaN(parsed)) {
+            return parsed
+        }
+    }
+    return null
+}
+
+const resolveLatestMessage = (mail: AggregatedMail) => {
+    if (!Array.isArray(mail.message) || mail.message.length === 0) {
+        return undefined
+    }
+    let latest: MailMessage | undefined
+    let latestTimestamp: number | null = null
+    for (const message of mail.message) {
+        const timestamp = getMessageTimestampValue(message)
+        if (timestamp === null) {
+            if (!latest) {
+                latest = message
+            }
+            continue
+        }
+        if (latestTimestamp === null || timestamp > latestTimestamp) {
+            latest = message
+            latestTimestamp = timestamp
+        }
+    }
+    return latest ?? mail.message[0]
+}
+
+const normalizeAddressList = (input?: string[]) => {
+    if (!Array.isArray(input)) {
+        return []
+    }
+    return input
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter((value): value is string => Boolean(value))
 }
 
 const ToggleButton = ({

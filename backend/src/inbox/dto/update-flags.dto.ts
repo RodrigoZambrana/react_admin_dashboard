@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator'
+import { IsBoolean, IsOptional, IsString, IsObject } from 'class-validator'
 
 export class UpdateFlagsDto {
   @IsOptional()
@@ -16,4 +16,8 @@ export class UpdateFlagsDto {
   @IsOptional()
   @IsBoolean()
   spam?: boolean
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>
 }

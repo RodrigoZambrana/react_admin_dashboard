@@ -97,6 +97,7 @@ export class InboxController {
         seen: body.seen,
         starred: body.starred,
         spam: body.spam,
+        metadata: body.metadata,
       },
     )
   }

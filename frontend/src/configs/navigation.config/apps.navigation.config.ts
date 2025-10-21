@@ -142,14 +142,35 @@ const appsNavigationConfig: NavigationTree[] = [
             },
             // Clientes
             {
-                key: 'appsCrm.customers',
-                path: `${APP_PREFIX_PATH}/crm/customers`,
+                key: 'apps.crm',
+                path: '',
                 title: 'Clients',
                 translateKey: 'nav.appsCrm.crm',
                 icon: 'crm',
-                type: NAV_ITEM_TYPE_ITEM,
+                type: NAV_ITEM_TYPE_COLLAPSE,
                 authority: getRolesForFeature(FEATURES.CUSTOMERS),
-                subMenu: [],
+                subMenu: [
+                    {
+                        key: 'appsCrm.customers',
+                        path: `${APP_PREFIX_PATH}/crm/customers`,
+                        title: 'Customers',
+                        translateKey: 'nav.appsCrm.customers',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: getRolesForFeature(FEATURES.CUSTOMERS),
+                        subMenu: [],
+                    },
+                    {
+                        key: 'appsCrm.mail',
+                        path: `${APP_PREFIX_PATH}/crm/mail`,
+                        title: 'Inbox',
+                        translateKey: 'nav.appsCrm.mail',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: getRolesForFeature(FEATURES.CUSTOMERS),
+                        subMenu: [],
+                    },
+                ],
             },
             // Productos (nuevo menú)
             {

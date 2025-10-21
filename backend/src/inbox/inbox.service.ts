@@ -208,8 +208,18 @@ export class InboxService implements OnModuleInit {
       this.decodeAttachmentInput(attachment),
     )
 
+    const normalizedFromAddress = (payload.fromAddress ?? '').trim()
+    const normalizedFromName = (payload.fromName ?? '').trim()
+
     const messageInput: ChannelSendMessageInput = {
       subject: payload.subject,
+      from:
+        normalizedFromAddress || normalizedFromName
+          ? {
+              address: normalizedFromAddress,
+              name: normalizedFromName || undefined,
+            }
+          : undefined,
       body: {
         html: payload.bodyHtml ?? undefined,
         text: payload.bodyText ?? undefined,
@@ -267,6 +277,18 @@ export class InboxService implements OnModuleInit {
     }
 
     const summary = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.inboxMessage.findUnique({
+        where: {
+          accountId_channel_remoteId: {
+            accountId: account.id,
+            channel: account.channel,
+            remoteId: identifier.remoteId,
+          },
+        },
+      })
+
+      const metadataSource =
+        (existing?.metadata as Record<string, unknown> | null) ?? undefined
       const messageRecord = await tx.inboxMessage.upsert({
         where: {
           accountId_channel_remoteId: {
@@ -275,7 +297,7 @@ export class InboxService implements OnModuleInit {
             remoteId: identifier.remoteId,
           },
         },
-        update: this.buildFlagUpdate(flags),
+        update: this.buildFlagUpdate(flags, metadataSource),
         create: this.buildMinimalMessage(account, identifier, flags),
       })
 
@@ -690,7 +712,7 @@ export class InboxService implements OnModuleInit {
       isSpam: false,
       hasAttachments: (payload.attachments?.length ?? 0) > 0,
       sentAt: new Date(),
-      metadata: toJsonUpdate(result.metadata),
+      metadata: toJsonUpdate(this.mergeMetadata(payload.metadata, result.metadata)),
     }
   }
 
@@ -718,7 +740,7 @@ export class InboxService implements OnModuleInit {
       isSpam: false,
       hasAttachments: (payload.attachments?.length ?? 0) > 0,
       sentAt: new Date(),
-      metadata: toJsonInput(result.metadata ?? null),
+      metadata: toJsonInput(this.mergeMetadata(payload.metadata, result.metadata)),
       fromAddress: payload.fromAddress ?? null,
       fromName: payload.fromName ?? null,
     }
@@ -726,11 +748,17 @@ export class InboxService implements OnModuleInit {
 
   private buildFlagUpdate(
     flags: ChannelSetFlagsInput,
+    existingMetadata?: Record<string, unknown>,
   ): Prisma.InboxMessageUpdateInput {
+    const mergedMetadata = this.mergeMetadata(existingMetadata, flags.metadata ?? undefined)
     return {
       isRead: flags.seen ?? undefined,
       isStarred: flags.starred ?? undefined,
       isSpam: flags.spam ?? undefined,
+      metadata:
+        mergedMetadata !== undefined
+          ? toJsonUpdate(mergedMetadata)
+          : undefined,
     }
   }
 
@@ -740,6 +768,7 @@ export class InboxService implements OnModuleInit {
     flags?: ChannelSetFlagsInput,
     folder?: string,
   ): Prisma.InboxMessageCreateInput {
+    const metadata = flags?.metadata
     return {
       account: { connect: { id: account.id } },
       channel: account.channel,
@@ -758,7 +787,7 @@ export class InboxService implements OnModuleInit {
       isStarred: flags?.starred ?? false,
       isSpam: flags?.spam ?? false,
       hasAttachments: false,
-      metadata: toJsonInput(null),
+      metadata: toJsonInput(metadata ?? null),
     }
   }
 
@@ -791,6 +820,22 @@ export class InboxService implements OnModuleInit {
       return undefined
     }
     return normalized.length > 240 ? `${normalized.slice(0, 237)}...` : normalized
+  }
+
+  private mergeMetadata(
+    payloadMetadata?: Record<string, unknown>,
+    adapterMetadata?: Record<string, unknown> | null,
+  ): Record<string, unknown> | null {
+    const combined = {
+      ...(payloadMetadata ?? {}),
+      ...(adapterMetadata ?? {}),
+    }
+
+    const keys = Object.keys(combined)
+    if (keys.length === 0) {
+      return null
+    }
+    return combined
   }
 
   private stripHtml(content: string): string {
