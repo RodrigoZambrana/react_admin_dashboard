@@ -16,7 +16,11 @@ import MailDetailActionBar from './MailDetailActionBar'
 import MailDetailContent from './MailDetailContent'
 import MailEditor, { MailEditorRef } from './MailEditor'
 import isEmpty from 'lodash/isEmpty'
-import { buildConversationKey } from '../utils/conversations'
+import {
+    buildConversationKey,
+    normalizeSubject,
+    normalizeString,
+} from '../utils/conversations'
 import type { Mail as MailType } from '../store'
 
 const MailDetail = () => {
@@ -107,15 +111,42 @@ const MailDetail = () => {
             return mail
         }
         const conversationKey = buildConversationKey(mail)
-        if (!conversationKey) {
-            return mail
-        }
+        const normalizedThreadId = normalizeString(
+            (mail as { threadRemoteId?: string | null })?.threadRemoteId,
+        )
+        const normalizedSubject = normalizeSubject(mail.subject || mail.title)
+        const hasConversationKey = Boolean(conversationKey)
+        const hasThreadKey = Boolean(normalizedThreadId)
+        const shouldUseSubjectFallback =
+            !hasThreadKey && !hasConversationKey && Boolean(normalizedSubject)
         const related = mailList.filter((entry) => {
             if (!entry) {
                 return false
             }
-            const entryKey = buildConversationKey(entry)
-            return entryKey === conversationKey
+            if (entry.id === mail.id) {
+                return true
+            }
+            if (hasThreadKey) {
+                const entryThreadId = normalizeString(
+                    (entry as { threadRemoteId?: string | null })?.threadRemoteId,
+                )
+                if (entryThreadId && entryThreadId === normalizedThreadId) {
+                    return true
+                }
+            }
+            if (hasConversationKey) {
+                const entryKey = buildConversationKey(entry)
+                if (entryKey && entryKey === conversationKey) {
+                    return true
+                }
+            }
+            if (shouldUseSubjectFallback) {
+                const entrySubject = normalizeSubject(entry.subject || entry.title)
+                if (entrySubject && entrySubject === normalizedSubject) {
+                    return true
+                }
+            }
+            return false
         })
         if (related.length <= 1) {
             return mail

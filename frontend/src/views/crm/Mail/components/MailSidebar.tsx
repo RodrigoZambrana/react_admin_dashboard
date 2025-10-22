@@ -18,12 +18,17 @@ import {
 } from '../store'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { groupList, labelList } from '../constants'
+import {
+    groupList,
+    labelList,
+    dynamicMailboxIconMap,
+} from '../constants'
 import type { Group, Label } from '../constants'
 import {
     translateMailboxLabel as translateMailboxLabelHelper,
     resolveLabelBadge,
     findStaticCategory,
+    normalizeMailboxKey,
 } from '../utils/labels'
 import type { InboxMailboxDto } from '@/services/InboxService'
 
@@ -83,17 +88,45 @@ const MailSideBarContent = () => {
         () =>
             accountMailboxes.map((mailbox) => {
                 const fallbackLabel = mailbox.label || mailbox.id
+                const staticCategory = findStaticCategory(mailbox.id)
+                const normalizedId = normalizeMailboxKey(mailbox.id)
+                let translationValue = mailbox.id
+                let icon: Group['icon']
+                if (staticCategory && 'icon' in staticCategory) {
+                    translationValue =
+                        staticCategory.translationValue ?? staticCategory.value
+                    icon = staticCategory.icon
+                } else if (staticCategory) {
+                    translationValue = staticCategory.value
+                } else if (normalizedId) {
+                    icon = dynamicMailboxIconMap[normalizedId]
+                }
                 return {
                     value: mailbox.id,
-                    label: translateMailboxLabel(mailbox.id, fallbackLabel),
+                    label: fallbackLabel,
+                    translationValue,
+                    icon,
                 }
             }),
-        [accountMailboxes, translateMailboxLabel],
+        [accountMailboxes],
     )
 
     const dynamicMailboxMap = useMemo<Record<string, Group>>(() => {
         return dynamicMailboxGroups.reduce<Record<string, Group>>(
             (acc, mailbox) => {
+                const normalized = normalizeMailboxKey(mailbox.value)
+                if (normalized) {
+                    acc[normalized] = mailbox
+                }
+                const translationNormalized = normalizeMailboxKey(
+                    mailbox.translationValue ?? '',
+                )
+                if (
+                    translationNormalized &&
+                    translationNormalized !== normalized
+                ) {
+                    acc[translationNormalized] = mailbox
+                }
                 acc[mailbox.value] = mailbox
                 return acc
             },
@@ -135,19 +168,22 @@ const MailSideBarContent = () => {
             if (category === 'mail') {
                 category = 'inbox'
             }
+            const normalizedCategory = normalizeMailboxKey(category)
             const dynamicMatch =
-                dynamicMailboxMap[category] ??
+                (normalizedCategory && dynamicMailboxMap[normalizedCategory]) ??
                 dynamicMailboxGroups.find(
                     (mailbox) =>
-                        mailbox.value.toLowerCase() === category.toLowerCase(),
+                        normalizeMailboxKey(mailbox.value) === normalizedCategory,
                 )
             if (dynamicMatch) {
                 const fallbackLabel =
                     dynamicMatch.label || dynamicMatch.value || category
+                const translationSource =
+                    dynamicMatch.translationValue ?? dynamicMatch.value
                 return {
                     value: dynamicMatch.value,
                     label: translateMailboxLabel(
-                        dynamicMatch.value,
+                        translationSource,
                         fallbackLabel,
                     ),
                 }
@@ -155,10 +191,12 @@ const MailSideBarContent = () => {
             const staticMatch = findStaticCategory(category)
             if (staticMatch) {
                 if ('icon' in staticMatch) {
+                    const translationSource =
+                        staticMatch.translationValue ?? staticMatch.value
                     return {
-                        value: category,
+                        value: staticMatch.value,
                         label: translateMailboxLabel(
-                            category,
+                            translationSource,
                             staticMatch.label,
                         ),
                     }
@@ -185,7 +223,14 @@ const MailSideBarContent = () => {
         const normalized = getCategory(category.value)
         dispatch(updateMailId(''))
         dispatch(updateSelectedCategory(normalized))
-        if (dynamicMailboxMap[normalized.value]) {
+        const normalizedKey = normalizeMailboxKey(
+            normalized.value ? String(normalized.value) : '',
+        )
+        if (
+            normalizedKey &&
+            dynamicMailboxMap[normalizedKey] &&
+            typeof normalized.value === 'string'
+        ) {
             dispatch(setSelectedInboxMailbox(normalized.value))
         }
         const normalizedValue =
@@ -218,10 +263,18 @@ const MailSideBarContent = () => {
         dynamicMailboxGroups.length > 0 ? dynamicMailboxGroups : groupList
 
     const resolveMenuLabel = (menu: Group) => {
-        if (dynamicMailboxMap[menu.value]) {
-            return dynamicMailboxMap[menu.value].label
-        }
-        return translateMailboxLabel(menu.value, menu.label)
+        const normalized = normalizeMailboxKey(menu.value)
+        const dynamicMatch =
+            (normalized && dynamicMailboxMap[normalized]) ||
+            dynamicMailboxMap[menu.value]
+        const translationSource =
+            dynamicMatch?.translationValue ?? menu.translationValue ?? menu.value
+        const fallbackLabel =
+            dynamicMatch?.label ?? menu.label
+        return translateMailboxLabel(
+            translationSource,
+            fallbackLabel,
+        )
     }
 
     return (

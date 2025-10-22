@@ -5,10 +5,12 @@ import DoubleSidedImage from '@/components/shared/DoubleSidedImage'
 import Card from '@/components/ui/Card'
 import useQuery from '@/utils/hooks/useQuery'
 import { useTranslation } from 'react-i18next'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
     updateMailId,
     getMail,
     patchMail,
+    updateMail,
     useAppDispatch,
     useAppSelector,
 } from '../store'
@@ -16,12 +18,19 @@ import MailDetailActionBar from './MailDetailActionBar'
 import MailDetailContent from './MailDetailContent'
 import MailEditor, { MailEditorRef } from './MailEditor'
 import isEmpty from 'lodash/isEmpty'
-import { buildConversationKey } from '../utils/conversations'
+import {
+    buildConversationKey,
+    normalizeSubject,
+    normalizeString,
+} from '../utils/conversations'
+import { upsertMailLocalState } from '../utils/localMailState'
 import type { Mail as MailType } from '../store'
 
 const MailDetail = () => {
     const query = useQuery()
     const { t } = useTranslation()
+    const navigate = useNavigate()
+    const location = useLocation()
 
     const dispatch = useAppDispatch()
 
@@ -30,6 +39,9 @@ const MailDetail = () => {
     const scrollRef = useRef(null)
 
     const mailEditorRef = useRef<MailEditorRef>(null)
+    const previousMailIdRef = useRef<string | number | null>(null)
+    const skipQuerySyncRef = useRef(false)
+    const readHistoryRef = useRef<Set<string>>(new Set())
 
     const mail = useAppSelector((state) => state.crmMail.data.mail)
     const mailLoading = useAppSelector(
@@ -60,6 +72,55 @@ const MailDetail = () => {
     }
 
     useEffect(() => {
+        const previousMailId = previousMailIdRef.current
+        const currentMailId =
+            mailId !== undefined && mailId !== null && mailId !== ''
+                ? mailId
+                : null
+
+        if (previousMailId && !currentMailId && id) {
+            const params = new URLSearchParams(location.search)
+            params.delete('mail')
+            const nextSearch = params.toString()
+            skipQuerySyncRef.current = true
+            navigate(
+                `${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`,
+                { replace: true },
+            )
+        }
+
+        previousMailIdRef.current = currentMailId
+    }, [mailId, id, location.pathname, location.search, navigate])
+
+    useEffect(() => {
+        if (!id) {
+            if (skipQuerySyncRef.current) {
+                skipQuerySyncRef.current = false
+            }
+            return
+        }
+
+        if (skipQuerySyncRef.current) {
+            skipQuerySyncRef.current = false
+            return
+        }
+
+        const mailIdString =
+            mailId !== undefined && mailId !== null ? String(mailId) : ''
+
+        if (mailIdString !== id) {
+            dispatch(updateMailId(id))
+        }
+    }, [dispatch, id, mailId])
+
+    useEffect(() => {
+        if (!id && mailId) {
+            dispatch(updateMail({}))
+            dispatch(updateMailId(''))
+        }
+    }, [dispatch, id, mailId])
+
+    useEffect(() => {
         if (mailId) {
             fetchData()
         }
@@ -67,14 +128,11 @@ const MailDetail = () => {
     }, [mailId])
 
     useEffect(() => {
-        if (!mailId && id) {
-            dispatch(updateMailId(id))
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
-
-    useEffect(() => {
         if (!mailId) {
+            return
+        }
+        const normalizedId = String(mailId)
+        if (readHistoryRef.current.has(normalizedId)) {
             return
         }
         dispatch(
@@ -83,21 +141,21 @@ const MailDetail = () => {
                 changes: { isRead: true },
             }),
         )
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mailId])
+        readHistoryRef.current.add(normalizedId)
+    }, [dispatch, mailId])
 
     useEffect(() => {
-        if (!mail?.id || mail.isRead) {
+        if (!mail?.id || mail.isRead !== true) {
             return
         }
-        dispatch(
-            patchMail({
+        upsertMailLocalState(
+            {
                 id: mail.id,
-                changes: { isRead: true },
-            }),
+                remoteId: (mail as { remoteId?: string | number })?.remoteId,
+            },
+            { isRead: true },
         )
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mail?.id])
+    }, [mail?.id, mail?.remoteId, mail?.isRead])
 
     const resolvedMail = useMemo<Partial<MailType>>(() => {
         if (!mail || isEmpty(mail)) {
@@ -107,15 +165,42 @@ const MailDetail = () => {
             return mail
         }
         const conversationKey = buildConversationKey(mail)
-        if (!conversationKey) {
-            return mail
-        }
+        const normalizedThreadId = normalizeString(
+            (mail as { threadRemoteId?: string | null })?.threadRemoteId,
+        )
+        const normalizedSubject = normalizeSubject(mail.subject || mail.title)
+        const hasConversationKey = Boolean(conversationKey)
+        const hasThreadKey = Boolean(normalizedThreadId)
+        const shouldUseSubjectFallback =
+            !hasThreadKey && !hasConversationKey && Boolean(normalizedSubject)
         const related = mailList.filter((entry) => {
             if (!entry) {
                 return false
             }
-            const entryKey = buildConversationKey(entry)
-            return entryKey === conversationKey
+            if (entry.id === mail.id) {
+                return true
+            }
+            if (hasThreadKey) {
+                const entryThreadId = normalizeString(
+                    (entry as { threadRemoteId?: string | null })?.threadRemoteId,
+                )
+                if (entryThreadId && entryThreadId === normalizedThreadId) {
+                    return true
+                }
+            }
+            if (hasConversationKey) {
+                const entryKey = buildConversationKey(entry)
+                if (entryKey && entryKey === conversationKey) {
+                    return true
+                }
+            }
+            if (shouldUseSubjectFallback) {
+                const entrySubject = normalizeSubject(entry.subject || entry.title)
+                if (entrySubject && entrySubject === normalizedSubject) {
+                    return true
+                }
+            }
+            return false
         })
         if (related.length <= 1) {
             return mail
