@@ -13,6 +13,7 @@ import {
     type InboxMessageSummaryDto,
     type SendInboxMessagePayload,
 } from '@/services/InboxService'
+import { applyMailLocalState } from '../utils/localMailState'
 
 export type Category = {
     category: string
@@ -21,7 +22,7 @@ export type Category = {
 }
 
 type Message = {
-    id: number
+    id: string | number
     name: string
     mail: string[]
     from: string
@@ -39,7 +40,7 @@ type Message = {
 }
 
 export type Mail = {
-    id: number
+    id: string | number
     name: string
     label: string
     group: string
@@ -94,6 +95,297 @@ type InboxRequestStatus = 'idle' | 'loading' | 'succeeded' | 'failed'
 type InboxStatusByKey = Record<string, InboxRequestStatus>
 type InboxErrorByKey = Record<string, string | null>
 
+const normalizeMailboxId = (value?: string | null) =>
+    (value ?? '').trim().toUpperCase()
+
+type InboxSendAttempt = {
+    id: string
+    accountId: string
+    status: 'pending' | 'succeeded' | 'failed'
+    startedAt: string
+    completedAt?: string
+    messageId?: string
+    error?: string | null
+}
+
+const isSentMailbox = (mailbox: InboxMailboxDto) => {
+    const normalizedId = normalizeMailboxId(mailbox.id)
+    const normalizedType = normalizeMailboxId(mailbox.type)
+    return normalizedId === 'SENT' || normalizedType === 'SENT'
+}
+
+const isInboxMailbox = (mailbox: InboxMailboxDto) => {
+    const normalizedId = normalizeMailboxId(mailbox.id)
+    const normalizedType = normalizeMailboxId(mailbox.type)
+    return normalizedId === 'INBOX' || normalizedType === 'INBOX'
+}
+
+const findPrimaryInboxMailboxId = (mailboxes: InboxMailboxDto[]) => {
+    const inboxMailbox = mailboxes.find(isInboxMailbox)
+    if (inboxMailbox) {
+        return inboxMailbox.id
+    }
+    return mailboxes[0]?.id
+}
+
+const cloneMessageForMailbox = (
+    message: InboxMessageSummaryDto,
+    mailboxId: string,
+) =>
+    message.folder === mailboxId
+        ? message
+        : {
+              ...message,
+              folder: mailboxId,
+          }
+
+const toMailDirection = (
+    direction: InboxMessageSummaryDto['direction'],
+): 'inbound' | 'outbound' =>
+    direction === 'OUTBOUND' ? 'outbound' : 'inbound'
+
+const buildMailFromInboxMessage = (
+    message: InboxMessageSummaryDto,
+): Mail => {
+    const sentAt = message.sentAt ?? null
+    const receivedAt = message.receivedAt ?? null
+    const preview =
+        message.previewText ??
+        message.snippet ??
+        ''
+    const fromAddress =
+        message.from?.address ??
+        message.from?.name ??
+        ''
+    const fromName =
+        message.from?.name ??
+        fromAddress
+    const metadataBase =
+        message.metadata && typeof message.metadata === 'object'
+            ? { ...(message.metadata as Record<string, unknown>) }
+            : {}
+    const metadata = {
+        ...metadataBase,
+        accountId: message.accountId,
+        mailbox: message.folder ?? null,
+        direction: message.direction,
+    }
+    const messageEntry: Message = {
+        id: message.id,
+        name: fromName,
+        mail: message.to ?? [],
+        from: fromAddress,
+        avatar: '',
+        date: receivedAt ?? sentAt ?? '',
+        content: preview,
+        attachment: [],
+        to: message.to ?? [],
+        cc: message.cc ?? [],
+        bcc: message.bcc ?? [],
+        sentAt,
+        receivedAt,
+        direction: toMailDirection(message.direction),
+        headers: undefined,
+    }
+    const normalizedGroup = normalizeMailboxId(message.folder)
+    const group =
+        normalizedGroup && normalizedGroup.length > 0
+            ? normalizedGroup.toLowerCase()
+            : 'inbox'
+    const mailObject: Mail = {
+        id: message.id,
+        name: fromName,
+        label: message.folder ?? 'Inbox',
+        group,
+        folder: message.folder ?? null,
+        flagged: message.isSpam,
+        starred: message.isStarred,
+        from: fromAddress,
+        avatar: '',
+        title: message.subject ?? '',
+        subject: message.subject ?? '',
+        mail: message.to ?? [],
+        previewText: message.previewText ?? preview,
+        snippet: message.snippet ?? preview,
+        sentAt,
+        receivedAt,
+        isRead: message.isRead,
+        threadRemoteId: message.threadRemoteId ?? null,
+        remoteId: message.remoteId ?? message.id,
+        headers: undefined,
+        ccAddresses: message.cc ?? [],
+        bccAddresses: message.bcc ?? [],
+        replyToAddresses: [],
+        message: [messageEntry],
+        metadata: Object.keys(metadata).length > 0 ? metadata : null,
+    }
+    return applyMailLocalState(mailObject)
+}
+
+const mergeMailMessages = (
+    existing: Message[] | undefined,
+    incoming: Message[] | undefined,
+) => {
+    const result = new Map<string, Message>()
+    const buildKey = (message: Message, index: number) =>
+        message.id !== undefined && message.id !== null
+            ? `id:${String(message.id)}`
+            : `idx:${index}:${message.date ?? ''}:${message.from ?? ''}`
+    ;(existing ?? []).forEach((message, index) => {
+        result.set(buildKey(message, index), message)
+    })
+    ;(incoming ?? []).forEach((message, index) => {
+        const key = buildKey(message, (existing?.length ?? 0) + index)
+        const current = result.get(key)
+        if (current) {
+            result.set(key, { ...current, ...message })
+        } else {
+            result.set(key, message)
+        }
+    })
+    return Array.from(result.values())
+}
+
+const mergeMetadata = (
+    previous: Record<string, unknown> | null | undefined,
+    next: Record<string, unknown> | null | undefined,
+) => {
+    if (previous && next) {
+        return { ...previous, ...next }
+    }
+    return next ?? previous ?? null
+}
+
+const mergeInboxMails = (existing: Mail[], updates: Mail[]) => {
+    if (updates.length === 0) {
+        return existing
+    }
+    const makeKey = (mail: Mail) =>
+        mail.remoteId ? `remote:${mail.remoteId}` : `id:${String(mail.id)}`
+    const byKey = new Map<string, Mail>()
+    existing.forEach((mail) => {
+        byKey.set(makeKey(mail), mail)
+    })
+    updates.forEach((mail) => {
+        const key = makeKey(mail)
+        const current = byKey.get(key)
+        if (!current) {
+            const unreadMail =
+                mail.isRead === false
+                    ? mail
+                    : {
+                          ...mail,
+                          isRead: false,
+                      }
+            byKey.set(key, applyMailLocalState(unreadMail))
+            return
+        }
+        const merged: Mail = applyMailLocalState({
+            ...current,
+            ...mail,
+            metadata: mergeMetadata(current.metadata, mail.metadata),
+            message: mergeMailMessages(current.message, mail.message),
+        })
+        byKey.set(key, merged)
+    })
+    return Array.from(byKey.values())
+}
+
+const mergeMailboxMessages = (
+    existing: InboxMessageSummaryDto[],
+    incoming: InboxMessageSummaryDto[],
+    mode: 'replace' | 'append' | 'prepend',
+) => {
+    if (mode === 'replace') {
+        return incoming
+    }
+    const result = new Map<string, InboxMessageSummaryDto>()
+    if (mode === 'append') {
+        existing.forEach((message) => {
+            result.set(message.id, message)
+        })
+        incoming.forEach((message) => {
+            result.set(message.id, message)
+        })
+    } else {
+        incoming.forEach((message) => {
+            result.set(message.id, message)
+        })
+        existing.forEach((message) => {
+            if (!result.has(message.id)) {
+                result.set(message.id, message)
+            }
+        })
+    }
+    return Array.from(result.values())
+}
+
+const parseTimestamp = (value?: string | null) => {
+    if (!value) {
+        return null
+    }
+    const parsed = Date.parse(value)
+    if (Number.isNaN(parsed)) {
+        return null
+    }
+    return parsed
+}
+
+const extractMessageTimestamps = (message: InboxMessageSummaryDto) => {
+    const timestamps: number[] = []
+    const received = parseTimestamp(message.receivedAt)
+    const sent = parseTimestamp(message.sentAt)
+    if (received !== null) {
+        timestamps.push(received)
+    }
+    if (sent !== null) {
+        timestamps.push(sent)
+    }
+    const metadataUpdated =
+        message.metadata &&
+        typeof message.metadata === 'object' &&
+        typeof (message.metadata as Record<string, unknown>).updatedAt ===
+            'string'
+            ? parseTimestamp(
+                  (message.metadata as Record<string, unknown>)
+                      .updatedAt as string,
+              )
+            : null
+    if (metadataUpdated !== null) {
+        timestamps.push(metadataUpdated)
+    }
+    return timestamps
+}
+
+const updateLastFetchedAt = (
+    tracker: Record<string, string | null>,
+    accountId: string,
+    mailboxId: string,
+    messages: InboxMessageSummaryDto[],
+) => {
+    const key = `${accountId}:${mailboxId}`
+    const existing = tracker[key]
+    let latest =
+        existing !== undefined && existing !== null
+            ? parseTimestamp(existing)
+            : null
+    messages.forEach((message) => {
+        const candidates = extractMessageTimestamps(message)
+        candidates.forEach((timestamp) => {
+            if (timestamp !== null) {
+                if (latest === null || timestamp > latest) {
+                    latest = timestamp
+                }
+            }
+        })
+    })
+    if (latest !== null) {
+        tracker[key] = new Date(latest).toISOString()
+    } else if (!(key in tracker)) {
+        tracker[key] = new Date().toISOString()
+    }
+}
+
 type InboxState = {
     accounts: InboxAccountDto[]
     accountsLoading: boolean
@@ -106,12 +398,14 @@ type InboxState = {
     messagesRequestStatus: InboxStatusByKey
     messagesErrorByMailbox: InboxErrorByKey
     nextCursorByMailbox: InboxCursorByMailbox
+    lastFetchedAtByMailbox: Record<string, string | null>
     selectedAccountId?: string
     selectedMailboxId?: string
     sendStatus: InboxRequestStatus
     sendError: string | null
     lastActionStatus: InboxRequestStatus
     lastActionError: string | null
+    sendLog: InboxSendAttempt[]
 }
 
 export type MailState = {
@@ -330,12 +624,14 @@ const initialState: MailState = {
         messagesRequestStatus: {},
         messagesErrorByMailbox: {},
         nextCursorByMailbox: {},
+        lastFetchedAtByMailbox: {},
         selectedAccountId: undefined,
         selectedMailboxId: undefined,
         sendStatus: 'idle',
         sendError: null,
         lastActionStatus: 'idle',
         lastActionError: null,
+        sendLog: [],
     },
 }
 
@@ -427,14 +723,25 @@ const mailSlice = createSlice({
             .addCase(fetchInboxMailboxes.fulfilled, (state, action) => {
                 state.inbox.mailboxesLoading = false
                 const { accountId, mailboxes } = action.payload
-                state.inbox.mailboxesByAccount[accountId] = mailboxes
+                const filtered = mailboxes.filter((mailbox) => !isSentMailbox(mailbox))
+                const normalizedList =
+                    filtered.length > 0 ? filtered : mailboxes
+                state.inbox.mailboxesByAccount[accountId] = normalizedList
                 state.inbox.mailboxesRequestStatus[accountId] = 'succeeded'
                 state.inbox.mailboxesErrorByAccount[accountId] = null
-                if (
-                    !state.inbox.selectedMailboxId &&
-                    mailboxes.length > 0
-                ) {
-                    state.inbox.selectedMailboxId = mailboxes[0].id
+                const currentSelected = state.inbox.selectedMailboxId
+                const hasSelected =
+                    currentSelected &&
+                    normalizedList.some(
+                        (mailbox) => mailbox.id === currentSelected,
+                    )
+                if (!hasSelected) {
+                    const preferredId = findPrimaryInboxMailboxId(normalizedList)
+                    if (preferredId) {
+                        state.inbox.selectedMailboxId = preferredId
+                    } else if (!currentSelected && mailboxes.length > 0) {
+                        state.inbox.selectedMailboxId = mailboxes[0].id
+                    }
                 }
             })
             .addCase(fetchInboxMailboxes.rejected, (state, action) => {
@@ -452,12 +759,35 @@ const mailSlice = createSlice({
             })
             .addCase(fetchInboxMessages.fulfilled, (state, action) => {
                 state.inbox.messagesLoading = false
-                const key = `${action.payload.accountId}:${action.payload.mailbox}`
-                state.inbox.messagesByMailbox[key] = action.payload.result.items
-                state.inbox.nextCursorByMailbox[key] =
-                    action.payload.result.nextCursor ?? null
+                const { accountId, mailbox, result } = action.payload
+                const key = `${accountId}:${mailbox}`
+                const mode: 'replace' | 'append' | 'prepend' = action.meta.arg.cursor
+                    ? 'append'
+                    : action.meta.arg.since
+                        ? 'prepend'
+                        : 'replace'
+                const existingList = state.inbox.messagesByMailbox[key] ?? []
+                const mergedMessages =
+                    mode === 'replace'
+                        ? result.items
+                        : mergeMailboxMessages(existingList, result.items, mode)
+                state.inbox.messagesByMailbox[key] = mergedMessages
+                if (mode === 'append' || mode === 'replace') {
+                    state.inbox.nextCursorByMailbox[key] = result.nextCursor ?? null
+                } else {
+                    state.inbox.nextCursorByMailbox[key] =
+                        state.inbox.nextCursorByMailbox[key] ?? result.nextCursor ?? null
+                }
                 state.inbox.messagesRequestStatus[key] = 'succeeded'
                 state.inbox.messagesErrorByMailbox[key] = null
+                updateLastFetchedAt(
+                    state.inbox.lastFetchedAtByMailbox,
+                    accountId,
+                    mailbox,
+                    result.items,
+                )
+                const inboxMails = result.items.map(buildMailFromInboxMessage)
+                state.mailList = mergeInboxMails(state.mailList, inboxMails)
             })
             .addCase(fetchInboxMessages.rejected, (state, action) => {
                 state.inbox.messagesLoading = false
@@ -466,30 +796,130 @@ const mailSlice = createSlice({
                 state.inbox.messagesErrorByMailbox[key] =
                     action.error?.message ?? 'Unable to load inbox messages.'
             })
-            .addCase(sendInboxMessage.pending, (state) => {
+            .addCase(sendInboxMessage.pending, (state, action) => {
                 state.inbox.sendStatus = 'loading'
                 state.inbox.sendError = null
+                const attemptId = action.meta.requestId
+                const accountId = action.meta.arg.accountId
+                const timestamp = new Date().toISOString()
+                const entry: InboxSendAttempt = {
+                    id: attemptId,
+                    accountId,
+                    status: 'pending',
+                    startedAt: timestamp,
+                    error: null,
+                }
+                state.inbox.sendLog = [entry, ...state.inbox.sendLog].slice(0, 50)
             })
             .addCase(sendInboxMessage.fulfilled, (state, action) => {
                 state.inbox.sendStatus = 'succeeded'
                 state.inbox.sendError = null
                 const { accountId, message } = action.payload
-                const folder = message.folder || 'Sent'
-                const key = `${accountId}:${folder}`
-                const existing = state.inbox.messagesByMailbox[key] ?? []
-                const filtered = existing.filter((item) => item.id !== message.id)
-                state.inbox.messagesByMailbox[key] = [message, ...filtered]
-                state.inbox.messagesRequestStatus[key] =
-                    state.inbox.messagesRequestStatus[key] ?? 'idle'
-                state.inbox.messagesErrorByMailbox[key] =
-                    state.inbox.messagesErrorByMailbox[key] ?? null
-                state.inbox.nextCursorByMailbox[key] =
-                    state.inbox.nextCursorByMailbox[key] ?? null
+                const mailboxes = state.inbox.mailboxesByAccount[accountId] ?? []
+                const primaryMailboxId =
+                    findPrimaryInboxMailboxId(mailboxes) ??
+                    state.inbox.selectedMailboxId ??
+                    message.folder ??
+                    mailboxes[0]?.id ??
+                    'INBOX'
+                const targetMailboxIds = new Set<string>()
+                if (primaryMailboxId) {
+                    targetMailboxIds.add(primaryMailboxId)
+                }
+                if (message.folder) {
+                    targetMailboxIds.add(message.folder)
+                }
+                if (targetMailboxIds.size === 0) {
+                    targetMailboxIds.add('INBOX')
+                }
+                targetMailboxIds.forEach((mailboxId) => {
+                    const resolvedMailboxId =
+                        mailboxId && mailboxId.length > 0 ? mailboxId : 'INBOX'
+                    const entry = cloneMessageForMailbox(
+                        message,
+                        resolvedMailboxId,
+                    )
+                    const key = `${accountId}:${resolvedMailboxId}`
+                    const existing = state.inbox.messagesByMailbox[key] ?? []
+                    state.inbox.messagesByMailbox[key] = mergeMailboxMessages(
+                        existing,
+                        [entry],
+                        'prepend',
+                    )
+                    state.inbox.messagesRequestStatus[key] =
+                        state.inbox.messagesRequestStatus[key] ?? 'idle'
+                    state.inbox.messagesErrorByMailbox[key] =
+                        state.inbox.messagesErrorByMailbox[key] ?? null
+                    state.inbox.nextCursorByMailbox[key] =
+                        state.inbox.nextCursorByMailbox[key] ?? null
+                    updateLastFetchedAt(
+                        state.inbox.lastFetchedAtByMailbox,
+                        accountId,
+                        resolvedMailboxId,
+                        [entry],
+                    )
+                })
+                const inboxMail = buildMailFromInboxMessage(message)
+                state.mailList = mergeInboxMails(state.mailList, [inboxMail])
+                const attemptId = action.meta.requestId
+                const completionTime = new Date().toISOString()
+                const logIndex = state.inbox.sendLog.findIndex(
+                    (item) => item.id === attemptId,
+                )
+                if (logIndex >= 0) {
+                    state.inbox.sendLog[logIndex] = {
+                        ...state.inbox.sendLog[logIndex],
+                        status: 'succeeded',
+                        completedAt: completionTime,
+                        messageId: message.id,
+                        error: null,
+                    }
+                } else {
+                    state.inbox.sendLog = [
+                        {
+                            id: attemptId,
+                            accountId,
+                            status: 'succeeded',
+                            startedAt: completionTime,
+                            completedAt: completionTime,
+                            messageId: message.id,
+                            error: null,
+                        },
+                        ...state.inbox.sendLog,
+                    ].slice(0, 50)
+                }
             })
             .addCase(sendInboxMessage.rejected, (state, action) => {
                 state.inbox.sendStatus = 'failed'
-                state.inbox.sendError =
+                const errorMessage =
                     action.error?.message ?? 'Unable to send inbox message.'
+                state.inbox.sendError = errorMessage
+                const attemptId = action.meta.requestId
+                const accountId = action.meta.arg.accountId
+                const completionTime = new Date().toISOString()
+                const logIndex = state.inbox.sendLog.findIndex(
+                    (item) => item.id === attemptId,
+                )
+                if (logIndex >= 0) {
+                    state.inbox.sendLog[logIndex] = {
+                        ...state.inbox.sendLog[logIndex],
+                        status: 'failed',
+                        completedAt: completionTime,
+                        error: errorMessage,
+                    }
+                } else {
+                    state.inbox.sendLog = [
+                        {
+                            id: attemptId,
+                            accountId,
+                            status: 'failed',
+                            startedAt: completionTime,
+                            completedAt: completionTime,
+                            error: errorMessage,
+                        },
+                        ...state.inbox.sendLog,
+                    ].slice(0, 50)
+                }
             })
             .addCase(updateInboxMessageFlags.pending, (state) => {
                 state.inbox.lastActionStatus = 'loading'
@@ -535,6 +965,16 @@ const mailSlice = createSlice({
                     metadata && typeof metadata.flagged === 'boolean'
                         ? (metadata.flagged as boolean)
                         : undefined
+
+                updateLastFetchedAt(
+                    state.inbox.lastFetchedAtByMailbox,
+                    accountId,
+                    targetFolder,
+                    [message],
+                )
+                state.mailList = mergeInboxMails(state.mailList, [
+                    buildMailFromInboxMessage(message),
+                ])
 
                 state.mailList = state.mailList.map((mailItem) => {
                     if (mailItem.remoteId === message.remoteId) {
@@ -594,13 +1034,23 @@ const mailSlice = createSlice({
                 )
 
                 const targetList = state.inbox.messagesByMailbox[targetKey] ?? []
-                const filteredTarget = targetList.filter(
-                    (item) => item.id !== message.id,
+                state.inbox.messagesByMailbox[targetKey] = mergeMailboxMessages(
+                    targetList,
+                    [message],
+                    'prepend',
                 )
-                state.inbox.messagesByMailbox[targetKey] = [message, ...filteredTarget]
+                updateLastFetchedAt(
+                    state.inbox.lastFetchedAtByMailbox,
+                    accountId,
+                    targetMailbox,
+                    [message],
+                )
 
                 const metadata = (message.metadata ??
                     null) as Record<string, unknown> | null
+                state.mailList = mergeInboxMails(state.mailList, [
+                    buildMailFromInboxMessage(message),
+                ])
                 state.mailList = state.mailList.map((mailItem) =>
                     mailItem.remoteId === message.remoteId
                         ? {
@@ -644,13 +1094,23 @@ const mailSlice = createSlice({
                 )
 
                 const targetList = state.inbox.messagesByMailbox[targetKey] ?? []
-                const filteredTarget = targetList.filter(
-                    (item) => item.id !== message.id,
+                state.inbox.messagesByMailbox[targetKey] = mergeMailboxMessages(
+                    targetList,
+                    [message],
+                    'prepend',
                 )
-                state.inbox.messagesByMailbox[targetKey] = [message, ...filteredTarget]
+                updateLastFetchedAt(
+                    state.inbox.lastFetchedAtByMailbox,
+                    accountId,
+                    targetMailbox,
+                    [message],
+                )
 
                 const metadata = (message.metadata ??
                     null) as Record<string, unknown> | null
+                state.mailList = mergeInboxMails(state.mailList, [
+                    buildMailFromInboxMessage(message),
+                ])
                 state.mailList = state.mailList.map((mailItem) =>
                     mailItem.remoteId === message.remoteId
                         ? {

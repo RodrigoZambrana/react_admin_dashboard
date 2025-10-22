@@ -22,6 +22,7 @@ import {
 import { labelList } from '../constants'
 import { resolveLabelBadge } from '../utils/labels'
 import { getAttachmentIcon, normalizeAttachmentType } from '../utils/attachments'
+import { apiFetchCustomerMailAttachment } from '@/services/CustomersService'
 import type { Mail, MailAttachment } from '../store'
 import type { PropsWithChildren } from 'react'
 import type { ScrollbarRef } from '@/components/ui/ScrollBar'
@@ -383,8 +384,63 @@ const MailDetailContent = forwardRef<ScrollbarRef, MailDetailContentProps>(
             }
         }, [cleanupPreview, preview])
 
+        const fetchAttachmentBlob = useCallback(
+            async (
+                message: MailMessage,
+                attachment: MailAttachment,
+                mode: 'inline' | 'attachment',
+            ) => {
+                const normalizedMailId =
+                    mail.id !== undefined && mail.id !== null ? String(mail.id) : undefined
+                const normalizedAttachmentId =
+                    attachment.id !== undefined && attachment.id !== null
+                        ? String(attachment.id)
+                        : undefined
+
+                if (!normalizedMailId || !normalizedAttachmentId) {
+                    return null
+                }
+
+                const normalizedMessageId =
+                    message.id !== undefined && message.id !== null
+                        ? String(message.id)
+                        : undefined
+
+                const attempts = normalizedMessageId
+                    ? [normalizedMessageId, undefined]
+                    : [undefined]
+
+                for (const attempt of attempts) {
+                    try {
+                        const response = await apiFetchCustomerMailAttachment({
+                            mailId: normalizedMailId,
+                            attachmentId: normalizedAttachmentId,
+                            mode,
+                            messageId: attempt,
+                        })
+                        const payload = response?.data
+                        if (!payload) {
+                            continue
+                        }
+                        if (payload instanceof Blob) {
+                            return payload
+                        }
+                        return new Blob([payload], { type: resolveMimeType(attachment) })
+                    } catch (error) {
+                        if (import.meta.env?.DEV) {
+                            // eslint-disable-next-line no-console
+                            console.warn('Unable to fetch mail attachment blob.', error)
+                        }
+                    }
+                }
+
+                return null
+            },
+            [mail],
+        )
+
         const handleAttachmentDownload = useCallback(
-            (message: MailMessage, attachment: MailAttachment) => {
+            async (message: MailMessage, attachment: MailAttachment) => {
                 const endpoints = buildAttachmentEndpoints(mail, message, attachment)
                 const filename = attachment.file || 'attachment'
                 const success = triggerDownload({
@@ -393,11 +449,29 @@ const MailDetailContent = forwardRef<ScrollbarRef, MailDetailContentProps>(
                     mimeType: endpoints.mimeType,
                     base64: endpoints.base64,
                 })
-                if (!success && endpoints.directUrl && typeof window !== 'undefined') {
+                if (success) {
+                    return
+                }
+
+                const blob = await fetchAttachmentBlob(message, attachment, 'attachment')
+                if (blob && typeof window !== 'undefined') {
+                    const objectUrl = URL.createObjectURL(blob)
+                    const link = document.createElement('a')
+                    link.href = objectUrl
+                    link.download = filename
+                    link.rel = 'noopener noreferrer'
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+                    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+                    return
+                }
+
+                if (endpoints.directUrl && typeof window !== 'undefined') {
                     window.open(endpoints.directUrl, '_blank', 'noopener,noreferrer')
                 }
             },
-            [mail],
+            [fetchAttachmentBlob, mail],
         )
 
         const openInNewTab = useCallback((url?: string) => {
@@ -409,7 +483,7 @@ const MailDetailContent = forwardRef<ScrollbarRef, MailDetailContentProps>(
         }, [])
 
         const handleAttachmentView = useCallback(
-            (message: MailMessage, attachment: MailAttachment) => {
+            async (message: MailMessage, attachment: MailAttachment) => {
                 const endpoints = buildAttachmentEndpoints(mail, message, attachment)
                 const extension = normalizeExtension(attachment.type)
                 const filename = attachment.file || 'attachment'
@@ -419,68 +493,100 @@ const MailDetailContent = forwardRef<ScrollbarRef, MailDetailContentProps>(
                 })
 
                 if (IMAGE_TYPES.has(extension)) {
-                    const src = dataUrl || endpoints.inlineUrl || endpoints.directUrl
+                    let src = dataUrl || endpoints.inlineUrl || endpoints.directUrl
+                    let createdObjectUrl = false
                     if (!src) {
-                        handleAttachmentDownload(message, attachment)
+                        const blob = await fetchAttachmentBlob(message, attachment, 'inline')
+                        if (blob) {
+                            src = URL.createObjectURL(blob)
+                            createdObjectUrl = true
+                        }
+                    }
+
+                    if (src) {
+                        setPreview({
+                            src,
+                            mimeType: endpoints.mimeType,
+                            kind: 'image',
+                            title: filename,
+                            revokeOnClose: createdObjectUrl || src.startsWith('blob:'),
+                        })
                         return
                     }
 
-                    const revokeOnClose = src.startsWith('blob:')
-
-                    setPreview({
-                        src,
-                        mimeType: endpoints.mimeType,
-                        kind: 'image',
-                        title: filename,
-                        revokeOnClose,
-                    })
+                    await handleAttachmentDownload(message, attachment)
                     return
                 }
 
                 if (extension === 'pdf') {
-                    const src = dataUrl || endpoints.inlineUrl || endpoints.directUrl
+                    let src = dataUrl || endpoints.inlineUrl || endpoints.directUrl
+                    let createdObjectUrl = false
                     if (!src) {
-                        handleAttachmentDownload(message, attachment)
+                        const blob = await fetchAttachmentBlob(message, attachment, 'inline')
+                        if (blob) {
+                            src = URL.createObjectURL(blob)
+                            createdObjectUrl = true
+                        }
+                    }
+
+                    if (src) {
+                        setPreview({
+                            src,
+                            mimeType: endpoints.mimeType,
+                            kind: 'pdf',
+                            title: filename,
+                            revokeOnClose: createdObjectUrl || src.startsWith('blob:'),
+                        })
                         return
                     }
 
-                    const revokeOnClose = src.startsWith('blob:')
-
-                    setPreview({
-                        src,
-                        mimeType: endpoints.mimeType,
-                        kind: 'pdf',
-                        title: filename,
-                        revokeOnClose,
-                    })
+                    await handleAttachmentDownload(message, attachment)
                     return
                 }
 
                 if (DOCUMENT_TYPES.has(extension)) {
-                    const objectUrl = dataUrl
+                    const objectUrlFromData = dataUrl
                         ? createObjectUrlFromBase64(dataUrl, endpoints.mimeType)
                         : undefined
-                    if (objectUrl && openInNewTab(objectUrl) && objectUrl.startsWith('blob:')) {
-                        if (typeof window !== 'undefined') {
-                            window.setTimeout(
-                                () => URL.revokeObjectURL(objectUrl),
-                                60_000,
-                            )
+                    if (objectUrlFromData) {
+                        const opened = openInNewTab(objectUrlFromData)
+                        if (opened) {
+                            if (objectUrlFromData.startsWith('blob:') && typeof window !== 'undefined') {
+                                window.setTimeout(() => URL.revokeObjectURL(objectUrlFromData), 60_000)
+                            }
+                            return
                         }
-                        return
+                        if (objectUrlFromData.startsWith('blob:')) {
+                            URL.revokeObjectURL(objectUrlFromData)
+                        }
                     }
 
                     if (openInNewTab(endpoints.directUrl || endpoints.inlineUrl)) {
                         return
                     }
 
-                    handleAttachmentDownload(message, attachment)
+                    const blob = await fetchAttachmentBlob(message, attachment, 'inline')
+                    if (blob) {
+                        const objectUrl = URL.createObjectURL(blob)
+                        const opened = openInNewTab(objectUrl)
+                        if (opened) {
+                            if (objectUrl.startsWith('blob:') && typeof window !== 'undefined') {
+                                window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+                            }
+                            return
+                        }
+                        if (objectUrl.startsWith('blob:')) {
+                            URL.revokeObjectURL(objectUrl)
+                        }
+                    }
+
+                    await handleAttachmentDownload(message, attachment)
                     return
                 }
 
-                handleAttachmentDownload(message, attachment)
+                await handleAttachmentDownload(message, attachment)
             },
-            [handleAttachmentDownload, mail, openInNewTab],
+            [fetchAttachmentBlob, handleAttachmentDownload, mail, openInNewTab],
         )
 
         const label = useMemo(

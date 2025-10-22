@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import classNames from 'classnames'
 import ScrollBar from '@/components/ui/ScrollBar'
 import Avatar from '@/components/ui/Avatar'
@@ -32,6 +32,10 @@ import type { MouseEvent } from 'react'
 import type { Mail } from '../store'
 import { getAttachmentIcon } from '../utils/attachments'
 import { buildConversationKey } from '../utils/conversations'
+import {
+    getMailPersistenceKey,
+    upsertMailLocalState,
+} from '../utils/localMailState'
 
 type AggregatedMail = Mail & {
     conversationMailIds: Array<string | number>
@@ -41,6 +45,8 @@ type ToggleButtonProps = {
     sideBarExpand: boolean
     mobileSidebarExpand: boolean
 }
+
+const AUTO_REFRESH_INTERVAL = 30_000
 
 const htmlReg = /(<([^>]+)>)/gi
 
@@ -151,6 +157,10 @@ const MailList = () => {
         ? inboxState.messagesErrorByMailbox[inboxMessagesKey]
         : null
 
+    const pollTimerRef = useRef<number | null>(null)
+    const messagesStatusRef = useRef(inboxState.messagesRequestStatus)
+    const lastFetchedRef = useRef(inboxState.lastFetchedAtByMailbox)
+
     const direction = useAppSelector((state) => state.theme.direction)
     const messagesUnavailableText = t('crm.mail.messagesUnavailable', {
         defaultValue:
@@ -168,6 +178,14 @@ const MailList = () => {
     const fetchData = (data: { category: string }) => {
         dispatch(getMails(data))
     }
+
+    useEffect(() => {
+        messagesStatusRef.current = inboxState.messagesRequestStatus
+    }, [inboxState.messagesRequestStatus])
+
+    useEffect(() => {
+        lastFetchedRef.current = inboxState.lastFetchedAtByMailbox
+    }, [inboxState.lastFetchedAtByMailbox])
 
     useEffect(() => {
         const path = location.pathname.substring(
@@ -206,6 +224,57 @@ const MailList = () => {
         selectedInboxMailboxId,
         selectedMessagesStatus,
     ])
+
+    useEffect(() => {
+        if (!selectedInboxAccountId || !selectedInboxMailboxId) {
+            if (pollTimerRef.current) {
+                window.clearTimeout(pollTimerRef.current)
+                pollTimerRef.current = null
+            }
+            return
+        }
+        if (typeof window === 'undefined') {
+            return
+        }
+        let active = true
+        const schedule = () => {
+            if (!active) {
+                return
+            }
+            pollTimerRef.current = window.setTimeout(() => {
+                if (!active) {
+                    return
+                }
+                const key = `${selectedInboxAccountId}:${selectedInboxMailboxId}`
+                const status = messagesStatusRef.current[key]
+                if (status === 'loading') {
+                    schedule()
+                    return
+                }
+                const since = lastFetchedRef.current[key]
+                if (!since) {
+                    schedule()
+                    return
+                }
+                dispatch(
+                    fetchInboxMessages({
+                        accountId: selectedInboxAccountId,
+                        mailbox: selectedInboxMailboxId,
+                        since,
+                    }),
+                )
+                schedule()
+            }, AUTO_REFRESH_INTERVAL)
+        }
+        schedule()
+        return () => {
+            active = false
+            if (pollTimerRef.current) {
+                window.clearTimeout(pollTimerRef.current)
+                pollTimerRef.current = null
+            }
+        }
+    }, [dispatch, selectedInboxAccountId, selectedInboxMailboxId])
 
     const parseHtml = (content: string) => {
         if (!content) {
@@ -294,12 +363,23 @@ const MailList = () => {
             return entry?.isRead === false
         })
         unreadIds.forEach((sourceId) => {
+            const entry = mails.find((item) => item.id === sourceId)
             dispatch(
                 patchMail({
                     id: sourceId,
                     changes: { isRead: true },
                 }),
             )
+            if (entry) {
+                upsertMailLocalState(
+                    {
+                        id: entry.id,
+                        remoteId: (entry as { remoteId?: string | number })
+                            ?.remoteId,
+                    },
+                    { isRead: true },
+                )
+            }
         })
         dispatch(updateMailId(mail.id))
         dispatch(updateReply(false))

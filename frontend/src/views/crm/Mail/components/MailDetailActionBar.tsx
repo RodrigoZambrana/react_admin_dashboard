@@ -35,6 +35,10 @@ import {
     resolveLabelBadge,
     translateMailboxLabel as translateMailboxLabelHelper,
 } from '../utils/labels'
+import {
+    upsertMailLocalState,
+    type LocalMailState,
+} from '../utils/localMailState'
 import useResponsive from '@/utils/hooks/useResponsive'
 import { useTranslation } from 'react-i18next'
 
@@ -101,6 +105,19 @@ const MailDetailActionBar = (props: MailDetailActionBarProps) => {
             : undefined) ??
         selectedMailboxId ??
         'INBOX'
+
+    const persistLocalState = (patch: LocalMailState) => {
+        if (mailId === undefined || mailId === null) {
+            return
+        }
+        upsertMailLocalState(
+            {
+                id: mailId,
+                remoteId,
+            },
+            patch,
+        )
+    }
 
     const buildMetadataPatch = (patch: Record<string, unknown>) => {
         const cleaned: Record<string, unknown> = {}
@@ -248,6 +265,7 @@ const MailDetailActionBar = (props: MailDetailActionBarProps) => {
                 changes: { isRead: nextRead },
             }),
         )
+        persistLocalState({ isRead: nextRead })
     }
 
     const onStar = async () => {
@@ -268,6 +286,7 @@ const MailDetailActionBar = (props: MailDetailActionBarProps) => {
                 changes: { starred: nextStarred },
             }),
         )
+        persistLocalState({ starred: nextStarred })
         if (
             selectedCategory.value === 'starred' &&
             selectedCategory.value !== undefined &&
@@ -304,6 +323,10 @@ const MailDetailActionBar = (props: MailDetailActionBarProps) => {
                 },
             }),
         )
+        persistLocalState({
+            flagged: nextFlagged,
+            metadataPatch: { flagged: nextFlagged },
+        })
     }
 
     const onMoveTo = async (target: string) => {
@@ -351,7 +374,7 @@ const MailDetailActionBar = (props: MailDetailActionBarProps) => {
         if (!success) {
             return
         }
-        const metadataPatch: Record<string, unknown> = {
+        const metadataPatch: Record<string, string | null> = {
             label: normalizedLabel || null,
         }
         dispatch(
@@ -363,6 +386,11 @@ const MailDetailActionBar = (props: MailDetailActionBarProps) => {
                 },
             }),
         )
+        persistLocalState({
+            label: normalizedLabel || null,
+            metadataPatch,
+            tags: normalizedLabel ? [normalizedLabel] : [],
+        })
         const isLabelCategory = Boolean(
             selectedCategory.value &&
                 labelList.some(

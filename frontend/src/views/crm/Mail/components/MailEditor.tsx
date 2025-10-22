@@ -17,12 +17,36 @@ import * as Yup from 'yup'
 import { useTranslation } from 'react-i18next'
 import type { RichTextEditorRef } from '@/components/shared/RichTextEditor'
 
+const stripHtml = (content: string) =>
+    content
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+
+const extractPlainText = (content?: string | null) => {
+    if (!content) {
+        return ''
+    }
+    return stripHtml(content).replace(/\s+/g, ' ').trim()
+}
+
+const isRichTextEmpty = (content?: string | null) =>
+    extractPlainText(content).length === 0
+
 const validationSchema = Yup.object().shape({
     title: Yup.string().required('text.validation.titleRequired'),
     to: Yup.string().required('text.validation.receiverRequired'),
     cc: Yup.string(),
     bcc: Yup.string(),
-    message: Yup.string(),
+    message: Yup.string().test(
+        'messageBodyRequired',
+        'text.validation.messageBodyRequired',
+        (value) => !isRichTextEmpty(value),
+    ),
 })
 
 type FormModel = {
@@ -88,16 +112,6 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
             .filter((item) => item.length > 0)
     }
 
-    const stripHtml = (content: string) =>
-        content
-            .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-            .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-            .replace(/<[^>]+>/g, ' ')
-            .replace(/&nbsp;/gi, ' ')
-            .replace(/&amp;/gi, '&')
-            .replace(/&lt;/gi, '<')
-            .replace(/&gt;/gi, '>')
-
     const composeMetadata = () => {
         const metadata: Record<string, unknown> = {
             localState: mode,
@@ -142,13 +156,24 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
         const cc = parseRecipients(values.cc)
         const bcc = parseRecipients(values.bcc)
         const htmlBody = values.message || ''
+        if (isRichTextEmpty(htmlBody)) {
+            const formik = formikRef.current
+            const messageKey = 'text.validation.messageBodyRequired'
+            const translated = t(messageKey, {
+                defaultValue: 'Message body is required.',
+            })
+            formik?.setFieldTouched('message', true, false)
+            formik?.setFieldError('message', translated)
+            return
+        }
+        const plainTextBody = extractPlainText(htmlBody)
         const payload = {
             subject: values.title,
             to,
             cc: cc.length > 0 ? cc : undefined,
             bcc: bcc.length > 0 ? bcc : undefined,
             bodyHtml: htmlBody || undefined,
-            bodyText: htmlBody ? stripHtml(htmlBody).replace(/\s+/g, ' ').trim() : undefined,
+            bodyText: plainTextBody || undefined,
             metadata: composeMetadata(),
             fromAddress: selectedAccount?.address || undefined,
             fromName: selectedAccount?.displayName || undefined,
@@ -194,6 +219,9 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
         }
     }
 
+    const formatErrorMessage = (error?: string) =>
+        error ? t(error, { defaultValue: error }) : undefined
+
     return (
         <Formik
             innerRef={formikRef}
@@ -220,7 +248,7 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
                             label={t('text.labels.title')}
                             labelClass="justify-start!"
                             invalid={errors.title && touched.title}
-                            errorMessage={errors.title}
+                            errorMessage={formatErrorMessage(errors.title)}
                         >
                             <Field
                                 autoComplete="off"
@@ -233,7 +261,7 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
                             label={t('text.labels.to')}
                             labelClass="justify-start!"
                             invalid={errors.to && touched.to}
-                            errorMessage={errors.to}
+                            errorMessage={formatErrorMessage(errors.to)}
                         >
                             <Field
                                 autoComplete="off"
@@ -262,7 +290,7 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
                             label={t('text.labels.cc')}
                             labelClass="justify-start!"
                             invalid={errors.cc && touched.cc}
-                            errorMessage={errors.cc}
+                            errorMessage={formatErrorMessage(errors.cc)}
                         >
                             <Field
                                 autoComplete="off"
@@ -275,7 +303,7 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
                             label={t('text.labels.bcc')}
                             labelClass="justify-start!"
                             invalid={errors.bcc && touched.bcc}
-                            errorMessage={errors.bcc}
+                            errorMessage={formatErrorMessage(errors.bcc)}
                         >
                             <Field
                                 autoComplete="off"
@@ -288,7 +316,7 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
                             className="mb-0"
                             labelClass="justify-start!"
                             invalid={errors.message && touched.message}
-                            errorMessage={errors.message}
+                            errorMessage={formatErrorMessage(errors.message)}
                         >
                             <Field name="message">
                                 {({ field, form }: FieldProps) => (
