@@ -21,8 +21,9 @@ Update the copied files with the values that apply to your environment.
 At a minimum the backend file must define `DATABASE_URL`, authentication secrets
 (`JWT_SECRET`, `COOKIE_SECRET`) and CORS settings via `ALLOWED_ORIGINS`.
 Select the tenant variant by setting `CLIENT_SLUG` in the backend file and
-`VITE_CLIENT_SLUG` in the frontend file (por ejemplo `core`). Ambos archivos
-apuntan a la variante UruCortinas (`urucortinas`) si no se especifica otro slug.
+`VITE_CLIENT_SLUG` (o `CLIENT_SLUG`, expuesto por Vite gracias a `envPrefix`) en
+el frontend (por ejemplo `urucortinas`). Ambos archivos apuntan a la variante
+compartida `core` si no se especifica otro slug.
 The frontend file controls Vite variables such as `VITE_API_URL`.
 
 Run `node scripts/check-env.mjs` to validate that all `.env` files contain the keys

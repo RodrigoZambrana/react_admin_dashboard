@@ -33,7 +33,7 @@ type ClientModule = {
 }
 
 const BASE_SLUG = 'core'
-const FALLBACK_SLUG = 'urucortinas'
+const FALLBACK_SLUG = BASE_SLUG
 
 const clientModules = import.meta.glob<ClientModule>(
     '../clients/*/config.ts',
@@ -114,10 +114,10 @@ const getSlugFromUrl = (): string | undefined => {
 }
 
 const resolveSlugFromEnv = (): string => {
-    const slug = import.meta.env.VITE_CLIENT_SLUG
-
-    const envMatch =
-        typeof slug === 'string' ? findAvailableSlug(slug.trim()) : undefined
+    const envMatch = matchFromCandidates([
+        import.meta.env.VITE_CLIENT_SLUG,
+        import.meta.env.CLIENT_SLUG,
+    ])
     if (envMatch) {
         return envMatch
     }
