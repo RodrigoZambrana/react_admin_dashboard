@@ -665,6 +665,7 @@ const mailSlice = createSlice({
         },
         updateMail: (state, action) => {
             state.mail = action.payload
+            state.mailLoading = false
         },
         patchMail: (state, action) => {
             const { id, changes } = action.payload as {
@@ -702,10 +703,27 @@ const mailSlice = createSlice({
             state.mailListLoading = true
         },
         setSelectedInboxAccount: (state, action) => {
+            if (state.inbox.selectedAccountId === action.payload) {
+                return
+            }
             state.inbox.selectedAccountId = action.payload
+            state.inbox.selectedMailboxId = undefined
+            state.mailList = []
+            state.mailListLoading = true
+            state.mailLoading = false
+            state.mail = {}
+            state.selectedMailId = ''
         },
         setSelectedInboxMailbox: (state, action) => {
+            if (state.inbox.selectedMailboxId === action.payload) {
+                return
+            }
             state.inbox.selectedMailboxId = action.payload
+            state.mailList = []
+            state.mailListLoading = true
+            state.mailLoading = false
+            state.mail = {}
+            state.selectedMailId = ''
         },
         ingestInboxEvent: (
             state,

@@ -31,11 +31,8 @@ import { useTranslation } from 'react-i18next'
 import type { MouseEvent } from 'react'
 import type { Mail } from '../store'
 import { getAttachmentIcon } from '../utils/attachments'
-import { buildConversationKey } from '../utils/conversations'
-import {
-    getMailPersistenceKey,
-    upsertMailLocalState,
-} from '../utils/localMailState'
+import { buildConversationKey, normalizeString } from '../utils/conversations'
+import { upsertMailLocalState } from '../utils/localMailState'
 
 type AggregatedMail = Mail & {
     conversationMailIds: Array<string | number>
@@ -205,25 +202,13 @@ const MailList = () => {
         if (!selectedInboxAccountId || !selectedInboxMailboxId) {
             return
         }
-        if (
-            selectedMessagesStatus === 'loading' ||
-            selectedMessagesStatus === 'succeeded' ||
-            selectedMessagesStatus === 'failed'
-        ) {
-            return
-        }
         dispatch(
             fetchInboxMessages({
                 accountId: selectedInboxAccountId,
                 mailbox: selectedInboxMailboxId,
             }),
         )
-    }, [
-        dispatch,
-        selectedInboxAccountId,
-        selectedInboxMailboxId,
-        selectedMessagesStatus,
-    ])
+    }, [dispatch, selectedInboxAccountId, selectedInboxMailboxId])
 
     useEffect(() => {
         if (!selectedInboxAccountId || !selectedInboxMailboxId) {
@@ -294,26 +279,126 @@ const MailList = () => {
                 hasFlagged: boolean
             }
         >()
+        const keyIndex = new Map<string, string>()
+
+        const buildKeyCandidates = (mail: Mail): string[] => {
+            const candidates: string[] = []
+            if (mail.messageUid) {
+                candidates.push(`uid:${String(mail.messageUid)}`)
+            }
+            const remoteIdRaw = (mail as { remoteId?: string | number | null })
+                ?.remoteId
+            if (remoteIdRaw !== undefined && remoteIdRaw !== null) {
+                const remoteId = String(remoteIdRaw).trim()
+                if (remoteId) {
+                    candidates.push(`remote:${remoteId}`)
+                }
+            }
+            const metadata = (mail.metadata ?? {}) as Record<string, unknown>
+            const metadataMessageId = (() => {
+                const direct = metadata.messageId
+                if (typeof direct === 'string' && direct.trim()) {
+                    return direct.trim()
+                }
+                const headers = metadata.headers as
+                    | Record<string, unknown>
+                    | undefined
+                if (headers) {
+                    const headerValue = headers['message-id']
+                    if (typeof headerValue === 'string' && headerValue.trim()) {
+                        return headerValue.trim()
+                    }
+                }
+                return null
+            })()
+            if (metadataMessageId) {
+                const normalized = normalizeString(
+                    metadataMessageId.replace(/[<>]/g, ''),
+                )
+                if (normalized) {
+                    candidates.push(`message-id:${normalized}`)
+                }
+            }
+            const gmailId = (() => {
+                const value = metadata.gmailId ?? metadata.gmail_id
+                return typeof value === 'string' && value.trim()
+                    ? value.trim()
+                    : null
+            })()
+            if (gmailId) {
+                const normalized = normalizeString(gmailId)
+                if (normalized) {
+                    candidates.push(`gmail:${normalized}`)
+                }
+            }
+            const gmailThreadId = (() => {
+                const value =
+                    metadata.gmailThreadId ?? metadata.gmail_thread_id
+                return typeof value === 'string' && value.trim()
+                    ? value.trim()
+                    : null
+            })()
+            if (gmailThreadId) {
+                const normalized = normalizeString(gmailThreadId)
+                if (normalized) {
+                    candidates.push(`gmail-thread:${normalized}`)
+                }
+            }
+            const threadIdRaw = (mail as { threadRemoteId?: string | null })
+                ?.threadRemoteId
+            if (threadIdRaw) {
+                const normalizedThread = normalizeString(threadIdRaw)
+                if (normalizedThread) {
+                    candidates.push(`thread:${normalizedThread}`)
+                }
+            }
+            const conversationKey = buildConversationKey(mail)
+            if (conversationKey) {
+                candidates.push(conversationKey)
+            }
+            if (mail.id !== undefined && mail.id !== null) {
+                candidates.push(`id:${String(mail.id)}`)
+            }
+            return candidates
+        }
+
+        const resolveCanonicalKey = (mail: Mail, candidates: string[]) => {
+            for (const candidate of candidates) {
+                if (!candidate) {
+                    continue
+                }
+                const canonical = keyIndex.get(candidate)
+                if (canonical) {
+                    candidates.forEach((key) => {
+                        if (key) {
+                            keyIndex.set(key, canonical)
+                        }
+                    })
+                    return canonical
+                }
+            }
+            const canonical =
+                candidates.find((candidate) => Boolean(candidate)) ??
+                `id:${String(mail.id ?? Math.random())}`
+            candidates.forEach((key) => {
+                if (key) {
+                    keyIndex.set(key, canonical)
+                }
+            })
+            return canonical
+        }
 
         mails.forEach((mail) => {
-            const key = buildConversationKey(mail)
+            const candidates = buildKeyCandidates(mail)
+            const canonicalKey = resolveCanonicalKey(mail, candidates)
             const baseMail: AggregatedMail = {
                 ...mail,
                 message: mail.message ? [...mail.message] : [],
                 conversationMailIds: [mail.id],
             }
-            if (!key) {
-                conversationMap.set(`__fallback:${mail.id}`, {
-                    mail: baseMail,
-                    hasUnread: mail.isRead === false,
-                    hasStarred: Boolean(mail.starred),
-                    hasFlagged: Boolean(mail.flagged),
-                })
-                return
-            }
-            const existing = conversationMap.get(key)
+            const existing = conversationMap.get(canonicalKey)
             if (!existing) {
-                conversationMap.set(key, {
+                conversationMap.set(canonicalKey, {
                     mail: baseMail,
                     hasUnread: mail.isRead === false,
                     hasStarred: Boolean(mail.starred),
@@ -338,6 +423,11 @@ const MailList = () => {
             existing.hasUnread = existing.hasUnread || mail.isRead === false
             existing.hasStarred = existing.hasStarred || Boolean(mail.starred)
             existing.hasFlagged = existing.hasFlagged || Boolean(mail.flagged)
+            candidates.forEach((key) => {
+                if (key) {
+                    keyIndex.set(key, canonicalKey)
+                }
+            })
         })
 
         return Array.from(conversationMap.values()).map(
