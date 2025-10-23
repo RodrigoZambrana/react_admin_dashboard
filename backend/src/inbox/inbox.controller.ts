@@ -5,8 +5,11 @@ import {
   Param,
   Post,
   Query,
+  Sse,
   UseGuards,
 } from '@nestjs/common'
+import type { MessageEvent } from '@nestjs/common'
+import type { Observable } from 'rxjs'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { InboxService } from './inbox.service'
 import { ListMessagesQueryDto } from './dto/list-messages.dto'
@@ -78,6 +81,8 @@ export class InboxController {
       metadata: body.metadata,
       fromAddress: body.fromAddress,
       fromName: body.fromName,
+      queueId: body.queueId,
+      queueSlug: body.queueSlug,
     })
   }
 
@@ -140,6 +145,19 @@ export class InboxController {
       limit: body.limit,
       cursor: body.cursor,
       since: body.since,
+    })
+  }
+
+  @Sse('events/messages')
+  streamMessages(
+    @Query('queueId') queueId?: string,
+    @Query('queueSlug') queueSlug?: string,
+    @Query('accountId') accountId?: string,
+  ): Observable<MessageEvent> {
+    return this.inboxService.streamMessageEvents({
+      queueId,
+      queueSlug,
+      accountId,
     })
   }
 }

@@ -48,6 +48,13 @@ export class ExpensesController {
     }
   }
 
+  private toPrismaBytes(bytes: Buffer | Uint8Array): Uint8Array<ArrayBuffer> {
+    if (Buffer.isBuffer(bytes)) {
+      return Uint8Array.from(bytes) as Uint8Array<ArrayBuffer>
+    }
+    return bytes as Uint8Array<ArrayBuffer>
+  }
+
   private extractAttachmentPayload(
     input: unknown,
   ): {

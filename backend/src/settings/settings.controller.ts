@@ -157,6 +157,13 @@ export class SettingsController {
 
   private readonly maxLogoSizeBytes = 512 * 1024
 
+  private toPrismaBytes(bytes: Buffer | Uint8Array): Uint8Array<ArrayBuffer> {
+    if (Buffer.isBuffer(bytes)) {
+      return Uint8Array.from(bytes) as Uint8Array<ArrayBuffer>
+    }
+    return bytes as Uint8Array<ArrayBuffer>
+  }
+
   private mapCompanyProfile(record?: CompanyProfile | null): CompanyProfileResponse {
     if (!record) {
       return { ...this.defaultCompanyProfile }
@@ -199,7 +206,7 @@ export class SettingsController {
     }
   }
 
-  private parseLogoInput(value: unknown): Buffer | null | undefined {
+  private parseLogoInput(value: unknown): Uint8Array<ArrayBuffer> | null | undefined {
     if (value === undefined) {
       return undefined
     }
@@ -243,7 +250,7 @@ export class SettingsController {
       throw new BadRequestException('settings.companyProfile.logoUnsupported')
     }
 
-    return buffer
+    return this.toPrismaBytes(buffer)
   }
 
   private toPrismaBytes(
@@ -1055,7 +1062,7 @@ export class SettingsController {
     }
 
     let companyProfileData: ReturnType<typeof this.buildCompanyProfileData> | null = null
-    let companyProfileLogo: Buffer | null | undefined = undefined
+    let companyProfileLogo: Uint8Array<ArrayBuffer> | null | undefined = undefined
     if (hasCompanyProfile) {
       const rawProfile = payload.companyProfile as unknown
       if (

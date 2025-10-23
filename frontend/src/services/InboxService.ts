@@ -22,6 +22,8 @@ export type InboxMailboxDto = {
 export type InboxMessageSummaryDto = {
     id: string
     accountId: string
+    provider: string
+    messageUid: string
     remoteId: string
     threadRemoteId?: string | null
     subject?: string | null
@@ -37,6 +39,9 @@ export type InboxMessageSummaryDto = {
     isStarred: boolean
     isSpam: boolean
     hasAttachments: boolean
+    queueId?: string | null
+    queueSlug?: string | null
+    queueName?: string | null
     sentAt?: string | null
     receivedAt?: string | null
     metadata?: Record<string, unknown> | null
@@ -89,6 +94,8 @@ export type SendInboxMessagePayload = {
     metadata?: Record<string, unknown>
     fromAddress?: string
     fromName?: string
+    queueId?: string
+    queueSlug?: string
 }
 
 export const apiGetInboxAccounts = () => {

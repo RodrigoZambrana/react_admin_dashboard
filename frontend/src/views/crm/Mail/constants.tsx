@@ -16,8 +16,7 @@ export type MenuBase = {
 }
 
 export type Group = MenuBase & {
-    icon?: JSX.Element
-    translationValue?: string
+    icon: JSX.Element
 }
 
 export type Label = MenuBase & {
@@ -25,36 +24,11 @@ export type Label = MenuBase & {
 }
 
 export const groupList: Group[] = [
-    {
-        value: 'inbox',
-        label: 'Inbox',
-        translationValue: 'inbox',
-        icon: <HiOutlineInbox />,
-    },
-    {
-        value: 'sentItem',
-        label: 'Sent Item',
-        translationValue: 'sentItem',
-        icon: <HiOutlinePaperAirplane />,
-    },
-    {
-        value: 'draft',
-        label: 'Draft',
-        translationValue: 'draft',
-        icon: <HiOutlinePencil />,
-    },
-    {
-        value: 'starred',
-        label: 'Starred',
-        translationValue: 'starred',
-        icon: <HiOutlineStar />,
-    },
-    {
-        value: 'deleted',
-        label: 'Deleted',
-        translationValue: 'deleted',
-        icon: <HiOutlineTrash />,
-    },
+    { value: 'inbox', label: 'Inbox', icon: <HiOutlineInbox /> },
+    { value: 'sentItem', label: 'Sent Item', icon: <HiOutlinePaperAirplane /> },
+    { value: 'draft', label: 'Draft', icon: <HiOutlinePencil /> },
+    { value: 'starred', label: 'Starred', icon: <HiOutlineStar /> },
+    { value: 'deleted', label: 'Deleted', icon: <HiOutlineTrash /> },
 ]
 
 export const labelList: Label[] = [
@@ -65,7 +39,7 @@ export const labelList: Label[] = [
 
 export const dynamicMailboxIconMap: Record<string, JSX.Element> = {
     archive: <HiOutlineArchive />,
-    spam: <HiOutlineShieldExclamation />,
+    spam: <HiOutlineShieldExclamation />, 
     trash: <HiOutlineTrash />,
     junk: <HiOutlineExclamationCircle />,
 }

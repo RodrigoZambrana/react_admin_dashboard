@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
+import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit'
 import { apiGetCustomerMails, apiGetCustomerMail } from '@/services/CustomersService'
 import {
     apiGetInboxAccounts,
@@ -37,6 +37,7 @@ type Message = {
     receivedAt?: string | null
     direction?: 'inbound' | 'outbound'
     headers?: Record<string, string>
+    messageUid?: string
 }
 
 export type Mail = {
@@ -57,8 +58,13 @@ export type Mail = {
     sentAt?: string | null
     receivedAt?: string | null
     isRead?: boolean
+    provider?: string
+    messageUid?: string | null
     threadRemoteId?: string | null
     remoteId?: string | null
+    queueId?: string | null
+    queueSlug?: string | null
+    queueName?: string | null
     headers?: Record<string, string>
     ccAddresses?: string[]
     bccAddresses?: string[]
@@ -106,12 +112,6 @@ type InboxSendAttempt = {
     completedAt?: string
     messageId?: string
     error?: string | null
-}
-
-const isSentMailbox = (mailbox: InboxMailboxDto) => {
-    const normalizedId = normalizeMailboxId(mailbox.id)
-    const normalizedType = normalizeMailboxId(mailbox.type)
-    return normalizedId === 'SENT' || normalizedType === 'SENT'
 }
 
 const isInboxMailbox = (mailbox: InboxMailboxDto) => {
@@ -169,6 +169,11 @@ const buildMailFromInboxMessage = (
         accountId: message.accountId,
         mailbox: message.folder ?? null,
         direction: message.direction,
+        provider: message.provider,
+        queueId: message.queueId ?? null,
+        queueSlug: message.queueSlug ?? null,
+        queueName: message.queueName ?? null,
+        messageUid: message.messageUid,
     }
     const messageEntry: Message = {
         id: message.id,
@@ -186,6 +191,7 @@ const buildMailFromInboxMessage = (
         receivedAt,
         direction: toMailDirection(message.direction),
         headers: undefined,
+        messageUid: message.messageUid,
     }
     const normalizedGroup = normalizeMailboxId(message.folder)
     const group =
@@ -210,8 +216,13 @@ const buildMailFromInboxMessage = (
         sentAt,
         receivedAt,
         isRead: message.isRead,
+        provider: message.provider,
+        messageUid: message.messageUid ?? null,
         threadRemoteId: message.threadRemoteId ?? null,
         remoteId: message.remoteId ?? message.id,
+        queueId: message.queueId ?? null,
+        queueSlug: message.queueSlug ?? null,
+        queueName: message.queueName ?? null,
         headers: undefined,
         ccAddresses: message.cc ?? [],
         bccAddresses: message.bcc ?? [],
@@ -228,7 +239,9 @@ const mergeMailMessages = (
 ) => {
     const result = new Map<string, Message>()
     const buildKey = (message: Message, index: number) =>
-        message.id !== undefined && message.id !== null
+        message.messageUid
+            ? `uid:${message.messageUid}`
+            : message.id !== undefined && message.id !== null
             ? `id:${String(message.id)}`
             : `idx:${index}:${message.date ?? ''}:${message.from ?? ''}`
     ;(existing ?? []).forEach((message, index) => {
@@ -261,7 +274,11 @@ const mergeInboxMails = (existing: Mail[], updates: Mail[]) => {
         return existing
     }
     const makeKey = (mail: Mail) =>
-        mail.remoteId ? `remote:${mail.remoteId}` : `id:${String(mail.id)}`
+        mail.messageUid
+            ? `uid:${mail.messageUid}`
+            : mail.remoteId
+                ? `remote:${mail.remoteId}`
+                : `id:${String(mail.id)}`
     const byKey = new Map<string, Mail>()
     existing.forEach((mail) => {
         byKey.set(makeKey(mail), mail)
@@ -302,18 +319,22 @@ const mergeMailboxMessages = (
     const result = new Map<string, InboxMessageSummaryDto>()
     if (mode === 'append') {
         existing.forEach((message) => {
-            result.set(message.id, message)
+            const key = message.messageUid ?? message.id
+            result.set(key, message)
         })
         incoming.forEach((message) => {
-            result.set(message.id, message)
+            const key = message.messageUid ?? message.id
+            result.set(key, message)
         })
     } else {
         incoming.forEach((message) => {
-            result.set(message.id, message)
+            const key = message.messageUid ?? message.id
+            result.set(key, message)
         })
         existing.forEach((message) => {
-            if (!result.has(message.id)) {
-                result.set(message.id, message)
+            const key = message.messageUid ?? message.id
+            if (!result.has(key)) {
+                result.set(key, message)
             }
         })
     }
@@ -677,12 +698,44 @@ const mailSlice = createSlice({
         },
         updateSelectedCategory: (state, action) => {
             state.selectedCategory = action.payload
+            state.mailList = []
+            state.mailListLoading = true
         },
         setSelectedInboxAccount: (state, action) => {
             state.inbox.selectedAccountId = action.payload
         },
         setSelectedInboxMailbox: (state, action) => {
             state.inbox.selectedMailboxId = action.payload
+        },
+        ingestInboxEvent: (
+            state,
+            action: PayloadAction<{
+                message: InboxMessageSummaryDto
+                eventType?: string
+            }>,
+        ) => {
+            const { message } = action.payload
+            const folder = message.folder ?? 'INBOX'
+            const mailboxKey = `${message.accountId}:${folder}`
+            const existingList = state.inbox.messagesByMailbox[mailboxKey] ?? []
+            state.inbox.messagesByMailbox[mailboxKey] = mergeMailboxMessages(
+                existingList,
+                [message],
+                'prepend',
+            )
+            updateLastFetchedAt(
+                state.inbox.lastFetchedAtByMailbox,
+                message.accountId,
+                folder,
+                [message],
+            )
+            const isActiveMailbox =
+                state.inbox.selectedAccountId === message.accountId &&
+                state.inbox.selectedMailboxId === folder
+            if (isActiveMailbox) {
+                const inboxMail = buildMailFromInboxMessage(message)
+                state.mailList = mergeInboxMails(state.mailList, [inboxMail])
+            }
         },
     },
     extraReducers: (builder) => {
@@ -723,25 +776,22 @@ const mailSlice = createSlice({
             .addCase(fetchInboxMailboxes.fulfilled, (state, action) => {
                 state.inbox.mailboxesLoading = false
                 const { accountId, mailboxes } = action.payload
-                const filtered = mailboxes.filter((mailbox) => !isSentMailbox(mailbox))
-                const normalizedList =
-                    filtered.length > 0 ? filtered : mailboxes
-                state.inbox.mailboxesByAccount[accountId] = normalizedList
+                state.inbox.mailboxesByAccount[accountId] = mailboxes
                 state.inbox.mailboxesRequestStatus[accountId] = 'succeeded'
                 state.inbox.mailboxesErrorByAccount[accountId] = null
                 const currentSelected = state.inbox.selectedMailboxId
                 const hasSelected =
                     currentSelected &&
-                    normalizedList.some(
+                    mailboxes.some(
                         (mailbox) => mailbox.id === currentSelected,
                     )
                 if (!hasSelected) {
-                    const preferredId = findPrimaryInboxMailboxId(normalizedList)
-                    if (preferredId) {
-                        state.inbox.selectedMailboxId = preferredId
-                    } else if (!currentSelected && mailboxes.length > 0) {
-                        state.inbox.selectedMailboxId = mailboxes[0].id
-                    }
+        const preferredInboxId = findPrimaryInboxMailboxId(mailboxes)
+        if (preferredInboxId) {
+            state.inbox.selectedMailboxId = preferredInboxId
+        } else if (!currentSelected && mailboxes.length > 0) {
+            state.inbox.selectedMailboxId = mailboxes[0].id
+        }
                 }
             })
             .addCase(fetchInboxMailboxes.rejected, (state, action) => {
@@ -756,6 +806,12 @@ const mailSlice = createSlice({
                 const key = `${action.meta.arg.accountId}:${action.meta.arg.mailbox}`
                 state.inbox.messagesRequestStatus[key] = 'loading'
                 state.inbox.messagesErrorByMailbox[key] = null
+                if (
+                    state.inbox.selectedAccountId === action.meta.arg.accountId &&
+                    state.inbox.selectedMailboxId === action.meta.arg.mailbox
+                ) {
+                    state.mailListLoading = true
+                }
             })
             .addCase(fetchInboxMessages.fulfilled, (state, action) => {
                 state.inbox.messagesLoading = false
@@ -787,7 +843,17 @@ const mailSlice = createSlice({
                     result.items,
                 )
                 const inboxMails = result.items.map(buildMailFromInboxMessage)
-                state.mailList = mergeInboxMails(state.mailList, inboxMails)
+                const isActiveMailbox =
+                    state.inbox.selectedAccountId === accountId &&
+                    state.inbox.selectedMailboxId === mailbox
+                if (isActiveMailbox) {
+                    if (mode === 'replace') {
+                        state.mailList = inboxMails
+                    } else {
+                        state.mailList = mergeInboxMails(state.mailList, inboxMails)
+                    }
+                    state.mailListLoading = false
+                }
             })
             .addCase(fetchInboxMessages.rejected, (state, action) => {
                 state.inbox.messagesLoading = false
@@ -795,6 +861,12 @@ const mailSlice = createSlice({
                 state.inbox.messagesRequestStatus[key] = 'failed'
                 state.inbox.messagesErrorByMailbox[key] =
                     action.error?.message ?? 'Unable to load inbox messages.'
+                if (
+                    state.inbox.selectedAccountId === action.meta.arg.accountId &&
+                    state.inbox.selectedMailboxId === action.meta.arg.mailbox
+                ) {
+                    state.mailListLoading = false
+                }
             })
             .addCase(sendInboxMessage.pending, (state, action) => {
                 state.inbox.sendStatus = 'loading'
@@ -815,19 +887,12 @@ const mailSlice = createSlice({
                 state.inbox.sendStatus = 'succeeded'
                 state.inbox.sendError = null
                 const { accountId, message } = action.payload
-                const mailboxes = state.inbox.mailboxesByAccount[accountId] ?? []
-                const primaryMailboxId =
-                    findPrimaryInboxMailboxId(mailboxes) ??
-                    state.inbox.selectedMailboxId ??
-                    message.folder ??
-                    mailboxes[0]?.id ??
-                    'INBOX'
                 const targetMailboxIds = new Set<string>()
-                if (primaryMailboxId) {
-                    targetMailboxIds.add(primaryMailboxId)
-                }
                 if (message.folder) {
                     targetMailboxIds.add(message.folder)
+                }
+                if (!message.folder && state.inbox.selectedMailboxId) {
+                    targetMailboxIds.add(state.inbox.selectedMailboxId)
                 }
                 if (targetMailboxIds.size === 0) {
                     targetMailboxIds.add('INBOX')
@@ -1153,6 +1218,7 @@ export const {
     updateSelectedCategory,
     setSelectedInboxAccount,
     setSelectedInboxMailbox,
+    ingestInboxEvent,
 } = mailSlice.actions
 
 export default mailSlice.reducer

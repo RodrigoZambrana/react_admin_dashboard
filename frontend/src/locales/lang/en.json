@@ -767,7 +767,6 @@
             "invalidCharacters": "Detected unsupported characters. Please review your input.",
             "titleRequired": "Title Required",
             "receiverRequired": "Receiver Required",
-            "messageBodyRequired": "Message body is required",
             "productNameRequired": "Product Name Required",
             "priceRequired": "Price Required",
             "costPriceRequired": "Cost price is required",
