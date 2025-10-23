@@ -11,7 +11,6 @@ WORKDIR /app
 ARG CLIENT_SLUG=core
 ENV CLIENT_SLUG=${CLIENT_SLUG}
 COPY backend ./
-COPY shared ./shared
 ENV DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public
 RUN npm run prisma:generate && npm run build
 
