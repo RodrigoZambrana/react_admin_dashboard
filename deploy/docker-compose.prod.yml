@@ -18,6 +18,9 @@ services:
     build:
       context: ..
       dockerfile: frontend/Dockerfile
+      # Override VITE_CLIENT_SLUG when building un tenant específico (e.g. urucortinas)
+      args:
+        VITE_CLIENT_SLUG: ${VITE_CLIENT_SLUG:-core}
     ports:
       - "8080:80"
     environment:
@@ -30,6 +33,9 @@ services:
     build:
       context: ..
       dockerfile: backend/Dockerfile
+      # Override CLIENT_SLUG para apuntar al tenant deseado en la build
+      args:
+        CLIENT_SLUG: ${CLIENT_SLUG:-core}
     ports:
       - "4000:3000"
 

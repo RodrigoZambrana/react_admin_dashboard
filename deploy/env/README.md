@@ -20,6 +20,9 @@ cp deploy/env/frontend.prod.env.example deploy/env/frontend.prod.env
 Update the copied files with the values that apply to your environment.
 At a minimum the backend file must define `DATABASE_URL`, authentication secrets
 (`JWT_SECRET`, `COOKIE_SECRET`) and CORS settings via `ALLOWED_ORIGINS`.
+Select the tenant variant by setting `CLIENT_SLUG` in the backend file and
+`VITE_CLIENT_SLUG` in the frontend file (for example `urucortinas`). Both files
+default to the shared `core` configuration if the slug is omitted.
 The frontend file controls Vite variables such as `VITE_API_URL`.
 
 Run `node scripts/check-env.mjs` to validate that all `.env` files contain the keys

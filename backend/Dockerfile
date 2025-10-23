@@ -8,6 +8,8 @@ RUN npm install --legacy-peer-deps
 
 FROM deps AS build
 WORKDIR /app
+ARG CLIENT_SLUG=core
+ENV CLIENT_SLUG=${CLIENT_SLUG}
 COPY backend ./
 COPY shared ./shared
 ENV DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public
@@ -16,6 +18,8 @@ RUN npm run prisma:generate && npm run build
 FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+ARG CLIENT_SLUG=core
+ENV CLIENT_SLUG=${CLIENT_SLUG}
 RUN apk add --no-cache postgresql-client
 COPY --from=deps /app/node_modules ./node_modules
 COPY backend/package*.json ./

@@ -21,6 +21,9 @@ services:
     build:
       context: ..
       dockerfile: frontend/Dockerfile
+      # Exporta VITE_CLIENT_SLUG antes del build para elegir el tenant
+      args:
+        VITE_CLIENT_SLUG: ${VITE_CLIENT_SLUG:-core}
     ports:
       - "80:80"
     environment:
@@ -34,6 +37,9 @@ services:
     build:
       context: ..
       dockerfile: backend/Dockerfile
+      # Exporta CLIENT_SLUG para seleccionar la configuración del cliente
+      args:
+        CLIENT_SLUG: ${CLIENT_SLUG:-core}
     ports:
       - "3000:3000"
 

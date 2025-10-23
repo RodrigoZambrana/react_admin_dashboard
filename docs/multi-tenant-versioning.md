@@ -51,8 +51,10 @@ Esta guía describe la estructura y el flujo de trabajo para mantener múltiples
 
 ## Despliegue y automatización
 
-- **Build por cliente**: generar artefactos independientes por slug (e.g. `CLIENT_SLUG=core npm run build`).  
-- **Pruebas por variante**: ejecutar suites relevantes (unitarias + e2e) con la configuración del cliente antes de promover a producción.  
+- **Build por cliente**: generar artefactos independientes por slug (e.g. `CLIENT_SLUG=core npm run build`).
+  - En Docker Compose exporta `CLIENT_SLUG` y `VITE_CLIENT_SLUG` antes de ejecutar `docker compose build`
+    para hornear los assets correctos (`CLIENT_SLUG=urucortinas VITE_CLIENT_SLUG=urucortinas docker compose -f deploy/docker-compose.prod.yml build`).
+- **Pruebas por variante**: ejecutar suites relevantes (unitarias + e2e) con la configuración del cliente antes de promover a producción.
 - **Monitorización**: etiquetar métricas/logs con el slug del cliente para correlacionar incidencias rápidamente.
 
 ## Estrategia de upgrades
