@@ -83,30 +83,6 @@ const sanitizeMailContent = (content?: string) => {
     )
 }
 
-const stripQuotedContent = (content?: string) => {
-    if (!content) {
-        return ''
-    }
-    let result = content
-    result = result.replace(/<blockquote[\s\S]*?<\/blockquote>/gi, '')
-    const markerPatterns = [
-        /(El\s+(?:lun|mar|mi(?:e|\u00e9)|jue|vie|s(?:a|\u00e1)b|sab|dom)[^<]{0,200}?escribi(?:o|\u00f3):)/i,
-        /(En\s+fecha[^<]{0,200}?escribi(?:o|\u00f3):)/i,
-        /(On\s+.+?wrote:)/i,
-        /(-----Mensaje original-----)/i,
-        /(-----Original Message-----)/i,
-    ]
-    for (const marker of markerPatterns) {
-        const index = result.search(marker)
-        if (index >= 0) {
-            result = result.slice(0, index)
-        }
-    }
-    // Remove trailing quoted lines starting with > once more
-    result = result.replace(/(?:^|\n)\s*&gt;.*$/gim, '')
-    return result.trim()
-}
-
 const parseTimestamp = (value?: string | null) => {
     if (!value) {
         return null
@@ -707,10 +683,9 @@ const MailDetailContent = forwardRef<ScrollbarRef, MailDetailContentProps>(
                             const ccList = normalizeAddressList(message.cc)
                             const bccList = normalizeAddressList(message.bcc)
                             const messageDate = formatMessageDate(message)
-                            const sanitizedRaw = sanitizeMailContent(message.content)
-                            const strippedBody = stripQuotedContent(sanitizedRaw)
-                            const sanitizedMessageBody =
-                                strippedBody.length > 0 ? strippedBody : sanitizedRaw
+                            const sanitizedMessageBody = sanitizeMailContent(
+                                message.content,
+                            )
                             return (
                                 <div key={message.id} className="pb-6">
                                     <Card>

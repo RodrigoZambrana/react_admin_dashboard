@@ -157,7 +157,20 @@ export class SettingsController {
 
   private readonly maxLogoSizeBytes = 512 * 1024
 
-  private toPrismaBytes(bytes: Buffer | Uint8Array): Uint8Array<ArrayBuffer> {
+  private toPrismaBytes(bytes: Buffer | Uint8Array): Uint8Array<ArrayBuffer>
+  private toPrismaBytes(bytes: Buffer | Uint8Array | null): Uint8Array<ArrayBuffer> | null
+  private toPrismaBytes(
+    bytes: Buffer | Uint8Array | undefined,
+  ): Uint8Array<ArrayBuffer> | undefined
+  private toPrismaBytes(
+    bytes: Buffer | Uint8Array | null | undefined,
+  ): Uint8Array<ArrayBuffer> | null | undefined
+  private toPrismaBytes(
+    bytes: Buffer | Uint8Array | null | undefined,
+  ): Uint8Array<ArrayBuffer> | null | undefined {
+    if (bytes === undefined || bytes === null) {
+      return bytes
+    }
     if (Buffer.isBuffer(bytes)) {
       return Uint8Array.from(bytes) as Uint8Array<ArrayBuffer>
     }
@@ -251,20 +264,6 @@ export class SettingsController {
     }
 
     return this.toPrismaBytes(buffer)
-  }
-
-  private toPrismaBytes(
-    buffer: Buffer | null | undefined,
-  ): Uint8Array<ArrayBuffer> | null | undefined {
-    if (buffer === undefined) {
-      return undefined
-    }
-    if (buffer === null) {
-      return null
-    }
-    const clone = new Uint8Array(buffer.length)
-    clone.set(buffer)
-    return clone as Uint8Array<ArrayBuffer>
   }
 
   private sanitizeThemeConfig(payload: Partial<ThemeConfigPayload>): ThemeConfigPayload {

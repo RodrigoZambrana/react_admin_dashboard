@@ -51,12 +51,6 @@ const MailDetail = () => {
     const isReply = useAppSelector((state) => state.crmMail.data.reply)
     const mailList = useAppSelector((state) => state.crmMail.data.mailList)
 
-    const fetchData = () => {
-        if (id) {
-            dispatch(getMail({ id }))
-        }
-    }
-
     const formSubmit = () => {
         mailEditorRef.current?.formikRef?.submitForm()
     }
@@ -121,11 +115,12 @@ const MailDetail = () => {
     }, [dispatch, id, mailId])
 
     useEffect(() => {
-        if (mailId) {
-            fetchData()
+        if (!mailId) {
+            return
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mailId])
+        const normalizedId = String(mailId)
+        dispatch(getMail({ id: normalizedId }))
+    }, [dispatch, mailId])
 
     useEffect(() => {
         if (!mailId) {
@@ -155,7 +150,7 @@ const MailDetail = () => {
             },
             { isRead: true },
         )
-    }, [mail?.id, mail?.remoteId, mail?.isRead])
+    }, [mail])
 
     const resolvedMail = useMemo<Partial<MailType>>(() => {
         if (!mail || isEmpty(mail)) {
@@ -244,17 +239,18 @@ const MailDetail = () => {
     }, [mail, mailList])
 
     const hasMail = !isEmpty(resolvedMail)
+    const showMailContainer = Boolean(id) && (hasMail || mailLoading)
 
     return (
         <div
             className={classNames(
-                id && hasMail && !mailLoading
+                showMailContainer
                     ? 'block xl:flex'
                     : 'hidden xl:flex',
                 'flex-col w-full bg-gray-100 dark:bg-gray-900',
             )}
         >
-            {id && hasMail ? (
+            {showMailContainer ? (
                 mailLoading ? (
                     <Loading loading={true} />
                 ) : (
