@@ -32,7 +32,8 @@ type ClientModule = {
     default: ClientVariantConfig
 }
 
-const DEFAULT_SLUG = 'core'
+const BASE_SLUG = 'core'
+const FALLBACK_SLUG = BASE_SLUG
 
 const clientModules = import.meta.glob<ClientModule>(
     '../clients/*/config.ts',
@@ -113,16 +114,20 @@ const getSlugFromUrl = (): string | undefined => {
 }
 
 const resolveSlugFromEnv = (): string => {
-    const slug = import.meta.env.VITE_CLIENT_SLUG
-
-    const envMatch =
-        typeof slug === 'string' ? findAvailableSlug(slug.trim()) : undefined
+    const envMatch = matchFromCandidates([
+        import.meta.env.VITE_CLIENT_SLUG,
+        import.meta.env.CLIENT_SLUG,
+    ])
     if (envMatch) {
         return envMatch
     }
 
     const urlMatch = getSlugFromUrl()
-    return urlMatch ?? DEFAULT_SLUG
+    if (urlMatch) {
+        return urlMatch
+    }
+
+    return findAvailableSlug(FALLBACK_SLUG) ?? BASE_SLUG
 }
 
 const resolveModuleBySlug = (
@@ -133,7 +138,7 @@ const resolveModuleBySlug = (
 }
 
 const ensureBaseConfig = (): ClientVariantConfig => {
-    const base = resolveModuleBySlug(DEFAULT_SLUG)
+    const base = resolveModuleBySlug(BASE_SLUG)
     if (!base) {
         throw new Error(
             '[client-config] No se encontró la configuración base en "../clients/core/config.ts".',
@@ -145,7 +150,7 @@ const ensureBaseConfig = (): ClientVariantConfig => {
 const baseConfig = ensureBaseConfig()
 const currentSlug = resolveSlugFromEnv()
 const overrideConfig =
-    currentSlug === DEFAULT_SLUG
+    currentSlug === BASE_SLUG
         ? undefined
         : resolveModuleBySlug(currentSlug)
 

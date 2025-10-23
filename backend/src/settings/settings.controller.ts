@@ -246,6 +246,24 @@ export class SettingsController {
     return buffer
   }
 
+  private toPrismaBytes(buffer: Buffer): Uint8Array<ArrayBuffer> {
+    const bytes = new Uint8Array(buffer.length)
+    bytes.set(buffer)
+    return bytes
+  }
+
+  private prepareLogoForPersistence(
+    logo: Buffer | null | undefined,
+  ): Uint8Array<ArrayBuffer> | null | undefined {
+    if (logo === undefined) {
+      return undefined
+    }
+    if (logo === null) {
+      return null
+    }
+    return this.toPrismaBytes(logo)
+  }
+
   private sanitizeThemeConfig(payload: Partial<ThemeConfigPayload>): ThemeConfigPayload {
     const allowedDirections: ThemeConfigPayload['direction'][] = ['ltr', 'rtl']
     const allowedModes: ThemeConfigPayload['mode'][] = ['light', 'dark']
@@ -419,12 +437,16 @@ export class SettingsController {
     const logoBuffer = this.parseLogoInput(body.logo)
     const updateData: Prisma.CompanyProfileUpdateInput = {
       ...data,
-      ...(logoBuffer !== undefined ? { logo: logoBuffer } : {}),
+      ...(logoBuffer !== undefined
+        ? { logo: this.prepareLogoForPersistence(logoBuffer) }
+        : {}),
     }
     const createData: Prisma.CompanyProfileCreateInput = {
       singleton: this.companySingletonKey,
       ...data,
-      ...(logoBuffer !== undefined ? { logo: logoBuffer } : {}),
+      ...(logoBuffer !== undefined
+        ? { logo: this.prepareLogoForPersistence(logoBuffer) }
+        : {}),
     }
     const updated = await this.prisma.companyProfile.upsert({
       where: { singleton: this.companySingletonKey },
@@ -1254,12 +1276,16 @@ export class SettingsController {
       if (hasCompanyProfile && companyProfileData) {
         const updateCompanyProfileData: Prisma.CompanyProfileUpdateInput = {
           ...companyProfileData,
-          ...(companyProfileLogo !== undefined ? { logo: companyProfileLogo } : {}),
+          ...(companyProfileLogo !== undefined
+            ? { logo: this.prepareLogoForPersistence(companyProfileLogo) }
+            : {}),
         }
         const createCompanyProfileData: Prisma.CompanyProfileCreateInput = {
           singleton: this.companySingletonKey,
           ...companyProfileData,
-          ...(companyProfileLogo !== undefined ? { logo: companyProfileLogo } : {}),
+          ...(companyProfileLogo !== undefined
+            ? { logo: this.prepareLogoForPersistence(companyProfileLogo) }
+            : {}),
         }
         await tx.companyProfile.upsert({
           where: { singleton: this.companySingletonKey },
