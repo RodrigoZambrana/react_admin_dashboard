@@ -65,7 +65,7 @@ export class CalendarController {
     return Object.keys(base).length > 0 ? base : null
   }
 
-  private decodeAttachmentContent(content: unknown): Uint8Array<ArrayBuffer> | null {
+  private decodeAttachmentContent(content: unknown): Buffer | null {
     if (typeof content !== 'string') {
       return null
     }
@@ -78,11 +78,7 @@ export class CalendarController {
       if (!buffer.length) {
         return null
       }
-      const arrayBuffer = buffer.buffer.slice(
-        buffer.byteOffset,
-        buffer.byteOffset + buffer.byteLength,
-      ) as ArrayBuffer
-      return new Uint8Array(arrayBuffer)
+      return buffer
     } catch (error) {
       return null
     }
@@ -96,7 +92,7 @@ export class CalendarController {
       name: string
       mimeType: string | null
       size: number | null
-      content: Uint8Array<ArrayBuffer>
+      content: Buffer
     }[]
     provided: boolean
   } {
@@ -108,7 +104,7 @@ export class CalendarController {
       name: string
       mimeType: string | null
       size: number | null
-      content: Uint8Array<ArrayBuffer>
+      content: Buffer
     }[] = []
 
     input.forEach((raw) => {
