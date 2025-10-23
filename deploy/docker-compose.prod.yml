@@ -31,8 +31,8 @@ services:
   backend:
     <<: *backend-common
     build:
-      context: ../backend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: backend/Dockerfile
       args:
         CLIENT_SLUG: urucortinas
     ports:
