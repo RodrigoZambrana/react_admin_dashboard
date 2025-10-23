@@ -2,7 +2,7 @@ import {
   CURRENCY_DEFINITIONS,
   CURRENCY_DEFINITION_MAP,
   type CurrencyDefinition,
-} from '../../../../shared/currency'
+} from '../../../.../../currency'
 
 export type StandardCurrencyOption = CurrencyDefinition
 
