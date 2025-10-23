@@ -87,4 +87,12 @@ export class SendMessageDto {
   @IsOptional()
   @IsString()
   fromName?: string
+
+  @IsOptional()
+  @IsString()
+  queueId?: string
+
+  @IsOptional()
+  @IsString()
+  queueSlug?: string
 }

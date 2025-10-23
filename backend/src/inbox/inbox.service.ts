@@ -17,6 +17,9 @@ import {
 } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { ChannelRegistry } from './registry/channel-registry'
+import { deriveMessageUid, hashMessageBody, normalizeFolder } from './common/message-identity'
+import { resolveQueueSlug, type QueueResolution, type QueueRuleConfig } from './common/queue-classifier'
+import { InboxEventsService, type InboxStreamFilter } from './events/inbox-events.service'
 import type {
   ChannelAccount,
   ChannelAdapter,
@@ -35,6 +38,8 @@ import { EmailChannelAdapter } from './providers/email/email-channel.adapter'
 type MessageSummaryDto = {
   id: string
   accountId: string
+  provider: string
+  messageUid: string
   remoteId: string
   threadRemoteId?: string | null
   subject?: string | null
@@ -50,6 +55,9 @@ type MessageSummaryDto = {
   isStarred: boolean
   isSpam: boolean
   hasAttachments: boolean
+  queueId?: string | null
+  queueSlug?: string | null
+  queueName?: string | null
   sentAt?: string | null
   receivedAt?: string | null
   metadata?: Record<string, unknown> | null
@@ -97,16 +105,25 @@ const toJsonUpdate = (
 @Injectable()
 export class InboxService implements OnModuleInit {
   private readonly logger = new Logger(InboxService.name)
+  private readonly queueRuleConfig: QueueRuleConfig
+  private readonly queueCache = new Map<string, { id: string; name: string; slug: string }>()
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly registry: ChannelRegistry,
     private readonly emailAdapter: EmailChannelAdapter,
-  ) {}
+    private readonly events: InboxEventsService,
+  ) {
+    this.queueRuleConfig = this.buildQueueConfig()
+  }
 
   async onModuleInit() {
     await this.ensureConfiguredEmailAccount()
+  }
+
+  streamMessageEvents(filters: InboxStreamFilter = {}) {
+    return this.events.streamEvents(filters)
   }
 
   async listAccounts(options: { includeInactive?: boolean } = {}) {
@@ -142,8 +159,16 @@ export class InboxService implements OnModuleInit {
       response.messages,
       response.nextCursor ?? null,
     )
+    const summaries = persisted.map((record) => {
+      const summary = this.serializeMessage(record)
+      const isNew = record.createdAt.getTime() === record.updatedAt.getTime()
+      if (isNew) {
+        this.emitBroadcast('message.created', summary)
+      }
+      return summary
+    })
     return {
-      items: persisted.map((record) => this.serializeMessage(record)),
+      items: summaries,
       nextCursor: response.nextCursor ?? null,
     }
   }
@@ -157,8 +182,11 @@ export class InboxService implements OnModuleInit {
     const channelAccount = this.mapAccount(account)
     const body = await adapter.getMessage(channelAccount, identifier)
 
+    const provider = this.resolveProvider(account)
+    const metadata = this.extractBodyMetadata(body)
+
     const detail = await this.prisma.$transaction(async (tx) => {
-      const messageRecord = await tx.inboxMessage.upsert({
+      const existing = await tx.inboxMessage.findUnique({
         where: {
           accountId_channel_remoteId: {
             accountId: account.id,
@@ -166,8 +194,70 @@ export class InboxService implements OnModuleInit {
             remoteId: identifier.remoteId,
           },
         },
-        update: this.buildMessageUpdateFromBody(body),
-        create: this.buildMessageCreateFromBody(account, body),
+        include: { queue: true },
+      })
+
+      const folder = existing?.folder ?? this.resolveFolder(
+        this.extractMetadataString(metadata, 'folder') ??
+          this.extractMetadataString(metadata, 'mailbox') ??
+          undefined,
+      )
+      const queueResolution: QueueResolution =
+        existing?.queue
+          ? { slug: existing.queue.slug, matchedRule: 'persisted' }
+          : resolveQueueSlug(
+              {
+                headers: this.extractHeaderMap(metadata),
+                subject: body.subject,
+                folder,
+              },
+              this.queueRuleConfig,
+            )
+      const queueId = existing?.queueId ?? (await this.ensureQueue(tx, queueResolution))
+      const messageUid = deriveMessageUid({
+        provider,
+        folder,
+        messageId: this.extractMetadataString(metadata, 'messageId'),
+        gmailId: this.extractMetadataString(metadata, 'gmailId'),
+        remoteId: body.remoteId,
+        headers: this.extractHeaderMap(metadata),
+        bodyHtml: body.bodyHtml,
+        bodyText: body.bodyText,
+      })
+      const bodyHash = hashMessageBody({
+        bodyHtml: body.bodyHtml ?? null,
+        bodyText: body.bodyText ?? null,
+      })
+
+      const messageRecord = await tx.inboxMessage.upsert({
+        where: {
+          messageUid_provider_folder: {
+            messageUid,
+            provider,
+            folder,
+          },
+        },
+        update: this.buildMessageUpdateFromBody(
+          body,
+          folder,
+          provider,
+          queueId,
+          bodyHash,
+          metadata,
+          queueResolution,
+        ),
+        create: this.buildMessageCreateFromBody(
+          account,
+          body,
+          folder,
+          provider,
+          messageUid,
+          queueId,
+          bodyHash,
+          metadata,
+          queueResolution,
+        ),
+        include: { queue: true },
       })
 
       await tx.inboxAttachment.deleteMany({
@@ -191,6 +281,7 @@ export class InboxService implements OnModuleInit {
 
       await this.recordEvent(tx, messageRecord.id, InboxMessageEventType.FETCHED, {
         attachmentCount: attachmentRecords.length,
+        queue: queueResolution.slug,
       })
 
       return this.serializeMessageDetail(messageRecord, body, attachmentRecords)
@@ -235,26 +326,110 @@ export class InboxService implements OnModuleInit {
 
     const result = await adapter.sendMessage(channelAccount, messageInput)
 
+    const provider = this.resolveProvider(account)
+    const folder = this.resolveFolder('Sent')
+    const baseMetadata =
+      this.mergeMetadata(
+        payload.metadata ?? undefined,
+        result.metadata ?? undefined,
+      ) ?? {}
+    const explicitQueueSlug =
+      payload.queueSlug ??
+      (typeof baseMetadata.queue === 'string' ? String(baseMetadata.queue) : undefined)
+    const queueResolution: QueueResolution =
+      explicitQueueSlug
+        ? {
+            slug: explicitQueueSlug.toLowerCase(),
+            matchedRule: payload.queueSlug ? 'payload.slug' : 'metadata.queue',
+          }
+        : resolveQueueSlug(
+            {
+              headers: this.extractHeaderMap(baseMetadata),
+              to: payload.to.map((address) => ({ address })),
+              cc: (payload.cc ?? []).map((address) => ({ address })),
+              bcc: (payload.bcc ?? []).map((address) => ({ address })),
+              subject: payload.subject,
+              folder,
+            },
+            this.queueRuleConfig,
+          )
+    const bodyHash = hashMessageBody({
+      bodyHtml: payload.bodyHtml ?? null,
+      bodyText: payload.bodyText ?? null,
+    })
+    const messageUid = deriveMessageUid({
+      provider,
+      folder,
+      messageId: this.extractMetadataString(baseMetadata, 'messageId'),
+      gmailId: this.extractMetadataString(baseMetadata, 'gmailId'),
+      remoteId: result.remoteId,
+      headers: this.extractHeaderMap(baseMetadata),
+      bodyHtml: payload.bodyHtml,
+      bodyText: payload.bodyText,
+    })
+
     const summary = await this.prisma.$transaction(async (tx) => {
+      let effectiveQueueResolution = queueResolution
+      let queueId: string
+      if (payload.queueId) {
+        const existingQueue = await tx.inboxQueue.findUnique({
+          where: { id: payload.queueId },
+        })
+        if (existingQueue) {
+          queueId = existingQueue.id
+          effectiveQueueResolution = {
+            slug: existingQueue.slug,
+            matchedRule: 'payload.id',
+          }
+        } else {
+          queueId = await this.ensureQueue(tx, queueResolution)
+        }
+      } else {
+        queueId = await this.ensureQueue(tx, queueResolution)
+      }
       const messageRecord = await tx.inboxMessage.upsert({
         where: {
-          accountId_channel_remoteId: {
-            accountId: account.id,
-            channel: account.channel,
-            remoteId: result.remoteId,
+          messageUid_provider_folder: {
+            messageUid,
+            provider,
+            folder,
           },
         },
-        update: this.buildMessageUpdateFromSend(payload, result),
-        create: this.buildMessageCreateFromSend(account, payload, result),
+        update: this.buildMessageUpdateFromSend(
+          payload,
+          result,
+          folder,
+          provider,
+          queueId,
+          bodyHash,
+          baseMetadata,
+          effectiveQueueResolution,
+        ),
+        create: this.buildMessageCreateFromSend(
+          account,
+          payload,
+          result,
+          folder,
+          provider,
+          messageUid,
+          queueId,
+          bodyHash,
+          baseMetadata,
+          effectiveQueueResolution,
+        ),
+        include: { queue: true },
       })
 
       await this.recordEvent(tx, messageRecord.id, InboxMessageEventType.SENT, {
         accepted: result.accepted,
         rejected: result.rejected,
+        queue: effectiveQueueResolution.slug,
       })
 
       return this.serializeMessage(messageRecord)
     })
+
+    this.emitBroadcast('message.sent', summary)
 
     return summary
   }
@@ -285,28 +460,60 @@ export class InboxService implements OnModuleInit {
             remoteId: identifier.remoteId,
           },
         },
+        include: { queue: true },
       })
+
+      const provider = this.resolveProvider(account)
+      const folder = existing?.folder ?? this.resolveFolder(undefined)
+      const queueResolution: QueueResolution =
+        existing?.queue
+          ? { slug: existing.queue.slug, matchedRule: 'persisted' }
+          : { slug: this.queueRuleConfig.defaultQueue, matchedRule: 'default' }
+      const queueId = existing?.queueId ?? (await this.ensureQueue(tx, queueResolution))
+      const messageUid =
+        existing?.messageUid ??
+        deriveMessageUid({
+          provider,
+          folder,
+          remoteId: identifier.remoteId,
+        })
 
       const metadataSource =
         (existing?.metadata as Record<string, unknown> | null) ?? undefined
       const messageRecord = await tx.inboxMessage.upsert({
         where: {
-          accountId_channel_remoteId: {
-            accountId: account.id,
-            channel: account.channel,
-            remoteId: identifier.remoteId,
+          messageUid_provider_folder: {
+            messageUid,
+            provider,
+            folder,
           },
         },
-        update: this.buildFlagUpdate(flags, metadataSource),
-        create: this.buildMinimalMessage(account, identifier, flags),
+        update: {
+          ...this.buildFlagUpdate(flags, metadataSource, queueResolution),
+          queue: { connect: { id: queueId } },
+        },
+        create: this.buildMinimalMessage(
+          account,
+          identifier,
+          flags,
+          folder,
+          provider,
+          messageUid,
+          queueId,
+          queueResolution,
+        ),
+        include: { queue: true },
       })
 
       await this.recordEvent(tx, messageRecord.id, InboxMessageEventType.FLAG_UPDATED, {
         flags,
+        queue: queueResolution.slug,
       })
 
       return this.serializeMessage(messageRecord)
     })
+
+    this.emitBroadcast('message.flags.updated', summary)
 
     return summary
   }
@@ -329,7 +536,7 @@ export class InboxService implements OnModuleInit {
     }
 
     const summary = await this.prisma.$transaction(async (tx) => {
-      const messageRecord = await tx.inboxMessage.upsert({
+      const existing = await tx.inboxMessage.findUnique({
         where: {
           accountId_channel_remoteId: {
             accountId: account.id,
@@ -337,19 +544,68 @@ export class InboxService implements OnModuleInit {
             remoteId: identifier.remoteId,
           },
         },
-        update: {
-          folder: targetMailbox,
-          isSpam: targetMailbox.toLowerCase().includes('spam') ? true : undefined,
+        include: { queue: true },
+      })
+
+      const provider = this.resolveProvider(account)
+      const folder = this.resolveFolder(targetMailbox)
+      const queueResolution: QueueResolution =
+        existing?.queue
+          ? { slug: existing.queue.slug, matchedRule: 'persisted' }
+          : { slug: this.queueRuleConfig.defaultQueue, matchedRule: 'default' }
+      const queueId = existing?.queueId ?? (await this.ensureQueue(tx, queueResolution))
+      const messageUid =
+        existing?.messageUid ??
+        deriveMessageUid({
+          provider,
+          folder,
+          remoteId: identifier.remoteId,
+        })
+      const isSpamTarget = folder.toLowerCase().includes('spam') || folder.toLowerCase().includes('junk')
+      const metadataSource =
+        (existing?.metadata as Record<string, unknown> | null) ?? undefined
+      const updatedMetadata = this.mergeMetadata(metadataSource, {
+        queue: queueResolution.slug,
+        queueRule: queueResolution.matchedRule,
+      })
+
+      const messageRecord = await tx.inboxMessage.upsert({
+        where: {
+          messageUid_provider_folder: {
+            messageUid,
+            provider,
+            folder,
+          },
         },
-        create: this.buildMinimalMessage(account, identifier, undefined, targetMailbox),
+        update: {
+          provider,
+          folder,
+          isSpam: isSpamTarget,
+          queue: { connect: { id: queueId } },
+          metadata: updatedMetadata ? toJsonUpdate(updatedMetadata) : undefined,
+        },
+        create: this.buildMinimalMessage(
+          account,
+          identifier,
+          { spam: isSpamTarget },
+          folder,
+          provider,
+          messageUid,
+          queueId,
+          queueResolution,
+        ),
+        include: { queue: true },
       })
 
       await this.recordEvent(tx, messageRecord.id, InboxMessageEventType.MOVED, {
         targetMailbox,
+        queue: queueResolution.slug,
       })
 
       return this.serializeMessage(messageRecord)
     })
+
+    this.emitBroadcast('message.moved', summary)
 
     return summary
   }
@@ -378,7 +634,7 @@ export class InboxService implements OnModuleInit {
     const targetFolder = movedFolder ?? 'Spam'
 
     const summary = await this.prisma.$transaction(async (tx) => {
-      const messageRecord = await tx.inboxMessage.upsert({
+      const existing = await tx.inboxMessage.findUnique({
         where: {
           accountId_channel_remoteId: {
             accountId: account.id,
@@ -386,19 +642,67 @@ export class InboxService implements OnModuleInit {
             remoteId: identifier.remoteId,
           },
         },
-        update: {
-          isSpam: true,
-          folder: targetFolder,
+        include: { queue: true },
+      })
+
+      const provider = this.resolveProvider(account)
+      const folder = this.resolveFolder(targetFolder)
+      const queueResolution: QueueResolution =
+        existing?.queue
+          ? { slug: existing.queue.slug, matchedRule: 'persisted' }
+          : { slug: this.queueRuleConfig.defaultQueue, matchedRule: 'default' }
+      const queueId = existing?.queueId ?? (await this.ensureQueue(tx, queueResolution))
+      const messageUid =
+        existing?.messageUid ??
+        deriveMessageUid({
+          provider,
+          folder,
+          remoteId: identifier.remoteId,
+        })
+      const metadataSource =
+        (existing?.metadata as Record<string, unknown> | null) ?? undefined
+      const updatedMetadata = this.mergeMetadata(metadataSource, {
+        queue: queueResolution.slug,
+        queueRule: queueResolution.matchedRule,
+      })
+
+      const messageRecord = await tx.inboxMessage.upsert({
+        where: {
+          messageUid_provider_folder: {
+            messageUid,
+            provider,
+            folder,
+          },
         },
-        create: this.buildMinimalMessage(account, identifier, { spam: true }, targetFolder),
+        update: {
+          provider,
+          folder,
+          isSpam: true,
+          queue: { connect: { id: queueId } },
+          metadata: updatedMetadata ? toJsonUpdate(updatedMetadata) : undefined,
+        },
+        create: this.buildMinimalMessage(
+          account,
+          identifier,
+          { spam: true },
+          folder,
+          provider,
+          messageUid,
+          queueId,
+          queueResolution,
+        ),
+        include: { queue: true },
       })
 
       await this.recordEvent(tx, messageRecord.id, InboxMessageEventType.FLAG_UPDATED, {
         spam: true,
+        queue: queueResolution.slug,
       })
 
       return this.serializeMessage(messageRecord)
     })
+
+    this.emitBroadcast('message.flags.updated', summary)
 
     return summary
   }
@@ -499,9 +803,41 @@ export class InboxService implements OnModuleInit {
 
     return this.prisma.$transaction(async (tx) => {
       const persisted: InboxMessage[] = []
+      const provider = this.resolveProvider(account)
 
       for (const message of messages) {
-        const record = await tx.inboxMessage.upsert({
+        const folder = this.resolveFolder(message.folder ?? mailbox)
+        const metadata = this.extractListMetadata(message)
+        const messageUid = deriveMessageUid({
+          provider,
+          folder,
+          messageId: this.extractMetadataString(metadata, 'messageId'),
+          gmailId: this.extractMetadataString(metadata, 'gmailId'),
+          remoteId: message.remoteId,
+          headers: this.extractHeaderMap(metadata),
+          bodyHtml: this.extractMetadataString(metadata, 'bodyHtml'),
+          bodyText: this.extractMetadataString(metadata, 'bodyText'),
+        })
+        const bodyHash = hashMessageBody({
+          bodyHtml: this.extractMetadataString(metadata, 'bodyHtml'),
+          bodyText: this.extractMetadataString(metadata, 'bodyText'),
+        })
+        const queueResolution = resolveQueueSlug(
+          {
+            headers: this.extractHeaderMap(metadata),
+            to: message.to,
+            cc: message.cc,
+            bcc: message.bcc,
+            labels: this.extractLabels(metadata),
+            subject: message.subject,
+            folder,
+            direction: message.direction,
+          },
+          this.queueRuleConfig,
+        )
+        const queueId = await this.ensureQueue(tx, queueResolution)
+
+        const existingByRemote = await tx.inboxMessage.findUnique({
           where: {
             accountId_channel_remoteId: {
               accountId: account.id,
@@ -509,9 +845,58 @@ export class InboxService implements OnModuleInit {
               remoteId: message.remoteId,
             },
           },
-          update: this.buildMessageUpdateFromListItem(message, mailbox),
-          create: this.buildMessageCreateFromListItem(account, message, mailbox),
         })
+
+        let record: InboxMessage & { queue?: { id: string; slug: string; name: string } | null }
+
+        if (existingByRemote) {
+          record = await tx.inboxMessage.update({
+            where: { id: existingByRemote.id },
+            data: this.buildMessageUpdateFromListItem(
+              message,
+              folder,
+              provider,
+              messageUid,
+              queueId,
+              bodyHash,
+              metadata,
+              queueResolution,
+            ),
+            include: { queue: true },
+          })
+        } else {
+          record = await tx.inboxMessage.upsert({
+            where: {
+              messageUid_provider_folder: {
+                messageUid,
+                provider,
+                folder,
+              },
+            },
+            update: this.buildMessageUpdateFromListItem(
+              message,
+              folder,
+              provider,
+              messageUid,
+              queueId,
+              bodyHash,
+              metadata,
+              queueResolution,
+            ),
+            create: this.buildMessageCreateFromListItem(
+              account,
+              message,
+              folder,
+              provider,
+              messageUid,
+              queueId,
+              bodyHash,
+              metadata,
+              queueResolution,
+            ),
+            include: { queue: true },
+          })
+        }
         persisted.push(record)
       }
 
@@ -544,10 +929,215 @@ export class InboxService implements OnModuleInit {
     })
   }
 
-  private serializeMessage(record: InboxMessage): MessageSummaryDto {
+  private buildQueueConfig(): QueueRuleConfig {
+    return {
+      headerKey: this.configService.get<string>('INBOX_QUEUE_HEADER_KEY') ?? 'x-queue',
+      defaultQueue: this.configService.get<string>('INBOX_QUEUE_DEFAULT') ?? 'general',
+      domainQueues: this.parseKeyValueConfig('INBOX_QUEUE_DOMAIN_MAP', {
+        'support.acme.com': 'support',
+        'ventas.acme.com': 'sales',
+        'noc.acme.com': 'noc',
+      }),
+      aliasQueues: this.parseKeyValueConfig('INBOX_QUEUE_ALIAS_MAP', {
+        'soporte@acme.com': 'support',
+        'noc@acme.com': 'noc',
+        'ventas@acme.com': 'sales',
+      }),
+      labelQueues: this.parseKeyValueConfig('INBOX_QUEUE_LABEL_MAP', {
+        urgent: 'noc',
+      }),
+      subjectRules: this.parseSubjectRuleConfig('INBOX_QUEUE_SUBJECT_RULES', [
+        { queue: 'billing', regex: /factura|billing|invoice/i },
+        { queue: 'support', regex: /ticket|issue|soporte/i },
+        { queue: 'noc', regex: /incident|alert|alarma/i },
+      ]),
+    }
+  }
+
+  private parseKeyValueConfig(
+    key: string,
+    fallback: Record<string, string> = {},
+  ): Record<string, string> {
+    const raw = this.configService.get<string>(key)
+    if (!raw) {
+      return fallback
+    }
+    const parsedJson = this.parseJson<Record<string, string>>(raw)
+    if (parsedJson && typeof parsedJson === 'object') {
+      return Object.entries(parsedJson).reduce<Record<string, string>>((acc, [envKey, value]) => {
+        if (typeof value === 'string' && value.trim()) {
+          acc[envKey.trim().toLowerCase()] = value.trim().toLowerCase()
+        }
+        return acc
+      }, {})
+    }
+    return raw
+      .split(',')
+      .map((pair) => pair.trim())
+      .filter(Boolean)
+      .reduce<Record<string, string>>((acc, pair) => {
+        const [k, v] = pair.split(':')
+        if (k && v) {
+          acc[k.trim().toLowerCase()] = v.trim().toLowerCase()
+        }
+        return acc
+      }, {})
+  }
+
+  private parseSubjectRuleConfig(
+    key: string,
+    fallback: Array<{ queue: string; regex: RegExp }> = [],
+  ) {
+    const raw = this.configService.get<string>(key)
+    if (!raw) {
+      return fallback
+    }
+    const parsed = this.parseJson<Array<{ queue: string; pattern: string; flags?: string }>>(raw)
+    if (!parsed) {
+      return fallback
+    }
+    return parsed
+      .filter((entry) => typeof entry.queue === 'string' && typeof entry.pattern === 'string')
+      .map((entry) => ({
+        queue: entry.queue.trim().toLowerCase(),
+        regex: new RegExp(entry.pattern, entry.flags ?? 'i'),
+      }))
+  }
+
+  private parseJson<T>(value?: string | null): T | null {
+    if (!value) {
+      return null
+    }
+    try {
+      return JSON.parse(value) as T
+    } catch (error) {
+      this.logger.warn(`Failed to parse JSON for queue configuration: ${(error as Error).message}`)
+      return null
+    }
+  }
+
+  private async ensureQueue(
+    tx: Prisma.TransactionClient,
+    resolution: QueueResolution,
+  ): Promise<string> {
+    if (this.queueCache.has(resolution.slug)) {
+      return this.queueCache.get(resolution.slug)!.id
+    }
+    const record = await tx.inboxQueue.upsert({
+      where: { slug: resolution.slug },
+      update: {
+        isActive: true,
+        rules: toJsonUpdate({ lastMatchedRule: resolution.matchedRule }),
+      },
+      create: {
+        slug: resolution.slug,
+        name: this.toTitleCase(resolution.slug),
+        description: `Queue created via ${resolution.matchedRule} rule`,
+        rules: toJsonInput({ bootstrapRule: resolution.matchedRule }),
+      },
+    })
+    this.queueCache.set(record.slug, {
+      id: record.id,
+      slug: record.slug,
+      name: record.name,
+    })
+    return record.id
+  }
+
+  private toTitleCase(value: string) {
+    return value
+      .split(/[-_\s]/)
+      .filter(Boolean)
+      .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+      .join(' ')
+  }
+
+  private resolveProvider(account: InboxAccount): string {
+    const metadata =
+      (account.metadata as Record<string, unknown> | null | undefined) ?? undefined
+    const provider =
+      typeof metadata?.provider === 'string'
+        ? metadata.provider
+        : account.channel.toLowerCase()
+    return provider.toLowerCase()
+  }
+
+  private resolveFolder(folder?: string | null) {
+    const normalized = (folder || 'INBOX').trim()
+    if (!normalized) {
+      return 'INBOX'
+    }
+    return normalized.toUpperCase()
+  }
+
+  private extractListMetadata(message: ChannelMessageListItem) {
+    if (message.metadata && typeof message.metadata === 'object') {
+      return { ...message.metadata }
+    }
+    return {}
+  }
+
+  private extractBodyMetadata(body: ChannelMessageBody) {
+    if (body.metadata && typeof body.metadata === 'object') {
+      return { ...body.metadata }
+    }
+    return {}
+  }
+
+  private extractMetadataString(metadata: Record<string, unknown>, key: string) {
+    const value = metadata[key]
+    return typeof value === 'string' ? value : null
+  }
+
+  private extractHeaderMap(metadata: Record<string, unknown>) {
+    const headers = metadata.headers
+    if (!headers || typeof headers !== 'object') {
+      return undefined
+    }
+    return Object.entries(headers as Record<string, string>).reduce<
+      Record<string, string>
+    >((acc, [key, value]) => {
+      if (typeof value === 'string') {
+        acc[key.toLowerCase()] = value
+      }
+      return acc
+    }, {})
+  }
+
+  private extractLabels(metadata: Record<string, unknown>) {
+    const labels = metadata.labels
+    if (!Array.isArray(labels)) {
+      return undefined
+    }
+    return labels
+      .filter((label): label is string => typeof label === 'string' && label.trim().length > 0)
+      .map((label) => label.trim())
+  }
+
+  private extractQueueSlug(metadata: unknown) {
+    if (!metadata || typeof metadata !== 'object') {
+      return null
+    }
+    const record = metadata as Record<string, unknown>
+    const queue = record.queue
+    if (typeof queue === 'string' && queue.trim()) {
+      return queue.trim().toLowerCase()
+    }
+    const queueSlug = record.queueSlug
+    if (typeof queueSlug === 'string' && queueSlug.trim()) {
+      return queueSlug.trim().toLowerCase()
+    }
+    return null
+  }
+
+  private serializeMessage(
+    record: InboxMessage & { queue?: { id: string; slug: string; name: string } | null },
+  ): MessageSummaryDto {
     return {
       id: record.id,
       accountId: record.accountId,
+      provider: record.provider,
+      messageUid: record.messageUid,
       remoteId: record.remoteId,
       threadRemoteId: record.threadRemoteId,
       subject: record.subject,
@@ -566,14 +1156,27 @@ export class InboxService implements OnModuleInit {
       isStarred: record.isStarred,
       isSpam: record.isSpam,
       hasAttachments: record.hasAttachments,
+      queueId: record.queueId ?? null,
+      queueSlug: record.queue?.slug ?? this.extractQueueSlug(record.metadata),
+      queueName: record.queue?.name ?? null,
       sentAt: record.sentAt ? record.sentAt.toISOString() : null,
       receivedAt: record.receivedAt ? record.receivedAt.toISOString() : null,
       metadata: (record.metadata as Record<string, unknown> | null) ?? null,
     }
   }
 
+  private emitBroadcast(eventType: string, message: MessageSummaryDto) {
+    this.events.emit({
+      type: eventType,
+      message,
+      queueId: message.queueId ?? null,
+      queueSlug: message.queueSlug ?? null,
+      accountId: message.accountId,
+    })
+  }
+
   private serializeMessageDetail(
-    record: InboxMessage,
+    record: InboxMessage & { queue?: { id: string; slug: string; name: string } | null },
     body: ChannelMessageBody,
     attachments: InboxAttachment[],
   ): MessageDetailDto {
@@ -596,9 +1199,21 @@ export class InboxService implements OnModuleInit {
 
   private buildMessageUpdateFromListItem(
     message: ChannelMessageListItem,
-    mailbox: string,
+    folder: string,
+    provider: string,
+    messageUid: string,
+    queueId: string,
+    bodyHash: string | null,
+    metadata: Record<string, unknown>,
+    queueResolution: QueueResolution,
   ): Prisma.InboxMessageUpdateInput {
+    const mergedMetadata = this.mergeMetadata(metadata, {
+      queue: queueResolution.slug,
+      queueRule: queueResolution.matchedRule,
+    })
     return {
+      provider,
+      messageUid,
       threadRemoteId: message.threadRemoteId ?? null,
       subject: message.subject ?? null,
       snippet: message.snippet ?? null,
@@ -609,25 +1224,39 @@ export class InboxService implements OnModuleInit {
       ccAddresses: this.normalizeAddressArray(message.cc),
       bccAddresses: this.normalizeAddressArray(message.bcc),
       direction: message.direction,
-      folder: message.folder ?? mailbox,
+      folder,
+      queue: { connect: { id: queueId } },
       isRead: message.isRead ?? false,
       isStarred: message.isStarred ?? false,
       isSpam: message.isSpam ?? false,
       hasAttachments: message.hasAttachments ?? false,
       sentAt: message.sentAt ?? null,
       receivedAt: message.receivedAt ?? null,
-      metadata: toJsonUpdate(message.metadata),
+      bodyHash: bodyHash ?? undefined,
+      metadata: toJsonUpdate(mergedMetadata),
     }
   }
 
   private buildMessageCreateFromListItem(
     account: InboxAccount,
     message: ChannelMessageListItem,
-    mailbox: string,
+    folder: string,
+    provider: string,
+    messageUid: string,
+    queueId: string,
+    bodyHash: string | null,
+    metadata: Record<string, unknown>,
+    queueResolution: QueueResolution,
   ): Prisma.InboxMessageCreateInput {
+    const mergedMetadata = this.mergeMetadata(metadata, {
+      queue: queueResolution.slug,
+      queueRule: queueResolution.matchedRule,
+    })
     return {
       account: { connect: { id: account.id } },
       channel: account.channel,
+      provider,
+      messageUid,
       remoteId: message.remoteId,
       threadRemoteId: message.threadRemoteId ?? null,
       subject: message.subject ?? null,
@@ -640,37 +1269,66 @@ export class InboxService implements OnModuleInit {
       bccAddresses: this.normalizeAddressArray(message.bcc),
       replyToAddresses: [],
       direction: message.direction,
-      folder: message.folder ?? mailbox,
+      folder,
+      queue: { connect: { id: queueId } },
       isRead: message.isRead ?? false,
       isStarred: message.isStarred ?? false,
       isSpam: message.isSpam ?? false,
       hasAttachments: message.hasAttachments ?? false,
       sentAt: message.sentAt ?? null,
       receivedAt: message.receivedAt ?? null,
-      metadata: toJsonInput(message.metadata ?? null),
+      bodyHash: bodyHash ?? null,
+      metadata: toJsonInput(mergedMetadata ?? null),
     }
   }
 
   private buildMessageUpdateFromBody(
     body: ChannelMessageBody,
+    folder: string,
+    provider: string,
+    queueId: string,
+    bodyHash: string | null,
+    metadata: Record<string, unknown>,
+    queueResolution: QueueResolution,
   ): Prisma.InboxMessageUpdateInput {
+    const mergedMetadata = this.mergeMetadata(metadata, {
+      queue: queueResolution.slug,
+      queueRule: queueResolution.matchedRule,
+    })
     return {
+      provider,
       threadRemoteId: body.threadRemoteId ?? null,
       subject: body.subject ?? null,
       hasAttachments: (body.attachments?.length ?? 0) > 0,
       snippet: this.extractSnippet(body) ?? null,
       previewText: this.extractSnippet(body) ?? null,
-      metadata: toJsonUpdate(body.metadata),
+      folder,
+      queue: { connect: { id: queueId } },
+      bodyHash: bodyHash ?? undefined,
+      metadata: toJsonUpdate(mergedMetadata),
     }
   }
 
   private buildMessageCreateFromBody(
     account: InboxAccount,
     body: ChannelMessageBody,
+    folder: string,
+    provider: string,
+    messageUid: string,
+    queueId: string,
+    bodyHash: string | null,
+    metadata: Record<string, unknown>,
+    queueResolution: QueueResolution,
   ): Prisma.InboxMessageCreateInput {
+    const mergedMetadata = this.mergeMetadata(metadata, {
+      queue: queueResolution.slug,
+      queueRule: queueResolution.matchedRule,
+    })
     return {
       account: { connect: { id: account.id } },
       channel: account.channel,
+       provider,
+      messageUid,
       remoteId: body.remoteId,
       threadRemoteId: body.threadRemoteId ?? null,
       subject: body.subject ?? null,
@@ -681,20 +1339,33 @@ export class InboxService implements OnModuleInit {
       bccAddresses: [],
       replyToAddresses: [],
       direction: InboxMessageDirection.INBOUND,
-      folder: null,
+      folder,
+      queue: { connect: { id: queueId } },
       isRead: false,
       isStarred: false,
       isSpam: false,
       hasAttachments: (body.attachments?.length ?? 0) > 0,
-      metadata: toJsonInput(body.metadata ?? null),
+      metadata: toJsonInput(mergedMetadata ?? null),
+      bodyHash: bodyHash ?? null,
     }
   }
 
   private buildMessageUpdateFromSend(
     payload: SendMessagePayloadDto,
     result: ChannelSendMessageResult,
+    folder: string,
+    provider: string,
+    queueId: string,
+    bodyHash: string | null,
+    metadata: Record<string, unknown>,
+    queueResolution: QueueResolution,
   ): Prisma.InboxMessageUpdateInput {
+    const mergedMetadata = this.mergeMetadata(metadata, {
+      queue: queueResolution.slug,
+      queueRule: queueResolution.matchedRule,
+    })
     return {
+      provider,
       threadRemoteId: result.threadRemoteId ?? null,
       subject: payload.subject ?? null,
       snippet: this.buildOutgoingSnippet(payload) ?? null,
@@ -706,13 +1377,15 @@ export class InboxService implements OnModuleInit {
       bccAddresses: payload.bcc ?? [],
       replyToAddresses: payload.replyTo ?? [],
       direction: InboxMessageDirection.OUTBOUND,
-      folder: 'Sent',
+      folder,
+      queue: { connect: { id: queueId } },
       isRead: true,
       isStarred: false,
       isSpam: false,
       hasAttachments: (payload.attachments?.length ?? 0) > 0,
       sentAt: new Date(),
-      metadata: toJsonUpdate(this.mergeMetadata(payload.metadata, result.metadata)),
+      bodyHash: bodyHash ?? undefined,
+      metadata: toJsonUpdate(mergedMetadata),
     }
   }
 
@@ -720,10 +1393,23 @@ export class InboxService implements OnModuleInit {
     account: InboxAccount,
     payload: SendMessagePayloadDto,
     result: ChannelSendMessageResult,
+    folder: string,
+    provider: string,
+    messageUid: string,
+    queueId: string,
+    bodyHash: string | null,
+    metadata: Record<string, unknown>,
+    queueResolution: QueueResolution,
   ): Prisma.InboxMessageCreateInput {
+    const mergedMetadata = this.mergeMetadata(metadata, {
+      queue: queueResolution.slug,
+      queueRule: queueResolution.matchedRule,
+    })
     return {
       account: { connect: { id: account.id } },
       channel: account.channel,
+      provider,
+      messageUid,
       remoteId: result.remoteId,
       threadRemoteId: result.threadRemoteId ?? null,
       subject: payload.subject ?? null,
@@ -734,13 +1420,15 @@ export class InboxService implements OnModuleInit {
       bccAddresses: payload.bcc ?? [],
       replyToAddresses: payload.replyTo ?? [],
       direction: InboxMessageDirection.OUTBOUND,
-      folder: 'Sent',
+      folder,
+      queue: { connect: { id: queueId } },
       isRead: true,
       isStarred: false,
       isSpam: false,
       hasAttachments: (payload.attachments?.length ?? 0) > 0,
       sentAt: new Date(),
-      metadata: toJsonInput(this.mergeMetadata(payload.metadata, result.metadata)),
+      bodyHash: bodyHash ?? null,
+      metadata: toJsonInput(mergedMetadata ?? null),
       fromAddress: payload.fromAddress ?? null,
       fromName: payload.fromName ?? null,
     }
@@ -749,15 +1437,23 @@ export class InboxService implements OnModuleInit {
   private buildFlagUpdate(
     flags: ChannelSetFlagsInput,
     existingMetadata?: Record<string, unknown>,
+    queueResolution?: QueueResolution,
   ): Prisma.InboxMessageUpdateInput {
     const mergedMetadata = this.mergeMetadata(existingMetadata, flags.metadata ?? undefined)
+    const withQueue =
+      queueResolution != null
+        ? this.mergeMetadata(mergedMetadata ?? undefined, {
+            queue: queueResolution.slug,
+            queueRule: queueResolution.matchedRule,
+          })
+        : mergedMetadata
     return {
       isRead: flags.seen ?? undefined,
       isStarred: flags.starred ?? undefined,
       isSpam: flags.spam ?? undefined,
       metadata:
-        mergedMetadata !== undefined
-          ? toJsonUpdate(mergedMetadata)
+        withQueue !== undefined
+          ? toJsonUpdate(withQueue)
           : undefined,
     }
   }
@@ -767,11 +1463,29 @@ export class InboxService implements OnModuleInit {
     identifier: ChannelMessageIdentifier,
     flags?: ChannelSetFlagsInput,
     folder?: string,
+    provider?: string,
+    messageUid?: string,
+    queueId?: string,
+    queueResolution?: QueueResolution,
   ): Prisma.InboxMessageCreateInput {
-    const metadata = flags?.metadata
+    const effectiveFolder = this.resolveFolder(folder)
+    const providerValue = provider ?? this.resolveProvider(account)
+    const messageUidValue =
+      messageUid ??
+      deriveMessageUid({
+        provider: providerValue,
+        folder: effectiveFolder,
+        remoteId: identifier.remoteId,
+      })
+    const metadata = this.mergeMetadata(flags?.metadata, {
+      queue: queueResolution?.slug ?? this.queueRuleConfig.defaultQueue,
+      queueRule: queueResolution?.matchedRule ?? 'default',
+    })
     return {
       account: { connect: { id: account.id } },
       channel: account.channel,
+      provider: providerValue,
+      messageUid: messageUidValue,
       remoteId: identifier.remoteId,
       threadRemoteId: identifier.threadRemoteId ?? null,
       subject: null,
@@ -782,12 +1496,16 @@ export class InboxService implements OnModuleInit {
       bccAddresses: [],
       replyToAddresses: [],
       direction: InboxMessageDirection.INBOUND,
-      folder: folder ?? null,
+      folder: effectiveFolder,
+      queue: queueId
+        ? { connect: { id: queueId } }
+        : undefined,
       isRead: flags?.seen ?? false,
       isStarred: flags?.starred ?? false,
       isSpam: flags?.spam ?? false,
       hasAttachments: false,
       metadata: toJsonInput(metadata ?? null),
+      bodyHash: null,
     }
   }
 
@@ -971,4 +1689,6 @@ type SendMessagePayloadDto = {
   metadata?: Record<string, unknown>
   fromAddress?: string
   fromName?: string
+  queueId?: string
+  queueSlug?: string
 }
