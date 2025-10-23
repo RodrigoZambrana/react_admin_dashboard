@@ -1,6 +1,6 @@
 import { existsSync } from 'fs'
 import * as path from 'path'
-import { DEFAULT_CLIENT_SLUG } from './client-config.constants'
+import { BASE_CLIENT_SLUG, FALLBACK_CLIENT_SLUG } from './client-config.constants'
 import type { ClientVariantConfig } from './client-config.types'
 
 type PlainObject = Record<string, unknown>
@@ -56,7 +56,7 @@ const loadRawClientConfig = (
   const filePath = resolveClientConfigPath(slug)
 
   if (!filePath) {
-    if (slug !== DEFAULT_CLIENT_SLUG) {
+    if (slug !== BASE_CLIENT_SLUG) {
       // eslint-disable-next-line no-console
       console.warn(
         `[client-config] No se encontró configuración para el cliente "${slug}". Se utilizará la variante base.`,
@@ -91,11 +91,11 @@ export const loadClientConfig = (
   explicitSlug?: string,
 ): ClientVariantConfig => {
   const resolvedSlug =
-    explicitSlug || process.env.CLIENT_SLUG || DEFAULT_CLIENT_SLUG
+    explicitSlug || process.env.CLIENT_SLUG || FALLBACK_CLIENT_SLUG
 
-  const baseConfig = loadRawClientConfig(DEFAULT_CLIENT_SLUG)
+  const baseConfig = loadRawClientConfig(BASE_CLIENT_SLUG)
   const overrideConfig =
-    resolvedSlug === DEFAULT_CLIENT_SLUG
+    resolvedSlug === BASE_CLIENT_SLUG
       ? {}
       : loadRawClientConfig(resolvedSlug)
 
