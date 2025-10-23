@@ -25,6 +25,7 @@ import type Mail from 'nodemailer/lib/mailer'
 import MailComposer = require('nodemailer/lib/mail-composer')
 import type SMTPTransport from 'nodemailer/lib/smtp-transport'
 import { simpleParser, type ParsedMail, type AddressObject as MailParserAddress } from 'mailparser'
+import { buildThreadKey, normalizeThreadingHeaders } from './email-threading'
 
 type NormalizedAddress = {
   address: string
@@ -707,6 +708,22 @@ export class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
 
     const parsed = await this.safeParseMessage(message.source)
 
+    const threading = normalizeThreadingHeaders({
+      messageId: envelope.messageId,
+      inReplyTo: envelope.inReplyTo,
+      references: Array.isArray(envelope.references)
+        ? envelope.references.map((value) => (value ? value.toString() : value))
+        : [],
+      threadRemoteId: message.threadId ? message.threadId.toString() : null,
+    })
+    const threadKey = buildThreadKey(threading)
+
+    if (!threading.messageId) {
+      this.logger.debug(
+        `Message UID ${message.uid} in mailbox ${mailbox} is missing Message-ID header`,
+      )
+    }
+
     const from =
       this.extractSingleAddress(envelope.from) ||
       this.extractSingleParsedAddress(parsed?.from?.value)
@@ -753,8 +770,10 @@ export class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
       metadata: {
         mailbox,
         size: message.size,
-        messageId: envelope.messageId,
-        inReplyTo: envelope.inReplyTo,
+        messageId: threading.messageId,
+        inReplyTo: threading.inReplyTo,
+        references: threading.references,
+        threadKey,
         previewText: previewText ?? null,
         snippet: snippet ?? null,
         bodyHtml: parsed?.html ?? null,

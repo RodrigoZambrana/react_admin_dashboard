@@ -17,7 +17,12 @@ import {
 } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { ChannelRegistry } from './registry/channel-registry'
-import { deriveMessageUid, hashMessageBody, normalizeFolder } from './common/message-identity'
+import {
+  deriveMessageUid,
+  hashMessageBody,
+  normalizeFolder,
+  normalizeMessageId,
+} from './common/message-identity'
 import { resolveQueueSlug, type QueueResolution, type QueueRuleConfig } from './common/queue-classifier'
 import { InboxEventsService, type InboxStreamFilter } from './events/inbox-events.service'
 import type {
@@ -808,10 +813,13 @@ export class InboxService implements OnModuleInit {
       for (const message of messages) {
         const folder = this.resolveFolder(message.folder ?? mailbox)
         const metadata = this.extractListMetadata(message)
+        const metadataMessageId = normalizeMessageId(
+          this.extractMetadataString(metadata, 'messageId'),
+        )
         const messageUid = deriveMessageUid({
           provider,
           folder,
-          messageId: this.extractMetadataString(metadata, 'messageId'),
+          messageId: metadataMessageId,
           gmailId: this.extractMetadataString(metadata, 'gmailId'),
           remoteId: message.remoteId,
           headers: this.extractHeaderMap(metadata),
@@ -850,6 +858,15 @@ export class InboxService implements OnModuleInit {
         let record: InboxMessage & { queue?: { id: string; slug: string; name: string } | null }
 
         if (existingByRemote) {
+          if (existingByRemote.messageUid !== messageUid) {
+            this.logger.warn('Inbox message remoteId deduplicated with new messageUid', {
+              accountId: account.id,
+              mailbox: folder,
+              remoteId: message.remoteId,
+              previousMessageUid: existingByRemote.messageUid,
+              nextMessageUid: messageUid,
+            })
+          }
           record = await tx.inboxMessage.update({
             where: { id: existingByRemote.id },
             data: this.buildMessageUpdateFromListItem(
@@ -896,6 +913,14 @@ export class InboxService implements OnModuleInit {
             ),
             include: { queue: true },
           })
+          if (record.createdAt.getTime() !== record.updatedAt.getTime()) {
+            this.logger.warn('Inbox message deduplicated by messageUid upsert', {
+              accountId: account.id,
+              mailbox: folder,
+              remoteId: message.remoteId,
+              messageUid,
+            })
+          }
         }
         persisted.push(record)
       }

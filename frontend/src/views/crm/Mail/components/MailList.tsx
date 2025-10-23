@@ -286,8 +286,7 @@ const MailList = () => {
             if (mail.messageUid) {
                 candidates.push(`uid:${String(mail.messageUid)}`)
             }
-            const remoteIdRaw = (mail as { remoteId?: string | number | null })
-                ?.remoteId
+            const remoteIdRaw = (mail as { remoteId?: string | number | null })?.remoteId
             if (remoteIdRaw !== undefined && remoteIdRaw !== null) {
                 const remoteId = String(remoteIdRaw).trim()
                 if (remoteId) {
@@ -295,6 +294,19 @@ const MailList = () => {
                 }
             }
             const metadata = (mail.metadata ?? {}) as Record<string, unknown>
+            const metadataThreadKey = (() => {
+                const raw = metadata.threadKey
+                if (typeof raw === 'string') {
+                    const normalized = normalizeString(raw)
+                    if (normalized) {
+                        return normalized
+                    }
+                }
+                return null
+            })()
+            if (metadataThreadKey) {
+                candidates.push(`thread:${metadataThreadKey}`)
+            }
             const metadataMessageId = (() => {
                 const direct = metadata.messageId
                 if (typeof direct === 'string' && direct.trim()) {
@@ -558,7 +570,7 @@ const MailList = () => {
                             )
                             return (
                                 <div
-                                    key={mail.id}
+                                    key={mail.messageUid ?? mail.remoteId ?? mail.id}
                                     className={classNames(
                                         'relative flex border-b border-gray-200 dark:border-gray-600 last:border-0 hover:bg-hover',
                                         isSelected && 'bg-gray-50 dark:bg-gray-700',

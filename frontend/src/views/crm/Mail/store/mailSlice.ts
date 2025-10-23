@@ -319,20 +319,20 @@ const mergeMailboxMessages = (
     const result = new Map<string, InboxMessageSummaryDto>()
     if (mode === 'append') {
         existing.forEach((message) => {
-            const key = message.messageUid ?? message.id
+            const key = message.messageUid ?? message.remoteId ?? message.id
             result.set(key, message)
         })
         incoming.forEach((message) => {
-            const key = message.messageUid ?? message.id
+            const key = message.messageUid ?? message.remoteId ?? message.id
             result.set(key, message)
         })
     } else {
         incoming.forEach((message) => {
-            const key = message.messageUid ?? message.id
+            const key = message.messageUid ?? message.remoteId ?? message.id
             result.set(key, message)
         })
         existing.forEach((message) => {
-            const key = message.messageUid ?? message.id
+            const key = message.messageUid ?? message.remoteId ?? message.id
             if (!result.has(key)) {
                 result.set(key, message)
             }

@@ -38,19 +38,15 @@ export function deriveMessageUid(input: MessageIdentityInput): string {
 }
 
 function deriveBaseIdentifier(input: MessageIdentityInput) {
-  const normalized = normalizeMessageId(input.messageId)
+  const normalized = normalizeMessageId(input.messageId || input.headers?.['message-id'])
   if (normalized) {
     return `mid:${normalized}`
   }
-  if (input.gmailId) {
-    return `gmail:${input.gmailId}`
-  }
-  const headerId = normalizeMessageId(input.headers?.['message-id'])
-  if (headerId) {
-    return `hdr:${headerId}`
-  }
   if (input.remoteId) {
     return `remote:${String(input.remoteId).trim()}`
+  }
+  if (input.gmailId) {
+    return `gmail:${input.gmailId}`
   }
   const hashSource = JSON.stringify({
     provider: input.provider,
@@ -60,7 +56,7 @@ function deriveBaseIdentifier(input: MessageIdentityInput) {
   return `hash:${sha1(hashSource)}`
 }
 
-function normalizeMessageId(messageId?: string | null) {
+export function normalizeMessageId(messageId?: string | null) {
   if (!messageId) {
     return null
   }

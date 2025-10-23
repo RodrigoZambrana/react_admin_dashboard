@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { deriveMessageUid, hashMessageBody, normalizeFolder } from '../message-identity'
+import {
+  deriveMessageUid,
+  hashMessageBody,
+  normalizeFolder,
+  normalizeMessageId,
+} from '../message-identity'
 
 describe('normalizeFolder', () => {
   it('normalizes undefined folder to inbox', () => {
@@ -21,7 +26,15 @@ describe('deriveMessageUid', () => {
     expect(uid).toBe('gmail:inbox:mid:abc@acme.com')
   })
 
-  it('falls back to gmail id', () => {
+  it('falls back to remote id before gmail id', () => {
+    const remoteFirst = deriveMessageUid({
+      provider: 'gmail',
+      folder: 'Sales',
+      gmailId: '178234',
+      remoteId: '42',
+    })
+    expect(remoteFirst).toBe('gmail:sales:remote:42')
+
     const uid = deriveMessageUid({
       provider: 'gmail',
       folder: 'Sales',
@@ -47,6 +60,17 @@ describe('deriveMessageUid', () => {
       bodyText: 'Hello',
     })
     expect(uid.startsWith('imap:inbox:hash:')).toBe(true)
+  })
+})
+
+describe('normalizeMessageId', () => {
+  it('normalizes angle brackets and casing', () => {
+    expect(normalizeMessageId('<Foo@Example.com>')).toBe('foo@example.com')
+  })
+
+  it('returns null for empty values', () => {
+    expect(normalizeMessageId('')).toBeNull()
+    expect(normalizeMessageId(undefined)).toBeNull()
   })
 })
 

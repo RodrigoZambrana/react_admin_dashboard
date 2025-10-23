@@ -69,6 +69,17 @@ export const buildConversationKey = (mail?: Partial<Mail>) => {
         const key = `thread:${threadId}`
         return key
     }
+    const metadataThreadKey = (() => {
+        const metadata = mail.metadata as Record<string, unknown> | undefined | null
+        if (!metadata || typeof metadata !== 'object') {
+            return ''
+        }
+        const raw = metadata.threadKey
+        return typeof raw === 'string' ? normalizeString(raw) : ''
+    })()
+    if (metadataThreadKey) {
+        return `thread:${metadataThreadKey}`
+    }
     if (subjectNorm) {
         const key = `queue:${subjectNorm}`
         return key
