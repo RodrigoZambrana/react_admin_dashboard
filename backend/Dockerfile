@@ -26,7 +26,7 @@ COPY backend/package*.json ./
 COPY --from=build /app/dist ./dist
 COPY backend/prisma ./prisma
 COPY --from=build /app/scripts ./scripts
-COPY shared ./shared
+COPY --from=build /app/shared ./shared
 RUN npm prune --omit=dev
 EXPOSE 3000
 CMD ["node", "dist/src/main.js"]
