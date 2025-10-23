@@ -16,8 +16,8 @@ services:
   frontend:
     <<: *frontend-common
     build:
-      context: ../frontend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: frontend/Dockerfile
     ports:
       - "8080:80"
     environment:
@@ -28,8 +28,8 @@ services:
   backend:
     <<: *backend-common
     build:
-      context: ../backend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: backend/Dockerfile
     ports:
       - "4000:3000"
 

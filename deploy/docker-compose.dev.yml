@@ -33,8 +33,8 @@ services:
     <<: *backend-common
     container_name: dashboard-backend-dev
     build:
-      context: ../backend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: backend/Dockerfile
       target: runtime
     working_dir: /app
     command: >
@@ -71,8 +71,8 @@ services:
   frontend:
     <<: *frontend-common
     build:
-      context: ../frontend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: frontend/Dockerfile
       target: runtime
     container_name: dashboard-frontend-dev
     environment:
