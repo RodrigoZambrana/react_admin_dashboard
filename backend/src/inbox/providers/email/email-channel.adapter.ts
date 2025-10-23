@@ -710,10 +710,8 @@ export class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
 
     const threading = normalizeThreadingHeaders({
       messageId: envelope.messageId,
-      inReplyTo: envelope.inReplyTo,
-      references: Array.isArray(envelope.references)
-        ? envelope.references.map((value) => (value ? value.toString() : value))
-        : [],
+      inReplyTo: this.extractThreadInReplyTo(envelope, parsed),
+      references: this.extractThreadReferences(parsed),
       threadRemoteId: message.threadId ? message.threadId.toString() : null,
     })
     const threadKey = buildThreadKey(threading)
@@ -972,6 +970,40 @@ export class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
       .replace(/&amp;/gi, '&')
       .replace(/&lt;/gi, '<')
       .replace(/&gt;/gi, '>')
+  }
+
+  private extractThreadInReplyTo(
+    envelope?: FetchMessageObject['envelope'],
+    parsed?: ParsedMail,
+  ): string | null {
+    const envelopeValue = envelope?.inReplyTo
+    if (envelopeValue) {
+      return envelopeValue.toString()
+    }
+
+    const parsedValue = parsed?.inReplyTo
+    if (!parsedValue) {
+      return null
+    }
+
+    if (Array.isArray(parsedValue)) {
+      const first = parsedValue.find((value) => Boolean(value))
+      return first ? first.toString() : null
+    }
+
+    return parsedValue ? parsedValue.toString() : null
+  }
+
+  private extractThreadReferences(parsed?: ParsedMail): Array<string | null | undefined> {
+    if (!parsed || !parsed.references) {
+      return []
+    }
+
+    if (Array.isArray(parsed.references)) {
+      return parsed.references.map((value) => (value ? value.toString() : value))
+    }
+
+    return [parsed.references ? parsed.references.toString() : parsed.references]
   }
 
   private extractHeaders(parsed?: ParsedMail) {
