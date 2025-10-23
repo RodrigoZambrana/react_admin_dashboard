@@ -14,6 +14,7 @@ export default defineConfig({
   }),
   dynamicImport()],
   assetsInclude: ['**/*.md'],
+  envPrefix: ['VITE_', 'CLIENT_'],
   resolve: {
     alias: {
       '@': path.join(__dirname, 'src'),

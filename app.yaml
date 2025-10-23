@@ -119,7 +119,7 @@ services:
     http_port: 80
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-0.5gb
-    source_dir: frontend
+    source_dir: .
 
   - name: react-admin-dashboard-backend
     dockerfile_path: backend/Dockerfile
@@ -141,4 +141,4 @@ services:
     http_port: 3000
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-0.5gb
-    source_dir: backend
+    source_dir: .

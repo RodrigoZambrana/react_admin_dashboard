@@ -33,8 +33,11 @@ services:
     <<: *backend-common
     container_name: dashboard-backend-dev
     build:
-      context: ../backend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: backend/Dockerfile
+      # Ajusta CLIENT_SLUG para ejecutar una variante específica (por ejemplo urucortinas)
+      args:
+        CLIENT_SLUG: ${CLIENT_SLUG:-core}
       target: runtime
     working_dir: /app
     command: >
@@ -71,8 +74,11 @@ services:
   frontend:
     <<: *frontend-common
     build:
-      context: ../frontend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: frontend/Dockerfile
+      # Ajusta VITE_CLIENT_SLUG para construir una variante específica (por ejemplo urucortinas)
+      args:
+        VITE_CLIENT_SLUG: ${VITE_CLIENT_SLUG:-core}
       target: runtime
     container_name: dashboard-frontend-dev
     environment:

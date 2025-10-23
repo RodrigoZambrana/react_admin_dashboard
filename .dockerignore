@@ -1,0 +1,10 @@
+# Global dockerignore to support builds with repository root as context
+.git
+.gitignore
+**/node_modules
+**/dist
+**/build
+**/.next
+**/coverage
+**/.turbo
+**/.cache
