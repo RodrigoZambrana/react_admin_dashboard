@@ -3,6 +3,48 @@ import type { Mail } from '../store'
 export const normalizeString = (value?: string | null) =>
     (value ?? '').trim().toLowerCase()
 
+export const normalizeMessageIdentifier = (value?: string | null) => {
+    if (!value) {
+        return ''
+    }
+    return normalizeString(value.replace(/[<>]/g, ''))
+}
+
+export const extractMetadata = (mail?: Partial<Mail>) => {
+    if (!mail) {
+        return null
+    }
+    const metadata = mail.metadata
+    return metadata && typeof metadata === 'object'
+        ? (metadata as Record<string, unknown>)
+        : null
+}
+
+export const extractMetadataIdentifier = (
+    metadata: Record<string, unknown>,
+    key: string,
+) => {
+    const raw = metadata[key]
+    if (typeof raw === 'string') {
+        const normalized = normalizeMessageIdentifier(raw)
+        return normalized || ''
+    }
+    return ''
+}
+
+export const extractMetadataReferences = (metadata: Record<string, unknown>) => {
+    const raw = metadata.references
+    if (!raw) {
+        return []
+    }
+    const values = Array.isArray(raw) ? raw : [raw]
+    return values
+        .map((value) =>
+            typeof value === 'string' ? normalizeMessageIdentifier(value) : '',
+        )
+        .filter((value): value is string => Boolean(value))
+}
+
 const SUBJECT_PREFIXES = [
     're',
     'fw',
@@ -69,16 +111,29 @@ export const buildConversationKey = (mail?: Partial<Mail>) => {
         const key = `thread:${threadId}`
         return key
     }
-    const metadataThreadKey = (() => {
-        const metadata = mail.metadata as Record<string, unknown> | undefined | null
-        if (!metadata || typeof metadata !== 'object') {
+    const metadata = extractMetadata(mail)
+    if (metadata) {
+        const metadataThreadKey = (() => {
+            const raw = metadata.threadKey
+            if (typeof raw === 'string') {
+                const normalized = normalizeString(raw)
+                if (normalized) {
+                    return normalized
+                }
+            }
             return ''
+        })()
+        if (metadataThreadKey) {
+            return `thread:${metadataThreadKey}`
         }
-        const raw = metadata.threadKey
-        return typeof raw === 'string' ? normalizeString(raw) : ''
-    })()
-    if (metadataThreadKey) {
-        return `thread:${metadataThreadKey}`
+        const metadataInReplyTo = extractMetadataIdentifier(metadata, 'inReplyTo')
+        if (metadataInReplyTo) {
+            return `thread:${metadataInReplyTo}`
+        }
+        const metadataReferences = extractMetadataReferences(metadata)
+        if (metadataReferences.length > 0) {
+            return `thread:${metadataReferences[metadataReferences.length - 1]}`
+        }
     }
     if (subjectNorm) {
         const key = `queue:${subjectNorm}`

@@ -31,7 +31,14 @@ import { useTranslation } from 'react-i18next'
 import type { MouseEvent } from 'react'
 import type { Mail } from '../store'
 import { getAttachmentIcon } from '../utils/attachments'
-import { buildConversationKey, normalizeString } from '../utils/conversations'
+import {
+    buildConversationKey,
+    extractMetadata,
+    extractMetadataIdentifier,
+    extractMetadataReferences,
+    normalizeMessageIdentifier,
+    normalizeString,
+} from '../utils/conversations'
 import { upsertMailLocalState } from '../utils/localMailState'
 
 type AggregatedMail = Mail & {
@@ -293,7 +300,7 @@ const MailList = () => {
                     candidates.push(`remote:${remoteId}`)
                 }
             }
-            const metadata = (mail.metadata ?? {}) as Record<string, unknown>
+            const metadata = extractMetadata(mail) ?? {}
             const metadataThreadKey = (() => {
                 const raw = metadata.threadKey
                 if (typeof raw === 'string') {
@@ -324,12 +331,22 @@ const MailList = () => {
                 return null
             })()
             if (metadataMessageId) {
-                const normalized = normalizeString(
-                    metadataMessageId.replace(/[<>]/g, ''),
-                )
+                const normalized = normalizeMessageIdentifier(metadataMessageId)
                 if (normalized) {
                     candidates.push(`message-id:${normalized}`)
                 }
+            }
+            const metadataInReplyTo = extractMetadataIdentifier(metadata, 'inReplyTo')
+            if (metadataInReplyTo) {
+                candidates.push(`thread:${metadataInReplyTo}`)
+                candidates.push(`message-id:${metadataInReplyTo}`)
+            }
+            const metadataReferences = extractMetadataReferences(metadata)
+            if (metadataReferences.length > 0) {
+                metadataReferences.forEach((reference) => {
+                    candidates.push(`thread:${reference}`)
+                    candidates.push(`message-id:${reference}`)
+                })
             }
             const gmailId = (() => {
                 const value = metadata.gmailId ?? metadata.gmail_id
