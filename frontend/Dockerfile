@@ -7,7 +7,7 @@ RUN npm install --legacy-peer-deps
 
 FROM deps AS build
 WORKDIR /app/frontend
-ARG VITE_CLIENT_SLUG=core
+ARG VITE_CLIENT_SLUG=urucortinas
 ENV VITE_CLIENT_SLUG=${VITE_CLIENT_SLUG}
 COPY frontend ./
 COPY --from=deps /app/frontend/node_modules ./node_modules

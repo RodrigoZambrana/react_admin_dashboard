@@ -35,9 +35,9 @@ services:
     build:
       context: ..
       dockerfile: backend/Dockerfile
-      # Ajusta CLIENT_SLUG para ejecutar otra variante (por ejemplo urucortinas)
+      # Ajusta CLIENT_SLUG para ejecutar otra variante (por ejemplo core)
       args:
-        CLIENT_SLUG: ${CLIENT_SLUG:-core}
+        CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
       target: runtime
     working_dir: /app
     command: >
@@ -76,9 +76,9 @@ services:
     build:
       context: ..
       dockerfile: frontend/Dockerfile
-      # Ajusta VITE_CLIENT_SLUG para construir la variante deseada
+      # Ajusta VITE_CLIENT_SLUG para construir la variante deseada (por ejemplo core)
       args:
-        VITE_CLIENT_SLUG: ${VITE_CLIENT_SLUG:-core}
+        VITE_CLIENT_SLUG: ${VITE_CLIENT_SLUG:-urucortinas}
       target: runtime
     container_name: dashboard-frontend-dev
     environment:
