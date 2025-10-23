@@ -19,8 +19,8 @@ services:
     <<: *frontend-common
     image: ${FRONTEND_IMAGE:-ghcr.io/ORG/REPO-frontend:${IMAGE_TAG:-latest}}
     build:
-      context: ..
-      dockerfile: frontend/Dockerfile
+      context: ../frontend
+      dockerfile: Dockerfile
       # Exporta VITE_CLIENT_SLUG antes del build para elegir una variante específica (e.g. urucortinas)
       args:
         VITE_CLIENT_SLUG: ${VITE_CLIENT_SLUG:-core}
@@ -35,8 +35,8 @@ services:
     <<: *backend-common
     image: ${BACKEND_IMAGE:-ghcr.io/ORG/REPO-backend:${IMAGE_TAG:-latest}}
     build:
-      context: ..
-      dockerfile: backend/Dockerfile
+      context: ../backend
+      dockerfile: Dockerfile
       # Exporta CLIENT_SLUG para seleccionar una configuración específica de cliente (e.g. urucortinas)
       args:
         CLIENT_SLUG: ${CLIENT_SLUG:-core}

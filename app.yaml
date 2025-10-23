@@ -111,7 +111,7 @@ ingress:
 
 services:
   - name: react-admin-dashboard-frontend
-    dockerfile_path: frontend/Dockerfile
+    dockerfile_path: Dockerfile
     github:
       repo: RodrigoZambrana/react_admin_dashboard
       branch: deploy_digital_ocean_and_github
@@ -119,10 +119,10 @@ services:
     http_port: 80
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-0.5gb
-    source_dir: .
+    source_dir: frontend
 
   - name: react-admin-dashboard-backend
-    dockerfile_path: backend/Dockerfile
+    dockerfile_path: Dockerfile
     envs:
       - key: DATABASE_URL
         scope: RUN_TIME
@@ -141,4 +141,4 @@ services:
     http_port: 3000
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-0.5gb
-    source_dir: .
+    source_dir: backend

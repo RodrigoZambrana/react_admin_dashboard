@@ -2,16 +2,15 @@
 
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY backend/package*.json ./
-COPY backend/prisma ./prisma
+COPY package*.json ./
+COPY prisma ./prisma
 RUN npm install --legacy-peer-deps
 
 FROM deps AS build
 WORKDIR /app
 ARG CLIENT_SLUG=core
 ENV CLIENT_SLUG=${CLIENT_SLUG}
-COPY backend ./
-COPY shared ./shared
+COPY . .
 ENV DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public
 RUN npm run prisma:generate && npm run build
 
@@ -22,11 +21,10 @@ ARG CLIENT_SLUG=core
 ENV CLIENT_SLUG=${CLIENT_SLUG}
 RUN apk add --no-cache postgresql-client
 COPY --from=deps /app/node_modules ./node_modules
-COPY backend/package*.json ./
+COPY package*.json ./
 COPY --from=build /app/dist ./dist
-COPY backend/prisma ./prisma
+COPY prisma ./prisma
 COPY --from=build /app/scripts ./scripts
-COPY --from=build /app/shared ./shared
 RUN npm prune --omit=dev
 EXPOSE 3000
 CMD ["node", "dist/src/main.js"]
