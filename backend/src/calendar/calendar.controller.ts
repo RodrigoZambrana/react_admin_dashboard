@@ -80,6 +80,13 @@ export class CalendarController {
     }
   }
 
+  private toPrismaBytes(bytes: Buffer | Uint8Array): Uint8Array<ArrayBuffer> {
+    if (Buffer.isBuffer(bytes)) {
+      return Uint8Array.from(bytes) as Uint8Array<ArrayBuffer>
+    }
+    return bytes as Uint8Array<ArrayBuffer>
+  }
+
   private extractAttachmentPayload(
     input: unknown,
   ): {
@@ -350,7 +357,7 @@ export class CalendarController {
             name: attachment.name,
             mimeType: attachment.mimeType,
             size: attachment.size,
-            content: attachment.content,
+            content: this.toPrismaBytes(attachment.content),
           })),
         })
       }
@@ -416,7 +423,7 @@ export class CalendarController {
               name: attachment.name,
               mimeType: attachment.mimeType,
               size: attachment.size,
-              content: attachment.content,
+              content: this.toPrismaBytes(attachment.content),
             })),
           })
         }
