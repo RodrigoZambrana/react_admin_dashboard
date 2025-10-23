@@ -15,6 +15,7 @@ export type LocalMailState = {
 type MailIdentity = {
     id?: string | number | null
     remoteId?: string | number | null
+    messageUid?: string | null
 }
 
 const isBrowser = () =>
@@ -75,6 +76,9 @@ const writeCache = () => {
 }
 
 export const getMailPersistenceKey = (identity: MailIdentity) => {
+    if (identity.messageUid) {
+        return `uid:${identity.messageUid}`
+    }
     if (identity.remoteId !== undefined && identity.remoteId !== null) {
         return `remote:${String(identity.remoteId)}`
     }

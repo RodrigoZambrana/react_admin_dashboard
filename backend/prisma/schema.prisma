@@ -588,6 +588,8 @@ model InboxMessage {
   accountId        String
   account          InboxAccount           @relation(fields: [accountId], references: [id], onDelete: Cascade)
   channel          InboxChannelType
+  provider         String                 @default("generic")
+  messageUid       String
   remoteId         String
   threadRemoteId   String?
   subject          String?
@@ -601,12 +603,15 @@ model InboxMessage {
   replyToAddresses String[]
   direction        InboxMessageDirection
   folder           String?
+  queueId          String?
+  queue            InboxQueue?            @relation(fields: [queueId], references: [id], onDelete: SetNull)
   isRead           Boolean                @default(false)
   isStarred        Boolean                @default(false)
   isSpam           Boolean                @default(false)
   hasAttachments   Boolean                @default(false)
   sentAt           DateTime?
   receivedAt       DateTime?
+  bodyHash         String?
   metadata         Json?
   attachments      InboxAttachment[]
   events           InboxMessageEvent[]
@@ -614,9 +619,11 @@ model InboxMessage {
   updatedAt        DateTime               @updatedAt
 
   @@unique([accountId, channel, remoteId])
+  @@unique([messageUid, provider, folder])
   @@index([accountId, folder])
   @@index([accountId, isRead])
   @@index([accountId, sentAt])
+  @@index([queueId, receivedAt])
 }
 
 model InboxAttachment {
@@ -644,6 +651,18 @@ model InboxSyncState {
   updatedAt  DateTime         @updatedAt
 
   @@unique([accountId, channel, folder])
+}
+
+model InboxQueue {
+  id          String         @id @default(cuid())
+  slug        String         @unique
+  name        String
+  description String?
+  rules       Json?
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  messages    InboxMessage[]
 }
 
 model InboxMessageEvent {

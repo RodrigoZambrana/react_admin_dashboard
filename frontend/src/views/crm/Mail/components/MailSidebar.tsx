@@ -84,9 +84,9 @@ const MailSideBarContent = () => {
         return inboxMailboxesByAccount[selectedInboxAccountId] ?? []
     }, [selectedInboxAccountId, inboxMailboxesByAccount])
 
-    const dynamicMailboxGroups = useMemo<Group[]>(
-        () =>
-            accountMailboxes.map((mailbox) => {
+    const mapMailboxesToGroups = useCallback(
+        (mailboxes: InboxMailboxDto[]): Group[] =>
+            mailboxes.map((mailbox) => {
                 const fallbackLabel = mailbox.label || mailbox.id
                 const staticCategory = findStaticCategory(mailbox.id)
                 const normalizedId = normalizeMailboxKey(mailbox.id)
@@ -108,10 +108,15 @@ const MailSideBarContent = () => {
                     icon,
                 }
             }),
-        [accountMailboxes],
+        [],
     )
 
-    const dynamicMailboxMap = useMemo<Record<string, Group>>(() => {
+    const dynamicMailboxGroups = useMemo<Group[]>(
+        () => mapMailboxesToGroups(accountMailboxes),
+        [accountMailboxes, mapMailboxesToGroups],
+    )
+
+    const mailboxGroupMap = useMemo<Record<string, Group>>(() => {
         return dynamicMailboxGroups.reduce<Record<string, Group>>(
             (acc, mailbox) => {
                 const normalized = normalizeMailboxKey(mailbox.value)
@@ -137,6 +142,30 @@ const MailSideBarContent = () => {
     const direction = useAppSelector((state) => state.theme.direction)
 
     useEffect(() => {
+        const normalizedSelected = normalizeMailboxKey(
+            selectedCategory.value ? String(selectedCategory.value) : '',
+        )
+        if (!normalizedSelected) {
+            return
+        }
+        const mapped =
+            mailboxGroupMap[normalizedSelected] ??
+            mailboxGroupMap[selectedCategory.value as string]
+        if (
+            mapped &&
+            typeof mapped.value === 'string' &&
+            mapped.value !== selectedInboxMailboxId
+        ) {
+            dispatch(setSelectedInboxMailbox(mapped.value))
+        }
+    }, [
+        dispatch,
+        mailboxGroupMap,
+        selectedCategory.value,
+        selectedInboxMailboxId,
+    ])
+
+    useEffect(() => {
         if (!inboxAccountsLoading && inboxAccounts.length === 0) {
             dispatch(fetchInboxAccounts())
         }
@@ -156,12 +185,6 @@ const MailSideBarContent = () => {
         dispatch(fetchInboxMailboxes({ accountId: selectedInboxAccountId }))
     }, [dispatch, selectedInboxAccountId, selectedMailboxesStatus])
 
-    useEffect(() => {
-        if (!selectedInboxMailboxId && dynamicMailboxGroups.length > 0) {
-            dispatch(setSelectedInboxMailbox(dynamicMailboxGroups[0].value))
-        }
-    }, [dispatch, selectedInboxMailboxId, dynamicMailboxGroups])
-
     const getCategory = useCallback(
         (value: string) => {
             let category = value
@@ -170,7 +193,7 @@ const MailSideBarContent = () => {
             }
             const normalizedCategory = normalizeMailboxKey(category)
             const dynamicMatch =
-                (normalizedCategory && dynamicMailboxMap[normalizedCategory]) ??
+                (normalizedCategory && mailboxGroupMap[normalizedCategory]) ??
                 dynamicMailboxGroups.find(
                     (mailbox) =>
                         normalizeMailboxKey(mailbox.value) === normalizedCategory,
@@ -211,12 +234,7 @@ const MailSideBarContent = () => {
                 label: translateMailboxLabel(category, category),
             }
         },
-        [
-            dynamicMailboxGroups,
-            dynamicMailboxMap,
-            translateMailboxLabel,
-            t,
-        ],
+        [dynamicMailboxGroups, mailboxGroupMap, translateMailboxLabel, t],
     )
 
     const onMenuClick = (category: Group | Label) => {
@@ -228,7 +246,7 @@ const MailSideBarContent = () => {
         )
         if (
             normalizedKey &&
-            dynamicMailboxMap[normalizedKey] &&
+            mailboxGroupMap[normalizedKey] &&
             typeof normalized.value === 'string'
         ) {
             dispatch(setSelectedInboxMailbox(normalized.value))
@@ -265,8 +283,8 @@ const MailSideBarContent = () => {
     const resolveMenuLabel = (menu: Group) => {
         const normalized = normalizeMailboxKey(menu.value)
         const dynamicMatch =
-            (normalized && dynamicMailboxMap[normalized]) ||
-            dynamicMailboxMap[menu.value]
+            (normalized && mailboxGroupMap[normalized]) ||
+            mailboxGroupMap[menu.value]
         const translationSource =
             dynamicMatch?.translationValue ?? menu.translationValue ?? menu.value
         const fallbackLabel =
