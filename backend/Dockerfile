@@ -1,33 +1,32 @@
 # syntax=docker/dockerfile:1
 
 FROM node:20-alpine AS deps
-WORKDIR /app/backend
+WORKDIR /app
 COPY backend/package*.json ./
 COPY backend/prisma ./prisma
 RUN npm install --legacy-peer-deps
 
 FROM deps AS build
 WORKDIR /app
-COPY backend ./backend
+ARG CLIENT_SLUG=core
+ENV CLIENT_SLUG=${CLIENT_SLUG}
+COPY backend ./
 COPY shared ./shared
-WORKDIR /app/backend
-ARG CLIENT_SLUG=urucortinas
-ENV DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public \
-    CLIENT_SLUG=$CLIENT_SLUG
+ENV DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public
 RUN npm run prisma:generate && npm run build
 
 FROM node:20-alpine AS runtime
-WORKDIR /app/backend
+WORKDIR /app
 ENV NODE_ENV=production
+ARG CLIENT_SLUG=core
+ENV CLIENT_SLUG=${CLIENT_SLUG}
 RUN apk add --no-cache postgresql-client
-COPY --from=deps /app/backend/node_modules ./node_modules
+COPY --from=deps /app/node_modules ./node_modules
 COPY backend/package*.json ./
-ARG CLIENT_SLUG=urucortinas
-ENV CLIENT_SLUG=$CLIENT_SLUG
-COPY --from=build /app/backend/dist ./dist
+COPY --from=build /app/dist ./dist
 COPY backend/prisma ./prisma
-COPY --from=build /app/shared ../shared
-COPY --from=build /app/backend/scripts ./scripts
+COPY --from=build /app/scripts ./scripts
+COPY shared ./shared
 RUN npm prune --omit=dev
 EXPOSE 3000
 CMD ["node", "dist/src/main.js"]

@@ -123,6 +123,12 @@ export class ExpensesController {
     return { keepIds: Array.from(keepIds), newAttachments, provided: true }
   }
 
+  private toPrismaBytes(buffer: Buffer): Uint8Array<ArrayBuffer> {
+    const bytes = new Uint8Array(buffer.length)
+    bytes.set(buffer)
+    return bytes
+  }
+
   private serializeAttachments(
     attachments: {
       id: number
@@ -810,7 +816,7 @@ export class ExpensesController {
             name: attachment.name,
             mimeType: attachment.mimeType,
             size: attachment.size,
-            content: attachment.content,
+            content: this.toPrismaBytes(attachment.content),
           })),
         })
       }
@@ -929,7 +935,7 @@ export class ExpensesController {
               name: attachment.name,
               mimeType: attachment.mimeType,
               size: attachment.size,
-              content: attachment.content,
+              content: this.toPrismaBytes(attachment.content),
             })),
           })
         }

@@ -16,29 +16,28 @@ services:
   frontend:
     <<: *frontend-common
     build:
-      context: ../frontend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: frontend/Dockerfile
+      # Override VITE_CLIENT_SLUG cuando necesites construir una variante específica (e.g. urucortinas)
       args:
-        VITE_CLIENT_SLUG: urucortinas
+        VITE_CLIENT_SLUG: ${VITE_CLIENT_SLUG:-core}
     ports:
       - "8080:80"
     environment:
       SERVER_NAME: ${APP_DOMAIN_PROD:-localhost}
       BACKEND_HOST: backend
       BACKEND_PORT: 3000
-      VITE_CLIENT_SLUG: urucortinas
 
   backend:
     <<: *backend-common
     build:
       context: ..
       dockerfile: backend/Dockerfile
+      # Override CLIENT_SLUG para apuntar a una variante específica durante la build (e.g. urucortinas)
       args:
-        CLIENT_SLUG: urucortinas
+        CLIENT_SLUG: ${CLIENT_SLUG:-core}
     ports:
       - "4000:3000"
-    environment:
-      CLIENT_SLUG: urucortinas
 
   db:
     image: postgres:16-alpine
