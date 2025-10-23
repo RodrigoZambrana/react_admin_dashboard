@@ -18,20 +18,27 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        VITE_CLIENT_SLUG: urucortinas
     ports:
       - "8080:80"
     environment:
       SERVER_NAME: ${APP_DOMAIN_PROD:-localhost}
       BACKEND_HOST: backend
       BACKEND_PORT: 3000
+      VITE_CLIENT_SLUG: urucortinas
 
   backend:
     <<: *backend-common
     build:
       context: ../backend
       dockerfile: Dockerfile
+      args:
+        CLIENT_SLUG: urucortinas
     ports:
       - "4000:3000"
+    environment:
+      CLIENT_SLUG: urucortinas
 
   db:
     image: postgres:16-alpine

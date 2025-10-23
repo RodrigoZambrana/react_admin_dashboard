@@ -8,6 +8,8 @@ RUN npm install --legacy-peer-deps
 FROM deps AS build
 WORKDIR /app
 COPY . .
+ARG VITE_CLIENT_SLUG=urucortinas
+ENV VITE_CLIENT_SLUG=$VITE_CLIENT_SLUG
 RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime
