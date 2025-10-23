@@ -131,11 +131,20 @@ export class ExpensesController {
         size: attachment.size ?? undefined,
         url: `/expenses/attachments/${attachment.id}`,
       }
-      if (includeContent) {
-        base.content = attachment.content?.toString('base64')
+      if (includeContent && attachment.content) {
+        const nodeBuffer = Buffer.isBuffer(attachment.content)
+          ? attachment.content
+          : Buffer.from(attachment.content)
+        base.content = nodeBuffer.toString('base64')
       }
       return base
     })
+  }
+
+  private toPrismaBytes(buffer: Buffer): Uint8Array<ArrayBuffer> {
+    const clone = new Uint8Array(buffer.length)
+    clone.set(buffer)
+    return clone as Uint8Array<ArrayBuffer>
   }
 
   private toNullableNumber(value: unknown): number | null | undefined {
@@ -793,7 +802,7 @@ export class ExpensesController {
             name: attachment.name,
             mimeType: attachment.mimeType,
             size: attachment.size,
-            content: attachment.content,
+            content: this.toPrismaBytes(attachment.content),
           })),
         })
       }
@@ -912,7 +921,7 @@ export class ExpensesController {
               name: attachment.name,
               mimeType: attachment.mimeType,
               size: attachment.size,
-              content: attachment.content,
+              content: this.toPrismaBytes(attachment.content),
             })),
           })
         }
