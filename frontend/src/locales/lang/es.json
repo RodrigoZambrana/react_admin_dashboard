@@ -766,7 +766,6 @@
             "invalidCharacters": "Se detectaron caracteres no permitidos. Revisa la información ingresada.",
             "titleRequired": "Título requerido",
             "receiverRequired": "Destinatario requerido",
-            "messageBodyRequired": "El cuerpo del mensaje es obligatorio",
             "productNameRequired": "Nombre del producto requerido",
             "priceRequired": "Precio requerido",
             "costPriceRequired": "Precio de costo requerido",
