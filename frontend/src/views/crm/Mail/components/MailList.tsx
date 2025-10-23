@@ -36,6 +36,8 @@ import {
     extractMetadata,
     extractMetadataIdentifier,
     extractMetadataReferences,
+    mergeMailMetadata,
+    mergeMailMessages,
     normalizeMessageIdentifier,
     normalizeString,
 } from '../utils/conversations'
@@ -422,7 +424,13 @@ const MailList = () => {
             const canonicalKey = resolveCanonicalKey(mail, candidates)
             const baseMail: AggregatedMail = {
                 ...mail,
-                message: mail.message ? [...mail.message] : [],
+                message: Array.isArray(mail.message)
+                    ? mail.message.map((entry) => ({ ...entry }))
+                    : [],
+                metadata:
+                    mail.metadata && typeof mail.metadata === 'object'
+                        ? { ...(mail.metadata as Record<string, unknown>) }
+                        : null,
                 conversationMailIds: [mail.id],
             }
             const existing = conversationMap.get(canonicalKey)
@@ -441,13 +449,29 @@ const MailList = () => {
             ])
             const candidateTimestamp = getMailTimestamp(baseMail)
             const existingTimestamp = getMailTimestamp(existing.mail)
+            const mergedMessages = mergeMailMessages(
+                existing.mail.message,
+                baseMail.message,
+            )
+            const mergedMetadata = mergeMailMetadata(
+                existing.mail.metadata as Record<string, unknown> | null,
+                baseMail.metadata as Record<string, unknown> | null,
+            )
             if (candidateTimestamp > existingTimestamp) {
                 existing.mail = {
+                    ...existing.mail,
                     ...baseMail,
+                    message: mergedMessages,
+                    metadata: mergedMetadata ?? null,
                     conversationMailIds: Array.from(conversationIds),
                 }
             } else {
-                existing.mail.conversationMailIds = Array.from(conversationIds)
+                existing.mail = {
+                    ...existing.mail,
+                    message: mergedMessages,
+                    metadata: mergedMetadata ?? existing.mail.metadata ?? null,
+                    conversationMailIds: Array.from(conversationIds),
+                }
             }
             existing.hasUnread = existing.hasUnread || mail.isRead === false
             existing.hasStarred = existing.hasStarred || Boolean(mail.starred)
