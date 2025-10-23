@@ -33,7 +33,7 @@ type ExpenseSortKey =
 export class ExpensesController {
   constructor(private prisma: PrismaService) {}
 
-  private decodeAttachmentContent(content: unknown): Uint8Array<ArrayBuffer> | null {
+  private decodeAttachmentContent(content: unknown): Buffer | null {
     if (typeof content !== 'string') {
       return null
     }
@@ -46,11 +46,7 @@ export class ExpensesController {
       if (!buffer.length) {
         return null
       }
-      const arrayBuffer = buffer.buffer.slice(
-        buffer.byteOffset,
-        buffer.byteOffset + buffer.byteLength,
-      ) as ArrayBuffer
-      return new Uint8Array(arrayBuffer)
+      return buffer
     } catch (error) {
       return null
     }
@@ -64,7 +60,7 @@ export class ExpensesController {
       name: string
       mimeType: string | null
       size: number | null
-      content: Uint8Array<ArrayBuffer>
+      content: Buffer
     }[]
     provided: boolean
   } {
@@ -76,7 +72,7 @@ export class ExpensesController {
       name: string
       mimeType: string | null
       size: number | null
-      content: Uint8Array<ArrayBuffer>
+      content: Buffer
     }[] = []
 
     input.forEach((raw) => {

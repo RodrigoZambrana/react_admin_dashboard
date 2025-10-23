@@ -199,7 +199,7 @@ export class SettingsController {
     }
   }
 
-  private parseLogoInput(value: unknown): Uint8Array<ArrayBuffer> | null | undefined {
+  private parseLogoInput(value: unknown): Buffer | null | undefined {
     if (value === undefined) {
       return undefined
     }
@@ -243,11 +243,7 @@ export class SettingsController {
       throw new BadRequestException('settings.companyProfile.logoUnsupported')
     }
 
-    const arrayBuffer = buffer.buffer.slice(
-      buffer.byteOffset,
-      buffer.byteOffset + buffer.byteLength,
-    ) as ArrayBuffer
-    return new Uint8Array(arrayBuffer)
+    return buffer
   }
 
   private sanitizeThemeConfig(payload: Partial<ThemeConfigPayload>): ThemeConfigPayload {
@@ -1044,7 +1040,7 @@ export class SettingsController {
     }
 
     let companyProfileData: ReturnType<typeof this.buildCompanyProfileData> | null = null
-    let companyProfileLogo: Uint8Array<ArrayBuffer> | null | undefined = undefined
+    let companyProfileLogo: Buffer | null | undefined = undefined
     if (hasCompanyProfile) {
       const rawProfile = payload.companyProfile as unknown
       if (
