@@ -1,8 +1,12 @@
 import {
   CURRENCY_DEFINITIONS,
   CURRENCY_DEFINITION_MAP,
+  DEFAULT_CURRENCIES,
+  getCurrencyDefinition,
+  getCurrencySymbol,
+  isKnownCurrency,
   type CurrencyDefinition,
-} from '../../../../shared/currency'
+} from './currency-definitions'
 
 export type StandardCurrencyOption = CurrencyDefinition
 
@@ -23,4 +27,9 @@ export function getStandardCurrencySymbol(code?: string | null): string | undefi
   return CURRENCY_DEFINITION_MAP.get(normalized)?.symbol
 }
 
-export { DEFAULT_CURRENCIES as STANDARD_DEFAULT_CURRENCIES } from '../../../../shared/currency'
+export {
+  DEFAULT_CURRENCIES as STANDARD_DEFAULT_CURRENCIES,
+  getCurrencyDefinition,
+  getCurrencySymbol,
+  isKnownCurrency,
+} from './currency-definitions'
