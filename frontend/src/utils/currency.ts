@@ -4,7 +4,7 @@ import {
     getCurrencyDefinition as sharedGetCurrencyDefinition,
     getCurrencySymbol as sharedGetCurrencySymbol,
     type CurrencyDefinition,
-} from '../../../shared/currency'
+} from '../shared/currency'
 
 const sanitizeKey = (value: string) => value.replace(/[^A-Z]/g, '')
 
