@@ -265,6 +265,13 @@ export async function apiGetSystemCurrencies<T>() {
     })
 }
 
+export async function apiGetCurrencyCatalog<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/system-config/currencies/catalog',
+        method: 'get',
+    })
+}
+
 export async function apiCreateSystemCurrency<
     T,
     U extends Record<string, unknown>,

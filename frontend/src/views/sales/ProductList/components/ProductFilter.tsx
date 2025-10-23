@@ -15,7 +15,7 @@ import Radio from '@/components/ui/Radio'
 import Drawer from '@/components/ui/Drawer'
 import { Field, Form, Formik, FormikProps, FieldProps } from 'formik'
 import { useTranslation } from 'react-i18next'
-import { STANDARD_FALLBACK_CURRENCIES } from '@/utils/currency'
+import { getStandardFallbackCurrencies } from '@/utils/currency'
 import type { MouseEvent } from 'react'
 
 type FormModel = {
@@ -53,7 +53,7 @@ const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
         const currencyOptions = useMemo(() => {
             const base = Array.isArray(availableCurrencies) && availableCurrencies.length
                 ? availableCurrencies
-                : Array.from(new Set(['UYU', 'USD', ...STANDARD_FALLBACK_CURRENCIES]))
+                : Array.from(new Set(['UYU', 'USD', ...getStandardFallbackCurrencies()]))
             return base
                 .map((item) => String(item || '').trim().toUpperCase())
                 .filter(

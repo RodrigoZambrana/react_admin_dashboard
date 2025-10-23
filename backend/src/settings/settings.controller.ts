@@ -18,7 +18,6 @@ import type { CompanyProfile } from '@prisma/client'
 import { Roles, ROLES } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
 import { CurrencyConversionService } from '../common/currency/currency-conversion.service'
-import { STANDARD_CURRENCIES } from '../common/currency/currency.constants'
 import {
   buildImageDataUrl,
   detectImageMimeType,
@@ -199,7 +198,7 @@ export class SettingsController {
     }
   }
 
-  private parseLogoInput(value: unknown): Buffer | null | undefined {
+  private parseLogoInput(value: unknown): Uint8Array<ArrayBuffer> | null | undefined {
     if (value === undefined) {
       return undefined
     }
@@ -243,7 +242,11 @@ export class SettingsController {
       throw new BadRequestException('settings.companyProfile.logoUnsupported')
     }
 
-    return buffer
+    const arrayBuffer = buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength,
+    ) as ArrayBuffer
+    return new Uint8Array(arrayBuffer)
   }
 
   private sanitizeThemeConfig(payload: Partial<ThemeConfigPayload>): ThemeConfigPayload {
@@ -1040,7 +1043,7 @@ export class SettingsController {
     }
 
     let companyProfileData: ReturnType<typeof this.buildCompanyProfileData> | null = null
-    let companyProfileLogo: Buffer | null | undefined = undefined
+    let companyProfileLogo: Uint8Array<ArrayBuffer> | null | undefined = undefined
     if (hasCompanyProfile) {
       const rawProfile = payload.companyProfile as unknown
       if (
@@ -1412,7 +1415,13 @@ export class SettingsController {
   @Get('system-config/currencies/options')
   @UseGuards(JwtAuthGuard)
   async getCurrencyOptions() {
-    return STANDARD_CURRENCIES
+    return this.currencyConversion.getStandardCurrencies()
+  }
+
+  @Get('system-config/currencies/catalog')
+  @UseGuards(JwtAuthGuard)
+  async getCurrencyCatalog() {
+    return this.currencyConversion.getCurrencyCatalog()
   }
 
   @Get('system-config/exchange-rates')

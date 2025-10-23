@@ -12,6 +12,7 @@ import {
 import useAuth from '@/utils/hooks/useAuth'
 import useDirection from '@/utils/hooks/useDirection'
 import useLocale from '@/utils/hooks/useLocale'
+import useCurrencyCatalogBootstrap from '@/utils/hooks/useCurrencyCatalogBootstrap'
 
 const layouts = {
     [LAYOUT_TYPE_CLASSIC]: lazy(() => import('./ClassicLayout')),
@@ -30,6 +31,8 @@ const Layout = () => {
     useDirection()
 
     useLocale()
+
+    useCurrencyCatalogBootstrap(authenticated)
 
     const AppLayout = useMemo(() => {
         if (authenticated) {

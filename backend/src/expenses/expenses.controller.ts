@@ -33,7 +33,7 @@ type ExpenseSortKey =
 export class ExpensesController {
   constructor(private prisma: PrismaService) {}
 
-  private decodeAttachmentContent(content: unknown): Buffer | null {
+  private decodeAttachmentContent(content: unknown): Uint8Array<ArrayBuffer> | null {
     if (typeof content !== 'string') {
       return null
     }
@@ -42,7 +42,15 @@ export class ExpensesController {
       return null
     }
     try {
-      return Buffer.from(normalized, 'base64')
+      const buffer = Buffer.from(normalized, 'base64')
+      if (!buffer.length) {
+        return null
+      }
+      const arrayBuffer = buffer.buffer.slice(
+        buffer.byteOffset,
+        buffer.byteOffset + buffer.byteLength,
+      ) as ArrayBuffer
+      return new Uint8Array(arrayBuffer)
     } catch (error) {
       return null
     }
@@ -56,7 +64,7 @@ export class ExpensesController {
       name: string
       mimeType: string | null
       size: number | null
-      content: Buffer
+      content: Uint8Array<ArrayBuffer>
     }[]
     provided: boolean
   } {
@@ -68,7 +76,7 @@ export class ExpensesController {
       name: string
       mimeType: string | null
       size: number | null
-      content: Buffer
+      content: Uint8Array<ArrayBuffer>
     }[] = []
 
     input.forEach((raw) => {
@@ -79,8 +87,8 @@ export class ExpensesController {
       const contentCandidate =
         attachment.content || attachment.contentBase64 || attachment.data
       if (contentCandidate) {
-        const buffer = this.decodeAttachmentContent(contentCandidate)
-        if (buffer) {
+        const byteContent = this.decodeAttachmentContent(contentCandidate)
+        if (byteContent) {
           const name =
             typeof attachment.name === 'string' && attachment.name.trim().length
               ? attachment.name.trim()
@@ -96,8 +104,11 @@ export class ExpensesController {
           newAttachments.push({
             name,
             mimeType,
-            size: Number.isFinite(sizeValue) && sizeValue > 0 ? sizeValue : buffer.length,
-            content: buffer,
+            size:
+              Number.isFinite(sizeValue) && sizeValue > 0
+                ? sizeValue
+                : byteContent.byteLength,
+            content: byteContent,
           })
         }
         return
@@ -118,7 +129,7 @@ export class ExpensesController {
       name: string
       mimeType: string | null
       size: number | null
-      content: Buffer | Uint8Array
+      content: Buffer | Uint8Array<ArrayBuffer> | null
     }[] = [],
     options: { includeContent?: boolean } = {},
   ) {
@@ -132,7 +143,13 @@ export class ExpensesController {
         url: `/expenses/attachments/${attachment.id}`,
       }
       if (includeContent) {
-        base.content = attachment.content?.toString('base64')
+        const rawContent = attachment.content
+        if (rawContent) {
+          const nodeBuffer = Buffer.isBuffer(rawContent)
+            ? rawContent
+            : Buffer.from(rawContent)
+          base.content = nodeBuffer.toString('base64')
+        }
       }
       return base
     })

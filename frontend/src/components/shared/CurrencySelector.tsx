@@ -9,7 +9,7 @@ import {
     type CurrencyCode,
 } from '@/store'
 import { apiGetSystemCurrencies } from '@/services/SettingsService'
-import { formatCurrencyOptionLabel, STANDARD_FALLBACK_CURRENCIES } from '@/utils/currency'
+import { formatCurrencyOptionLabel, getStandardFallbackCurrencies } from '@/utils/currency'
 
 type Size = 'sm' | 'md' | 'lg'
 
@@ -27,14 +27,6 @@ type CurrencySelectorProps = CommonProps & {
     options?: CurrencyOption[]
 }
 
-const fallbackValues: CurrencyCode[] = Array.from(
-    new Set<CurrencyCode>(['UYU', 'USD', ...STANDARD_FALLBACK_CURRENCIES]),
-)
-const fallbackOptions: CurrencyOption[] = fallbackValues.map((code) => ({
-    value: code,
-    label: formatCurrencyOptionLabel(code),
-}))
-
 const CurrencySelector = ({
     className,
     size = 'md',
@@ -47,10 +39,15 @@ const CurrencySelector = ({
     const dispatch = useAppDispatch()
     const currencyState = useAppSelector((state) => state.currency)
 
-    const currency = currencyState?.code || fallbackValues[0]
+    const standardFallback = useMemo(
+        () => Array.from(new Set<CurrencyCode>(['UYU', 'USD', ...getStandardFallbackCurrencies()])),
+        [currencyState.catalog.defaultCodes],
+    )
+
+    const currency = currencyState?.code || standardFallback[0]
     const availableList = Array.isArray(currencyState?.available)
         ? currencyState?.available
-        : fallbackValues
+        : standardFallback
     const loaded = Boolean(currencyState?.loaded)
 
     useEffect(() => {
@@ -83,19 +80,22 @@ const CurrencySelector = ({
                 label: formatCurrencyOptionLabel(item.value, item.label),
             }))
         }
-        const source = availableList.length ? availableList : fallbackValues
+        const source = availableList.length ? availableList : standardFallback
         return source.map((value) => ({
             value,
             label: formatCurrencyOptionLabel(value),
         }))
-    }, [availableList, options])
+    }, [availableList, options, standardFallback])
 
     const currentValue = value ?? currency
     const selected =
         resolvedOptions.find((o) => o.value === currentValue) ||
         (currentValue
             ? { value: currentValue, label: currentValue }
-            : resolvedOptions[0] || fallbackOptions[0])
+            : resolvedOptions[0] ||
+              (standardFallback[0]
+                  ? { value: standardFallback[0], label: formatCurrencyOptionLabel(standardFallback[0]) }
+                  : undefined))
 
     const handleChange = (opt: unknown) => {
         const next = (opt as CurrencyOption | null)?.value

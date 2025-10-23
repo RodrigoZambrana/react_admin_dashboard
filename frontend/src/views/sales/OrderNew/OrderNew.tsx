@@ -42,7 +42,7 @@ import {
     normalizeCurrencyCode,
     formatCurrency,
     formatCurrencyOptionLabel,
-    STANDARD_FALLBACK_CURRENCIES,
+    getStandardFallbackCurrencies,
 } from '@/utils/currency'
 import { resolveTextDirection } from '@/utils/textDirection'
 import type { BaseCurrencySnapshot } from '@/store/slices/currency/currencySlice'
@@ -116,7 +116,7 @@ const OrderNew = () => {
     const defaultCurrency =
         normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
     const fallbackCurrencyList = useMemo(() => {
-        const baseList = [defaultCurrency, ...STANDARD_FALLBACK_CURRENCIES]
+        const baseList = [defaultCurrency, ...getStandardFallbackCurrencies()]
         const normalized = baseList
             .map((code) => normalizeCurrencyCode(code, defaultCurrency) || defaultCurrency)
             .filter((code): code is string => Boolean(code))

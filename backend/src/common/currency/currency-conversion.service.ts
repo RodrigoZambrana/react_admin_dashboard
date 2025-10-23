@@ -14,6 +14,11 @@ import {
   multiplyDecimals,
 } from './money.util'
 
+export type CurrencyCatalog = {
+  definitions: StandardCurrencyOption[]
+  defaults: string[]
+}
+
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient
 
 export type CurrencyRatesSnapshot = {
@@ -49,6 +54,14 @@ export class CurrencyConversionService {
 
   getStandardCurrencies(): StandardCurrencyOption[] {
     return STANDARD_CURRENCIES
+  }
+
+  getCurrencyCatalog(): CurrencyCatalog {
+    const defaults = Array.from(new Set(this.fallbackCurrencies))
+    return {
+      definitions: this.getStandardCurrencies(),
+      defaults,
+    }
   }
 
   normalizeCurrency(code: unknown): string | null {

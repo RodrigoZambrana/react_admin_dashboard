@@ -1,5 +1,9 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { STANDARD_FALLBACK_CURRENCIES } from '@/utils/currency'
+import {
+    getStandardFallbackCurrencies,
+    type CurrencyCatalogPayload,
+    type CurrencyDefinition,
+} from '@/utils/currency'
 
 export type CurrencyCode = string
 
@@ -18,6 +22,12 @@ export type BaseCurrencySnapshot = {
     fetchedAt: number
 }
 
+export type CurrencyCatalogState = {
+    definitions: CurrencyDefinition[]
+    defaultCodes: CurrencyCode[]
+    loaded: boolean
+}
+
 export type CurrencyState = {
     code: CurrencyCode
     available: CurrencyCode[]
@@ -25,19 +35,33 @@ export type CurrencyState = {
     exchangeSnapshot: BaseCurrencySnapshot | null
     exchangeLoading: boolean
     exchangeError?: string
+    catalog: CurrencyCatalogState
 }
 
-const fallbackCurrencies: CurrencyCode[] = Array.from(
-    new Set<CurrencyCode>(['UYU', 'USD', ...STANDARD_FALLBACK_CURRENCIES]),
-)
+const DEFAULT_FALLBACK = Array.from(new Set<CurrencyCode>(['UYU', 'USD', ...getStandardFallbackCurrencies()]))
 
 const initialState: CurrencyState = {
-    code: 'UYU',
-    available: fallbackCurrencies,
+    code: DEFAULT_FALLBACK[0] ?? 'UYU',
+    available: DEFAULT_FALLBACK,
     loaded: false,
     exchangeSnapshot: null,
     exchangeLoading: false,
     exchangeError: undefined,
+    catalog: {
+        definitions: [],
+        defaultCodes: getStandardFallbackCurrencies(),
+        loaded: false,
+    },
+}
+
+const normalizeList = (codes: CurrencyCode[], fallback: CurrencyCode[]): CurrencyCode[] => {
+    const sanitized = codes
+        .map((item) => String(item || '').trim().toUpperCase())
+        .filter((item) => /^[A-Z]{3,5}$/.test(item))
+    if (sanitized.length) {
+        return Array.from(new Set(sanitized))
+    }
+    return fallback
 }
 
 export const currencySlice = createSlice({
@@ -47,11 +71,26 @@ export const currencySlice = createSlice({
         setCurrency: (state, action: PayloadAction<CurrencyCode>) => {
             state.code = action.payload
         },
+        setCurrencyCatalog: (state, action: PayloadAction<CurrencyCatalogPayload>) => {
+            const fallback = normalizeList(action.payload.defaults, DEFAULT_FALLBACK)
+            state.catalog = {
+                definitions: Array.isArray(action.payload.definitions)
+                    ? action.payload.definitions
+                    : [],
+                defaultCodes: fallback,
+                loaded: true,
+            }
+            if (!state.loaded) {
+                state.available = fallback
+                state.code = state.available[0] ?? state.code
+            }
+        },
         setAvailableCurrencies: (state, action: PayloadAction<CurrencyCode[]>) => {
-            const sanitized = action.payload
-                .map((item) => String(item || '').trim().toUpperCase())
-                .filter((item) => /^[A-Z]{3,5}$/.test(item))
-            state.available = sanitized.length ? sanitized : fallbackCurrencies
+            const fallback = state.catalog.loaded
+                ? state.catalog.defaultCodes
+                : DEFAULT_FALLBACK
+            const normalized = normalizeList(action.payload, fallback)
+            state.available = normalized
             if (!state.available.includes(state.code)) {
                 state.code = state.available[0]
             }
@@ -77,6 +116,7 @@ export const currencySlice = createSlice({
 
 export const {
     setCurrency,
+    setCurrencyCatalog,
     setAvailableCurrencies,
     setExchangeSnapshot,
     setExchangeLoading,

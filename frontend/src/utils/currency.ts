@@ -1,14 +1,38 @@
-import {
-    CURRENCY_DEFINITIONS,
-    DEFAULT_CURRENCIES,
-    getCurrencyDefinition as sharedGetCurrencyDefinition,
-    getCurrencySymbol as sharedGetCurrencySymbol,
-    type CurrencyDefinition,
-} from '../../../shared/currency'
+export type CurrencyDefinition = {
+    code: string
+    label: string
+    symbol: string
+    narrowSymbol?: string
+    aliases?: string[]
+}
+
+export type CurrencyCatalogPayload = {
+    definitions: CurrencyDefinition[]
+    defaults: string[]
+}
+
+const BASIC_FALLBACK_CODES = ['USD', 'UYU'] as const
+
+let catalogDefinitions: CurrencyDefinition[] = []
+let defaultCurrencyCodes: string[] = Array.from(BASIC_FALLBACK_CODES)
+let currencyDefinitionMap = new Map<string, CurrencyDefinition>()
+let currencyAliasMap = new Map<string, string>()
 
 const sanitizeKey = (value: string) => value.replace(/[^A-Z]/g, '')
 
-const buildAliasMap = () => {
+const coerceDefinition = (input: CurrencyDefinition): CurrencyDefinition => ({
+    code: String(input.code || '').trim().toUpperCase(),
+    label: input.label?.trim() || String(input.code || '').trim().toUpperCase(),
+    symbol: input.symbol?.trim() || String(input.code || '').trim().toUpperCase(),
+    narrowSymbol: input.narrowSymbol?.trim(),
+    aliases: Array.isArray(input.aliases)
+        ? input.aliases
+              .map((alias) => String(alias || '').trim())
+              .filter((alias) => Boolean(alias))
+        : undefined,
+})
+
+const buildAliasMap = (definitions: CurrencyDefinition[]) => {
     const map = new Map<string, string>()
     const register = (target: string, code: string) => {
         const upper = target.trim().toUpperCase()
@@ -21,7 +45,7 @@ const buildAliasMap = () => {
             map.set(sanitized, code)
         }
     }
-    CURRENCY_DEFINITIONS.forEach((definition) => {
+    definitions.forEach((definition) => {
         register(definition.code, definition.code)
         if (definition.symbol) {
             register(definition.symbol, definition.code)
@@ -36,7 +60,44 @@ const buildAliasMap = () => {
     return map
 }
 
-const currencyAliasMap = buildAliasMap()
+const buildDefinitionMap = (definitions: CurrencyDefinition[]) =>
+    new Map(definitions.map((definition) => [definition.code, definition]))
+
+const fallbackDefinitions = (): CurrencyDefinition[] =>
+    defaultCurrencyCodes.map((code) => ({ code, label: code, symbol: code }))
+
+const getDefinitions = (): CurrencyDefinition[] =>
+    catalogDefinitions.length ? catalogDefinitions : fallbackDefinitions()
+
+const normalizeDefaultCodes = (defaults?: string[]) => {
+    if (!Array.isArray(defaults)) {
+        return Array.from(BASIC_FALLBACK_CODES)
+    }
+    const sanitized = defaults
+        .map((code) => String(code || '').trim().toUpperCase())
+        .filter((code) => /^[A-Z]{3,5}$/.test(code))
+    return sanitized.length ? Array.from(new Set(sanitized)) : Array.from(BASIC_FALLBACK_CODES)
+}
+
+export function primeCurrencyCatalog(payload?: Partial<CurrencyCatalogPayload>) {
+    if (payload?.definitions && Array.isArray(payload.definitions)) {
+        const processed = payload.definitions
+            .map(coerceDefinition)
+            .filter((definition) => /^[A-Z]{3,5}$/.test(definition.code))
+        if (processed.length) {
+            catalogDefinitions = processed
+            currencyDefinitionMap = buildDefinitionMap(catalogDefinitions)
+            currencyAliasMap = buildAliasMap(catalogDefinitions)
+        }
+    }
+    if (payload?.defaults) {
+        defaultCurrencyCodes = normalizeDefaultCodes(payload.defaults)
+    }
+    if (!catalogDefinitions.length) {
+        currencyDefinitionMap = buildDefinitionMap(fallbackDefinitions())
+        currencyAliasMap = buildAliasMap(fallbackDefinitions())
+    }
+}
 
 const resolveDefinition = (input?: string | null): CurrencyDefinition | undefined => {
     if (input === null || input === undefined) {
@@ -46,26 +107,30 @@ const resolveDefinition = (input?: string | null): CurrencyDefinition | undefine
     if (!trimmed) {
         return undefined
     }
-    const direct = sharedGetCurrencyDefinition(trimmed)
+    const upper = trimmed.toUpperCase()
+    const direct = currencyDefinitionMap.get(upper)
     if (direct) {
         return direct
     }
-    const upper = trimmed.toUpperCase()
     const alias = currencyAliasMap.get(upper)
     if (alias) {
-        return sharedGetCurrencyDefinition(alias) ?? { code: alias, label: alias, symbol: alias }
+        return currencyDefinitionMap.get(alias) ?? {
+            code: alias,
+            label: alias,
+            symbol: alias,
+        }
     }
     const sanitized = sanitizeKey(upper)
     if (sanitized) {
         const sanitizedAlias = currencyAliasMap.get(sanitized)
         if (sanitizedAlias) {
-            return sharedGetCurrencyDefinition(sanitizedAlias) ?? {
+            return currencyDefinitionMap.get(sanitizedAlias) ?? {
                 code: sanitizedAlias,
                 label: sanitizedAlias,
                 symbol: sanitizedAlias,
             }
         }
-        const sanitizedDefinition = sharedGetCurrencyDefinition(sanitized)
+        const sanitizedDefinition = currencyDefinitionMap.get(sanitized)
         if (sanitizedDefinition) {
             return sanitizedDefinition
         }
@@ -73,14 +138,20 @@ const resolveDefinition = (input?: string | null): CurrencyDefinition | undefine
     return undefined
 }
 
-export const STANDARD_FALLBACK_CURRENCIES = [...DEFAULT_CURRENCIES]
+export function getStandardFallbackCurrencies(): string[] {
+    return [...defaultCurrencyCodes]
+}
+
+export function getCurrencyDefinitions(): CurrencyDefinition[] {
+    return [...getDefinitions()]
+}
 
 export function getCurrencyDefinition(code?: string | null): CurrencyDefinition | undefined {
     return resolveDefinition(code)
 }
 
 export function getCurrencySymbol(code?: string | null): string | undefined {
-    return sharedGetCurrencySymbol(code) ?? resolveDefinition(code)?.symbol
+    return resolveDefinition(code)?.symbol
 }
 
 export function formatCurrencyOptionLabel(code: string, label?: string, symbol?: string): string {
@@ -125,6 +196,8 @@ export function normalizeCurrencyCode(raw?: string | null, fallback?: string): s
     return lookup(raw) ?? lookup(fallback)
 }
 
+primeCurrencyCatalog()
+
 export function formatCurrency(
     value?: number,
     currency?: string,
@@ -158,8 +231,7 @@ export function formatCurrency(
             })
             if (!resolvedSymbol && typeof currencyFormatter.formatToParts === 'function') {
                 const parts = currencyFormatter.formatToParts(0)
-                resolvedSymbol =
-                    parts.find((part) => part.type === 'currency')?.value ?? undefined
+                resolvedSymbol = parts.find((part) => part.type === 'currency')?.value ?? undefined
             }
         } catch {
             // ignore and fall back
