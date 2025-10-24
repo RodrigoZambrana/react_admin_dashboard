@@ -51,12 +51,6 @@ export class ExpensesController {
   private toPrismaBytes(bytes: Buffer | Uint8Array): Uint8Array<ArrayBuffer>
   private toPrismaBytes(bytes: Buffer | Uint8Array | null): Uint8Array<ArrayBuffer> | null
   private toPrismaBytes(
-    bytes: Buffer | Uint8Array | undefined,
-  ): Uint8Array<ArrayBuffer> | undefined
-  private toPrismaBytes(
-    bytes: Buffer | Uint8Array | null | undefined,
-  ): Uint8Array<ArrayBuffer> | null | undefined
-  private toPrismaBytes(
     bytes: Buffer | Uint8Array | null | undefined,
   ): Uint8Array<ArrayBuffer> | null | undefined {
     if (bytes === undefined || bytes === null) {
@@ -130,12 +124,6 @@ export class ExpensesController {
     })
 
     return { keepIds: Array.from(keepIds), newAttachments, provided: true }
-  }
-
-  private toPrismaBytes(buffer: Buffer): Uint8Array<ArrayBuffer> {
-    const bytes = new Uint8Array(buffer.length)
-    bytes.set(buffer)
-    return bytes
   }
 
   private serializeAttachments(
