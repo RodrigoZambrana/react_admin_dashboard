@@ -20,6 +20,7 @@ import toast from '@/components/ui/toast'
 import {
     adaptOrderToDetailsView,
     parseValidityRecord,
+    toUnixSeconds,
     type FxSnapshot,
 } from '@/adapters/sales'
 import { normalizeCurrencyCode } from '@/utils/currency'
@@ -698,13 +699,54 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                         const validitySource = parseValidityRecord(
                             (invoiceData as any).validity,
                         )
+                        const normalizedValidity =
+                            (invoiceData as any).validUntil ??
+                            (invoiceData as any).valid_until ??
+                            (validitySource?.validUntil ??
+                                validitySource?.valid_until)
+                        let normalizedValidUntil =
+                            toUnixSeconds(normalizedValidity) ?? undefined
+                        if (
+                            normalizedValidUntil === undefined &&
+                            normalizedValidity &&
+                            typeof normalizedValidity === 'object'
+                        ) {
+                            if (
+                                typeof (normalizedValidity as any).toDate ===
+                                'function'
+                            ) {
+                                normalizedValidUntil = toUnixSeconds(
+                                    (normalizedValidity as any).toDate(),
+                                )
+                            }
+                            if (normalizedValidUntil === undefined) {
+                                const secondsValue =
+                                    (normalizedValidity as any).seconds ??
+                                    (normalizedValidity as any)._seconds
+                                const nanosValue =
+                                    (normalizedValidity as any).nanoseconds ??
+                                    (normalizedValidity as any)._nanoseconds
+                                if (typeof secondsValue === 'number') {
+                                    const millis =
+                                        secondsValue * 1000 +
+                                        (typeof nanosValue === 'number'
+                                            ? Math.floor(nanosValue / 1e6)
+                                            : 0)
+                                    normalizedValidUntil = toUnixSeconds(millis)
+                                }
+                            }
+                        }
+                        if (normalizedValidUntil === undefined) {
+                            if (typeof normalizedValidity === 'string') {
+                                normalizedValidUntil = normalizedValidity
+                            } else if (normalizedValidity instanceof Date) {
+                                normalizedValidUntil =
+                                    normalizedValidity.toISOString()
+                            }
+                        }
                         const normalizedData = {
                             ...invoiceData,
-                            validUntil:
-                                (invoiceData as any).validUntil ??
-                                (invoiceData as any).valid_until ??
-                                (validitySource?.validUntil ??
-                                    validitySource?.valid_until),
+                            validUntil: normalizedValidUntil,
                         }
                         setData(normalizedData)
                     }
