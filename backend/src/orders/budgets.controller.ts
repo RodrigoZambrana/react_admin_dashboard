@@ -19,6 +19,7 @@ import { SalesDocumentsService } from './sales-documents.service'
 import { CreateOrderDto } from '../sales/dto/order.dto'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { BudgetsFeatureGuard } from './guards/budgets-feature.guard'
+import { parseSingleFileMultipart } from '../common/uploads/multipart'
 
 @UseGuards(JwtAuthGuard, BudgetsFeatureGuard)
 @Controller('budgets')
@@ -76,6 +77,12 @@ export class BudgetsController {
     @Body() body: { paymentMehod?: string | number | null },
   ) {
     return this.documents.updateDocumentPaymentMethod(DocumentType.BUDGET, id, body)
+  }
+
+  @Post(':id/document')
+  async uploadBudgetDocument(@Param('id', ParseIntPipe) id: number, @Req() req: FastifyRequest) {
+    const { file } = await parseSingleFileMultipart(req)
+    return this.documents.persistDocumentFile(DocumentType.BUDGET, id, file)
   }
 
   @Post(':id/send')

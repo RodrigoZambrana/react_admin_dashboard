@@ -250,6 +250,11 @@ model Order {
   convertedAt           DateTime?
   convertedBy           Int?
   convertedByUser       User?          @relation("OrderConvertedBy", fields: [convertedBy], references: [id], onDelete: SetNull)
+  documentFilePath      String?
+  documentFileName      String?
+  documentFileMime      String?
+  documentFileSize      Int?
+  documentGeneratedAt   DateTime?
   version               Int            @default(1)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt

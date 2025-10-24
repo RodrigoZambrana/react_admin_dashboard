@@ -4,6 +4,9 @@ import type { FastifyRequest } from 'fastify'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateOrderDto } from '../sales/dto/order.dto'
 import { CurrencyConversionService, CurrencyRatesSnapshot } from '../common/currency/currency-conversion.service'
+import { persistSalesDocumentFile, deleteSalesDocumentFile } from '../common/uploads/documents'
+
+type MultipartFile = import('@fastify/multipart').MultipartFile
 import {
   decimal,
   roundDecimal,
@@ -1019,7 +1022,14 @@ export class SalesDocumentsService {
     if (!numericIds.length) {
       throw new BadRequestException('sales.orders.validation.invalidIds')
     }
+    const documents = await this.prisma.order.findMany({
+      where: { id: { in: numericIds }, documentType },
+      select: { documentFilePath: true },
+    })
+
     await this.prisma.order.deleteMany({ where: { id: { in: numericIds }, documentType } })
+
+    await Promise.all(documents.map((doc) => deleteSalesDocumentFile(doc.documentFilePath)))
     return true
   }
 
@@ -1143,6 +1153,11 @@ export class SalesDocumentsService {
       tax: Number(order.tax?.toString?.() ?? order.tax ?? 0),
       deliveryFees: order.deliveryFees === null ? null : Number(order.deliveryFees.toString()),
       grandTotal: Number(order.grandTotal?.toString?.() ?? order.grandTotal ?? 0),
+      documentFilePath: order.documentFilePath ?? null,
+      documentFileName: order.documentFileName ?? null,
+      documentFileMime: order.documentFileMime ?? null,
+      documentFileSize: order.documentFileSize ?? null,
+      documentGeneratedAt: order.documentGeneratedAt ?? null,
       orderCurrency: order.orderCurrency,
       fxBase: order.fxBase,
       fxRates: order.fxRates,
@@ -1363,12 +1378,18 @@ export class SalesDocumentsService {
         taxRateSnapshot: decimal(taxRate).toFixed(4),
         exchangeRateSnapshot: this.serializeFxSnapshot(monetary.snapshot),
         validUntil: dto.validUntil ? new Date(dto.validUntil) : existing.validUntil,
+        documentFilePath: null,
+        documentFileName: null,
+        documentFileMime: null,
+        documentFileSize: null,
+        documentGeneratedAt: null,
         items: {
           deleteMany: {},
           create: monetary.items,
         },
       },
     })
+    await deleteSalesDocumentFile(existing.documentFilePath)
     return true
   }
 
@@ -1429,6 +1450,59 @@ export class SalesDocumentsService {
       throw new BadRequestException('sales.orders.validation.notFound')
     }
     return true
+  }
+
+  async persistDocumentFile(
+    documentType: DocumentType,
+    id: number,
+    file: MultipartFile | undefined,
+  ) {
+    if (!file) {
+      throw new BadRequestException('sales.orders.import.fileRequired')
+    }
+
+    const existing = await this.prisma.order.findFirst({
+      where: { id, documentType },
+      select: {
+        id: true,
+        documentFilePath: true,
+      },
+    })
+
+    if (!existing) {
+      throw new BadRequestException('sales.orders.validation.notFound')
+    }
+
+    const stored = await persistSalesDocumentFile(file, {
+      documentType: documentType === DocumentType.BUDGET ? 'BUDGET' : 'ORDER',
+      previousPath: existing.documentFilePath,
+    })
+
+    const updated = await this.prisma.order.update({
+      where: { id: existing.id },
+      data: {
+        documentFilePath: stored.path,
+        documentFileName: stored.name,
+        documentFileMime: stored.mime,
+        documentFileSize: stored.size,
+        documentGeneratedAt: new Date(),
+      },
+      select: {
+        documentFilePath: true,
+        documentFileName: true,
+        documentFileMime: true,
+        documentFileSize: true,
+        documentGeneratedAt: true,
+      },
+    })
+
+    return {
+      path: updated.documentFilePath,
+      name: updated.documentFileName,
+      mime: updated.documentFileMime,
+      size: updated.documentFileSize,
+      generatedAt: updated.documentGeneratedAt?.toISOString() ?? null,
+    }
   }
 
   async sendBudget(id: number, userId: number | null) {
