@@ -240,6 +240,24 @@ export async function apiUpdateSystemConfig<
     })
 }
 
+export async function apiGetSystemDisclaimer<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/system-config/disclaimer',
+        method: 'get',
+    })
+}
+
+export async function apiUpdateSystemDisclaimer<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/system-config/disclaimer',
+        method: 'put',
+        data,
+    })
+}
+
 export async function apiGetThemeConfig<T>() {
     return ApiService.fetchData<T>({
         url: '/settings/theme-config',

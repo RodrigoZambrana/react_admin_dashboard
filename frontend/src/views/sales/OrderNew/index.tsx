@@ -2,7 +2,7 @@ import OrderNew from './OrderNew'
 import { SalesDocumentProvider } from '../context/SalesDocumentContext'
 
 const OrderNewView = () => (
-    <SalesDocumentProvider mode="order">
+    <SalesDocumentProvider mode="order" overrides={{ showProductSpecifications: false }}>
         <OrderNew />
     </SalesDocumentProvider>
 )

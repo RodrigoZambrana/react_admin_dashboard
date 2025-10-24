@@ -49,6 +49,11 @@ export class OrdersController {
     return this.documents.getDocumentDetails(DocumentType.ORDER, id)
   }
 
+  @Get(':id/pdf')
+  getOrderPdf(@Param('id', ParseIntPipe) id: number) {
+    return this.documents.getDocumentPdf(DocumentType.ORDER, id)
+  }
+
   @Post()
   createOrder(@Body() dto: CreateOrderDto) {
     return this.documents.createDocument(DocumentType.ORDER, dto)

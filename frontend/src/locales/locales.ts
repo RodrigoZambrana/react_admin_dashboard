@@ -4,6 +4,7 @@ import { initReactI18next } from 'react-i18next'
 import en from './lang/en.json'
 import es from './lang/es.json'
 import appConfig from '@/configs/app.config'
+import { LOCALE_STORAGE_KEY } from '@/store/slices/locale/localeSlice'
 import dayjs from 'dayjs'
 
 const resources = {
@@ -21,10 +22,22 @@ const normalizeLang = (lang?: string) => {
     return 'en'
 }
 
+const readStoredLang = () => {
+    if (typeof window === 'undefined') {
+        return null
+    }
+    try {
+        return window.localStorage.getItem(LOCALE_STORAGE_KEY)
+    } catch {
+        return null
+    }
+}
+
 const initialLang = normalizeLang(
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    typeof navigator !== 'undefined' ? navigator.language : appConfig.locale,
+    readStoredLang() ??
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        (typeof navigator !== 'undefined' ? navigator.language : appConfig.locale),
 )
 
 // preload dayjs locale to make date components show correct month names
@@ -48,6 +61,18 @@ i18n.use(initReactI18next).init({
 
 // ensure dayjs locale matches the initial i18n language
 loadDateLocale(initialLang)
+
+i18n.on('languageChanged', (lng) => {
+    const normalized = normalizeLang(lng)
+    if (typeof window !== 'undefined') {
+        try {
+            window.localStorage.setItem(LOCALE_STORAGE_KEY, normalized)
+        } catch {
+            // ignore persistence errors
+        }
+    }
+    loadDateLocale(normalized)
+})
 
 export const dateLocales: {
     [key: string]: () => Promise<ILocale>

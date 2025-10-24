@@ -140,6 +140,17 @@ export async function apiGetSalesOrderDetails<
     })
 }
 
+export async function apiGetSalesDocumentPdf<
+    T = Blob,
+    U extends string | number = string | number,
+>(id: U, resource: SalesDocumentResource = 'orders') {
+    return ApiService.fetchData<T>({
+        url: `${documentEndpoint(resource)}/${id}/pdf`,
+        method: 'get',
+        responseType: 'blob',
+    })
+}
+
 export async function apiUpdateSalesOrderStatus<
     T,
     U extends Record<string, unknown>,

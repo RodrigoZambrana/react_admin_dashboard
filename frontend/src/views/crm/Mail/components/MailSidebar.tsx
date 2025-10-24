@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import classNames from 'classnames'
 import Menu from '@/components/ui/Menu'
 import Badge from '@/components/ui/Badge'
@@ -10,26 +10,27 @@ import {
     updateSelectedCategory,
     toggleMobileSidebar,
     updateMailId,
+    fetchInboxAccounts,
+    fetchInboxMailboxes,
+    setSelectedInboxMailbox,
     useAppDispatch,
     useAppSelector,
 } from '../store'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { groupList, labelList } from '../constants'
-import type { JSX } from 'react'
-
-type MenuBase = {
-    value: string
-    label: string
-}
-
-type Group = MenuBase & {
-    icon: JSX.Element
-}
-
-type Label = MenuBase & {
-    dotClass: string
-}
+import {
+    groupList,
+    labelList,
+    dynamicMailboxIconMap,
+} from '../constants'
+import type { Group, Label } from '../constants'
+import {
+    translateMailboxLabel as translateMailboxLabelHelper,
+    resolveLabelBadge,
+    findStaticCategory,
+    normalizeMailboxKey,
+} from '../utils/labels'
+import type { InboxMailboxDto } from '@/services/InboxService'
 
 const { MenuItem, MenuGroup } = Menu
 
@@ -44,12 +45,223 @@ const MailSideBarContent = () => {
         (state) => state.crmMail.data.selectedCategory,
     )
 
+    const inboxState = useAppSelector((state) => state.crmMail.data.inbox)
+    const inboxAccounts = inboxState.accounts
+    const inboxAccountsLoading = inboxState.accountsLoading
+    const selectedInboxAccountId = inboxState.selectedAccountId
+    const inboxMailboxesByAccount = inboxState.mailboxesByAccount
+    const selectedInboxMailboxId = inboxState.selectedMailboxId
+    const mailboxesStatusMap = inboxState.mailboxesRequestStatus
+    const mailboxesErrorMap = inboxState.mailboxesErrorByAccount
+
+    const translateMailboxLabel = useCallback(
+        (value: string, fallback?: string) =>
+            translateMailboxLabelHelper(t, value, fallback),
+        [t],
+    )
+
+    const selectedMailboxesStatus = selectedInboxAccountId
+        ? mailboxesStatusMap[selectedInboxAccountId]
+        : undefined
+    const selectedMailboxesError = selectedInboxAccountId
+        ? mailboxesErrorMap[selectedInboxAccountId]
+        : null
+
+    const mailboxesUnavailableText = t('crm.mail.mailboxesUnavailable', {
+        defaultValue:
+            'Mailboxes are not available right now. Please try again later.',
+    })
+    const resolvedMailboxesError =
+        !selectedMailboxesError ||
+        selectedMailboxesError === 'Unable to load inbox mailboxes.'
+            ? mailboxesUnavailableText
+            : selectedMailboxesError
+
+    const accountMailboxes = useMemo<InboxMailboxDto[]>(() => {
+        if (!selectedInboxAccountId) {
+            return []
+        }
+        return inboxMailboxesByAccount[selectedInboxAccountId] ?? []
+    }, [selectedInboxAccountId, inboxMailboxesByAccount])
+
+    const mapMailboxesToGroups = useCallback(
+        (mailboxes: InboxMailboxDto[]): Group[] =>
+            mailboxes.map((mailbox) => {
+                const fallbackLabel = mailbox.label || mailbox.id
+                const staticCategory = findStaticCategory(mailbox.id)
+                const normalizedId = normalizeMailboxKey(mailbox.id)
+                let translationValue = mailbox.id
+                let icon: Group['icon']
+                if (staticCategory && 'icon' in staticCategory) {
+                    translationValue =
+                        staticCategory.translationValue ?? staticCategory.value
+                    icon = staticCategory.icon
+                } else if (staticCategory) {
+                    translationValue = staticCategory.value
+                } else if (normalizedId) {
+                    icon = dynamicMailboxIconMap[normalizedId]
+                }
+                return {
+                    value: mailbox.id,
+                    label: fallbackLabel,
+                    translationValue,
+                    icon,
+                }
+            }),
+        [],
+    )
+
+    const dynamicMailboxGroups = useMemo<Group[]>(
+        () => mapMailboxesToGroups(accountMailboxes),
+        [accountMailboxes, mapMailboxesToGroups],
+    )
+
+    const mailboxGroupMap = useMemo<Record<string, Group>>(() => {
+        return dynamicMailboxGroups.reduce<Record<string, Group>>(
+            (acc, mailbox) => {
+                const normalized = normalizeMailboxKey(mailbox.value)
+                if (normalized) {
+                    acc[normalized] = mailbox
+                }
+                const translationNormalized = normalizeMailboxKey(
+                    mailbox.translationValue ?? '',
+                )
+                if (
+                    translationNormalized &&
+                    translationNormalized !== normalized
+                ) {
+                    acc[translationNormalized] = mailbox
+                }
+                acc[mailbox.value] = mailbox
+                return acc
+            },
+            {},
+        )
+    }, [dynamicMailboxGroups])
+
     const direction = useAppSelector((state) => state.theme.direction)
 
+    useEffect(() => {
+        const normalizedSelected = normalizeMailboxKey(
+            selectedCategory.value ? String(selectedCategory.value) : '',
+        )
+        if (!normalizedSelected) {
+            return
+        }
+        const mapped =
+            mailboxGroupMap[normalizedSelected] ??
+            mailboxGroupMap[selectedCategory.value as string]
+        if (
+            mapped &&
+            typeof mapped.value === 'string' &&
+            mapped.value !== selectedInboxMailboxId
+        ) {
+            dispatch(setSelectedInboxMailbox(mapped.value))
+        }
+    }, [
+        dispatch,
+        mailboxGroupMap,
+        selectedCategory.value,
+        selectedInboxMailboxId,
+    ])
+
+    useEffect(() => {
+        if (!inboxAccountsLoading && inboxAccounts.length === 0) {
+            dispatch(fetchInboxAccounts())
+        }
+    }, [dispatch, inboxAccountsLoading, inboxAccounts.length])
+
+    useEffect(() => {
+        if (!selectedInboxAccountId) {
+            return
+        }
+        if (
+            selectedMailboxesStatus === 'loading' ||
+            selectedMailboxesStatus === 'succeeded' ||
+            selectedMailboxesStatus === 'failed'
+        ) {
+            return
+        }
+        dispatch(fetchInboxMailboxes({ accountId: selectedInboxAccountId }))
+    }, [dispatch, selectedInboxAccountId, selectedMailboxesStatus])
+
+    const getCategory = useCallback(
+        (value: string) => {
+            let category = value
+            if (category === 'mail') {
+                category = 'inbox'
+            }
+            const normalizedCategory = normalizeMailboxKey(category)
+            const dynamicMatch =
+                (normalizedCategory && mailboxGroupMap[normalizedCategory]) ??
+                dynamicMailboxGroups.find(
+                    (mailbox) =>
+                        normalizeMailboxKey(mailbox.value) === normalizedCategory,
+                )
+            if (dynamicMatch) {
+                const fallbackLabel =
+                    dynamicMatch.label || dynamicMatch.value || category
+                const translationSource =
+                    dynamicMatch.translationValue ?? dynamicMatch.value
+                return {
+                    value: dynamicMatch.value,
+                    label: translateMailboxLabel(
+                        translationSource,
+                        fallbackLabel,
+                    ),
+                }
+            }
+            const staticMatch = findStaticCategory(category)
+            if (staticMatch) {
+                if ('icon' in staticMatch) {
+                    const translationSource =
+                        staticMatch.translationValue ?? staticMatch.value
+                    return {
+                        value: staticMatch.value,
+                        label: translateMailboxLabel(
+                            translationSource,
+                            staticMatch.label,
+                        ),
+                    }
+                }
+                return {
+                    value: category,
+                    label: resolveLabelBadge(t, staticMatch),
+                }
+            }
+            return {
+                value: category,
+                label: translateMailboxLabel(category, category),
+            }
+        },
+        [dynamicMailboxGroups, mailboxGroupMap, translateMailboxLabel, t],
+    )
+
     const onMenuClick = (category: Group | Label) => {
+        const normalized = getCategory(category.value)
         dispatch(updateMailId(''))
-        dispatch(updateSelectedCategory(getCategory(category.value)))
-        navigate(`/app/crm/mail/${category.value}`, { replace: true })
+        dispatch(updateSelectedCategory(normalized))
+        const normalizedKey = normalizeMailboxKey(
+            normalized.value ? String(normalized.value) : '',
+        )
+        if (
+            normalizedKey &&
+            mailboxGroupMap[normalizedKey] &&
+            typeof normalized.value === 'string'
+        ) {
+            dispatch(setSelectedInboxMailbox(normalized.value))
+        }
+        const normalizedValue =
+            normalized.value !== undefined && normalized.value !== null
+                ? String(normalized.value)
+                : 'inbox'
+        const pathValue =
+            normalizedValue.toUpperCase() === 'INBOX'
+                ? 'inbox'
+                : normalizedValue
+        navigate(`/app/crm/mail/${pathValue}`, {
+            replace: true,
+        })
     }
 
     useEffect(() => {
@@ -57,20 +269,30 @@ const MailSideBarContent = () => {
             location.pathname.lastIndexOf('/') + 1,
         )
         const selected = getCategory(path)
-        dispatch(updateSelectedCategory(selected))
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+        if (
+            selectedCategory.value !== selected?.value ||
+            selectedCategory.label !== selected?.label
+        ) {
+            dispatch(updateSelectedCategory(selected))
+        }
+    }, [dispatch, location.pathname, getCategory, selectedCategory.label, selectedCategory.value])
 
-    const getCategory = (value: string) => {
-        const categories = [...groupList, ...labelList]
-        let category = value
-        if (category === 'mail') {
-            category = 'inbox'
-        }
-        return {
-            value: category,
-            label: categories.find((cat) => cat.value === category)?.label,
-        }
+    const primaryMenuItems: Group[] =
+        dynamicMailboxGroups.length > 0 ? dynamicMailboxGroups : groupList
+
+    const resolveMenuLabel = (menu: Group) => {
+        const normalized = normalizeMailboxKey(menu.value)
+        const dynamicMatch =
+            (normalized && mailboxGroupMap[normalized]) ||
+            mailboxGroupMap[menu.value]
+        const translationSource =
+            dynamicMatch?.translationValue ?? menu.translationValue ?? menu.value
+        const fallbackLabel =
+            dynamicMatch?.label ?? menu.label
+        return translateMailboxLabel(
+            translationSource,
+            fallbackLabel,
+        )
     }
 
     return (
@@ -80,8 +302,13 @@ const MailSideBarContent = () => {
                     <div className="my-8 mx-6">
                         <h3>{t('crm.mail.mailbox')}</h3>
                     </div>
+                    {selectedMailboxesStatus === 'failed' && selectedMailboxesError && (
+                        <div className="mx-6 mt-0 mb-4 text-sm text-red-500">
+                            {resolvedMailboxesError}
+                        </div>
+                    )}
                     <Menu variant="transparent" className="mx-2 mb-10">
-                        {groupList.map((menu) => (
+                        {primaryMenuItems.map((menu) => (
                             <MenuItem
                                 key={menu.value}
                                 eventKey={menu.value}
@@ -92,33 +319,35 @@ const MailSideBarContent = () => {
                                 }`}
                                 onSelect={() => onMenuClick(menu)}
                             >
-                                <span className="text-2xl ltr:mr-2 rtl:ml-2">
-                                    {menu.icon}
-                                </span>
-                                <span>{t(`crm.mail.categories.${menu.value}`)}</span>
+                                {menu.icon && (
+                                    <span className="text-2xl ltr:mr-2 rtl:ml-2">
+                                        {menu.icon}
+                                    </span>
+                                )}
+                                <span>{resolveMenuLabel(menu)}</span>
                             </MenuItem>
                         ))}
                     </Menu>
                     <Menu variant="transparent" className="mx-2 mb-6">
                         <MenuGroup label={t('crm.mail.labels')}>
                             {labelList.map((label) => (
-                                <MenuItem
-                                    key={label.value}
-                                    eventKey={label.value}
-                                    className={`mb-2 ${
-                                        selectedCategory.value === label.value
-                                            ? 'bg-gray-100 dark:bg-gray-700'
-                                            : ''
-                                    }`}
-                                    onSelect={() => onMenuClick(label)}
-                                >
-                                    <Badge
-                                        className="ltr:mr-2 rtl:ml-2"
-                                        innerClass={label.dotClass}
-                                    />
-                                    <span>{t(`crm.mail.labelsList.${label.value}`)}</span>
-                                </MenuItem>
-                            ))}
+                            <MenuItem
+                                key={label.value}
+                                eventKey={label.value}
+                                className={`mb-2 ${
+                                    selectedCategory.value === label.value
+                                        ? 'bg-gray-100 dark:bg-gray-700'
+                                        : ''
+                                }`}
+                                onSelect={() => onMenuClick(label)}
+                            >
+                                <Badge
+                                    className="ltr:mr-2 rtl:ml-2"
+                                    innerClass={label.dotClass}
+                                />
+                                <span>{resolveLabelBadge(t, label)}</span>
+                            </MenuItem>
+                        ))}
                         </MenuGroup>
                     </Menu>
                 </div>
@@ -142,6 +371,7 @@ const MailSidebar = () => {
     const dispatch = useAppDispatch()
 
     const { smaller } = useResponsive()
+    const { t } = useTranslation()
 
     const onMobileSideBarClose = () => {
         dispatch(toggleMobileSidebar(false))

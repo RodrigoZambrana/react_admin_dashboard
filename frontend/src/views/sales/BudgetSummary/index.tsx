@@ -8,6 +8,8 @@ const BudgetSummary = () => (
             customerRequired: false,
             layoutMode: 'itemsOnly',
             defaults: { title: 'Presupuestos -Calculo Rápido' },
+            showProductSpecifications: false,
+            showPaymentMethodSelect: false,
         }}
     >
         <OrderNew />

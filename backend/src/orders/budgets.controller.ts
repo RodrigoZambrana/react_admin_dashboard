@@ -51,6 +51,11 @@ export class BudgetsController {
     return this.documents.getDocumentDetails(DocumentType.BUDGET, id)
   }
 
+  @Get(':id/pdf')
+  getBudgetPdf(@Param('id', ParseIntPipe) id: number) {
+    return this.documents.getDocumentPdf(DocumentType.BUDGET, id)
+  }
+
   @Post()
   createBudget(@Body() dto: CreateOrderDto) {
     return this.documents.createDocument(DocumentType.BUDGET, dto)
