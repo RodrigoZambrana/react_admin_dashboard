@@ -162,6 +162,16 @@ export async function apiUpdateSalesOrderPaymentMethod<
     })
 }
 
+export async function apiPersistSalesDocumentFile<
+    T,
+>(id: number, data: FormData, resource: SalesDocumentResource = 'orders') {
+    return ApiService.fetchData<T>({
+        url: `${documentEndpoint(resource)}/${id}/document`,
+        method: 'post',
+        data,
+    })
+}
+
 // Orders CRUD
 export async function apiGetSalesOrder<T, U extends Record<string, unknown>>(
     params: U,

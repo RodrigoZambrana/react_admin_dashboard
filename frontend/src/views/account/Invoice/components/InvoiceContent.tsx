@@ -5,7 +5,11 @@ import Logo from '@/components/template/Logo'
 import { DEFAULT_COMPANY_PROFILE } from '@/constants/companyProfile.constant'
 import { useLocation } from 'react-router-dom'
 import { apiGetAccountInvoiceData } from '@/services/AccountServices'
-import { apiGetSalesOrderDetails, type SalesDocumentResource } from '@/services/SalesService'
+import {
+    apiGetSalesOrderDetails,
+    apiPersistSalesDocumentFile,
+    type SalesDocumentResource,
+} from '@/services/SalesService'
 import { apiGetSystemConfig } from '@/services/SettingsService'
 import { HiOutlineDownload } from 'react-icons/hi'
 import { useAppSelector } from '@/store'
@@ -803,12 +807,39 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         }
     }, [])
 
+    const persistBudgetDocument = useCallback(
+        async (blob: Blob, fileName: string) => {
+            if (!isBudgetDocument) {
+                return
+            }
+            const rawId = orderData?.id ?? data?.id
+            const numericId = Number(rawId)
+            if (!Number.isFinite(numericId) || numericId <= 0) {
+                return
+            }
+            const formData = new FormData()
+            formData.append('file', blob, fileName)
+            try {
+                await apiPersistSalesDocumentFile(numericId, formData, resource)
+            } catch (error) {
+                // eslint-disable-next-line no-console
+                console.error('Failed to persist budget document file', error)
+            }
+        },
+        [data?.id, isBudgetDocument, orderData?.id, resource],
+    )
+
     const handleDownloadPdf = useCallback(async () => {
         const invoiceId = orderData?.id ?? data?.id
         try {
             setDownloadingPdf(true)
             const pdf = await generateInvoicePdf()
-            pdf.save(`invoice-${invoiceId ?? 'document'}.pdf`)
+            const fileName = `invoice-${invoiceId ?? 'document'}.pdf`
+            const blobOutput = pdf.output('blob')
+            if (blobOutput instanceof Blob) {
+                void persistBudgetDocument(blobOutput, fileName)
+            }
+            pdf.save(fileName)
         } catch (error) {
             // eslint-disable-next-line no-console
             console.error('Failed to generate invoice PDF', error)
@@ -824,7 +855,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         } finally {
             setDownloadingPdf(false)
         }
-    }, [data?.id, generateInvoicePdf, orderData?.id, t])
+    }, [data?.id, generateInvoicePdf, orderData?.id, persistBudgetDocument, t])
 
     const handlePrintPdf = useCallback(async () => {
         try {
