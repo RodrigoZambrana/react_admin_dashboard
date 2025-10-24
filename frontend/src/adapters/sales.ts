@@ -12,6 +12,39 @@ export type FxSnapshot = {
   rates: Record<string, number>
   generatedAt?: string
 }
+
+export type ValidityRecord = {
+  validUntil?: unknown
+  valid_until?: unknown
+  [key: string]: unknown
+}
+
+export const parseValidityRecord = (
+  value: unknown,
+): ValidityRecord | undefined => {
+  if (value === null || value === undefined) {
+    return undefined
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return undefined
+    }
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as ValidityRecord
+      }
+    } catch {
+      return undefined
+    }
+    return undefined
+  }
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return value as ValidityRecord
+  }
+  return undefined
+}
 export function toUnixSeconds(date: any): number | undefined {
   if (date === null || date === undefined) {
     return undefined
@@ -162,11 +195,12 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
 export function adaptOrderToDetailsView(o: any) {
   if (!o) return {}
   const dateTime = toUnixSeconds(o.date)
+  const validitySource = parseValidityRecord(o?.validity)
   const rawValidUntil =
     o.validUntil ??
     o.valid_until ??
-    (typeof o.validity === 'object' && o.validity
-      ? (o.validity as any).validUntil ?? (o.validity as any).valid_until
+    (validitySource
+      ? validitySource.validUntil ?? validitySource.valid_until
       : undefined)
   const validUntil = toUnixSeconds(rawValidUntil)
   const shipping = {
