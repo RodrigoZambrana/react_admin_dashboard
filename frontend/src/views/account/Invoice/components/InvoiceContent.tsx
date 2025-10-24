@@ -24,6 +24,7 @@ import type { Product, Summary } from './ContentTable'
 import ContentTable from './ContentTable'
 
 const INVOICE_CONTAINER_ID = 'invoice-print-root'
+const DESKTOP_VIEWPORT_WIDTH = 1024
 
 const linearToSrgb = (value: number) => {
     if (value <= 0.0031308) {
@@ -389,11 +390,15 @@ const prepareNodeForCanvas = (node: HTMLElement) => {
     container.style.position = 'fixed'
     container.style.top = '0'
     container.style.left = '0'
-    container.style.width = `${node.offsetWidth}px`
-    container.style.height = `${node.offsetHeight}px`
+    const width = Math.max(node.offsetWidth, DESKTOP_VIEWPORT_WIDTH)
+    container.style.width = `${width}px`
+    container.style.height = 'auto'
+    container.style.maxWidth = 'none'
     container.style.pointerEvents = 'none'
     container.style.opacity = '0'
     container.style.zIndex = '-1'
+    clone.style.width = '100%'
+    clone.style.maxWidth = 'none'
     container.appendChild(clone)
     document.body.appendChild(container)
 
@@ -747,10 +752,26 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         const prepared = prepareNodeForCanvas(invoiceRef.current)
 
         try {
+            const viewportWidth = Math.max(
+                DESKTOP_VIEWPORT_WIDTH,
+                prepared.node.scrollWidth,
+                prepared.node.offsetWidth,
+            )
+            const viewportHeight = Math.max(
+                prepared.node.scrollHeight,
+                prepared.node.offsetHeight,
+                prepared.node.clientHeight,
+                1,
+            )
+
             const canvas = await html2canvas(prepared.node, {
                 scale: 2,
                 useCORS: true,
                 backgroundColor: '#ffffff',
+                windowWidth: viewportWidth,
+                windowHeight: viewportHeight,
+                scrollX: 0,
+                scrollY: 0,
                 onclone: (clonedDocument) => {
                     sanitizeDocumentStyleSheets(clonedDocument)
                     const target = clonedDocument.getElementById(
