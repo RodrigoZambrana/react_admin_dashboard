@@ -46,6 +46,37 @@ const mapAddressToForm = (address: any): AddressFormValue => ({
             : ADDRESS_COUNTRY_FALLBACK,
 })
 
+const parseBooleanLike = (value: unknown): boolean => {
+    if (typeof value === 'boolean') {
+        return value
+    }
+    if (typeof value === 'number') {
+        if (Number.isNaN(value)) {
+            return false
+        }
+        if (value === 0) {
+            return false
+        }
+        if (value === 1) {
+            return true
+        }
+        return value !== 0
+    }
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase()
+        if (!normalized.length) {
+            return false
+        }
+        if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) {
+            return true
+        }
+        if (['false', '0', 'no', 'n', 'off', 'null', 'undefined'].includes(normalized)) {
+            return false
+        }
+    }
+    return Boolean(value)
+}
+
 const mapItemsToEditable = (
     items: any[],
     products: any[],
@@ -194,7 +225,9 @@ const OrderEdit = () => {
 
                 const shippingAddress = mapAddressToForm(orderData?.shippingAddress ?? {})
                 const billingAddressRaw = mapAddressToForm(orderData?.billingAddress ?? {})
-                const billingSameAsShipping = Boolean(orderData?.billingSameAsShipping)
+                const billingSameAsShipping = parseBooleanLike(
+                    orderData?.billingSameAsShipping,
+                )
 
                 const formValues: SalesDocumentFormValues = {
                     customerId: orderData?.customerId ? String(orderData.customerId) : '',
