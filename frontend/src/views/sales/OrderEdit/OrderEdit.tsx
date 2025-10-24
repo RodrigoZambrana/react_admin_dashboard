@@ -396,10 +396,21 @@ const OrderEdit = () => {
                     orderData?.billingSameAsShipping,
                 )
 
+                const validitySource =
+                    typeof orderData?.validity === 'object' && orderData?.validity
+                        ? (orderData.validity as Record<string, unknown>)
+                        : null
+                const rawValidUntil =
+                    orderData?.validUntil ??
+                    orderData?.valid_until ??
+                    (validitySource
+                        ? validitySource.validUntil ?? validitySource.valid_until
+                        : undefined)
+
                 const formValues: SalesDocumentFormValues = {
                     customerId: orderData?.customerId ? String(orderData.customerId) : '',
                     date: parseDateValue(orderData?.date) ?? new Date(),
-                    validUntil: parseDateValue(orderData?.validUntil),
+                    validUntil: parseDateValue(rawValidUntil),
                     paymentMehod: (() => {
                         if (typeof orderData?.paymentMehod === 'string') {
                             return orderData.paymentMehod

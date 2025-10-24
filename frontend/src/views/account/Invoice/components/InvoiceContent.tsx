@@ -691,7 +691,20 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                 if (response?.data) {
                     const { company, ...invoiceData } = response.data
                     if (invoiceData && typeof invoiceData === 'object') {
-                        setData(invoiceData)
+                        const validitySource =
+                            typeof (invoiceData as any).validity === 'object'
+                                ? ((invoiceData as any).validity as Record<string, unknown>)
+                                : null
+                        const normalizedData = {
+                            ...invoiceData,
+                            validUntil:
+                                (invoiceData as any).validUntil ??
+                                (invoiceData as any).valid_until ??
+                                (validitySource
+                                    ? validitySource.validUntil ?? validitySource.valid_until
+                                    : undefined),
+                        }
+                        setData(normalizedData)
                     }
                     setCompanyDetails(mapCompanyProfileToDetails(company))
                 } else {
