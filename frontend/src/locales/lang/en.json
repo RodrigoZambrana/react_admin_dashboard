@@ -1126,6 +1126,7 @@
             "squareSummary": "Width: {{width}} m · Height: {{height}} m",
             "linearSummary": "Linear meters: {{length}} m",
             "noExtraAttributes": "No additional details required.",
+            "pdfNotFound": "No stored PDF is available for this document.",
             "quickMessage": {
                 "title": "Generated message",
                 "header": "Quantity Product Specifications Comments Total (Unit price)",

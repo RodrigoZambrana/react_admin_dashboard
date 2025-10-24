@@ -274,6 +274,7 @@ model Order {
   convertedAt           DateTime?
   convertedBy           Int?
   convertedByUser       User?          @relation("OrderConvertedBy", fields: [convertedBy], references: [id], onDelete: SetNull)
+  documentPdf           Bytes?
   version               Int            @default(1)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt

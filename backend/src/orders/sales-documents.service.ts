@@ -11,6 +11,7 @@ import {
   addDecimals,
   divideDecimals,
 } from '../common/currency/money.util'
+import PDFDocument from 'pdfkit'
 
 const BUDGET_STATUS = {
   DRAFT: { code: 1000, name: 'Presupuesto - Borrador', color: '#9ca3af' },
@@ -69,6 +70,8 @@ export class SalesDocumentsService {
     private readonly currencyConversion: CurrencyConversionService,
   ) {}
 
+  private readonly companySingletonKey = 'default'
+
   private readonly budgetStatusCache = new Map<keyof typeof BUDGET_STATUS, number>()
 
   private withDocumentType(documentType: DocumentType, where: Prisma.OrderWhereInput = {}) {
@@ -103,6 +106,107 @@ export class SalesDocumentsService {
     const decimalValue =
       value instanceof Prisma.Decimal ? value : new Prisma.Decimal(value)
     return decimalValue.toFixed(scale)
+  }
+
+  private decimalToNumber(
+    value: Prisma.Decimal | number | string | null | undefined,
+  ): number | null {
+    if (value === null || value === undefined) {
+      return null
+    }
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value)
+      return Number.isFinite(parsed) ? parsed : null
+    }
+    if (value instanceof Prisma.Decimal) {
+      return Number(value.toString())
+    }
+    return null
+  }
+
+  private formatCurrencyValue(amount: number, currency: string) {
+    try {
+      return new Intl.NumberFormat('es-UY', {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount)
+    } catch {
+      return `${currency} ${amount.toFixed(2)}`
+    }
+  }
+
+  private formatDateValue(value?: Date | string | null) {
+    if (!value) {
+      return null
+    }
+    const date = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return null
+    }
+    try {
+      return new Intl.DateTimeFormat('es-UY').format(date)
+    } catch {
+      return date.toISOString().split('T')[0]
+    }
+  }
+
+  private normalizeScalarString(value?: string | null) {
+    if (typeof value !== 'string') {
+      return null
+    }
+    const trimmed = value.trim()
+    return trimmed.length ? trimmed : null
+  }
+
+  private async loadCompanyProfileSummary(
+    client: PrismaService | Prisma.TransactionClient,
+  ) {
+    const profile = await client.companyProfile.findUnique({
+      where: { singleton: this.companySingletonKey },
+      select: {
+        legalName: true,
+        tradeName: true,
+        taxId: true,
+        email: true,
+        phone: true,
+        website: true,
+        addressLine1: true,
+        addressLine2: true,
+      },
+    })
+    if (!profile) {
+      return null
+    }
+    const displayName =
+      this.normalizeScalarString(profile.tradeName) ||
+      this.normalizeScalarString(profile.legalName) ||
+      'Presupuesto'
+    const addressLines = [
+      this.normalizeScalarString(profile.addressLine1),
+      this.normalizeScalarString(profile.addressLine2),
+    ].filter((line): line is string => Boolean(line))
+    const detailLines = [
+      this.normalizeScalarString(profile.email)
+        ? `Email: ${profile.email?.trim()}`
+        : null,
+      this.normalizeScalarString(profile.phone)
+        ? `Tel: ${profile.phone?.trim()}`
+        : null,
+      this.normalizeScalarString(profile.website),
+      this.normalizeScalarString(profile.taxId)
+        ? `RUT: ${profile.taxId?.trim()}`
+        : null,
+    ].filter((line): line is string => Boolean(line))
+    return {
+      displayName,
+      legalName: this.normalizeScalarString(profile.legalName),
+      lines: [...addressLines, ...detailLines],
+    }
   }
 
   private formatSpecKey(key: string) {
@@ -980,7 +1084,7 @@ export class SalesDocumentsService {
           fxRates.rates[fxBase] = '1'
         }
 
-        await this.prisma.order.create({
+        const created = await this.prisma.order.create({
           data: {
             documentType,
             customerId: customer.id,
@@ -1003,7 +1107,11 @@ export class SalesDocumentsService {
             fxBase,
             fxRates,
           },
+          select: { id: true },
         })
+        if (documentType === DocumentType.BUDGET) {
+          await this.generateBudgetPdfForClient(this.prisma, created.id)
+        }
         imported += 1
       } catch (error: any) {
         errors.push({ row: lineNumber, message: error?.message || 'Unknown error' })
@@ -1164,6 +1272,352 @@ export class SalesDocumentsService {
     }
   }
 
+  private async buildBudgetPdfBuffer(
+    client: PrismaService | Prisma.TransactionClient,
+    orderId: number,
+  ): Promise<Buffer> {
+    const order = await client.order.findFirst({
+      where: { id: orderId, documentType: DocumentType.BUDGET },
+      include: {
+        customer: {
+          include: {
+            addresses: {
+              orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+            },
+          },
+        },
+        items: true,
+        paymentMethod: true,
+      },
+    })
+    if (!order) {
+      throw new BadRequestException('sales.budgets.notFound')
+    }
+
+    const customerAddresses = order.customer?.addresses ?? []
+    const primaryAddress =
+      customerAddresses.find((addr) => addr.isPrimary) ?? customerAddresses[0] ?? null
+    const secondaryAddress =
+      customerAddresses.find(
+        (addr) => !addr.isPrimary && addr.id !== primaryAddress?.id,
+      ) ?? null
+
+    const normalize = (value?: string | null) => this.normalizeScalarString(value)
+    const formatLine1 = (addr: CustomerAddress | null) => {
+      if (!addr) {
+        return null
+      }
+      const street = normalize(addr.street)
+      const number = normalize(addr.number)
+      if (street && number) {
+        return `${street} ${number}`
+      }
+      return street ?? number
+    }
+    const formatLine2 = (addr: CustomerAddress | null) => {
+      if (!addr) {
+        return null
+      }
+      const apartment = normalize(addr.apartment)
+      const corner = normalize(addr.corner)
+      const parts = [
+        apartment ? `Apt ${apartment}` : null,
+        corner,
+      ].filter((segment): segment is string => Boolean(segment))
+      return parts.length ? parts.join(' • ') : null
+    }
+    const buildLines = (
+      line1?: string | null,
+      line2?: string | null,
+      city?: string | null,
+      state?: string | null,
+      zip?: string | null,
+    ) => {
+      const lines: string[] = []
+      if (line1) lines.push(line1)
+      if (line2) lines.push(line2)
+      const cityState = [city, state]
+        .filter((segment): segment is string => Boolean(segment))
+        .join(', ')
+      if (cityState) lines.push(cityState)
+      if (zip) lines.push(zip)
+      return lines
+    }
+
+    const shippingLine1 = normalize(order.shippingAddress1) ?? formatLine1(primaryAddress)
+    const shippingLine2 = normalize(order.shippingAddress2) ?? formatLine2(primaryAddress)
+    const shippingCity =
+      normalize(order.shippingCity) ?? normalize(primaryAddress?.city)
+    const shippingState =
+      normalize(order.shippingState) ?? normalize(primaryAddress?.country)
+    const shippingZip = normalize(order.shippingZip)
+    const shippingLines = buildLines(
+      shippingLine1,
+      shippingLine2,
+      shippingCity,
+      shippingState,
+      shippingZip,
+    )
+
+    const billingLine1 =
+      normalize(order.billingAddress1) ?? formatLine1(secondaryAddress ?? primaryAddress)
+    const billingLine2 =
+      normalize(order.billingAddress2) ?? formatLine2(secondaryAddress ?? primaryAddress)
+    const billingCity =
+      normalize(order.billingCity) ?? normalize((secondaryAddress ?? primaryAddress)?.city)
+    const billingState =
+      normalize(order.billingState) ?? normalize((secondaryAddress ?? primaryAddress)?.country)
+    const billingZip = normalize(order.billingZip)
+    const billingLines = buildLines(
+      billingLine1,
+      billingLine2,
+      billingCity,
+      billingState,
+      billingZip,
+    )
+
+    const company = await this.loadCompanyProfileSummary(client)
+    const currency = normalize(order.orderCurrency) ?? 'UYU'
+    const subTotal = this.decimalToNumber(order.subTotal) ?? 0
+    const tax = this.decimalToNumber(order.tax) ?? 0
+    const deliveryFees = this.decimalToNumber(order.deliveryFees) ?? 0
+    const grandTotal = this.decimalToNumber(order.grandTotal) ?? subTotal + deliveryFees
+    const paymentMethodName = normalize(order.paymentMethod?.name)
+
+    const items = order.items.map((item) => {
+      const qtyRaw = Number(item.qty ?? 0)
+      const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : 0
+      const unitBase =
+        this.decimalToNumber(item.unitAmountOrderCurrency) ??
+        this.decimalToNumber(item.price) ??
+        0
+      const unitPrice = Number.isFinite(unitBase)
+        ? Math.round(unitBase * 100) / 100
+        : 0
+      const total = Math.round(unitPrice * qty * 100) / 100
+      const extras: string[] = []
+      const specSummary = normalize(item.specSummary)
+      if (specSummary) {
+        extras.push(specSummary)
+      }
+      const description = normalize(item.description)
+      if (description) {
+        extras.push(description)
+      }
+      const comments = normalize(item.comments)
+      if (comments) {
+        extras.push(comments)
+      }
+      return {
+        name: item.name,
+        qty,
+        unitPrice,
+        total,
+        details: extras.join('\n'),
+      }
+    })
+
+    const generatedDate = this.formatDateValue(order.date)
+    const validUntil = this.formatDateValue(order.validUntil)
+    const customerName = normalize(order.customer?.name) ?? '—'
+    const customerEmail = normalize(order.customer?.email)
+    const customerPhone = normalize(order.customer?.phoneNumber)
+
+    return await new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 40 })
+      const buffers: Buffer[] = []
+      doc.on('data', (chunk) => buffers.push(chunk))
+      doc.on('error', (error) => reject(error))
+      doc.on('end', () => resolve(Buffer.concat(buffers)))
+
+      const marginLeft = doc.page.margins.left
+      const marginRight = doc.page.margins.right
+      const marginTop = doc.page.margins.top
+      const usableWidth = doc.page.width - marginLeft - marginRight
+      const rightColumnWidth = 200
+
+      let headerBottomLeft = marginTop
+      if (company) {
+        doc.font('Helvetica-Bold').fontSize(20)
+        doc.text(company.displayName, marginLeft, marginTop, {
+          width: usableWidth - rightColumnWidth - 16,
+        })
+        if (company.legalName && company.legalName !== company.displayName) {
+          doc.font('Helvetica').fontSize(10)
+          doc.text(company.legalName, {
+            width: usableWidth - rightColumnWidth - 16,
+          })
+        }
+        doc.font('Helvetica').fontSize(10)
+        for (const line of company.lines) {
+          doc.text(line, {
+            width: usableWidth - rightColumnWidth - 16,
+          })
+        }
+        headerBottomLeft = doc.y
+      } else {
+        doc.font('Helvetica-Bold').fontSize(20)
+        doc.text('Presupuesto', marginLeft, marginTop, {
+          width: usableWidth - rightColumnWidth - 16,
+        })
+        headerBottomLeft = doc.y
+      }
+
+      doc.font('Helvetica-Bold').fontSize(18)
+      doc.text(
+        `Presupuesto #${order.id}`,
+        marginLeft + usableWidth - rightColumnWidth,
+        marginTop,
+        { width: rightColumnWidth, align: 'right' },
+      )
+      doc.font('Helvetica').fontSize(10)
+      doc.text(
+        `Fecha: ${generatedDate ?? '-'}`,
+        marginLeft + usableWidth - rightColumnWidth,
+        doc.y,
+        { width: rightColumnWidth, align: 'right' },
+      )
+      if (validUntil) {
+        doc.text(
+          `Válido hasta: ${validUntil}`,
+          marginLeft + usableWidth - rightColumnWidth,
+          doc.y,
+          { width: rightColumnWidth, align: 'right' },
+        )
+      }
+      doc.text(
+        `Moneda: ${currency}`,
+        marginLeft + usableWidth - rightColumnWidth,
+        doc.y,
+        { width: rightColumnWidth, align: 'right' },
+      )
+      if (paymentMethodName) {
+        doc.text(
+          `Pago: ${paymentMethodName}`,
+          marginLeft + usableWidth - rightColumnWidth,
+          doc.y,
+          { width: rightColumnWidth, align: 'right' },
+        )
+      }
+      const headerBottomRight = doc.y
+      doc.y = Math.max(headerBottomLeft, headerBottomRight) + 20
+
+      doc.font('Helvetica-Bold').fontSize(12)
+      doc.text('Cliente', marginLeft, doc.y)
+      doc.font('Helvetica').fontSize(10)
+      doc.text(customerName)
+      if (customerEmail) {
+        doc.text(`Email: ${customerEmail}`)
+      }
+      if (customerPhone) {
+        doc.text(`Tel: ${customerPhone}`)
+      }
+      const addressSection = shippingLines.length ? shippingLines : billingLines
+      if (addressSection.length) {
+        for (const line of addressSection) {
+          doc.text(line)
+        }
+      }
+      doc.moveDown(0.5)
+
+      const tableTop = doc.y + 10
+      doc.font('Helvetica-Bold').fontSize(11)
+      doc.text('Producto', marginLeft, tableTop, { width: 260 })
+      doc.text('Cant.', marginLeft + 270, tableTop, { width: 60, align: 'right' })
+      doc.text('Precio', marginLeft + 340, tableTop, { width: 80, align: 'right' })
+      doc.text('Total', marginLeft + 430, tableTop, { width: 80, align: 'right' })
+      doc.moveTo(marginLeft, tableTop + 15)
+        .lineTo(marginLeft + usableWidth, tableTop + 15)
+        .strokeColor('#d1d5db')
+        .stroke()
+      doc.strokeColor('#000000')
+      doc.font('Helvetica').fontSize(10)
+      doc.y = tableTop + 20
+
+      for (const item of items) {
+        doc.font('Helvetica').fontSize(10)
+        doc.text(item.name, marginLeft, doc.y, { width: 260 })
+        doc.text(String(item.qty), marginLeft + 270, doc.y, {
+          width: 60,
+          align: 'right',
+        })
+        doc.text(
+          this.formatCurrencyValue(item.unitPrice, currency),
+          marginLeft + 340,
+          doc.y,
+          { width: 80, align: 'right' },
+        )
+        doc.text(
+          this.formatCurrencyValue(item.total, currency),
+          marginLeft + 430,
+          doc.y,
+          { width: 80, align: 'right' },
+        )
+        if (item.details) {
+          doc.moveDown(0.15)
+          doc.font('Helvetica-Oblique').fontSize(9)
+          doc.text(item.details, marginLeft, doc.y, { width: 260 })
+        }
+        doc.moveDown(0.6)
+      }
+
+      doc.moveDown(0.5)
+      doc.moveTo(marginLeft, doc.y)
+        .lineTo(marginLeft + usableWidth, doc.y)
+        .strokeColor('#d1d5db')
+        .stroke()
+      doc.strokeColor('#000000')
+
+      const totalsX = marginLeft + usableWidth - 200
+      const totalsLabelWidth = 100
+      const totalsValueWidth = 100
+      const totals = [
+        { label: 'Subtotal', value: subTotal, bold: false },
+        { label: 'Impuestos', value: tax, bold: false },
+        { label: 'Envío', value: deliveryFees, bold: false },
+        { label: 'Total', value: grandTotal, bold: true },
+      ]
+      for (const totalRow of totals) {
+        const fontName = totalRow.bold ? 'Helvetica-Bold' : 'Helvetica'
+        doc.font(fontName).fontSize(totalRow.bold ? 11 : 10)
+        doc.text(totalRow.label, totalsX, doc.y + 4, {
+          width: totalsLabelWidth,
+          align: 'right',
+        })
+        doc.text(
+          this.formatCurrencyValue(totalRow.value, currency),
+          totalsX + totalsLabelWidth + 10,
+          doc.y - (totalRow.bold ? 0 : 2),
+          { width: totalsValueWidth, align: 'right' },
+        )
+      }
+
+      if (normalize(order.comment)) {
+        doc.moveDown(1)
+        doc.font('Helvetica-Bold').fontSize(11)
+        doc.text('Notas', marginLeft, doc.y)
+        doc.font('Helvetica').fontSize(10)
+        doc.text(order.comment ?? '', {
+          width: usableWidth,
+        })
+      }
+
+      doc.end()
+    })
+  }
+
+  private async generateBudgetPdfForClient(
+    client: PrismaService | Prisma.TransactionClient,
+    orderId: number,
+  ) {
+    const buffer = await this.buildBudgetPdfBuffer(client, orderId)
+    const pdfBytes = new Uint8Array(buffer)
+    await client.order.update({
+      where: { id: orderId },
+      data: { documentPdf: pdfBytes },
+    })
+  }
+
   async createDocument(documentType: DocumentType, dto: CreateOrderDto) {
     const customerId = Number(dto.customerId)
     if (!customerId) throw new BadRequestException('sales.orders.validation.customerRequired')
@@ -1217,7 +1671,7 @@ export class SalesDocumentsService {
       }
     }
 
-    await this.prisma.order.create({
+    const created = await this.prisma.order.create({
       data: {
         documentType,
         customerId,
@@ -1264,8 +1718,12 @@ export class SalesDocumentsService {
         validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
         items: { create: monetary.items },
       },
+      select: { id: true },
     })
-    return true
+    if (documentType === DocumentType.BUDGET) {
+      await this.generateBudgetPdfForClient(this.prisma, created.id)
+    }
+    return { id: created.id }
   }
 
   async replaceDocument(
@@ -1369,7 +1827,10 @@ export class SalesDocumentsService {
         },
       },
     })
-    return true
+    if (documentType === DocumentType.BUDGET) {
+      await this.generateBudgetPdfForClient(this.prisma, id)
+    }
+    return { id }
   }
 
   async updateDocumentComment(documentType: DocumentType, id: number, body: { comment?: string }) {
@@ -1379,6 +1840,9 @@ export class SalesDocumentsService {
     })
     if (result.count === 0) {
       throw new BadRequestException('sales.orders.validation.notFound')
+    }
+    if (documentType === DocumentType.BUDGET) {
+      await this.generateBudgetPdfForClient(this.prisma, id)
     }
     return true
   }
@@ -1390,6 +1854,9 @@ export class SalesDocumentsService {
     })
     if (result.count === 0) {
       throw new BadRequestException('sales.orders.validation.notFound')
+    }
+    if (documentType === DocumentType.BUDGET) {
+      await this.generateBudgetPdfForClient(this.prisma, id)
     }
     return true
   }
@@ -1428,6 +1895,9 @@ export class SalesDocumentsService {
     if (updated.count === 0) {
       throw new BadRequestException('sales.orders.validation.notFound')
     }
+    if (documentType === DocumentType.BUDGET) {
+      await this.generateBudgetPdfForClient(this.prisma, id)
+    }
     return true
   }
 
@@ -1450,6 +1920,7 @@ export class SalesDocumentsService {
           updatedAt: new Date(),
         },
       })
+      await this.generateBudgetPdfForClient(tx, budget.id)
       return {
         budgetId: budget.id,
         statusId: sentStatusId,
@@ -1557,6 +2028,28 @@ export class SalesDocumentsService {
       })
 
       return { budgetId: budget.id, orderId: newOrder.id }
+    })
+  }
+
+  async getDocumentPdf(documentType: DocumentType, id: number): Promise<StreamableFile> {
+    let order = await this.prisma.order.findFirst({
+      where: { id, documentType },
+      select: { documentPdf: true },
+    })
+    if ((!order || !order.documentPdf) && documentType === DocumentType.BUDGET) {
+      await this.generateBudgetPdfForClient(this.prisma, id)
+      order = await this.prisma.order.findFirst({
+        where: { id, documentType },
+        select: { documentPdf: true },
+      })
+    }
+    if (!order || !order.documentPdf) {
+      throw new BadRequestException('sales.documents.pdfNotFound')
+    }
+    const filename = `${documentType === DocumentType.BUDGET ? 'budget' : 'order'}-${id}.pdf`
+    return new StreamableFile(Buffer.from(order.documentPdf), {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
     })
   }
 }
