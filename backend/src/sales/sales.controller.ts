@@ -11,7 +11,7 @@ import {
   StreamableFile,
   UseGuards,
 } from '@nestjs/common'
-import { Prisma, SalesUnit } from '@prisma/client'
+import { DocumentType, Prisma, SalesUnit } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { UpsertProductDto, UpdateProductDto, TableQueryDto as ProductQuery } from './dto/product.dto'
@@ -512,7 +512,7 @@ export class SalesController {
       dateRange.lte = new Date(endDate * 1000)
     }
 
-    const where: Prisma.OrderWhereInput = {}
+    const where: Prisma.OrderWhereInput = { documentType: DocumentType.ORDER }
     if (Object.keys(dateRange).length > 0) {
       where.date = dateRange
     }
