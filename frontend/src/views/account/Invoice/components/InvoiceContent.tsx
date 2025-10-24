@@ -418,6 +418,7 @@ type Invoice = {
     paymentSummary: Summary
     comment?: string
     validUntil?: number | string | null
+    disclaimer?: string | null
 }
 
 type GetAccountInvoiceDataRequest = {
@@ -480,6 +481,7 @@ type InvoiceOrderDetails = {
     customer?: InvoiceCustomerDetails
     fxSnapshot?: FxSnapshot
     comment?: string
+    disclaimer?: string | null
 }
 
 type BudgetInfoItem = {
@@ -572,6 +574,21 @@ const addressLinesFromObject = (address?: AddressLines) => {
 const valueOrDash = (value?: string | null) => {
     const trimmed = value?.toString().trim()
     return trimmed && trimmed.length > 0 ? trimmed : '—'
+}
+
+const pickFirstNonEmptyString = (
+    ...values: Array<unknown>
+): string | undefined => {
+    for (const value of values) {
+        if (typeof value !== 'string') {
+            continue
+        }
+        const trimmed = value.trim()
+        if (trimmed.length > 0) {
+            return trimmed
+        }
+    }
+    return undefined
 }
 
 const formatDateValue = (value: unknown): string => {
@@ -672,7 +689,34 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                 if (response?.data) {
                     const { company, ...invoiceData } = response.data
                     if (invoiceData && typeof invoiceData === 'object') {
-                        setData(invoiceData)
+                        const normalized: Partial<Invoice> = {
+                            ...invoiceData,
+                        }
+                        if (normalized.validUntil === undefined) {
+                            const fallbackValidUntil = [
+                                (invoiceData as any)?.valid_until,
+                                (invoiceData as any)?.valid_until_at,
+                                (invoiceData as any)?.validUntilDate,
+                                (invoiceData as any)?.validityDate,
+                                (invoiceData as any)?.validity_date,
+                            ].find((value) => value !== undefined)
+                            if (fallbackValidUntil !== undefined) {
+                                normalized.validUntil =
+                                    fallbackValidUntil === null
+                                        ? null
+                                        : (fallbackValidUntil as number | string)
+                            }
+                        }
+                        const resolvedDisclaimer = pickFirstNonEmptyString(
+                            normalized.disclaimer,
+                            (invoiceData as any)?.disclaimer,
+                            (invoiceData as any)?.documentDisclaimer,
+                            (invoiceData as any)?.document_disclaimer,
+                        )
+                        if (resolvedDisclaimer !== undefined) {
+                            normalized.disclaimer = resolvedDisclaimer
+                        }
+                        setData(normalized)
                     }
                     setCompanyDetails(mapCompanyProfileToDetails(company))
                 } else {
@@ -699,6 +743,10 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                         comment:
                             typeof mapped.comment === 'string'
                                 ? mapped.comment
+                                : undefined,
+                        disclaimer:
+                            typeof mapped.disclaimer === 'string'
+                                ? mapped.disclaimer
                                 : undefined,
                     }
                     setOrderData(structured)
@@ -1123,6 +1171,42 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         return typeof first === 'string' ? first.trim() : ''
     }, [data.comment, orderData?.comment])
 
+    const orderDisclaimerHtml = useMemo(() => {
+        const disclaimers = [orderData?.disclaimer, data.disclaimer]
+        const first = disclaimers.find(
+            (value) => typeof value === 'string' && value.trim().length > 0,
+        )
+        return typeof first === 'string' ? first.trim() : ''
+    }, [data.disclaimer, orderData?.disclaimer])
+
+    const orderDisclaimerText = useMemo(() => {
+        if (!orderDisclaimerHtml) {
+            return ''
+        }
+        return orderDisclaimerHtml
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+    }, [orderDisclaimerHtml])
+
+    const orderDisclaimerDirection = useMemo(() => {
+        if (!orderDisclaimerText) {
+            return 'ltr'
+        }
+        return resolveTextDirection(orderDisclaimerText)
+    }, [orderDisclaimerText])
+
+    const disclaimerLabel = useMemo(
+        () =>
+            t('sales.orders.disclaimerLabel', {
+                defaultValue: t('text.labels.disclaimer', {
+                    defaultValue: 'Disclaimer',
+                }),
+            }),
+        [t],
+    )
+
     const hasContent =
         Boolean(orderData) ||
         Boolean(data && Object.keys(data).length > 0)
@@ -1357,16 +1441,32 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                 fxSnapshot={orderData?.fxSnapshot}
                                 resource={resource}
                             />
-                            <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                                <h6 className="font-semibold text-gray-700 dark:text-gray-200">
-                                    {t('text.columns.comments')}
-                                </h6>
-                                <p
-                                    className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200"
-                                    dir={resolveTextDirection(orderComment)}
-                                >
-                                    {orderComment || '\u00a0'}
-                                </p>
+                            <div className="mt-6 grid gap-4">
+                                <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                    <h6 className="font-semibold text-gray-700 dark:text-gray-200">
+                                        {t('text.columns.comments')}
+                                    </h6>
+                                    <p
+                                        className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200"
+                                        dir={resolveTextDirection(orderComment)}
+                                    >
+                                        {orderComment || '\u00a0'}
+                                    </p>
+                                </div>
+                                {orderDisclaimerHtml ? (
+                                    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                        <h6 className="font-semibold text-gray-700 dark:text-gray-200">
+                                            {disclaimerLabel}
+                                        </h6>
+                                        <div
+                                            className="mt-2 text-sm text-gray-700 dark:text-gray-200"
+                                            dir={orderDisclaimerDirection}
+                                            dangerouslySetInnerHTML={{
+                                                __html: orderDisclaimerHtml,
+                                            }}
+                                        />
+                                    </div>
+                                ) : null}
                             </div>
                         </div>
                     </div>
