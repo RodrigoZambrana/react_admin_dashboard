@@ -55,6 +55,11 @@ const OrderEdit = () => {
         'sales.orders.validation.itemsRequired',
         'Add at least one product',
     )
+    const disclaimerLabel = docMessage(
+        'disclaimerLabel',
+        'sales.orders.disclaimerLabel',
+        t('text.labels.disclaimer', { defaultValue: 'Disclaimer' }),
+    )
     const navigate = useNavigate()
     const { orderId } = useParams()
     const { smaller } = useResponsive()
@@ -189,6 +194,7 @@ const OrderEdit = () => {
                 billingSameAsShipping: false,
                 shipping: { shippingVendor: data.shippingVendor || 'FedEx', deliveryFees: Number(data.deliveryFees || 0), estimatedMin: Number(data.estimatedMin || 1), estimatedMax: Number(data.estimatedMax || 3) },
                 comment: data.comment || '',
+                disclaimer: data.disclaimer || '',
                 orderCurrency: orderCurrencyValue,
             })
             if (data.customerId) {
@@ -213,9 +219,11 @@ const OrderEdit = () => {
                     defaultValue: t('text.actions.edit'),
                 })}
             </h3>
-            <Formik initialValues={initial} enableReinitialize 
+            <Formik initialValues={initial} enableReinitialize
                 validationSchema={Yup.object().shape({
                     customerId: Yup.string().required(validationCustomerRequired),
+                    comment: Yup.string(),
+                    disclaimer: Yup.string(),
                     items: Yup.array()
                         .of(
                             Yup.object().shape({
@@ -698,6 +706,15 @@ const OrderEdit = () => {
                                                 textArea
                                                 rows={4}
                                                 dir={resolveTextDirection(values.comment)}
+                                            />
+                                        </FormItem>
+                                        <FormItem label={disclaimerLabel}>
+                                            <Field
+                                                as={Input}
+                                                name="disclaimer"
+                                                textArea
+                                                rows={4}
+                                                dir={resolveTextDirection(values.disclaimer)}
                                             />
                                         </FormItem>
                                         <FormItem label={t('text.labels.date')}>

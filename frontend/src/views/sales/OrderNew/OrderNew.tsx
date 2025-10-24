@@ -478,6 +478,11 @@ const OrderNew = () => {
         'sales.orders.orderCurrencyPlaceholder',
         'Select order currency',
     )
+    const disclaimerLabel = docMessage(
+        'disclaimerLabel',
+        'sales.orders.disclaimerLabel',
+        t('text.labels.disclaimer', { defaultValue: 'Disclaimer' }),
+    )
     const recipientLabel = customerRequired
         ? t('text.labels.recipient')
         : `${t('text.labels.recipient')} ${t('text.labels.optionalHint', {
@@ -790,6 +795,7 @@ const OrderNew = () => {
                         estimatedMax: 0,
                     },
                     comment: '',
+                    disclaimer: '',
                 }}
                 validationSchema={Yup.object().shape({
                     customerId: customerRequired
@@ -854,6 +860,8 @@ const OrderNew = () => {
                               corner: Yup.string().nullable(),
                               apartment: Yup.string().nullable(),
                           }),
+                    comment: Yup.string(),
+                    disclaimer: Yup.string(),
                     items: Yup.array()
                         .of(
                             Yup.object().shape({
@@ -985,6 +993,7 @@ const OrderNew = () => {
                             estimatedMax: Number(values.shipping?.estimatedMax ?? 0),
                         },
                         comment: values.comment,
+                        disclaimer: values.disclaimer,
                     }
                     if (!itemsOnlyMode) {
                         // Ensure shipping address is filled
@@ -2614,6 +2623,15 @@ const OrderNew = () => {
                                                     textArea
                                                     rows={4}
                                                     dir={resolveTextDirection(values.comment)}
+                                                />
+                                            </FormItem>
+                                            <FormItem label={disclaimerLabel}>
+                                                <Field
+                                                    as={Input}
+                                                    name="disclaimer"
+                                                    textArea
+                                                    rows={4}
+                                                    dir={resolveTextDirection(values.disclaimer)}
                                                 />
                                             </FormItem>
                                             <FormItem

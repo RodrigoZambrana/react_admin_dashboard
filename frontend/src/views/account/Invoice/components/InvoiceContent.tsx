@@ -475,6 +475,7 @@ type InvoiceOrderDetails = {
     customer?: InvoiceCustomerDetails
     fxSnapshot?: FxSnapshot
     comment?: string
+    disclaimer?: string
 }
 
 type BudgetInfoItem = {
@@ -694,6 +695,10 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                         comment:
                             typeof mapped.comment === 'string'
                                 ? mapped.comment
+                                : undefined,
+                        disclaimer:
+                            typeof mapped.disclaimer === 'string'
+                                ? mapped.disclaimer
                                 : undefined,
                     }
                     setOrderData(structured)
@@ -1189,6 +1194,23 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         return typeof first === 'string' ? first.trim() : ''
     }, [data.comment, orderData?.comment])
 
+    const invoiceDisclaimer =
+        data && typeof (data as any).disclaimer === 'string'
+            ? ((data as any).disclaimer as string)
+            : undefined
+
+    const orderDisclaimer = useMemo(() => {
+        const disclaimers = [orderData?.disclaimer, invoiceDisclaimer]
+        const first = disclaimers.find(
+            (value) => typeof value === 'string' && value.trim().length > 0,
+        )
+        return typeof first === 'string' ? first.trim() : ''
+    }, [invoiceDisclaimer, orderData?.disclaimer])
+
+    const disclaimerLabel = t('sales.orders.disclaimerLabel', {
+        defaultValue: t('text.labels.disclaimer', { defaultValue: 'Disclaimer' }),
+    })
+
     const hasContent =
         Boolean(orderData) ||
         Boolean(data && Object.keys(data).length > 0)
@@ -1434,6 +1456,19 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                     {orderComment || '\u00a0'}
                                 </p>
                             </div>
+                            {orderDisclaimer && (
+                                <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                    <h6 className="font-semibold text-gray-700 dark:text-gray-200">
+                                        {disclaimerLabel}
+                                    </h6>
+                                    <p
+                                        className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200"
+                                        dir={resolveTextDirection(orderDisclaimer)}
+                                    >
+                                        {orderDisclaimer}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                     <div className="print:hidden mt-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

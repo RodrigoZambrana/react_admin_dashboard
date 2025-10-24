@@ -137,6 +137,15 @@ const baseAppsRoute: Routes = [
         authority: getRolesForFeature(FEATURES.SALES),
     },
     {
+        key: 'appsSales.budgetQuick',
+        path: `${APP_PREFIX_PATH}/sales/budget-quick`,
+        component: lazy(() => import('@/views/sales/BudgetSummary')),
+        authority: getRolesForFeature(FEATURES.SALES),
+        meta: {
+            header: 'Quick Budget',
+        },
+    },
+    {
         key: 'appsSales.orderNew',
         path: `${APP_PREFIX_PATH}/sales/order-new`,
         component: lazy(() => import('@/views/sales/OrderNew')),
