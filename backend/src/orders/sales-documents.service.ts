@@ -1429,7 +1429,7 @@ export class SalesDocumentsService {
     const customerPhone = normalize(order.customer?.phoneNumber)
 
     return await new Promise<Buffer>((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'A4', margin: 40 })
+      const doc = new PDFDocument({ size: 'A4', margin: 36 })
       const buffers: Buffer[] = []
       doc.on('data', (chunk) => buffers.push(chunk))
       doc.on('error', (error) => reject(error))
@@ -1439,180 +1439,298 @@ export class SalesDocumentsService {
       const marginRight = doc.page.margins.right
       const marginTop = doc.page.margins.top
       const usableWidth = doc.page.width - marginLeft - marginRight
-      const rightColumnWidth = 200
 
-      let headerBottomLeft = marginTop
+      const brandColor = '#111827'
+      const accentColor = '#2563eb'
+      const mutedText = '#4b5563'
+      const mutedBackground = '#f3f4f6'
+      const tableStripe = '#f9fafb'
+
+      const headerHeight = 108
+      doc.save()
+      doc.rect(marginLeft, marginTop, usableWidth, headerHeight).fill(brandColor)
+      doc.restore()
+
+      const headerPadding = 18
+      const headerColumnWidth = usableWidth / 2
+
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(22)
+      doc.text(
+        company?.displayName ?? company?.legalName ?? 'Presupuesto',
+        marginLeft + headerPadding,
+        marginTop + headerPadding,
+        { width: headerColumnWidth - headerPadding },
+      )
+
+      doc.font('Helvetica').fontSize(10)
       if (company) {
-        doc.font('Helvetica-Bold').fontSize(20)
-        doc.text(company.displayName, marginLeft, marginTop, {
-          width: usableWidth - rightColumnWidth - 16,
-        })
         if (company.legalName && company.legalName !== company.displayName) {
-          doc.font('Helvetica').fontSize(10)
           doc.text(company.legalName, {
-            width: usableWidth - rightColumnWidth - 16,
+            width: headerColumnWidth - headerPadding,
           })
         }
-        doc.font('Helvetica').fontSize(10)
         for (const line of company.lines) {
           doc.text(line, {
-            width: usableWidth - rightColumnWidth - 16,
+            width: headerColumnWidth - headerPadding,
           })
         }
-        headerBottomLeft = doc.y
-      } else {
-        doc.font('Helvetica-Bold').fontSize(20)
-        doc.text('Presupuesto', marginLeft, marginTop, {
-          width: usableWidth - rightColumnWidth - 16,
-        })
-        headerBottomLeft = doc.y
       }
+      const leftHeaderBottom = doc.y
 
-      doc.font('Helvetica-Bold').fontSize(18)
+      const metaX = marginLeft + headerColumnWidth
+      doc.font('Helvetica-Bold').fontSize(16)
       doc.text(
         `Presupuesto #${order.id}`,
-        marginLeft + usableWidth - rightColumnWidth,
-        marginTop,
-        { width: rightColumnWidth, align: 'right' },
+        metaX,
+        marginTop + headerPadding,
+        { width: headerColumnWidth - headerPadding, align: 'right' },
       )
+
       doc.font('Helvetica').fontSize(10)
-      doc.text(
+      const metaLines = [
         `Fecha: ${generatedDate ?? '-'}`,
-        marginLeft + usableWidth - rightColumnWidth,
-        doc.y,
-        { width: rightColumnWidth, align: 'right' },
-      )
-      if (validUntil) {
-        doc.text(
-          `Válido hasta: ${validUntil}`,
-          marginLeft + usableWidth - rightColumnWidth,
-          doc.y,
-          { width: rightColumnWidth, align: 'right' },
-        )
-      }
-      doc.text(
+        validUntil ? `Válido hasta: ${validUntil}` : null,
         `Moneda: ${currency}`,
-        marginLeft + usableWidth - rightColumnWidth,
-        doc.y,
-        { width: rightColumnWidth, align: 'right' },
-      )
-      if (paymentMethodName) {
-        doc.text(
-          `Pago: ${paymentMethodName}`,
-          marginLeft + usableWidth - rightColumnWidth,
-          doc.y,
-          { width: rightColumnWidth, align: 'right' },
-        )
-      }
-      const headerBottomRight = doc.y
-      doc.y = Math.max(headerBottomLeft, headerBottomRight) + 20
+        paymentMethodName ? `Forma de pago: ${paymentMethodName}` : null,
+      ].filter((line): line is string => Boolean(line))
 
-      doc.font('Helvetica-Bold').fontSize(12)
-      doc.text('Cliente', marginLeft, doc.y)
-      doc.font('Helvetica').fontSize(10)
-      doc.text(customerName)
-      if (customerEmail) {
-        doc.text(`Email: ${customerEmail}`)
-      }
-      if (customerPhone) {
-        doc.text(`Tel: ${customerPhone}`)
-      }
-      const addressSection = shippingLines.length ? shippingLines : billingLines
-      if (addressSection.length) {
-        for (const line of addressSection) {
-          doc.text(line)
-        }
-      }
-      doc.moveDown(0.5)
-
-      const tableTop = doc.y + 10
-      doc.font('Helvetica-Bold').fontSize(11)
-      doc.text('Producto', marginLeft, tableTop, { width: 260 })
-      doc.text('Cant.', marginLeft + 270, tableTop, { width: 60, align: 'right' })
-      doc.text('Precio', marginLeft + 340, tableTop, { width: 80, align: 'right' })
-      doc.text('Total', marginLeft + 430, tableTop, { width: 80, align: 'right' })
-      doc.moveTo(marginLeft, tableTop + 15)
-        .lineTo(marginLeft + usableWidth, tableTop + 15)
-        .strokeColor('#d1d5db')
-        .stroke()
-      doc.strokeColor('#000000')
-      doc.font('Helvetica').fontSize(10)
-      doc.y = tableTop + 20
-
-      for (const item of items) {
-        doc.font('Helvetica').fontSize(10)
-        doc.text(item.name, marginLeft, doc.y, { width: 260 })
-        doc.text(String(item.qty), marginLeft + 270, doc.y, {
-          width: 60,
+      let metaY = doc.y + 4
+      for (const line of metaLines) {
+        doc.text(line, metaX, metaY, {
+          width: headerColumnWidth - headerPadding,
           align: 'right',
         })
+        metaY = doc.y + 4
+      }
+      const rightHeaderBottom = doc.y
+
+      doc.fillColor(brandColor)
+      const headerBottom = Math.max(leftHeaderBottom, rightHeaderBottom)
+      const infoTop = headerBottom + 18
+      doc.y = infoTop
+
+      const cardPadding = 12
+      const cardGap = 16
+      const cardWidth = (usableWidth - cardGap) / 2
+
+      const drawInfoCard = (title: string, rawLines: string[], x: number) => {
+        const lines = rawLines.length ? rawLines : ['—']
+        const topY = doc.y
+        const textWidth = cardWidth - cardPadding * 2
+
+        doc.save()
+        doc.font('Helvetica-Bold').fontSize(11)
+        const titleHeight = doc.heightOfString(title, { width: textWidth })
+        doc.font('Helvetica').fontSize(10)
+        let bodyHeight = 0
+        lines.forEach((line, index) => {
+          const height = doc.heightOfString(line, { width: textWidth })
+          bodyHeight += height
+          if (index < lines.length - 1) {
+            bodyHeight += 6
+          }
+        })
+        const cardHeight =
+          cardPadding * 2 +
+          titleHeight +
+          (lines.length ? 8 : 0) +
+          bodyHeight
+        doc.restore()
+
+        doc.save()
+        doc.roundedRect(x, topY, cardWidth, cardHeight, 8).fill(mutedBackground)
+        doc.restore()
+
+        doc.fillColor(brandColor).font('Helvetica-Bold').fontSize(11)
+        doc.text(title, x + cardPadding, topY + cardPadding, { width: textWidth })
+
+        let cursorY = topY + cardPadding + titleHeight + (lines.length ? 8 : 0)
+        doc.fillColor(mutedText).font('Helvetica').fontSize(10)
+        for (const line of lines) {
+          doc.text(line, x + cardPadding, cursorY, { width: textWidth })
+          cursorY = doc.y + 6
+        }
+
+        doc.y = topY
+        return cardHeight
+      }
+
+      const customerLines = [
+        customerName,
+        customerEmail ? `Email: ${customerEmail}` : null,
+        customerPhone ? `Teléfono: ${customerPhone}` : null,
+      ].filter((line): line is string => Boolean(line))
+
+      const shippingSection = shippingLines.length
+        ? ['Dirección de envío:', ...shippingLines.map((line) => `• ${line}`)]
+        : []
+      const billingSection = billingLines.length
+        ? ['Dirección de facturación:', ...billingLines.map((line) => `• ${line}`)]
+        : []
+      const addressLines = [...shippingSection]
+      if (shippingSection.length && billingSection.length) {
+        addressLines.push('')
+      }
+      addressLines.push(...billingSection)
+      if (!addressLines.length) {
+        addressLines.push('Sin direcciones registradas')
+      }
+
+      const leftCardHeight = drawInfoCard('Cliente', customerLines, marginLeft)
+      doc.y = infoTop
+      const rightCardHeight = drawInfoCard(
+        'Direcciones',
+        addressLines,
+        marginLeft + cardWidth + cardGap,
+      )
+      const cardsHeight = Math.max(leftCardHeight, rightCardHeight)
+      doc.y = infoTop + cardsHeight + 24
+
+      const columnDescription = Math.round(usableWidth * 0.5)
+      const columnQuantity = Math.round(usableWidth * 0.12)
+      const columnUnitPrice = Math.round(usableWidth * 0.18)
+      const columnTotal = usableWidth - columnDescription - columnQuantity - columnUnitPrice
+      const qtyX = marginLeft + columnDescription
+      const unitX = qtyX + columnQuantity
+      const totalX = unitX + columnUnitPrice
+
+      const tableTop = doc.y
+      const tableHeaderHeight = 26
+
+      doc.save()
+      doc.roundedRect(marginLeft, tableTop, usableWidth, tableHeaderHeight, 6).fill(accentColor)
+      doc.restore()
+
+      const headerTextY = tableTop + 8
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10)
+      doc.text('Producto', marginLeft + 12, headerTextY, { width: columnDescription - 24 })
+      doc.text('Cant.', qtyX, headerTextY, { width: columnQuantity, align: 'right' })
+      doc.text('Precio unitario', unitX, headerTextY, { width: columnUnitPrice, align: 'right' })
+      doc.text('Total', totalX, headerTextY, { width: columnTotal, align: 'right' })
+
+      let rowTop = tableTop + tableHeaderHeight
+      doc.fillColor(brandColor)
+
+      items.forEach((item, index) => {
+        doc.font('Helvetica-Bold').fontSize(10)
+        const descWidth = columnDescription - 24
+        const nameHeight = doc.heightOfString(item.name, { width: descWidth })
+        doc.font('Helvetica').fontSize(9)
+        const detailsHeight = item.details
+          ? doc.heightOfString(item.details, { width: descWidth }) + 4
+          : 0
+        doc.font('Helvetica').fontSize(10)
+        const qtyHeight = doc.heightOfString(String(item.qty), { width: columnQuantity })
+        const unitHeight = doc.heightOfString(
+          this.formatCurrencyValue(item.unitPrice, currency),
+          { width: columnUnitPrice },
+        )
+        const totalHeight = doc.heightOfString(
+          this.formatCurrencyValue(item.total, currency),
+          { width: columnTotal },
+        )
+        const rowHeight =
+          Math.max(nameHeight + detailsHeight + 12, qtyHeight + 12, unitHeight + 12, totalHeight + 12) +
+          4
+
+        doc.save()
+        doc.rect(marginLeft, rowTop, usableWidth, rowHeight).fill(
+          index % 2 === 0 ? '#ffffff' : tableStripe,
+        )
+        doc.restore()
+
+        let textY = rowTop + 10
+        doc.fillColor(brandColor).font('Helvetica-Bold').fontSize(10)
+        doc.text(item.name, marginLeft + 12, textY, { width: descWidth })
+        if (item.details) {
+          doc.fillColor(mutedText).font('Helvetica').fontSize(9)
+          doc.text(item.details, marginLeft + 12, doc.y + 4, { width: descWidth })
+        }
+
+        doc.fillColor(brandColor).font('Helvetica').fontSize(10)
+        doc.text(String(item.qty), qtyX, textY, { width: columnQuantity, align: 'right' })
         doc.text(
           this.formatCurrencyValue(item.unitPrice, currency),
-          marginLeft + 340,
-          doc.y,
-          { width: 80, align: 'right' },
+          unitX,
+          textY,
+          { width: columnUnitPrice, align: 'right' },
         )
         doc.text(
           this.formatCurrencyValue(item.total, currency),
-          marginLeft + 430,
-          doc.y,
-          { width: 80, align: 'right' },
+          totalX,
+          textY,
+          { width: columnTotal, align: 'right' },
         )
-        if (item.details) {
-          doc.moveDown(0.15)
-          doc.font('Helvetica-Oblique').fontSize(9)
-          doc.text(item.details, marginLeft, doc.y, { width: 260 })
-        }
-        doc.moveDown(0.6)
-      }
 
-      doc.moveDown(0.5)
-      doc.moveTo(marginLeft, doc.y)
-        .lineTo(marginLeft + usableWidth, doc.y)
-        .strokeColor('#d1d5db')
-        .stroke()
-      doc.strokeColor('#000000')
+        rowTop += rowHeight
+      })
 
-      const totalsX = marginLeft + usableWidth - 200
-      const totalsLabelWidth = 100
-      const totalsValueWidth = 100
-      const totals = [
+      doc.y = rowTop + 18
+
+      const totalsRows = [
         { label: 'Subtotal', value: subTotal, bold: false },
         { label: 'Impuestos', value: tax, bold: false },
         { label: 'Envío', value: deliveryFees, bold: false },
         { label: 'Total', value: grandTotal, bold: true },
       ]
-      for (const totalRow of totals) {
-        const fontName = totalRow.bold ? 'Helvetica-Bold' : 'Helvetica'
-        doc.font(fontName).fontSize(totalRow.bold ? 11 : 10)
-        doc.text(totalRow.label, totalsX, doc.y + 4, {
-          width: totalsLabelWidth,
-          align: 'right',
+      const totalsPadding = 14
+      const totalsWidth = Math.min(usableWidth * 0.45, 240)
+      const totalsX = marginLeft + usableWidth - totalsWidth
+      const totalsTextWidth = totalsWidth - totalsPadding * 2
+      const totalsTitleHeight = doc
+        .font('Helvetica-Bold')
+        .fontSize(11)
+        .heightOfString('Resumen', { width: totalsTextWidth })
+      const totalsHeight =
+        totalsPadding * 2 +
+        totalsTitleHeight +
+        12 +
+        totalsRows.length * 18
+
+      doc.save()
+      doc.roundedRect(totalsX, doc.y, totalsWidth, totalsHeight, 8).fill(brandColor)
+      doc.restore()
+
+      let totalsCursor = doc.y + totalsPadding
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(11)
+      doc.text('Resumen', totalsX + totalsPadding, totalsCursor, {
+        width: totalsTextWidth,
+      })
+      totalsCursor += totalsTitleHeight + 12
+
+      totalsRows.forEach((row) => {
+        doc.font(row.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(row.bold ? 11 : 10)
+        doc.text(row.label, totalsX + totalsPadding, totalsCursor, {
+          width: totalsTextWidth / 2,
         })
         doc.text(
-          this.formatCurrencyValue(totalRow.value, currency),
-          totalsX + totalsLabelWidth + 10,
-          doc.y - (totalRow.bold ? 0 : 2),
-          { width: totalsValueWidth, align: 'right' },
+          this.formatCurrencyValue(row.value, currency),
+          totalsX + totalsPadding,
+          totalsCursor,
+          { width: totalsTextWidth, align: 'right' },
         )
-      }
+        totalsCursor += 18
+      })
 
-      if (normalize(order.disclaimer)) {
-        doc.moveDown(1)
-        doc.font('Helvetica-Bold').fontSize(11)
+      doc.y = Math.max(doc.y, totalsCursor) + 18
+
+      const normalizedDisclaimer = normalize(order.disclaimer)
+      if (normalizedDisclaimer) {
+        doc.fillColor(brandColor).font('Helvetica-Bold').fontSize(11)
         doc.text('Condiciones', marginLeft, doc.y)
-        doc.font('Helvetica').fontSize(10)
-        doc.text(order.disclaimer ?? '', {
+        doc.fillColor(mutedText).font('Helvetica').fontSize(10)
+        doc.text(normalizedDisclaimer, marginLeft, doc.y + 6, {
           width: usableWidth,
         })
+        doc.y += 18
       }
 
-      if (normalize(order.comment)) {
-        doc.moveDown(1)
-        doc.font('Helvetica-Bold').fontSize(11)
+      const normalizedComment = normalize(order.comment)
+      if (normalizedComment) {
+        doc.fillColor(brandColor).font('Helvetica-Bold').fontSize(11)
         doc.text('Notas', marginLeft, doc.y)
-        doc.font('Helvetica').fontSize(10)
-        doc.text(order.comment ?? '', {
+        doc.fillColor(mutedText).font('Helvetica').fontSize(10)
+        doc.text(normalizedComment, marginLeft, doc.y + 6, {
           width: usableWidth,
         })
       }
