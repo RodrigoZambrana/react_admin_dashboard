@@ -60,6 +60,16 @@ if (hasBudgetsFeature && !isUrucortinas) {
             subMenu: [],
         },
         {
+            key: 'appsSales.budgetQuick',
+            path: `${APP_PREFIX_PATH}/sales/budget-quick`,
+            title: 'Quick Budget',
+            translateKey: 'nav.appsSales.budgetQuick',
+            icon: '',
+            type: NAV_ITEM_TYPE_ITEM,
+            authority: getRolesForFeature(FEATURES.SALES),
+            subMenu: [],
+        },
+        {
             key: 'appsSales.budgetNew',
             path: `${APP_PREFIX_PATH}/sales/budget-new`,
             title: 'New Budget',

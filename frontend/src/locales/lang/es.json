@@ -31,6 +31,7 @@
             "orderDetails": "Detalles del pedido",
             "addOrder": "Agregar pedido",
             "budgetList": "Presupuestos",
+            "budgetQuick": "Presupuesto rápido",
             "budgetNew": "Agregar presupuesto"
         },
         "appsBudgets": {
@@ -425,6 +426,7 @@
             "addressInformation": "Información de dirección",
             "permanentAddress": "Dirección permanente",
             "correspondenceAddress": "Dirección de correspondencia",
+            "disclaimer": "Condiciones",
             "addEvent": "Agregar evento",
             "editEvent": "Editar evento",
             "deleteCustomer": "Eliminar cliente",
@@ -478,6 +480,7 @@
             "agenda": "Agenda",
             "addCustomer": "Agregar cliente",
             "addOrder": "Agregar pedido",
+            "quickBudget": "Presupuesto rápido",
             "menu": "Menú"
         },
         "priority": {
@@ -1072,6 +1075,7 @@
             "orderCurrencyPlaceholder": "Selecciona la moneda del pedido",
             "invoiceAction": "Ver factura",
             "validUntilLabel": "Válido hasta",
+            "disclaimerLabel": "Condiciones",
             "editAction": "Editar pedido",
             "delete": {
                 "title": "Eliminar orden",
@@ -1121,6 +1125,13 @@
                 "unknownCustomer": "Cliente sin asignar",
                 "noContact": "Sin datos de contacto",
                 "notesAndScheduling": "Notas y programación"
+            },
+            "administrative": {
+                "title": "Información administrativa",
+                "totalCost": "Costo total",
+                "netIncome": "Ingreso neto",
+                "lineDetail": "{{qty}} × {{unitCost}}",
+                "empty": "No hay datos de costos disponibles"
             }
         },
         "documents": {
@@ -1207,6 +1218,7 @@
             "addAction": "Crear presupuesto",
             "invoiceAction": "Descargar presupuesto",
             "validUntilLabel": "Válido hasta",
+            "disclaimerLabel": "Condiciones",
             "editAction": "Editar presupuesto",
             "importSuccess": "Se importaron {{imported}} presupuestos.",
             "importSuccessWithErrors": "Presupuestos importados: {{imported}}. Registros con error: {{failed}}.",
@@ -1224,6 +1236,13 @@
             },
             "table": {
                 "id": "Presupuesto"
+            },
+            "administrative": {
+                "title": "Información administrativa",
+                "totalCost": "Costo total",
+                "netIncome": "Ingreso neto",
+                "lineDetail": "{{qty}} × {{unitCost}}",
+                "empty": "No hay datos de costos disponibles"
             }
         }
     },

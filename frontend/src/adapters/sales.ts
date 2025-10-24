@@ -168,6 +168,14 @@ export function adaptOrderToDetailsView(o: any) {
             it.unitPrice ??
             0,
         )
+        const unitCostAmount = Number(
+          it.unitCostOrderCurrency ??
+            it.unitCostAmount ??
+            0,
+        )
+        const resolvedCostCurrency =
+          normalizeCurrencyCode(it.unitCostCurrency, normalizedOrderCurrency) ||
+          normalizedOrderCurrency
         const computeItem = {
           price: priceForCalculation,
           unitPrice: priceForCalculation,
@@ -208,6 +216,13 @@ export function adaptOrderToDetailsView(o: any) {
           unitOfMeasure: resolvedUnit,
           pricingMethod: resolvedUnit,
           effectiveQuantity: getEffectiveQuantity(computeItem),
+          unitCostOrderCurrency: Number.isFinite(unitCostAmount)
+            ? unitCostAmount
+            : 0,
+          costCurrency: resolvedCostCurrency,
+          costTotal: Number.isFinite(unitCostAmount)
+            ? Math.round(unitCostAmount * rawQty * 100) / 100
+            : 0,
         }
       })
     : []
@@ -262,6 +277,12 @@ export function adaptOrderToDetailsView(o: any) {
     }
     return ''
   })()
+  const disclaimer = (() => {
+    if (typeof o.disclaimer === 'string') {
+      return o.disclaimer.trim()
+    }
+    return ''
+  })()
   return {
     id: String(o.id),
     progressStatus: o.statusId || 0,
@@ -275,5 +296,6 @@ export function adaptOrderToDetailsView(o: any) {
     customer,
     fxSnapshot,
     comment,
+    disclaimer,
   }
 }

@@ -917,6 +917,7 @@ export class SalesDocumentsService {
       'billingCity',
       'billingState',
       'comment',
+      'disclaimer',
       'createdAt',
       'updatedAt',
     ]
@@ -946,6 +947,7 @@ export class SalesDocumentsService {
         order.billingCity ?? '',
         order.billingState ?? '',
         order.comment ?? '',
+        order.disclaimer ?? '',
         order.createdAt instanceof Date ? order.createdAt.toISOString() : new Date(order.createdAt).toISOString(),
         order.updatedAt instanceof Date ? order.updatedAt.toISOString() : new Date(order.updatedAt).toISOString(),
       ]
@@ -1052,6 +1054,7 @@ export class SalesDocumentsService {
         const billingCity = this.getCell(row, columnIndex, 'billingCity')
         const billingState = this.getCell(row, columnIndex, 'billingState')
         const comment = this.getCell(row, columnIndex, 'comment')
+        const disclaimer = this.getCell(row, columnIndex, 'disclaimer')
         const grandTotal = this.parseNumber(this.getCell(row, columnIndex, 'grandTotal'))
         const subTotalCell = this.getCell(row, columnIndex, 'subTotal')
         const subTotal = subTotalCell ? this.parseNumber(subTotalCell) : grandTotal
@@ -1099,6 +1102,7 @@ export class SalesDocumentsService {
             billingCity: billingCity || null,
             billingState: billingState || null,
             comment: comment || null,
+            disclaimer: disclaimer || null,
             grandTotal,
             subTotal,
             tax,
@@ -1255,6 +1259,7 @@ export class SalesDocumentsService {
       fxBase: order.fxBase,
       fxRates: order.fxRates,
       comment: order.comment,
+      disclaimer: order.disclaimer ?? null,
       billingSameAsShipping: order.billingSameAsShipping,
       shippingAddress1: shippingAddress1 ?? null,
       shippingAddress2: shippingAddress2 ?? null,
@@ -1592,6 +1597,16 @@ export class SalesDocumentsService {
         )
       }
 
+      if (normalize(order.disclaimer)) {
+        doc.moveDown(1)
+        doc.font('Helvetica-Bold').fontSize(11)
+        doc.text('Condiciones', marginLeft, doc.y)
+        doc.font('Helvetica').fontSize(10)
+        doc.text(order.disclaimer ?? '', {
+          width: usableWidth,
+        })
+      }
+
       if (normalize(order.comment)) {
         doc.moveDown(1)
         doc.font('Helvetica-Bold').fontSize(11)
@@ -1706,6 +1721,7 @@ export class SalesDocumentsService {
         estimatedMin: dto.shipping?.estimatedMin,
         estimatedMax: dto.shipping?.estimatedMax,
         comment: dto.comment,
+        disclaimer: dto.disclaimer,
         subTotal: monetary.subTotal.toFixed(2),
         tax: monetary.tax.toFixed(2),
         grandTotal: monetary.grandTotal.toFixed(2),
@@ -1811,6 +1827,7 @@ export class SalesDocumentsService {
         estimatedMin: dto.shipping?.estimatedMin,
         estimatedMax: dto.shipping?.estimatedMax,
         comment: dto.comment,
+        disclaimer: dto.disclaimer,
         subTotal: monetary.subTotal.toFixed(2),
         tax: monetary.tax.toFixed(2),
         grandTotal: monetary.grandTotal.toFixed(2),
