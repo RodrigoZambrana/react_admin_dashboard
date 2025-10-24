@@ -59,6 +59,7 @@ type Props = {
     showCustomAttributes?: boolean
     showUnitColumn?: boolean
     roundAmount?: (value: number) => number
+    showProductSpecifications?: boolean
 }
 
 type SpecField = 'width' | 'height' | 'length'
@@ -133,10 +134,12 @@ const ProductCell = ({
     row,
     showDescription,
     showImage,
+    showProductSpecifications,
 }: {
     row: EditableItem
     showDescription?: boolean
     showImage?: boolean
+    showProductSpecifications?: boolean
 }) => {
     const text = stripHtml(row.description)
     const excerpt = text.length > 120 ? text.slice(0, 120) + '…' : text
@@ -146,7 +149,7 @@ const ProductCell = ({
         typeof row.specifications === 'string'
             ? row.specifications.trim()
             : ''
-    const hasSpecs = specs.length > 0
+    const showSpecs = Boolean(showProductSpecifications && specs.length > 0)
     return (
         <div className={containerClass}>
             {shouldShowImage && (
@@ -157,7 +160,7 @@ const ProductCell = ({
                 {showDescription && excerpt && (
                     <div className="text-sm opacity-80 leading-snug">{excerpt}</div>
                 )}
-                {hasSpecs && (
+                {showSpecs && (
                     <div
                         className="mt-1 text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap"
                         dir={resolveTextDirection(specs)}
@@ -182,11 +185,13 @@ const EditableOrderProductsTable = ({
     showCustomAttributes = false,
     showUnitColumn = true,
     roundAmount,
+    showProductSpecifications = true,
 }: Props) => {
     const { t, i18n } = useTranslation()
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
     const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
     const [specDrafts, setSpecDrafts] = useState<SpecDrafts>({})
+    const [activeQuantityId, setActiveQuantityId] = useState<string | null>(null)
     const textAreaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
     const [activeSpecField, setActiveSpecField] = useState<{
         productId: string
@@ -195,6 +200,7 @@ const EditableOrderProductsTable = ({
     const specInputRefs = useRef<
         Record<string, Partial<Record<SpecField, HTMLInputElement | null>>>
     >({})
+    const quantityInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
     const storeCurrency = useAppSelector((state) => state.currency.code)
     const defaultCurrency =
         normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
@@ -290,6 +296,16 @@ const EditableOrderProductsTable = ({
         [],
     )
 
+    const registerQuantityRef = useCallback((productId: string) => {
+        return (node: HTMLInputElement | null) => {
+            if (!node) {
+                delete quantityInputRefs.current[productId]
+                return
+            }
+            quantityInputRefs.current[productId] = node
+        }
+    }, [])
+
     const composeSquareMeterSummary = useCallback(
         (width?: number, height?: number) => {
             if (!Number.isFinite(width) || !Number.isFinite(height)) {
@@ -360,6 +376,7 @@ const EditableOrderProductsTable = ({
                         row={row}
                         showDescription={showDescription}
                         showImage={showImage}
+                        showProductSpecifications={showProductSpecifications}
                     />
                 )
             },
@@ -389,6 +406,8 @@ const EditableOrderProductsTable = ({
                             min={1}
                             step="1"
                             value={row.qty}
+                            ref={registerQuantityRef(row.productId)}
+                            autoFocus={activeQuantityId === row.productId}
                             onChange={(e) => {
                                 const rawValue = e.target.value
                                 if (rawValue === '' || rawValue === '-') {
@@ -399,6 +418,12 @@ const EditableOrderProductsTable = ({
                                     return
                                 }
                                 onQtyChange(row.productId, numeric)
+                            }}
+                            onFocus={() => setActiveQuantityId(row.productId)}
+                            onBlur={() => {
+                                setActiveQuantityId((previous) =>
+                                    previous === row.productId ? null : previous,
+                                )
                             }}
                         />
                         {unit !== 'UNIT' && formattedDerivedQuantity !== undefined && (
@@ -674,7 +699,7 @@ const EditableOrderProductsTable = ({
                 } else if (measurementSummary) {
                     combinedLines.push(measurementSummary)
                 }
-                if (productSpecText) {
+                if (showProductSpecifications && productSpecText) {
                     combinedLines.push(productSpecText)
                 }
                 const combinedSummary = combinedLines.join('\n')
@@ -999,6 +1024,34 @@ const EditableOrderProductsTable = ({
             node.setSelectionRange(length, length)
         }
     }, [editingCommentId, commentDrafts])
+
+    useEffect(() => {
+        if (!activeQuantityId) {
+            return
+        }
+        const node = quantityInputRefs.current[activeQuantityId]
+        if (!node) {
+            const exists = items.some((item) => item.productId === activeQuantityId)
+            if (!exists) {
+                setActiveQuantityId(null)
+            }
+            return
+        }
+        if (document.activeElement !== node) {
+            node.focus({ preventScroll: true })
+            if (
+                typeof node.selectionStart === 'number' &&
+                typeof node.selectionEnd === 'number'
+            ) {
+                const length = node.value.length
+                try {
+                    node.setSelectionRange(length, length)
+                } catch {
+                    // ignore selection errors for inputs that disallow programmatic selection
+                }
+            }
+        }
+    }, [activeQuantityId, items])
 
     useEffect(() => {
         if (!activeSpecField) {

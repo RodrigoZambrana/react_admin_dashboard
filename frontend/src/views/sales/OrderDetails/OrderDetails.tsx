@@ -6,6 +6,7 @@ import Container from '@/components/shared/Container'
 import DoubleSidedImage from '@/components/shared/DoubleSidedImage'
 import OrderProducts from './components/OrderProducts'
 import PaymentSummary from './components/PaymentSummary'
+import AdministrativeSummary from './components/AdministrativeSummary'
 import ShippingInfo from './components/ShippingInfo'
 import Activity from './components/Activity'
 import CustomerInfo from './components/CustomerInfo'
@@ -18,7 +19,10 @@ import isEmpty from 'lodash/isEmpty'
 import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import Button from '@/components/ui/Button'
+import Card from '@/components/ui/Card'
 import { useSalesDocumentI18n } from '../context/useSalesDocumentI18n'
+import { resolveTextDirection } from '@/utils/textDirection'
+import { sanitizeRichText } from '@/utils/security/inputGuards'
 
 type SalesOrderDetailsResponse = {
     id?: string
@@ -63,6 +67,9 @@ type SalesOrderDetailsResponse = {
         pricingMethod?: string | null
         effectiveQuantity?: number
         unitPrice?: number
+        unitCostOrderCurrency?: number
+        costCurrency?: string
+        costTotal?: number
     }[]
     activity?: {
         date: number
@@ -93,6 +100,7 @@ type SalesOrderDetailsResponse = {
         }
     }
     comment?: string
+    disclaimer?: string
 }
 
 const OrderDetails = () => {
@@ -157,6 +165,26 @@ const OrderDetails = () => {
         'sales.orders.invoiceAction',
         t('text.actions.viewInvoice', { defaultValue: 'View invoice' }),
     )
+    const administrativeTitle = docMessage(
+        'administrativeTitle',
+        'sales.orders.administrative.title',
+        'Administrative info',
+    )
+    const administrativeTotalLabel = docMessage(
+        'administrativeTotalCost',
+        'sales.orders.administrative.totalCost',
+        'Total cost',
+    )
+    const administrativeNetLabel = docMessage(
+        'administrativeNetIncome',
+        'sales.orders.administrative.netIncome',
+        'Net income',
+    )
+    const disclaimerLabel = docMessage(
+        'disclaimerLabel',
+        'sales.orders.disclaimerLabel',
+        t('text.labels.disclaimer', { defaultValue: 'Disclaimer' }),
+    )
     const validUntilLabel = docMessage(
         'validUntilLabel',
         'sales.orders.validUntilLabel',
@@ -187,6 +215,57 @@ const OrderDetails = () => {
         if (!data.id) return
         navigate(`${routes.invoice}/${data.id}`)
     }, [data.id, navigate, routes.invoice])
+
+    const administrativeSummary = useMemo(() => {
+        const items = Array.isArray(data.product)
+            ? data.product.map((item, index) => {
+                  const quantity = Number(item?.quantity ?? item?.qty ?? 0)
+                  const unitCost = Number(item?.unitCostOrderCurrency ?? 0)
+                  const fallbackCost = Number.isFinite(unitCost) ? unitCost * quantity : 0
+                  const lineCostRaw = Number(item?.costTotal ?? fallbackCost)
+                  const lineCost = Number.isFinite(lineCostRaw)
+                      ? Math.round(lineCostRaw * 100) / 100
+                      : 0
+                  return {
+                      id: item?.id ?? `${index}`,
+                      name: item?.name ?? t('text.columns.product'),
+                      quantity: Number.isFinite(quantity) ? quantity : 0,
+                      unitCost: Number.isFinite(unitCost) ? unitCost : 0,
+                      lineCost,
+                      currency: item?.costCurrency ?? data.paymentSummary?.currency,
+                  }
+              })
+            : []
+        const totalCost = Math.round(
+            items.reduce((sum, item) => sum + (Number.isFinite(item.lineCost) ? item.lineCost : 0), 0) * 100,
+        ) / 100
+        const grandTotal = Number(data.paymentSummary?.total ?? 0)
+        const netIncome = Math.round(((Number.isFinite(grandTotal) ? grandTotal : 0) - totalCost) * 100) / 100
+        return {
+            items,
+            totalCost,
+            netIncome,
+            currency: data.paymentSummary?.currency,
+        }
+    }, [data, t])
+
+    const disclaimerHtml = useMemo(() => {
+        if (typeof data.disclaimer === 'string') {
+            const trimmed = data.disclaimer.trim()
+            if (trimmed) {
+                return sanitizeRichText(trimmed)
+            }
+        }
+        return ''
+    }, [data.disclaimer])
+
+    const disclaimerDirection = useMemo(() => {
+        if (!disclaimerHtml) {
+            return undefined
+        }
+        const plain = disclaimerHtml.replace(/<[^>]+>/g, ' ').trim()
+        return plain ? resolveTextDirection(plain) : undefined
+    }, [disclaimerHtml])
     return (
         <Container className="h-full">
             <Loading loading={loading}>
@@ -266,11 +345,30 @@ const OrderDetails = () => {
                                     taxRate={taxRate}
                                     currency={data.paymentSummary?.currency}
                                 />
+                                <AdministrativeSummary
+                                    title={administrativeTitle}
+                                    items={administrativeSummary.items}
+                                    currency={administrativeSummary.currency}
+                                    totalCost={administrativeSummary.totalCost}
+                                    netIncome={administrativeSummary.netIncome}
+                                    totalCostLabel={administrativeTotalLabel}
+                                    netIncomeLabel={administrativeNetLabel}
+                                />
                                 <Activity data={data.activity} />
                             </div>
                             <div className="xl:max-w-[360px] w-full space-y-4">
                                 <CustomerInfo data={data.customer} />
                                 <ShippingInfo data={data.shipping} />
+                                {disclaimerHtml && (
+                                    <Card bodyClass="p-5">
+                                        <h4 className="mb-2">{disclaimerLabel}</h4>
+                                        <div
+                                            className="text-sm text-gray-600 dark:text-gray-300"
+                                            dir={disclaimerDirection}
+                                            dangerouslySetInnerHTML={{ __html: disclaimerHtml }}
+                                        />
+                                    </Card>
+                                )}
                             </div>
                         </div>
                     </>

@@ -61,7 +61,85 @@ type ShippingOption = {
     img?: string | null
 }
 
-const OrderNew = () => {
+export type SalesDocumentAddress = {
+    street: string
+    number: string
+    corner: string
+    apartment: string
+    city: string
+    state: string
+    countryCode: string
+}
+
+export type SalesDocumentShippingInfo = {
+    shippingVendor?: string
+    deliveryFees: number
+    estimatedMin: number
+    estimatedMax: number
+}
+
+export type SalesDocumentSubmitItem = {
+    productId: string
+    name: string
+    price: number
+    qty: number
+    img?: string
+    description?: string
+    comments?: string
+    currency: string
+    unitPrice: number
+    unitCurrency: string
+    customAttributes?: Record<string, unknown>
+    pricingMethod?: string
+    specSummary?: string
+    specifications?: string
+}
+
+export type SalesDocumentSubmitPayload = {
+    customerId?: string
+    date?: string
+    validUntil?: string | null
+    paymentMehod: string
+    orderCurrency: string
+    items: SalesDocumentSubmitItem[]
+    shippingAddress: SalesDocumentAddress
+    billingAddress: SalesDocumentAddress
+    billingSameAsShipping: boolean
+    shipping: SalesDocumentShippingInfo
+    comment?: string
+}
+
+export type SalesDocumentFormValues = {
+    id?: number | string
+    customerId: string
+    date: Date | null
+    validUntil: Date | null
+    paymentMehod: string
+    orderCurrency: string
+    items: Item[]
+    shippingAddress: SalesDocumentAddress
+    billingAddress: SalesDocumentAddress
+    billingSameAsShipping: boolean
+    shipping: SalesDocumentShippingInfo
+    comment: string
+}
+
+export type OrderNewProps = {
+    initialValues?: Partial<SalesDocumentFormValues> & { id?: number | string }
+    initialCustomerDetail?: any | null
+    initialCustomerOption?: { value: string; label: string } | null
+    onSubmitOverride?: (
+        values: SalesDocumentFormValues,
+        payload: SalesDocumentSubmitPayload,
+    ) => Promise<void> | void
+}
+
+const OrderNew = ({
+    initialValues: initialValuesProp,
+    onSubmitOverride,
+    initialCustomerDetail,
+    initialCustomerOption,
+}: OrderNewProps = {}) => {
     const { i18n } = useTranslation()
     const {
         t,
@@ -71,6 +149,8 @@ const OrderNew = () => {
         mode,
         customerRequired,
         layoutMode,
+        showProductSpecifications,
+        showPaymentMethodSelect,
     } = useSalesDocumentI18n()
     const itemsOnlyMode = layoutMode === 'itemsOnly'
     const docMessage = useCallback(
@@ -130,7 +210,9 @@ const OrderNew = () => {
             })),
         [fallbackCurrencyList],
     )
-    const [customers, setCustomers] = useState<{ value: string; label: string }[]>([])
+    const [customers, setCustomers] = useState<{ value: string; label: string }[]>(
+        initialCustomerOption ? [initialCustomerOption] : [],
+    )
     const [products, setProducts] = useState<
         {
             value: string
@@ -145,7 +227,9 @@ const OrderNew = () => {
     >([])
     const [methods, setMethods] = useState<{ value: string; label: string }[]>([])
     const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([])
-    const [customerDetail, setCustomerDetail] = useState<any | null>(null)
+    const [customerDetail, setCustomerDetail] = useState<any | null>(
+        initialCustomerDetail ?? null,
+    )
     const [currentStep, setCurrentStep] = useState(() => (itemsOnlyMode ? 1 : 0))
     const [newCustomerOpen, setNewCustomerOpen] = useState(false)
     const [newProductOpen, setNewProductOpen] = useState(false)
@@ -178,6 +262,106 @@ const OrderNew = () => {
         validUntil.setDate(validUntil.getDate() + 15)
         return validUntil
     }, [mode])
+
+    const defaultInitialValues = useMemo<SalesDocumentFormValues>(
+        () => ({
+            id: undefined,
+            customerId: '',
+            date: new Date(),
+            validUntil: defaultValidUntil,
+            paymentMehod: 'Cash',
+            orderCurrency: defaultCurrency,
+            items: [],
+            shippingAddress: {
+                street: '',
+                number: '',
+                corner: '',
+                apartment: '',
+                city: 'Montevideo',
+                state: 'Uruguay',
+                countryCode: 'UY',
+            },
+            billingAddress: {
+                street: '',
+                number: '',
+                corner: '',
+                apartment: '',
+                city: 'Montevideo',
+                state: 'Uruguay',
+                countryCode: 'UY',
+            },
+            billingSameAsShipping: true,
+            shipping: {
+                shippingVendor: '',
+                deliveryFees: 0,
+                estimatedMin: 0,
+                estimatedMax: 0,
+            },
+            comment: '',
+        }),
+        [defaultCurrency, defaultValidUntil],
+    )
+
+    const formInitialValues = useMemo<SalesDocumentFormValues>(() => {
+        const mergeAddress = (
+            base: SalesDocumentAddress,
+            override?: Partial<SalesDocumentAddress>,
+        ): SalesDocumentAddress => ({
+            street: override?.street ?? base.street,
+            number: override?.number ?? base.number,
+            corner: override?.corner ?? base.corner,
+            apartment: override?.apartment ?? base.apartment,
+            city: override?.city ?? base.city,
+            state: override?.state ?? base.state,
+            countryCode: override?.countryCode ?? base.countryCode,
+        })
+
+        const mergeShipping = (
+            base: SalesDocumentShippingInfo,
+            override?: Partial<SalesDocumentShippingInfo>,
+        ): SalesDocumentShippingInfo => ({
+            shippingVendor: override?.shippingVendor ?? base.shippingVendor,
+            deliveryFees: Number(override?.deliveryFees ?? base.deliveryFees) || 0,
+            estimatedMin: Number(override?.estimatedMin ?? base.estimatedMin) || 0,
+            estimatedMax: Number(override?.estimatedMax ?? base.estimatedMax) || 0,
+        })
+
+        if (!initialValuesProp) {
+            return defaultInitialValues
+        }
+
+        const normalizedOrderCurrency =
+            normalizeCurrencyCode(initialValuesProp.orderCurrency, defaultCurrency) ||
+            defaultInitialValues.orderCurrency
+
+        return {
+            ...defaultInitialValues,
+            ...initialValuesProp,
+            id: initialValuesProp.id ?? defaultInitialValues.id,
+            customerId: initialValuesProp.customerId ?? defaultInitialValues.customerId,
+            date: initialValuesProp.date ?? defaultInitialValues.date,
+            validUntil: initialValuesProp.validUntil ?? defaultInitialValues.validUntil,
+            paymentMehod: initialValuesProp.paymentMehod ?? defaultInitialValues.paymentMehod,
+            orderCurrency: normalizedOrderCurrency,
+            items: Array.isArray(initialValuesProp.items)
+                ? initialValuesProp.items
+                : defaultInitialValues.items,
+            shippingAddress: mergeAddress(
+                defaultInitialValues.shippingAddress,
+                initialValuesProp.shippingAddress,
+            ),
+            billingAddress: mergeAddress(
+                defaultInitialValues.billingAddress,
+                initialValuesProp.billingAddress,
+            ),
+            billingSameAsShipping:
+                typeof initialValuesProp.billingSameAsShipping === 'boolean'
+                    ? initialValuesProp.billingSameAsShipping
+                    : defaultInitialValues.billingSameAsShipping,
+            shipping: mergeShipping(defaultInitialValues.shipping, initialValuesProp.shipping),
+            comment: initialValuesProp.comment ?? defaultInitialValues.comment,
+        }
+    }, [defaultCurrency, defaultInitialValues, initialValuesProp])
 
     useEffect(() => {
         if (!quickMessage || !quickMessageRef.current) {
@@ -531,7 +715,18 @@ const OrderNew = () => {
                     value: String(c.id),
                     label: c.name,
                 }))
-                setCustomers(cOpts)
+                setCustomers((prev) => {
+                    const merged = cOpts
+                    if (initialCustomerOption) {
+                        const exists = merged.some(
+                            (opt) => opt.value === initialCustomerOption.value,
+                        )
+                        if (!exists) {
+                            return [initialCustomerOption, ...merged]
+                        }
+                    }
+                    return merged
+                })
 
                 const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({
                     pageIndex: 1,
@@ -557,12 +752,47 @@ const OrderNew = () => {
                     })) || []
                 setProducts(pOpts)
 
-                const mRes = await apiGetPaymentMethods<{ id: number | string; name: string }[]>()
-                const mOpts = (mRes.data as any[]).map((m) => ({
-                    value: String(m.name || m.id),
-                    label: m.name,
-                }))
-                setMethods(mOpts)
+                if (showPaymentMethodSelect) {
+                    const mRes = await apiGetPaymentMethods<{
+                        id: number | string
+                        name: string
+                    }[]>()
+                    const mOpts = (mRes.data as any[]).map((m) => ({
+                        value: String(m.name || m.id),
+                        label: m.name,
+                    }))
+                    setMethods(mOpts)
+                    const formik = formikRef.current
+                    if (formik) {
+                        const currentValue = (formik.values as any)?.paymentMehod
+                        const hasCurrent = mOpts.some((opt) => opt.value === currentValue)
+                        if (!hasCurrent) {
+                            const cashOption = mOpts.find((opt) => {
+                                const label = (opt.label ?? '').toString().toLowerCase()
+                                const value = (opt.value ?? '').toString().toLowerCase()
+                                return (
+                                    label === 'efectivo' ||
+                                    label === 'cash' ||
+                                    value === 'efectivo' ||
+                                    value === 'cash'
+                                )
+                            })
+                            const fallback = cashOption ?? mOpts[0]
+                            if (fallback) {
+                                formik.setFieldValue('paymentMehod', fallback.value, false)
+                            }
+                        }
+                    }
+                } else {
+                    setMethods([])
+                    const formik = formikRef.current
+                    if (formik) {
+                        const currentValue = (formik.values as any)?.paymentMehod
+                        if (currentValue !== 'Cash') {
+                            formik.setFieldValue('paymentMehod', 'Cash', false)
+                        }
+                    }
+                }
 
                 try {
                     const sRes = await apiGetShippingOptions<ShippingOption[]>()
@@ -594,10 +824,17 @@ const OrderNew = () => {
                                 (formik.values as any)?.orderCurrency,
                                 snapshot.base,
                             ) || snapshot.base
-                        const nextOrderCurrency = snapshot.base
-                        formik.setFieldValue('orderCurrency', nextOrderCurrency, false)
+                        const preferredOrderCurrency =
+                            normalizeCurrencyCode(
+                                formInitialValues.orderCurrency,
+                                snapshot.base,
+                            ) || previousOrderCurrency
+                        const nextOrderCurrency = preferredOrderCurrency
+                        if (previousOrderCurrency !== nextOrderCurrency) {
+                            formik.setFieldValue('orderCurrency', nextOrderCurrency, false)
+                        }
                         const existingItems: Item[] = (formik.values as any)?.items || []
-                        if (existingItems.length) {
+                        if (existingItems.length && previousOrderCurrency !== nextOrderCurrency) {
                             const updatedItems = existingItems.map((item) =>
                                 convertItemToCurrency(
                                     {
@@ -622,7 +859,7 @@ const OrderNew = () => {
                         const currentDeliveryFee = Number(
                             (formik.values as any)?.shipping?.deliveryFees ?? 0,
                         )
-                        if (currentDeliveryFee) {
+                        if (currentDeliveryFee && previousOrderCurrency !== nextOrderCurrency) {
                             const { value } = convert(
                                 currentDeliveryFee,
                                 previousOrderCurrency,
@@ -659,13 +896,40 @@ const OrderNew = () => {
         load().catch(() => {
             initialDataLoadKeyRef.current = null
         })
-    }, [convert, convertItemToCurrency, defaultCurrency, exchangeSnapshot, refreshExchangeRates, roundCurrencyValue, t])
+    }, [
+        convert,
+        convertItemToCurrency,
+        defaultCurrency,
+        exchangeSnapshot,
+        formInitialValues.orderCurrency,
+        initialCustomerOption,
+        refreshExchangeRates,
+        roundCurrencyValue,
+        showPaymentMethodSelect,
+        t,
+    ])
 
     useEffect(() => {
         if (itemsOnlyMode) {
             setCurrentStep(1)
         }
     }, [itemsOnlyMode])
+
+    useEffect(() => {
+        if (!initialCustomerOption) {
+            return
+        }
+        setCustomers((prev) => {
+            if (prev.some((opt) => opt.value === initialCustomerOption.value)) {
+                return prev
+            }
+            return [initialCustomerOption, ...prev]
+        })
+    }, [initialCustomerOption])
+
+    useEffect(() => {
+        setCustomerDetail(initialCustomerDetail ?? null)
+    }, [initialCustomerDetail])
 
     useEffect(() => {
         const sp = new URLSearchParams(location.search)
@@ -736,40 +1000,8 @@ const OrderNew = () => {
             <h3 className="mb-6">{pageHeading}</h3>
             <Formik
                 innerRef={formikRef}
-                initialValues={{
-                    customerId: '',
-                    date: new Date(),
-                    validUntil: defaultValidUntil,
-                    paymentMehod: 'Cash',
-                    orderCurrency: defaultCurrency,
-                    items: [] as Item[],
-                    shippingAddress: {
-                        street: '',
-                        number: '',
-                        corner: '',
-                        apartment: '',
-                        city: 'Montevideo',
-                        state: 'Uruguay',
-                        countryCode: 'UY',
-                    },
-                    billingAddress: {
-                        street: '',
-                        number: '',
-                        corner: '',
-                        apartment: '',
-                        city: 'Montevideo',
-                        state: 'Uruguay',
-                        countryCode: 'UY',
-                    },
-                    billingSameAsShipping: true,
-                    shipping: {
-                        shippingVendor: '',
-                        deliveryFees: 0,
-                        estimatedMin: 0,
-                        estimatedMax: 0,
-                    },
-                    comment: '',
-                }}
+                enableReinitialize
+                initialValues={formInitialValues}
                 validationSchema={Yup.object().shape({
                     customerId: customerRequired
                         ? Yup.string().required(validationCustomerRequired)
@@ -782,7 +1014,9 @@ const OrderNew = () => {
                     validUntil: Yup.date()
                         .nullable()
                         .typeError(t('text.validation.invalidDate')),
-                    paymentMehod: Yup.string().required('Payment method is required'),
+                    paymentMehod: showPaymentMethodSelect
+                        ? Yup.string().required('Payment method is required')
+                        : Yup.string().nullable(),
                     orderCurrency: Yup.string()
                         .trim()
                         .required(
@@ -833,6 +1067,7 @@ const OrderNew = () => {
                               corner: Yup.string().nullable(),
                               apartment: Yup.string().nullable(),
                           }),
+                    comment: Yup.string(),
                     items: Yup.array()
                         .of(
                             Yup.object().shape({
@@ -904,7 +1139,7 @@ const OrderNew = () => {
                         ? shippingAddress
                         : normalizeAddress(values.billingAddress)
 
-                    const payload = {
+                    const payload: SalesDocumentSubmitPayload = {
                         customerId: values.customerId ? String(values.customerId) : undefined,
                         // Backend expects ISO 8601 date string (IsDateString)
                         date: values.date ? new Date(values.date as any).toISOString() : undefined,
@@ -1004,6 +1239,17 @@ const OrderNew = () => {
                                 return
                             }
                         }
+                    }
+
+                    if (onSubmitOverride) {
+                        await onSubmitOverride(
+                            {
+                                ...(values as SalesDocumentFormValues),
+                                orderCurrency: orderCurrencyValue,
+                            },
+                            payload,
+                        )
+                        return
                     }
 
                     try {
@@ -1906,22 +2152,34 @@ const OrderNew = () => {
                                                         }}
                                                     />
                                                 </FormItem>
-                                                <FormItem
-                                                    label={t('text.columns.paymentMethod')}
-                                                    invalid={Boolean(getIn(touched, 'paymentMehod') && getIn(errors, 'paymentMehod'))}
-                                                    errorMessage={getIn(errors, 'paymentMehod') as string}
-                                                >
-                                                    <Select
-                                                        className="w-full max-w-xs"
-                                                        options={methods}
-                                                        value={methods.find((m) => m.value === values.paymentMehod) as any}
-                                                        onChange={(opt) => {
-                                                            const nextValue = (opt as any)?.value ?? ''
-                                                            setFieldValue('paymentMehod', nextValue)
-                                                            setFieldTouched('paymentMehod', true, false)
-                                                        }}
-                                                    />
-                                                </FormItem>
+                                                {showPaymentMethodSelect && (
+                                                    <FormItem
+                                                        label={t('text.columns.paymentMethod')}
+                                                        invalid={Boolean(
+                                                            getIn(touched, 'paymentMehod') &&
+                                                                getIn(errors, 'paymentMehod'),
+                                                        )}
+                                                        errorMessage={
+                                                            getIn(errors, 'paymentMehod') as string
+                                                        }
+                                                    >
+                                                        <Select
+                                                            className="w-full max-w-xs"
+                                                            options={methods}
+                                                            value={
+                                                                methods.find(
+                                                                    (m) =>
+                                                                        m.value === values.paymentMehod,
+                                                                ) as any
+                                                            }
+                                                            onChange={(opt) => {
+                                                                const nextValue = (opt as any)?.value ?? ''
+                                                                setFieldValue('paymentMehod', nextValue)
+                                                                setFieldTouched('paymentMehod', true, false)
+                                                            }}
+                                                        />
+                                                    </FormItem>
+                                                )}
                                             </div>
                                         </FormContainer>
                                     </Card>
@@ -2129,6 +2387,69 @@ const OrderNew = () => {
                                     <Card bodyClass="p-5">
                                         <h4 className="mb-4">{t('text.titles.products')}</h4>
                                         <FormContainer>
+                                            {itemsOnlyMode && (
+                                                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                                    <FormItem
+                                                        label={orderCurrencyLabel}
+                                                        invalid={Boolean(
+                                                            getIn(touched, 'orderCurrency') &&
+                                                            getIn(errors, 'orderCurrency'),
+                                                        )}
+                                                        errorMessage={getIn(
+                                                            errors,
+                                                            'orderCurrency',
+                                                        ) as string}
+                                                    >
+                                                        <Select
+                                                            placeholder={orderCurrencyPlaceholder}
+                                                            options={orderCurrencyOptions}
+                                                            value={orderCurrencySelected as any}
+                                                            isSearchable
+                                                            isClearable={false}
+                                                            isDisabled={orderCurrencyOptions.length <= 1}
+                                                            onChange={(option) => {
+                                                                void handleOrderCurrencySelect(option)
+                                                                setFieldTouched(
+                                                                    'orderCurrency',
+                                                                    true,
+                                                                    false,
+                                                                )
+                                                            }}
+                                                        />
+                                                    </FormItem>
+                                                    <FormItem
+                                                        label={t('text.columns.paymentMethod')}
+                                                        invalid={Boolean(
+                                                            getIn(touched, 'paymentMehod') &&
+                                                            getIn(errors, 'paymentMehod'),
+                                                        )}
+                                                        errorMessage={getIn(
+                                                            errors,
+                                                            'paymentMehod',
+                                                        ) as string}
+                                                    >
+                                                        <Select
+                                                            options={methods}
+                                                            value={
+                                                                methods.find(
+                                                                    (m) =>
+                                                                        m.value ===
+                                                                        values.paymentMehod,
+                                                                ) as any
+                                                            }
+                                                            onChange={(opt) => {
+                                                                const nextValue = (opt as any)?.value ?? ''
+                                                                setFieldValue('paymentMehod', nextValue)
+                                                                setFieldTouched(
+                                                                    'paymentMehod',
+                                                                    true,
+                                                                    false,
+                                                                )
+                                                            }}
+                                                        />
+                                                    </FormItem>
+                                                </div>
+                                            )}
                                             <FormItem label={t('text.columns.product')} invalid={!!(touched as any).items && !!(errors as any).items} errorMessage={(errors as any).items as any}>
                                                 <div className="flex flex-col gap-3">
                                                     <Select
@@ -2166,12 +2487,13 @@ const OrderNew = () => {
                                                         onRemove={removeItem}
                                                         showDescription={false}
                                                         showComments
-                                                        onCommentChange={changeComment}
-                                                        onItemChange={handleItemChange}
-                                                        showCustomAttributes={mode === 'budget'}
-                                                        showUnitColumn={mode !== 'budget'}
-                                                        roundAmount={roundCurrencyValue}
-                                                    />
+                                                    onCommentChange={changeComment}
+                                                    onItemChange={handleItemChange}
+                                                    showCustomAttributes={mode === 'budget'}
+                                                    showUnitColumn={mode !== 'budget'}
+                                                    roundAmount={roundCurrencyValue}
+                                                    showProductSpecifications={showProductSpecifications}
+                                                />
                                                 </div>
                                             </FormItem>
                                         </FormContainer>
@@ -2373,10 +2695,16 @@ const OrderNew = () => {
                                                                 orderCurrencySelected?.label ||
                                                                 getCurrencyLabel(orderCurrencyValue),
                                                         },
-                                                        {
-                                                            label: t('text.columns.paymentMethod'),
-                                                            value: paymentMethodLabel,
-                                                        },
+                                                        ...(showPaymentMethodSelect
+                                                            ? [
+                                                                  {
+                                                                      label: t(
+                                                                          'text.columns.paymentMethod',
+                                                                      ),
+                                                                      value: paymentMethodLabel,
+                                                                  },
+                                                              ]
+                                                            : []),
                                                         {
                                                             label: t('text.labels.date'),
                                                             value: values.date
@@ -2600,7 +2928,8 @@ const OrderNew = () => {
                                                     (currentStep === 0 &&
                                                         (!customerStepSatisfied ||
                                                             !values.orderCurrency ||
-                                                            !values.paymentMehod ||
+                                                            (showPaymentMethodSelect &&
+                                                                !values.paymentMehod) ||
                                                             (customerRequired && addressesIncomplete))) ||
                                                     (currentStep === 1 && (values.items || []).length === 0)
                                                 }
