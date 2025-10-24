@@ -1307,6 +1307,13 @@
             "title": "Correo",
             "labels": "Etiquetas",
             "sent": "Correo enviado",
+            "mailboxesUnavailable": "Las bandejas de entrada no están disponibles en este momento. Inténtalo de nuevo más tarde.",
+            "messagesUnavailable": "No es posible cargar los mensajes de la bandeja de entrada en este momento. Inténtalo de nuevo más tarde.",
+            "unknownSender": "Remitente desconocido",
+            "selectMailPrompt": "Selecciona un correo para leer",
+            "noSubject": "Sin asunto",
+            "noPreview": "Sin vista previa disponible",
+            "moreAttachments": "+{{count}} más",
             "categories": {
                 "inbox": "Bandeja de entrada",
                 "sentItem": "Enviados",
@@ -1318,6 +1325,20 @@
                 "work": "Trabajo",
                 "private": "Privado",
                 "important": "Importante"
+            },
+            "dynamicMailboxes": {
+                "archive": "Archivo",
+                "spam": "Correo no deseado",
+                "trash": "Papelera",
+                "junk": "Correo basura"
+            },
+            "actions": {
+                "reply": "Responder",
+                "star": "Destacar",
+                "starred": "Destacado",
+                "flag": "Marcar",
+                "flagged": "Marcado",
+                "moveTo": "Mover a"
             }
         },
         "dashboard": {

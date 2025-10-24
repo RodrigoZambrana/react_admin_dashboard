@@ -1306,6 +1306,13 @@
             "title": "Mail",
             "labels": "Labels",
             "sent": "Mail Sent",
+            "mailboxesUnavailable": "Mailboxes are not available right now. Please try again later.",
+            "messagesUnavailable": "Unable to load inbox messages right now. Please try again later.",
+            "unknownSender": "Unknown sender",
+            "selectMailPrompt": "Select a mail to read",
+            "noSubject": "No subject",
+            "noPreview": "No preview available",
+            "moreAttachments": "+{{count}} more",
             "categories": {
                 "inbox": "Inbox",
                 "sentItem": "Sent Item",
@@ -1317,6 +1324,20 @@
                 "work": "Work",
                 "private": "Private",
                 "important": "Important"
+            },
+            "dynamicMailboxes": {
+                "archive": "Archive",
+                "spam": "Spam",
+                "trash": "Trash",
+                "junk": "Junk"
+            },
+            "actions": {
+                "reply": "Reply",
+                "star": "Star",
+                "starred": "Starred",
+                "flag": "Flag",
+                "flagged": "Flagged",
+                "moveTo": "Move to"
             }
         },
         "dashboard": {

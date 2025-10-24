@@ -80,6 +80,26 @@ export class CalendarController {
     }
   }
 
+  private toPrismaBytes(bytes: Buffer | Uint8Array): Uint8Array<ArrayBuffer>
+  private toPrismaBytes(bytes: Buffer | Uint8Array | null): Uint8Array<ArrayBuffer> | null
+  private toPrismaBytes(
+    bytes: Buffer | Uint8Array | undefined,
+  ): Uint8Array<ArrayBuffer> | undefined
+  private toPrismaBytes(
+    bytes: Buffer | Uint8Array | null | undefined,
+  ): Uint8Array<ArrayBuffer> | null | undefined
+  private toPrismaBytes(
+    bytes: Buffer | Uint8Array | null | undefined,
+  ): Uint8Array<ArrayBuffer> | null | undefined {
+    if (bytes === undefined || bytes === null) {
+      return bytes
+    }
+    if (Buffer.isBuffer(bytes)) {
+      return Uint8Array.from(bytes) as Uint8Array<ArrayBuffer>
+    }
+    return bytes as Uint8Array<ArrayBuffer>
+  }
+
   private extractAttachmentPayload(
     input: unknown,
   ): {
@@ -169,8 +189,11 @@ export class CalendarController {
         size: attachment.size ?? undefined,
         url: `/calendar/attachments/${attachment.id}`,
       }
-      if (includeContent) {
-        base.content = attachment.content?.toString('base64')
+      if (includeContent && attachment.content) {
+        const nodeBuffer = Buffer.isBuffer(attachment.content)
+          ? attachment.content
+          : Buffer.from(attachment.content)
+        base.content = nodeBuffer.toString('base64')
       }
       return base
     })

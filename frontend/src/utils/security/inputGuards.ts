@@ -7,6 +7,39 @@ const sanitizeOptions: DOMPurify.Config = {
     RETURN_TRUSTED_TYPE: false,
 }
 
+const richTextSanitizeOptions: DOMPurify.Config = {
+    ALLOWED_TAGS: [
+        'a',
+        'abbr',
+        'b',
+        'blockquote',
+        'br',
+        'code',
+        'div',
+        'em',
+        'h1',
+        'h2',
+        'h3',
+        'h4',
+        'h5',
+        'h6',
+        'i',
+        'li',
+        'ol',
+        'p',
+        'pre',
+        's',
+        'span',
+        'strong',
+        'sub',
+        'sup',
+        'u',
+        'ul',
+    ],
+    ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'title'],
+    RETURN_TRUSTED_TYPE: false,
+}
+
 export class UnsafeInputError extends Error {
     path?: string
 
@@ -19,6 +52,11 @@ export class UnsafeInputError extends Error {
 
 export const sanitizeString = (value: string): string => {
     const sanitized = DOMPurify.sanitize(value, sanitizeOptions)
+    return typeof sanitized === 'string' ? sanitized.trim() : ''
+}
+
+export const sanitizeRichText = (value: string): string => {
+    const sanitized = DOMPurify.sanitize(value, richTextSanitizeOptions)
     return typeof sanitized === 'string' ? sanitized.trim() : ''
 }
 
@@ -48,7 +86,27 @@ const shouldRejectBasedOnDiff = (original: string, sanitized: string) => {
     return diffIntroducesHtml
 }
 
+const isHtmlAllowedPath = (path?: string): boolean => {
+    if (!path) {
+        return false
+    }
+    const normalizedPath = path.replace(/\[\d+\]/g, '')
+    return normalizedPath
+        .split('.')
+        .some((segment) => segment.toLowerCase().endsWith('html'))
+}
+
 export const ensureSafeString = (value: string, path?: string): string => {
+    const allowHtml = isHtmlAllowedPath(path)
+    if (allowHtml) {
+        const sanitizedHtml = sanitizeRichText(value)
+        const plainText = sanitizeString(sanitizedHtml)
+        if (isSuspiciousString(plainText)) {
+            throw new UnsafeInputError(path)
+        }
+        return sanitizedHtml
+    }
+
     const sanitized = sanitizeString(value)
     if (isSuspiciousString(sanitized) || shouldRejectBasedOnDiff(value, sanitized)) {
         throw new UnsafeInputError(path)
