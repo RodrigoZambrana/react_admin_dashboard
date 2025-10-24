@@ -814,24 +814,23 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
     }, [])
 
     const printBlobInHiddenIframe = useCallback((blobUrl: string) => {
-        return new Promise<void>((resolve, reject) => {
+        return new Promise<void>((resolve) => {
             const iframe = document.createElement('iframe')
             iframe.style.position = 'fixed'
             iframe.style.width = '0'
             iframe.style.height = '0'
             iframe.style.border = '0'
 
-            let settled = false
-            let cleaned = false
+            let resolved = false
             let cleanupTimeout: number | undefined
             let afterPrintHandler: (() => void) | null = null
             let parentAfterPrintHandler: (() => void) | null = null
 
             const cleanup = () => {
-                if (cleaned) {
+                if (resolved) {
                     return
                 }
-                cleaned = true
+                resolved = true
                 if (cleanupTimeout !== undefined) {
                     window.clearTimeout(cleanupTimeout)
                 }
@@ -846,13 +845,6 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                     iframe.parentNode.removeChild(iframe)
                 }
                 URL.revokeObjectURL(blobUrl)
-            }
-
-            const settle = () => {
-                if (settled) {
-                    return
-                }
-                settled = true
                 resolve()
             }
 
@@ -864,9 +856,6 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                 const { contentWindow } = iframe
                 if (!contentWindow) {
                     cleanup()
-                    if (!settled) {
-                        reject(new Error('Unable to access print frame window'))
-                    }
                     return
                 }
                 afterPrintHandler = () => {
@@ -885,21 +874,14 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                     try {
                         contentWindow.focus()
                         contentWindow.print()
-                        settle()
                     } catch {
                         cleanup()
-                        if (!settled) {
-                            reject(new Error('Failed to open print dialog'))
-                        }
                     }
                 }, 0)
             }
 
             iframe.onerror = () => {
                 cleanup()
-                if (!settled) {
-                    reject(new Error('Failed to load print iframe'))
-                }
             }
 
             iframe.src = blobUrl

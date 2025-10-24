@@ -61,85 +61,7 @@ type ShippingOption = {
     img?: string | null
 }
 
-export type SalesDocumentAddress = {
-    street: string
-    number: string
-    corner: string
-    apartment: string
-    city: string
-    state: string
-    countryCode: string
-}
-
-export type SalesDocumentShippingInfo = {
-    shippingVendor?: string
-    deliveryFees: number
-    estimatedMin: number
-    estimatedMax: number
-}
-
-export type SalesDocumentSubmitItem = {
-    productId: string
-    name: string
-    price: number
-    qty: number
-    img?: string
-    description?: string
-    comments?: string
-    currency: string
-    unitPrice: number
-    unitCurrency: string
-    customAttributes?: Record<string, unknown>
-    pricingMethod?: string
-    specSummary?: string
-    specifications?: string
-}
-
-export type SalesDocumentSubmitPayload = {
-    customerId?: string
-    date?: string
-    validUntil?: string | null
-    paymentMehod: string
-    orderCurrency: string
-    items: SalesDocumentSubmitItem[]
-    shippingAddress: SalesDocumentAddress
-    billingAddress: SalesDocumentAddress
-    billingSameAsShipping: boolean
-    shipping: SalesDocumentShippingInfo
-    comment?: string
-}
-
-export type SalesDocumentFormValues = {
-    id?: number | string
-    customerId: string
-    date: Date | null
-    validUntil: Date | null
-    paymentMehod: string
-    orderCurrency: string
-    items: Item[]
-    shippingAddress: SalesDocumentAddress
-    billingAddress: SalesDocumentAddress
-    billingSameAsShipping: boolean
-    shipping: SalesDocumentShippingInfo
-    comment: string
-}
-
-export type OrderNewProps = {
-    initialValues?: Partial<SalesDocumentFormValues> & { id?: number | string }
-    initialCustomerDetail?: any | null
-    initialCustomerOption?: { value: string; label: string } | null
-    onSubmitOverride?: (
-        values: SalesDocumentFormValues,
-        payload: SalesDocumentSubmitPayload,
-    ) => Promise<void> | void
-}
-
-const OrderNew = ({
-    initialValues: initialValuesProp,
-    onSubmitOverride,
-    initialCustomerDetail,
-    initialCustomerOption,
-}: OrderNewProps = {}) => {
+const OrderNew = () => {
     const { i18n } = useTranslation()
     const {
         t,
@@ -210,9 +132,7 @@ const OrderNew = ({
             })),
         [fallbackCurrencyList],
     )
-    const [customers, setCustomers] = useState<{ value: string; label: string }[]>(
-        initialCustomerOption ? [initialCustomerOption] : [],
-    )
+    const [customers, setCustomers] = useState<{ value: string; label: string }[]>([])
     const [products, setProducts] = useState<
         {
             value: string
@@ -227,9 +147,7 @@ const OrderNew = ({
     >([])
     const [methods, setMethods] = useState<{ value: string; label: string }[]>([])
     const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([])
-    const [customerDetail, setCustomerDetail] = useState<any | null>(
-        initialCustomerDetail ?? null,
-    )
+    const [customerDetail, setCustomerDetail] = useState<any | null>(null)
     const [currentStep, setCurrentStep] = useState(() => (itemsOnlyMode ? 1 : 0))
     const [newCustomerOpen, setNewCustomerOpen] = useState(false)
     const [newProductOpen, setNewProductOpen] = useState(false)
@@ -262,106 +180,6 @@ const OrderNew = ({
         validUntil.setDate(validUntil.getDate() + 15)
         return validUntil
     }, [mode])
-
-    const defaultInitialValues = useMemo<SalesDocumentFormValues>(
-        () => ({
-            id: undefined,
-            customerId: '',
-            date: new Date(),
-            validUntil: defaultValidUntil,
-            paymentMehod: 'Cash',
-            orderCurrency: defaultCurrency,
-            items: [],
-            shippingAddress: {
-                street: '',
-                number: '',
-                corner: '',
-                apartment: '',
-                city: 'Montevideo',
-                state: 'Uruguay',
-                countryCode: 'UY',
-            },
-            billingAddress: {
-                street: '',
-                number: '',
-                corner: '',
-                apartment: '',
-                city: 'Montevideo',
-                state: 'Uruguay',
-                countryCode: 'UY',
-            },
-            billingSameAsShipping: true,
-            shipping: {
-                shippingVendor: '',
-                deliveryFees: 0,
-                estimatedMin: 0,
-                estimatedMax: 0,
-            },
-            comment: '',
-        }),
-        [defaultCurrency, defaultValidUntil],
-    )
-
-    const formInitialValues = useMemo<SalesDocumentFormValues>(() => {
-        const mergeAddress = (
-            base: SalesDocumentAddress,
-            override?: Partial<SalesDocumentAddress>,
-        ): SalesDocumentAddress => ({
-            street: override?.street ?? base.street,
-            number: override?.number ?? base.number,
-            corner: override?.corner ?? base.corner,
-            apartment: override?.apartment ?? base.apartment,
-            city: override?.city ?? base.city,
-            state: override?.state ?? base.state,
-            countryCode: override?.countryCode ?? base.countryCode,
-        })
-
-        const mergeShipping = (
-            base: SalesDocumentShippingInfo,
-            override?: Partial<SalesDocumentShippingInfo>,
-        ): SalesDocumentShippingInfo => ({
-            shippingVendor: override?.shippingVendor ?? base.shippingVendor,
-            deliveryFees: Number(override?.deliveryFees ?? base.deliveryFees) || 0,
-            estimatedMin: Number(override?.estimatedMin ?? base.estimatedMin) || 0,
-            estimatedMax: Number(override?.estimatedMax ?? base.estimatedMax) || 0,
-        })
-
-        if (!initialValuesProp) {
-            return defaultInitialValues
-        }
-
-        const normalizedOrderCurrency =
-            normalizeCurrencyCode(initialValuesProp.orderCurrency, defaultCurrency) ||
-            defaultInitialValues.orderCurrency
-
-        return {
-            ...defaultInitialValues,
-            ...initialValuesProp,
-            id: initialValuesProp.id ?? defaultInitialValues.id,
-            customerId: initialValuesProp.customerId ?? defaultInitialValues.customerId,
-            date: initialValuesProp.date ?? defaultInitialValues.date,
-            validUntil: initialValuesProp.validUntil ?? defaultInitialValues.validUntil,
-            paymentMehod: initialValuesProp.paymentMehod ?? defaultInitialValues.paymentMehod,
-            orderCurrency: normalizedOrderCurrency,
-            items: Array.isArray(initialValuesProp.items)
-                ? initialValuesProp.items
-                : defaultInitialValues.items,
-            shippingAddress: mergeAddress(
-                defaultInitialValues.shippingAddress,
-                initialValuesProp.shippingAddress,
-            ),
-            billingAddress: mergeAddress(
-                defaultInitialValues.billingAddress,
-                initialValuesProp.billingAddress,
-            ),
-            billingSameAsShipping:
-                typeof initialValuesProp.billingSameAsShipping === 'boolean'
-                    ? initialValuesProp.billingSameAsShipping
-                    : defaultInitialValues.billingSameAsShipping,
-            shipping: mergeShipping(defaultInitialValues.shipping, initialValuesProp.shipping),
-            comment: initialValuesProp.comment ?? defaultInitialValues.comment,
-        }
-    }, [defaultCurrency, defaultInitialValues, initialValuesProp])
 
     useEffect(() => {
         if (!quickMessage || !quickMessageRef.current) {
@@ -715,18 +533,7 @@ const OrderNew = ({
                     value: String(c.id),
                     label: c.name,
                 }))
-                setCustomers((prev) => {
-                    const merged = cOpts
-                    if (initialCustomerOption) {
-                        const exists = merged.some(
-                            (opt) => opt.value === initialCustomerOption.value,
-                        )
-                        if (!exists) {
-                            return [initialCustomerOption, ...merged]
-                        }
-                    }
-                    return merged
-                })
+                setCustomers(cOpts)
 
                 const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({
                     pageIndex: 1,
@@ -824,17 +631,10 @@ const OrderNew = ({
                                 (formik.values as any)?.orderCurrency,
                                 snapshot.base,
                             ) || snapshot.base
-                        const preferredOrderCurrency =
-                            normalizeCurrencyCode(
-                                formInitialValues.orderCurrency,
-                                snapshot.base,
-                            ) || previousOrderCurrency
-                        const nextOrderCurrency = preferredOrderCurrency
-                        if (previousOrderCurrency !== nextOrderCurrency) {
-                            formik.setFieldValue('orderCurrency', nextOrderCurrency, false)
-                        }
+                        const nextOrderCurrency = snapshot.base
+                        formik.setFieldValue('orderCurrency', nextOrderCurrency, false)
                         const existingItems: Item[] = (formik.values as any)?.items || []
-                        if (existingItems.length && previousOrderCurrency !== nextOrderCurrency) {
+                        if (existingItems.length) {
                             const updatedItems = existingItems.map((item) =>
                                 convertItemToCurrency(
                                     {
@@ -859,7 +659,7 @@ const OrderNew = ({
                         const currentDeliveryFee = Number(
                             (formik.values as any)?.shipping?.deliveryFees ?? 0,
                         )
-                        if (currentDeliveryFee && previousOrderCurrency !== nextOrderCurrency) {
+                        if (currentDeliveryFee) {
                             const { value } = convert(
                                 currentDeliveryFee,
                                 previousOrderCurrency,
@@ -901,8 +701,6 @@ const OrderNew = ({
         convertItemToCurrency,
         defaultCurrency,
         exchangeSnapshot,
-        formInitialValues.orderCurrency,
-        initialCustomerOption,
         refreshExchangeRates,
         roundCurrencyValue,
         showPaymentMethodSelect,
@@ -914,22 +712,6 @@ const OrderNew = ({
             setCurrentStep(1)
         }
     }, [itemsOnlyMode])
-
-    useEffect(() => {
-        if (!initialCustomerOption) {
-            return
-        }
-        setCustomers((prev) => {
-            if (prev.some((opt) => opt.value === initialCustomerOption.value)) {
-                return prev
-            }
-            return [initialCustomerOption, ...prev]
-        })
-    }, [initialCustomerOption])
-
-    useEffect(() => {
-        setCustomerDetail(initialCustomerDetail ?? null)
-    }, [initialCustomerDetail])
 
     useEffect(() => {
         const sp = new URLSearchParams(location.search)
@@ -1000,8 +782,40 @@ const OrderNew = ({
             <h3 className="mb-6">{pageHeading}</h3>
             <Formik
                 innerRef={formikRef}
-                enableReinitialize
-                initialValues={formInitialValues}
+                initialValues={{
+                    customerId: '',
+                    date: new Date(),
+                    validUntil: defaultValidUntil,
+                    paymentMehod: 'Cash',
+                    orderCurrency: defaultCurrency,
+                    items: [] as Item[],
+                    shippingAddress: {
+                        street: '',
+                        number: '',
+                        corner: '',
+                        apartment: '',
+                        city: 'Montevideo',
+                        state: 'Uruguay',
+                        countryCode: 'UY',
+                    },
+                    billingAddress: {
+                        street: '',
+                        number: '',
+                        corner: '',
+                        apartment: '',
+                        city: 'Montevideo',
+                        state: 'Uruguay',
+                        countryCode: 'UY',
+                    },
+                    billingSameAsShipping: true,
+                    shipping: {
+                        shippingVendor: '',
+                        deliveryFees: 0,
+                        estimatedMin: 0,
+                        estimatedMax: 0,
+                    },
+                    comment: '',
+                }}
                 validationSchema={Yup.object().shape({
                     customerId: customerRequired
                         ? Yup.string().required(validationCustomerRequired)
@@ -1139,7 +953,7 @@ const OrderNew = ({
                         ? shippingAddress
                         : normalizeAddress(values.billingAddress)
 
-                    const payload: SalesDocumentSubmitPayload = {
+                    const payload = {
                         customerId: values.customerId ? String(values.customerId) : undefined,
                         // Backend expects ISO 8601 date string (IsDateString)
                         date: values.date ? new Date(values.date as any).toISOString() : undefined,
@@ -1239,17 +1053,6 @@ const OrderNew = ({
                                 return
                             }
                         }
-                    }
-
-                    if (onSubmitOverride) {
-                        await onSubmitOverride(
-                            {
-                                ...(values as SalesDocumentFormValues),
-                                orderCurrency: orderCurrencyValue,
-                            },
-                            payload,
-                        )
-                        return
                     }
 
                     try {
