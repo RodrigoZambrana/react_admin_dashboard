@@ -2261,7 +2261,42 @@ const OrderNew = ({
                                             <FormItem label={recipientLabel} invalid={!!(touched as any).customerId && !!(errors as any).customerId} errorMessage={(errors as any).customerId as any}>
                                                 <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
                                                     <div className="flex w-full flex-col gap-3 md:flex-row md:flex-1">
-                                                        <Select className="w-full md:flex-1 md:min-w-[280px]" options={customers} value={customers.find((c) => c.value === values.customerId) as any} onChange={onCustomerChange} />
+                                                        {(() => {
+                                                            const resolvedCustomerId = values.customerId
+                                                                ? String(values.customerId)
+                                                                : ''
+                                                            const selectedOption = (() => {
+                                                                if (!resolvedCustomerId) {
+                                                                    return null
+                                                                }
+                                                                const existing = customers.find(
+                                                                    (c) => c.value === resolvedCustomerId,
+                                                                )
+                                                                if (existing) {
+                                                                    return existing
+                                                                }
+                                                                const fallbackLabel =
+                                                                    pickCustomerDisplayName(customerDetail) ||
+                                                                    pickCustomerDisplayName(initialCustomerDetail) ||
+                                                                    docSummary(
+                                                                        'unknownCustomer',
+                                                                        'Unassigned customer',
+                                                                    ) ||
+                                                                    resolvedCustomerId
+                                                                return {
+                                                                    value: resolvedCustomerId,
+                                                                    label: fallbackLabel,
+                                                                }
+                                                            })()
+                                                            return (
+                                                                <Select
+                                                                    className="w-full md:flex-1 md:min-w-[280px]"
+                                                                    options={customers}
+                                                                    value={selectedOption as any}
+                                                                    onChange={onCustomerChange}
+                                                                />
+                                                            )
+                                                        })()}
                                                         <Button className="w-full whitespace-nowrap md:w-auto md:flex-shrink-0" type="button" onClick={() => setNewCustomerOpen(true)}>{t('text.actions.add')} {t('text.columns.customer')}</Button>
                                                     </div>
                                                 </div>
