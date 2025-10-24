@@ -5,7 +5,11 @@ import Logo from '@/components/template/Logo'
 import { DEFAULT_COMPANY_PROFILE } from '@/constants/companyProfile.constant'
 import { useLocation } from 'react-router-dom'
 import { apiGetAccountInvoiceData } from '@/services/AccountServices'
-import { apiGetSalesOrderDetails, type SalesDocumentResource } from '@/services/SalesService'
+import {
+    apiGetSalesDocumentPdf,
+    apiGetSalesOrderDetails,
+    type SalesDocumentResource,
+} from '@/services/SalesService'
 import { apiGetSystemConfig } from '@/services/SettingsService'
 import { HiOutlineDownload } from 'react-icons/hi'
 import { useAppSelector } from '@/store'
@@ -803,12 +807,64 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         }
     }, [])
 
+    const downloadStoredPdf = useCallback(
+        async (mode: 'download' | 'print') => {
+            const invoiceId = orderData?.id ?? data?.id
+            if (!invoiceId) {
+                throw new Error('Missing document id')
+            }
+            const response = await apiGetSalesDocumentPdf<Blob>(invoiceId, resource)
+            const blob =
+                response.data instanceof Blob
+                    ? response.data
+                    : new Blob([response.data as BlobPart], {
+                          type: 'application/pdf',
+                      })
+            const blobUrl = URL.createObjectURL(blob)
+            if (mode === 'download') {
+                const link = document.createElement('a')
+                link.href = blobUrl
+                link.download = `${resource === 'budgets' ? 'budget' : 'order'}-${invoiceId}.pdf`
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                window.setTimeout(() => URL.revokeObjectURL(blobUrl), 500)
+            } else {
+                const iframe = document.createElement('iframe')
+                iframe.style.position = 'fixed'
+                iframe.style.width = '0'
+                iframe.style.height = '0'
+                iframe.style.border = '0'
+                iframe.src = blobUrl
+                const cleanup = () => {
+                    window.setTimeout(() => {
+                        if (iframe.parentNode) {
+                            iframe.parentNode.removeChild(iframe)
+                        }
+                        URL.revokeObjectURL(blobUrl)
+                    }, 1000)
+                }
+                iframe.onload = () => {
+                    iframe.contentWindow?.focus()
+                    iframe.contentWindow?.print()
+                    cleanup()
+                }
+                document.body.appendChild(iframe)
+            }
+        },
+        [data?.id, orderData?.id, resource],
+    )
+
     const handleDownloadPdf = useCallback(async () => {
         const invoiceId = orderData?.id ?? data?.id
         try {
             setDownloadingPdf(true)
-            const pdf = await generateInvoicePdf()
-            pdf.save(`invoice-${invoiceId ?? 'document'}.pdf`)
+            if (isBudgetDocument) {
+                await downloadStoredPdf('download')
+            } else {
+                const pdf = await generateInvoicePdf()
+                pdf.save(`invoice-${invoiceId ?? 'document'}.pdf`)
+            }
         } catch (error) {
             // eslint-disable-next-line no-console
             console.error('Failed to generate invoice PDF', error)
@@ -817,42 +873,61 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                     type="danger"
                     title={t('text.titles.invoice')}
                 >
-                    {t('text.messages.invoiceDownloadError')}
+                    {(() => {
+                        const responseMessage = (error as any)?.response?.data?.message
+                        if (typeof responseMessage === 'string') {
+                            return t(responseMessage, {
+                                defaultValue: t('text.messages.invoiceDownloadError'),
+                            })
+                        }
+                        return t('text.messages.invoiceDownloadError')
+                    })()}
                 </Notification>,
                 { placement: 'top-center' },
             )
         } finally {
             setDownloadingPdf(false)
         }
-    }, [data?.id, generateInvoicePdf, orderData?.id, t])
+    }, [
+        data?.id,
+        downloadStoredPdf,
+        generateInvoicePdf,
+        isBudgetDocument,
+        orderData?.id,
+        t,
+    ])
 
     const handlePrintPdf = useCallback(async () => {
         try {
             setPrintingPdf(true)
-            const pdf = await generateInvoicePdf()
-            pdf.autoPrint()
-            const blob = pdf.output('blob')
-            const blobUrl = URL.createObjectURL(blob)
-            const iframe = document.createElement('iframe')
-            iframe.style.position = 'fixed'
-            iframe.style.width = '0'
-            iframe.style.height = '0'
-            iframe.style.border = '0'
-            iframe.src = blobUrl
-            const cleanup = () => {
-                setTimeout(() => {
-                    if (iframe.parentNode) {
-                        iframe.parentNode.removeChild(iframe)
-                    }
-                    URL.revokeObjectURL(blobUrl)
-                }, 1000)
+            if (isBudgetDocument) {
+                await downloadStoredPdf('print')
+            } else {
+                const pdf = await generateInvoicePdf()
+                pdf.autoPrint()
+                const blob = pdf.output('blob')
+                const blobUrl = URL.createObjectURL(blob)
+                const iframe = document.createElement('iframe')
+                iframe.style.position = 'fixed'
+                iframe.style.width = '0'
+                iframe.style.height = '0'
+                iframe.style.border = '0'
+                iframe.src = blobUrl
+                const cleanup = () => {
+                    setTimeout(() => {
+                        if (iframe.parentNode) {
+                            iframe.parentNode.removeChild(iframe)
+                        }
+                        URL.revokeObjectURL(blobUrl)
+                    }, 1000)
+                }
+                iframe.onload = () => {
+                    iframe.contentWindow?.focus()
+                    iframe.contentWindow?.print()
+                    cleanup()
+                }
+                document.body.appendChild(iframe)
             }
-            iframe.onload = () => {
-                iframe.contentWindow?.focus()
-                iframe.contentWindow?.print()
-                cleanup()
-            }
-            document.body.appendChild(iframe)
         } catch (error) {
             // eslint-disable-next-line no-console
             console.error('Failed to generate invoice print PDF', error)
@@ -861,14 +936,22 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                     type="danger"
                     title={t('text.titles.invoice')}
                 >
-                    {t('text.messages.invoiceDownloadError')}
+                    {(() => {
+                        const responseMessage = (error as any)?.response?.data?.message
+                        if (typeof responseMessage === 'string') {
+                            return t(responseMessage, {
+                                defaultValue: t('text.messages.invoiceDownloadError'),
+                            })
+                        }
+                        return t('text.messages.invoiceDownloadError')
+                    })()}
                 </Notification>,
                 { placement: 'top-center' },
             )
         } finally {
             setPrintingPdf(false)
         }
-    }, [generateInvoicePdf, t])
+    }, [downloadStoredPdf, generateInvoicePdf, isBudgetDocument, t])
 
     const paymentSummary = useMemo<Summary | undefined>(() => {
         if (orderData?.paymentSummary) {

@@ -563,6 +563,27 @@ const OrderNew = () => {
                     label: m.name,
                 }))
                 setMethods(mOpts)
+                const formik = formikRef.current
+                if (formik) {
+                    const currentValue = (formik.values as any)?.paymentMehod
+                    const hasCurrent = mOpts.some((opt) => opt.value === currentValue)
+                    if (!hasCurrent) {
+                        const cashOption = mOpts.find((opt) => {
+                            const label = (opt.label ?? '').toString().toLowerCase()
+                            const value = (opt.value ?? '').toString().toLowerCase()
+                            return (
+                                label === 'efectivo' ||
+                                label === 'cash' ||
+                                value === 'efectivo' ||
+                                value === 'cash'
+                            )
+                        })
+                        const fallback = cashOption ?? mOpts[0]
+                        if (fallback) {
+                            formik.setFieldValue('paymentMehod', fallback.value, false)
+                        }
+                    }
+                }
 
                 try {
                     const sRes = await apiGetShippingOptions<ShippingOption[]>()
@@ -2129,6 +2150,69 @@ const OrderNew = () => {
                                     <Card bodyClass="p-5">
                                         <h4 className="mb-4">{t('text.titles.products')}</h4>
                                         <FormContainer>
+                                            {itemsOnlyMode && (
+                                                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                                    <FormItem
+                                                        label={orderCurrencyLabel}
+                                                        invalid={Boolean(
+                                                            getIn(touched, 'orderCurrency') &&
+                                                            getIn(errors, 'orderCurrency'),
+                                                        )}
+                                                        errorMessage={getIn(
+                                                            errors,
+                                                            'orderCurrency',
+                                                        ) as string}
+                                                    >
+                                                        <Select
+                                                            placeholder={orderCurrencyPlaceholder}
+                                                            options={orderCurrencyOptions}
+                                                            value={orderCurrencySelected as any}
+                                                            isSearchable
+                                                            isClearable={false}
+                                                            isDisabled={orderCurrencyOptions.length <= 1}
+                                                            onChange={(option) => {
+                                                                void handleOrderCurrencySelect(option)
+                                                                setFieldTouched(
+                                                                    'orderCurrency',
+                                                                    true,
+                                                                    false,
+                                                                )
+                                                            }}
+                                                        />
+                                                    </FormItem>
+                                                    <FormItem
+                                                        label={t('text.columns.paymentMethod')}
+                                                        invalid={Boolean(
+                                                            getIn(touched, 'paymentMehod') &&
+                                                            getIn(errors, 'paymentMehod'),
+                                                        )}
+                                                        errorMessage={getIn(
+                                                            errors,
+                                                            'paymentMehod',
+                                                        ) as string}
+                                                    >
+                                                        <Select
+                                                            options={methods}
+                                                            value={
+                                                                methods.find(
+                                                                    (m) =>
+                                                                        m.value ===
+                                                                        values.paymentMehod,
+                                                                ) as any
+                                                            }
+                                                            onChange={(opt) => {
+                                                                const nextValue = (opt as any)?.value ?? ''
+                                                                setFieldValue('paymentMehod', nextValue)
+                                                                setFieldTouched(
+                                                                    'paymentMehod',
+                                                                    true,
+                                                                    false,
+                                                                )
+                                                            }}
+                                                        />
+                                                    </FormItem>
+                                                </div>
+                                            )}
                                             <FormItem label={t('text.columns.product')} invalid={!!(touched as any).items && !!(errors as any).items} errorMessage={(errors as any).items as any}>
                                                 <div className="flex flex-col gap-3">
                                                     <Select

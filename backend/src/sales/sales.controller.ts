@@ -809,6 +809,7 @@ export class SalesController {
     const header: unknown[] = [
       'id',
       'name',
+      'description',
       'productCode',
       'brand',
       'vendor',
@@ -846,6 +847,7 @@ export class SalesController {
       return [
         product.id,
         product.name,
+        product.description ?? '',
         product.productCode ?? '',
         product.brand ?? '',
         product.vendor ?? '',
@@ -913,6 +915,9 @@ export class SalesController {
         if (!name) throw new Error('Product name is required')
 
         const description = this.normalizeOptionalString(this.getCell(row, columnIndex, 'description', ['desc']))
+        const specifications = this.normalizeOptionalString(
+          this.getCell(row, columnIndex, 'specifications', ['specs', 'especificaciones', 'detalles']),
+        )
         const img = this.normalizeOptionalString(this.getCell(row, columnIndex, 'img', ['image', 'imageurl']))
         const brand = this.normalizeOptionalString(this.getCell(row, columnIndex, 'brand'))
         const vendor = this.normalizeOptionalString(this.getCell(row, columnIndex, 'vendor'))
@@ -975,6 +980,7 @@ export class SalesController {
             name,
             productCode: productCode ?? undefined,
             description: description ?? undefined,
+            specifications: specifications ?? undefined,
             img: img ?? undefined,
             salePrice: resolvedSalePrice,
             costPrice: resolvedCostPrice,
@@ -1005,6 +1011,7 @@ export class SalesController {
           }
           if (productCode !== undefined) updateData.productCode = productCode
           if (description !== undefined) updateData.description = description
+          if (specifications !== undefined) updateData.specifications = specifications
           if (img !== undefined) updateData.img = img
           if (currency) updateData.currency = currency
           if (salePrice !== undefined) {

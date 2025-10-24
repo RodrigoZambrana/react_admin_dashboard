@@ -1127,6 +1127,7 @@
             "squareSummary": "Ancho: {{width}} m · Alto: {{height}} m",
             "linearSummary": "Metros lineales: {{length}} m",
             "noExtraAttributes": "No requiere información adicional.",
+            "pdfNotFound": "No hay un PDF almacenado para este documento.",
             "quickMessage": {
                 "title": "Mensaje generado",
                 "header": "Cantidad Producto Especificaciones Comentarios Total (Precio unitario)",
