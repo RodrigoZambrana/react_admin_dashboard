@@ -11,8 +11,9 @@ import {
   UseGuards,
   BadRequestException,
   ConflictException,
+  NotFoundException,
 } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { Prisma, InboxMessageDirection } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { TableQueryDto } from './dto/table-query.dto'
@@ -25,6 +26,13 @@ export class CustomersController {
   constructor(private prisma: PrismaService) {}
 
   private readonly defaultCountryCode = '+598'
+
+  private readonly mailCategoryFolders: Record<string, string[]> = {
+    inbox: ['INBOX', 'Inbox', 'Primary'],
+    sentitem: ['Sent', 'Sent Items', 'Sent Mail', 'Sent Messages', '[Gmail]/Sent Mail'],
+    draft: ['Draft', 'Drafts', '[Gmail]/Drafts'],
+    deleted: ['Trash', 'Deleted', 'Deleted Items', 'Deleted Messages', '[Gmail]/Trash', '[Gmail]/Bin', 'Bin', 'Junk'],
+  }
 
   private extractPhoneCandidates(source: unknown): string[] {
     if (!Array.isArray(source)) {
@@ -145,6 +153,307 @@ export class CustomersController {
       type: attachment.mimeType ?? undefined,
       size: attachment.size ?? undefined,
     }))
+  }
+
+  private normalizeMailCategory(category?: string | null) {
+    if (category === undefined || category === null) {
+      return 'inbox'
+    }
+    const normalized = category
+      .toString()
+      .trim()
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .toLowerCase()
+    if (!normalized) {
+      return 'inbox'
+    }
+    if (['sent', 'sentitems', 'sentmail', 'sentmessages'].includes(normalized)) {
+      return 'sentitem'
+    }
+    if (['trash', 'bin', 'deleteditems', 'deletedmessages'].includes(normalized)) {
+      return 'deleted'
+    }
+    return normalized
+  }
+
+  private buildInboxCategoryWhere(category?: string | null): Prisma.InboxMessageWhereInput | null {
+    const normalized = this.normalizeMailCategory(category)
+    if (normalized === 'starred') {
+      return { isStarred: true }
+    }
+    const folders = this.mailCategoryFolders[normalized]
+    if (!folders) {
+      if (normalized === 'inbox') {
+        return { direction: InboxMessageDirection.INBOUND }
+      }
+      return null
+    }
+    const orConditions: Prisma.InboxMessageWhereInput[] = folders.map((folder) => ({
+      folder: { equals: folder, mode: 'insensitive' as const },
+    }))
+    if (normalized === 'inbox') {
+      orConditions.push({ folder: null })
+    }
+    const where: Prisma.InboxMessageWhereInput = {}
+    if (orConditions.length > 0) {
+      where.OR = orConditions
+    }
+    if (normalized === 'sentitem') {
+      where.direction = InboxMessageDirection.OUTBOUND
+    } else if (normalized === 'inbox') {
+      where.direction = InboxMessageDirection.INBOUND
+    }
+    return where
+  }
+
+  private resolveMailGroup(message: { folder: string | null; isStarred: boolean; direction: InboxMessageDirection }) {
+    if (message.isStarred) {
+      return 'starred'
+    }
+    const folder = (message.folder || '').toLowerCase()
+    if (folder.includes('draft')) {
+      return 'draft'
+    }
+    if (folder.includes('sent')) {
+      return 'sentItem'
+    }
+    if (folder.includes('trash') || folder.includes('deleted') || folder.includes('bin') || folder.includes('junk')) {
+      return 'deleted'
+    }
+    if (message.direction === InboxMessageDirection.OUTBOUND) {
+      return 'sentItem'
+    }
+    return 'inbox'
+  }
+
+  private extractNameFromEmail(address?: string | null) {
+    if (!address) {
+      return ''
+    }
+    const local = address.split('@')[0] || ''
+    if (!local) {
+      return address
+    }
+    return local
+      .replace(/[._-]+/g, ' ')
+      .split(' ')
+      .filter((part) => part.trim().length > 0)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ')
+  }
+
+  private formatMailDate(input?: Date | string | null) {
+    if (!input) {
+      return ''
+    }
+    const date = input instanceof Date ? input : new Date(input)
+    if (Number.isNaN(date.getTime())) {
+      return ''
+    }
+    return new Intl.DateTimeFormat('en', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(date)
+  }
+
+  private escapeHtml(input: string) {
+    return input
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+  }
+
+  private normalizeMessageMetadata(metadata: Prisma.JsonValue | null) {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return {}
+    }
+    return metadata as Record<string, unknown>
+  }
+
+  private resolvePreviewText(
+    message: Prisma.InboxMessageGetPayload<{ include: { attachments: true } }>,
+    metadata: Record<string, unknown>,
+  ) {
+    const metadataPreview =
+      typeof metadata.previewText === 'string' && metadata.previewText.trim().length
+        ? metadata.previewText.trim()
+        : typeof metadata.snippet === 'string' && metadata.snippet.trim().length
+        ? metadata.snippet.trim()
+        : ''
+    const storedPreview =
+      typeof message.previewText === 'string' && message.previewText.trim().length
+        ? message.previewText.trim()
+        : typeof message.snippet === 'string' && message.snippet.trim().length
+        ? message.snippet.trim()
+        : ''
+    const resolved = metadataPreview || storedPreview
+    return resolved || ''
+  }
+
+  private buildHtmlFromText(input: string) {
+    if (!input || !input.trim().length) {
+      return '<p></p>'
+    }
+    const lines = input.replace(/\r\n/g, '\n').split('\n')
+    const rendered = lines
+      .map((line) => this.escapeHtml(line.trim()))
+      .map((line) => (line.length ? `<p>${line}</p>` : '<p>&nbsp;</p>'))
+      .join('')
+    return rendered || '<p></p>'
+  }
+
+  private resolveAttachmentType(fileName?: string | null, contentType?: string | null) {
+    if (fileName) {
+      const parts = fileName.toLowerCase().split('.')
+      if (parts.length > 1) {
+        const ext = parts.pop()
+        if (ext) {
+          return ext
+        }
+      }
+    }
+    if (contentType && contentType.includes('/')) {
+      const [, subtype] = contentType.split('/')
+      if (subtype) {
+        return subtype.toLowerCase()
+      }
+    }
+    return 'file'
+  }
+
+  private formatAttachmentSize(size?: number | null) {
+    if (size === undefined || size === null || size < 0) {
+      return ''
+    }
+    const units = ['B', 'KB', 'MB', 'GB']
+    let value = size
+    let unitIndex = 0
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024
+      unitIndex += 1
+    }
+    const precision = value >= 100 || unitIndex === 0 ? 0 : 1
+    return `${value.toFixed(precision)}${units[unitIndex]}`
+  }
+
+  private buildMailAttachments(
+    attachments: {
+      fileName?: string | null
+      contentType?: string | null
+      size?: number | null
+    }[] = [],
+  ) {
+    return attachments.map((attachment, index) => {
+      const file = attachment.fileName?.trim() || `attachment-${index + 1}`
+      return {
+        file,
+        size: this.formatAttachmentSize(attachment.size),
+        type: this.resolveAttachmentType(attachment.fileName, attachment.contentType),
+      }
+    })
+  }
+
+  private buildMetadataAttachments(input: unknown): { file: string; size: string | ''; type: string }[] {
+    if (!Array.isArray(input)) {
+      return []
+    }
+    return (input as unknown[])
+      .map((item) => {
+        if (!item || typeof item !== 'object') {
+          return null
+        }
+        const record = item as Record<string, unknown>
+        const fileRaw = record.file
+        const file = typeof fileRaw === 'string' ? fileRaw.trim() : ''
+        if (!file) {
+          return null
+        }
+        const sizeValue =
+          typeof record.size === 'number' && Number.isFinite(record.size)
+            ? this.formatAttachmentSize(record.size as number)
+            : ''
+        const typeValue =
+          typeof record.contentType === 'string' && record.contentType.trim().length
+            ? record.contentType.trim()
+            : 'file'
+        return {
+          file,
+          size: sizeValue,
+          type: typeValue,
+        }
+      })
+      .filter((item): item is { file: string; size: string | ''; type: string } => Boolean(item))
+  }
+
+  private mapInboxMessageToMail(
+    message: Prisma.InboxMessageGetPayload<{ include: { attachments: true } }>,
+  ) {
+    const recipients = Array.isArray(message.toAddresses)
+      ? message.toAddresses.map((address) => String(address))
+      : []
+    const fromAddress = message.fromAddress ?? ''
+    let displayName =
+      message.direction === InboxMessageDirection.INBOUND
+        ? message.fromName || this.extractNameFromEmail(fromAddress)
+        : message.fromName || this.extractNameFromEmail(recipients[0]) || this.extractNameFromEmail(fromAddress)
+    if (!displayName) {
+      displayName = fromAddress || recipients[0] || 'Contact'
+    }
+    const group = this.resolveMailGroup({
+      folder: message.folder ?? null,
+      isStarred: message.isStarred,
+      direction: message.direction,
+    })
+    const metadata = this.normalizeMessageMetadata(message.metadata)
+    const previewText = this.resolvePreviewText(message, metadata)
+    const bodyHtml = typeof metadata.bodyHtml === 'string' ? metadata.bodyHtml : ''
+    const bodyText = typeof metadata.bodyText === 'string' ? metadata.bodyText : ''
+    const contentHtml =
+      bodyHtml.trim().length > 0
+        ? bodyHtml
+        : this.buildHtmlFromText(bodyText || previewText || '')
+    const attachments =
+      this.buildMailAttachments(message.attachments) ??
+      []
+    const metadataAttachments = this.buildMetadataAttachments(metadata.attachments)
+    const combinedAttachments =
+      attachments.length > 0 ? attachments : metadataAttachments
+
+    return {
+      id: message.id,
+      name: displayName,
+      label: '',
+      group,
+      flagged: Boolean(message.isSpam),
+      starred: Boolean(message.isStarred),
+      from: fromAddress,
+      avatar: '',
+      title: message.subject && message.subject.trim().length ? message.subject : 'No subject',
+      subject: message.subject && message.subject.trim().length ? message.subject : 'No subject',
+      previewText: previewText || null,
+      snippet: previewText || null,
+      sentAt: message.sentAt ? message.sentAt.toISOString() : null,
+      receivedAt: message.receivedAt ? message.receivedAt.toISOString() : null,
+      headers: typeof metadata.headers === 'object' && !Array.isArray(metadata.headers) ? metadata.headers : undefined,
+      ccAddresses: Array.isArray(message.ccAddresses) ? message.ccAddresses : [],
+      bccAddresses: Array.isArray(message.bccAddresses) ? message.bccAddresses : [],
+      replyToAddresses: Array.isArray(message.replyToAddresses) ? message.replyToAddresses : [],
+      mail: recipients,
+      message: [
+        {
+          id: `${message.id}:0`,
+          name: displayName,
+          mail: recipients,
+          from: fromAddress,
+          avatar: '',
+          date: this.formatMailDate(message.sentAt ?? message.receivedAt ?? message.createdAt),
+          content: contentHtml,
+          attachment: combinedAttachments,
+        },
+      ],
+    }
   }
 
   private extractUniqueConstraintTargets(error: Prisma.PrismaClientKnownRequestError) {
@@ -647,6 +956,42 @@ export class CustomersController {
       }
     })
     return { events: normalized }
+  }
+
+  @Get('mails')
+  async listCustomerMails(@Query('category') category?: string) {
+    const where = this.buildInboxCategoryWhere(category)
+    if (!where) {
+      return []
+    }
+    const orderBy: Prisma.InboxMessageOrderByWithRelationInput[] = [
+      { sentAt: 'desc' },
+      { receivedAt: 'desc' },
+      { createdAt: 'desc' },
+    ]
+    const messages = await this.prisma.inboxMessage.findMany({
+      where,
+      orderBy,
+      include: { attachments: true },
+      take: 50,
+    })
+    return messages.map((message) => this.mapInboxMessageToMail(message))
+  }
+
+  @Get('mail')
+  async getCustomerMail(@Query('id') id?: string) {
+    const normalizedId = typeof id === 'string' ? id.trim() : ''
+    if (!normalizedId) {
+      throw new BadRequestException('Mail id is required')
+    }
+    const message = await this.prisma.inboxMessage.findUnique({
+      where: { id: normalizedId },
+      include: { attachments: true },
+    })
+    if (!message) {
+      throw new NotFoundException('Mail not found')
+    }
+    return this.mapInboxMessageToMail(message)
   }
 
   @Get(':id')

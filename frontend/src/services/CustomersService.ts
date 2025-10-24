@@ -612,3 +612,26 @@ export async function apiGetCustomerMail<T, U extends Record<string, unknown>>(
         params,
     })
 }
+
+export async function apiFetchCustomerMailAttachment(params: {
+    mailId: string | number
+    attachmentId: string | number
+    mode?: 'inline' | 'attachment'
+    messageId?: string | number
+}) {
+    const { mailId, attachmentId, mode, messageId } = params
+    const normalizedMailId = String(mailId)
+    const normalizedAttachmentId = String(attachmentId)
+    const normalizedMessageId =
+        messageId !== undefined && messageId !== null ? String(messageId) : null
+    const url = normalizedMessageId
+        ? `/customers/mail/${normalizedMailId}/messages/${normalizedMessageId}/attachments/${normalizedAttachmentId}`
+        : `/customers/mail/${normalizedMailId}/attachments/${normalizedAttachmentId}`
+    const query = mode ? { mode } : undefined
+    return ApiService.fetchData<Blob>({
+        url,
+        method: 'get',
+        ...(query ? { params: query } : {}),
+        responseType: 'blob',
+    })
+}

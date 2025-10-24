@@ -4,19 +4,22 @@ import {
     HiOutlinePencil,
     HiOutlineStar,
     HiOutlineTrash,
+    HiOutlineArchive,
+    HiOutlineShieldExclamation,
+    HiOutlineExclamationCircle,
 } from 'react-icons/hi'
 import type { JSX } from 'react'
 
-type MenuBase = {
+export type MenuBase = {
     value: string
     label: string
 }
 
-type Group = MenuBase & {
+export type Group = MenuBase & {
     icon: JSX.Element
 }
 
-type Label = MenuBase & {
+export type Label = MenuBase & {
     dotClass: string
 }
 
@@ -33,3 +36,10 @@ export const labelList: Label[] = [
     { value: 'private', label: 'Private', dotClass: 'bg-indigo-500' },
     { value: 'important', label: 'Important', dotClass: 'bg-red-500' },
 ]
+
+export const dynamicMailboxIconMap: Record<string, JSX.Element> = {
+    archive: <HiOutlineArchive />,
+    spam: <HiOutlineShieldExclamation />, 
+    trash: <HiOutlineTrash />,
+    junk: <HiOutlineExclamationCircle />,
+}
