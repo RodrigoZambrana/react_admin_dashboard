@@ -201,6 +201,27 @@ type ShippingOption = {
     img?: string | null
 }
 
+const pickCustomerDisplayName = (customer: any): string | undefined => {
+    if (!customer || typeof customer !== 'object') {
+        return undefined
+    }
+    const candidateFields = [
+        'name',
+        'displayName',
+        'businessName',
+        'companyName',
+        'fullName',
+        'legalName',
+    ]
+    for (const field of candidateFields) {
+        const value = (customer as Record<string, unknown>)[field]
+        if (typeof value === 'string' && value.trim()) {
+            return value.trim()
+        }
+    }
+    return undefined
+}
+
 const OrderNew = ({
     initialValues,
     initialCustomerDetail = null,
@@ -1019,6 +1040,40 @@ const OrderNew = ({
         () => mergeDeep(defaultInitialValues, initialValues),
         [defaultInitialValues, initialValues],
     )
+    const initialCustomerDetailId = initialCustomerDetail?.id
+    const initialCustomerValueId = initialValues?.customerId
+    const initialCustomerId = useMemo(() => {
+        const idCandidate =
+            (initialCustomerValueId && String(initialCustomerValueId)) ||
+            (initialCustomerDetailId && String(initialCustomerDetailId))
+        return idCandidate?.trim() || ''
+    }, [initialCustomerDetailId, initialCustomerValueId])
+
+    useEffect(() => {
+        if (!initialCustomerId) {
+            return
+        }
+        const labelFromInitialDetail = pickCustomerDisplayName(initialCustomerDetail)
+        const labelFromLoadedDetail = pickCustomerDisplayName(customerDetail)
+        const resolvedLabel =
+            labelFromInitialDetail ||
+            labelFromLoadedDetail ||
+            initialCustomerId
+        setCustomers((prev) => {
+            const exists = prev.find((opt) => opt.value === initialCustomerId)
+            if (exists) {
+                if (exists.label === resolvedLabel || !resolvedLabel) {
+                    return prev
+                }
+                return prev.map((opt) =>
+                    opt.value === initialCustomerId && opt.label !== resolvedLabel
+                        ? { ...opt, label: resolvedLabel }
+                        : opt,
+                )
+            }
+            return [{ value: initialCustomerId, label: resolvedLabel }, ...prev]
+        })
+    }, [customerDetail, initialCustomerDetail, initialCustomerId])
     const hasDisclaimer = useMemo(() => {
         if (!documentDisclaimer) {
             return false
