@@ -22,6 +22,7 @@ import { DEFAULT_SALES_UNIT, type SalesUnit } from '@/constants/product.constant
 import { getDerivedUnitPrice } from '@/utils/salesUnitCalculation'
 import type { EditableItem } from '@/views/sales/components/EditableOrderProductsTable'
 import type { FormikHelpers } from 'formik'
+import { parseValidityRecord } from '@/adapters/sales'
 
 const ADDRESS_COUNTRY_FALLBACK = 'UY'
 
@@ -396,16 +397,11 @@ const OrderEdit = () => {
                     orderData?.billingSameAsShipping,
                 )
 
-                const validitySource =
-                    typeof orderData?.validity === 'object' && orderData?.validity
-                        ? (orderData.validity as Record<string, unknown>)
-                        : null
+                const validitySource = parseValidityRecord(orderData?.validity)
                 const rawValidUntil =
                     orderData?.validUntil ??
                     orderData?.valid_until ??
-                    (validitySource
-                        ? validitySource.validUntil ?? validitySource.valid_until
-                        : undefined)
+                    (validitySource?.validUntil ?? validitySource?.valid_until)
 
                 const formValues: SalesDocumentFormValues = {
                     customerId: orderData?.customerId ? String(orderData.customerId) : '',

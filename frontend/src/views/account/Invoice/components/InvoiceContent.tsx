@@ -17,7 +17,11 @@ import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
-import { adaptOrderToDetailsView, type FxSnapshot } from '@/adapters/sales'
+import {
+    adaptOrderToDetailsView,
+    parseValidityRecord,
+    type FxSnapshot,
+} from '@/adapters/sales'
 import { normalizeCurrencyCode } from '@/utils/currency'
 import { resolveTextDirection } from '@/utils/textDirection'
 import { sanitizeRichText } from '@/utils/security/inputGuards'
@@ -691,18 +695,16 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                 if (response?.data) {
                     const { company, ...invoiceData } = response.data
                     if (invoiceData && typeof invoiceData === 'object') {
-                        const validitySource =
-                            typeof (invoiceData as any).validity === 'object'
-                                ? ((invoiceData as any).validity as Record<string, unknown>)
-                                : null
+                        const validitySource = parseValidityRecord(
+                            (invoiceData as any).validity,
+                        )
                         const normalizedData = {
                             ...invoiceData,
                             validUntil:
                                 (invoiceData as any).validUntil ??
                                 (invoiceData as any).valid_until ??
-                                (validitySource
-                                    ? validitySource.validUntil ?? validitySource.valid_until
-                                    : undefined),
+                                (validitySource?.validUntil ??
+                                    validitySource?.valid_until),
                         }
                         setData(normalizedData)
                     }
