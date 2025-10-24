@@ -20,6 +20,7 @@ import toast from '@/components/ui/toast'
 import { adaptOrderToDetailsView, type FxSnapshot } from '@/adapters/sales'
 import { normalizeCurrencyCode } from '@/utils/currency'
 import { resolveTextDirection } from '@/utils/textDirection'
+import { sanitizeRichText } from '@/utils/security/inputGuards'
 import type { Product, Summary } from './ContentTable'
 import ContentTable from './ContentTable'
 
@@ -823,6 +824,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
             let resolved = false
             let cleanupTimeout: number | undefined
             let afterPrintHandler: (() => void) | null = null
+            let parentAfterPrintHandler: (() => void) | null = null
 
             const cleanup = () => {
                 if (resolved) {
@@ -836,15 +838,14 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                 if (contentWindow && afterPrintHandler) {
                     contentWindow.removeEventListener('afterprint', afterPrintHandler)
                 }
+                if (parentAfterPrintHandler) {
+                    window.removeEventListener('afterprint', parentAfterPrintHandler)
+                }
                 if (iframe.parentNode) {
                     iframe.parentNode.removeChild(iframe)
                 }
                 URL.revokeObjectURL(blobUrl)
                 resolve()
-            }
-
-            afterPrintHandler = () => {
-                cleanup()
             }
 
             cleanupTimeout = window.setTimeout(() => {
@@ -857,7 +858,16 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                     cleanup()
                     return
                 }
+                afterPrintHandler = () => {
+                    cleanup()
+                }
+                parentAfterPrintHandler = () => {
+                    cleanup()
+                }
                 contentWindow.addEventListener('afterprint', afterPrintHandler, {
+                    once: true,
+                })
+                window.addEventListener('afterprint', parentAfterPrintHandler, {
                     once: true,
                 })
                 window.setTimeout(() => {
@@ -1207,6 +1217,21 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         return typeof first === 'string' ? first.trim() : ''
     }, [invoiceDisclaimer, orderData?.disclaimer])
 
+    const sanitizedDisclaimerHtml = useMemo(() => {
+        if (!orderDisclaimer) {
+            return ''
+        }
+        return sanitizeRichText(orderDisclaimer)
+    }, [orderDisclaimer])
+
+    const disclaimerDirection = useMemo(() => {
+        if (!sanitizedDisclaimerHtml) {
+            return undefined
+        }
+        const plain = sanitizedDisclaimerHtml.replace(/<[^>]+>/g, ' ').trim()
+        return plain ? resolveTextDirection(plain) : undefined
+    }, [sanitizedDisclaimerHtml])
+
     const disclaimerLabel = t('sales.orders.disclaimerLabel', {
         defaultValue: t('text.labels.disclaimer', { defaultValue: 'Disclaimer' }),
     })
@@ -1455,20 +1480,19 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                 >
                                     {orderComment || '\u00a0'}
                                 </p>
+                                {sanitizedDisclaimerHtml && (
+                                    <div className="mt-4">
+                                        <h6 className="font-semibold text-gray-700 dark:text-gray-200">
+                                            {disclaimerLabel}
+                                        </h6>
+                                        <div
+                                            className="mt-2 text-sm text-gray-700 dark:text-gray-200"
+                                            dir={disclaimerDirection}
+                                            dangerouslySetInnerHTML={{ __html: sanitizedDisclaimerHtml }}
+                                        />
+                                    </div>
+                                )}
                             </div>
-                            {orderDisclaimer && (
-                                <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                                    <h6 className="font-semibold text-gray-700 dark:text-gray-200">
-                                        {disclaimerLabel}
-                                    </h6>
-                                    <p
-                                        className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200"
-                                        dir={resolveTextDirection(orderDisclaimer)}
-                                    >
-                                        {orderDisclaimer}
-                                    </p>
-                                </div>
-                            )}
                         </div>
                     </div>
                     <div className="print:hidden mt-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

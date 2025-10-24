@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import Loading from '@/components/shared/Loading'
 import Table from '@/components/ui/Table'
 import Select from '@/components/ui/Select'
+import RichTextEditor from '@/components/shared/RichTextEditor'
 import {
     apiGetSystemConfig,
     apiUpdateSystemConfig,
@@ -19,10 +20,13 @@ import {
     apiUpdateSystemCurrency,
     apiDeleteSystemCurrency,
     apiUpdateExchangeRates,
+    apiGetSystemDisclaimer,
+    apiUpdateSystemDisclaimer,
 } from '@/services/SettingsService'
 import { useAppDispatch } from '@/store'
 import { setAvailableCurrencies } from '@/store/slices/currency/currencySlice'
 import { formatCurrencyOptionLabel, getCurrencyDefinition } from '@/utils/currency'
+import { sanitizeRichText } from '@/utils/security/inputGuards'
 
 const { Tr, Td, THead, Th, TBody } = Table
 
@@ -72,6 +76,9 @@ const SystemConfig = () => {
         | { type: 'delete'; code: string }
         | null
     >(null)
+    const [disclaimerInitial, setDisclaimerInitial] = useState<string>('')
+    const [disclaimerLoading, setDisclaimerLoading] = useState(true)
+    const [disclaimerSaving, setDisclaimerSaving] = useState(false)
 
     const currencyBaseLabel = t('settings.systemConfig.currencyBase.label', {
         defaultValue: 'Base currency',
@@ -249,6 +256,24 @@ const SystemConfig = () => {
         }
         load()
     }, [deriveRateRecord, ensureCurrencyPresence, syncStoreCurrencies])
+
+    useEffect(() => {
+        const loadDisclaimer = async () => {
+            try {
+                const res = await apiGetSystemDisclaimer<{ html?: string }>()
+                const html =
+                    res?.data && typeof (res.data as any).html === 'string'
+                        ? sanitizeRichText((res.data as any).html as string)
+                        : ''
+                setDisclaimerInitial(html)
+            } catch {
+                setDisclaimerInitial('')
+            } finally {
+                setDisclaimerLoading(false)
+            }
+        }
+        loadDisclaimer()
+    }, [])
 
     useEffect(() => {
         if (currenciesLoaded) {
@@ -892,6 +917,90 @@ const SystemConfig = () => {
                                 })}
                             </TBody>
                         </Table>
+                    </div>
+                </Card>
+                <Card>
+                    <div className="flex flex-col gap-4">
+                        <div>
+                            <h4 className="mb-1">{t('settings.systemConfig.disclaimer.title')}</h4>
+                            <p className="text-sm opacity-70">
+                                {t('settings.systemConfig.disclaimer.desc')}
+                            </p>
+                        </div>
+                        <Loading loading={disclaimerLoading}>
+                            <Formik
+                                enableReinitialize
+                                initialValues={{ html: disclaimerInitial }}
+                                onSubmit={async (values, { setSubmitting }) => {
+                                    try {
+                                        setDisclaimerSaving(true)
+                                        const sanitized = sanitizeRichText(values.html || '')
+                                        const plain = sanitized.replace(/<[^>]+>/g, '').trim()
+                                        const payloadHtml = plain ? sanitized : ''
+                                        const res = await apiUpdateSystemDisclaimer<
+                                            { html?: string },
+                                            { html?: string }
+                                        >({ html: payloadHtml })
+                                        const next =
+                                            res?.data && typeof (res.data as any).html === 'string'
+                                                ? sanitizeRichText((res.data as any).html as string)
+                                                : payloadHtml
+                                        setDisclaimerInitial(next)
+                                        toast.push(
+                                            <Notification
+                                                title={t('settings.systemConfig.disclaimer.successTitle')}
+                                                type="success"
+                                            >
+                                                {t('settings.systemConfig.disclaimer.success')}
+                                            </Notification>,
+                                            { placement: 'top-center' },
+                                        )
+                                    } catch (error: any) {
+                                        toast.push(
+                                            <Notification title={t('validation.failed')} type="danger">
+                                                {error?.response?.data?.message ||
+                                                    error?.message ||
+                                                    String(error)}
+                                            </Notification>,
+                                            { placement: 'top-center' },
+                                        )
+                                    } finally {
+                                        setDisclaimerSaving(false)
+                                        setSubmitting(false)
+                                    }
+                                }}
+                            >
+                                {({ isSubmitting, setFieldValue }) => (
+                                    <Form>
+                                        <FormContainer>
+                                            <FormItem>
+                                                <Field name="html">
+                                                    {({ field }: { field: any }) => (
+                                                        <RichTextEditor
+                                                            value={field.value}
+                                                            onChange={(val) => setFieldValue(field.name, val)}
+                                                        />
+                                                    )}
+                                                </Field>
+                                            </FormItem>
+                                            <p className="text-xs opacity-70">
+                                                {t('settings.systemConfig.disclaimer.hint')}
+                                            </p>
+                                            <div>
+                                                <Button
+                                                    type="submit"
+                                                    variant="solid"
+                                                    loading={isSubmitting || disclaimerSaving}
+                                                    disabled={disclaimerLoading}
+                                                >
+                                                    {t('text.actions.save')}
+                                                </Button>
+                                            </div>
+                                        </FormContainer>
+                                    </Form>
+                                )}
+                            </Formik>
+                        </Loading>
                     </div>
                 </Card>
             </div>

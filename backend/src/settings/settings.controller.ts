@@ -106,6 +106,7 @@ import {
   persistShippingLogo,
   deleteShippingLogo,
 } from '../common/uploads/shipping'
+import { sanitizeRichText } from '../common/utils/sanitize'
 
 @Controller('settings')
 export class SettingsController {
@@ -115,6 +116,8 @@ export class SettingsController {
   ) {}
 
   private readonly companySingletonKey = 'default'
+
+  private readonly disclaimerConfigKey = 'documentDisclaimerHtml'
 
   private readonly defaultCalendarEventTypes = [
     { name: 'Reunión', color: '#2563eb' },
@@ -1396,6 +1399,40 @@ export class SettingsController {
       }
     }
     return true
+  }
+
+  @Get('system-config/disclaimer')
+  @UseGuards(JwtAuthGuard)
+  async getSystemDisclaimer() {
+    const record = await this.prisma.systemConfig.findUnique({
+      where: { key: this.disclaimerConfigKey },
+    })
+    return { html: record?.value ?? '' }
+  }
+
+  @Put('system-config/disclaimer')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  async updateSystemDisclaimer(@Body() body: { html?: string | null }) {
+    const raw = typeof body.html === 'string' ? body.html : ''
+    const sanitized = sanitizeRichText(raw, 'html')
+    if (!sanitized) {
+      try {
+        await this.prisma.systemConfig.delete({ where: { key: this.disclaimerConfigKey } })
+      } catch (error: any) {
+        if (error?.code !== 'P2025') {
+          throw error
+        }
+      }
+      return { html: '' }
+    }
+
+    const record = await this.prisma.systemConfig.upsert({
+      where: { key: this.disclaimerConfigKey },
+      update: { value: sanitized },
+      create: { key: this.disclaimerConfigKey, value: sanitized },
+    })
+    return { html: record.value }
   }
 
   @Get('theme-config')

@@ -1792,6 +1792,13 @@
                     "title": "Currency removed",
                     "desc": "The currency was deleted successfully."
                 }
+            },
+            "disclaimer": {
+                "title": "Document disclaimer",
+                "desc": "Define a shared note displayed below the comments on every generated budget and invoice.",
+                "hint": "Supports basic HTML formatting. Leave blank to hide the disclaimer.",
+                "successTitle": "Disclaimer updated",
+                "success": "Document disclaimer saved successfully."
             }
         },
         "calendarEventTypes": {

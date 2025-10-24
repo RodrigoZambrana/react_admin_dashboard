@@ -74,6 +74,12 @@ export class SalesDocumentsService {
 
   private readonly budgetStatusCache = new Map<keyof typeof BUDGET_STATUS, number>()
 
+  private readonly disclaimerConfigKey = 'documentDisclaimerHtml'
+
+  private disclaimerCache: { value: string; fetchedAt: number } | null = null
+
+  private readonly disclaimerCacheTtlMs = 0
+
   private withDocumentType(documentType: DocumentType, where: Prisma.OrderWhereInput = {}) {
     return {
       ...where,
@@ -125,6 +131,39 @@ export class SalesDocumentsService {
       return Number(value.toString())
     }
     return null
+  }
+
+  private disclaimerHtmlToPlainText(html: string): string {
+    if (!html) {
+      return ''
+    }
+    return html
+      .replace(/<li[^>]*>/gi, '• ')
+      .replace(/<\/(p|div|li|h[1-6]|blockquote)>/gi, '\n')
+      .replace(/<br\s*\/?\s*>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\r/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/[ \t\f\v]+/g, ' ')
+      .replace(/\s+\n/g, '\n')
+      .replace(/\n\s+/g, '\n')
+      .trim()
+  }
+
+  private async getSystemDisclaimerHtml(): Promise<string> {
+    if (this.disclaimerCache) {
+      const age = Date.now() - this.disclaimerCache.fetchedAt
+      if (age < this.disclaimerCacheTtlMs) {
+        return this.disclaimerCache.value
+      }
+    }
+
+    const record = await this.prisma.systemConfig.findUnique({
+      where: { key: this.disclaimerConfigKey },
+    })
+    const value = typeof record?.value === 'string' ? record.value.trim() : ''
+    this.disclaimerCache = { value, fetchedAt: Date.now() }
+    return value
   }
 
   private formatCurrencyValue(amount: number, currency: string) {
@@ -867,6 +906,7 @@ export class SalesDocumentsService {
     const defaultStatus = documentType === DocumentType.BUDGET
       ? await this.prisma.orderStatus.findUnique({ where: { code: BUDGET_STATUS.DRAFT.code } })
       : await this.getDefaultOrderStatus()
+    const disclaimerHtml = await this.getSystemDisclaimerHtml()
 
     const data = orders.map((o: OrderWithRelations) => ({
       id: String(o.id),
@@ -947,7 +987,7 @@ export class SalesDocumentsService {
         order.billingCity ?? '',
         order.billingState ?? '',
         order.comment ?? '',
-        order.disclaimer ?? '',
+        disclaimerHtml,
         order.createdAt instanceof Date ? order.createdAt.toISOString() : new Date(order.createdAt).toISOString(),
         order.updatedAt instanceof Date ? order.updatedAt.toISOString() : new Date(order.updatedAt).toISOString(),
       ]
@@ -1054,7 +1094,6 @@ export class SalesDocumentsService {
         const billingCity = this.getCell(row, columnIndex, 'billingCity')
         const billingState = this.getCell(row, columnIndex, 'billingState')
         const comment = this.getCell(row, columnIndex, 'comment')
-        const disclaimer = this.getCell(row, columnIndex, 'disclaimer')
         const grandTotal = this.parseNumber(this.getCell(row, columnIndex, 'grandTotal'))
         const subTotalCell = this.getCell(row, columnIndex, 'subTotal')
         const subTotal = subTotalCell ? this.parseNumber(subTotalCell) : grandTotal
@@ -1102,7 +1141,6 @@ export class SalesDocumentsService {
             billingCity: billingCity || null,
             billingState: billingState || null,
             comment: comment || null,
-            disclaimer: disclaimer || null,
             grandTotal,
             subTotal,
             tax,
@@ -1229,6 +1267,8 @@ export class SalesDocumentsService {
         })()
       : null
 
+    const disclaimerHtml = await this.getSystemDisclaimerHtml()
+
     return {
       id: order.id,
       date: order.date,
@@ -1259,7 +1299,7 @@ export class SalesDocumentsService {
       fxBase: order.fxBase,
       fxRates: order.fxRates,
       comment: order.comment,
-      disclaimer: order.disclaimer ?? null,
+      disclaimer: disclaimerHtml || null,
       billingSameAsShipping: order.billingSameAsShipping,
       shippingAddress1: shippingAddress1 ?? null,
       shippingAddress2: shippingAddress2 ?? null,
@@ -1427,6 +1467,10 @@ export class SalesDocumentsService {
     const customerName = normalize(order.customer?.name) ?? '—'
     const customerEmail = normalize(order.customer?.email)
     const customerPhone = normalize(order.customer?.phoneNumber)
+
+    const disclaimerHtml = await this.getSystemDisclaimerHtml()
+    const normalizedDisclaimer = this.disclaimerHtmlToPlainText(disclaimerHtml)
+    const normalizedComment = normalize(order.comment)
 
     return await new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 36 })
@@ -1714,23 +1758,21 @@ export class SalesDocumentsService {
 
       doc.y = Math.max(doc.y, totalsCursor) + 18
 
-      const normalizedDisclaimer = normalize(order.disclaimer)
-      if (normalizedDisclaimer) {
-        doc.fillColor(brandColor).font('Helvetica-Bold').fontSize(11)
-        doc.text('Condiciones', marginLeft, doc.y)
-        doc.fillColor(mutedText).font('Helvetica').fontSize(10)
-        doc.text(normalizedDisclaimer, marginLeft, doc.y + 6, {
-          width: usableWidth,
-        })
-        doc.y += 18
-      }
-
-      const normalizedComment = normalize(order.comment)
       if (normalizedComment) {
         doc.fillColor(brandColor).font('Helvetica-Bold').fontSize(11)
         doc.text('Notas', marginLeft, doc.y)
         doc.fillColor(mutedText).font('Helvetica').fontSize(10)
         doc.text(normalizedComment, marginLeft, doc.y + 6, {
+          width: usableWidth,
+        })
+        doc.y += 18
+      }
+
+      if (normalizedDisclaimer) {
+        doc.fillColor(brandColor).font('Helvetica-Bold').fontSize(11)
+        doc.text('Condiciones', marginLeft, doc.y)
+        doc.fillColor(mutedText).font('Helvetica').fontSize(10)
+        doc.text(normalizedDisclaimer, marginLeft, doc.y + 6, {
           width: usableWidth,
         })
       }
@@ -1839,7 +1881,6 @@ export class SalesDocumentsService {
         estimatedMin: dto.shipping?.estimatedMin,
         estimatedMax: dto.shipping?.estimatedMax,
         comment: dto.comment,
-        disclaimer: dto.disclaimer,
         subTotal: monetary.subTotal.toFixed(2),
         tax: monetary.tax.toFixed(2),
         grandTotal: monetary.grandTotal.toFixed(2),
@@ -1945,7 +1986,6 @@ export class SalesDocumentsService {
         estimatedMin: dto.shipping?.estimatedMin,
         estimatedMax: dto.shipping?.estimatedMax,
         comment: dto.comment,
-        disclaimer: dto.disclaimer,
         subTotal: monetary.subTotal.toFixed(2),
         tax: monetary.tax.toFixed(2),
         grandTotal: monetary.grandTotal.toFixed(2),

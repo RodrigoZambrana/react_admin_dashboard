@@ -22,6 +22,7 @@ import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import { useSalesDocumentI18n } from '../context/useSalesDocumentI18n'
 import { resolveTextDirection } from '@/utils/textDirection'
+import { sanitizeRichText } from '@/utils/security/inputGuards'
 
 type SalesOrderDetailsResponse = {
     id?: string
@@ -248,15 +249,23 @@ const OrderDetails = () => {
         }
     }, [data, t])
 
-    const disclaimerText = useMemo(() => {
+    const disclaimerHtml = useMemo(() => {
         if (typeof data.disclaimer === 'string') {
             const trimmed = data.disclaimer.trim()
             if (trimmed) {
-                return trimmed
+                return sanitizeRichText(trimmed)
             }
         }
         return ''
     }, [data.disclaimer])
+
+    const disclaimerDirection = useMemo(() => {
+        if (!disclaimerHtml) {
+            return undefined
+        }
+        const plain = disclaimerHtml.replace(/<[^>]+>/g, ' ').trim()
+        return plain ? resolveTextDirection(plain) : undefined
+    }, [disclaimerHtml])
     return (
         <Container className="h-full">
             <Loading loading={loading}>
@@ -350,15 +359,14 @@ const OrderDetails = () => {
                             <div className="xl:max-w-[360px] w-full space-y-4">
                                 <CustomerInfo data={data.customer} />
                                 <ShippingInfo data={data.shipping} />
-                                {disclaimerText && (
+                                {disclaimerHtml && (
                                     <Card bodyClass="p-5">
                                         <h4 className="mb-2">{disclaimerLabel}</h4>
-                                        <p
-                                            className="whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-300"
-                                            dir={resolveTextDirection(disclaimerText)}
-                                        >
-                                            {disclaimerText}
-                                        </p>
+                                        <div
+                                            className="text-sm text-gray-600 dark:text-gray-300"
+                                            dir={disclaimerDirection}
+                                            dangerouslySetInnerHTML={{ __html: disclaimerHtml }}
+                                        />
                                     </Card>
                                 )}
                             </div>
