@@ -134,16 +134,18 @@ const Logo = (props: LogoProps) => {
             ? logoSrc
             : resolveDefaultLogo(mode, type)
 
+    const combinedImgClass = classNames('max-h-full w-auto object-contain', imgClass)
+
     return (
         <Link to="/">
             <div
-                className={classNames('logo', className)}
+                className={classNames('logo flex items-center', className)}
                 style={{
                     ...style,
                     ...{ width: logoWidth },
                 }}
             >
-                <img className={imgClass} src={resolvedSrc} alt={`${APP_NAME} logo`} />
+                <img className={combinedImgClass} src={resolvedSrc} alt={`${APP_NAME} logo`} />
             </div>
         </Link>
     )

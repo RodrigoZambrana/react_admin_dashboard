@@ -3,6 +3,7 @@ import { useLocation, useNavigate, matchPath } from 'react-router-dom'
 import classNames from 'classnames'
 import {
     HiOutlineClipboardList,
+    HiOutlineDocumentText,
     HiOutlineHome,
     HiOutlineMenuAlt2,
     HiOutlinePlusCircle,
@@ -12,6 +13,7 @@ import type { IconType } from 'react-icons'
 import { useTranslation } from 'react-i18next'
 import AddCustomerDrawer from '@/components/shared/AddCustomerDrawer'
 import useResponsive from '@/utils/hooks/useResponsive'
+import { clientConfig } from '@/configs/clientConfig'
 
 type MobileNavItem = {
     key: string
@@ -53,8 +55,8 @@ const MobileBottomNav = () => {
         window.dispatchEvent(new Event('app:mobile-nav-toggle'))
     }, [])
 
-    const navItems = useMemo<MobileNavItem[]>(
-        () => [
+    const navItems = useMemo<MobileNavItem[]>(() => {
+        const items: MobileNavItem[] = [
             {
                 key: 'menu',
                 label: t('text.mobileNav.menu', {
@@ -86,17 +88,27 @@ const MobileBottomNav = () => {
                 icon: HiOutlineUserAdd,
                 action: openCustomerDrawer,
             },
-            {
-                key: 'addOrder',
-                label: t('text.mobileNav.addOrder', {
-                    defaultValue: 'Add Order',
+        ]
+        if (clientConfig.featureFlags?.BUDGETS) {
+            items.push({
+                key: 'quickBudget',
+                label: t('text.mobileNav.quickBudget', {
+                    defaultValue: 'Quick budget',
                 }),
-                icon: HiOutlinePlusCircle,
-                to: '/app/sales/order-new',
-            },
-        ],
-        [t, openCustomerDrawer, openMobileMenu],
-    )
+                icon: HiOutlineDocumentText,
+                to: '/app/sales/budget-quick',
+            })
+        }
+        items.push({
+            key: 'addOrder',
+            label: t('text.mobileNav.addOrder', {
+                defaultValue: 'Add Order',
+            }),
+            icon: HiOutlinePlusCircle,
+            to: '/app/sales/order-new',
+        })
+        return items
+    }, [openCustomerDrawer, openMobileMenu, t])
 
     const handleItemClick = (item: MobileNavItem) => {
         if (item.action) {
@@ -174,6 +186,7 @@ const MobileBottomNav = () => {
                             item.key === 'addCustomer'
                                 ? isCustomerNavActive || isCustomerDrawerOpen
                                 : isItemActive(item)
+                        const isLink = Boolean(item.to)
                         return (
                             <li key={item.key} className="flex-1">
                                 <button
@@ -187,7 +200,10 @@ const MobileBottomNav = () => {
                                     onClick={() => handleItemClick(item)}
                                     aria-label={item.label}
                                     aria-current={
-                                        active ? 'page' : undefined
+                                        isLink && active ? 'page' : undefined
+                                    }
+                                    aria-pressed={
+                                        !isLink && active ? true : undefined
                                     }
                                 >
                                     <ActiveIcon className="text-xl" />

@@ -213,9 +213,10 @@ const OrderEdit = () => {
                     defaultValue: t('text.actions.edit'),
                 })}
             </h3>
-            <Formik initialValues={initial} enableReinitialize 
+            <Formik initialValues={initial} enableReinitialize
                 validationSchema={Yup.object().shape({
                     customerId: Yup.string().required(validationCustomerRequired),
+                    comment: Yup.string(),
                     items: Yup.array()
                         .of(
                             Yup.object().shape({

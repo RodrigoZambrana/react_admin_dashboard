@@ -45,16 +45,31 @@ const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif
 const normalizeLogoData = (value?: string | null): string | null =>
     typeof value === 'string' && value.trim().length ? value.trim() : null
 
-const toFormValues = (payload?: CompanyProfileResponse): CompanyProfileForm => ({
-    legalName: payload?.legalName ?? DEFAULT_COMPANY_PROFILE.legalName,
-    tradeName: payload?.tradeName ?? DEFAULT_COMPANY_PROFILE.tradeName,
-    taxId: payload?.taxId ?? DEFAULT_COMPANY_PROFILE.taxId ?? '',
-    email: payload?.email ?? DEFAULT_COMPANY_PROFILE.email ?? '',
-    phone: payload?.phone ?? DEFAULT_COMPANY_PROFILE.phone ?? '',
-    website: payload?.website ?? DEFAULT_COMPANY_PROFILE.website ?? '',
-    addressLine1: payload?.addressLine1 ?? DEFAULT_COMPANY_PROFILE.addressLine1 ?? '',
-    addressLine2: payload?.addressLine2 ?? DEFAULT_COMPANY_PROFILE.addressLine2 ?? '',
-})
+const toFormValues = (payload?: CompanyProfileResponse): CompanyProfileForm => {
+    if (!payload) {
+        return {
+            legalName: DEFAULT_COMPANY_PROFILE.legalName,
+            tradeName: DEFAULT_COMPANY_PROFILE.tradeName,
+            taxId: DEFAULT_COMPANY_PROFILE.taxId ?? '',
+            email: DEFAULT_COMPANY_PROFILE.email ?? '',
+            phone: DEFAULT_COMPANY_PROFILE.phone ?? '',
+            website: DEFAULT_COMPANY_PROFILE.website ?? '',
+            addressLine1: DEFAULT_COMPANY_PROFILE.addressLine1 ?? '',
+            addressLine2: DEFAULT_COMPANY_PROFILE.addressLine2 ?? '',
+        }
+    }
+
+    return {
+        legalName: payload.legalName ?? DEFAULT_COMPANY_PROFILE.legalName,
+        tradeName: payload.tradeName ?? DEFAULT_COMPANY_PROFILE.tradeName,
+        taxId: payload.taxId ?? '',
+        email: payload.email ?? '',
+        phone: payload.phone ?? '',
+        website: payload.website ?? '',
+        addressLine1: payload.addressLine1 ?? '',
+        addressLine2: payload.addressLine2 ?? '',
+    }
+}
 
 const CompanyProfileSettings = () => {
     const { t } = useTranslation()

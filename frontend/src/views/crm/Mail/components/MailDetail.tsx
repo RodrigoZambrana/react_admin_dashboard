@@ -1,13 +1,16 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import classNames from 'classnames'
 import Loading from '@/components/shared/Loading'
 import DoubleSidedImage from '@/components/shared/DoubleSidedImage'
 import Card from '@/components/ui/Card'
 import useQuery from '@/utils/hooks/useQuery'
+import { useTranslation } from 'react-i18next'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
-    updateMail,
     updateMailId,
     getMail,
+    patchMail,
+    updateMail,
     useAppDispatch,
     useAppSelector,
 } from '../store'
@@ -15,10 +18,19 @@ import MailDetailActionBar from './MailDetailActionBar'
 import MailDetailContent from './MailDetailContent'
 import MailEditor, { MailEditorRef } from './MailEditor'
 import isEmpty from 'lodash/isEmpty'
-import cloneDeep from 'lodash/cloneDeep'
+import {
+    buildConversationKey,
+    normalizeSubject,
+    normalizeString,
+} from '../utils/conversations'
+import { upsertMailLocalState } from '../utils/localMailState'
+import type { Mail as MailType } from '../store'
 
 const MailDetail = () => {
     const query = useQuery()
+    const { t } = useTranslation()
+    const navigate = useNavigate()
+    const location = useLocation()
 
     const dispatch = useAppDispatch()
 
@@ -27,6 +39,9 @@ const MailDetail = () => {
     const scrollRef = useRef(null)
 
     const mailEditorRef = useRef<MailEditorRef>(null)
+    const previousMailIdRef = useRef<string | number | null>(null)
+    const skipQuerySyncRef = useRef(false)
+    const readHistoryRef = useRef<Set<string>>(new Set())
 
     const mail = useAppSelector((state) => state.crmMail.data.mail)
     const mailLoading = useAppSelector(
@@ -34,24 +49,7 @@ const MailDetail = () => {
     )
     const mailId = useAppSelector((state) => state.crmMail.data.selectedMailId)
     const isReply = useAppSelector((state) => state.crmMail.data.reply)
-
-    const fetchData = () => {
-        if (id) {
-            dispatch(getMail({ id }))
-        }
-    }
-
-    const onStarToggle = () => {
-        const newMailData = cloneDeep(mail)
-        newMailData.starred = !newMailData.starred
-        dispatch(updateMail(newMailData))
-    }
-
-    const onFlagToggle = () => {
-        const newMailData = cloneDeep(mail)
-        newMailData.flagged = !newMailData.flagged
-        dispatch(updateMail(newMailData))
-    }
+    const mailList = useAppSelector((state) => state.crmMail.data.mailList)
 
     const formSubmit = () => {
         mailEditorRef.current?.formikRef?.submitForm()
@@ -68,51 +66,209 @@ const MailDetail = () => {
     }
 
     useEffect(() => {
-        if (mailId) {
-            fetchData()
+        const previousMailId = previousMailIdRef.current
+        const currentMailId =
+            mailId !== undefined && mailId !== null && mailId !== ''
+                ? mailId
+                : null
+
+        if (previousMailId && !currentMailId && id) {
+            const params = new URLSearchParams(location.search)
+            params.delete('mail')
+            const nextSearch = params.toString()
+            skipQuerySyncRef.current = true
+            navigate(
+                `${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`,
+                { replace: true },
+            )
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mailId])
+
+        previousMailIdRef.current = currentMailId
+    }, [mailId, id, location.pathname, location.search, navigate])
 
     useEffect(() => {
-        if (!mailId && id) {
+        if (!id) {
+            if (skipQuerySyncRef.current) {
+                skipQuerySyncRef.current = false
+            }
+            return
+        }
+
+        if (skipQuerySyncRef.current) {
+            skipQuerySyncRef.current = false
+            return
+        }
+
+        const mailIdString =
+            mailId !== undefined && mailId !== null ? String(mailId) : ''
+
+        if (mailIdString !== id) {
             dispatch(updateMailId(id))
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [dispatch, id, mailId])
+
+    useEffect(() => {
+        if (!id && mailId) {
+            dispatch(updateMail({}))
+            dispatch(updateMailId(''))
+        }
+    }, [dispatch, id, mailId])
+
+    useEffect(() => {
+        if (!mailId) {
+            return
+        }
+        const normalizedId = String(mailId)
+        dispatch(getMail({ id: normalizedId }))
+    }, [dispatch, mailId])
+
+    useEffect(() => {
+        if (!mailId) {
+            return
+        }
+        const normalizedId = String(mailId)
+        if (readHistoryRef.current.has(normalizedId)) {
+            return
+        }
+        dispatch(
+            patchMail({
+                id: mailId,
+                changes: { isRead: true },
+            }),
+        )
+        readHistoryRef.current.add(normalizedId)
+    }, [dispatch, mailId])
+
+    useEffect(() => {
+        if (!mail?.id || mail.isRead !== true) {
+            return
+        }
+        upsertMailLocalState(
+            {
+                id: mail.id,
+                remoteId: (mail as { remoteId?: string | number })?.remoteId,
+            },
+            { isRead: true },
+        )
+    }, [mail])
+
+    const resolvedMail = useMemo<Partial<MailType>>(() => {
+        if (!mail || isEmpty(mail)) {
+            return mail
+        }
+        if (!Array.isArray(mailList) || mailList.length === 0) {
+            return mail
+        }
+        const conversationKey = buildConversationKey(mail)
+        const normalizedThreadId = normalizeString(
+            (mail as { threadRemoteId?: string | null })?.threadRemoteId,
+        )
+        const normalizedSubject = normalizeSubject(mail.subject || mail.title)
+        const hasConversationKey = Boolean(conversationKey)
+        const hasThreadKey = Boolean(normalizedThreadId)
+        const shouldUseSubjectFallback =
+            !hasThreadKey && !hasConversationKey && Boolean(normalizedSubject)
+        const related = mailList.filter((entry) => {
+            if (!entry) {
+                return false
+            }
+            if (entry.id === mail.id) {
+                return true
+            }
+            if (hasThreadKey) {
+                const entryThreadId = normalizeString(
+                    (entry as { threadRemoteId?: string | null })?.threadRemoteId,
+                )
+                if (entryThreadId && entryThreadId === normalizedThreadId) {
+                    return true
+                }
+            }
+            if (hasConversationKey) {
+                const entryKey = buildConversationKey(entry)
+                if (entryKey && entryKey === conversationKey) {
+                    return true
+                }
+            }
+            if (shouldUseSubjectFallback) {
+                const entrySubject = normalizeSubject(entry.subject || entry.title)
+                if (entrySubject && entrySubject === normalizedSubject) {
+                    return true
+                }
+            }
+            return false
+        })
+        if (related.length <= 1) {
+            return mail
+        }
+        const mergedMessages: MailType['message'] = []
+        const seen = new Set<string>()
+        const appendMessages = (messages?: MailType['message']) => {
+            if (!Array.isArray(messages)) {
+                return
+            }
+            messages.forEach((message, index) => {
+                if (!message) {
+                    return
+                }
+                const key =
+                    message.id !== undefined && message.id !== null
+                        ? `id:${message.id}`
+                        : `idx:${index}:${message.date ?? ''}:${message.from ?? ''}`
+                if (seen.has(key)) {
+                    return
+                }
+                seen.add(key)
+                mergedMessages.push(message)
+            })
+        }
+        appendMessages(mail.message)
+        related.forEach((entry) => {
+            if (entry.id === mail.id) {
+                appendMessages(entry.message)
+                return
+            }
+            appendMessages(entry.message)
+        })
+        if (mergedMessages.length === (mail.message?.length ?? 0)) {
+            return mail
+        }
+        return {
+            ...mail,
+            message: mergedMessages,
+        }
+    }, [mail, mailList])
+
+    const hasMail = !isEmpty(resolvedMail)
+    const showMailContainer = Boolean(id) && (hasMail || mailLoading)
 
     return (
         <div
             className={classNames(
-                id && !isEmpty(mail) && !mailLoading
+                showMailContainer
                     ? 'block xl:flex'
                     : 'hidden xl:flex',
                 'flex-col w-full bg-gray-100 dark:bg-gray-900',
             )}
         >
-            {id && !isEmpty(mail) ? (
+            {showMailContainer ? (
                 mailLoading ? (
                     <Loading loading={true} />
                 ) : (
                     <>
                         <MailDetailActionBar
+                            mail={resolvedMail}
                             isReply={isReply}
-                            starred={mail.starred}
-                            flagged={mail.flagged}
-                            mailId={mail.id}
-                            onStarToggle={onStarToggle}
-                            onFlagToggle={onFlagToggle}
                             onMailSend={formSubmit}
                             onMailReply={onMailReply}
                         />
-                        <MailDetailContent ref={scrollRef} mail={mail}>
+                        <MailDetailContent ref={scrollRef} mail={resolvedMail}>
                             {isReply && (
                                 <div className="pb-6">
                                     <Card>
                                         <MailEditor
                                             ref={mailEditorRef}
                                             mode="reply"
-                                            mail={mail}
+                                            mail={resolvedMail}
                                         />
                                     </Card>
                                 </div>
@@ -128,7 +284,9 @@ const MailDetail = () => {
                         darkModeSrc="/img/others/no-mail-selected-dark.png"
                     />
                     <div className="mt-4 text-2xl font-semibold">
-                        Select a mail to read
+                        {t('crm.mail.selectMailPrompt', {
+                            defaultValue: 'Select a mail to read',
+                        })}
                     </div>
                 </div>
             )}

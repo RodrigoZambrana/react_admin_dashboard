@@ -171,4 +171,9 @@ export class CreateOrderDto {
   @IsString()
   @IsSafeString()
   comment?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  disclaimer?: string
 }

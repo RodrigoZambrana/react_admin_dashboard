@@ -71,6 +71,8 @@ const OrderNew = () => {
         mode,
         customerRequired,
         layoutMode,
+        showProductSpecifications,
+        showPaymentMethodSelect,
     } = useSalesDocumentI18n()
     const itemsOnlyMode = layoutMode === 'itemsOnly'
     const docMessage = useCallback(
@@ -557,12 +559,47 @@ const OrderNew = () => {
                     })) || []
                 setProducts(pOpts)
 
-                const mRes = await apiGetPaymentMethods<{ id: number | string; name: string }[]>()
-                const mOpts = (mRes.data as any[]).map((m) => ({
-                    value: String(m.name || m.id),
-                    label: m.name,
-                }))
-                setMethods(mOpts)
+                if (showPaymentMethodSelect) {
+                    const mRes = await apiGetPaymentMethods<{
+                        id: number | string
+                        name: string
+                    }[]>()
+                    const mOpts = (mRes.data as any[]).map((m) => ({
+                        value: String(m.name || m.id),
+                        label: m.name,
+                    }))
+                    setMethods(mOpts)
+                    const formik = formikRef.current
+                    if (formik) {
+                        const currentValue = (formik.values as any)?.paymentMehod
+                        const hasCurrent = mOpts.some((opt) => opt.value === currentValue)
+                        if (!hasCurrent) {
+                            const cashOption = mOpts.find((opt) => {
+                                const label = (opt.label ?? '').toString().toLowerCase()
+                                const value = (opt.value ?? '').toString().toLowerCase()
+                                return (
+                                    label === 'efectivo' ||
+                                    label === 'cash' ||
+                                    value === 'efectivo' ||
+                                    value === 'cash'
+                                )
+                            })
+                            const fallback = cashOption ?? mOpts[0]
+                            if (fallback) {
+                                formik.setFieldValue('paymentMehod', fallback.value, false)
+                            }
+                        }
+                    }
+                } else {
+                    setMethods([])
+                    const formik = formikRef.current
+                    if (formik) {
+                        const currentValue = (formik.values as any)?.paymentMehod
+                        if (currentValue !== 'Cash') {
+                            formik.setFieldValue('paymentMehod', 'Cash', false)
+                        }
+                    }
+                }
 
                 try {
                     const sRes = await apiGetShippingOptions<ShippingOption[]>()
@@ -659,7 +696,16 @@ const OrderNew = () => {
         load().catch(() => {
             initialDataLoadKeyRef.current = null
         })
-    }, [convert, convertItemToCurrency, defaultCurrency, exchangeSnapshot, refreshExchangeRates, roundCurrencyValue, t])
+    }, [
+        convert,
+        convertItemToCurrency,
+        defaultCurrency,
+        exchangeSnapshot,
+        refreshExchangeRates,
+        roundCurrencyValue,
+        showPaymentMethodSelect,
+        t,
+    ])
 
     useEffect(() => {
         if (itemsOnlyMode) {
@@ -782,7 +828,9 @@ const OrderNew = () => {
                     validUntil: Yup.date()
                         .nullable()
                         .typeError(t('text.validation.invalidDate')),
-                    paymentMehod: Yup.string().required('Payment method is required'),
+                    paymentMehod: showPaymentMethodSelect
+                        ? Yup.string().required('Payment method is required')
+                        : Yup.string().nullable(),
                     orderCurrency: Yup.string()
                         .trim()
                         .required(
@@ -833,6 +881,7 @@ const OrderNew = () => {
                               corner: Yup.string().nullable(),
                               apartment: Yup.string().nullable(),
                           }),
+                    comment: Yup.string(),
                     items: Yup.array()
                         .of(
                             Yup.object().shape({
@@ -1906,22 +1955,34 @@ const OrderNew = () => {
                                                         }}
                                                     />
                                                 </FormItem>
-                                                <FormItem
-                                                    label={t('text.columns.paymentMethod')}
-                                                    invalid={Boolean(getIn(touched, 'paymentMehod') && getIn(errors, 'paymentMehod'))}
-                                                    errorMessage={getIn(errors, 'paymentMehod') as string}
-                                                >
-                                                    <Select
-                                                        className="w-full max-w-xs"
-                                                        options={methods}
-                                                        value={methods.find((m) => m.value === values.paymentMehod) as any}
-                                                        onChange={(opt) => {
-                                                            const nextValue = (opt as any)?.value ?? ''
-                                                            setFieldValue('paymentMehod', nextValue)
-                                                            setFieldTouched('paymentMehod', true, false)
-                                                        }}
-                                                    />
-                                                </FormItem>
+                                                {showPaymentMethodSelect && (
+                                                    <FormItem
+                                                        label={t('text.columns.paymentMethod')}
+                                                        invalid={Boolean(
+                                                            getIn(touched, 'paymentMehod') &&
+                                                                getIn(errors, 'paymentMehod'),
+                                                        )}
+                                                        errorMessage={
+                                                            getIn(errors, 'paymentMehod') as string
+                                                        }
+                                                    >
+                                                        <Select
+                                                            className="w-full max-w-xs"
+                                                            options={methods}
+                                                            value={
+                                                                methods.find(
+                                                                    (m) =>
+                                                                        m.value === values.paymentMehod,
+                                                                ) as any
+                                                            }
+                                                            onChange={(opt) => {
+                                                                const nextValue = (opt as any)?.value ?? ''
+                                                                setFieldValue('paymentMehod', nextValue)
+                                                                setFieldTouched('paymentMehod', true, false)
+                                                            }}
+                                                        />
+                                                    </FormItem>
+                                                )}
                                             </div>
                                         </FormContainer>
                                     </Card>
@@ -2129,6 +2190,69 @@ const OrderNew = () => {
                                     <Card bodyClass="p-5">
                                         <h4 className="mb-4">{t('text.titles.products')}</h4>
                                         <FormContainer>
+                                            {itemsOnlyMode && (
+                                                <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                                    <FormItem
+                                                        label={orderCurrencyLabel}
+                                                        invalid={Boolean(
+                                                            getIn(touched, 'orderCurrency') &&
+                                                            getIn(errors, 'orderCurrency'),
+                                                        )}
+                                                        errorMessage={getIn(
+                                                            errors,
+                                                            'orderCurrency',
+                                                        ) as string}
+                                                    >
+                                                        <Select
+                                                            placeholder={orderCurrencyPlaceholder}
+                                                            options={orderCurrencyOptions}
+                                                            value={orderCurrencySelected as any}
+                                                            isSearchable
+                                                            isClearable={false}
+                                                            isDisabled={orderCurrencyOptions.length <= 1}
+                                                            onChange={(option) => {
+                                                                void handleOrderCurrencySelect(option)
+                                                                setFieldTouched(
+                                                                    'orderCurrency',
+                                                                    true,
+                                                                    false,
+                                                                )
+                                                            }}
+                                                        />
+                                                    </FormItem>
+                                                    <FormItem
+                                                        label={t('text.columns.paymentMethod')}
+                                                        invalid={Boolean(
+                                                            getIn(touched, 'paymentMehod') &&
+                                                            getIn(errors, 'paymentMehod'),
+                                                        )}
+                                                        errorMessage={getIn(
+                                                            errors,
+                                                            'paymentMehod',
+                                                        ) as string}
+                                                    >
+                                                        <Select
+                                                            options={methods}
+                                                            value={
+                                                                methods.find(
+                                                                    (m) =>
+                                                                        m.value ===
+                                                                        values.paymentMehod,
+                                                                ) as any
+                                                            }
+                                                            onChange={(opt) => {
+                                                                const nextValue = (opt as any)?.value ?? ''
+                                                                setFieldValue('paymentMehod', nextValue)
+                                                                setFieldTouched(
+                                                                    'paymentMehod',
+                                                                    true,
+                                                                    false,
+                                                                )
+                                                            }}
+                                                        />
+                                                    </FormItem>
+                                                </div>
+                                            )}
                                             <FormItem label={t('text.columns.product')} invalid={!!(touched as any).items && !!(errors as any).items} errorMessage={(errors as any).items as any}>
                                                 <div className="flex flex-col gap-3">
                                                     <Select
@@ -2166,12 +2290,13 @@ const OrderNew = () => {
                                                         onRemove={removeItem}
                                                         showDescription={false}
                                                         showComments
-                                                        onCommentChange={changeComment}
-                                                        onItemChange={handleItemChange}
-                                                        showCustomAttributes={mode === 'budget'}
-                                                        showUnitColumn={mode !== 'budget'}
-                                                        roundAmount={roundCurrencyValue}
-                                                    />
+                                                    onCommentChange={changeComment}
+                                                    onItemChange={handleItemChange}
+                                                    showCustomAttributes={mode === 'budget'}
+                                                    showUnitColumn={mode !== 'budget'}
+                                                    roundAmount={roundCurrencyValue}
+                                                    showProductSpecifications={showProductSpecifications}
+                                                />
                                                 </div>
                                             </FormItem>
                                         </FormContainer>
@@ -2373,10 +2498,16 @@ const OrderNew = () => {
                                                                 orderCurrencySelected?.label ||
                                                                 getCurrencyLabel(orderCurrencyValue),
                                                         },
-                                                        {
-                                                            label: t('text.columns.paymentMethod'),
-                                                            value: paymentMethodLabel,
-                                                        },
+                                                        ...(showPaymentMethodSelect
+                                                            ? [
+                                                                  {
+                                                                      label: t(
+                                                                          'text.columns.paymentMethod',
+                                                                      ),
+                                                                      value: paymentMethodLabel,
+                                                                  },
+                                                              ]
+                                                            : []),
                                                         {
                                                             label: t('text.labels.date'),
                                                             value: values.date
@@ -2600,7 +2731,8 @@ const OrderNew = () => {
                                                     (currentStep === 0 &&
                                                         (!customerStepSatisfied ||
                                                             !values.orderCurrency ||
-                                                            !values.paymentMehod ||
+                                                            (showPaymentMethodSelect &&
+                                                                !values.paymentMehod) ||
                                                             (customerRequired && addressesIncomplete))) ||
                                                     (currentStep === 1 && (values.items || []).length === 0)
                                                 }
