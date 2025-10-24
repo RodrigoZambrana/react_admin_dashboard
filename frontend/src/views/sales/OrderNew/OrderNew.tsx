@@ -1451,6 +1451,24 @@ const OrderNew = ({
                         i18n.language,
                         { fallbackCurrency: defaultCurrency },
                     )
+                    if (mode === 'budget' && !isEditing) {
+                        const validUntilTouched = Boolean(getIn(touched, 'validUntil'))
+                        if (!validUntilTouched) {
+                            const creationDate = values.date ? dayjs(values.date as any) : null
+                            if (creationDate && creationDate.isValid()) {
+                                const expectedValidUntil = creationDate.add(15, 'day')
+                                const currentValidUntil = values.validUntil
+                                    ? dayjs(values.validUntil as any)
+                                    : null
+                                if (
+                                    !currentValidUntil ||
+                                    !currentValidUntil.isSame(expectedValidUntil, 'day')
+                                ) {
+                                    setFieldValue('validUntil', expectedValidUntil.toDate(), false)
+                                }
+                            }
+                        }
+                    }
                     const getAddressLines = (addr?: typeof values.shippingAddress) => {
                         if (!addr) {
                             return []
@@ -2591,7 +2609,7 @@ const OrderNew = ({
                                                     showCustomAttributes={
                                                         mode === 'budget' || !itemsOnlyMode
                                                     }
-                                                    showUnitColumn={mode !== 'budget'}
+                                                    showUnitColumn={mode === 'budget'}
                                                     roundAmount={roundCurrencyValue}
                                                     showProductSpecifications={showProductSpecifications}
                                                 />
@@ -2812,18 +2830,25 @@ const OrderNew = ({
                                                                 ? dayjs(values.date as any).format('DD/MM/YYYY')
                                                                 : docSummary('notAvailable', 'Not available'),
                                                         },
-                                                        {
-                                                            label: docMessage(
-                                                                'validUntilLabel',
-                                                                'sales.orders.validUntilLabel',
-                                                                'Valid until',
-                                                            ),
-                                                            value: values.validUntil
-                                                                ? dayjs(values.validUntil as any).format(
-                                                                      'DD/MM/YYYY',
-                                                                  )
-                                                                : docSummary('notAvailable', 'Not available'),
-                                                        },
+                                                        ...(mode === 'budget'
+                                                            ? [
+                                                                  {
+                                                                      label: docMessage(
+                                                                          'validUntilLabel',
+                                                                          'sales.orders.validUntilLabel',
+                                                                          'Valid until',
+                                                                      ),
+                                                                      value: values.validUntil
+                                                                          ? dayjs(
+                                                                                values.validUntil as any,
+                                                                            ).format('DD/MM/YYYY')
+                                                                          : docSummary(
+                                                                                'notAvailable',
+                                                                                'Not available',
+                                                                            ),
+                                                                  },
+                                                              ]
+                                                            : []),
                                                         {
                                                             label: docSummary('subtotal', 'Subtotal'),
                                                             value: formattedOrderTotal,
@@ -2974,22 +2999,28 @@ const OrderNew = ({
                                                     }}
                                                 />
                                             </FormItem>
-                                            <FormItem
-                                                label={docMessage('validUntilLabel', 'sales.orders.validUntilLabel', 'Valid until')}
-                                                invalid={Boolean(
-                                                    getIn(touched, 'validUntil') &&
-                                                        getIn(errors, 'validUntil'),
-                                                )}
-                                                errorMessage={getIn(errors, 'validUntil') as string}
-                                            >
-                                                <DatePicker
-                                                    value={values.validUntil as any}
-                                                    onChange={(val) => {
-                                                        setFieldValue('validUntil', val)
-                                                        setFieldTouched('validUntil', true, false)
-                                                    }}
-                                                />
-                                            </FormItem>
+                                            {mode === 'budget' && (
+                                                <FormItem
+                                                    label={docMessage(
+                                                        'validUntilLabel',
+                                                        'sales.orders.validUntilLabel',
+                                                        'Valid until',
+                                                    )}
+                                                    invalid={Boolean(
+                                                        getIn(touched, 'validUntil') &&
+                                                            getIn(errors, 'validUntil'),
+                                                    )}
+                                                    errorMessage={getIn(errors, 'validUntil') as string}
+                                                >
+                                                    <DatePicker
+                                                        value={values.validUntil as any}
+                                                        onChange={(val) => {
+                                                            setFieldValue('validUntil', val)
+                                                            setFieldTouched('validUntil', true, false)
+                                                        }}
+                                                    />
+                                                </FormItem>
+                                            )}
                                         </FormContainer>
                                     </Card>
                                     {showDisclaimerCard && (
