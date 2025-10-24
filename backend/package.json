@@ -46,6 +46,7 @@
     "nodemailer": "^6.10.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pdfkit": "^0.15.0",
     "prisma": "^6.16.2",
     "reflect-metadata": "^0.2.2",
     "xss": "^1.0.15"
@@ -54,6 +55,7 @@
     "@nestjs/cli": "^11.0.10",
     "@nestjs/schematics": "^11.0.7",
     "@types/node": "^24.5.2",
+    "@types/pdfkit": "^0.15.9",
     "@types/nodemailer": "^6.4.20",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2",

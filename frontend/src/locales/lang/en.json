@@ -31,6 +31,7 @@
             "orderDetails": "Order Details",
             "addOrder": "Add Order",
             "budgetList": "Budgets",
+            "budgetQuick": "Quick Budget",
             "budgetNew": "Add Budget"
         },
         "appsBudgets": {
@@ -441,6 +442,32 @@
             "filterActivity": "Filter Activity",
             "taskManagement": "Task Management"
         },
+        "labels": {
+            "password": "Password",
+            "invoice": "Invoice",
+            "budget": "Budget",
+            "shippingAddress": "Shipping Address",
+            "billingAddress": "Billing address",
+            "comments": "Comments",
+            "disclaimer": "Disclaimer",
+            "conversionSnapshot": "Conversion snapshot",
+            "description": "Description",
+            "role": "Role",
+            "activityDetails": "Activity Details",
+            "attachments": "Attachments",
+            "whereSignedIn": "Where you're signed in",
+            "addressInformation": "Address Information",
+            "permanentAddress": "Permanent Address",
+            "correspondenceAddress": "Correspondence Address",
+            "basicInformation": "Basic Information",
+            "pricing": "Pricing",
+            "deleteProduct": "Delete product",
+            "paymentMethods": "Payment Methods",
+            "billingHistory": "Billing History",
+            "activityLog": "Activity Log",
+            "filterActivity": "Filter Activity",
+            "taskManagement": "Task Management"
+        },
         "columns": {
             "order": "Order",
             "date": "Date",
@@ -479,6 +506,7 @@
             "agenda": "Agenda",
             "addCustomer": "Add Client",
             "addOrder": "Add Order",
+            "quickBudget": "Quick budget",
             "menu": "Menu"
         },
         "priority": {
@@ -1071,6 +1099,7 @@
             "addAction": "New Order",
             "invoiceAction": "View invoice",
             "validUntilLabel": "Valid until",
+            "disclaimerLabel": "Disclaimer",
             "editAction": "Edit order",
             "delete": {
                 "title": "Delete order",
@@ -1121,11 +1150,20 @@
                 "noContact": "No contact details provided",
                 "notesAndScheduling": "Notes & scheduling"
             }
+            ,
+            "administrative": {
+                "title": "Administrative info",
+                "totalCost": "Total cost",
+                "netIncome": "Net income",
+                "lineDetail": "{{qty}} × {{unitCost}}",
+                "empty": "No cost data available"
+            }
         },
         "documents": {
             "squareSummary": "Width: {{width}} m · Height: {{height}} m",
             "linearSummary": "Linear meters: {{length}} m",
             "noExtraAttributes": "No additional details required.",
+            "pdfNotFound": "No stored PDF is available for this document.",
             "quickMessage": {
                 "title": "Generated message",
                 "header": "Quantity Product Specifications Comments Total (Unit price)",
@@ -1140,6 +1178,7 @@
             "addAction": "Create budget",
             "invoiceAction": "Download budget",
             "validUntilLabel": "Valid until",
+            "disclaimerLabel": "Disclaimer",
             "editAction": "Edit budget",
             "importSuccess": "Successfully imported {{imported}} budgets.",
             "importSuccessWithErrors": "Budgets imported: {{imported}}. {{failed}} rows returned errors.",
@@ -1157,6 +1196,13 @@
             },
             "table": {
                 "id": "Budget"
+            },
+            "administrative": {
+                "title": "Administrative info",
+                "totalCost": "Total cost",
+                "netIncome": "Net income",
+                "lineDetail": "{{qty}} × {{unitCost}}",
+                "empty": "No cost data available"
             }
         },
         "productForm": {
@@ -1746,6 +1792,13 @@
                     "title": "Currency removed",
                     "desc": "The currency was deleted successfully."
                 }
+            },
+            "disclaimer": {
+                "title": "Document disclaimer",
+                "desc": "Define a shared note displayed below the comments on every generated budget and invoice.",
+                "hint": "Supports basic HTML formatting. Leave blank to hide the disclaimer.",
+                "successTitle": "Disclaimer updated",
+                "success": "Document disclaimer saved successfully."
             }
         },
         "calendarEventTypes": {

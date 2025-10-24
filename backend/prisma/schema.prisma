@@ -254,6 +254,7 @@ model Order {
   estimatedMin          Int?           @default(1)
   estimatedMax          Int?           @default(3)
   comment               String?
+  disclaimer            String?
   statusId              Int?
   status                OrderStatus?   @relation(fields: [statusId], references: [id], onDelete: SetNull)
   subTotal              Decimal        @default(0) @db.Decimal(18, 2)
@@ -274,6 +275,7 @@ model Order {
   convertedAt           DateTime?
   convertedBy           Int?
   convertedByUser       User?          @relation("OrderConvertedBy", fields: [convertedBy], references: [id], onDelete: SetNull)
+  documentPdf           Bytes?
   version               Int            @default(1)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt

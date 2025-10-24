@@ -11,6 +11,7 @@ import {
   addDecimals,
   divideDecimals,
 } from '../common/currency/money.util'
+import PDFDocument = require('pdfkit')
 
 const BUDGET_STATUS = {
   DRAFT: { code: 1000, name: 'Presupuesto - Borrador', color: '#9ca3af' },
@@ -69,7 +70,15 @@ export class SalesDocumentsService {
     private readonly currencyConversion: CurrencyConversionService,
   ) {}
 
+  private readonly companySingletonKey = 'default'
+
   private readonly budgetStatusCache = new Map<keyof typeof BUDGET_STATUS, number>()
+
+  private readonly disclaimerConfigKey = 'documentDisclaimerHtml'
+
+  private disclaimerCache: { value: string; fetchedAt: number } | null = null
+
+  private readonly disclaimerCacheTtlMs = 0
 
   private withDocumentType(documentType: DocumentType, where: Prisma.OrderWhereInput = {}) {
     return {
@@ -103,6 +112,140 @@ export class SalesDocumentsService {
     const decimalValue =
       value instanceof Prisma.Decimal ? value : new Prisma.Decimal(value)
     return decimalValue.toFixed(scale)
+  }
+
+  private decimalToNumber(
+    value: Prisma.Decimal | number | string | null | undefined,
+  ): number | null {
+    if (value === null || value === undefined) {
+      return null
+    }
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value)
+      return Number.isFinite(parsed) ? parsed : null
+    }
+    if (value instanceof Prisma.Decimal) {
+      return Number(value.toString())
+    }
+    return null
+  }
+
+  private disclaimerHtmlToPlainText(html: string): string {
+    if (!html) {
+      return ''
+    }
+    return html
+      .replace(/<li[^>]*>/gi, '• ')
+      .replace(/<\/(p|div|li|h[1-6]|blockquote)>/gi, '\n')
+      .replace(/<br\s*\/?\s*>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\r/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/[ \t\f\v]+/g, ' ')
+      .replace(/\s+\n/g, '\n')
+      .replace(/\n\s+/g, '\n')
+      .trim()
+  }
+
+  private async getSystemDisclaimerHtml(): Promise<string> {
+    if (this.disclaimerCache) {
+      const age = Date.now() - this.disclaimerCache.fetchedAt
+      if (age < this.disclaimerCacheTtlMs) {
+        return this.disclaimerCache.value
+      }
+    }
+
+    const record = await this.prisma.systemConfig.findUnique({
+      where: { key: this.disclaimerConfigKey },
+    })
+    const value = typeof record?.value === 'string' ? record.value.trim() : ''
+    this.disclaimerCache = { value, fetchedAt: Date.now() }
+    return value
+  }
+
+  private formatCurrencyValue(amount: number, currency: string) {
+    try {
+      return new Intl.NumberFormat('es-UY', {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount)
+    } catch {
+      return `${currency} ${amount.toFixed(2)}`
+    }
+  }
+
+  private formatDateValue(value?: Date | string | null) {
+    if (!value) {
+      return null
+    }
+    const date = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return null
+    }
+    try {
+      return new Intl.DateTimeFormat('es-UY').format(date)
+    } catch {
+      return date.toISOString().split('T')[0]
+    }
+  }
+
+  private normalizeScalarString(value?: string | null) {
+    if (typeof value !== 'string') {
+      return null
+    }
+    const trimmed = value.trim()
+    return trimmed.length ? trimmed : null
+  }
+
+  private async loadCompanyProfileSummary(
+    client: PrismaService | Prisma.TransactionClient,
+  ) {
+    const profile = await client.companyProfile.findUnique({
+      where: { singleton: this.companySingletonKey },
+      select: {
+        legalName: true,
+        tradeName: true,
+        taxId: true,
+        email: true,
+        phone: true,
+        website: true,
+        addressLine1: true,
+        addressLine2: true,
+      },
+    })
+    if (!profile) {
+      return null
+    }
+    const displayName =
+      this.normalizeScalarString(profile.tradeName) ||
+      this.normalizeScalarString(profile.legalName) ||
+      'Presupuesto'
+    const addressLines = [
+      this.normalizeScalarString(profile.addressLine1),
+      this.normalizeScalarString(profile.addressLine2),
+    ].filter((line): line is string => Boolean(line))
+    const detailLines = [
+      this.normalizeScalarString(profile.email)
+        ? `Email: ${profile.email?.trim()}`
+        : null,
+      this.normalizeScalarString(profile.phone)
+        ? `Tel: ${profile.phone?.trim()}`
+        : null,
+      this.normalizeScalarString(profile.website),
+      this.normalizeScalarString(profile.taxId)
+        ? `RUT: ${profile.taxId?.trim()}`
+        : null,
+    ].filter((line): line is string => Boolean(line))
+    return {
+      displayName,
+      legalName: this.normalizeScalarString(profile.legalName),
+      lines: [...addressLines, ...detailLines],
+    }
   }
 
   private formatSpecKey(key: string) {
@@ -763,6 +906,7 @@ export class SalesDocumentsService {
     const defaultStatus = documentType === DocumentType.BUDGET
       ? await this.prisma.orderStatus.findUnique({ where: { code: BUDGET_STATUS.DRAFT.code } })
       : await this.getDefaultOrderStatus()
+    const disclaimerHtml = await this.getSystemDisclaimerHtml()
 
     const data = orders.map((o: OrderWithRelations) => ({
       id: String(o.id),
@@ -813,6 +957,7 @@ export class SalesDocumentsService {
       'billingCity',
       'billingState',
       'comment',
+      'disclaimer',
       'createdAt',
       'updatedAt',
     ]
@@ -842,6 +987,7 @@ export class SalesDocumentsService {
         order.billingCity ?? '',
         order.billingState ?? '',
         order.comment ?? '',
+        disclaimerHtml,
         order.createdAt instanceof Date ? order.createdAt.toISOString() : new Date(order.createdAt).toISOString(),
         order.updatedAt instanceof Date ? order.updatedAt.toISOString() : new Date(order.updatedAt).toISOString(),
       ]
@@ -980,7 +1126,7 @@ export class SalesDocumentsService {
           fxRates.rates[fxBase] = '1'
         }
 
-        await this.prisma.order.create({
+        const created = await this.prisma.order.create({
           data: {
             documentType,
             customerId: customer.id,
@@ -1003,7 +1149,11 @@ export class SalesDocumentsService {
             fxBase,
             fxRates,
           },
+          select: { id: true },
         })
+        if (documentType === DocumentType.BUDGET) {
+          await this.generateBudgetPdfForClient(this.prisma, created.id)
+        }
         imported += 1
       } catch (error: any) {
         errors.push({ row: lineNumber, message: error?.message || 'Unknown error' })
@@ -1117,6 +1267,8 @@ export class SalesDocumentsService {
         })()
       : null
 
+    const disclaimerHtml = await this.getSystemDisclaimerHtml()
+
     return {
       id: order.id,
       date: order.date,
@@ -1147,6 +1299,7 @@ export class SalesDocumentsService {
       fxBase: order.fxBase,
       fxRates: order.fxRates,
       comment: order.comment,
+      disclaimer: disclaimerHtml || null,
       billingSameAsShipping: order.billingSameAsShipping,
       shippingAddress1: shippingAddress1 ?? null,
       shippingAddress2: shippingAddress2 ?? null,
@@ -1162,6 +1315,482 @@ export class SalesDocumentsService {
       estimatedMin: order.estimatedMin ?? null,
       estimatedMax: order.estimatedMax ?? null,
     }
+  }
+
+  private async buildBudgetPdfBuffer(
+    client: PrismaService | Prisma.TransactionClient,
+    orderId: number,
+  ): Promise<Buffer> {
+    const order = await client.order.findFirst({
+      where: { id: orderId, documentType: DocumentType.BUDGET },
+      include: {
+        customer: {
+          include: {
+            addresses: {
+              orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+            },
+          },
+        },
+        items: true,
+        paymentMethod: true,
+      },
+    })
+    if (!order) {
+      throw new BadRequestException('sales.budgets.notFound')
+    }
+
+    const customerAddresses = order.customer?.addresses ?? []
+    const primaryAddress =
+      customerAddresses.find((addr) => addr.isPrimary) ?? customerAddresses[0] ?? null
+    const secondaryAddress =
+      customerAddresses.find(
+        (addr) => !addr.isPrimary && addr.id !== primaryAddress?.id,
+      ) ?? null
+
+    const normalize = (value?: string | null) => this.normalizeScalarString(value)
+    const formatLine1 = (addr: CustomerAddress | null) => {
+      if (!addr) {
+        return null
+      }
+      const street = normalize(addr.street)
+      const number = normalize(addr.number)
+      if (street && number) {
+        return `${street} ${number}`
+      }
+      return street ?? number
+    }
+    const formatLine2 = (addr: CustomerAddress | null) => {
+      if (!addr) {
+        return null
+      }
+      const apartment = normalize(addr.apartment)
+      const corner = normalize(addr.corner)
+      const parts = [
+        apartment ? `Apt ${apartment}` : null,
+        corner,
+      ].filter((segment): segment is string => Boolean(segment))
+      return parts.length ? parts.join(' • ') : null
+    }
+    const buildLines = (
+      line1?: string | null,
+      line2?: string | null,
+      city?: string | null,
+      state?: string | null,
+      zip?: string | null,
+    ) => {
+      const lines: string[] = []
+      if (line1) lines.push(line1)
+      if (line2) lines.push(line2)
+      const cityState = [city, state]
+        .filter((segment): segment is string => Boolean(segment))
+        .join(', ')
+      if (cityState) lines.push(cityState)
+      if (zip) lines.push(zip)
+      return lines
+    }
+
+    const shippingLine1 = normalize(order.shippingAddress1) ?? formatLine1(primaryAddress)
+    const shippingLine2 = normalize(order.shippingAddress2) ?? formatLine2(primaryAddress)
+    const shippingCity =
+      normalize(order.shippingCity) ?? normalize(primaryAddress?.city)
+    const shippingState =
+      normalize(order.shippingState) ?? normalize(primaryAddress?.country)
+    const shippingZip = normalize(order.shippingZip)
+    const shippingLines = buildLines(
+      shippingLine1,
+      shippingLine2,
+      shippingCity,
+      shippingState,
+      shippingZip,
+    )
+
+    const billingLine1 =
+      normalize(order.billingAddress1) ?? formatLine1(secondaryAddress ?? primaryAddress)
+    const billingLine2 =
+      normalize(order.billingAddress2) ?? formatLine2(secondaryAddress ?? primaryAddress)
+    const billingCity =
+      normalize(order.billingCity) ?? normalize((secondaryAddress ?? primaryAddress)?.city)
+    const billingState =
+      normalize(order.billingState) ?? normalize((secondaryAddress ?? primaryAddress)?.country)
+    const billingZip = normalize(order.billingZip)
+    const billingLines = buildLines(
+      billingLine1,
+      billingLine2,
+      billingCity,
+      billingState,
+      billingZip,
+    )
+
+    const company = await this.loadCompanyProfileSummary(client)
+    const currency = normalize(order.orderCurrency) ?? 'UYU'
+    const subTotal = this.decimalToNumber(order.subTotal) ?? 0
+    const tax = this.decimalToNumber(order.tax) ?? 0
+    const deliveryFees = this.decimalToNumber(order.deliveryFees) ?? 0
+    const grandTotal = this.decimalToNumber(order.grandTotal) ?? subTotal + deliveryFees
+    const paymentMethodName = normalize(order.paymentMethod?.name)
+
+    const items = order.items.map((item) => {
+      const qtyRaw = Number(item.qty ?? 0)
+      const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : 0
+      const unitBase =
+        this.decimalToNumber(item.unitAmountOrderCurrency) ??
+        this.decimalToNumber(item.price) ??
+        0
+      const unitPrice = Number.isFinite(unitBase)
+        ? Math.round(unitBase * 100) / 100
+        : 0
+      const total = Math.round(unitPrice * qty * 100) / 100
+      const extras: string[] = []
+      const specSummary = normalize(item.specSummary)
+      if (specSummary) {
+        extras.push(specSummary)
+      }
+      const description = normalize(item.description)
+      if (description) {
+        extras.push(description)
+      }
+      const comments = normalize(item.comments)
+      if (comments) {
+        extras.push(comments)
+      }
+      return {
+        name: item.name,
+        qty,
+        unitPrice,
+        total,
+        details: extras.join('\n'),
+      }
+    })
+
+    const generatedDate = this.formatDateValue(order.date)
+    const validUntil = this.formatDateValue(order.validUntil)
+    const customerName = normalize(order.customer?.name) ?? '—'
+    const customerEmail = normalize(order.customer?.email)
+    const customerPhone = normalize(order.customer?.phoneNumber)
+
+    const disclaimerHtml = await this.getSystemDisclaimerHtml()
+    const normalizedDisclaimer = this.disclaimerHtmlToPlainText(disclaimerHtml)
+    const normalizedComment = normalize(order.comment)
+
+    return await new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 36 })
+      const buffers: Buffer[] = []
+      doc.on('data', (chunk) => buffers.push(chunk))
+      doc.on('error', (error) => reject(error))
+      doc.on('end', () => resolve(Buffer.concat(buffers)))
+
+      const marginLeft = doc.page.margins.left
+      const marginRight = doc.page.margins.right
+      const marginTop = doc.page.margins.top
+      const usableWidth = doc.page.width - marginLeft - marginRight
+
+      const brandColor = '#111827'
+      const accentColor = '#2563eb'
+      const mutedText = '#4b5563'
+      const mutedBackground = '#f3f4f6'
+      const tableStripe = '#f9fafb'
+
+      const headerHeight = 108
+      doc.save()
+      doc.rect(marginLeft, marginTop, usableWidth, headerHeight).fill(brandColor)
+      doc.restore()
+
+      const headerPadding = 18
+      const headerColumnWidth = usableWidth / 2
+
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(22)
+      doc.text(
+        company?.displayName ?? company?.legalName ?? 'Presupuesto',
+        marginLeft + headerPadding,
+        marginTop + headerPadding,
+        { width: headerColumnWidth - headerPadding },
+      )
+
+      doc.font('Helvetica').fontSize(10)
+      if (company) {
+        if (company.legalName && company.legalName !== company.displayName) {
+          doc.text(company.legalName, {
+            width: headerColumnWidth - headerPadding,
+          })
+        }
+        for (const line of company.lines) {
+          doc.text(line, {
+            width: headerColumnWidth - headerPadding,
+          })
+        }
+      }
+      const leftHeaderBottom = doc.y
+
+      const metaX = marginLeft + headerColumnWidth
+      doc.font('Helvetica-Bold').fontSize(16)
+      doc.text(
+        `Presupuesto #${order.id}`,
+        metaX,
+        marginTop + headerPadding,
+        { width: headerColumnWidth - headerPadding, align: 'right' },
+      )
+
+      doc.font('Helvetica').fontSize(10)
+      const metaLines = [
+        `Fecha: ${generatedDate ?? '-'}`,
+        validUntil ? `Válido hasta: ${validUntil}` : null,
+        `Moneda: ${currency}`,
+        paymentMethodName ? `Forma de pago: ${paymentMethodName}` : null,
+      ].filter((line): line is string => Boolean(line))
+
+      let metaY = doc.y + 4
+      for (const line of metaLines) {
+        doc.text(line, metaX, metaY, {
+          width: headerColumnWidth - headerPadding,
+          align: 'right',
+        })
+        metaY = doc.y + 4
+      }
+      const rightHeaderBottom = doc.y
+
+      doc.fillColor(brandColor)
+      const headerBottom = Math.max(leftHeaderBottom, rightHeaderBottom)
+      const infoTop = headerBottom + 18
+      doc.y = infoTop
+
+      const cardPadding = 12
+      const cardGap = 16
+      const cardWidth = (usableWidth - cardGap) / 2
+
+      const drawInfoCard = (title: string, rawLines: string[], x: number) => {
+        const lines = rawLines.length ? rawLines : ['—']
+        const topY = doc.y
+        const textWidth = cardWidth - cardPadding * 2
+
+        doc.save()
+        doc.font('Helvetica-Bold').fontSize(11)
+        const titleHeight = doc.heightOfString(title, { width: textWidth })
+        doc.font('Helvetica').fontSize(10)
+        let bodyHeight = 0
+        lines.forEach((line, index) => {
+          const height = doc.heightOfString(line, { width: textWidth })
+          bodyHeight += height
+          if (index < lines.length - 1) {
+            bodyHeight += 6
+          }
+        })
+        const cardHeight =
+          cardPadding * 2 +
+          titleHeight +
+          (lines.length ? 8 : 0) +
+          bodyHeight
+        doc.restore()
+
+        doc.save()
+        doc.roundedRect(x, topY, cardWidth, cardHeight, 8).fill(mutedBackground)
+        doc.restore()
+
+        doc.fillColor(brandColor).font('Helvetica-Bold').fontSize(11)
+        doc.text(title, x + cardPadding, topY + cardPadding, { width: textWidth })
+
+        let cursorY = topY + cardPadding + titleHeight + (lines.length ? 8 : 0)
+        doc.fillColor(mutedText).font('Helvetica').fontSize(10)
+        for (const line of lines) {
+          doc.text(line, x + cardPadding, cursorY, { width: textWidth })
+          cursorY = doc.y + 6
+        }
+
+        doc.y = topY
+        return cardHeight
+      }
+
+      const customerLines = [
+        customerName,
+        customerEmail ? `Email: ${customerEmail}` : null,
+        customerPhone ? `Teléfono: ${customerPhone}` : null,
+      ].filter((line): line is string => Boolean(line))
+
+      const shippingSection = shippingLines.length
+        ? ['Dirección de envío:', ...shippingLines.map((line) => `• ${line}`)]
+        : []
+      const billingSection = billingLines.length
+        ? ['Dirección de facturación:', ...billingLines.map((line) => `• ${line}`)]
+        : []
+      const addressLines = [...shippingSection]
+      if (shippingSection.length && billingSection.length) {
+        addressLines.push('')
+      }
+      addressLines.push(...billingSection)
+      if (!addressLines.length) {
+        addressLines.push('Sin direcciones registradas')
+      }
+
+      const leftCardHeight = drawInfoCard('Cliente', customerLines, marginLeft)
+      doc.y = infoTop
+      const rightCardHeight = drawInfoCard(
+        'Direcciones',
+        addressLines,
+        marginLeft + cardWidth + cardGap,
+      )
+      const cardsHeight = Math.max(leftCardHeight, rightCardHeight)
+      doc.y = infoTop + cardsHeight + 24
+
+      const columnDescription = Math.round(usableWidth * 0.5)
+      const columnQuantity = Math.round(usableWidth * 0.12)
+      const columnUnitPrice = Math.round(usableWidth * 0.18)
+      const columnTotal = usableWidth - columnDescription - columnQuantity - columnUnitPrice
+      const qtyX = marginLeft + columnDescription
+      const unitX = qtyX + columnQuantity
+      const totalX = unitX + columnUnitPrice
+
+      const tableTop = doc.y
+      const tableHeaderHeight = 26
+
+      doc.save()
+      doc.roundedRect(marginLeft, tableTop, usableWidth, tableHeaderHeight, 6).fill(accentColor)
+      doc.restore()
+
+      const headerTextY = tableTop + 8
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10)
+      doc.text('Producto', marginLeft + 12, headerTextY, { width: columnDescription - 24 })
+      doc.text('Cant.', qtyX, headerTextY, { width: columnQuantity, align: 'right' })
+      doc.text('Precio unitario', unitX, headerTextY, { width: columnUnitPrice, align: 'right' })
+      doc.text('Total', totalX, headerTextY, { width: columnTotal, align: 'right' })
+
+      let rowTop = tableTop + tableHeaderHeight
+      doc.fillColor(brandColor)
+
+      items.forEach((item, index) => {
+        doc.font('Helvetica-Bold').fontSize(10)
+        const descWidth = columnDescription - 24
+        const nameHeight = doc.heightOfString(item.name, { width: descWidth })
+        doc.font('Helvetica').fontSize(9)
+        const detailsHeight = item.details
+          ? doc.heightOfString(item.details, { width: descWidth }) + 4
+          : 0
+        doc.font('Helvetica').fontSize(10)
+        const qtyHeight = doc.heightOfString(String(item.qty), { width: columnQuantity })
+        const unitHeight = doc.heightOfString(
+          this.formatCurrencyValue(item.unitPrice, currency),
+          { width: columnUnitPrice },
+        )
+        const totalHeight = doc.heightOfString(
+          this.formatCurrencyValue(item.total, currency),
+          { width: columnTotal },
+        )
+        const rowHeight =
+          Math.max(nameHeight + detailsHeight + 12, qtyHeight + 12, unitHeight + 12, totalHeight + 12) +
+          4
+
+        doc.save()
+        doc.rect(marginLeft, rowTop, usableWidth, rowHeight).fill(
+          index % 2 === 0 ? '#ffffff' : tableStripe,
+        )
+        doc.restore()
+
+        let textY = rowTop + 10
+        doc.fillColor(brandColor).font('Helvetica-Bold').fontSize(10)
+        doc.text(item.name, marginLeft + 12, textY, { width: descWidth })
+        if (item.details) {
+          doc.fillColor(mutedText).font('Helvetica').fontSize(9)
+          doc.text(item.details, marginLeft + 12, doc.y + 4, { width: descWidth })
+        }
+
+        doc.fillColor(brandColor).font('Helvetica').fontSize(10)
+        doc.text(String(item.qty), qtyX, textY, { width: columnQuantity, align: 'right' })
+        doc.text(
+          this.formatCurrencyValue(item.unitPrice, currency),
+          unitX,
+          textY,
+          { width: columnUnitPrice, align: 'right' },
+        )
+        doc.text(
+          this.formatCurrencyValue(item.total, currency),
+          totalX,
+          textY,
+          { width: columnTotal, align: 'right' },
+        )
+
+        rowTop += rowHeight
+      })
+
+      doc.y = rowTop + 18
+
+      const totalsRows = [
+        { label: 'Subtotal', value: subTotal, bold: false },
+        { label: 'Impuestos', value: tax, bold: false },
+        { label: 'Envío', value: deliveryFees, bold: false },
+        { label: 'Total', value: grandTotal, bold: true },
+      ]
+      const totalsPadding = 14
+      const totalsWidth = Math.min(usableWidth * 0.45, 240)
+      const totalsX = marginLeft + usableWidth - totalsWidth
+      const totalsTextWidth = totalsWidth - totalsPadding * 2
+      const totalsTitleHeight = doc
+        .font('Helvetica-Bold')
+        .fontSize(11)
+        .heightOfString('Resumen', { width: totalsTextWidth })
+      const totalsHeight =
+        totalsPadding * 2 +
+        totalsTitleHeight +
+        12 +
+        totalsRows.length * 18
+
+      doc.save()
+      doc.roundedRect(totalsX, doc.y, totalsWidth, totalsHeight, 8).fill(brandColor)
+      doc.restore()
+
+      let totalsCursor = doc.y + totalsPadding
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(11)
+      doc.text('Resumen', totalsX + totalsPadding, totalsCursor, {
+        width: totalsTextWidth,
+      })
+      totalsCursor += totalsTitleHeight + 12
+
+      totalsRows.forEach((row) => {
+        doc.font(row.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(row.bold ? 11 : 10)
+        doc.text(row.label, totalsX + totalsPadding, totalsCursor, {
+          width: totalsTextWidth / 2,
+        })
+        doc.text(
+          this.formatCurrencyValue(row.value, currency),
+          totalsX + totalsPadding,
+          totalsCursor,
+          { width: totalsTextWidth, align: 'right' },
+        )
+        totalsCursor += 18
+      })
+
+      doc.y = Math.max(doc.y, totalsCursor) + 18
+
+      if (normalizedComment) {
+        doc.fillColor(brandColor).font('Helvetica-Bold').fontSize(11)
+        doc.text('Notas', marginLeft, doc.y)
+        doc.fillColor(mutedText).font('Helvetica').fontSize(10)
+        doc.text(normalizedComment, marginLeft, doc.y + 6, {
+          width: usableWidth,
+        })
+        doc.y += 18
+      }
+
+      if (normalizedDisclaimer) {
+        doc.fillColor(brandColor).font('Helvetica-Bold').fontSize(11)
+        doc.text('Condiciones', marginLeft, doc.y)
+        doc.fillColor(mutedText).font('Helvetica').fontSize(10)
+        doc.text(normalizedDisclaimer, marginLeft, doc.y + 6, {
+          width: usableWidth,
+        })
+      }
+
+      doc.end()
+    })
+  }
+
+  private async generateBudgetPdfForClient(
+    client: PrismaService | Prisma.TransactionClient,
+    orderId: number,
+  ) {
+    const buffer = await this.buildBudgetPdfBuffer(client, orderId)
+    const pdfBytes = new Uint8Array(buffer)
+    await client.order.update({
+      where: { id: orderId },
+      data: { documentPdf: pdfBytes },
+    })
   }
 
   async createDocument(documentType: DocumentType, dto: CreateOrderDto) {
@@ -1217,7 +1846,7 @@ export class SalesDocumentsService {
       }
     }
 
-    await this.prisma.order.create({
+    const created = await this.prisma.order.create({
       data: {
         documentType,
         customerId,
@@ -1264,8 +1893,12 @@ export class SalesDocumentsService {
         validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
         items: { create: monetary.items },
       },
+      select: { id: true },
     })
-    return true
+    if (documentType === DocumentType.BUDGET) {
+      await this.generateBudgetPdfForClient(this.prisma, created.id)
+    }
+    return { id: created.id }
   }
 
   async replaceDocument(
@@ -1369,7 +2002,10 @@ export class SalesDocumentsService {
         },
       },
     })
-    return true
+    if (documentType === DocumentType.BUDGET) {
+      await this.generateBudgetPdfForClient(this.prisma, id)
+    }
+    return { id }
   }
 
   async updateDocumentComment(documentType: DocumentType, id: number, body: { comment?: string }) {
@@ -1379,6 +2015,9 @@ export class SalesDocumentsService {
     })
     if (result.count === 0) {
       throw new BadRequestException('sales.orders.validation.notFound')
+    }
+    if (documentType === DocumentType.BUDGET) {
+      await this.generateBudgetPdfForClient(this.prisma, id)
     }
     return true
   }
@@ -1390,6 +2029,9 @@ export class SalesDocumentsService {
     })
     if (result.count === 0) {
       throw new BadRequestException('sales.orders.validation.notFound')
+    }
+    if (documentType === DocumentType.BUDGET) {
+      await this.generateBudgetPdfForClient(this.prisma, id)
     }
     return true
   }
@@ -1428,6 +2070,9 @@ export class SalesDocumentsService {
     if (updated.count === 0) {
       throw new BadRequestException('sales.orders.validation.notFound')
     }
+    if (documentType === DocumentType.BUDGET) {
+      await this.generateBudgetPdfForClient(this.prisma, id)
+    }
     return true
   }
 
@@ -1450,6 +2095,7 @@ export class SalesDocumentsService {
           updatedAt: new Date(),
         },
       })
+      await this.generateBudgetPdfForClient(tx, budget.id)
       return {
         budgetId: budget.id,
         statusId: sentStatusId,
@@ -1557,6 +2203,28 @@ export class SalesDocumentsService {
       })
 
       return { budgetId: budget.id, orderId: newOrder.id }
+    })
+  }
+
+  async getDocumentPdf(documentType: DocumentType, id: number): Promise<StreamableFile> {
+    let order = await this.prisma.order.findFirst({
+      where: { id, documentType },
+      select: { documentPdf: true },
+    })
+    if ((!order || !order.documentPdf) && documentType === DocumentType.BUDGET) {
+      await this.generateBudgetPdfForClient(this.prisma, id)
+      order = await this.prisma.order.findFirst({
+        where: { id, documentType },
+        select: { documentPdf: true },
+      })
+    }
+    if (!order || !order.documentPdf) {
+      throw new BadRequestException('sales.documents.pdfNotFound')
+    }
+    const filename = `${documentType === DocumentType.BUDGET ? 'budget' : 'order'}-${id}.pdf`
+    return new StreamableFile(Buffer.from(order.documentPdf), {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
     })
   }
 }

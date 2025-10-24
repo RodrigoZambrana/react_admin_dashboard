@@ -5,7 +5,11 @@ import Logo from '@/components/template/Logo'
 import { DEFAULT_COMPANY_PROFILE } from '@/constants/companyProfile.constant'
 import { useLocation } from 'react-router-dom'
 import { apiGetAccountInvoiceData } from '@/services/AccountServices'
-import { apiGetSalesOrderDetails, type SalesDocumentResource } from '@/services/SalesService'
+import {
+    apiGetSalesDocumentPdf,
+    apiGetSalesOrderDetails,
+    type SalesDocumentResource,
+} from '@/services/SalesService'
 import { apiGetSystemConfig } from '@/services/SettingsService'
 import { HiOutlineDownload } from 'react-icons/hi'
 import { useAppSelector } from '@/store'
@@ -16,6 +20,7 @@ import toast from '@/components/ui/toast'
 import { adaptOrderToDetailsView, type FxSnapshot } from '@/adapters/sales'
 import { normalizeCurrencyCode } from '@/utils/currency'
 import { resolveTextDirection } from '@/utils/textDirection'
+import { sanitizeRichText } from '@/utils/security/inputGuards'
 import type { Product, Summary } from './ContentTable'
 import ContentTable from './ContentTable'
 
@@ -471,6 +476,7 @@ type InvoiceOrderDetails = {
     customer?: InvoiceCustomerDetails
     fxSnapshot?: FxSnapshot
     comment?: string
+    disclaimer?: string
 }
 
 type BudgetInfoItem = {
@@ -691,6 +697,10 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                             typeof mapped.comment === 'string'
                                 ? mapped.comment
                                 : undefined,
+                        disclaimer:
+                            typeof mapped.disclaimer === 'string'
+                                ? mapped.disclaimer
+                                : undefined,
                     }
                     setOrderData(structured)
                 }
@@ -803,12 +813,139 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         }
     }, [])
 
+    const printBlobInHiddenIframe = useCallback((blobUrl: string) => {
+        return new Promise<void>((resolve, reject) => {
+            const iframe = document.createElement('iframe')
+            iframe.style.position = 'fixed'
+            iframe.style.width = '0'
+            iframe.style.height = '0'
+            iframe.style.border = '0'
+
+            let settled = false
+            let cleaned = false
+            let cleanupTimeout: number | undefined
+            let afterPrintHandler: (() => void) | null = null
+            let parentAfterPrintHandler: (() => void) | null = null
+
+            const cleanup = () => {
+                if (cleaned) {
+                    return
+                }
+                cleaned = true
+                if (cleanupTimeout !== undefined) {
+                    window.clearTimeout(cleanupTimeout)
+                }
+                const { contentWindow } = iframe
+                if (contentWindow && afterPrintHandler) {
+                    contentWindow.removeEventListener('afterprint', afterPrintHandler)
+                }
+                if (parentAfterPrintHandler) {
+                    window.removeEventListener('afterprint', parentAfterPrintHandler)
+                }
+                if (iframe.parentNode) {
+                    iframe.parentNode.removeChild(iframe)
+                }
+                URL.revokeObjectURL(blobUrl)
+            }
+
+            const settle = () => {
+                if (settled) {
+                    return
+                }
+                settled = true
+                resolve()
+            }
+
+            cleanupTimeout = window.setTimeout(() => {
+                cleanup()
+            }, 60000)
+
+            iframe.onload = () => {
+                const { contentWindow } = iframe
+                if (!contentWindow) {
+                    cleanup()
+                    if (!settled) {
+                        reject(new Error('Unable to access print frame window'))
+                    }
+                    return
+                }
+                afterPrintHandler = () => {
+                    cleanup()
+                }
+                parentAfterPrintHandler = () => {
+                    cleanup()
+                }
+                contentWindow.addEventListener('afterprint', afterPrintHandler, {
+                    once: true,
+                })
+                window.addEventListener('afterprint', parentAfterPrintHandler, {
+                    once: true,
+                })
+                window.setTimeout(() => {
+                    try {
+                        contentWindow.focus()
+                        contentWindow.print()
+                        settle()
+                    } catch {
+                        cleanup()
+                        if (!settled) {
+                            reject(new Error('Failed to open print dialog'))
+                        }
+                    }
+                }, 0)
+            }
+
+            iframe.onerror = () => {
+                cleanup()
+                if (!settled) {
+                    reject(new Error('Failed to load print iframe'))
+                }
+            }
+
+            iframe.src = blobUrl
+            document.body.appendChild(iframe)
+        })
+    }, [])
+
+    const downloadStoredPdf = useCallback(
+        async (mode: 'download' | 'print') => {
+            const invoiceId = orderData?.id ?? data?.id
+            if (!invoiceId) {
+                throw new Error('Missing document id')
+            }
+            const response = await apiGetSalesDocumentPdf<Blob>(invoiceId, resource)
+            const blob =
+                response.data instanceof Blob
+                    ? response.data
+                    : new Blob([response.data as BlobPart], {
+                          type: 'application/pdf',
+                      })
+            const blobUrl = URL.createObjectURL(blob)
+            if (mode === 'download') {
+                const link = document.createElement('a')
+                link.href = blobUrl
+                link.download = `${resource === 'budgets' ? 'budget' : 'order'}-${invoiceId}.pdf`
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                window.setTimeout(() => URL.revokeObjectURL(blobUrl), 500)
+            } else {
+                await printBlobInHiddenIframe(blobUrl)
+            }
+        },
+        [data?.id, orderData?.id, printBlobInHiddenIframe, resource],
+    )
+
     const handleDownloadPdf = useCallback(async () => {
         const invoiceId = orderData?.id ?? data?.id
         try {
             setDownloadingPdf(true)
-            const pdf = await generateInvoicePdf()
-            pdf.save(`invoice-${invoiceId ?? 'document'}.pdf`)
+            if (isBudgetDocument) {
+                await downloadStoredPdf('download')
+            } else {
+                const pdf = await generateInvoicePdf()
+                pdf.save(`invoice-${invoiceId ?? 'document'}.pdf`)
+            }
         } catch (error) {
             // eslint-disable-next-line no-console
             console.error('Failed to generate invoice PDF', error)
@@ -817,42 +954,42 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                     type="danger"
                     title={t('text.titles.invoice')}
                 >
-                    {t('text.messages.invoiceDownloadError')}
+                    {(() => {
+                        const responseMessage = (error as any)?.response?.data?.message
+                        if (typeof responseMessage === 'string') {
+                            return t(responseMessage, {
+                                defaultValue: t('text.messages.invoiceDownloadError'),
+                            })
+                        }
+                        return t('text.messages.invoiceDownloadError')
+                    })()}
                 </Notification>,
                 { placement: 'top-center' },
             )
         } finally {
             setDownloadingPdf(false)
         }
-    }, [data?.id, generateInvoicePdf, orderData?.id, t])
+    }, [
+        data?.id,
+        downloadStoredPdf,
+        generateInvoicePdf,
+        isBudgetDocument,
+        orderData?.id,
+        t,
+    ])
 
     const handlePrintPdf = useCallback(async () => {
         try {
             setPrintingPdf(true)
-            const pdf = await generateInvoicePdf()
-            pdf.autoPrint()
-            const blob = pdf.output('blob')
-            const blobUrl = URL.createObjectURL(blob)
-            const iframe = document.createElement('iframe')
-            iframe.style.position = 'fixed'
-            iframe.style.width = '0'
-            iframe.style.height = '0'
-            iframe.style.border = '0'
-            iframe.src = blobUrl
-            const cleanup = () => {
-                setTimeout(() => {
-                    if (iframe.parentNode) {
-                        iframe.parentNode.removeChild(iframe)
-                    }
-                    URL.revokeObjectURL(blobUrl)
-                }, 1000)
+            if (isBudgetDocument) {
+                await downloadStoredPdf('print')
+            } else {
+                const pdf = await generateInvoicePdf()
+                pdf.autoPrint()
+                const blob = pdf.output('blob')
+                const blobUrl = URL.createObjectURL(blob)
+                await printBlobInHiddenIframe(blobUrl)
             }
-            iframe.onload = () => {
-                iframe.contentWindow?.focus()
-                iframe.contentWindow?.print()
-                cleanup()
-            }
-            document.body.appendChild(iframe)
         } catch (error) {
             // eslint-disable-next-line no-console
             console.error('Failed to generate invoice print PDF', error)
@@ -861,14 +998,28 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                     type="danger"
                     title={t('text.titles.invoice')}
                 >
-                    {t('text.messages.invoiceDownloadError')}
+                    {(() => {
+                        const responseMessage = (error as any)?.response?.data?.message
+                        if (typeof responseMessage === 'string') {
+                            return t(responseMessage, {
+                                defaultValue: t('text.messages.invoiceDownloadError'),
+                            })
+                        }
+                        return t('text.messages.invoiceDownloadError')
+                    })()}
                 </Notification>,
                 { placement: 'top-center' },
             )
         } finally {
             setPrintingPdf(false)
         }
-    }, [generateInvoicePdf, t])
+    }, [
+        downloadStoredPdf,
+        generateInvoicePdf,
+        isBudgetDocument,
+        printBlobInHiddenIframe,
+        t,
+    ])
 
     const paymentSummary = useMemo<Summary | undefined>(() => {
         if (orderData?.paymentSummary) {
@@ -1070,6 +1221,38 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         )
         return typeof first === 'string' ? first.trim() : ''
     }, [data.comment, orderData?.comment])
+
+    const invoiceDisclaimer =
+        data && typeof (data as any).disclaimer === 'string'
+            ? ((data as any).disclaimer as string)
+            : undefined
+
+    const orderDisclaimer = useMemo(() => {
+        const disclaimers = [orderData?.disclaimer, invoiceDisclaimer]
+        const first = disclaimers.find(
+            (value) => typeof value === 'string' && value.trim().length > 0,
+        )
+        return typeof first === 'string' ? first.trim() : ''
+    }, [invoiceDisclaimer, orderData?.disclaimer])
+
+    const sanitizedDisclaimerHtml = useMemo(() => {
+        if (!orderDisclaimer) {
+            return ''
+        }
+        return sanitizeRichText(orderDisclaimer)
+    }, [orderDisclaimer])
+
+    const disclaimerDirection = useMemo(() => {
+        if (!sanitizedDisclaimerHtml) {
+            return undefined
+        }
+        const plain = sanitizedDisclaimerHtml.replace(/<[^>]+>/g, ' ').trim()
+        return plain ? resolveTextDirection(plain) : undefined
+    }, [sanitizedDisclaimerHtml])
+
+    const disclaimerLabel = t('sales.orders.disclaimerLabel', {
+        defaultValue: t('text.labels.disclaimer', { defaultValue: 'Disclaimer' }),
+    })
 
     const hasContent =
         Boolean(orderData) ||
@@ -1315,6 +1498,18 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                 >
                                     {orderComment || '\u00a0'}
                                 </p>
+                                {sanitizedDisclaimerHtml && (
+                                    <div className="mt-4">
+                                        <h6 className="font-semibold text-gray-700 dark:text-gray-200">
+                                            {disclaimerLabel}
+                                        </h6>
+                                        <div
+                                            className="mt-2 text-sm text-gray-700 dark:text-gray-200"
+                                            dir={disclaimerDirection}
+                                            dangerouslySetInnerHTML={{ __html: sanitizedDisclaimerHtml }}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1333,6 +1528,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                 {t('text.actions.download')}
                             </Button>
                             <Button
+                                className="hidden md:inline-flex"
                                 variant="solid"
                                 loading={printingPdf}
                                 disabled={downloadingPdf}
