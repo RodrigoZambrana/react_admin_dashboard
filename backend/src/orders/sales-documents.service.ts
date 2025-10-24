@@ -1,10 +1,18 @@
 import { BadRequestException, Injectable, StreamableFile } from '@nestjs/common'
 import { Prisma, CustomerAddress, DocumentType, SalesUnit } from '@prisma/client'
+import { createReadStream } from 'fs'
+import { stat } from 'fs/promises'
+import { parse } from 'path'
 import type { FastifyRequest } from 'fastify'
 import { PrismaService } from '../prisma/prisma.service'
 import { CreateOrderDto } from '../sales/dto/order.dto'
 import { CurrencyConversionService, CurrencyRatesSnapshot } from '../common/currency/currency-conversion.service'
-import { persistSalesDocumentFile, deleteSalesDocumentFile } from '../common/uploads/documents'
+import {
+  persistSalesDocumentFile,
+  deleteSalesDocumentFile,
+  resolveSalesDocumentLocalPath,
+} from '../common/uploads/documents'
+import { sanitizeRichText } from '../common/utils/sanitize'
 
 type MultipartFile = import('@fastify/multipart').MultipartFile
 import {
@@ -74,6 +82,10 @@ export class SalesDocumentsService {
 
   private readonly budgetStatusCache = new Map<keyof typeof BUDGET_STATUS, number>()
 
+  private readonly disclaimerConfigKey = 'documentDisclaimerHtml'
+
+  private disclaimerCache: { value: string | null; expiresAt: number } | null = null
+
   private withDocumentType(documentType: DocumentType, where: Prisma.OrderWhereInput = {}) {
     return {
       ...where,
@@ -131,6 +143,71 @@ export class SalesDocumentsService {
     const validity = new Date(now)
     validity.setDate(validity.getDate() + 30)
     return validity
+  }
+
+  private sanitizeDisclaimer(value?: string | null) {
+    if (typeof value !== 'string') {
+      return null
+    }
+    const trimmed = value.trim()
+    if (!trimmed.length) {
+      return null
+    }
+    const sanitized = sanitizeRichText(trimmed, 'sales.orders.disclaimer')
+    return sanitized.length ? sanitized : null
+  }
+
+  private async getDefaultDocumentDisclaimer() {
+    const now = Date.now()
+    if (this.disclaimerCache && this.disclaimerCache.expiresAt > now) {
+      return this.disclaimerCache.value
+    }
+
+    const record = await this.prisma.systemConfig.findUnique({
+      where: { key: this.disclaimerConfigKey },
+    })
+
+    const value =
+      typeof record?.value === 'string' && record.value.trim().length
+        ? record.value
+        : null
+
+    this.disclaimerCache = { value, expiresAt: now + 60 * 1000 }
+    return value
+  }
+
+  private async resolveDocumentDisclaimer(value?: string | null) {
+    if (value === '') {
+      return null
+    }
+    const sanitized = this.sanitizeDisclaimer(value)
+    if (sanitized) {
+      return sanitized
+    }
+    return (await this.getDefaultDocumentDisclaimer()) ?? null
+  }
+
+  private buildDocumentFileName(
+    documentType: DocumentType,
+    id: number,
+    original?: string | null,
+  ) {
+    const fallbackBase = `${documentType.toLowerCase()}-${id}`
+    if (typeof original !== 'string') {
+      return `${fallbackBase}.pdf`
+    }
+
+    const trimmed = original.trim()
+    if (!trimmed.length) {
+      return `${fallbackBase}.pdf`
+    }
+
+    const parsed = parse(trimmed)
+    const base = parsed.name.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '')
+    const safeBase = base.length ? base : fallbackBase
+    const ext = parsed.ext && parsed.ext.trim().length ? parsed.ext : '.pdf'
+    const safeExt = ext.startsWith('.') ? ext.toLowerCase() : `.${ext.toLowerCase()}`
+    return `${safeBase}${safeExt}`
   }
 
   private normalizeCustomAttributes(attrs: unknown): Prisma.JsonObject | null {
@@ -1127,6 +1204,9 @@ export class SalesDocumentsService {
         })()
       : null
 
+    const disclaimer =
+      order.disclaimer ?? (await this.getDefaultDocumentDisclaimer()) ?? null
+
     return {
       id: order.id,
       date: order.date,
@@ -1176,7 +1256,58 @@ export class SalesDocumentsService {
       shippingVendor: order.shippingVendor ?? null,
       estimatedMin: order.estimatedMin ?? null,
       estimatedMax: order.estimatedMax ?? null,
+      disclaimer,
     }
+  }
+
+  async getDocumentPdf(documentType: DocumentType, id: number) {
+    const order = await this.prisma.order.findFirst({
+      where: { id, documentType },
+      select: {
+        documentFilePath: true,
+        documentFileName: true,
+        documentFileMime: true,
+        documentFileSize: true,
+        documentPdf: true,
+      },
+    })
+
+    if (!order) {
+      throw new BadRequestException('sales.orders.validation.notFound')
+    }
+
+    const fileName = this.buildDocumentFileName(documentType, id, order.documentFileName)
+    const mime = order.documentFileMime ?? 'application/pdf'
+
+    if (order.documentPdf) {
+      const buffer = Buffer.isBuffer(order.documentPdf)
+        ? order.documentPdf
+        : Buffer.from(order.documentPdf)
+      return new StreamableFile(buffer, {
+        type: mime,
+        disposition: `inline; filename="${fileName}"`,
+        length: buffer.length,
+      })
+    }
+
+    const localPath = resolveSalesDocumentLocalPath(order.documentFilePath)
+    if (localPath) {
+      try {
+        const stats = await stat(localPath)
+        const stream = createReadStream(localPath)
+        return new StreamableFile(stream, {
+          type: mime,
+          disposition: `inline; filename="${fileName}"`,
+          length: stats?.size ?? order.documentFileSize ?? undefined,
+        })
+      } catch (error: any) {
+        if (error?.code !== 'ENOENT') {
+          throw error
+        }
+      }
+    }
+
+    throw new BadRequestException('sales.orders.validation.notFound')
   }
 
   async createDocument(documentType: DocumentType, dto: CreateOrderDto) {
@@ -1188,6 +1319,8 @@ export class SalesDocumentsService {
     const monetary = await this.prepareOrderMonetaryData(dto, taxRate)
 
     const completedStatus = await this.getDefaultOrderStatus()
+
+    const disclaimer = await this.resolveDocumentDisclaimer(dto.disclaimer)
 
     const composeAddress = (addr?: any) => {
       if (!addr) return undefined
@@ -1277,6 +1410,7 @@ export class SalesDocumentsService {
         taxRateSnapshot: decimal(taxRate).toFixed(4),
         exchangeRateSnapshot: this.serializeFxSnapshot(monetary.snapshot),
         validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
+        disclaimer,
         items: { create: monetary.items },
       },
     })
@@ -1300,6 +1434,8 @@ export class SalesDocumentsService {
 
     const taxRate = await this.getTaxRate()
     const monetary = await this.prepareOrderMonetaryData(dto, taxRate)
+
+    const disclaimer = await this.resolveDocumentDisclaimer(dto.disclaimer)
 
     const composeAddress = (addr?: any) => {
       if (!addr) return undefined
@@ -1383,6 +1519,7 @@ export class SalesDocumentsService {
         documentFileMime: null,
         documentFileSize: null,
         documentGeneratedAt: null,
+        disclaimer,
         items: {
           deleteMany: {},
           create: monetary.items,
@@ -1553,6 +1690,9 @@ export class SalesDocumentsService {
         ? (budget.exchangeRateSnapshot as Prisma.InputJsonValue)
         : fxRatesJson
 
+      const budgetDisclaimer =
+        budget.disclaimer ?? (await this.getDefaultDocumentDisclaimer()) ?? null
+
       const newOrder = await tx.order.create({
         data: {
           documentType: DocumentType.ORDER,
@@ -1576,6 +1716,7 @@ export class SalesDocumentsService {
           estimatedMin: budget.estimatedMin,
           estimatedMax: budget.estimatedMax,
           comment: budget.comment,
+          disclaimer: budgetDisclaimer,
           statusId: defaultOrderStatus?.id ?? null,
           subTotal: this.decimalToString(budget.subTotal) ?? '0',
           tax: this.decimalToString(budget.tax) ?? '0',

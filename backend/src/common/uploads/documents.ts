@@ -35,6 +35,16 @@ const resolveLocalUploadPath = (value: string) => {
   return join(UPLOADS_ROOT, relative)
 }
 
+export const isSalesDocumentLocalPath = (value?: string | null) =>
+  isLocalUploadPath(value)
+
+export const resolveSalesDocumentLocalPath = (value?: string | null) => {
+  if (!value || !isLocalUploadPath(value)) {
+    return null
+  }
+  return resolveLocalUploadPath(value)
+}
+
 const collectStreamBuffer = async (stream: NodeJS.ReadableStream) => {
   const chunks: Buffer[] = []
   for await (const chunk of stream) {
