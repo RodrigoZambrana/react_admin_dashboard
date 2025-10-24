@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Formik, Form, Field, getIn, type FormikProps } from 'formik'
+import {
+    Formik,
+    Form,
+    Field,
+    getIn,
+    type FormikProps,
+    type FormikHelpers,
+} from 'formik'
 import { FormContainer, FormItem } from '@/components/ui/Form'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
@@ -15,7 +22,11 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { apiGetCustomers, apiGetCustomerDetails } from '@/services/CustomersService'
 import { apiGetSalesProducts, apiCreateSalesOrder, apiCreateSalesProduct } from '@/services/SalesService'
 import * as Yup from 'yup'
-import { apiGetPaymentMethods, apiGetShippingOptions } from '@/services/SettingsService'
+import {
+    apiGetPaymentMethods,
+    apiGetShippingOptions,
+    apiGetSystemDisclaimer,
+} from '@/services/SettingsService'
 import Checkbox from '@/components/ui/Checkbox'
 import PaymentSummary from '@/views/sales/OrderDetails/components/PaymentSummary'
 import EditableOrderProductsTable, { EditableItem } from '@/views/sales/components/EditableOrderProductsTable'
@@ -49,8 +60,137 @@ import type { BaseCurrencySnapshot } from '@/store/slices/currency/currencySlice
 import { useSalesDocumentI18n } from '../context/useSalesDocumentI18n'
 import { DEFAULT_SALES_UNIT, type SalesUnit } from '@/constants/product.constant'
 import { calculateLineTotal, getDerivedUnitPrice, resolveSalesUnit } from '@/utils/salesUnitCalculation'
+import { sanitizeRichText } from '@/utils/security/inputGuards'
 
 type Item = EditableItem
+
+export type AddressFormValue = {
+    street: string
+    number: string
+    corner: string
+    apartment: string
+    city: string
+    state: string
+    countryCode: string
+}
+
+export type ShippingFormValue = {
+    shippingVendor: string
+    deliveryFees: number
+    estimatedMin: number
+    estimatedMax: number
+}
+
+export type SalesDocumentFormValues = {
+    customerId: string
+    date: Date | null
+    validUntil: Date | null
+    paymentMehod: string
+    orderCurrency: string
+    items: Item[]
+    shippingAddress: AddressFormValue
+    billingAddress: AddressFormValue
+    billingSameAsShipping: boolean
+    shipping: ShippingFormValue
+    comment: string
+}
+
+export type SalesDocumentSubmitPayload = {
+    id?: string | number | null
+    customerId?: string
+    date?: string
+    validUntil?: string | null
+    paymentMehod?: string
+    orderCurrency: string
+    items: Array<{
+        productId: string
+        name: string
+        price: number
+        qty: number
+        img?: string
+        description?: string
+        comments?: string
+        currency: string
+        unitPrice: number
+        unitCurrency: string
+        customAttributes?: Record<string, unknown>
+        pricingMethod?: string
+        specSummary?: string
+        specifications?: string
+    }>
+    shippingAddress: AddressFormValue
+    billingAddress: AddressFormValue
+    billingSameAsShipping: boolean
+    shipping: ShippingFormValue
+    comment?: string
+}
+
+export interface OrderNewProps {
+    initialValues?: Partial<SalesDocumentFormValues>
+    initialCustomerDetail?: any | null
+    onSubmit?: (
+        payload: SalesDocumentSubmitPayload,
+        helpers: FormikHelpers<SalesDocumentFormValues>,
+        values: SalesDocumentFormValues,
+    ) => Promise<boolean | void>
+    isEditing?: boolean
+    documentId?: string | number | null
+    disclaimer?: string | null
+}
+
+const cloneDeep = <T>(value: T): T => {
+    if (Array.isArray(value)) {
+        return value.map((item) => cloneDeep(item)) as unknown as T
+    }
+    if (value instanceof Date) {
+        return new Date(value.getTime()) as unknown as T
+    }
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value as Record<string, unknown>).map(([key, val]) => [
+                key,
+                cloneDeep(val),
+            ]),
+        ) as unknown as T
+    }
+    return value
+}
+
+const mergeDeep = <T>(base: T, override?: Partial<T>): T => {
+    const baseClone = cloneDeep(base)
+    if (!override) {
+        return baseClone
+    }
+    for (const [key, value] of Object.entries(override) as [keyof T, unknown][]) {
+        if (value === undefined) {
+            continue
+        }
+        if (value instanceof Date) {
+            ;(baseClone as any)[key] = new Date(value.getTime())
+            continue
+        }
+        if (Array.isArray(value)) {
+            ;(baseClone as any)[key] = value.map((item) => cloneDeep(item))
+            continue
+        }
+        if (value && typeof value === 'object') {
+            const current = (baseClone as any)[key]
+            if (
+                current &&
+                typeof current === 'object' &&
+                !Array.isArray(current) &&
+                !(current instanceof Date)
+            ) {
+                ;(baseClone as any)[key] = mergeDeep(current, value as any)
+            } else {
+                ;(baseClone as any)[key] = cloneDeep(value)
+            }
+            continue
+        }
+        ;(baseClone as any)[key] = value
+    }
+    return baseClone
+}
 
 type ShippingOption = {
     id: number
@@ -61,7 +201,14 @@ type ShippingOption = {
     img?: string | null
 }
 
-const OrderNew = () => {
+const OrderNew = ({
+    initialValues,
+    initialCustomerDetail = null,
+    onSubmit,
+    isEditing = false,
+    documentId = null,
+    disclaimer,
+}: OrderNewProps) => {
     const { i18n } = useTranslation()
     const {
         t,
@@ -107,6 +254,11 @@ const OrderNew = () => {
         'sales.orders.validation.customerAddressRequired',
         'The customer must have a primary address',
     )
+    const disclaimerLabel = docMessage(
+        'disclaimerLabel',
+        'sales.orders.disclaimerLabel',
+        t('text.labels.disclaimer', { defaultValue: 'Disclaimer' }),
+    )
     const exchangeRateMissingMessage = docMessage(
         'exchangeRateMissing',
         'sales.orders.exchangeRateMissing',
@@ -147,14 +299,18 @@ const OrderNew = () => {
     >([])
     const [methods, setMethods] = useState<{ value: string; label: string }[]>([])
     const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([])
-    const [customerDetail, setCustomerDetail] = useState<any | null>(null)
+    const [customerDetail, setCustomerDetail] = useState<any | null>(
+        initialCustomerDetail,
+    )
     const [currentStep, setCurrentStep] = useState(() => (itemsOnlyMode ? 1 : 0))
     const [newCustomerOpen, setNewCustomerOpen] = useState(false)
     const [newProductOpen, setNewProductOpen] = useState(false)
     const [taxRate, setTaxRate] = useState(22)
     const [quickMessage, setQuickMessage] = useState<string | null>(null)
     const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle')
-    const formikRef = useRef<FormikProps<any>>(null)
+    const [documentDisclaimer, setDocumentDisclaimer] = useState<string>('')
+    const [disclaimerLoading, setDisclaimerLoading] = useState(false)
+    const formikRef = useRef<FormikProps<SalesDocumentFormValues>>(null)
     const initialDataLoadKeyRef = useRef<string | null>(null)
     const quickMessageRef = useRef<HTMLDivElement | null>(null)
     const { smaller } = useResponsive()
@@ -180,6 +336,49 @@ const OrderNew = () => {
         validUntil.setDate(validUntil.getDate() + 15)
         return validUntil
     }, [mode])
+
+    useEffect(() => {
+        setCustomerDetail(initialCustomerDetail)
+    }, [initialCustomerDetail])
+
+    useEffect(() => {
+        if (mode !== 'budget') {
+            setDocumentDisclaimer('')
+            setDisclaimerLoading(false)
+            return
+        }
+        if (typeof disclaimer === 'string') {
+            setDocumentDisclaimer(sanitizeRichText(disclaimer))
+            setDisclaimerLoading(false)
+            return
+        }
+        let cancelled = false
+        setDisclaimerLoading(true)
+        apiGetSystemDisclaimer<{ html?: string }>()
+            .then((res) => {
+                if (cancelled) {
+                    return
+                }
+                const html =
+                    res?.data && typeof (res.data as any).html === 'string'
+                        ? sanitizeRichText((res.data as any).html as string)
+                        : ''
+                setDocumentDisclaimer(html)
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setDocumentDisclaimer('')
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setDisclaimerLoading(false)
+                }
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [disclaimer, mode])
 
     useEffect(() => {
         if (!quickMessage || !quickMessageRef.current) {
@@ -774,48 +973,80 @@ const OrderNew = () => {
     const addActionLabel = tDoc('addAction', {
         defaultValue: t('text.actions.add'),
     })
-    const pageHeading =
-        layoutMode === 'itemsOnly' ? pageTitle : `${listNavLabel} · ${addActionLabel}`
+    const editActionLabel = docMessage(
+        'detailsTitle',
+        'sales.orders.detailsTitle',
+        t('text.titles.details', { defaultValue: 'Details' }),
+    )
+    const defaultInitialValues = useMemo<SalesDocumentFormValues>(
+        () => ({
+            customerId: '',
+            date: new Date(),
+            validUntil: defaultValidUntil ? new Date(defaultValidUntil) : null,
+            paymentMehod: 'Cash',
+            orderCurrency: defaultCurrency,
+            items: [],
+            shippingAddress: {
+                street: '',
+                number: '',
+                corner: '',
+                apartment: '',
+                city: 'Montevideo',
+                state: 'Uruguay',
+                countryCode: 'UY',
+            },
+            billingAddress: {
+                street: '',
+                number: '',
+                corner: '',
+                apartment: '',
+                city: 'Montevideo',
+                state: 'Uruguay',
+                countryCode: 'UY',
+            },
+            billingSameAsShipping: true,
+            shipping: {
+                shippingVendor: '',
+                deliveryFees: 0,
+                estimatedMin: 0,
+                estimatedMax: 0,
+            },
+            comment: '',
+        }),
+        [defaultCurrency, defaultValidUntil],
+    )
+    const formInitialValues = useMemo(
+        () => mergeDeep(defaultInitialValues, initialValues),
+        [defaultInitialValues, initialValues],
+    )
+    const hasDisclaimer = useMemo(() => {
+        if (!documentDisclaimer) {
+            return false
+        }
+        const plain = documentDisclaimer.replace(/<[^>]+>/g, ' ').trim()
+        return plain.length > 0
+    }, [documentDisclaimer])
+    const disclaimerDirection = useMemo(() => {
+        if (!hasDisclaimer) {
+            return 'ltr'
+        }
+        const plain = documentDisclaimer.replace(/<[^>]+>/g, ' ').trim()
+        return resolveTextDirection(plain)
+    }, [documentDisclaimer, hasDisclaimer])
+    const showDisclaimerCard = mode === 'budget' && (hasDisclaimer || disclaimerLoading)
+    const pageHeading = layoutMode === 'itemsOnly'
+        ? pageTitle
+        : isEditing
+        ? `${listNavLabel} · ${editActionLabel}`
+        : `${listNavLabel} · ${addActionLabel}`
 
     return (
         <Container className="h-full">
             <h3 className="mb-6">{pageHeading}</h3>
-            <Formik
+            <Formik<SalesDocumentFormValues>
                 innerRef={formikRef}
-                initialValues={{
-                    customerId: '',
-                    date: new Date(),
-                    validUntil: defaultValidUntil,
-                    paymentMehod: 'Cash',
-                    orderCurrency: defaultCurrency,
-                    items: [] as Item[],
-                    shippingAddress: {
-                        street: '',
-                        number: '',
-                        corner: '',
-                        apartment: '',
-                        city: 'Montevideo',
-                        state: 'Uruguay',
-                        countryCode: 'UY',
-                    },
-                    billingAddress: {
-                        street: '',
-                        number: '',
-                        corner: '',
-                        apartment: '',
-                        city: 'Montevideo',
-                        state: 'Uruguay',
-                        countryCode: 'UY',
-                    },
-                    billingSameAsShipping: true,
-                    shipping: {
-                        shippingVendor: '',
-                        deliveryFees: 0,
-                        estimatedMin: 0,
-                        estimatedMax: 0,
-                    },
-                    comment: '',
-                }}
+                enableReinitialize
+                initialValues={formInitialValues}
                 validationSchema={Yup.object().shape({
                     customerId: customerRequired
                         ? Yup.string().required(validationCustomerRequired)
@@ -892,7 +1123,7 @@ const OrderNew = () => {
                         )
                         .min(1, validationItemsRequired),
                 })}
-                onSubmit={async (values) => {
+                onSubmit={async (values, formikHelpers) => {
                     const orderCurrencyValue =
                         normalizeCurrencyCode(values.orderCurrency, currencyBase) || currencyBase
 
@@ -938,11 +1169,13 @@ const OrderNew = () => {
                         }
                         return mode === 'budget' ? roundCurrencyValue(numeric) : numeric
                     }
-                    const normalizeAddress = (addr: typeof values.shippingAddress) => ({
+                    const normalizeAddress = (
+                        addr: SalesDocumentFormValues['shippingAddress'],
+                    ): AddressFormValue => ({
                         street: addr.street,
                         number: addr.number,
-                        corner: addr.corner,
-                        apartment: addr.apartment,
+                        corner: addr.corner ?? '',
+                        apartment: addr.apartment ?? '',
                         city: addr.city,
                         state: addr.state,
                         countryCode: addr.countryCode,
@@ -953,7 +1186,7 @@ const OrderNew = () => {
                         ? shippingAddress
                         : normalizeAddress(values.billingAddress)
 
-                    const payload = {
+                    const payload: SalesDocumentSubmitPayload = {
                         customerId: values.customerId ? String(values.customerId) : undefined,
                         // Backend expects ISO 8601 date string (IsDateString)
                         date: values.date ? new Date(values.date as any).toISOString() : undefined,
@@ -1014,6 +1247,9 @@ const OrderNew = () => {
                         },
                         comment: values.comment,
                     }
+                    if (documentId !== null && documentId !== undefined) {
+                        payload.id = documentId
+                    }
                     if (!itemsOnlyMode) {
                         // Ensure shipping address is filled
                         const saddr = values.shippingAddress || {}
@@ -1053,6 +1289,11 @@ const OrderNew = () => {
                                 return
                             }
                         }
+                    }
+
+                    if (onSubmit) {
+                        await onSubmit(payload, formikHelpers, values)
+                        return
                     }
 
                     try {
@@ -2694,6 +2935,26 @@ const OrderNew = () => {
                                             </FormItem>
                                         </FormContainer>
                                     </Card>
+                                    {showDisclaimerCard && (
+                                        <Card bodyClass="p-5">
+                                            <h4 className="mb-4">{disclaimerLabel}</h4>
+                                            {disclaimerLoading ? (
+                                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                    {t('text.status.loading', {
+                                                        defaultValue: 'Loading...',
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <div
+                                                    className="text-sm text-gray-700 dark:text-gray-200"
+                                                    dir={disclaimerDirection}
+                                                    dangerouslySetInnerHTML={{
+                                                        __html: documentDisclaimer,
+                                                    }}
+                                                />
+                                            )}
+                                        </Card>
+                                    )}
                                 </div>
                             )}
 
