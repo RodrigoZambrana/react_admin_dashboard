@@ -807,6 +807,73 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         }
     }, [])
 
+    const printBlobInHiddenIframe = useCallback((blobUrl: string) => {
+        return new Promise<void>((resolve) => {
+            const iframe = document.createElement('iframe')
+            iframe.style.position = 'fixed'
+            iframe.style.width = '0'
+            iframe.style.height = '0'
+            iframe.style.border = '0'
+
+            let resolved = false
+            let cleanupTimeout: number | undefined
+            let afterPrintHandler: (() => void) | null = null
+
+            const cleanup = () => {
+                if (resolved) {
+                    return
+                }
+                resolved = true
+                if (cleanupTimeout !== undefined) {
+                    window.clearTimeout(cleanupTimeout)
+                }
+                const { contentWindow } = iframe
+                if (contentWindow && afterPrintHandler) {
+                    contentWindow.removeEventListener('afterprint', afterPrintHandler)
+                }
+                if (iframe.parentNode) {
+                    iframe.parentNode.removeChild(iframe)
+                }
+                URL.revokeObjectURL(blobUrl)
+                resolve()
+            }
+
+            afterPrintHandler = () => {
+                cleanup()
+            }
+
+            cleanupTimeout = window.setTimeout(() => {
+                cleanup()
+            }, 60000)
+
+            iframe.onload = () => {
+                const { contentWindow } = iframe
+                if (!contentWindow) {
+                    cleanup()
+                    return
+                }
+                contentWindow.addEventListener('afterprint', afterPrintHandler, {
+                    once: true,
+                })
+                window.setTimeout(() => {
+                    try {
+                        contentWindow.focus()
+                        contentWindow.print()
+                    } catch {
+                        cleanup()
+                    }
+                }, 0)
+            }
+
+            iframe.onerror = () => {
+                cleanup()
+            }
+
+            iframe.src = blobUrl
+            document.body.appendChild(iframe)
+        })
+    }, [])
+
     const downloadStoredPdf = useCallback(
         async (mode: 'download' | 'print') => {
             const invoiceId = orderData?.id ?? data?.id
@@ -830,29 +897,10 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                 document.body.removeChild(link)
                 window.setTimeout(() => URL.revokeObjectURL(blobUrl), 500)
             } else {
-                const iframe = document.createElement('iframe')
-                iframe.style.position = 'fixed'
-                iframe.style.width = '0'
-                iframe.style.height = '0'
-                iframe.style.border = '0'
-                iframe.src = blobUrl
-                const cleanup = () => {
-                    window.setTimeout(() => {
-                        if (iframe.parentNode) {
-                            iframe.parentNode.removeChild(iframe)
-                        }
-                        URL.revokeObjectURL(blobUrl)
-                    }, 1000)
-                }
-                iframe.onload = () => {
-                    iframe.contentWindow?.focus()
-                    iframe.contentWindow?.print()
-                    cleanup()
-                }
-                document.body.appendChild(iframe)
+                await printBlobInHiddenIframe(blobUrl)
             }
         },
-        [data?.id, orderData?.id, resource],
+        [data?.id, orderData?.id, printBlobInHiddenIframe, resource],
     )
 
     const handleDownloadPdf = useCallback(async () => {
@@ -907,26 +955,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                 pdf.autoPrint()
                 const blob = pdf.output('blob')
                 const blobUrl = URL.createObjectURL(blob)
-                const iframe = document.createElement('iframe')
-                iframe.style.position = 'fixed'
-                iframe.style.width = '0'
-                iframe.style.height = '0'
-                iframe.style.border = '0'
-                iframe.src = blobUrl
-                const cleanup = () => {
-                    setTimeout(() => {
-                        if (iframe.parentNode) {
-                            iframe.parentNode.removeChild(iframe)
-                        }
-                        URL.revokeObjectURL(blobUrl)
-                    }, 1000)
-                }
-                iframe.onload = () => {
-                    iframe.contentWindow?.focus()
-                    iframe.contentWindow?.print()
-                    cleanup()
-                }
-                document.body.appendChild(iframe)
+                await printBlobInHiddenIframe(blobUrl)
             }
         } catch (error) {
             // eslint-disable-next-line no-console
@@ -951,7 +980,13 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         } finally {
             setPrintingPdf(false)
         }
-    }, [downloadStoredPdf, generateInvoicePdf, isBudgetDocument, t])
+    }, [
+        downloadStoredPdf,
+        generateInvoicePdf,
+        isBudgetDocument,
+        printBlobInHiddenIframe,
+        t,
+    ])
 
     const paymentSummary = useMemo<Summary | undefined>(() => {
         if (orderData?.paymentSummary) {
@@ -1416,6 +1451,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                 {t('text.actions.download')}
                             </Button>
                             <Button
+                                className="hidden md:inline-flex"
                                 variant="solid"
                                 loading={printingPdf}
                                 disabled={downloadingPdf}

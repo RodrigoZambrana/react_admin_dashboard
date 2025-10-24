@@ -187,6 +187,7 @@ const EditableOrderProductsTable = ({
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
     const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
     const [specDrafts, setSpecDrafts] = useState<SpecDrafts>({})
+    const [activeQuantityId, setActiveQuantityId] = useState<string | null>(null)
     const textAreaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
     const [activeSpecField, setActiveSpecField] = useState<{
         productId: string
@@ -195,6 +196,7 @@ const EditableOrderProductsTable = ({
     const specInputRefs = useRef<
         Record<string, Partial<Record<SpecField, HTMLInputElement | null>>>
     >({})
+    const quantityInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
     const storeCurrency = useAppSelector((state) => state.currency.code)
     const defaultCurrency =
         normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
@@ -289,6 +291,16 @@ const EditableOrderProductsTable = ({
         },
         [],
     )
+
+    const registerQuantityRef = useCallback((productId: string) => {
+        return (node: HTMLInputElement | null) => {
+            if (!node) {
+                delete quantityInputRefs.current[productId]
+                return
+            }
+            quantityInputRefs.current[productId] = node
+        }
+    }, [])
 
     const composeSquareMeterSummary = useCallback(
         (width?: number, height?: number) => {
@@ -389,6 +401,8 @@ const EditableOrderProductsTable = ({
                             min={1}
                             step="1"
                             value={row.qty}
+                            ref={registerQuantityRef(row.productId)}
+                            autoFocus={activeQuantityId === row.productId}
                             onChange={(e) => {
                                 const rawValue = e.target.value
                                 if (rawValue === '' || rawValue === '-') {
@@ -399,6 +413,12 @@ const EditableOrderProductsTable = ({
                                     return
                                 }
                                 onQtyChange(row.productId, numeric)
+                            }}
+                            onFocus={() => setActiveQuantityId(row.productId)}
+                            onBlur={() => {
+                                setActiveQuantityId((previous) =>
+                                    previous === row.productId ? null : previous,
+                                )
                             }}
                         />
                         {unit !== 'UNIT' && formattedDerivedQuantity !== undefined && (
@@ -999,6 +1019,34 @@ const EditableOrderProductsTable = ({
             node.setSelectionRange(length, length)
         }
     }, [editingCommentId, commentDrafts])
+
+    useEffect(() => {
+        if (!activeQuantityId) {
+            return
+        }
+        const node = quantityInputRefs.current[activeQuantityId]
+        if (!node) {
+            const exists = items.some((item) => item.productId === activeQuantityId)
+            if (!exists) {
+                setActiveQuantityId(null)
+            }
+            return
+        }
+        if (document.activeElement !== node) {
+            node.focus({ preventScroll: true })
+            if (
+                typeof node.selectionStart === 'number' &&
+                typeof node.selectionEnd === 'number'
+            ) {
+                const length = node.value.length
+                try {
+                    node.setSelectionRange(length, length)
+                } catch {
+                    // ignore selection errors for inputs that disallow programmatic selection
+                }
+            }
+        }
+    }, [activeQuantityId, items])
 
     useEffect(() => {
         if (!activeSpecField) {
