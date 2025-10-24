@@ -11,7 +11,7 @@ import {
   addDecimals,
   divideDecimals,
 } from '../common/currency/money.util'
-import PDFDocument from 'pdfkit'
+import PDFDocument = require('pdfkit')
 
 const BUDGET_STATUS = {
   DRAFT: { code: 1000, name: 'Presupuesto - Borrador', color: '#9ca3af' },
