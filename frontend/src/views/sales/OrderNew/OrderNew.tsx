@@ -2678,7 +2678,7 @@ const OrderNew = ({
                                                     showCustomAttributes={
                                                         mode === 'budget' || !itemsOnlyMode
                                                     }
-                                                    showUnitColumn={mode === 'budget'}
+                                                    showUnitColumn={false}
                                                     roundAmount={roundCurrencyValue}
                                                     showProductSpecifications={showProductSpecifications}
                                                 />
