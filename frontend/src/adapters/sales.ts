@@ -117,7 +117,28 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
 export function adaptOrderToDetailsView(o: any) {
   if (!o) return {}
   const dateTime = toUnixSeconds(o.date)
-  const validUntil = o.validUntil ? toUnixSeconds(o.validUntil) : undefined
+  const rawValidUntil = (() => {
+    if (o?.validUntil !== undefined) {
+      return o.validUntil
+    }
+    const candidates = [
+      (o as any)?.valid_until,
+      (o as any)?.valid_until_at,
+      (o as any)?.validUntilDate,
+      (o as any)?.validityDate,
+      (o as any)?.validity_date,
+    ]
+    for (const candidate of candidates) {
+      if (candidate !== undefined) {
+        return candidate
+      }
+    }
+    return undefined
+  })()
+  const validUntil =
+    rawValidUntil !== undefined && rawValidUntil !== null
+      ? toUnixSeconds(rawValidUntil)
+      : undefined
   const shipping = {
     deliveryFees: Number(o.deliveryFees || 0),
     estimatedMin: Number(o.estimatedMin || 0),
