@@ -334,6 +334,14 @@ const OrderNew = ({
     const formikRef = useRef<FormikProps<SalesDocumentFormValues>>(null)
     const initialDataLoadKeyRef = useRef<string | null>(null)
     const quickMessageRef = useRef<HTMLDivElement | null>(null)
+    const initialCustomerDetailId = initialCustomerDetail?.id
+    const initialCustomerValueId = initialValues?.customerId
+    const initialCustomerId = useMemo(() => {
+        const idCandidate =
+            (initialCustomerValueId && String(initialCustomerValueId)) ||
+            (initialCustomerDetailId && String(initialCustomerDetailId))
+        return idCandidate?.trim() || ''
+    }, [initialCustomerDetailId, initialCustomerValueId])
     const { smaller } = useResponsive()
     const isCompactViewport = smaller.md
     const shippingVendorOptions = useMemo(
@@ -735,7 +743,10 @@ const OrderNew = ({
     }
 
     useEffect(() => {
-        const loadKey = JSON.stringify({ defaultCurrency })
+        const loadKey = JSON.stringify({
+            defaultCurrency,
+            initialCustomerId,
+        })
         if (initialDataLoadKeyRef.current === loadKey) {
             return
         }
@@ -753,7 +764,38 @@ const OrderNew = ({
                     value: String(c.id),
                     label: c.name,
                 }))
-                setCustomers(cOpts)
+                const enrichedCustomerOptions = (() => {
+                    if (!initialCustomerId) {
+                        return cOpts
+                    }
+                    const resolvedLabel =
+                        pickCustomerDisplayName(initialCustomerDetail) || initialCustomerId
+                    const existingIndex = cOpts.findIndex(
+                        (opt) => opt.value === initialCustomerId,
+                    )
+                    if (existingIndex >= 0) {
+                        if (
+                            resolvedLabel &&
+                            cOpts[existingIndex].label !== resolvedLabel
+                        ) {
+                            const next = [...cOpts]
+                            next[existingIndex] = {
+                                ...next[existingIndex],
+                                label: resolvedLabel,
+                            }
+                            return next
+                        }
+                        return cOpts
+                    }
+                    return [
+                        {
+                            value: initialCustomerId,
+                            label: resolvedLabel || initialCustomerId,
+                        },
+                        ...cOpts,
+                    ]
+                })()
+                setCustomers(enrichedCustomerOptions)
 
                 const pRes = await apiGetSalesProducts<{ data: any[]; total: number }, any>({
                     pageIndex: 1,
@@ -907,9 +949,7 @@ const OrderNew = ({
                     )
                 }
             } finally {
-                if (initialDataLoadKeyRef.current === loadKey) {
-                    initialDataLoadKeyRef.current = null
-                }
+                initialDataLoadKeyRef.current = loadKey
             }
         }
 
@@ -921,6 +961,8 @@ const OrderNew = ({
         convertItemToCurrency,
         defaultCurrency,
         exchangeSnapshot,
+        initialCustomerDetail,
+        initialCustomerId,
         refreshExchangeRates,
         roundCurrencyValue,
         showPaymentMethodSelect,
@@ -1040,14 +1082,6 @@ const OrderNew = ({
         () => mergeDeep(defaultInitialValues, initialValues),
         [defaultInitialValues, initialValues],
     )
-    const initialCustomerDetailId = initialCustomerDetail?.id
-    const initialCustomerValueId = initialValues?.customerId
-    const initialCustomerId = useMemo(() => {
-        const idCandidate =
-            (initialCustomerValueId && String(initialCustomerValueId)) ||
-            (initialCustomerDetailId && String(initialCustomerDetailId))
-        return idCandidate?.trim() || ''
-    }, [initialCustomerDetailId, initialCustomerValueId])
 
     useEffect(() => {
         if (!initialCustomerId) {
