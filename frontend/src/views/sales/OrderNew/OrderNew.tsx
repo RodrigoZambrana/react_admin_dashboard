@@ -1969,7 +1969,7 @@ const OrderNew = ({
                     const customerStepSatisfied = customerRequired ? hasCustomer : true
                     const selectedItems = ((values.items || []) as Item[]).filter(Boolean)
                     const hasItems = selectedItems.length > 0
-                    const measurementRequirementActive = mode === 'budget' && !itemsOnlyMode
+                    const measurementRequirementActive = !itemsOnlyMode
                     const itemsHaveRequiredMeasurements = !measurementRequirementActive
                         ? true
                         : selectedItems.every((item) => hasRequiredMeasurements(item))
@@ -2588,7 +2588,9 @@ const OrderNew = ({
                                                         showComments
                                                     onCommentChange={changeComment}
                                                     onItemChange={handleItemChange}
-                                                    showCustomAttributes={mode === 'budget'}
+                                                    showCustomAttributes={
+                                                        mode === 'budget' || !itemsOnlyMode
+                                                    }
                                                     showUnitColumn={mode !== 'budget'}
                                                     roundAmount={roundCurrencyValue}
                                                     showProductSpecifications={showProductSpecifications}
