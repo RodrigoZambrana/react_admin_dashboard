@@ -17,6 +17,8 @@ interface SalesDocumentOverrides {
     customerRequired?: boolean
     layoutMode?: SalesDocumentLayoutMode
     defaults?: Partial<SalesDocumentDefaults>
+    showProductSpecifications?: boolean
+    showPaymentMethodSelect?: boolean
 }
 
 export interface SalesDocumentConfig {
@@ -28,6 +30,8 @@ export interface SalesDocumentConfig {
     defaults: SalesDocumentDefaults
     customerRequired: boolean
     layoutMode: SalesDocumentLayoutMode
+    showProductSpecifications: boolean
+    showPaymentMethodSelect: boolean
 }
 
 const ORDER_DEFAULTS: SalesDocumentDefaults = {
@@ -63,6 +67,8 @@ const buildConfig = (mode: SalesDocumentMode): SalesDocumentConfig => {
             defaults: BUDGET_DEFAULTS,
             customerRequired: true,
             layoutMode: 'default',
+            showProductSpecifications: true,
+            showPaymentMethodSelect: true,
         }
     }
     return {
@@ -80,6 +86,8 @@ const buildConfig = (mode: SalesDocumentMode): SalesDocumentConfig => {
         defaults: ORDER_DEFAULTS,
         customerRequired: true,
         layoutMode: 'default',
+        showProductSpecifications: true,
+        showPaymentMethodSelect: true,
     }
 }
 

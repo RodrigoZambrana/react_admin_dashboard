@@ -59,6 +59,7 @@ type Props = {
     showCustomAttributes?: boolean
     showUnitColumn?: boolean
     roundAmount?: (value: number) => number
+    showProductSpecifications?: boolean
 }
 
 type SpecField = 'width' | 'height' | 'length'
@@ -133,10 +134,12 @@ const ProductCell = ({
     row,
     showDescription,
     showImage,
+    showProductSpecifications,
 }: {
     row: EditableItem
     showDescription?: boolean
     showImage?: boolean
+    showProductSpecifications?: boolean
 }) => {
     const text = stripHtml(row.description)
     const excerpt = text.length > 120 ? text.slice(0, 120) + '…' : text
@@ -146,7 +149,7 @@ const ProductCell = ({
         typeof row.specifications === 'string'
             ? row.specifications.trim()
             : ''
-    const hasSpecs = specs.length > 0
+    const showSpecs = Boolean(showProductSpecifications && specs.length > 0)
     return (
         <div className={containerClass}>
             {shouldShowImage && (
@@ -157,7 +160,7 @@ const ProductCell = ({
                 {showDescription && excerpt && (
                     <div className="text-sm opacity-80 leading-snug">{excerpt}</div>
                 )}
-                {hasSpecs && (
+                {showSpecs && (
                     <div
                         className="mt-1 text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap"
                         dir={resolveTextDirection(specs)}
@@ -182,6 +185,7 @@ const EditableOrderProductsTable = ({
     showCustomAttributes = false,
     showUnitColumn = true,
     roundAmount,
+    showProductSpecifications = true,
 }: Props) => {
     const { t, i18n } = useTranslation()
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
@@ -372,6 +376,7 @@ const EditableOrderProductsTable = ({
                         row={row}
                         showDescription={showDescription}
                         showImage={showImage}
+                        showProductSpecifications={showProductSpecifications}
                     />
                 )
             },
@@ -694,7 +699,7 @@ const EditableOrderProductsTable = ({
                 } else if (measurementSummary) {
                     combinedLines.push(measurementSummary)
                 }
-                if (productSpecText) {
+                if (showProductSpecifications && productSpecText) {
                     combinedLines.push(productSpecText)
                 }
                 const combinedSummary = combinedLines.join('\n')

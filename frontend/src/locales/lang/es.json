@@ -1767,6 +1767,13 @@
                     "title": "Moneda eliminada",
                     "desc": "La moneda se eliminó correctamente."
                 }
+            },
+            "disclaimer": {
+                "title": "Condiciones del documento",
+                "desc": "Define una nota compartida que se mostrará debajo de los comentarios en todos los presupuestos e invoices generados.",
+                "hint": "Admite formato HTML básico. Deja el campo vacío para ocultar las condiciones.",
+                "successTitle": "Condiciones actualizadas",
+                "success": "Las condiciones del documento se guardaron correctamente."
             }
         },
         "calendarEventTypes": {
