@@ -25,26 +25,150 @@ import type { FormikHelpers } from 'formik'
 
 const ADDRESS_COUNTRY_FALLBACK = 'UY'
 
-const mapAddressToForm = (address: any): AddressFormValue => ({
-    street:
-        typeof address?.street === 'string'
-            ? address.street
-            : (typeof address?.addressLine1 === 'string' ? address.addressLine1 : ''),
-    number:
-        typeof address?.number === 'string'
-            ? address.number
-            : (typeof address?.addressLine2 === 'string' ? address.addressLine2 : ''),
-    corner: typeof address?.corner === 'string' ? address.corner : '',
-    apartment: typeof address?.apartment === 'string' ? address.apartment : '',
-    city: typeof address?.city === 'string' ? address.city : '',
-    state: typeof address?.state === 'string' ? address.state : '',
-    countryCode:
-        typeof address?.countryCode === 'string'
-            ? address.countryCode
-            : typeof address?.country === 'string'
-            ? address.country
-            : ADDRESS_COUNTRY_FALLBACK,
-})
+const normalizeSegment = (value: unknown): string =>
+    typeof value === 'string' ? value.trim() : ''
+
+const parseAddressLine1 = (
+    rawLine?: string | null,
+): { street?: string; number?: string; apartment?: string } => {
+    const line = normalizeSegment(rawLine)
+    if (!line) {
+        return {}
+    }
+    let working = line
+    let apartment: string | undefined
+    const aptMatch = working.match(/\bapt\.?\s+(.+)$/i)
+    if (aptMatch) {
+        apartment = aptMatch[1]?.trim()
+        working = working.slice(0, Math.max(0, aptMatch.index ?? working.length)).trim()
+    }
+    if (!working) {
+        return { apartment }
+    }
+    const tokens = working.split(/\s+/)
+    if (!tokens.length) {
+        return { apartment }
+    }
+    let number: string | undefined
+    let street: string | undefined
+    for (let i = tokens.length - 1; i >= 0; i -= 1) {
+        const token = tokens[i]
+        if (/^\d+[\w\-\/]*$/u.test(token)) {
+            number = tokens.slice(i).join(' ')
+            street = tokens.slice(0, i).join(' ')
+            break
+        }
+    }
+    if (!street) {
+        street = working
+    }
+    return {
+        street: street?.trim() || undefined,
+        number: number?.trim() || undefined,
+        apartment,
+    }
+}
+
+const parseAddressLine2 = (
+    rawLine?: string | null,
+): { apartment?: string; corner?: string } => {
+    const line = normalizeSegment(rawLine)
+    if (!line) {
+        return {}
+    }
+    const segments = line
+        .split(/•|,|\|/u)
+        .map((segment) => segment.trim())
+        .filter(Boolean)
+
+    let apartment: string | undefined
+    let corner: string | undefined
+
+    const evaluateSegment = (segment: string) => {
+        if (!apartment) {
+            const aptMatch = segment.match(/^apt\.?\s+(.+)$/i)
+            if (aptMatch) {
+                apartment = aptMatch[1]?.trim()
+                return
+            }
+        }
+        if (!corner) {
+            if (/^corner[:\s]/i.test(segment)) {
+                corner = segment.replace(/^corner[:\s]*/i, '').trim()
+                return
+            }
+            if (!/apt\.?/i.test(segment)) {
+                corner = segment
+            }
+        }
+    }
+
+    if (segments.length) {
+        segments.forEach(evaluateSegment)
+    } else {
+        evaluateSegment(line)
+    }
+
+    return {
+        apartment,
+        corner,
+    }
+}
+
+const mapAddressToForm = (address: any): AddressFormValue => {
+    if (!address) {
+        return {
+            street: '',
+            number: '',
+            corner: '',
+            apartment: '',
+            city: '',
+            state: '',
+            countryCode: ADDRESS_COUNTRY_FALLBACK,
+        }
+    }
+
+    if (typeof address === 'string') {
+        return mapAddressToForm({ addressLine1: address })
+    }
+
+    const line1Parts = parseAddressLine1(
+        address?.addressLine1 ??
+            address?.address1 ??
+            address?.line1 ??
+            address?.address ??
+            address?.streetAddress,
+    )
+    const line2Parts = parseAddressLine2(
+        address?.addressLine2 ?? address?.address2 ?? address?.line2 ?? address?.addressLine,
+    )
+
+    const street = normalizeSegment(address?.street) || line1Parts.street || ''
+    const number = normalizeSegment(address?.number) || line1Parts.number || ''
+    const apartment =
+        normalizeSegment(address?.apartment) ||
+        line1Parts.apartment ||
+        line2Parts.apartment ||
+        ''
+    const corner = normalizeSegment(address?.corner) || line2Parts.corner || ''
+    const city = normalizeSegment(address?.city ?? address?.cityName)
+    const state =
+        normalizeSegment(address?.state ?? address?.stateName ?? address?.region) ||
+        normalizeSegment(address?.country)
+    const countryCode =
+        normalizeSegment(address?.countryCode ?? address?.country ?? address?.state ?? '') ||
+        ADDRESS_COUNTRY_FALLBACK
+
+    return {
+        street,
+        number,
+        corner,
+        apartment,
+        city,
+        state,
+        countryCode,
+    }
+}
 
 const parseBooleanLike = (value: unknown): boolean => {
     if (typeof value === 'boolean') {
@@ -223,8 +347,51 @@ const OrderEdit = () => {
                     roundCurrencyValue,
                 )
 
-                const shippingAddress = mapAddressToForm(orderData?.shippingAddress ?? {})
-                const billingAddressRaw = mapAddressToForm(orderData?.billingAddress ?? {})
+                const shippingSource = {
+                    ...(orderData?.shippingAddress &&
+                    typeof orderData.shippingAddress === 'object'
+                        ? orderData.shippingAddress
+                        : {}),
+                    addressLine1:
+                        orderData?.shippingAddress1 ??
+                        orderData?.shipping_address_1 ??
+                        orderData?.shippingAddressLine1 ??
+                        orderData?.shipping_address_line1,
+                    addressLine2:
+                        orderData?.shippingAddress2 ??
+                        orderData?.shipping_address_2 ??
+                        orderData?.shippingAddressLine2 ??
+                        orderData?.shipping_address_line2,
+                    city: orderData?.shippingCity ?? orderData?.shipping_city,
+                    state: orderData?.shippingState ?? orderData?.shipping_state,
+                    country: orderData?.shippingCountry ?? orderData?.shipping_country,
+                    countryCode:
+                        orderData?.shippingCountryCode ?? orderData?.shipping_country_code,
+                }
+                const billingSource = {
+                    ...(orderData?.billingAddress &&
+                    typeof orderData.billingAddress === 'object'
+                        ? orderData.billingAddress
+                        : {}),
+                    addressLine1:
+                        orderData?.billingAddress1 ??
+                        orderData?.billing_address_1 ??
+                        orderData?.billingAddressLine1 ??
+                        orderData?.billing_address_line1,
+                    addressLine2:
+                        orderData?.billingAddress2 ??
+                        orderData?.billing_address_2 ??
+                        orderData?.billingAddressLine2 ??
+                        orderData?.billing_address_line2,
+                    city: orderData?.billingCity ?? orderData?.billing_city,
+                    state: orderData?.billingState ?? orderData?.billing_state,
+                    country: orderData?.billingCountry ?? orderData?.billing_country,
+                    countryCode:
+                        orderData?.billingCountryCode ?? orderData?.billing_country_code,
+                }
+
+                const shippingAddress = mapAddressToForm(shippingSource)
+                const billingAddressRaw = mapAddressToForm(billingSource)
                 const billingSameAsShipping = parseBooleanLike(
                     orderData?.billingSameAsShipping,
                 )
@@ -233,9 +400,22 @@ const OrderEdit = () => {
                     customerId: orderData?.customerId ? String(orderData.customerId) : '',
                     date: parseDateValue(orderData?.date) ?? new Date(),
                     validUntil: parseDateValue(orderData?.validUntil),
-                    paymentMehod: String(
-                        orderData?.paymentMehod ?? orderData?.paymentMethod ?? 'Cash',
-                    ),
+                    paymentMehod: (() => {
+                        if (typeof orderData?.paymentMehod === 'string') {
+                            return orderData.paymentMehod
+                        }
+                        const method = orderData?.paymentMethod
+                        if (typeof method === 'string') {
+                            return method
+                        }
+                        if (method && typeof method === 'object') {
+                            const name = normalizeSegment((method as any).name)
+                            if (name) {
+                                return name
+                            }
+                        }
+                        return 'Cash'
+                    })(),
                     orderCurrency,
                     items,
                     shippingAddress,
