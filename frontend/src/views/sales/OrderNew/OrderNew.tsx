@@ -100,6 +100,7 @@ export type SalesDocumentSubmitPayload = {
     customerId?: string
     date?: string
     validUntil?: string | null
+    validUntilDate?: string | null
     paymentMehod?: string
     orderCurrency: string
     items: Array<{
@@ -1275,13 +1276,16 @@ const OrderNew = ({
                         ? shippingAddress
                         : normalizeAddress(values.billingAddress)
 
+                    const isoValidUntil = values.validUntil
+                        ? new Date(values.validUntil as any).toISOString()
+                        : undefined
+
                     const payload: SalesDocumentSubmitPayload = {
                         customerId: values.customerId ? String(values.customerId) : undefined,
                         // Backend expects ISO 8601 date string (IsDateString)
                         date: values.date ? new Date(values.date as any).toISOString() : undefined,
-                        validUntil: values.validUntil
-                            ? new Date(values.validUntil as any).toISOString()
-                            : undefined,
+                        validUntil: isoValidUntil,
+                        validUntilDate: isoValidUntil,
                         paymentMehod: String(values.paymentMehod || 'Cash'),
                         orderCurrency: orderCurrencyValue,
                         items: values.items.map((it) => {

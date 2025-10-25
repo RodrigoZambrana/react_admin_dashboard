@@ -1378,6 +1378,8 @@ export class SalesDocumentsService {
       }
     }
 
+    const rawValidUntil = dto.validUntil ?? dto.validUntilDate ?? null
+
     await this.prisma.order.create({
       data: {
         documentType,
@@ -1422,7 +1424,7 @@ export class SalesDocumentsService {
         currencySnapshot: monetary.orderCurrency,
         taxRateSnapshot: decimal(taxRate).toFixed(4),
         exchangeRateSnapshot: this.serializeFxSnapshot(monetary.snapshot),
-        validUntil: dto.validUntilDate ? new Date(dto.validUntilDate) : null,
+        validUntil: rawValidUntil ? new Date(rawValidUntil) : null,
         disclaimer,
         items: { create: monetary.items },
       },
@@ -1497,6 +1499,8 @@ export class SalesDocumentsService {
       ? shippingAddress
       : composeAddress(dto.billingAddress)
 
+    const rawValidUntil = dto.validUntil ?? dto.validUntilDate ?? null
+
     await this.prisma.order.update({
       where: { id },
       data: {
@@ -1526,7 +1530,7 @@ export class SalesDocumentsService {
         currencySnapshot: monetary.orderCurrency,
         taxRateSnapshot: decimal(taxRate).toFixed(4),
         exchangeRateSnapshot: this.serializeFxSnapshot(monetary.snapshot),
-        validUntil: dto.validUntilDate ? new Date(dto.validUntilDate) : existing.validUntil,
+        validUntil: rawValidUntil ? new Date(rawValidUntil) : existing.validUntil,
         documentFilePath: null,
         documentFileName: null,
         documentFileMime: null,
