@@ -13,11 +13,7 @@ import { useAppSelector } from '@/store'
 import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
 import type { FxSnapshot } from '@/adapters/sales'
 import { resolveTextDirection } from '@/utils/textDirection'
-import {
-    calculateLineTotal,
-    getEffectiveQuantity,
-    resolveSalesUnit,
-} from '@/utils/salesUnitCalculation'
+import { calculateLineTotal } from '@/utils/salesUnitCalculation'
 import {
     computeSalesDocumentDisplayUnitPrice,
     resolveSalesDocumentUnitAmount,
@@ -164,36 +160,14 @@ const columns = (
             header: t('text.columns.quantity'),
             cell: (props) => {
                 const row = props.row.original
-                const unit = resolveSalesUnit(
-                    row.unitOfMeasure,
-                    row.pricingMethod,
+                const normalizedQuantity = Number.parseInt(
+                    `${row.quantity ?? row.qty ?? 0}`,
+                    10,
                 )
-                const effectiveQuantity =
-                    row.effectiveQuantity ??
-                    getEffectiveQuantity({
-                        qty: row.quantity,
-                        unitOfMeasure: row.unitOfMeasure,
-                        pricingMethod: row.pricingMethod,
-                        customAttributes: row.customAttributes,
-                    })
-                const formattedQuantity = Number.isFinite(effectiveQuantity)
-                    ? effectiveQuantity.toFixed(2)
-                    : '0.00'
-                if (unit === 'UNIT') {
-                    return <span>{Number(row.quantity) || 0}</span>
-                }
-                const measurementSuffix =
-                    unit === 'SQUARE_METER'
-                        ? 'm²'
-                        : unit === 'LINEAR_METER'
-                        ? 'm'
-                        : ''
-                return (
-                    <span>
-                        {formattedQuantity}
-                        {measurementSuffix ? ` ${measurementSuffix}` : ''}
-                    </span>
-                )
+                const safeQuantity = Number.isFinite(normalizedQuantity)
+                    ? Math.max(normalizedQuantity, 0)
+                    : 0
+                return <span>{safeQuantity}</span>
             },
         }),
     ]

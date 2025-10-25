@@ -191,6 +191,7 @@ const EditableOrderProductsTable = ({
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
     const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
     const [specDrafts, setSpecDrafts] = useState<SpecDrafts>({})
+    const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({})
     const [activeQuantityId, setActiveQuantityId] = useState<string | null>(null)
     const textAreaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
     const [activeSpecField, setActiveSpecField] = useState<{
@@ -306,6 +307,29 @@ const EditableOrderProductsTable = ({
         }
     }, [])
 
+    const setQuantityDraftValue = useCallback((productId: string, value: string) => {
+        setQuantityDrafts((previous) => {
+            if (previous[productId] === value) {
+                return previous
+            }
+            return {
+                ...previous,
+                [productId]: value,
+            }
+        })
+    }, [])
+
+    const clearQuantityDraft = useCallback((productId: string) => {
+        setQuantityDrafts((previous) => {
+            if (!(productId in previous)) {
+                return previous
+            }
+            const next = { ...previous }
+            delete next[productId]
+            return next
+        })
+    }, [])
+
     const composeSquareMeterSummary = useCallback(
         (width?: number, height?: number) => {
             if (!Number.isFinite(width) || !Number.isFinite(height)) {
@@ -399,22 +423,32 @@ const EditableOrderProductsTable = ({
                 const formattedDerivedQuantity = Number.isFinite(derivedQuantity)
                     ? derivedQuantity.toFixed(2)
                     : undefined
+                const quantityDraft = quantityDrafts[row.productId]
+                const fallbackQuantity =
+                    typeof row.qty === 'number' && Number.isFinite(row.qty)
+                        ? row.qty
+                        : ''
                 return (
                     <div className="flex flex-col">
                         <Input
                             type="number"
                             min={1}
                             step="1"
-                            value={row.qty}
+                            value={quantityDraft ?? fallbackQuantity}
                             ref={registerQuantityRef(row.productId)}
                             autoFocus={activeQuantityId === row.productId}
                             onChange={(e) => {
                                 const rawValue = e.target.value
-                                if (rawValue === '' || rawValue === '-') {
+                                if (rawValue === '') {
+                                    setQuantityDraftValue(row.productId, '')
                                     return
                                 }
-                                const numeric = Number(rawValue)
-                                if (Number.isNaN(numeric)) {
+                                if (!/^\d+$/.test(rawValue)) {
+                                    return
+                                }
+                                setQuantityDraftValue(row.productId, rawValue)
+                                const numeric = Number.parseInt(rawValue, 10)
+                                if (!Number.isFinite(numeric) || numeric < 1) {
                                     return
                                 }
                                 onQtyChange(row.productId, numeric)
@@ -424,6 +458,7 @@ const EditableOrderProductsTable = ({
                                 setActiveQuantityId((previous) =>
                                     previous === row.productId ? null : previous,
                                 )
+                                clearQuantityDraft(row.productId)
                             }}
                         />
                         {unit !== 'UNIT' && formattedDerivedQuantity !== undefined && (
