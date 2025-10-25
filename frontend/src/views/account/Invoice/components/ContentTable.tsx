@@ -67,6 +67,13 @@ const { Tr, Th, Td, THead, TBody, TFoot } = Table
 
 const columnHelper = createColumnHelper<Product>()
 
+const MAX_MEASUREMENT_DECIMALS = 3
+
+const SPEC_KEY_PRIORITY: Record<string, number> = {
+    width: 0,
+    height: 1,
+}
+
 const getNumeric = (value?: number | string | null) => {
     if (value === null || value === undefined) {
         return undefined
@@ -130,19 +137,55 @@ const normalizeSpecText = (value: string) =>
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
+        .replace(/[_-]+/g, ' ')
         .replace(/\b(ancho|width)\b/g, 'width')
         .replace(/\b(alto|height)\b/g, 'height')
         .replace(/\b(largo|length)\b/g, 'length')
         .replace(/\s+/g, ' ')
         .trim()
 
+const sanitizeSpecEntry = (value: string) => {
+    const lines = value
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+    const filtered = lines.filter((line) => {
+        const normalized = normalizeSpecText(line)
+        if (!normalized) {
+            return false
+        }
+        if (/^(especificaciones(?: del)? producto|product specifications?)/.test(normalized)) {
+            return false
+        }
+        return true
+    })
+    return filtered.join('\n')
+}
+
+type FormatAttributeValue = (
+    key: string,
+    value: unknown,
+    normalizedKey: string,
+) => string | undefined
+
 const resolveSpecifications = (
     row: Product,
     options?: {
         translateKey?: (key: string) => string
+        formatAttributeValue?: FormatAttributeValue
+        skipSpecSummaryIfCustomAttributes?: boolean
     },
 ) => {
     const translateKey = options?.translateKey ?? formatSpecKey
+    const formatAttributeValue =
+        options?.formatAttributeValue ??
+        ((_key: string, value: unknown) => {
+            if (value === null || value === undefined) {
+                return undefined
+            }
+            const text = String(value).trim()
+            return text.length > 0 ? text : undefined
+        })
     const parts: string[] = []
     const seen = new Set<string>()
     const pushUnique = (value: string | undefined) => {
@@ -153,40 +196,73 @@ const resolveSpecifications = (
         if (!trimmed) {
             return
         }
-        const normalized = normalizeSpecText(trimmed)
+        const sanitized = sanitizeSpecEntry(trimmed)
+        if (!sanitized) {
+            return
+        }
+        const normalized = normalizeSpecText(sanitized)
         if (seen.has(normalized)) {
             return
         }
         seen.add(normalized)
-        parts.push(trimmed)
-    }
-    if (typeof row.specSummary === 'string') {
-        pushUnique(row.specSummary)
-    }
-    if (typeof row.specifications === 'string') {
-        pushUnique(row.specifications)
+        parts.push(sanitized)
     }
     const attrs = row.customAttributes
-    if (!attrs || typeof attrs !== 'object') {
-        return parts.join('\n') || undefined
-    }
-    const entries = Object.entries(attrs).filter(([, value]) => {
-        if (value === null || value === undefined) {
-            return false
-        }
-        const text = String(value).trim()
-        return text.length > 0
-    })
-    if (!entries.length) {
-        return parts.join('\n') || undefined
-    }
-    const attributesSummary = entries
-        .map(([key, value]) => {
-            const label = translateKey(key)
-            return `${label}: ${value}`
+    let hasCustomAttributes = false
+    if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
+        const entries = Object.entries(attrs)
+            .map(([key, value], index) => ({
+                key,
+                value,
+                normalizedKey: normalizeSpecText(key),
+                index,
+            }))
+            .filter(({ value, normalizedKey }) => {
+                if (normalizedKey !== 'width' && normalizedKey !== 'height') {
+                    return false
+                }
+                if (value === null || value === undefined) {
+                    return false
+                }
+                if (typeof value === 'string') {
+                    return value.trim().length > 0
+                }
+                if (typeof value === 'number') {
+                    return Number.isFinite(value)
+                }
+                if (
+                    typeof value === 'object' &&
+                    value &&
+                    'toString' in value &&
+                    typeof value.toString === 'function'
+                ) {
+                    const text = (value as { toString: () => string }).toString()
+                    return text.trim().length > 0 && text !== '[object Object]'
+                }
+                return false
+            })
+        entries.sort((a, b) => {
+            const priorityA = SPEC_KEY_PRIORITY[a.normalizedKey] ?? Number.MAX_SAFE_INTEGER
+            const priorityB = SPEC_KEY_PRIORITY[b.normalizedKey] ?? Number.MAX_SAFE_INTEGER
+            if (priorityA !== priorityB) {
+                return priorityA - priorityB
+            }
+            return a.index - b.index
         })
-        .join(', ')
-    pushUnique(attributesSummary)
+        for (const entry of entries) {
+            const formatted = formatAttributeValue(
+                entry.key,
+                entry.value,
+                entry.normalizedKey,
+            )
+            if (!formatted) {
+                continue
+            }
+            hasCustomAttributes = true
+            const label = translateKey(entry.key)
+            pushUnique(`${label}: ${formatted}`)
+        }
+    }
     return parts.join('\n') || undefined
 }
 
@@ -200,11 +276,6 @@ const ProductColumn = ({ row }: { row: Product }) => {
         <div className="flex">
             <div className="ltr:ml-2 rtl:mr-2">
                 <h6 className="mb-1 font-semibold">{row.name}</h6>
-                {row.productCode && (
-                    <div className="mb-2 text-sm text-gray-500 dark:text-gray-300">
-                        {row.productCode}
-                    </div>
-                )}
                 {detailKeys.map((key, i) => (
                     <div key={key + i} className="mb-1 text-sm">
                         <span className="capitalize text-gray-500 dark:text-gray-400">
@@ -250,7 +321,7 @@ const ContentTable = ({
         [i18n.language, preferredCurrency, summaryCurrency],
     )
 
-    const showSpecifications = resource !== 'budgets'
+    const showSpecifications = true
 
     const translateSpecKey = useCallback(
         (key: string) => {
@@ -273,6 +344,83 @@ const ContentTable = ({
             return formatSpecKey(key)
         },
         [t],
+    )
+
+    const measurementFormatter = useMemo(
+        () =>
+            new Intl.NumberFormat(i18n.language, {
+                minimumFractionDigits: Math.min(2, MAX_MEASUREMENT_DECIMALS),
+                maximumFractionDigits: MAX_MEASUREMENT_DECIMALS,
+                useGrouping: false,
+            }),
+        [i18n.language],
+    )
+
+    const formatMeasurementValue = useCallback(
+        (value: number) => {
+            if (!Number.isFinite(value)) {
+                return undefined
+            }
+            const precisionFactor = 10 ** MAX_MEASUREMENT_DECIMALS
+            const rounded = Math.round(value * precisionFactor) / precisionFactor
+            return measurementFormatter.format(rounded)
+        },
+        [measurementFormatter],
+    )
+
+    const formatAttributeValue = useCallback<FormatAttributeValue>(
+        (_key, value, normalizedKey) => {
+            if (value === null || value === undefined) {
+                return undefined
+            }
+            const resolveText = () => {
+                if (typeof value === 'string') {
+                    return value.trim()
+                }
+                if (typeof value === 'number') {
+                    return value.toString()
+                }
+                if (
+                    typeof value === 'object' &&
+                    value &&
+                    'toString' in value &&
+                    typeof value.toString === 'function'
+                ) {
+                    const text = (
+                        value as { toString: () => string }
+                    ).toString().trim()
+                    return text === '[object Object]' ? '' : text
+                }
+                return ''
+            }
+            const rawText = resolveText()
+            if (!rawText) {
+                return undefined
+            }
+            const numeric = (() => {
+                if (typeof value === 'number') {
+                    return Number.isFinite(value) ? value : undefined
+                }
+                const normalized = rawText.replace(/\s+/g, '').replace(',', '.')
+                if (!normalized) {
+                    return undefined
+                }
+                const parsed = Number(normalized)
+                return Number.isFinite(parsed) ? parsed : undefined
+            })()
+            if (numeric !== undefined) {
+                const formatted = formatMeasurementValue(numeric)
+                if (!formatted) {
+                    return undefined
+                }
+                if (SPEC_KEY_PRIORITY[normalizedKey] !== undefined) {
+                    return `${formatted} m`
+                }
+                return formatted
+            }
+            return rawText
+        },
+        [formatMeasurementValue],
     )
 
     const tableColumns = useMemo(() => {
@@ -344,11 +492,11 @@ const ContentTable = ({
                 )
             },
         })
-                const commentsColumn = columnHelper.accessor('comments', {
-                    header: t('text.columns.comments'),
-                    cell: (props) => {
-                        const value = props.row.original.comments
-                        const text =
+        const commentsColumn = columnHelper.accessor('comments', {
+            header: t('text.columns.comments'),
+            cell: (props) => {
+                const value = props.row.original.comments
+                const text =
                     typeof value === 'string' && value.trim().length > 0
                         ? value
                         : '—'
@@ -407,6 +555,8 @@ const ContentTable = ({
                         const row = props.row.original
                         const summaryText = resolveSpecifications(row, {
                             translateKey: translateSpecKey,
+                            formatAttributeValue,
+                            skipSpecSummaryIfCustomAttributes: true,
                         })
                         const display =
                             summaryText && summaryText.trim().length > 0
@@ -427,12 +577,13 @@ const ContentTable = ({
 
         columns.push(commentsColumn)
         columns.push(priceColumn)
-            columns.push(totalColumn)
+        columns.push(totalColumn)
 
-            return columns
+        return columns
     }, [
         fxSnapshot,
         formatAmount,
+        formatAttributeValue,
         showSpecifications,
         summaryCurrency,
         t,
