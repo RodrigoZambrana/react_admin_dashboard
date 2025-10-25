@@ -848,17 +848,21 @@ export class SalesDocumentsService {
       ? await this.prisma.orderStatus.findUnique({ where: { code: BUDGET_STATUS.DRAFT.code } })
       : await this.getDefaultOrderStatus()
 
-    const data = orders.map((o: OrderWithRelations) => ({
-      id: String(o.id),
-      date: Math.floor(new Date(o.date).getTime() / 1000),
-      validUntilDate: o.validUntil ? new Date(o.validUntil).toISOString() : null,
-      customer: o.customer?.name || '',
-      status: (o.statusId ?? defaultStatus?.id) || 0,
-      paymentMehod: o.paymentMethod?.name || '',
-      paymentIdendifier: '',
-      totalAmount: Number(o.grandTotal?.toString?.() ?? o.grandTotal ?? 0),
-      orderCurrency: o.orderCurrency,
-    }))
+    const data = orders.map((o: OrderWithRelations) => {
+      const validity = o.validUntil ? new Date(o.validUntil).toISOString() : null
+      return {
+        id: String(o.id),
+        date: Math.floor(new Date(o.date).getTime() / 1000),
+        validUntilDate: validity,
+        validityDate: validity,
+        customer: o.customer?.name || '',
+        status: (o.statusId ?? defaultStatus?.id) || 0,
+        paymentMehod: o.paymentMethod?.name || '',
+        paymentIdendifier: '',
+        totalAmount: Number(o.grandTotal?.toString?.() ?? o.grandTotal ?? 0),
+        orderCurrency: o.orderCurrency,
+      }
+    })
     return { data, total }
   }
 
@@ -1212,10 +1216,13 @@ export class SalesDocumentsService {
     const disclaimer =
       order.disclaimer ?? (await this.getDefaultDocumentDisclaimer()) ?? null
 
+    const validity = order.validUntil ? order.validUntil.toISOString() : null
+
     return {
       id: order.id,
       date: order.date,
-      validUntilDate: order.validUntil ? order.validUntil.toISOString() : null,
+      validUntilDate: validity,
+      validityDate: validity,
       customer,
       items: order.items.map((item) => ({
         ...item,
@@ -1371,6 +1378,8 @@ export class SalesDocumentsService {
       }
     }
 
+    const rawValidUntil = dto.validUntil ?? dto.validUntilDate ?? null
+
     await this.prisma.order.create({
       data: {
         documentType,
@@ -1415,7 +1424,7 @@ export class SalesDocumentsService {
         currencySnapshot: monetary.orderCurrency,
         taxRateSnapshot: decimal(taxRate).toFixed(4),
         exchangeRateSnapshot: this.serializeFxSnapshot(monetary.snapshot),
-        validUntil: dto.validUntilDate ? new Date(dto.validUntilDate) : null,
+        validUntil: rawValidUntil ? new Date(rawValidUntil) : null,
         disclaimer,
         items: { create: monetary.items },
       },
@@ -1490,6 +1499,8 @@ export class SalesDocumentsService {
       ? shippingAddress
       : composeAddress(dto.billingAddress)
 
+    const rawValidUntil = dto.validUntil ?? dto.validUntilDate ?? null
+
     await this.prisma.order.update({
       where: { id },
       data: {
@@ -1519,7 +1530,7 @@ export class SalesDocumentsService {
         currencySnapshot: monetary.orderCurrency,
         taxRateSnapshot: decimal(taxRate).toFixed(4),
         exchangeRateSnapshot: this.serializeFxSnapshot(monetary.snapshot),
-        validUntil: dto.validUntilDate ? new Date(dto.validUntilDate) : existing.validUntil,
+        validUntil: rawValidUntil ? new Date(rawValidUntil) : existing.validUntil,
         documentFilePath: null,
         documentFileName: null,
         documentFileMime: null,
@@ -1671,6 +1682,7 @@ export class SalesDocumentsService {
         budgetId: budget.id,
         statusId: sentStatusId,
         validUntilDate: validity,
+        validityDate: validity,
         updatedBy: userId ?? null,
       }
     })
