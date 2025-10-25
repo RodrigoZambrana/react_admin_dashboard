@@ -19,6 +19,7 @@ vi.mock('@/store', () => ({
 
 const baseItem: EditableItem = {
     productId: '1',
+    lineId: 'line-1',
     name: 'Test product',
     price: 10,
     qty: 1,
@@ -99,6 +100,6 @@ describe('EditableOrderProductsTable comment direction', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'text.actions.save' }))
 
-        expect(handleCommentChange).toHaveBeenCalledWith('1', 'hola mundo')
+        expect(handleCommentChange).toHaveBeenCalledWith('line-1', 'hola mundo')
     })
 })
