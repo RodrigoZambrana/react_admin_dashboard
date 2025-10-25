@@ -1,4 +1,11 @@
-import { calculateLineTotal, getDerivedUnitPrice, getEffectiveQuantity, type SalesUnitAwareItem } from './salesUnitCalculation'
+import { normalizeCurrencyCode } from './currency'
+import {
+    calculateLineTotal,
+    getDerivedUnitPrice,
+    getEffectiveQuantity,
+    resolveSalesUnit,
+    type SalesUnitAwareItem,
+} from './salesUnitCalculation'
 
 export type SalesDocumentMode = 'order' | 'budget'
 
@@ -33,6 +40,77 @@ const applyRound = (value: number, round?: SalesDocumentRoundFunction) => {
         return 0
     }
     return round ? round(value) : value
+}
+
+const cloneCustomAttributes = (value: unknown): Record<string, unknown> | undefined => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return undefined
+    }
+    const entries = Object.entries(value as Record<string, unknown>)
+    if (!entries.length) {
+        return undefined
+    }
+    return entries.reduce<Record<string, unknown>>((accumulator, [key, entryValue]) => {
+        accumulator[key] = entryValue
+        return accumulator
+    }, {})
+}
+
+export const mapSalesDocumentItemsForComputation = (
+    rawItems: unknown,
+): SalesUnitAwareItem[] => {
+    if (!Array.isArray(rawItems)) {
+        return []
+    }
+    return rawItems.map((rawItem) => {
+        const candidate = rawItem as Record<string, unknown>
+        const qty = sanitizeNumber(candidate?.qty ?? (candidate as any)?.quantity ?? 0, 0)
+        const resolvedUnit = resolveSalesUnit(
+            (candidate?.pricingMethodSnapshot as string | undefined) ?? undefined,
+            (typeof candidate?.pricingMethod === 'string' && candidate.pricingMethod) ||
+                (typeof candidate?.unitOfMeasure === 'string' && candidate.unitOfMeasure) ||
+                undefined,
+        )
+        const priceForCalculation = sanitizeNumber(
+            candidate?.unitAmountOrderCurrency ??
+                candidate?.price ??
+                candidate?.unitAmount ??
+                candidate?.unitPrice ??
+                0,
+            0,
+        )
+        const customAttributes = cloneCustomAttributes(candidate?.customAttributes)
+        return {
+            price: priceForCalculation,
+            unitPrice: priceForCalculation,
+            qty,
+            unitOfMeasure: resolvedUnit,
+            pricingMethod: resolvedUnit,
+            customAttributes,
+        }
+    })
+}
+
+export const detectSalesDocumentCurrency = (
+    rawItems: unknown,
+    fallback?: string | null,
+): string | undefined => {
+    const normalizedFallback = normalizeCurrencyCode(fallback ?? undefined)
+    if (Array.isArray(rawItems)) {
+        for (const raw of rawItems) {
+            if (!raw || typeof raw !== 'object') {
+                continue
+            }
+            const candidate =
+                normalizeCurrencyCode((raw as any)?.unitCurrency, normalizedFallback) ||
+                normalizeCurrencyCode((raw as any)?.product?.currency, normalizedFallback) ||
+                normalizeCurrencyCode((raw as any)?.currency, normalizedFallback)
+            if (candidate) {
+                return candidate
+            }
+        }
+    }
+    return normalizedFallback ?? undefined
 }
 
 export const createSalesDocumentRounder = (

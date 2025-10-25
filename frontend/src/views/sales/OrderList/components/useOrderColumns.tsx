@@ -7,6 +7,7 @@ import useThemeClass from '@/utils/hooks/useThemeClass'
 import { normalizeCurrencyCode } from '@/utils/currency'
 import { useAppSelector } from '@/store'
 import type { ColumnDef } from '@/components/shared/DataTable'
+import type { SalesDocumentSummaryComputation } from '@/utils/salesDocumentCalculations'
 
 export type Order = {
     id: string
@@ -17,6 +18,14 @@ export type Order = {
     paymentIdendifier: string
     totalAmount: number
     orderCurrency?: string
+    paymentSummary?: {
+        subTotal?: number
+        deliveryFees?: number
+        tax?: number
+        total?: number
+        currency?: string
+    }
+    computedSummary?: SalesDocumentSummaryComputation
 }
 
 type Params = {

@@ -1,13 +1,22 @@
 /* eslint-disable  @typescript-eslint/no-explicit-any */
 import { normalizeCurrencyCode } from '@/utils/currency'
 import i18n from '@/locales'
+import type { SalesDocumentResource } from '@/services/SalesService'
 import { resolveSalesUnit, type SalesUnitAwareItem } from '@/utils/salesUnitCalculation'
 import {
   computeSalesDocumentLine,
   computeSalesDocumentSummary,
   createSalesDocumentRounder,
+  detectSalesDocumentCurrency,
+  mapSalesDocumentItemsForComputation,
   type SalesDocumentMode,
+  type SalesDocumentSummaryComputation,
 } from '@/utils/salesDocumentCalculations'
+
+const coerceDocumentNumber = (value: unknown, fallback = 0) => {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : fallback
+}
 
 export type FxSnapshot = {
   base: string
@@ -297,64 +306,42 @@ export function adaptOrderToDetailsView(
     shippingLogo: '',
     shippingVendor: o.shippingVendor || '',
   }
-  const detectedCurrency = (() => {
-    if (Array.isArray(o.items)) {
-      for (const item of o.items) {
-        const code = normalizeCurrencyCode(item?.unitCurrency || item?.product?.currency || item?.currency)
-        if (code) {
-          return code
-        }
-      }
-    }
-    return undefined
-  })()
   const normalizedOrderCurrency =
-    normalizeCurrencyCode(o.orderCurrency, detectedCurrency) ||
-    normalizeCurrencyCode(detectedCurrency)
+    detectSalesDocumentCurrency(o.items, o.orderCurrency) ||
+    normalizeCurrencyCode(o.orderCurrency)
   const resolvedMode: SalesDocumentMode =
     options?.mode === 'budget' ? 'budget' : 'order'
   const roundAmount = createSalesDocumentRounder(resolvedMode)
-  const summaryItems: SalesUnitAwareItem[] = []
-  const product = Array.isArray(o.items)
-    ? o.items.map((it: any) => {
-        const rawQty = Number(it.qty ?? 0)
-        const customAttributes =
-          it.customAttributes &&
-          typeof it.customAttributes === 'object' &&
-          Object.keys(it.customAttributes).length > 0
-            ? { ...it.customAttributes }
-            : undefined
-        const resolvedUnit = resolveSalesUnit(
-          it.pricingMethodSnapshot,
-          (typeof it.pricingMethod === 'string' && it.pricingMethod) ||
-            (typeof it.unitOfMeasure === 'string' && it.unitOfMeasure) ||
-            undefined,
-        )
-        const priceForCalculation = Number(
-          it.unitAmountOrderCurrency ??
-            it.price ??
-            it.unitAmount ??
-            it.unitPrice ??
-            0,
-        )
-        const unitCostAmount = Number(
-          it.unitCostOrderCurrency ??
-            it.unitCostAmount ??
-            0,
-        )
-        const resolvedCostCurrency =
-          normalizeCurrencyCode(it.unitCostCurrency, normalizedOrderCurrency) ||
-          normalizedOrderCurrency
-        const computeItem = {
-          price: priceForCalculation,
-          unitPrice: priceForCalculation,
-          qty: rawQty,
-          unitOfMeasure: resolvedUnit,
-          pricingMethod: resolvedUnit,
-          customAttributes,
-        }
-        summaryItems.push(computeItem)
-        const lineComputation = computeSalesDocumentLine(computeItem, roundAmount)
+  const rawItems = Array.isArray(o.items) ? o.items : []
+  const summaryItems = mapSalesDocumentItemsForComputation(rawItems)
+  const product = rawItems.map((it: any, index: number) => {
+    const computeItemCandidate = summaryItems[index] ?? mapSalesDocumentItemsForComputation([it])[0]
+    const computeItem: SalesUnitAwareItem =
+      computeItemCandidate ?? {
+        price: 0,
+        unitPrice: 0,
+        qty: 0,
+        unitOfMeasure: resolveSalesUnit(undefined, undefined),
+        pricingMethod: resolveSalesUnit(undefined, undefined),
+      }
+    const resolvedUnit = resolveSalesUnit(
+      computeItem.unitOfMeasure,
+      computeItem.pricingMethod,
+    )
+    const rawQty = Number(computeItem.qty ?? 0)
+    const priceForCalculation = Number(computeItem.unitPrice ?? computeItem.price ?? 0)
+    const unitCostAmount = Number(
+      it.unitCostOrderCurrency ??
+        it.unitCostAmount ??
+        0,
+    )
+    const resolvedCostCurrency =
+      normalizeCurrencyCode(it.unitCostCurrency, normalizedOrderCurrency) ||
+      normalizedOrderCurrency
+    const lineComputation = computeSalesDocumentLine(computeItem, roundAmount)
+    const customAttributes = computeItem.customAttributes
+      ? { ...computeItem.customAttributes }
+      : undefined
         return {
           id: String(it.id),
           productId: it.productId ? String(it.productId) : undefined,
@@ -393,8 +380,7 @@ export function adaptOrderToDetailsView(
             ? Math.round(unitCostAmount * rawQty * 100) / 100
             : 0,
         }
-      })
-    : []
+  })
   const summaryComputation = computeSalesDocumentSummary(summaryItems, {
     mode: resolvedMode,
     round: roundAmount,
@@ -492,5 +478,105 @@ export function adaptOrderToDetailsView(
     fxSnapshot,
     comment,
     disclaimer,
+  }
+}
+
+type SalesDocumentListAdaptOptions = {
+  mode?: SalesDocumentMode
+  resource?: SalesDocumentResource
+}
+
+export function adaptSalesDocumentListRecord<T extends Record<string, any>>(
+  raw: T,
+  options?: SalesDocumentListAdaptOptions,
+): T & {
+  totalAmount: number
+  orderCurrency?: string
+  paymentSummary?: Record<string, unknown>
+  computedSummary: SalesDocumentSummaryComputation
+} {
+  if (!raw || typeof raw !== 'object') {
+    return raw
+  }
+  const resolvedMode: SalesDocumentMode =
+    options?.mode ?? (options?.resource === 'budgets' ? 'budget' : 'order')
+  const roundValue = createSalesDocumentRounder(resolvedMode)
+  const summaryItems = mapSalesDocumentItemsForComputation((raw as any)?.items)
+  let summary = computeSalesDocumentSummary(summaryItems, {
+    mode: resolvedMode,
+    round: roundValue,
+    deliveryFees: (raw as any)?.deliveryFees ?? (raw as any)?.shipping?.deliveryFees,
+    taxRate:
+      (raw as any)?.taxRate ??
+      (raw as any)?.tax_rate ??
+      (raw as any)?.taxRateSnapshot ??
+      (raw as any)?.tax_rate_snapshot,
+    fallbackTaxAmount:
+      (raw as any)?.tax ??
+      (raw as any)?.taxAmount ??
+      (raw as any)?.tax_amount,
+  })
+  const fallbackTotals = {
+    deliveryFees:
+      (raw as any)?.deliveryFees ??
+      (raw as any)?.shipping?.deliveryFees ??
+      (raw as any)?.paymentSummary?.deliveryFees,
+    total:
+      (raw as any)?.totalAmount ??
+      (raw as any)?.grandTotal ??
+      (raw as any)?.grand_total ??
+      (raw as any)?.total,
+    tax:
+      (raw as any)?.tax ??
+      (raw as any)?.taxAmount ??
+      (raw as any)?.tax_amount ??
+      (raw as any)?.paymentSummary?.tax,
+  }
+  const fallbackDelivery = coerceDocumentNumber(fallbackTotals.deliveryFees, 0)
+  const fallbackTotal = coerceDocumentNumber(fallbackTotals.total, 0)
+  const fallbackTax = coerceDocumentNumber(fallbackTotals.tax, 0)
+  const fallbackSubTotal = Math.max(fallbackTotal - fallbackDelivery, 0)
+
+  const shouldUseFallbackSummary =
+    summaryItems.length === 0 || (!summary.total && fallbackTotal !== 0)
+
+  if (shouldUseFallbackSummary) {
+    summary = {
+      lines: summary.lines,
+      subTotal: roundValue(fallbackSubTotal),
+      deliveryFees: roundValue(fallbackDelivery),
+      total: roundValue(fallbackTotal),
+      tax: roundValue(fallbackTax),
+    }
+  } else {
+    if (!summary.deliveryFees && fallbackDelivery) {
+      summary.deliveryFees = roundValue(fallbackDelivery)
+    }
+    if (!summary.tax && fallbackTax) {
+      summary.tax = roundValue(fallbackTax)
+    }
+  }
+  const currency =
+    detectSalesDocumentCurrency((raw as any)?.items, (raw as any)?.orderCurrency) ??
+    normalizeCurrencyCode((raw as any)?.orderCurrency)
+  const existingPaymentSummary =
+    (raw as any)?.paymentSummary && typeof (raw as any)?.paymentSummary === 'object'
+      ? { ...(raw as any).paymentSummary }
+      : undefined
+  if (existingPaymentSummary) {
+    existingPaymentSummary.subTotal = summary.subTotal
+    existingPaymentSummary.deliveryFees = summary.deliveryFees
+    existingPaymentSummary.tax = summary.tax
+    existingPaymentSummary.total = summary.total
+    existingPaymentSummary.currency =
+      normalizeCurrencyCode(existingPaymentSummary.currency as string | undefined, currency ?? undefined) ??
+      currency ?? existingPaymentSummary.currency
+  }
+  return {
+    ...raw,
+    totalAmount: summary.total,
+    ...(currency ? { orderCurrency: currency } : {}),
+    ...(existingPaymentSummary ? { paymentSummary: existingPaymentSummary } : {}),
+    computedSummary: summary,
   }
 }
