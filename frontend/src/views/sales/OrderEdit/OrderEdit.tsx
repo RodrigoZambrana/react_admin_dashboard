@@ -24,6 +24,7 @@ import type { EditableItem } from '@/views/sales/components/EditableOrderProduct
 import type { FormikHelpers } from 'formik'
 import { parseValidityRecord } from '@/adapters/sales'
 import { createSalesDocumentRounder } from '@/utils/salesDocumentCalculations'
+import { createSalesItemLineId } from '../utils/itemIdentity'
 
 const ADDRESS_COUNTRY_FALLBACK = 'UY'
 
@@ -223,7 +224,7 @@ const mapItemsToEditable = (
     orderCurrency: string,
     roundCurrencyValue: (value: number) => number,
 ): EditableItem[] => {
-    return items.map((item) => {
+    return items.map((item, index) => {
         const product = products.find((p) => String(p.id) === String(item.productId))
         const unitCurrency =
             normalizeCurrencyCode(item.unitCurrency, orderCurrency) ||
@@ -239,7 +240,28 @@ const mapItemsToEditable = (
             (typeof item.unitOfMeasure === 'string' && item.unitOfMeasure) ||
             (typeof product?.unitOfMeasure === 'string' && product.unitOfMeasure) ||
             DEFAULT_SALES_UNIT
+        const rawLineId =
+            typeof item.lineId === 'string' && item.lineId.length > 0
+                ? item.lineId
+                : undefined
+        const inferredLineId = (() => {
+            if (rawLineId) {
+                return rawLineId
+            }
+            const itemIdentifier = item.id
+            if (typeof itemIdentifier === 'string' && itemIdentifier.length > 0) {
+                return `${item.productId ?? 'item'}-${itemIdentifier}`
+            }
+            if (typeof itemIdentifier === 'number' && Number.isFinite(itemIdentifier)) {
+                return `${item.productId ?? 'item'}-${itemIdentifier}`
+            }
+            return null
+        })()
         const baseItem: EditableItem = {
+            lineId:
+                inferredLineId && inferredLineId.length > 0
+                    ? inferredLineId
+                    : createSalesItemLineId(String(item.productId ?? index)),
             productId: String(item.productId),
             name: item.name,
             qty: Number(item.qty) || 1,
