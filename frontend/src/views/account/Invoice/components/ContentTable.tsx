@@ -518,9 +518,12 @@ const ContentTable = ({
             columns.push(
                 columnHelper.display({
                     id: 'specifications',
-                    header: t('text.columns.specifications', {
-                        defaultValue: 'Specifications',
-                    }),
+                    header: () =>
+                        renderHeaderLabel(
+                            t('text.columns.specifications', {
+                                defaultValue: 'Specifications',
+                            }),
+                        ),
                     cell: (props) => {
                         const row = props.row.original
                         const summaryText = resolveSpecifications(row, {
