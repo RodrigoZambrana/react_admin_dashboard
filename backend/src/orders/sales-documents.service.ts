@@ -1309,12 +1309,24 @@ export class SalesDocumentsService {
     const billingState =
       normalizeString(order.billingState) ?? normalizeString(billingAddressSource?.country)
 
-    const previousOrdersCount = await this.prisma.order.count({
-      where: {
-        customerId: order.customerId,
-        id: { not: order.id },
-      },
-    })
+    const [previousOrdersCount, previousBudgetsCount] = await Promise.all([
+      this.prisma.order.count({
+        where: {
+          customerId: order.customerId,
+          id: { not: order.id },
+          documentType: DocumentType.ORDER,
+        },
+      }),
+      this.prisma.order.count({
+        where: {
+          customerId: order.customerId,
+          documentType: DocumentType.BUDGET,
+          ...(order.documentType === DocumentType.BUDGET
+            ? { id: { not: order.id } }
+            : {}),
+        },
+      }),
+    ])
 
     const customer = order.customer
       ? (() => {
@@ -1322,6 +1334,7 @@ export class SalesDocumentsService {
           return {
             ...rest,
             previousOrder: previousOrdersCount,
+            previousBudgets: previousBudgetsCount,
           }
         })()
       : null

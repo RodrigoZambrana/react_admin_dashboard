@@ -86,6 +86,7 @@ type SalesOrderDetailsResponse = {
         phone: string
         img: string
         previousOrder: number
+        previousBudgets?: number
         shippingAddress: {
             line1: string
             line2: string
@@ -299,7 +300,7 @@ const OrderDetails = () => {
                                         <span className="ltr:ml-1 rtl:mr-1">
                                             {dayjs
                                                 .unix(data.dateTime || 0)
-                                                .format('ddd DD-MMM-YYYY, hh:mm A')}
+                                                .format('DD/MM/YYYY')}
                                         </span>
                                     </span>
                                     {showValidUntil && data.validUntil ? (
@@ -309,7 +310,7 @@ const OrderDetails = () => {
                                                 {validUntilLabel}:{' '}
                                                 {dayjs
                                                     .unix(data.validUntil)
-                                                    .format('ddd DD-MMM-YYYY')}
+                                                    .format('DD/MM/YYYY')}
                                             </span>
                                         </span>
                                     ) : null}
@@ -348,15 +349,17 @@ const OrderDetails = () => {
                                     taxRate={taxRate}
                                     currency={data.paymentSummary?.currency}
                                 />
-                                <AdministrativeSummary
-                                    title={administrativeTitle}
-                                    items={administrativeSummary.items}
-                                    currency={administrativeSummary.currency}
-                                    totalCost={administrativeSummary.totalCost}
-                                    netIncome={administrativeSummary.netIncome}
-                                    totalCostLabel={administrativeTotalLabel}
-                                    netIncomeLabel={administrativeNetLabel}
-                                />
+                                {mode !== 'budget' && (
+                                    <AdministrativeSummary
+                                        title={administrativeTitle}
+                                        items={administrativeSummary.items}
+                                        currency={administrativeSummary.currency}
+                                        totalCost={administrativeSummary.totalCost}
+                                        netIncome={administrativeSummary.netIncome}
+                                        totalCostLabel={administrativeTotalLabel}
+                                        netIncomeLabel={administrativeNetLabel}
+                                    />
+                                )}
                                 <Activity data={data.activity} />
                             </div>
                             <div className="xl:max-w-[360px] w-full space-y-4">

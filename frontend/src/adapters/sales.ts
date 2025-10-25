@@ -443,6 +443,10 @@ export function adaptOrderToDetailsView(
           Number((o.customer as any)?.previousOrder ?? 0),
           0,
         ),
+        previousBudgets: Math.max(
+          Number((o.customer as any)?.previousBudgets ?? 0),
+          0,
+        ),
         shippingAddress: toAddressLines(o, 'shipping'),
         billingAddress: toAddressLines(o, 'billing'),
       }

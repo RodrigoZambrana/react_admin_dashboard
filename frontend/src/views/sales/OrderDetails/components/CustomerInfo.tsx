@@ -13,6 +13,7 @@ type CustomerInfoProps = {
         phone: string
         img: string
         previousOrder: number
+        previousBudgets?: number
         shippingAddress: {
             line1: string
             line2: string
@@ -47,6 +48,8 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
     const { t } = useTranslation()
     const shippingLines = normalizeLines(data?.shippingAddress)
     const billingLines = normalizeLines(data?.billingAddress)
+    const previousOrders = data?.previousOrder ?? 0
+    const previousBudgets = data?.previousBudgets ?? 0
     return (
         <Card>
             <h5 className="mb-4">{t('text.columns.customer')}</h5>
@@ -60,10 +63,20 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
                         <div className="font-semibold group-hover:text-gray-900 dark:group-hover:text-gray-100">
                             {data?.name}
                         </div>
-                        <span>
-                            <span className="font-semibold">{data?.previousOrder} </span>
-                            {t('text.labels.previousOrders')}
-                        </span>
+                        <div className="flex flex-col text-sm text-gray-600 dark:text-gray-300">
+                            <span>
+                                <span className="font-semibold text-base text-gray-900 dark:text-gray-100">
+                                    {previousOrders}{' '}
+                                </span>
+                                {t('text.labels.previousOrders')}
+                            </span>
+                            <span>
+                                <span className="font-semibold text-base text-gray-900 dark:text-gray-100">
+                                    {previousBudgets}{' '}
+                                </span>
+                                {t('text.labels.previousBudgets')}
+                            </span>
+                        </div>
                     </div>
                 </div>
                 <HiExternalLink className="text-xl hidden group-hover:block" />

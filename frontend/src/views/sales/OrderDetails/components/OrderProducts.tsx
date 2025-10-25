@@ -62,13 +62,13 @@ const { Tr, Th, Td, THead, TBody } = Table
 
 const columnHelper = createColumnHelper<Product>()
 
-const ProductColumn = ({ row }: { row: Product }) => {
+const ProductColumn = ({ row, showSku }: { row: Product; showSku: boolean }) => {
     const details = row.details ?? {}
     const detailKeys = Object.keys(details)
     return (
         <div>
             <h6 className="mb-1 font-semibold">{row.name}</h6>
-            {row.productCode && (
+            {showSku && row.productCode && (
                 <div className="mb-2 text-sm text-gray-500 dark:text-gray-300">
                     {row.productCode}
                 </div>
@@ -148,15 +148,16 @@ const columns = (
     defaultCurrency: string,
     fxSnapshot: FxSnapshot | undefined,
     roundAmount: (value: number) => number,
-    options: { showSpecifications?: boolean } = {},
+    options: { showSpecifications?: boolean; showSku?: boolean } = {},
 ) => {
     const showSpecifications = options.showSpecifications !== false
+    const showSku = options.showSku === true
     const definition = [
         columnHelper.accessor('name', {
             header: t('text.columns.product'),
             cell: (props) => {
                 const row = props.row.original
-                return <ProductColumn row={row} />
+                return <ProductColumn row={row} showSku={showSku} />
             },
         }),
         columnHelper.accessor('quantity', {
@@ -329,7 +330,9 @@ const OrderProducts = ({ data = [], orderCurrency, fxSnapshot }: OrderProductsPr
             defaultCurrency,
             fxSnapshot,
             roundAmount,
-            { showSpecifications: showProductSpecifications },
+            {
+                showSpecifications: showProductSpecifications,
+            },
         ),
         getCoreRowModel: getCoreRowModel(),
     })
