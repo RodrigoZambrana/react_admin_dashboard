@@ -237,7 +237,7 @@ const ProductColumn = ({ row }: { row: Product }) => {
             <div className="ltr:ml-2 rtl:mr-2">
                 <h6 className="mb-1 font-semibold">{row.name}</h6>
                 {detailKeys.map((key, i) => (
-                    <div key={key + i} className="mb-1 text-sm">
+                    <div key={key + i} className="mb-1 text-base">
                         <span className="capitalize text-gray-500 dark:text-gray-400">
                             {key}:{' '}
                         </span>
@@ -389,16 +389,25 @@ const ContentTable = ({
         [formatMeasurementValue],
     )
 
+    const renderHeaderLabel = useCallback(
+        (label: string) => (
+            <span className="text-base font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-100">
+                {label}
+            </span>
+        ),
+        [],
+    )
+
     const tableColumns = useMemo(() => {
         const productColumn = columnHelper.accessor('name', {
-            header: t('text.columns.product'),
+            header: () => renderHeaderLabel(t('text.columns.product')),
             cell: (props) => {
                 const row = props.row.original
                 return <ProductColumn row={row} />
             },
         })
         const quantityColumn = columnHelper.accessor('quantity', {
-            header: t('text.columns.quantity'),
+            header: () => renderHeaderLabel(t('text.columns.quantity')),
             cell: (props) => {
                 const row = props.row.original
                 const rawQuantity = resolveRawQuantity(row)
@@ -438,7 +447,7 @@ const ContentTable = ({
             },
         })
         const priceColumn = columnHelper.accessor('price', {
-            header: t('text.columns.price'),
+            header: () => renderHeaderLabel(t('text.columns.price')),
             cell: (props) => {
                 const row = props.row.original
                 const displayCurrency = summaryCurrency
@@ -452,7 +461,7 @@ const ContentTable = ({
             },
         })
         const commentsColumn = columnHelper.accessor('comments', {
-            header: t('text.columns.comments'),
+            header: () => renderHeaderLabel(t('text.columns.comments')),
             cell: (props) => {
                 const value = props.row.original.comments
                 const text =
@@ -471,7 +480,7 @@ const ContentTable = ({
         })
         const totalColumn = columnHelper.display({
             id: 'total',
-            header: t('text.columns.total'),
+            header: () => renderHeaderLabel(t('text.columns.total')),
             cell: (props) => {
                 const row = props.row.original
                 const displayCurrency = summaryCurrency
@@ -547,6 +556,7 @@ const ContentTable = ({
         formatAttributeValue,
         roundAmount,
         showSpecifications,
+        renderHeaderLabel,
         summaryCurrency,
         t,
         translateSpecKey,

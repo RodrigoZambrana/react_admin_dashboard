@@ -95,6 +95,7 @@ const SideNav = () => {
                                     ? SIDE_NAV_CONTENT_GUTTER
                                     : LOGO_X_GUTTER
                             }
+                            imgClass="mt-2"
                         />
                     </div>
                     {sideNavCollapse ? (

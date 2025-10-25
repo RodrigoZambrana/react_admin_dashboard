@@ -30,7 +30,7 @@ const Activity = ({ data = [] }: ActivityProps) => {
                     className={!isLastChild(data, i) ? 'mb-8' : ''}
                 >
                     <div className="mb-2 font-semibold uppercase opacity-80">
-                        {dayjs.unix(activity.date).format('dddd, DD MMMM')}
+                        {dayjs.unix(activity.date).format('DD/MM/YYYY')}
                     </div>
                     <Timeline>
                         {activity.events.map((event, j) => (

@@ -62,6 +62,7 @@ import { DEFAULT_SALES_UNIT, type SalesUnit } from '@/constants/product.constant
 import { calculateLineTotal, getDerivedUnitPrice, resolveSalesUnit } from '@/utils/salesUnitCalculation'
 import { createSalesDocumentRounder } from '@/utils/salesDocumentCalculations'
 import { sanitizeRichText } from '@/utils/security/inputGuards'
+import { createSalesItemLineId } from '../utils/itemIdentity'
 
 type Item = EditableItem
 
@@ -524,6 +525,131 @@ const OrderNew = ({
         return { qty: numeric, valid: true }
     }, [])
 
+    const ensureItemLineId = useCallback((item: Item): Item => {
+        if (typeof item.lineId === 'string' && item.lineId.length > 0) {
+            return item
+        }
+        return {
+            ...item,
+            lineId: createSalesItemLineId(item.productId),
+        }
+    }, [])
+
+    const normalizeMeasurementValue = useCallback((value: unknown): number | undefined => {
+        const numeric = Number(value)
+        if (!Number.isFinite(numeric)) {
+            return undefined
+        }
+        return Math.round(numeric * 1000) / 1000
+    }, [])
+
+    const buildMeasurementSignature = useCallback(
+        (item: Item): string | null => {
+            const unit = resolveSalesUnit(item.unitOfMeasure, item.pricingMethod)
+            const attrs = (item.customAttributes ?? {}) as Record<string, unknown>
+            if (unit === 'SQUARE_METER') {
+                const width = normalizeMeasurementValue(attrs.width)
+                const height = normalizeMeasurementValue(attrs.height)
+                if (width === undefined || height === undefined) {
+                    return null
+                }
+                return `${unit}:${width}x${height}`
+            }
+            if (unit === 'LINEAR_METER') {
+                const length = normalizeMeasurementValue(attrs.length)
+                if (length === undefined) {
+                    return null
+                }
+                return `${unit}:${length}`
+            }
+            return null
+        },
+        [normalizeMeasurementValue],
+    )
+
+    const normalizeItems = useCallback(
+        (items: Item[]): Item[] => {
+            if (!items.length) {
+                return []
+            }
+            const prepared = items.map(ensureItemLineId)
+            const merged: Item[] = []
+            const measurementMap = new Map<string, number>()
+
+            prepared.forEach((item) => {
+                const unit = resolveSalesUnit(item.unitOfMeasure, item.pricingMethod)
+                if (unit === 'UNIT') {
+                    merged.push(item)
+                    return
+                }
+                const signature = buildMeasurementSignature(item)
+                if (!signature) {
+                    merged.push(item)
+                    return
+                }
+                const key = `${item.productId}::${signature}`
+                const existingIndex = measurementMap.get(key)
+                if (existingIndex === undefined) {
+                    measurementMap.set(key, merged.length)
+                    merged.push(item)
+                    return
+                }
+                const existingItem = merged[existingIndex]
+                const nextQty =
+                    (Number(existingItem.qty) || 0) + (Number(item.qty) || 0)
+                const mergedItem: Item = {
+                    ...existingItem,
+                    qty: nextQty,
+                }
+                const nextPrice = roundCurrencyValue(getDerivedUnitPrice(mergedItem))
+                mergedItem.price = nextPrice
+                merged[existingIndex] = mergedItem
+            })
+
+            return merged
+        },
+        [buildMeasurementSignature, ensureItemLineId, roundCurrencyValue],
+    )
+
+    const updateItemsById = useCallback(
+        (items: Item[], itemId: string, updater: (item: Item) => Item): Item[] => {
+            let handled = false
+            return items.map((item) => {
+                if (handled) {
+                    return item
+                }
+                if (item.lineId && item.lineId === itemId) {
+                    handled = true
+                    return updater(item)
+                }
+                if (item.productId === itemId) {
+                    handled = true
+                    return updater(item)
+                }
+                return item
+            })
+        },
+        [],
+    )
+
+    const removeItemById = useCallback((items: Item[], itemId: string): Item[] => {
+        let removed = false
+        return items.filter((item) => {
+            if (removed) {
+                return true
+            }
+            if (item.lineId && item.lineId === itemId) {
+                removed = true
+                return false
+            }
+            if (item.productId === itemId) {
+                removed = true
+                return false
+            }
+            return true
+        })
+    }, [])
+
     const composeQuickBudgetMessage = useCallback(
         ({
             items,
@@ -909,7 +1035,11 @@ const OrderNew = ({
                                     snapshot,
                                 ),
                             )
-                            formik.setFieldValue('items', updatedItems, false)
+                            formik.setFieldValue(
+                                'items',
+                                normalizeItems(updatedItems as Item[]),
+                                false,
+                            )
                         }
                         const currentDeliveryFee = Number(
                             (formik.values as any)?.shipping?.deliveryFees ?? 0,
@@ -956,6 +1086,7 @@ const OrderNew = ({
         exchangeSnapshot,
         initialCustomerDetail,
         initialCustomerId,
+        normalizeItems,
         refreshExchangeRates,
         roundCurrencyValue,
         showPaymentMethodSelect,
@@ -1071,10 +1202,16 @@ const OrderNew = ({
         }),
         [defaultCurrency, defaultValidUntil],
     )
-    const formInitialValues = useMemo(
-        () => mergeDeep(defaultInitialValues, initialValues),
-        [defaultInitialValues, initialValues],
-    )
+    const formInitialValues = useMemo(() => {
+        const merged = mergeDeep(defaultInitialValues, initialValues) as SalesDocumentFormValues
+        const initialItems = Array.isArray(merged.items)
+            ? ((merged.items as unknown as Item[]) || []).filter(Boolean)
+            : []
+        return {
+            ...merged,
+            items: normalizeItems(initialItems),
+        }
+    }, [defaultInitialValues, initialValues, normalizeItems])
 
     useEffect(() => {
         if (!initialCustomerId) {
@@ -1592,8 +1729,20 @@ const OrderNew = ({
                         }
                         const p = option ?? products.find((x) => x.value === pid)
                         if (!p) return
-                        const exists = values.items.find((it) => it.productId === pid)
-                        if (exists) return
+                        const matchingItems = (values.items as Item[]).filter(
+                            (it) => it.productId === pid,
+                        )
+                        const prospectiveUnit = resolveSalesUnit(
+                            p.unitOfMeasure ?? DEFAULT_SALES_UNIT,
+                            p.unitOfMeasure ?? DEFAULT_SALES_UNIT,
+                        )
+                        const hasUnitDuplicate = matchingItems.some(
+                            (item) =>
+                                resolveSalesUnit(item.unitOfMeasure, item.pricingMethod) === 'UNIT',
+                        )
+                        if (prospectiveUnit === 'UNIT' && hasUnitDuplicate) {
+                            return
+                        }
                         const productCurrency =
                             normalizeCurrencyCode(p.currency, currencyBase) || currencyBase
                         const unitPrice = Number(p.price) || 0
@@ -1640,18 +1789,20 @@ const OrderNew = ({
                         const nextItem: Item = {
                             ...baseItem,
                             price: derivedPrice,
+                            lineId: createSalesItemLineId(pid),
                         }
-                        clearQuickMessage()
-                        setFieldValue('items', [...values.items, nextItem])
-                    }
-                    const removeItem = (pid: string) => {
                         clearQuickMessage()
                         setFieldValue(
                             'items',
-                            values.items.filter((it) => it.productId !== pid),
+                            normalizeItems([...(values.items as Item[]), nextItem]),
                         )
                     }
-                    const changeQty = (pid: string, qty: number) => {
+                    const removeItem = (itemId: string) => {
+                        clearQuickMessage()
+                        const remaining = removeItemById(values.items as Item[], itemId)
+                        setFieldValue('items', normalizeItems(remaining))
+                    }
+                    const changeQty = (itemId: string, qty: number) => {
                         clearQuickMessage()
                         const { qty: normalizedQty, valid } = ensurePositiveQuantity(qty)
                         if (!valid) {
@@ -1662,35 +1813,39 @@ const OrderNew = ({
                                 { placement: 'top-center' },
                             )
                         }
-                        setFieldValue(
-                            'items',
-                            values.items.map((it) =>
-                                it.productId === pid ? { ...it, qty: normalizedQty } : it,
-                            ),
+                        const updated = updateItemsById(
+                            values.items as Item[],
+                            itemId,
+                            (item) => {
+                                const next: Item = { ...item, qty: normalizedQty }
+                                const nextPrice = roundCurrencyValue(
+                                    getDerivedUnitPrice(next),
+                                )
+                                return { ...next, price: nextPrice }
+                            },
                         )
+                        setFieldValue('items', normalizeItems(updated))
                     }
-                    const changeComment = (pid: string, comments: string) => {
+                    const changeComment = (itemId: string, comments: string) => {
                         clearQuickMessage()
-                        setFieldValue(
-                            'items',
-                            values.items.map((it) =>
-                                it.productId === pid ? { ...it, comments } : it,
-                            ),
+                        const updated = updateItemsById(
+                            values.items as Item[],
+                            itemId,
+                            (item) => ({ ...item, comments }),
                         )
+                        setFieldValue('items', normalizeItems(updated))
                     }
                     const handleItemChange = (
-                        pid: string,
+                        itemId: string,
                         patch: Partial<Item>,
                     ) => {
                         clearQuickMessage()
-                        setFieldValue(
-                            'items',
-                            values.items.map((it: Item) => {
-                                if (it.productId !== pid) {
-                                    return it
-                                }
+                        const updated = updateItemsById(
+                            values.items as Item[],
+                            itemId,
+                            (item) => {
                                 const next: Item = {
-                                    ...it,
+                                    ...item,
                                     ...patch,
                                 }
                                 if (patch.customAttributes !== undefined) {
@@ -1723,8 +1878,9 @@ const OrderNew = ({
                                 )
                                 next.price = derivedPrice
                                 return next
-                            }),
+                            },
                         )
+                        setFieldValue('items', normalizeItems(updated))
                     }
 
                     const handleOrderCurrencySelect = async (option: unknown) => {
@@ -1793,12 +1949,15 @@ const OrderNew = ({
                         const convertedItems = values.items.map((item) =>
                             convertItemToCurrency(item, nextValue, snapshot),
                         )
+                        const normalizedConverted = normalizeItems(
+                            convertedItems as Item[],
+                        )
                         const convertedFee = Number.isFinite(attempt.deliveryResult.value)
                             ? roundCurrencyValue(attempt.deliveryResult.value)
                             : roundCurrencyValue(Number(values.shipping?.deliveryFees ?? 0))
                         setFieldValue('orderCurrency', nextValue)
                         clearQuickMessage()
-                        setFieldValue('items', convertedItems)
+                        setFieldValue('items', normalizedConverted)
                         setFieldValue('shipping.deliveryFees', convertedFee)
                     }
 

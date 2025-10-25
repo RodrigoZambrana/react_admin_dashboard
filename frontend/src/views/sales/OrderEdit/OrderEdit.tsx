@@ -24,6 +24,7 @@ import type { EditableItem } from '@/views/sales/components/EditableOrderProduct
 import type { FormikHelpers } from 'formik'
 import { parseValidityRecord } from '@/adapters/sales'
 import { createSalesDocumentRounder } from '@/utils/salesDocumentCalculations'
+import { createSalesItemLineId } from '../utils/itemIdentity'
 
 const ADDRESS_COUNTRY_FALLBACK = 'UY'
 
@@ -203,13 +204,27 @@ const parseBooleanLike = (value: unknown): boolean => {
     return Boolean(value)
 }
 
+const customerHasContactDetails = (detail: any | null | undefined): boolean => {
+    if (!detail || typeof detail !== 'object') {
+        return false
+    }
+    if (detail.email && String(detail.email).trim().length) {
+        return true
+    }
+    const phones = (detail as any)?.personalInfo?.phoneNumbers
+    if (Array.isArray(phones) && phones.some((phone) => typeof phone === 'string' && phone.trim())) {
+        return true
+    }
+    return false
+}
+
 const mapItemsToEditable = (
     items: any[],
     products: any[],
     orderCurrency: string,
     roundCurrencyValue: (value: number) => number,
 ): EditableItem[] => {
-    return items.map((item) => {
+    return items.map((item, index) => {
         const product = products.find((p) => String(p.id) === String(item.productId))
         const unitCurrency =
             normalizeCurrencyCode(item.unitCurrency, orderCurrency) ||
@@ -225,7 +240,28 @@ const mapItemsToEditable = (
             (typeof item.unitOfMeasure === 'string' && item.unitOfMeasure) ||
             (typeof product?.unitOfMeasure === 'string' && product.unitOfMeasure) ||
             DEFAULT_SALES_UNIT
+        const rawLineId =
+            typeof item.lineId === 'string' && item.lineId.length > 0
+                ? item.lineId
+                : undefined
+        const inferredLineId = (() => {
+            if (rawLineId) {
+                return rawLineId
+            }
+            const itemIdentifier = item.id
+            if (typeof itemIdentifier === 'string' && itemIdentifier.length > 0) {
+                return `${item.productId ?? 'item'}-${itemIdentifier}`
+            }
+            if (typeof itemIdentifier === 'number' && Number.isFinite(itemIdentifier)) {
+                return `${item.productId ?? 'item'}-${itemIdentifier}`
+            }
+            return null
+        })()
         const baseItem: EditableItem = {
+            lineId:
+                inferredLineId && inferredLineId.length > 0
+                    ? inferredLineId
+                    : createSalesItemLineId(String(item.productId ?? index)),
             productId: String(item.productId),
             name: item.name,
             qty: Number(item.qty) || 1,
@@ -265,12 +301,91 @@ const mapItemsToEditable = (
     })
 }
 
-const parseDateValue = (value: unknown): Date | null => {
-    if (value === null || value === undefined || value === '') {
+const unwrapPossibleJsonDate = (value: string): unknown => {
+    const trimmed = value.trim()
+    if (!trimmed.length) {
         return null
     }
-    const date = new Date(value as any)
-    return Number.isNaN(date.getTime()) ? null : date
+    const firstChar = trimmed[0]
+    const lastChar = trimmed[trimmed.length - 1]
+    if ((firstChar === '"' && lastChar === '"') || (firstChar === "'" && lastChar === "'")) {
+        try {
+            const parsed = JSON.parse(trimmed)
+            if (parsed !== value) {
+                return parsed
+            }
+        } catch {
+            return trimmed.slice(1, -1)
+        }
+    }
+    if (/^\d+$/.test(trimmed)) {
+        const numeric = Number(trimmed)
+        return Number.isNaN(numeric) ? trimmed : numeric
+    }
+    return trimmed
+}
+
+const parseDateValue = (value: unknown): Date | null => {
+    if (value === null || value === undefined) {
+        return null
+    }
+
+    if (value instanceof Date) {
+        const timestamp = value.getTime()
+        return Number.isNaN(timestamp) ? null : new Date(timestamp)
+    }
+
+    if (typeof value === 'number') {
+        const date = new Date(value)
+        return Number.isNaN(date.getTime()) ? null : date
+    }
+
+    if (typeof value === 'string') {
+        const unwrapped = unwrapPossibleJsonDate(value)
+        if (unwrapped === null) {
+            return null
+        }
+
+        if (unwrapped instanceof Date) {
+            const timestamp = unwrapped.getTime()
+            return Number.isNaN(timestamp) ? null : new Date(timestamp)
+        }
+
+        if (typeof unwrapped === 'number') {
+            const numericDate = new Date(unwrapped)
+            return Number.isNaN(numericDate.getTime()) ? null : numericDate
+        }
+
+        const trimmed = typeof unwrapped === 'string' ? unwrapped.trim() : String(unwrapped)
+        if (!trimmed.length) {
+            return null
+        }
+
+        const isoDateOnlyMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+        if (isoDateOnlyMatch) {
+            const [, year, month, day] = isoDateOnlyMatch
+            const y = Number(year)
+            const m = Number(month) - 1
+            const d = Number(day)
+            const date = new Date(y, m, d, 0, 0, 0, 0)
+            return Number.isNaN(date.getTime()) ? null : date
+        }
+
+        const slashDateMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+        if (slashDateMatch) {
+            const [, day, month, year] = slashDateMatch
+            const y = Number(year)
+            const m = Number(month) - 1
+            const d = Number(day)
+            const date = new Date(y, m, d, 0, 0, 0, 0)
+            return Number.isNaN(date.getTime()) ? null : date
+        }
+
+        const date = new Date(trimmed)
+        return Number.isNaN(date.getTime()) ? null : date
+    }
+
+    return null
 }
 
 const OrderEdit = () => {
@@ -398,15 +513,44 @@ const OrderEdit = () => {
                 )
 
                 const validitySource = parseValidityRecord(orderData?.validity)
+                const rawDocumentDate =
+                    orderData?.date ??
+                    orderData?.documentDate ??
+                    orderData?.document_date ??
+                    orderData?.createdAt ??
+                    orderData?.created_at ??
+                    orderData?.createdDate ??
+                    orderData?.created_date ??
+                    (orderData as any)?.created ??
+                    null
                 const rawValidUntil =
                     orderData?.validUntil ??
                     orderData?.valid_until ??
-                    (validitySource?.validUntil ?? validitySource?.valid_until)
+                    orderData?.validUntilDate ??
+                    orderData?.valid_until_at ??
+                    orderData?.validityDate ??
+                    orderData?.validity_date ??
+                    (validitySource?.validUntil ??
+                        validitySource?.valid_until ??
+                        validitySource?.validUntilDate ??
+                        validitySource?.valid_until_at ??
+                        validitySource?.validityDate ??
+                        validitySource?.validity_date)
+
+                const resolvedCustomerIdRaw =
+                    orderData?.customerId ?? (orderData?.customer as any)?.id ?? null
+                const resolvedCustomerId =
+                    resolvedCustomerIdRaw !== null && resolvedCustomerIdRaw !== undefined
+                        ? String(resolvedCustomerIdRaw)
+                        : ''
+
+                const parsedDocumentDate = parseDateValue(rawDocumentDate)
+                const parsedValidUntil = parseDateValue(rawValidUntil)
 
                 const formValues: SalesDocumentFormValues = {
-                    customerId: orderData?.customerId ? String(orderData.customerId) : '',
-                    date: parseDateValue(orderData?.date) ?? new Date(),
-                    validUntil: parseDateValue(rawValidUntil),
+                    customerId: resolvedCustomerId,
+                    date: parsedDocumentDate,
+                    validUntil: parsedValidUntil,
                     paymentMehod: (() => {
                         if (typeof orderData?.paymentMehod === 'string') {
                             return orderData.paymentMehod
@@ -468,18 +612,27 @@ const OrderEdit = () => {
                     typeof orderData?.disclaimer === 'string' ? orderData.disclaimer : null,
                 )
 
-                if (orderData?.customerId) {
-                    try {
-                        const detailRes = await apiGetCustomerDetails<any, { id: string }>({
-                            id: String(orderData.customerId),
-                        })
-                        if (active) {
-                            const detail = (detailRes as any)?.data ?? (detailRes as any)
-                            setInitialCustomerDetail(detail)
-                        }
-                    } catch {
-                        if (active) {
-                            setInitialCustomerDetail(null)
+                if (resolvedCustomerId) {
+                    const fallbackDetail = (orderData?.customer as any) ?? null
+                    const needsDetailedFetch = !customerHasContactDetails(fallbackDetail)
+
+                    if (fallbackDetail && active) {
+                        setInitialCustomerDetail(fallbackDetail)
+                    }
+
+                    if (needsDetailedFetch) {
+                        try {
+                            const detailRes = await apiGetCustomerDetails<any, { id: string }>({
+                                id: resolvedCustomerId,
+                            })
+                            if (active) {
+                                const detail = (detailRes as any)?.data ?? (detailRes as any)
+                                setInitialCustomerDetail(detail)
+                            }
+                        } catch {
+                            if (!fallbackDetail && active) {
+                                setInitialCustomerDetail(null)
+                            }
                         }
                     }
                 } else {
