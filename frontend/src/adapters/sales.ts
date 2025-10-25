@@ -38,12 +38,16 @@ const translateCorner = (corner: string) => {
     return ''
   }
   const locale = (i18n.language || '').toLowerCase()
+  const translationOptions = {
+    corner,
+    defaultValue: `esquina ${corner}`,
+  }
   if (locale.startsWith('es')) {
-    return `esquina ${corner}`
+    return i18n.t('text.labels.cornerFormat', translationOptions)
   }
   return i18n.t('text.labels.cornerFormat', {
-    defaultValue: `Corner ${corner}`,
-    corner,
+    ...translationOptions,
+    lng: 'es',
   })
 }
 
