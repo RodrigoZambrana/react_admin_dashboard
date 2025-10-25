@@ -20,15 +20,15 @@ type SalesReportProps = {
 
 const SalesReport = ({ className, data = {} }: SalesReportProps) => {
     const { t, i18n } = useTranslation()
-    const dateRangePreset = useAppSelector(
-        (state) => state.salesDashboard.data.dateRangePreset,
+    const fallbackStart = useMemo(
+        () => dayjs().startOf('month').unix(),
+        [],
     )
-    const startDate = useAppSelector(
-        (state) => state.salesDashboard.data.startDate,
-    )
-    const endDate = useAppSelector(
-        (state) => state.salesDashboard.data.endDate,
-    )
+    const fallbackEnd = useMemo(() => dayjs().endOf('month').unix(), [])
+    const slice = useAppSelector((state) => state.salesDashboard?.data)
+    const dateRangePreset = slice?.dateRangePreset ?? 'thisMonth'
+    const startDate = slice?.startDate ?? fallbackStart
+    const endDate = slice?.endDate ?? fallbackEnd
 
     const formatYAxisLabel = useCallback(
         (value: number | string) => {

@@ -11,11 +11,11 @@ import { useAppDispatch } from '@/store'
 const SalesDashboardBody = () => {
     const dispatch = useAppDispatch()
 
-    const dashboardData = useAppSelector(
-        (state) => state.salesDashboard.data.dashboardData,
+    const dashboardSlice = useAppSelector(
+        (state) => state.salesDashboard?.data,
     )
-
-    const loading = useAppSelector((state) => state.salesDashboard.data.loading)
+    const dashboardData = dashboardSlice?.dashboardData
+    const loading = dashboardSlice?.loading ?? false
 
     useEffect(() => {
         fetchData()

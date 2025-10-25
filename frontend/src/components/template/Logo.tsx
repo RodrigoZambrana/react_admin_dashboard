@@ -3,6 +3,7 @@ import classNames from 'classnames'
 import { Link } from 'react-router-dom'
 import { APP_NAME } from '@/constants/app.constant'
 import { apiGetCompanyProfile } from '@/services/SettingsService'
+import store from '@/store'
 import type { CommonProps } from '@/@types/common'
 
 interface LogoProps extends CommonProps {
@@ -51,6 +52,14 @@ const fetchCompanyLogo = async (): Promise<string | null> => {
     }
     if (pendingLogoRequest) {
         return pendingLogoRequest
+    }
+    const token =
+        store.getState()?.auth?.session?.token ??
+        null
+    if (!token) {
+        cachedCompanyLogo = null
+        dispatchLogoEvent(cachedCompanyLogo)
+        return null
     }
     pendingLogoRequest = apiGetCompanyProfile<{ logo?: string | null }>()
         .then((response) => {
