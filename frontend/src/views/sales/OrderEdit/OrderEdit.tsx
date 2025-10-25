@@ -403,8 +403,15 @@ const OrderEdit = () => {
                     orderData?.valid_until ??
                     (validitySource?.validUntil ?? validitySource?.valid_until)
 
+                const resolvedCustomerIdRaw =
+                    orderData?.customerId ?? (orderData?.customer as any)?.id ?? null
+                const resolvedCustomerId =
+                    resolvedCustomerIdRaw !== null && resolvedCustomerIdRaw !== undefined
+                        ? String(resolvedCustomerIdRaw)
+                        : ''
+
                 const formValues: SalesDocumentFormValues = {
-                    customerId: orderData?.customerId ? String(orderData.customerId) : '',
+                    customerId: resolvedCustomerId,
                     date: parseDateValue(orderData?.date) ?? new Date(),
                     validUntil: parseDateValue(rawValidUntil),
                     paymentMehod: (() => {
@@ -468,18 +475,25 @@ const OrderEdit = () => {
                     typeof orderData?.disclaimer === 'string' ? orderData.disclaimer : null,
                 )
 
-                if (orderData?.customerId) {
-                    try {
-                        const detailRes = await apiGetCustomerDetails<any, { id: string }>({
-                            id: String(orderData.customerId),
-                        })
+                if (resolvedCustomerId) {
+                    const fallbackDetail = (orderData?.customer as any) ?? null
+                    if (fallbackDetail) {
                         if (active) {
-                            const detail = (detailRes as any)?.data ?? (detailRes as any)
-                            setInitialCustomerDetail(detail)
+                            setInitialCustomerDetail(fallbackDetail)
                         }
-                    } catch {
-                        if (active) {
-                            setInitialCustomerDetail(null)
+                    } else {
+                        try {
+                            const detailRes = await apiGetCustomerDetails<any, { id: string }>({
+                                id: resolvedCustomerId,
+                            })
+                            if (active) {
+                                const detail = (detailRes as any)?.data ?? (detailRes as any)
+                                setInitialCustomerDetail(detail)
+                            }
+                        } catch {
+                            if (active) {
+                                setInitialCustomerDetail(null)
+                            }
                         }
                     }
                 } else {
