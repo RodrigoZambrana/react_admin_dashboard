@@ -136,6 +136,24 @@ const normalizeSpecText = (value: string) =>
         .replace(/\s+/g, ' ')
         .trim()
 
+const sanitizeSpecEntry = (value: string) => {
+    const lines = value
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+    const filtered = lines.filter((line) => {
+        const normalized = normalizeSpecText(line)
+        if (!normalized) {
+            return false
+        }
+        if (/^(especificaciones(?: del)? producto|product specifications?)/.test(normalized)) {
+            return false
+        }
+        return true
+    })
+    return filtered.join('\n')
+}
+
 const resolveSpecifications = (
     row: Product,
     options?: {
@@ -153,12 +171,16 @@ const resolveSpecifications = (
         if (!trimmed) {
             return
         }
-        const normalized = normalizeSpecText(trimmed)
+        const sanitized = sanitizeSpecEntry(trimmed)
+        if (!sanitized) {
+            return
+        }
+        const normalized = normalizeSpecText(sanitized)
         if (seen.has(normalized)) {
             return
         }
         seen.add(normalized)
-        parts.push(trimmed)
+        parts.push(sanitized)
     }
     if (typeof row.specSummary === 'string') {
         pushUnique(row.specSummary)
