@@ -1664,24 +1664,6 @@ const OrderNew = ({
                     const paymentMethodLabel =
                         methods.find((m) => m.value === values.paymentMehod)?.label ||
                         t('text.labels.notSelected', { defaultValue: 'Not selected' })
-                    const shippingVendorRaw =
-                        (values.shipping?.shippingVendor as string | undefined) || ''
-                    const trimmedShippingVendor = shippingVendorRaw.trim()
-                    const hasShippingVendor = Boolean(trimmedShippingVendor)
-                    const shippingVendorLabel = hasShippingVendor
-                        ? trimmedShippingVendor
-                        : t('text.labels.notSelected', { defaultValue: 'Not selected' })
-                    const estimatedMin = Number(values.shipping?.estimatedMin ?? 0)
-                    const estimatedMax = Number(values.shipping?.estimatedMax ?? 0)
-                    const daysLabel = docSummary('days', 'days')
-                    const estimatedRange =
-                        estimatedMin || estimatedMax
-                            ? estimatedMin && estimatedMax
-                                ? estimatedMin === estimatedMax
-                                    ? `${estimatedMin} ${daysLabel}`
-                                    : `${estimatedMin}-${estimatedMax} ${daysLabel}`
-                                : `${estimatedMin || estimatedMax} ${daysLabel}`
-                            : docSummary('notAvailable', 'Not available')
                     const customerOption = customers.find(
                         (opt) => opt.value === values.customerId,
                     )
@@ -2187,12 +2169,15 @@ const OrderNew = ({
                     const itemsReady =
                         hasItems && itemsHavePositiveQuantities && itemsHaveRequiredMeasurements
                     const stepUnlocks = itemsOnlyMode
-                        ? [true, true, true, true]
+                        ? [true, true, true, true, true]
                         : [
                               true,
                               customerRequired
                                   ? customerStepSatisfied && addressesComplete
                                   : true,
+                              customerRequired
+                                  ? customerStepSatisfied && itemsReady && addressesComplete
+                                  : itemsReady,
                               customerRequired
                                   ? customerStepSatisfied && itemsReady && addressesComplete
                                   : itemsReady,
@@ -2269,7 +2254,7 @@ const OrderNew = ({
                             ensureMeasurementsFilled(selectedItems)
                             return
                         }
-                        setCurrentStep((c) => Math.min(c + 1, 3))
+                        setCurrentStep((c) => Math.min(c + 1, 4))
                     }
                     const goPrev = () => {
                         if (itemsOnlyMode) {
@@ -2393,6 +2378,12 @@ const OrderNew = ({
                                             />
                                             <Steps.Item
                                                 title={t('text.titles.products')}
+                                            />
+                                            <Steps.Item
+                                                title={docSummary(
+                                                    'notesAndScheduling',
+                                                    'Notes & scheduling',
+                                                )}
                                             />
                                             <Steps.Item
                                                 title={t('text.titles.shipping')}
@@ -2900,6 +2891,11 @@ const OrderNew = ({
 
 
                             {currentStep === 2 && (
+                                <div className="flex flex-col gap-6">
+                                </div>
+                            )}
+
+                            {currentStep === 3 && (
                                 <Card bodyClass="p-5">
                                     <h4 className="mb-4">{t('text.titles.shipping')}</h4>
                                     <FormContainer>
@@ -3022,7 +3018,7 @@ const OrderNew = ({
                                 </Card>
                             )}
 
-                            {currentStep === 3 && (
+                            {currentStep === 4 && (
                                 <div className="flex flex-col gap-6">
                                     <div className="grid gap-4 xl:grid-cols-2">
                                         <Card bodyClass="p-5">
@@ -3095,7 +3091,7 @@ const OrderNew = ({
                                                             key={label as string}
                                                             className="flex items-center justify-between gap-4"
                                                         >
-                                                            <span className="text-gray-500 dark:text-gray-400">
+                                                            <span className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                                 {label}
                                                             </span>
                                                             <span className="font-medium text-right">
@@ -3107,39 +3103,6 @@ const OrderNew = ({
                                             </div>
                                         </Card>
                                         <div className="flex flex-col gap-4">
-                                            {hasShippingVendor && (
-                                                <Card bodyClass="p-5">
-                                                    <h4 className="mb-4">
-                                                        {docSummary('shippingDetails', 'Shipping details')}
-                                                    </h4>
-                                                    <div className="space-y-2 text-sm">
-                                                        <div className="flex items-center justify-between gap-4">
-                                                            <span className="text-gray-500 dark:text-gray-400">
-                                                                {t('text.labels.vendor')}
-                                                            </span>
-                                                            <span className="font-medium text-right">
-                                                                {shippingVendorLabel}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center justify-between gap-4">
-                                                            <span className="text-gray-500 dark:text-gray-400">
-                                                                {docSummary('estimatedDelivery', 'Estimated delivery')}
-                                                            </span>
-                                                            <span className="font-medium text-right">
-                                                                {estimatedRange}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center justify-between gap-4">
-                                                            <span className="text-gray-500 dark:text-gray-400">
-                                                                {t('text.labels.deliveryFee')}
-                                                            </span>
-                                                            <span className="font-medium text-right">
-                                                                {formattedDeliveryFee}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </Card>
-                                            )}
                                             <Card bodyClass="p-5">
                                                 <h4 className="mb-4">
                                                     {t('text.columns.customer')}
@@ -3196,77 +3159,6 @@ const OrderNew = ({
                                             )}
                                         </Card>
                                     </div>
-                                    <Card bodyClass="p-5">
-                                        <h4 className="mb-4">
-                                            {docSummary('notesAndScheduling', 'Notes & scheduling')}
-                                        </h4>
-                                        <FormContainer>
-                                            <FormItem label={t('text.columns.comments')}>
-                                                <Field
-                                                    as={Input}
-                                                    name="comment"
-                                                    textArea
-                                                    rows={4}
-                                                    dir={resolveTextDirection(values.comment)}
-                                                />
-                                            </FormItem>
-                                            <FormItem
-                                                label={t('text.labels.date')}
-                                                invalid={Boolean(getIn(touched, 'date') && getIn(errors, 'date'))}
-                                                errorMessage={getIn(errors, 'date') as string}
-                                            >
-                                                <DatePicker
-                                                    value={values.date as any}
-                                                    onChange={(val) => {
-                                                        setFieldValue('date', val)
-                                                        setFieldTouched('date', true, false)
-                                                    }}
-                                                />
-                                            </FormItem>
-                                            {mode === 'budget' && (
-                                                <FormItem
-                                                    label={docMessage(
-                                                        'validUntilLabel',
-                                                        'sales.orders.validUntilLabel',
-                                                        'Valid until',
-                                                    )}
-                                                    invalid={Boolean(
-                                                        getIn(touched, 'validUntil') &&
-                                                            getIn(errors, 'validUntil'),
-                                                    )}
-                                                    errorMessage={getIn(errors, 'validUntil') as string}
-                                                >
-                                                    <DatePicker
-                                                        value={values.validUntil as any}
-                                                        onChange={(val) => {
-                                                            setFieldValue('validUntil', val)
-                                                            setFieldTouched('validUntil', true, false)
-                                                        }}
-                                                    />
-                                                </FormItem>
-                                            )}
-                                        </FormContainer>
-                                    </Card>
-                                    {showDisclaimerCard && (
-                                        <Card bodyClass="p-5">
-                                            <h4 className="mb-4">{disclaimerLabel}</h4>
-                                            {disclaimerLoading ? (
-                                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                    {t('text.status.loading', {
-                                                        defaultValue: 'Loading...',
-                                                    })}
-                                                </div>
-                                            ) : (
-                                                <div
-                                                    className="text-sm text-gray-700 dark:text-gray-200"
-                                                    dir={disclaimerDirection}
-                                                    dangerouslySetInnerHTML={{
-                                                        __html: documentDisclaimer,
-                                                    }}
-                                                />
-                                            )}
-                                        </Card>
-                                    )}
                                 </div>
                             )}
 
@@ -3296,7 +3188,7 @@ const OrderNew = ({
                                         <Button type="button" disabled={currentStep === 0} onClick={goPrev}>
                                             {t('text.actions.back')}
                                         </Button>
-                                        {currentStep < 3 && (
+                                        {currentStep < 4 && (
                                             <Button
                                                 type="button"
                                                 variant="solid"
@@ -3314,7 +3206,7 @@ const OrderNew = ({
                                                 {t('text.actions.next')}
                                             </Button>
                                         )}
-                                        {currentStep === 3 && (
+                                        {currentStep === 4 && (
                                             <Button variant="solid" type="submit">
                                                 {t('text.actions.save')}
                                             </Button>
