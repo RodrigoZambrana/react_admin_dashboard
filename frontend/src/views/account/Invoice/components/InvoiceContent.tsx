@@ -533,10 +533,6 @@ const mapCompanyProfileToDetails = (
         .map((line) => ensureValue(line))
         .filter((line) => line.length > 0)
 
-    const resolvedAddress = addressEntries.length
-        ? addressEntries
-        : [...DEFAULT_COMPANY_DETAILS.address]
-
     return {
         legalName: ensureValue(profile.legalName, DEFAULT_COMPANY_DETAILS.legalName),
         tradeName: ensureValue(profile.tradeName, DEFAULT_COMPANY_DETAILS.tradeName),
@@ -544,7 +540,7 @@ const mapCompanyProfileToDetails = (
         email: optionalValue(profile.email),
         phone: optionalValue(profile.phone),
         website: optionalValue(profile.website),
-        address: resolvedAddress,
+        address: addressEntries,
         logo: optionalValue(profile.logo),
     }
 }

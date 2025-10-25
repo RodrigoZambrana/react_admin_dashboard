@@ -32,8 +32,16 @@ type PricingFieldsProps = {
     currencyOptions: { value: CurrencyCode; label: string }[]
 }
 
-const PriceInput = (props: InputProps) => {
-    return <Input {...props} value={props.field.value ?? ''} />
+type PriceInputProps = InputProps & {
+    field?: FieldInputProps<unknown>
+}
+
+const PriceInput = ({ field, value, ...rest }: PriceInputProps) => {
+    const resolvedValue =
+        field && field.value !== undefined && field.value !== null
+            ? (field.value as string | number)
+            : value ?? ''
+    return <Input {...rest} value={resolvedValue} />
 }
 
 const NumericFormatInput = ({
