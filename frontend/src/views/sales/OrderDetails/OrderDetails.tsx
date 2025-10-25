@@ -29,7 +29,7 @@ type SalesOrderDetailsResponse = {
     progressStatus?: number
     payementStatus?: number
     dateTime?: number
-    validUntil?: number
+    validUntilDate?: number
     paymentSummary?: {
         subTotal: number
         tax: number
@@ -299,13 +299,13 @@ const OrderDetails = () => {
                                                 .format('ddd DD-MMM-YYYY, hh:mm A')}
                                         </span>
                                     </span>
-                                    {data.validUntil ? (
+                                    {data.validUntilDate ? (
                                         <span className="flex items-center">
                                             <HiOutlineDocumentText className="text-lg" />
                                             <span className="ltr:ml-1 rtl:mr-1">
                                                 {validUntilLabel}:{' '}
                                                 {dayjs
-                                                    .unix(data.validUntil)
+                                                    .unix(data.validUntilDate)
                                                     .format('ddd DD-MMM-YYYY')}
                                             </span>
                                         </span>

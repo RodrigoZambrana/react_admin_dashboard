@@ -41,13 +41,13 @@ type Order = {
     paymentIdendifier: string
     totalAmount: number
     orderCurrency?: string
-    validUntil?: number | string | null
+    validUntilDate?: number | string | null
 }
 
 const sortKeyMap: Record<string, string> = {
     id: 'id',
     date: 'date',
-    validUntil: 'validUntil',
+    validUntilDate: 'validUntilDate',
     customer: 'customer',
     status: 'status',
     paymentMehod: 'paymentMehod', // 👈 tal cual back
@@ -372,10 +372,10 @@ const OrdersTable = () => {
             })
             baseColumns.splice(2, 0, {
                 header: validUntilHeader,
-                accessorKey: 'validUntil',
+                accessorKey: 'validUntilDate',
                 cell: (props) => {
                     const row = props.row.original
-                    const raw = row.validUntil ?? (row as any)?.valid_until ?? null
+                    const raw = row.validUntilDate ?? (row as any)?.valid_until ?? null
                     if (!raw) {
                         return <span>—</span>
                     }

@@ -172,7 +172,7 @@ const OrderNew = () => {
                   })),
         [shippingOptions],
     )
-    const defaultValidUntil = useMemo<Date | null>(() => {
+    const defaultValidUntilDate = useMemo<Date | null>(() => {
         if (mode !== 'budget') {
             return null
         }
@@ -785,7 +785,7 @@ const OrderNew = () => {
                 initialValues={{
                     customerId: '',
                     date: new Date(),
-                    validUntil: defaultValidUntil,
+                    validUntilDate: defaultValidUntilDate,
                     paymentMehod: 'Cash',
                     orderCurrency: defaultCurrency,
                     items: [] as Item[],
@@ -825,7 +825,7 @@ const OrderNew = () => {
                     date: Yup.date()
                         .typeError(t('text.validation.invalidDate'))
                         .required(t('text.validation.dateRequired')),
-                    validUntil: Yup.date()
+                    validUntilDate: Yup.date()
                         .nullable()
                         .typeError(t('text.validation.invalidDate')),
                     paymentMehod: showPaymentMethodSelect
@@ -957,8 +957,8 @@ const OrderNew = () => {
                         customerId: values.customerId ? String(values.customerId) : undefined,
                         // Backend expects ISO 8601 date string (IsDateString)
                         date: values.date ? new Date(values.date as any).toISOString() : undefined,
-                        validUntil: values.validUntil
-                            ? new Date(values.validUntil as any).toISOString()
+                        validUntilDate: values.validUntilDate
+                            ? new Date(values.validUntilDate as any).toISOString()
                             : undefined,
                         paymentMehod: String(values.paymentMehod || 'Cash'),
                         orderCurrency: orderCurrencyValue,
@@ -2520,8 +2520,8 @@ const OrderNew = () => {
                                                                 'sales.orders.validUntilLabel',
                                                                 'Valid until',
                                                             ),
-                                                            value: values.validUntil
-                                                                ? dayjs(values.validUntil as any).format(
+                                                            value: values.validUntilDate
+                                                                ? dayjs(values.validUntilDate as any).format(
                                                                       'DD/MM/YYYY',
                                                                   )
                                                                 : docSummary('notAvailable', 'Not available'),
@@ -2679,16 +2679,16 @@ const OrderNew = () => {
                                             <FormItem
                                                 label={docMessage('validUntilLabel', 'sales.orders.validUntilLabel', 'Valid until')}
                                                 invalid={Boolean(
-                                                    getIn(touched, 'validUntil') &&
-                                                        getIn(errors, 'validUntil'),
+                                                    getIn(touched, 'validUntilDate') &&
+                                                        getIn(errors, 'validUntilDate'),
                                                 )}
-                                                errorMessage={getIn(errors, 'validUntil') as string}
+                                                errorMessage={getIn(errors, 'validUntilDate') as string}
                                             >
                                                 <DatePicker
-                                                    value={values.validUntil as any}
+                                                    value={values.validUntilDate as any}
                                                     onChange={(val) => {
-                                                        setFieldValue('validUntil', val)
-                                                        setFieldTouched('validUntil', true, false)
+                                                        setFieldValue('validUntilDate', val)
+                                                        setFieldTouched('validUntilDate', true, false)
                                                     }}
                                                 />
                                             </FormItem>

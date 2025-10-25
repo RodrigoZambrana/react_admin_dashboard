@@ -129,7 +129,7 @@ const OrderEdit = () => {
                 id: data.id,
                 customerId: String(data.customerId || ''),
                 date: data.date ? new Date(data.date) : new Date(),
-                validUntil: data.validUntil ? new Date(data.validUntil) : null,
+                validUntilDate: data.validUntilDate ? new Date(data.validUntilDate) : null,
                 paymentMehod: String(data.paymentMehod || 'Cash'),
                 items: (data.items || []).map((it: any) => {
                     const p = pArray.find((x: any) => String(x.id) === String(it.productId))
@@ -235,8 +235,8 @@ const OrderEdit = () => {
                     ...values,
                     customer: customers.find((c) => c.value === values.customerId)?.label || '',
                     date: values.date ? new Date(values.date as any).toISOString() : undefined,
-                    validUntil: values.validUntil
-                        ? new Date(values.validUntil as any).toISOString()
+                    validUntilDate: values.validUntilDate
+                        ? new Date(values.validUntilDate as any).toISOString()
                         : undefined,
                     orderCurrency: normalizedOrderCurrency,
                     items: values.items.map((it: Item) => {
@@ -706,12 +706,12 @@ const OrderEdit = () => {
                                         </FormItem>
                                         <FormItem
                                             label={docMessage('validUntilLabel', 'sales.orders.validUntilLabel', 'Valid until')}
-                                            invalid={Boolean((touched as any).validUntil && (errors as any).validUntil)}
-                                            errorMessage={(errors as any).validUntil as any}
+                                            invalid={Boolean((touched as any).validUntilDate && (errors as any).validUntilDate)}
+                                            errorMessage={(errors as any).validUntilDate as any}
                                         >
                                             <DatePicker
-                                                value={values.validUntil as any}
-                                                onChange={(val) => setFieldValue('validUntil', val)}
+                                                value={values.validUntilDate as any}
+                                                onChange={(val) => setFieldValue('validUntilDate', val)}
                                             />
                                         </FormItem>
                                     </FormContainer>

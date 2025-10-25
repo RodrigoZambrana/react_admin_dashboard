@@ -145,7 +145,7 @@ export class CreateOrderDto {
 
   @IsOptional()
   @IsDateString()
-  validUntil?: string
+  validUntilDate?: string
 
   @IsArray()
   @ValidateNested({ each: true })
