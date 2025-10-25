@@ -250,7 +250,7 @@ const ContentTable = ({
         [i18n.language, preferredCurrency, summaryCurrency],
     )
 
-    const showSpecifications = resource === 'budgets'
+    const showSpecifications = resource !== 'budgets'
 
     const translateSpecKey = useCallback(
         (key: string) => {

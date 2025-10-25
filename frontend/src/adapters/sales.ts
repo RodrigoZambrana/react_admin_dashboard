@@ -12,12 +12,90 @@ export type FxSnapshot = {
   rates: Record<string, number>
   generatedAt?: string
 }
-export function toUnixSeconds(date: any): number {
+
+export type ValidityRecord = {
+  validUntil?: unknown
+  valid_until?: unknown
+  [key: string]: unknown
+}
+
+export const parseValidityRecord = (
+  value: unknown,
+): ValidityRecord | undefined => {
+  if (value === null || value === undefined) {
+    return undefined
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return undefined
+    }
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as ValidityRecord
+      }
+    } catch {
+      return undefined
+    }
+    return undefined
+  }
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return value as ValidityRecord
+  }
+  return undefined
+}
+export function toUnixSeconds(date: any): number | undefined {
+  if (date === null || date === undefined) {
+    return undefined
+  }
+
+  const normalizeNumber = (value: number) => {
+    if (!Number.isFinite(value)) {
+      return undefined
+    }
+    // Values greater than millisecond precision thresholds are assumed
+    // to represent millisecond timestamps.
+    if (value > 1e12) {
+      return Math.floor(value / 1000)
+    }
+    if (value > 0) {
+      return Math.floor(value)
+    }
+    return undefined
+  }
+
+  if (typeof date === 'number') {
+    return normalizeNumber(date)
+  }
+
+  if (typeof date === 'string') {
+    const trimmed = date.trim()
+    if (!trimmed) {
+      return undefined
+    }
+    const numeric = Number(trimmed)
+    if (!Number.isNaN(numeric)) {
+      const normalized = normalizeNumber(numeric)
+      if (normalized !== undefined) {
+        return normalized
+      }
+    }
+    const parsed = Date.parse(trimmed)
+    if (!Number.isNaN(parsed)) {
+      return normalizeNumber(parsed)
+    }
+    return undefined
+  }
+
+  if (date instanceof Date) {
+    return normalizeNumber(date.getTime())
+  }
+
   try {
-    const d = date ? new Date(date) : new Date()
-    return Math.floor(d.getTime() / 1000)
+    return normalizeNumber(new Date(date).getTime())
   } catch {
-    return Math.floor(Date.now() / 1000)
+    return undefined
   }
 }
 
@@ -117,7 +195,14 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
 export function adaptOrderToDetailsView(o: any) {
   if (!o) return {}
   const dateTime = toUnixSeconds(o.date)
-  const validUntilDate = o.validUntilDate ? toUnixSeconds(o.validUntilDate) : undefined
+  const validitySource = parseValidityRecord(o?.validity)
+  const rawValidUntil =
+    o.validUntil ??
+    o.valid_until ??
+    (validitySource
+      ? validitySource.validUntil ?? validitySource.valid_until
+      : undefined)
+  const validUntil = toUnixSeconds(rawValidUntil)
   const shipping = {
     deliveryFees: Number(o.deliveryFees || 0),
     estimatedMin: Number(o.estimatedMin || 0),
@@ -288,7 +373,7 @@ export function adaptOrderToDetailsView(o: any) {
     progressStatus: o.statusId || 0,
     payementStatus,
     dateTime,
-    validUntilDate,
+    validUntil,
     paymentSummary,
     shipping,
     product,
