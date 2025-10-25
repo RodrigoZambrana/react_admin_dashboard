@@ -1,5 +1,6 @@
 /* eslint-disable  @typescript-eslint/no-explicit-any */
 import { normalizeCurrencyCode } from '@/utils/currency'
+import i18n from '@/locales'
 import {
   calculateLineTotal,
   getDerivedUnitPrice,
@@ -19,6 +20,56 @@ export function toUnixSeconds(date: any): number {
   } catch {
     return Math.floor(Date.now() / 1000)
   }
+}
+
+const normalizeCornerValue = (value?: string) => {
+  if (!value) {
+    return ''
+  }
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return ''
+  }
+  return trimmed.replace(/^(?:corner|esquina)[:\s]*/i, '').trim()
+}
+
+const translateCorner = (corner: string) => {
+  if (!corner) {
+    return ''
+  }
+  const locale = (i18n.language || '').toLowerCase()
+  const translationOptions = {
+    corner,
+    defaultValue: `esquina ${corner}`,
+  }
+  if (locale.startsWith('es')) {
+    return i18n.t('text.labels.cornerFormat', translationOptions)
+  }
+  return i18n.t('text.labels.cornerFormat', {
+    ...translationOptions,
+    lng: 'es',
+  })
+}
+
+const stripCornerLine = (value?: string, normalizedCorner?: string) => {
+  if (!value) {
+    return ''
+  }
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return ''
+  }
+  const normalized = trimmed.replace(/^(?:corner|esquina)[:\s]*/i, '').trim()
+  if (!normalized) {
+    return ''
+  }
+  if (
+    normalizedCorner &&
+    normalizedCorner.localeCompare(normalized, undefined, { sensitivity: 'accent' }) === 0
+  ) {
+    return ''
+  }
+  return trimmed
 }
 
 export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
@@ -44,7 +95,14 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
       {}) as Record<string, unknown>
   const nestedValues = (...keys: string[]) => keys.map((key) => nestedAddress[key])
 
-  const nestedLine1 = (() => {
+  const rawCorner = getFirstNonEmpty(
+    ...nestedValues('corner'),
+    o[`${prefix}Corner`],
+  )
+  const normalizedCorner = normalizeCornerValue(rawCorner)
+  const localizedCorner = translateCorner(normalizedCorner)
+
+  const nestedStreetLine = (() => {
     const street = getFirstNonEmpty(
       ...nestedValues('street', 'addressLine1', 'line1', 'lineOne'),
     )
@@ -59,7 +117,6 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
     const apartment = getFirstNonEmpty(
       ...nestedValues('apartment', 'unit'),
     )
-    const corner = getFirstNonEmpty(...nestedValues('corner'))
     const addressLine2 = getFirstNonEmpty(
       ...nestedValues('addressLine2', 'line2', 'lineTwo'),
     )
@@ -67,20 +124,26 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
     if (apartment) {
       parts.push(`Apt ${apartment}`)
     }
-    if (corner) {
-      parts.push(corner)
-    }
     return parts.filter(Boolean).join(' • ')
   })()
 
-  const line1 = getFirstNonEmpty(
-    o[`${prefix}Address1`],
-    nestedLine1,
+  const line1Base = getFirstNonEmpty(
+    stripCornerLine(o[`${prefix}Address1`], normalizedCorner),
+    nestedStreetLine,
   )
-  const line2 = getFirstNonEmpty(
-    o[`${prefix}Address2`],
-    nestedLine2,
-  )
+  const line1 = line1Base || localizedCorner
+  const line2Segments: string[] = []
+  if (line1Base && localizedCorner) {
+    line2Segments.push(localizedCorner)
+  }
+  const additionalLine2 = stripCornerLine(o[`${prefix}Address2`], normalizedCorner)
+  if (additionalLine2) {
+    line2Segments.push(additionalLine2)
+  }
+  if (nestedLine2) {
+    line2Segments.push(nestedLine2)
+  }
+  const line2 = line2Segments.join(' • ')
   const city = getFirstNonEmpty(
     o[`${prefix}City`],
     ...nestedValues('city'),
