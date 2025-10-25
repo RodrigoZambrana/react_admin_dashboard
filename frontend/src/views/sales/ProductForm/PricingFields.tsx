@@ -33,24 +33,35 @@ type PricingFieldsProps = {
 }
 
 const PriceInput = (props: InputProps) => {
-    return <Input {...props} value={props.field.value} />
+    return <Input {...props} value={props.field.value ?? ''} />
 }
 
 const NumericFormatInput = ({
     onValueChange,
+    field,
     ...rest
-}: Omit<NumericFormatProps, 'form'> & {
+}: Omit<NumericFormatProps, 'form' | 'value'> & {
     /* eslint-disable @typescript-eslint/no-explicit-any */
     form: any
     field: FieldInputProps<unknown>
 }) => {
+    const { customInput, ...restProps } = rest as NumericFormatProps
+    const resolvedValue =
+        field?.value === undefined || field?.value === null
+            ? ''
+            : field.value
     return (
         <NumericFormat
-            customInput={Input as ComponentType}
+            {...restProps}
+            customInput={
+                (customInput as ComponentType | undefined) ??
+                (Input as ComponentType)
+            }
+            value={resolvedValue as string | number}
             type="text"
             autoComplete="off"
+            allowNegative={false}
             onValueChange={onValueChange}
-            {...rest}
         />
     )
 }
@@ -79,12 +90,18 @@ const PricingFields = (props: PricingFieldsProps) => {
                                 placeholder={t('text.columns.costPrice')}
                                 customInput={PriceInput as ComponentType}
                                 onValueChange={(e) => {
-                                    form.setFieldValue(field.name, e.value)
+                                    const nextValue =
+                                        typeof e.value === 'string'
+                                            ? e.value
+                                            : ''
+                                    form.setFieldValue(field.name, nextValue)
                                     if (!salePriceManuallyEdited) {
-                                        if (e.value === '') {
+                                        if (nextValue === '') {
                                             form.setFieldValue('salePrice', '')
                                         } else {
-                                            const numericCost = Number(e.value || 0)
+                                            const numericCost = Number(
+                                                nextValue || 0,
+                                            )
                                             if (Number.isFinite(numericCost)) {
                                                 const computed = (numericCost * 1.3).toFixed(2)
                                                 form.setFieldValue('salePrice', computed)
@@ -128,8 +145,12 @@ const PricingFields = (props: PricingFieldsProps) => {
                                     placeholder={t('text.columns.salePrice')}
                                     customInput={PriceInput as ComponentType}
                                     onValueChange={(e) => {
-                                        form.setFieldValue(field.name, e.value)
-                                        if (e.value === '') {
+                                        const nextValue =
+                                            typeof e.value === 'string'
+                                                ? e.value
+                                                : ''
+                                        form.setFieldValue(field.name, nextValue)
+                                        if (nextValue === '') {
                                             setSalePriceManuallyEdited(false)
                                         } else {
                                             setSalePriceManuallyEdited(true)
@@ -166,7 +187,9 @@ const PricingFields = (props: PricingFieldsProps) => {
                         placeholder={t('text.labels.offerPrice')}
                         customInput={PriceInput as ComponentType}
                         onValueChange={(e) => {
-                            form.setFieldValue(field.name, e.value)
+                            const nextValue =
+                                typeof e.value === 'string' ? e.value : ''
+                            form.setFieldValue(field.name, nextValue)
                         }}
                     />
                 )}
