@@ -1,5 +1,6 @@
 /* eslint-disable  @typescript-eslint/no-explicit-any */
 import { normalizeCurrencyCode } from '@/utils/currency'
+import i18n from '@/locales'
 import {
   calculateLineTotal,
   getDerivedUnitPrice,
@@ -19,6 +20,25 @@ export function toUnixSeconds(date: any): number {
   } catch {
     return Math.floor(Date.now() / 1000)
   }
+}
+
+const formatCornerLine = (value?: string) => {
+  if (!value) {
+    return ''
+  }
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return ''
+  }
+  const normalized = trimmed.replace(/^(corner|esquina)[:\s]*/i, '').trim()
+  const cornerText = normalized || trimmed
+  if (!cornerText) {
+    return ''
+  }
+  return i18n.t('text.labels.cornerFormat', {
+    defaultValue: `Corner ${cornerText}`,
+    corner: cornerText,
+  })
 }
 
 export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
@@ -59,7 +79,9 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
     const apartment = getFirstNonEmpty(
       ...nestedValues('apartment', 'unit'),
     )
-    const corner = getFirstNonEmpty(...nestedValues('corner'))
+    const corner = formatCornerLine(
+      getFirstNonEmpty(...nestedValues('corner')),
+    )
     const addressLine2 = getFirstNonEmpty(
       ...nestedValues('addressLine2', 'line2', 'lineTwo'),
     )
