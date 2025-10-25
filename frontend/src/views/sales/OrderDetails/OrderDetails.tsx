@@ -29,7 +29,7 @@ type SalesOrderDetailsResponse = {
     progressStatus?: number
     payementStatus?: number
     dateTime?: number
-    validUntilDate?: number
+    validUntil?: number
     paymentSummary?: {
         subTotal: number
         tax: number
@@ -113,6 +113,7 @@ const OrderDetails = () => {
     const [taxRate, setTaxRate] = useState<number>()
     const { t } = useTranslation()
     const { tDoc, resource, routes } = useSalesDocumentI18n()
+    const showValidUntil = resource === 'budgets'
 
     useEffect(() => {
         fetchData()
@@ -299,13 +300,13 @@ const OrderDetails = () => {
                                                 .format('ddd DD-MMM-YYYY, hh:mm A')}
                                         </span>
                                     </span>
-                                    {data.validUntilDate ? (
+                                    {showValidUntil && data.validUntil ? (
                                         <span className="flex items-center">
                                             <HiOutlineDocumentText className="text-lg" />
                                             <span className="ltr:ml-1 rtl:mr-1">
                                                 {validUntilLabel}:{' '}
                                                 {dayjs
-                                                    .unix(data.validUntilDate)
+                                                    .unix(data.validUntil)
                                                     .format('ddd DD-MMM-YYYY')}
                                             </span>
                                         </span>

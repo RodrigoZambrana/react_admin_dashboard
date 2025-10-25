@@ -38,7 +38,17 @@ type CompanyProfileResponse = Partial<
     Record<keyof CompanyProfileForm, string | null>
 > & { logo?: string | null }
 
-type CompanyProfileUpdateRequest = CompanyProfileForm & { logo?: string | null }
+type CompanyProfileUpdateRequest = {
+    legalName: string
+    tradeName: string
+    taxId: string | null
+    email: string | null
+    phone: string | null
+    website: string | null
+    addressLine1: string | null
+    addressLine2: string | null
+    logo?: string | null
+}
 
 const MAX_LOGO_SIZE_BYTES = 512 * 1024
 const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const
@@ -266,7 +276,18 @@ const CompanyProfileSettings = () => {
                                 ]),
                             ) as CompanyProfileForm
                             const payload: CompanyProfileUpdateRequest = {
-                                ...trimmed,
+                                legalName: trimmed.legalName,
+                                tradeName: trimmed.tradeName,
+                                taxId: trimmed.taxId.length ? trimmed.taxId : null,
+                                email: trimmed.email.length ? trimmed.email : null,
+                                phone: trimmed.phone.length ? trimmed.phone : null,
+                                website: trimmed.website.length ? trimmed.website : null,
+                                addressLine1: trimmed.addressLine1.length
+                                    ? trimmed.addressLine1
+                                    : null,
+                                addressLine2: trimmed.addressLine2.length
+                                    ? trimmed.addressLine2
+                                    : null,
                             }
                             if (logoAction === 'replace' && logoPreview) {
                                 payload.logo = logoPreview

@@ -17,9 +17,15 @@ import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
-import { adaptOrderToDetailsView, type FxSnapshot } from '@/adapters/sales'
+import {
+    adaptOrderToDetailsView,
+    parseValidityRecord,
+    toUnixSeconds,
+    type FxSnapshot,
+} from '@/adapters/sales'
 import { normalizeCurrencyCode } from '@/utils/currency'
 import { resolveTextDirection } from '@/utils/textDirection'
+import { sanitizeRichText } from '@/utils/security/inputGuards'
 import type { Product, Summary } from './ContentTable'
 import ContentTable from './ContentTable'
 
@@ -510,23 +516,41 @@ const mapCompanyProfileToDetails = (
     if (!profile) {
         return { ...DEFAULT_COMPANY_DETAILS }
     }
+
+    const safeTrim = (value: string | null | undefined) =>
+        typeof value === 'string' ? value.trim() : ''
+
+    const hasCustomData = Object.entries(profile).some(([key, raw]) => {
+        if (key === 'logo') {
+            return false
+        }
+        return safeTrim(raw as string).length > 0
+    })
+
     const ensureValue = (value: string | null | undefined, fallback?: string) => {
-        const trimmed = typeof value === 'string' ? value.trim() : ''
+        const trimmed = safeTrim(value)
         if (trimmed) {
             return trimmed
         }
-        return fallback ?? ''
+        if (!hasCustomData && fallback) {
+            return fallback
+        }
+        return ''
     }
+
     const optionalValue = (value: string | null | undefined) => {
-        const trimmed = typeof value === 'string' ? value.trim() : ''
+        const trimmed = safeTrim(value)
         return trimmed.length ? trimmed : null
     }
+
     const addressEntries = [profile.addressLine1, profile.addressLine2]
-        .map((line) => ensureValue(line))
+        .map((line) => safeTrim(line))
         .filter((line) => line.length > 0)
 
     const resolvedAddress = addressEntries.length
         ? addressEntries
+        : hasCustomData
+        ? []
         : [...DEFAULT_COMPANY_DETAILS.address]
 
     return {
@@ -672,7 +696,59 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                 if (response?.data) {
                     const { company, ...invoiceData } = response.data
                     if (invoiceData && typeof invoiceData === 'object') {
-                        setData(invoiceData)
+                        const validitySource = parseValidityRecord(
+                            (invoiceData as any).validity,
+                        )
+                        const normalizedValidity =
+                            (invoiceData as any).validUntil ??
+                            (invoiceData as any).valid_until ??
+                            (validitySource?.validUntil ??
+                                validitySource?.valid_until)
+                        let normalizedValidUntil =
+                            toUnixSeconds(normalizedValidity) ?? undefined
+                        if (
+                            normalizedValidUntil === undefined &&
+                            normalizedValidity &&
+                            typeof normalizedValidity === 'object'
+                        ) {
+                            if (
+                                typeof (normalizedValidity as any).toDate ===
+                                'function'
+                            ) {
+                                normalizedValidUntil = toUnixSeconds(
+                                    (normalizedValidity as any).toDate(),
+                                )
+                            }
+                            if (normalizedValidUntil === undefined) {
+                                const secondsValue =
+                                    (normalizedValidity as any).seconds ??
+                                    (normalizedValidity as any)._seconds
+                                const nanosValue =
+                                    (normalizedValidity as any).nanoseconds ??
+                                    (normalizedValidity as any)._nanoseconds
+                                if (typeof secondsValue === 'number') {
+                                    const millis =
+                                        secondsValue * 1000 +
+                                        (typeof nanosValue === 'number'
+                                            ? Math.floor(nanosValue / 1e6)
+                                            : 0)
+                                    normalizedValidUntil = toUnixSeconds(millis)
+                                }
+                            }
+                        }
+                        if (normalizedValidUntil === undefined) {
+                            if (typeof normalizedValidity === 'string') {
+                                normalizedValidUntil = normalizedValidity
+                            } else if (normalizedValidity instanceof Date) {
+                                normalizedValidUntil =
+                                    normalizedValidity.toISOString()
+                            }
+                        }
+                        const normalizedData = {
+                            ...invoiceData,
+                            validUntil: normalizedValidUntil,
+                        }
+                        setData(normalizedData)
                     }
                     setCompanyDetails(mapCompanyProfileToDetails(company))
                 } else {
@@ -1123,6 +1199,32 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         return typeof first === 'string' ? first.trim() : ''
     }, [data.comment, orderData?.comment])
 
+    const disclaimerLabel = t('text.labels.disclaimer', {
+        defaultValue: 'Disclaimer',
+    })
+
+    const documentDisclaimerHtml = useMemo(() => {
+        const candidates = [orderData?.disclaimer, data.disclaimer]
+        const first = candidates.find(
+            (value) => typeof value === 'string' && value.trim().length > 0,
+        )
+        if (typeof first !== 'string') {
+            return ''
+        }
+        return sanitizeRichText(first)
+    }, [data.disclaimer, orderData?.disclaimer])
+
+    const documentDisclaimerDirection = useMemo(() => {
+        if (!documentDisclaimerHtml) {
+            return 'ltr'
+        }
+        const plain = documentDisclaimerHtml.replace(/<[^>]+>/g, ' ').trim()
+        if (!plain) {
+            return 'ltr'
+        }
+        return resolveTextDirection(plain)
+    }, [documentDisclaimerHtml])
+
     const hasContent =
         Boolean(orderData) ||
         Boolean(data && Object.keys(data).length > 0)
@@ -1357,6 +1459,20 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                 fxSnapshot={orderData?.fxSnapshot}
                                 resource={resource}
                             />
+                            {isBudgetDocument && documentDisclaimerHtml && (
+                                <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                    <h6 className="font-semibold text-gray-700 dark:text-gray-200">
+                                        {disclaimerLabel}
+                                    </h6>
+                                    <div
+                                        className="mt-2 text-sm text-gray-700 dark:text-gray-200"
+                                        dir={documentDisclaimerDirection}
+                                        dangerouslySetInnerHTML={{
+                                            __html: documentDisclaimerHtml,
+                                        }}
+                                    />
+                                </div>
+                            )}
                             <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                                 <h6 className="font-semibold text-gray-700 dark:text-gray-200">
                                     {t('text.columns.comments')}
