@@ -8,6 +8,8 @@ import {
     apiGetSalesOrders,
     apiDeleteSalesOrders,
 } from '@/services/SalesService'
+import { adaptSalesDocumentListRecord } from '@/adapters/sales'
+import type { SalesDocumentSummaryComputation } from '@/utils/salesDocumentCalculations'
 import type { TableQueries } from '@/@types/common'
 import type { SalesDocumentResource } from '@/services/SalesService'
 
@@ -21,6 +23,14 @@ type Order = {
     totalAmount: number
     orderCurrency?: string
     validUntilDate?: number | string | null
+    paymentSummary?: {
+        subTotal?: number
+        deliveryFees?: number
+        tax?: number
+        total?: number
+        currency?: string
+    }
+    computedSummary?: SalesDocumentSummaryComputation
 }
 
 type Orders = Order[]
@@ -165,7 +175,11 @@ const orderListSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(getOrders.fulfilled, (state, action) => {
-                state.orderList = action.payload.data
+                const resource = action.payload.resource
+                const mode: 'order' | 'budget' = resource === 'budgets' ? 'budget' : 'order'
+                state.orderList = action.payload.data.map((order) =>
+                    adaptSalesDocumentListRecord(order, { resource, mode }),
+                ) as Orders
                 state.tableData.total = action.payload.total
                 state.tableData.resource = action.payload.resource
                 state.currentResource = action.payload.resource
