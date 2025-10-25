@@ -31,6 +31,7 @@ import type {
 } from '@/components/shared/DataTable'
 import type { StylesConfig } from 'react-select'
 import { useSalesDocumentI18n } from '../../context/useSalesDocumentI18n'
+import type { SalesDocumentSummaryComputation } from '@/utils/salesDocumentCalculations'
 
 type Order = {
     id: string
@@ -42,6 +43,14 @@ type Order = {
     totalAmount: number
     orderCurrency?: string
     validUntilDate?: number | string | null
+    paymentSummary?: {
+        subTotal?: number
+        deliveryFees?: number
+        tax?: number
+        total?: number
+        currency?: string
+    }
+    computedSummary?: SalesDocumentSummaryComputation
 }
 
 const sortKeyMap: Record<string, string> = {

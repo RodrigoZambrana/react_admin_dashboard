@@ -231,6 +231,76 @@ export class SalesDocumentsService {
     return Object.keys(result).length ? (result as Prisma.JsonObject) : null
   }
 
+  private coerceNumber(value: unknown): number | null {
+    if (value === null || value === undefined) {
+      return null
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value
+    }
+    if (typeof value === 'string') {
+      const normalized = value.replace(',', '.').trim()
+      if (!normalized.length) {
+        return null
+      }
+      const numeric = Number(normalized)
+      return Number.isFinite(numeric) ? numeric : null
+    }
+    return null
+  }
+
+  private readAttributeNumber(
+    attrs: Prisma.JsonObject | null,
+    key: string,
+  ): number | null {
+    if (!attrs) {
+      return null
+    }
+    const record = attrs as Record<string, unknown>
+    const variations = [key, key.toLowerCase(), key.toUpperCase()]
+    for (const candidate of variations) {
+      if (candidate in record) {
+        const numeric = this.coerceNumber(record[candidate])
+        if (numeric !== null) {
+          return numeric
+        }
+      }
+    }
+    return null
+  }
+
+  private computeMeasurementFactor(
+    unit: SalesUnit | null,
+    attrs: Prisma.JsonObject | null,
+  ): number | null {
+    if (!unit) {
+      return null
+    }
+    if (unit === SalesUnit.UNIT) {
+      return 1
+    }
+    if (!attrs) {
+      return null
+    }
+    if (unit === SalesUnit.SQUARE_METER) {
+      const width = this.readAttributeNumber(attrs, 'width')
+      const height = this.readAttributeNumber(attrs, 'height')
+      if (width === null || height === null) {
+        return null
+      }
+      const measurement = width * height
+      return Number.isFinite(measurement) && measurement > 0 ? measurement : null
+    }
+    if (unit === SalesUnit.LINEAR_METER) {
+      const length = this.readAttributeNumber(attrs, 'length')
+      if (length === null) {
+        return null
+      }
+      return Number.isFinite(length) && length > 0 ? length : null
+    }
+    return null
+  }
+
   private resolveSalesUnit(value: unknown, fallback?: SalesUnit | null): SalesUnit | null {
     if (typeof value === 'string' && value.trim()) {
       const normalized = value.trim().toLowerCase().replace(/[\s_-]+/g, '')
@@ -335,6 +405,9 @@ export class SalesDocumentsService {
         (item as unknown as { pricingMethod?: string }).pricingMethod,
         product?.unitOfMeasure ?? null,
       )
+      const measurement = this.computeMeasurementFactor(pricingMethod, customAttributes)
+      const isMeasurementBased =
+        pricingMethod === SalesUnit.SQUARE_METER || pricingMethod === SalesUnit.LINEAR_METER
       const specSummary = this.buildSpecSummary(customAttributes as Prisma.JsonValue | null)
       const providedCurrency = item.currency ? this.currencyConversion.normalizeCurrency(item.currency) : null
       if (item.currency && !providedCurrency) {
@@ -390,6 +463,8 @@ export class SalesDocumentsService {
         costCurrency,
         customAttributes,
         pricingMethod,
+        measurement,
+        isMeasurementBased,
         specSummary,
       }
     })
@@ -400,33 +475,68 @@ export class SalesDocumentsService {
 
     for (const meta of itemMeta) {
       const qtyDecimal = decimal(meta.qty)
+      const hasMeasurement =
+        meta.isMeasurementBased &&
+        meta.measurement !== null &&
+        meta.measurement !== undefined &&
+        meta.measurement > 0
+      const measurementValue = hasMeasurement ? Number(meta.measurement) : 1
+      const measurementDecimal = decimal(measurementValue)
+
       let unitAmount: Prisma.Decimal
+      let unitAmountOrderCurrency: Prisma.Decimal
+      let conversionRate: Prisma.Decimal
+      let derivedUnitOrderCurrency: Prisma.Decimal
+
       if (meta.explicitUnitAmount !== null && meta.explicitUnitAmount !== undefined) {
         unitAmount = roundDecimal(meta.explicitUnitAmount, 4)
-      } else if (meta.priceCurrency !== meta.unitCurrency) {
-        const sourceAmount = roundDecimal(meta.rawPrice, 4)
-        const sourceConversion = this.currencyConversion.convertWithSnapshot(
-          sourceAmount,
-          meta.priceCurrency,
+        const unitConversion = this.currencyConversion.convertWithSnapshot(
+          unitAmount,
           meta.unitCurrency,
+          orderCurrency,
           snapshot,
           { amountScale: 4, rateScale: 8 },
         )
-        unitAmount = roundDecimal(sourceConversion.amount, 4)
+        unitAmountOrderCurrency = roundDecimal(unitConversion.amount, 4)
+        conversionRate = unitConversion.rate
+        derivedUnitOrderCurrency = hasMeasurement
+          ? roundDecimal(multiplyDecimals(unitAmountOrderCurrency, measurementDecimal), 4)
+          : unitAmountOrderCurrency
       } else {
-        unitAmount = roundDecimal(meta.rawPrice, 4)
+        const priceDecimal = roundDecimal(meta.rawPrice, 4)
+        const perInstanceConversion = this.currencyConversion.convertWithSnapshot(
+          priceDecimal,
+          meta.priceCurrency,
+          orderCurrency,
+          snapshot,
+          { amountScale: 4, rateScale: 8 },
+        )
+        derivedUnitOrderCurrency = roundDecimal(perInstanceConversion.amount, 4)
+        conversionRate = perInstanceConversion.rate
+        unitAmountOrderCurrency = hasMeasurement
+          ? roundDecimal(divideDecimals(derivedUnitOrderCurrency, measurementDecimal), 4)
+          : derivedUnitOrderCurrency
+
+        if (meta.priceCurrency === meta.unitCurrency) {
+          unitAmount = hasMeasurement
+            ? roundDecimal(divideDecimals(priceDecimal, measurementDecimal), 4)
+            : priceDecimal
+        } else {
+          const perMeasurementBase = hasMeasurement
+            ? roundDecimal(divideDecimals(priceDecimal, measurementDecimal), 4)
+            : priceDecimal
+          const perUnitConversion = this.currencyConversion.convertWithSnapshot(
+            perMeasurementBase,
+            meta.priceCurrency,
+            meta.unitCurrency,
+            snapshot,
+            { amountScale: 4, rateScale: 8 },
+          )
+          unitAmount = roundDecimal(perUnitConversion.amount, 4)
+        }
       }
 
-      const conversion = this.currencyConversion.convertWithSnapshot(
-        unitAmount,
-        meta.unitCurrency,
-        orderCurrency,
-        snapshot,
-        { amountScale: 4, rateScale: 8 },
-      )
-      const unitAmountOrderCurrency = conversion.amount
-      const conversionRate = conversion.rate
-      const unitPriceRounded = roundDecimal(unitAmountOrderCurrency, 2)
+      const unitPriceRounded = roundDecimal(derivedUnitOrderCurrency, 2)
       const lineTotal = roundDecimal(multiplyDecimals(unitPriceRounded, qtyDecimal), 2)
       subTotal = subTotal.plus(lineTotal)
 
@@ -439,7 +549,10 @@ export class SalesDocumentsService {
           snapshot,
           { amountScale: 4, rateScale: 8 },
         )
-        unitCostOrderCurrency = costConversion.amount
+        const costAmountOrderCurrency = roundDecimal(costConversion.amount, 4)
+        unitCostOrderCurrency = hasMeasurement
+          ? roundDecimal(multiplyDecimals(costAmountOrderCurrency, measurementDecimal), 4)
+          : costAmountOrderCurrency
       }
 
       const unitPriceSnapshotDecimal =

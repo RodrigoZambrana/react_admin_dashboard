@@ -12,14 +12,16 @@ import isLastChild from '@/utils/isLastChild'
 import { useAppSelector } from '@/store'
 import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
 import type { FxSnapshot } from '@/adapters/sales'
-import { convertAmountWithSnapshot } from '@/utils/fxConversion'
 import { resolveTextDirection } from '@/utils/textDirection'
 import {
     calculateLineTotal,
-    getDerivedUnitPrice,
     getEffectiveQuantity,
     resolveSalesUnit,
 } from '@/utils/salesUnitCalculation'
+import {
+    computeSalesDocumentDisplayUnitPrice,
+    resolveSalesDocumentUnitAmount,
+} from '@/utils/salesDocumentPricing'
 import { useSalesDocumentI18n } from '../../context/useSalesDocumentI18n'
 
 type Product = {
@@ -137,34 +139,6 @@ const resolveSpecifications = (row: Product) => {
     return parts.join('\n') || undefined
 }
 
-const resolvePriceInOrderCurrency = (
-    row: Product,
-    orderCurrency: string,
-    fxSnapshot?: FxSnapshot,
-) => {
-    const explicitPrice = getNumeric(row.price)
-    if (explicitPrice !== undefined) {
-        return explicitPrice
-    }
-    const orderUnitAmount = getNumeric(row.unitAmountOrderCurrency)
-    if (orderUnitAmount !== undefined) {
-        return orderUnitAmount
-    }
-    const unitAmount = getNumeric(row.unitAmount)
-    const unitCurrency =
-        normalizeCurrencyCode(row.unitCurrency, orderCurrency) || orderCurrency
-    if (unitAmount !== undefined && unitCurrency) {
-        const converted = convertAmountWithSnapshot(unitAmount, unitCurrency, orderCurrency, fxSnapshot)
-        if (converted !== undefined) {
-            return converted
-        }
-        if (Number.isFinite(row.conversionRate) && row.conversionRate) {
-            return unitAmount * Number(row.conversionRate)
-        }
-    }
-    return 0
-}
-
 const columns = (
     t: (k: string) => string,
     formatAmount: (value: number, currency?: string) => string,
@@ -269,17 +243,11 @@ const columns = (
                 const displayCurrency =
                     normalizeCurrencyCode(orderCurrency, defaultCurrency) ||
                     defaultCurrency
-                const baseUnitPrice = resolvePriceInOrderCurrency(
+                const derivedPrice = computeSalesDocumentDisplayUnitPrice(
                     row,
                     displayCurrency,
                     fxSnapshot,
                 )
-                const derivedPrice = getDerivedUnitPrice({
-                    unitPrice: baseUnitPrice,
-                    unitOfMeasure: row.unitOfMeasure,
-                    pricingMethod: row.pricingMethod,
-                    customAttributes: row.customAttributes,
-                })
                 return (
                     <span>{formatAmount(derivedPrice, displayCurrency)}</span>
                 )
@@ -297,9 +265,11 @@ const columns = (
                         <span>{formatAmount(storedTotal, displayCurrency)}</span>
                     )
                 }
-                const baseUnitPrice =
-                    getNumeric(row.unitPrice) ??
-                    resolvePriceInOrderCurrency(row, displayCurrency, fxSnapshot)
+                const baseUnitPrice = resolveSalesDocumentUnitAmount(
+                    row,
+                    displayCurrency,
+                    fxSnapshot,
+                )
                 const fallbackTotal = calculateLineTotal({
                     unitPrice: baseUnitPrice,
                     qty: row.quantity,

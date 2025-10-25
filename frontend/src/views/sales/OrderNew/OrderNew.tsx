@@ -60,6 +60,7 @@ import type { BaseCurrencySnapshot } from '@/store/slices/currency/currencySlice
 import { useSalesDocumentI18n } from '../context/useSalesDocumentI18n'
 import { DEFAULT_SALES_UNIT, type SalesUnit } from '@/constants/product.constant'
 import { calculateLineTotal, getDerivedUnitPrice, resolveSalesUnit } from '@/utils/salesUnitCalculation'
+import { createSalesDocumentRounder } from '@/utils/salesDocumentCalculations'
 import { sanitizeRichText } from '@/utils/security/inputGuards'
 
 type Item = EditableItem
@@ -439,17 +440,8 @@ const OrderNew = ({
     const currencyBase = exchangeSnapshot.base
     const currencies = exchangeSnapshot.currencies
     const currencyOptions = exchangeSnapshot.options
-    const roundCurrencyValue = useCallback(
-        (value: number) => {
-            const numeric = Number(value)
-            if (!Number.isFinite(numeric)) {
-                return 0
-            }
-            if (mode === 'budget') {
-                return Math.ceil(numeric)
-            }
-            return Math.round((numeric + Number.EPSILON) * 100) / 100
-        },
+    const roundCurrencyValue = useMemo(
+        () => createSalesDocumentRounder(mode),
         [mode],
     )
 

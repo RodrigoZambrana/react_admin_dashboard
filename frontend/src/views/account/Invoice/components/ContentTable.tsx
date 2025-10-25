@@ -10,16 +10,18 @@ import { useTranslation } from 'react-i18next'
 import isLastChild from '@/utils/isLastChild'
 import { useAppSelector } from '@/store'
 import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
-import { convertAmountWithSnapshot } from '@/utils/fxConversion'
 import { resolveTextDirection } from '@/utils/textDirection'
 import type { FxSnapshot } from '@/adapters/sales'
 import type { SalesDocumentResource } from '@/services/SalesService'
 import {
     calculateLineTotal,
-    getDerivedUnitPrice,
     getEffectiveQuantity,
     resolveSalesUnit,
 } from '@/utils/salesUnitCalculation'
+import {
+    computeSalesDocumentDisplayUnitPrice,
+    resolveSalesDocumentUnitAmount,
+} from '@/utils/salesDocumentPricing'
 
 export type Product = {
     id: string
@@ -80,49 +82,6 @@ const getNumeric = (value?: number | string | null) => {
     }
     const numeric = Number(value)
     return Number.isFinite(numeric) ? numeric : undefined
-}
-
-const resolvePriceInOrderCurrency = (
-    row: Product,
-    orderCurrency: string,
-    fxSnapshot?: FxSnapshot | null,
-) => {
-    const explicitPrice = getNumeric(row.price)
-    if (explicitPrice !== undefined) {
-        return explicitPrice
-    }
-    const total = getNumeric(row.total)
-    const qty = getNumeric(row.quantity)
-    if (
-        total !== undefined &&
-        qty !== undefined &&
-        qty !== 0
-    ) {
-        return total / qty
-    }
-    const orderUnitAmount = getNumeric(row.unitAmountOrderCurrency)
-    if (orderUnitAmount !== undefined) {
-        return orderUnitAmount
-    }
-    const unitAmount = getNumeric(row.unitAmount)
-    const unitCurrency =
-        normalizeCurrencyCode(row.unitCurrency, orderCurrency) ||
-        orderCurrency
-    if (unitAmount !== undefined && unitCurrency) {
-        const converted = convertAmountWithSnapshot(
-            unitAmount,
-            unitCurrency,
-            orderCurrency,
-            fxSnapshot,
-        )
-        if (converted !== undefined) {
-            return converted
-        }
-        if (Number.isFinite(row.conversionRate) && row.conversionRate) {
-            return unitAmount * Number(row.conversionRate)
-        }
-    }
-    return 0
 }
 
 const formatSpecKey = (key: string) =>
@@ -476,17 +435,11 @@ const ContentTable = ({
             cell: (props) => {
                 const row = props.row.original
                 const displayCurrency = summaryCurrency
-                const baseUnitPrice = resolvePriceInOrderCurrency(
+                const derivedPrice = computeSalesDocumentDisplayUnitPrice(
                     row,
                     displayCurrency,
                     fxSnapshot,
                 )
-                const derivedPrice = getDerivedUnitPrice({
-                    unitPrice: baseUnitPrice,
-                    unitOfMeasure: row.unitOfMeasure,
-                    pricingMethod: row.pricingMethod,
-                    customAttributes: row.customAttributes,
-                })
                 return (
                     <span>{formatAmount(derivedPrice, displayCurrency)}</span>
                 )
@@ -522,13 +475,11 @@ const ContentTable = ({
                         <span>{formatAmount(storedTotal, displayCurrency)}</span>
                     )
                 }
-                const baseUnitPrice =
-                    getNumeric(row.unitPrice) ??
-                    resolvePriceInOrderCurrency(
-                        row,
-                        displayCurrency,
-                        fxSnapshot,
-                    )
+                const baseUnitPrice = resolveSalesDocumentUnitAmount(
+                    row,
+                    displayCurrency,
+                    fxSnapshot,
+                )
                 const computedTotal = calculateLineTotal({
                     unitPrice: baseUnitPrice,
                     qty: row.quantity,
