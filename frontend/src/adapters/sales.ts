@@ -117,7 +117,7 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
 export function adaptOrderToDetailsView(o: any) {
   if (!o) return {}
   const dateTime = toUnixSeconds(o.date)
-  const validUntil = o.validUntil ? toUnixSeconds(o.validUntil) : undefined
+  const validUntilDate = o.validUntilDate ? toUnixSeconds(o.validUntilDate) : undefined
   const shipping = {
     deliveryFees: Number(o.deliveryFees || 0),
     estimatedMin: Number(o.estimatedMin || 0),
@@ -288,7 +288,7 @@ export function adaptOrderToDetailsView(o: any) {
     progressStatus: o.statusId || 0,
     payementStatus,
     dateTime,
-    validUntil,
+    validUntilDate,
     paymentSummary,
     shipping,
     product,

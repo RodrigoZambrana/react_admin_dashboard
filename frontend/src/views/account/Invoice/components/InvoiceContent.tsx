@@ -417,7 +417,7 @@ type Invoice = {
     product: Product[]
     paymentSummary: Summary
     comment?: string
-    validUntil?: number | string | null
+    validUntilDate?: number | string | null
 }
 
 type GetAccountInvoiceDataRequest = {
@@ -474,7 +474,7 @@ type InvoiceCustomerDetails = {
 type InvoiceOrderDetails = {
     id?: string
     dateTime?: number
-    validUntil?: number | string | null
+    validUntilDate?: number | string | null
     paymentSummary?: Summary
     product?: Product[]
     customer?: InvoiceCustomerDetails
@@ -695,7 +695,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                         product: mapped.product as Product[],
                         customer: mapped.customer as InvoiceCustomerDetails,
                         fxSnapshot: mapped.fxSnapshot,
-                        validUntil: mapped.validUntil,
+                        validUntilDate: mapped.validUntilDate,
                         comment:
                             typeof mapped.comment === 'string'
                                 ? mapped.comment
@@ -950,7 +950,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
     }, [data.product, orderData])
 
     const invoiceDate = orderData?.dateTime ?? data.dateTime
-    const rawValidUntil = orderData?.validUntil ?? data.validUntil
+    const rawValidUntil = orderData?.validUntilDate ?? data.validUntilDate
     const invoiceId = orderData?.id ?? data?.id
     const formattedInvoiceDate = useMemo(
         () => formatDateValue(invoiceDate),
