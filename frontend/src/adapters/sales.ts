@@ -114,11 +114,91 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
   }
 }
 
+const resolveNestedValidUntil = (
+  value: unknown,
+  seen = new Set<unknown>(),
+): unknown => {
+  if (!value || typeof value !== 'object' || value instanceof Date) {
+    return undefined
+  }
+  if (seen.has(value)) {
+    return undefined
+  }
+  seen.add(value)
+  const record = value as Record<string, unknown>
+  if (typeof (record as { toDate?: unknown }).toDate === 'function') {
+    try {
+      const converted = (record as { toDate: () => unknown }).toDate()
+      if (converted !== undefined) {
+        return converted
+      }
+    } catch {
+      // ignore conversion errors and keep looking for other fields
+    }
+  }
+  const candidateKeys = [
+    'date',
+    'datetime',
+    'value',
+    'validUntil',
+    'valid_until',
+    'validUntilDate',
+    'validityDate',
+    'validity_date',
+    'validTo',
+    'valid_to',
+    'validThru',
+    'valid_thru',
+    'expiresAt',
+    'expires_at',
+    'expirationAt',
+    'expiration_at',
+    'expirationDate',
+    'expiration_date',
+    'expiryDate',
+    'expiry_date',
+    'expires',
+    'expiration',
+    'expiry',
+    'timestamp',
+    'seconds',
+  ]
+  for (const key of candidateKeys) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) {
+      const nestedValue = record[key]
+      if (nestedValue instanceof Date) {
+        return nestedValue
+      }
+      if (nestedValue && typeof nestedValue === 'object') {
+        const resolved = resolveNestedValidUntil(nestedValue, seen)
+        if (resolved !== undefined) {
+          return resolved
+        }
+      } else if (nestedValue !== undefined) {
+        return nestedValue
+      }
+    }
+  }
+  if (typeof record.toString === 'function') {
+    const stringValue = record.toString()
+    if (typeof stringValue === 'string' && stringValue && stringValue !== '[object Object]') {
+      return stringValue
+    }
+  }
+  return undefined
+}
+
 export function adaptOrderToDetailsView(o: any) {
   if (!o) return {}
   const dateTime = toUnixSeconds(o.date)
   const rawValidUntil = (() => {
     if (o?.validUntil !== undefined) {
+      if (o.validUntil && typeof o.validUntil === 'object' && !(o.validUntil instanceof Date)) {
+        const nested = resolveNestedValidUntil(o.validUntil)
+        if (nested !== undefined) {
+          return nested
+        }
+      }
       return o.validUntil
     }
     const candidates = [
@@ -127,9 +207,30 @@ export function adaptOrderToDetailsView(o: any) {
       (o as any)?.validUntilDate,
       (o as any)?.validityDate,
       (o as any)?.validity_date,
+      (o as any)?.validTo,
+      (o as any)?.valid_to,
+      (o as any)?.validThru,
+      (o as any)?.valid_thru,
+      (o as any)?.expiresAt,
+      (o as any)?.expires_at,
+      (o as any)?.expirationAt,
+      (o as any)?.expiration_at,
+      (o as any)?.expirationDate,
+      (o as any)?.expiration_date,
+      (o as any)?.expiryDate,
+      (o as any)?.expiry_date,
+      (o as any)?.expires,
+      (o as any)?.expiration,
+      (o as any)?.expiry,
     ]
     for (const candidate of candidates) {
       if (candidate !== undefined) {
+        if (candidate && typeof candidate === 'object' && !(candidate instanceof Date)) {
+          const nested = resolveNestedValidUntil(candidate)
+          if (nested !== undefined) {
+            return nested
+          }
+        }
         return candidate
       }
     }
