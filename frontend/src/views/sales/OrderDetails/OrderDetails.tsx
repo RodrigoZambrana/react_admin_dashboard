@@ -112,7 +112,7 @@ const OrderDetails = () => {
     const [orderStatuses, setOrderStatuses] = useState<{ id: number; name: string; color: string }[]>([])
     const [taxRate, setTaxRate] = useState<number>()
     const { t } = useTranslation()
-    const { tDoc, resource, routes } = useSalesDocumentI18n()
+    const { tDoc, resource, routes, mode } = useSalesDocumentI18n()
     const showValidUntil = resource === 'budgets'
 
     useEffect(() => {
@@ -133,7 +133,9 @@ const OrderDetails = () => {
             if (response) {
                 setLoading(false)
                 // Backend returns raw Order; map to unified view shape
-                const mapped = adaptOrderToDetailsView((response as any).data)
+                const mapped = adaptOrderToDetailsView((response as any).data, {
+                    mode,
+                })
                 setData(mapped as SalesOrderDetailsResponse)
             }
         }
