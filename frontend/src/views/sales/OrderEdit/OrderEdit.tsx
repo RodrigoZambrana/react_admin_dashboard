@@ -280,11 +280,51 @@ const mapItemsToEditable = (
 }
 
 const parseDateValue = (value: unknown): Date | null => {
-    if (value === null || value === undefined || value === '') {
+    if (value === null || value === undefined) {
         return null
     }
-    const date = new Date(value as any)
-    return Number.isNaN(date.getTime()) ? null : date
+
+    if (value instanceof Date) {
+        const timestamp = value.getTime()
+        return Number.isNaN(timestamp) ? null : new Date(timestamp)
+    }
+
+    if (typeof value === 'number') {
+        const date = new Date(value)
+        return Number.isNaN(date.getTime()) ? null : date
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim()
+        if (!trimmed.length) {
+            return null
+        }
+
+        const isoDateOnlyMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+        if (isoDateOnlyMatch) {
+            const [, year, month, day] = isoDateOnlyMatch
+            const y = Number(year)
+            const m = Number(month) - 1
+            const d = Number(day)
+            const date = new Date(y, m, d, 0, 0, 0, 0)
+            return Number.isNaN(date.getTime()) ? null : date
+        }
+
+        const slashDateMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+        if (slashDateMatch) {
+            const [, day, month, year] = slashDateMatch
+            const y = Number(year)
+            const m = Number(month) - 1
+            const d = Number(day)
+            const date = new Date(y, m, d, 0, 0, 0, 0)
+            return Number.isNaN(date.getTime()) ? null : date
+        }
+
+        const date = new Date(trimmed)
+        return Number.isNaN(date.getTime()) ? null : date
+    }
+
+    return null
 }
 
 const OrderEdit = () => {
@@ -424,10 +464,13 @@ const OrderEdit = () => {
                         ? String(resolvedCustomerIdRaw)
                         : ''
 
+                const parsedDocumentDate = parseDateValue(orderData?.date)
+                const parsedValidUntil = parseDateValue(rawValidUntil)
+
                 const formValues: SalesDocumentFormValues = {
                     customerId: resolvedCustomerId,
-                    date: parseDateValue(orderData?.date) ?? new Date(),
-                    validUntil: parseDateValue(rawValidUntil),
+                    date: parsedDocumentDate,
+                    validUntil: parsedValidUntil,
                     paymentMehod: (() => {
                         if (typeof orderData?.paymentMehod === 'string') {
                             return orderData.paymentMehod
