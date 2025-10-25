@@ -27,14 +27,21 @@ type RangeOption = {
 const AccountingDashboardHeader = () => {
     const dispatch = useAppDispatch()
 
+    const fallbackStart = useMemo(
+        () => dayjs().startOf('month').unix(),
+        [],
+    )
+    const fallbackEnd = useMemo(() => dayjs().endOf('month').unix(), [])
     const startDate = useAppSelector(
-        (state) => state.accountingDashboard.data.startDate,
+        (state) =>
+            state.accountingDashboard?.data?.startDate ?? fallbackStart,
     )
     const endDate = useAppSelector(
-        (state) => state.accountingDashboard.data.endDate,
+        (state) => state.accountingDashboard?.data?.endDate ?? fallbackEnd,
     )
     const dateRangePreset = useAppSelector(
-        (state) => state.accountingDashboard.data.dateRangePreset,
+        (state) =>
+            state.accountingDashboard?.data?.dateRangePreset ?? 'thisMonth',
     )
 
     const { t } = useTranslation()
@@ -201,4 +208,3 @@ const AccountingDashboardHeader = () => {
 }
 
 export default AccountingDashboardHeader
-
