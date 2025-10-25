@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Table from '@/components/ui/Table'
@@ -12,15 +12,19 @@ import isLastChild from '@/utils/isLastChild'
 import { useAppSelector } from '@/store'
 import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
 import type { FxSnapshot } from '@/adapters/sales'
-import { convertAmountWithSnapshot } from '@/utils/fxConversion'
 import { resolveTextDirection } from '@/utils/textDirection'
 import {
     calculateLineTotal,
-    getDerivedUnitPrice,
     getEffectiveQuantity,
     resolveSalesUnit,
 } from '@/utils/salesUnitCalculation'
+import {
+    computeSalesDocumentDisplayUnitPrice,
+    resolveSalesDocumentUnitAmount,
+} from '@/utils/salesDocumentPricing'
+import { createSalesDocumentRounder } from '@/utils/salesDocumentCalculations'
 import { useSalesDocumentI18n } from '../../context/useSalesDocumentI18n'
+import { useSalesDocument } from '../../context/SalesDocumentContext'
 
 type Product = {
     id: string
@@ -137,40 +141,13 @@ const resolveSpecifications = (row: Product) => {
     return parts.join('\n') || undefined
 }
 
-const resolvePriceInOrderCurrency = (
-    row: Product,
-    orderCurrency: string,
-    fxSnapshot?: FxSnapshot,
-) => {
-    const explicitPrice = getNumeric(row.price)
-    if (explicitPrice !== undefined) {
-        return explicitPrice
-    }
-    const orderUnitAmount = getNumeric(row.unitAmountOrderCurrency)
-    if (orderUnitAmount !== undefined) {
-        return orderUnitAmount
-    }
-    const unitAmount = getNumeric(row.unitAmount)
-    const unitCurrency =
-        normalizeCurrencyCode(row.unitCurrency, orderCurrency) || orderCurrency
-    if (unitAmount !== undefined && unitCurrency) {
-        const converted = convertAmountWithSnapshot(unitAmount, unitCurrency, orderCurrency, fxSnapshot)
-        if (converted !== undefined) {
-            return converted
-        }
-        if (Number.isFinite(row.conversionRate) && row.conversionRate) {
-            return unitAmount * Number(row.conversionRate)
-        }
-    }
-    return 0
-}
-
 const columns = (
     t: (k: string) => string,
     formatAmount: (value: number, currency?: string) => string,
     orderCurrency: string,
     defaultCurrency: string,
-    fxSnapshot?: FxSnapshot,
+    fxSnapshot: FxSnapshot | undefined,
+    roundAmount: (value: number) => number,
     options: { showSpecifications?: boolean } = {},
 ) => {
     const showSpecifications = options.showSpecifications !== false
@@ -269,19 +246,16 @@ const columns = (
                 const displayCurrency =
                     normalizeCurrencyCode(orderCurrency, defaultCurrency) ||
                     defaultCurrency
-                const baseUnitPrice = resolvePriceInOrderCurrency(
+                const derivedPrice = computeSalesDocumentDisplayUnitPrice(
                     row,
                     displayCurrency,
                     fxSnapshot,
                 )
-                const derivedPrice = getDerivedUnitPrice({
-                    unitPrice: baseUnitPrice,
-                    unitOfMeasure: row.unitOfMeasure,
-                    pricingMethod: row.pricingMethod,
-                    customAttributes: row.customAttributes,
-                })
+                const roundedPrice = roundAmount(derivedPrice)
                 return (
-                    <span>{formatAmount(derivedPrice, displayCurrency)}</span>
+                    <span>
+                        {formatAmount(roundedPrice, displayCurrency)}
+                    </span>
                 )
             },
         }),
@@ -294,12 +268,19 @@ const columns = (
                 const storedTotal = Number(row.total)
                 if (Number.isFinite(storedTotal)) {
                     return (
-                        <span>{formatAmount(storedTotal, displayCurrency)}</span>
+                        <span>
+                            {formatAmount(
+                                roundAmount(storedTotal),
+                                displayCurrency,
+                            )}
+                        </span>
                     )
                 }
-                const baseUnitPrice =
-                    getNumeric(row.unitPrice) ??
-                    resolvePriceInOrderCurrency(row, displayCurrency, fxSnapshot)
+                const baseUnitPrice = resolveSalesDocumentUnitAmount(
+                    row,
+                    displayCurrency,
+                    fxSnapshot,
+                )
                 const fallbackTotal = calculateLineTotal({
                     unitPrice: baseUnitPrice,
                     qty: row.quantity,
@@ -308,7 +289,12 @@ const columns = (
                     customAttributes: row.customAttributes,
                 })
                 return (
-                    <span>{formatAmount(fallbackTotal, displayCurrency)}</span>
+                    <span>
+                        {formatAmount(
+                            roundAmount(fallbackTotal),
+                            displayCurrency,
+                        )}
+                    </span>
                 )
             },
         }),
@@ -319,12 +305,17 @@ const columns = (
 
 const OrderProducts = ({ data = [], orderCurrency, fxSnapshot }: OrderProductsProps) => {
     const { t, i18n } = useTranslation()
+    const { mode } = useSalesDocument()
     const { showProductSpecifications } = useSalesDocumentI18n()
     const storeCurrency = useAppSelector((state) => state.currency.code)
     const defaultCurrency =
         normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
     const normalizedOrderCurrency =
         normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
+    const roundAmount = useMemo(
+        () => createSalesDocumentRounder(mode),
+        [mode],
+    )
     const formatAmount = (value: number, currency?: string) =>
         formatCurrency(value, currency, i18n.language, {
             fallbackCurrency: defaultCurrency,
@@ -337,6 +328,7 @@ const OrderProducts = ({ data = [], orderCurrency, fxSnapshot }: OrderProductsPr
             normalizedOrderCurrency,
             defaultCurrency,
             fxSnapshot,
+            roundAmount,
             { showSpecifications: showProductSpecifications },
         ),
         getCoreRowModel: getCoreRowModel(),

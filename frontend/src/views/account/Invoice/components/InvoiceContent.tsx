@@ -778,7 +778,9 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                 typeof orderResult.value === 'object'
             ) {
                 const response = orderResult.value as { data?: unknown }
-                const mapped = adaptOrderToDetailsView(response?.data)
+                const mapped = adaptOrderToDetailsView(response?.data, {
+                    mode: isBudgetDocument ? 'budget' : 'order',
+                })
                 if (mapped && typeof mapped === 'object') {
                     const structured: InvoiceOrderDetails = {
                         id: mapped.id,
