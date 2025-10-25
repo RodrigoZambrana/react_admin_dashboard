@@ -17,7 +17,11 @@ import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
-import { adaptOrderToDetailsView, type FxSnapshot } from '@/adapters/sales'
+import {
+    adaptOrderToDetailsView,
+    toUnixSeconds,
+    type FxSnapshot,
+} from '@/adapters/sales'
 import { normalizeCurrencyCode } from '@/utils/currency'
 import { resolveTextDirection } from '@/utils/textDirection'
 import type { Product, Summary } from './ContentTable'
@@ -597,17 +601,17 @@ const formatDateValue = (value: unknown): string => {
     }
     if (value instanceof Date) {
         const parsed = dayjs(value)
-        return parsed.isValid() ? parsed.format('DD/MM/YYYY') : ''
+        return parsed.isValid() ? parsed.format('DD/MM/YYYY') : value.toString()
     }
     if (typeof value === 'number') {
-        if (!Number.isFinite(value) || value <= 0) {
-            return ''
+        if (!Number.isFinite(value)) {
+            return value.toString()
         }
         const dayjsInstance =
-            value > 1e12 ? dayjs(value) : dayjs.unix(value)
+            Math.abs(value) > 1e12 ? dayjs(value) : dayjs.unix(value)
         return dayjsInstance.isValid()
             ? dayjsInstance.format('DD/MM/YYYY')
-            : ''
+            : value.toString()
     }
     if (typeof value === 'string') {
         const trimmed = value.trim()
@@ -623,9 +627,36 @@ const formatDateValue = (value: unknown): string => {
             }
         }
         const parsed = dayjs(trimmed)
-        return parsed.isValid() ? parsed.format('DD/MM/YYYY') : ''
+        return parsed.isValid() ? parsed.format('DD/MM/YYYY') : trimmed
     }
     return ''
+}
+
+const normalizeValidUntilValue = (
+    value: unknown,
+): number | string | null | undefined => {
+    if (value === undefined) {
+        return undefined
+    }
+    if (value === null) {
+        return null
+    }
+    const unixValue = toUnixSeconds(value as Date | string | number)
+    if (Number.isFinite(unixValue)) {
+        return unixValue
+    }
+    if (value instanceof Date) {
+        const asString = value.toString()
+        return asString && asString !== 'Invalid Date' ? asString : undefined
+    }
+    if (typeof value === 'string') {
+        const trimmed = value.trim()
+        return trimmed.length > 0 ? trimmed : undefined
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value
+    }
+    return undefined
 }
 
 const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
@@ -692,19 +723,29 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                         const normalized: Partial<Invoice> = {
                             ...invoiceData,
                         }
+                        const resolvedValidUntil = normalizeValidUntilValue(
+                            normalized.validUntil,
+                        )
+                        if (resolvedValidUntil !== undefined) {
+                            normalized.validUntil = resolvedValidUntil
+                        } else {
+                            delete normalized.validUntil
+                        }
                         if (normalized.validUntil === undefined) {
-                            const fallbackValidUntil = [
+                            const fallbackCandidates = [
                                 (invoiceData as any)?.valid_until,
                                 (invoiceData as any)?.valid_until_at,
                                 (invoiceData as any)?.validUntilDate,
                                 (invoiceData as any)?.validityDate,
                                 (invoiceData as any)?.validity_date,
-                            ].find((value) => value !== undefined)
-                            if (fallbackValidUntil !== undefined) {
-                                normalized.validUntil =
-                                    fallbackValidUntil === null
-                                        ? null
-                                        : (fallbackValidUntil as number | string)
+                            ]
+                            for (const candidate of fallbackCandidates) {
+                                const normalizedCandidate =
+                                    normalizeValidUntilValue(candidate)
+                                if (normalizedCandidate !== undefined) {
+                                    normalized.validUntil = normalizedCandidate
+                                    break
+                                }
                             }
                         }
                         const resolvedDisclaimer = pickFirstNonEmptyString(
