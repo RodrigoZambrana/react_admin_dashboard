@@ -23,6 +23,7 @@ import { getDerivedUnitPrice } from '@/utils/salesUnitCalculation'
 import type { EditableItem } from '@/views/sales/components/EditableOrderProductsTable'
 import type { FormikHelpers } from 'formik'
 import { parseValidityRecord } from '@/adapters/sales'
+import { createSalesDocumentRounder } from '@/utils/salesDocumentCalculations'
 
 const ADDRESS_COUNTRY_FALLBACK = 'UY'
 
@@ -276,7 +277,7 @@ const OrderEdit = () => {
     const { orderId } = useParams<{ orderId: string }>()
     const navigate = useNavigate()
     const { t } = useTranslation()
-    const { tDoc, resource, routes } = useSalesDocumentI18n()
+    const { tDoc, resource, routes, mode } = useSalesDocumentI18n()
     const storeCurrency = useAppSelector((state) => state.currency.code)
 
     const defaultCurrency = useMemo(
@@ -284,10 +285,9 @@ const OrderEdit = () => {
         [storeCurrency],
     )
 
-    const roundCurrencyValue = useCallback(
-        (value: number) =>
-            Math.round((Number(value) + Number.EPSILON) * 100) / 100,
-        [],
+    const roundCurrencyValue = useMemo(
+        () => createSalesDocumentRounder(mode),
+        [mode],
     )
 
     const docMessage = useCallback(

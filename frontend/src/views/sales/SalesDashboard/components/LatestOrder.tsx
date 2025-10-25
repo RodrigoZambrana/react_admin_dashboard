@@ -4,6 +4,7 @@ import DataTable from '@/components/shared/DataTable'
 import { useOrderColumns, type Order } from '@/views/sales/OrderList/components/useOrderColumns'
 import { apiGetOrderStatuses } from '@/services/SettingsService'
 import { apiUpdateSalesOrderStatus, apiGetSalesOrders } from '@/services/SalesService'
+import { adaptSalesDocumentListRecord } from '@/adapters/sales'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -49,7 +50,11 @@ const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
             { data: Order[]; total: number },
             { pageIndex: number; pageSize: number; sort: { key: string; order: string }; query: string }
         >({ pageIndex: 1, pageSize: 50, sort: { key: 'date', order: 'desc' }, query: '' })
-        setRows(res.data.data)
+        setRows(
+            (res.data.data || []).map((order) =>
+                adaptSalesDocumentListRecord(order, { resource: 'orders', mode: 'order' }),
+            ),
+        )
         setLoading(false)
     }
 
@@ -63,7 +68,15 @@ const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
     const navigate = useNavigate()
 
     useEffect(() => {
-        setRows(data)
+        if (Array.isArray(data)) {
+            setRows(
+                data.map((order) =>
+                    adaptSalesDocumentListRecord(order, { resource: 'orders', mode: 'order' }),
+                ),
+            )
+        } else {
+            setRows([])
+        }
     }, [data])
 
     return (
