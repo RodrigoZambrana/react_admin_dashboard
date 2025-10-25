@@ -127,15 +127,19 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
     stripCornerLine(o[`${prefix}Address1`], normalizedCorner),
     nestedStreetLine,
   )
-  const line1 = localizedCorner
-    ? line1Base
-      ? `${line1Base}, ${localizedCorner}`
-      : localizedCorner
-    : line1Base
-  const line2 = getFirstNonEmpty(
-    stripCornerLine(o[`${prefix}Address2`], normalizedCorner),
-    nestedLine2,
-  )
+  const line1 = line1Base || localizedCorner
+  const line2Segments: string[] = []
+  if (line1Base && localizedCorner) {
+    line2Segments.push(localizedCorner)
+  }
+  const additionalLine2 = stripCornerLine(o[`${prefix}Address2`], normalizedCorner)
+  if (additionalLine2) {
+    line2Segments.push(additionalLine2)
+  }
+  if (nestedLine2) {
+    line2Segments.push(nestedLine2)
+  }
+  const line2 = line2Segments.join(' • ')
   const city = getFirstNonEmpty(
     o[`${prefix}City`],
     ...nestedValues('city'),
