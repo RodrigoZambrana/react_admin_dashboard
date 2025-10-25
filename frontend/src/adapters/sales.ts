@@ -135,10 +135,27 @@ export function adaptOrderToDetailsView(o: any) {
     }
     return undefined
   })()
-  const validUntil =
-    rawValidUntil !== undefined && rawValidUntil !== null
-      ? toUnixSeconds(rawValidUntil)
-      : undefined
+  const validUntil = (() => {
+    if (rawValidUntil === undefined || rawValidUntil === null) {
+      return undefined
+    }
+    const normalized = toUnixSeconds(rawValidUntil)
+    if (Number.isFinite(normalized)) {
+      return normalized
+    }
+    if (rawValidUntil instanceof Date) {
+      const asString = rawValidUntil.toString()
+      return asString && asString !== 'Invalid Date' ? asString : undefined
+    }
+    if (typeof rawValidUntil === 'string') {
+      const trimmed = rawValidUntil.trim()
+      return trimmed.length > 0 ? trimmed : undefined
+    }
+    if (typeof rawValidUntil === 'number' && Number.isFinite(rawValidUntil)) {
+      return rawValidUntil
+    }
+    return rawValidUntil ?? undefined
+  })()
   const shipping = {
     deliveryFees: Number(o.deliveryFees || 0),
     estimatedMin: Number(o.estimatedMin || 0),
