@@ -947,6 +947,30 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         [data?.id, orderData?.id, resource],
     )
 
+    const invoiceId = orderData?.id ?? data?.id
+    const documentFileName = useMemo(() => {
+        const rawLocale = (i18n.language || 'en').toLowerCase()
+        const isSpanish = rawLocale.startsWith('es')
+        const baseName = isSpanish
+            ? isBudgetDocument
+                ? 'presupuesto'
+                : 'pedido'
+            : isBudgetDocument
+              ? 'budget'
+              : 'order'
+        const fallbackId = 'document'
+        if (invoiceId === undefined || invoiceId === null) {
+            return `${baseName}-${fallbackId}.pdf`
+        }
+        const normalizedId = String(invoiceId).trim()
+        const sanitizedId = normalizedId
+            .replace(/[^0-9A-Za-z-]+/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '')
+        const idSegment = sanitizedId.length > 0 ? sanitizedId : fallbackId
+        return `${baseName}-${idSegment}.pdf`
+    }, [i18n.language, invoiceId, isBudgetDocument])
+
     const handleDownloadPdf = useCallback(async () => {
         try {
             setDownloadingPdf(true)
@@ -1055,29 +1079,6 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         data.validityDate ??
         orderData?.validUntil ??
         data.validUntil
-    const invoiceId = orderData?.id ?? data?.id
-    const documentFileName = useMemo(() => {
-        const rawLocale = (i18n.language || 'en').toLowerCase()
-        const isSpanish = rawLocale.startsWith('es')
-        const baseName = isSpanish
-            ? isBudgetDocument
-                ? 'presupuesto'
-                : 'pedido'
-            : isBudgetDocument
-              ? 'budget'
-              : 'order'
-        const fallbackId = 'document'
-        if (invoiceId === undefined || invoiceId === null) {
-            return `${baseName}-${fallbackId}.pdf`
-        }
-        const normalizedId = String(invoiceId).trim()
-        const sanitizedId = normalizedId
-            .replace(/[^0-9A-Za-z-]+/g, '-')
-            .replace(/-+/g, '-')
-            .replace(/^-|-$/g, '')
-        const idSegment = sanitizedId.length > 0 ? sanitizedId : fallbackId
-        return `${baseName}-${idSegment}.pdf`
-    }, [i18n.language, invoiceId, isBudgetDocument])
     const formattedInvoiceDate = useMemo(
         () => formatDateValue(invoiceDate),
         [invoiceDate],
