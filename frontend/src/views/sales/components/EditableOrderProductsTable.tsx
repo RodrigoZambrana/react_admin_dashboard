@@ -30,6 +30,7 @@ import {
 } from '@/utils/salesUnitCalculation'
 
 export type EditableItem = {
+    lineId?: string
     productId: string
     name: string
     price: number
@@ -49,13 +50,13 @@ export type EditableItem = {
 
 type Props = {
     items: EditableItem[]
-    onQtyChange: (productId: string, qty: number) => void
-    onRemove: (productId: string) => void
+    onQtyChange: (itemId: string, qty: number) => void
+    onRemove: (itemId: string) => void
     showDescription?: boolean
     showImage?: boolean
     showComments?: boolean
-    onCommentChange?: (productId: string, comments: string) => void
-    onItemChange?: (productId: string, payload: Partial<EditableItem>) => void
+    onCommentChange?: (itemId: string, comments: string) => void
+    onItemChange?: (itemId: string, payload: Partial<EditableItem>) => void
     showCustomAttributes?: boolean
     showUnitColumn?: boolean
     roundAmount?: (value: number) => number
@@ -74,6 +75,13 @@ const stripHtml = (html?: string) =>
         .replace(/<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
+
+const resolveItemKey = (item: EditableItem): string => {
+    if (typeof item.lineId === 'string' && item.lineId.length > 0) {
+        return item.lineId
+    }
+    return item.productId
+}
 
 const MAX_MEASUREMENT_DECIMALS = 3
 
@@ -191,10 +199,11 @@ const EditableOrderProductsTable = ({
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
     const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
     const [specDrafts, setSpecDrafts] = useState<SpecDrafts>({})
+    const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>({})
     const [activeQuantityId, setActiveQuantityId] = useState<string | null>(null)
     const textAreaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
     const [activeSpecField, setActiveSpecField] = useState<{
-        productId: string
+        itemId: string
         field: SpecField
     } | null>(null)
     const specInputRefs = useRef<
@@ -237,15 +246,15 @@ const EditableOrderProductsTable = ({
         [measurementFormatter],
     )
     const setSpecDraftValue = useCallback(
-        (productId: string, field: SpecField, value: string) => {
+        (itemId: string, field: SpecField, value: string) => {
             setSpecDrafts((prev) => {
-                const previous = prev[productId]
+                const previous = prev[itemId]
                 if (previous?.[field] === value) {
                     return prev
                 }
                 return {
                     ...prev,
-                    [productId]: {
+                    [itemId]: {
                         ...previous,
                         [field]: value,
                     },
@@ -254,9 +263,9 @@ const EditableOrderProductsTable = ({
         },
         [],
     )
-    const clearSpecDraft = useCallback((productId: string, field: SpecField) => {
+    const clearSpecDraft = useCallback((itemId: string, field: SpecField) => {
         setSpecDrafts((prev) => {
-            const previous = prev[productId]
+            const previous = prev[itemId]
             if (!previous || !(field in previous)) {
                 return prev
             }
@@ -264,18 +273,18 @@ const EditableOrderProductsTable = ({
             delete nextProductDrafts[field]
             if (Object.keys(nextProductDrafts).length === 0) {
                 const next = { ...prev }
-                delete next[productId]
+                delete next[itemId]
                 return next
             }
             return {
                 ...prev,
-                [productId]: nextProductDrafts,
+                [itemId]: nextProductDrafts,
             }
         })
     }, [])
     const resolveMeasurementDisplayValue = useCallback(
-        (productId: string, field: SpecField, numericValue?: number) => {
-            const draftValue = specDrafts[productId]?.[field]
+        (itemId: string, field: SpecField, numericValue?: number) => {
+            const draftValue = specDrafts[itemId]?.[field]
             if (draftValue !== undefined) {
                 return draftValue
             }
@@ -285,25 +294,48 @@ const EditableOrderProductsTable = ({
     )
 
     const registerSpecRef = useCallback(
-        (productId: string, field: SpecField) => {
+        (itemId: string, field: SpecField) => {
             return (node: HTMLInputElement | null) => {
-                if (!specInputRefs.current[productId]) {
-                    specInputRefs.current[productId] = {}
+                if (!specInputRefs.current[itemId]) {
+                    specInputRefs.current[itemId] = {}
                 }
-                specInputRefs.current[productId][field] = node
+                specInputRefs.current[itemId][field] = node
             }
         },
         [],
     )
 
-    const registerQuantityRef = useCallback((productId: string) => {
+    const registerQuantityRef = useCallback((itemId: string) => {
         return (node: HTMLInputElement | null) => {
             if (!node) {
-                delete quantityInputRefs.current[productId]
+                delete quantityInputRefs.current[itemId]
                 return
             }
-            quantityInputRefs.current[productId] = node
+            quantityInputRefs.current[itemId] = node
         }
+    }, [])
+
+    const setQuantityDraftValue = useCallback((itemId: string, value: string) => {
+        setQuantityDrafts((previous) => {
+            if (previous[itemId] === value) {
+                return previous
+            }
+            return {
+                ...previous,
+                [itemId]: value,
+            }
+        })
+    }, [])
+
+    const clearQuantityDraft = useCallback((itemId: string) => {
+        setQuantityDrafts((previous) => {
+            if (!(itemId in previous)) {
+                return previous
+            }
+            const next = { ...previous }
+            delete next[itemId]
+            return next
+        })
     }, [])
 
     const composeSquareMeterSummary = useCallback(
@@ -399,31 +431,43 @@ const EditableOrderProductsTable = ({
                 const formattedDerivedQuantity = Number.isFinite(derivedQuantity)
                     ? derivedQuantity.toFixed(2)
                     : undefined
+                const itemKey = resolveItemKey(row)
+                const quantityDraft = quantityDrafts[itemKey]
+                const fallbackQuantity =
+                    typeof row.qty === 'number' && Number.isFinite(row.qty)
+                        ? row.qty
+                        : ''
                 return (
                     <div className="flex flex-col">
                         <Input
                             type="number"
                             min={1}
                             step="1"
-                            value={row.qty}
-                            ref={registerQuantityRef(row.productId)}
-                            autoFocus={activeQuantityId === row.productId}
+                            value={quantityDraft ?? fallbackQuantity}
+                            ref={registerQuantityRef(itemKey)}
+                            autoFocus={activeQuantityId === itemKey}
                             onChange={(e) => {
                                 const rawValue = e.target.value
-                                if (rawValue === '' || rawValue === '-') {
+                                if (rawValue === '') {
+                                    setQuantityDraftValue(itemKey, '')
                                     return
                                 }
-                                const numeric = Number(rawValue)
-                                if (Number.isNaN(numeric)) {
+                                if (!/^\d+$/.test(rawValue)) {
                                     return
                                 }
-                                onQtyChange(row.productId, numeric)
+                                setQuantityDraftValue(itemKey, rawValue)
+                                const numeric = Number.parseInt(rawValue, 10)
+                                if (!Number.isFinite(numeric) || numeric < 1) {
+                                    return
+                                }
+                                onQtyChange(itemKey, numeric)
                             }}
-                            onFocus={() => setActiveQuantityId(row.productId)}
+                            onFocus={() => setActiveQuantityId(itemKey)}
                             onBlur={() => {
                                 setActiveQuantityId((previous) =>
-                                    previous === row.productId ? null : previous,
+                                    previous === itemKey ? null : previous,
                                 )
+                                clearQuantityDraft(itemKey)
                             }}
                         />
                         {unit !== 'UNIT' && formattedDerivedQuantity !== undefined && (
@@ -463,6 +507,7 @@ const EditableOrderProductsTable = ({
                         )
                     }
                     const row = props.row.original
+                    const itemKey = resolveItemKey(row)
                     const unitValue =
                         salesUnitOptions.find(
                             (option) => option.value === row.unitOfMeasure,
@@ -487,7 +532,7 @@ const EditableOrderProductsTable = ({
                                     pricingMethod: normalized,
                                 }
                                 const nextPrice = getDerivedUnitPrice(nextItemState)
-                                onItemChange(row.productId, {
+                                onItemChange(itemKey, {
                                     unitOfMeasure: normalized,
                                     pricingMethod: normalized,
                                     price: nextPrice,
@@ -522,9 +567,10 @@ const EditableOrderProductsTable = ({
             header: t('text.columns.actions'),
             cell: (props) => {
                 const row = props.row.original
+                const itemKey = resolveItemKey(row)
                 return (
                     <div className="text-right">
-                        <Button size="sm" onClick={() => onRemove(row.productId)}>
+                        <Button size="sm" onClick={() => onRemove(itemKey)}>
                             {t('text.actions.remove')}
                         </Button>
                     </div>
@@ -539,6 +585,7 @@ const EditableOrderProductsTable = ({
             header: t('text.columns.comments'),
             cell: (props) => {
                 const row = props.row.original
+                const itemKey = resolveItemKey(row)
                 if (!onCommentChange) {
                     return (
                         <span
@@ -549,26 +596,25 @@ const EditableOrderProductsTable = ({
                         </span>
                     )
                 }
-                const isEditing = editingCommentId === row.productId
-                const draftValue =
-                    commentDrafts[row.productId] ?? row.comments ?? ''
+                const isEditing = editingCommentId === itemKey
+                const draftValue = commentDrafts[itemKey] ?? row.comments ?? ''
                 const originalValue = row.comments ?? ''
                 const hasChanges = draftValue !== originalValue
                 const closeEditor = () => {
                     setEditingCommentId(null)
                     setCommentDrafts((prev) => {
                         const next = { ...prev }
-                        delete next[row.productId]
+                        delete next[itemKey]
                         return next
                     })
-                    delete textAreaRefs.current[row.productId]
+                    delete textAreaRefs.current[itemKey]
                 }
                 const handleSave = () => {
                     if (!hasChanges) {
                         closeEditor()
                         return
                     }
-                    onCommentChange(row.productId, draftValue)
+                    onCommentChange(itemKey, draftValue)
                     closeEditor()
                 }
                 if (!isEditing) {
@@ -597,16 +643,16 @@ const EditableOrderProductsTable = ({
                                 icon={<HiOutlinePencil />}
                                 type="button"
                                 className="shrink-0"
-                                aria-label={t('text.actions.edit')}
-                                title={t('text.actions.edit')}
-                                onClick={() => {
-                                    setEditingCommentId(row.productId)
-                                    setCommentDrafts((prev) => ({
-                                        ...prev,
-                                        [row.productId]: row.comments ?? '',
-                                    }))
-                                }}
-                            />
+                            aria-label={t('text.actions.edit')}
+                            title={t('text.actions.edit')}
+                            onClick={() => {
+                                setEditingCommentId(itemKey)
+                                setCommentDrafts((prev) => ({
+                                    ...prev,
+                                    [itemKey]: row.comments ?? '',
+                                }))
+                            }}
+                        />
                         </div>
                     )
                 }
@@ -616,7 +662,7 @@ const EditableOrderProductsTable = ({
                             value={draftValue}
                             className="w-full"
                             ref={(node) => {
-                                textAreaRefs.current[row.productId] =
+                                textAreaRefs.current[itemKey] =
                                     (node as HTMLTextAreaElement | null) ?? null
                             }}
                             autoFocus
@@ -626,7 +672,7 @@ const EditableOrderProductsTable = ({
                             onChange={(e) =>
                                 setCommentDrafts((prev) => ({
                                     ...prev,
-                                    [row.productId]: e.target.value,
+                                    [itemKey]: e.target.value,
                                 }))
                             }
                             dir={resolveTextDirection(draftValue)}
@@ -667,6 +713,7 @@ const EditableOrderProductsTable = ({
             }),
             cell: (props) => {
                 const row = props.row.original
+                const itemKey = resolveItemKey(row)
                 const unit =
                     (row.unitOfMeasure ??
                         row.pricingMethod ??
@@ -706,12 +753,12 @@ const EditableOrderProductsTable = ({
 
                 if (unit === 'SQUARE_METER') {
                     const widthValue = resolveMeasurementDisplayValue(
-                        row.productId,
+                        itemKey,
                         'width',
                         width,
                     )
                     const heightValue = resolveMeasurementDisplayValue(
-                        row.productId,
+                        itemKey,
                         'height',
                         height,
                     )
@@ -727,37 +774,37 @@ const EditableOrderProductsTable = ({
                                     })}
                                     value={widthValue}
                                     disabled={!onItemChange}
-                                    ref={registerSpecRef(row.productId, 'width')}
+                                    ref={registerSpecRef(itemKey, 'width')}
                                     autoFocus={
-                                        activeSpecField?.productId === row.productId &&
+                                        activeSpecField?.itemId === itemKey &&
                                         activeSpecField.field === 'width'
                                     }
                                     onFocus={() =>
                                         setActiveSpecField((previous) => {
                                             if (
-                                                previous?.productId === row.productId &&
+                                                previous?.itemId === itemKey &&
                                                 previous.field === 'width'
                                             ) {
                                                 return previous
                                             }
                                             return {
-                                                productId: row.productId,
+                                                itemId: itemKey,
                                                 field: 'width',
                                             }
                                         })
                                     }
                                     onBlur={() => {
                                         if (
-                                            activeSpecField?.productId === row.productId &&
+                                            activeSpecField?.itemId === itemKey &&
                                             activeSpecField.field === 'width'
                                         ) {
                                             setActiveSpecField(null)
                                         }
-                                        clearSpecDraft(row.productId, 'width')
+                                        clearSpecDraft(itemKey, 'width')
                                     }}
                                     onChange={(event) => {
                                         const sanitized = sanitizeMeasurementInput(event.target.value)
-                                        setSpecDraftValue(row.productId, 'width', sanitized)
+                                        setSpecDraftValue(itemKey, 'width', sanitized)
                                         if (!onItemChange) {
                                             return
                                         }
@@ -782,7 +829,7 @@ const EditableOrderProductsTable = ({
                                             customAttributes: nextCustomAttributes,
                                         }
                                         const nextPrice = getDerivedUnitPrice(nextItemState)
-                                        onItemChange(row.productId, {
+                                        onItemChange(itemKey, {
                                             customAttributes: nextCustomAttributes,
                                             specSummary: nextSummary,
                                             price: nextPrice,
@@ -798,37 +845,37 @@ const EditableOrderProductsTable = ({
                                     })}
                                     value={heightValue}
                                     disabled={!onItemChange}
-                                    ref={registerSpecRef(row.productId, 'height')}
+                                    ref={registerSpecRef(itemKey, 'height')}
                                     autoFocus={
-                                        activeSpecField?.productId === row.productId &&
+                                        activeSpecField?.itemId === itemKey &&
                                         activeSpecField.field === 'height'
                                     }
                                     onFocus={() =>
                                         setActiveSpecField((previous) => {
                                             if (
-                                                previous?.productId === row.productId &&
+                                                previous?.itemId === itemKey &&
                                                 previous.field === 'height'
                                             ) {
                                                 return previous
                                             }
                                             return {
-                                                productId: row.productId,
+                                                itemId: itemKey,
                                                 field: 'height',
                                             }
                                         })
                                     }
                                     onBlur={() => {
                                         if (
-                                            activeSpecField?.productId === row.productId &&
+                                            activeSpecField?.itemId === itemKey &&
                                             activeSpecField.field === 'height'
                                         ) {
                                             setActiveSpecField(null)
                                         }
-                                        clearSpecDraft(row.productId, 'height')
+                                        clearSpecDraft(itemKey, 'height')
                                     }}
                                     onChange={(event) => {
                                         const sanitized = sanitizeMeasurementInput(event.target.value)
-                                        setSpecDraftValue(row.productId, 'height', sanitized)
+                                        setSpecDraftValue(itemKey, 'height', sanitized)
                                         if (!onItemChange) {
                                             return
                                         }
@@ -853,7 +900,7 @@ const EditableOrderProductsTable = ({
                                             customAttributes: nextCustomAttributes,
                                         }
                                         const nextPrice = getDerivedUnitPrice(nextItemState)
-                                        onItemChange(row.productId, {
+                                        onItemChange(itemKey, {
                                             customAttributes: nextCustomAttributes,
                                             specSummary: nextSummary,
                                             price: nextPrice,
@@ -867,7 +914,7 @@ const EditableOrderProductsTable = ({
                                     dir={resolveTextDirection(combinedSummary)}
                                 >
                                     {combinedLines.map((line, index) => (
-                                        <div key={`square-${row.productId}-${index}`}>
+                                        <div key={`square-${itemKey}-${index}`}>
                                             {line}
                                         </div>
                                     ))}
@@ -879,7 +926,7 @@ const EditableOrderProductsTable = ({
 
                 if (unit === 'LINEAR_METER') {
                     const lengthValue = resolveMeasurementDisplayValue(
-                        row.productId,
+                        itemKey,
                         'length',
                         length,
                     )
@@ -894,37 +941,37 @@ const EditableOrderProductsTable = ({
                                 })}
                                 value={lengthValue}
                                 disabled={!onItemChange}
-                                ref={registerSpecRef(row.productId, 'length')}
+                                ref={registerSpecRef(itemKey, 'length')}
                                 autoFocus={
-                                    activeSpecField?.productId === row.productId &&
+                                    activeSpecField?.itemId === itemKey &&
                                     activeSpecField.field === 'length'
                                 }
                                 onFocus={() =>
                                     setActiveSpecField((previous) => {
                                         if (
-                                            previous?.productId === row.productId &&
+                                            previous?.itemId === itemKey &&
                                             previous.field === 'length'
                                         ) {
                                             return previous
                                         }
                                         return {
-                                            productId: row.productId,
+                                            itemId: itemKey,
                                             field: 'length',
                                         }
                                     })
                                 }
                                 onBlur={() => {
                                     if (
-                                        activeSpecField?.productId === row.productId &&
+                                        activeSpecField?.itemId === itemKey &&
                                         activeSpecField.field === 'length'
                                     ) {
                                         setActiveSpecField(null)
                                     }
-                                    clearSpecDraft(row.productId, 'length')
+                                    clearSpecDraft(itemKey, 'length')
                                 }}
                                 onChange={(event) => {
                                     const sanitized = sanitizeMeasurementInput(event.target.value)
-                                    setSpecDraftValue(row.productId, 'length', sanitized)
+                                    setSpecDraftValue(itemKey, 'length', sanitized)
                                     if (!onItemChange) {
                                         return
                                     }
@@ -946,7 +993,7 @@ const EditableOrderProductsTable = ({
                                         customAttributes: nextCustomAttributes,
                                     }
                                     const nextPrice = getDerivedUnitPrice(nextItemState)
-                                    onItemChange(row.productId, {
+                                    onItemChange(itemKey, {
                                         customAttributes: nextCustomAttributes,
                                         specSummary: nextSummary,
                                         price: nextPrice,
@@ -959,7 +1006,7 @@ const EditableOrderProductsTable = ({
                                     dir={resolveTextDirection(combinedSummary)}
                                 >
                                     {combinedLines.map((line, index) => (
-                                        <div key={`linear-${row.productId}-${index}`}>
+                                        <div key={`linear-${itemKey}-${index}`}>
                                             {line}
                                         </div>
                                     ))}
@@ -1031,7 +1078,9 @@ const EditableOrderProductsTable = ({
         }
         const node = quantityInputRefs.current[activeQuantityId]
         if (!node) {
-            const exists = items.some((item) => item.productId === activeQuantityId)
+            const exists = items.some(
+                (item) => resolveItemKey(item) === activeQuantityId,
+            )
             if (!exists) {
                 setActiveQuantityId(null)
             }
@@ -1058,9 +1107,7 @@ const EditableOrderProductsTable = ({
             return
         }
         const node =
-            specInputRefs.current[activeSpecField.productId]?.[
-                activeSpecField.field
-            ]
+            specInputRefs.current[activeSpecField.itemId]?.[activeSpecField.field]
         if (node && document.activeElement !== node) {
             node.focus({ preventScroll: true })
             if (
