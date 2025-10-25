@@ -72,6 +72,7 @@ type OrderSortKey =
   | 'statusId'
   | 'paymentMehod'
   | 'totalAmount'
+  | 'validUntilDate'
 
 @Injectable()
 export class SalesDocumentsService {
@@ -530,7 +531,7 @@ export class SalesDocumentsService {
   private normalizeOrderSortKey(key: string): OrderSortKey | undefined {
     const normalized = key?.toString?.().trim()
     if (!normalized) return undefined
-    if (['id', 'date', 'customer', 'status', 'statusId', 'paymentMehod', 'totalAmount'].includes(normalized)) {
+    if (['id', 'date', 'customer', 'status', 'statusId', 'paymentMehod', 'totalAmount', 'validUntilDate'].includes(normalized)) {
       return normalized as OrderSortKey
     }
     return undefined
@@ -581,6 +582,9 @@ export class SalesDocumentsService {
           break
         case 'date':
           orderBy.push({ date: sort.order })
+          break
+        case 'validUntilDate':
+          orderBy.push({ validUntil: sort.order })
           break
         case 'customer':
           orderBy.push({ customer: { name: sort.order } })
@@ -847,6 +851,7 @@ export class SalesDocumentsService {
     const data = orders.map((o: OrderWithRelations) => ({
       id: String(o.id),
       date: Math.floor(new Date(o.date).getTime() / 1000),
+      validUntilDate: o.validUntil ? new Date(o.validUntil).toISOString() : null,
       customer: o.customer?.name || '',
       status: (o.statusId ?? defaultStatus?.id) || 0,
       paymentMehod: o.paymentMethod?.name || '',
@@ -1210,6 +1215,7 @@ export class SalesDocumentsService {
     return {
       id: order.id,
       date: order.date,
+      validUntilDate: order.validUntil ? order.validUntil.toISOString() : null,
       customer,
       items: order.items.map((item) => ({
         ...item,
@@ -1325,7 +1331,7 @@ export class SalesDocumentsService {
     const composeAddress = (addr?: any) => {
       if (!addr) return undefined
       const line1 = addr.addressLine1 || `${addr.street || ''} ${addr.number || ''}${addr.apartment ? ' Apt ' + addr.apartment : ''}`.trim()
-      const line2 = addr.addressLine2 || (addr.corner ? `Corner: ${addr.corner}` : '')
+      const line2 = addr.addressLine2 || (addr.corner ? `Esquina: ${addr.corner}` : '')
       return line1 && addr.city && addr.state
         ? { addressLine1: line1, addressLine2: line2, city: addr.city, state: addr.state }
         : undefined
@@ -1359,7 +1365,7 @@ export class SalesDocumentsService {
       if (!primaryAddr) throw new BadRequestException('sales.orders.validation.customerAddressRequired')
       shippingAddress = {
         addressLine1: `${primaryAddr.street} ${primaryAddr.number}${primaryAddr.apartment ? ' Apt ' + primaryAddr.apartment : ''}`,
-        addressLine2: primaryAddr.corner ? `Corner: ${primaryAddr.corner}` : '',
+        addressLine2: primaryAddr.corner ? `Esquina: ${primaryAddr.corner}` : '',
         city: primaryAddr.city,
         state: primaryAddr.country,
       }
@@ -1409,7 +1415,7 @@ export class SalesDocumentsService {
         currencySnapshot: monetary.orderCurrency,
         taxRateSnapshot: decimal(taxRate).toFixed(4),
         exchangeRateSnapshot: this.serializeFxSnapshot(monetary.snapshot),
-        validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
+        validUntil: dto.validUntilDate ? new Date(dto.validUntilDate) : null,
         disclaimer,
         items: { create: monetary.items },
       },
@@ -1440,7 +1446,7 @@ export class SalesDocumentsService {
     const composeAddress = (addr?: any) => {
       if (!addr) return undefined
       const line1 = addr.addressLine1 || `${addr.street || ''} ${addr.number || ''}${addr.apartment ? ' Apt ' + addr.apartment : ''}`.trim()
-      const line2 = addr.addressLine2 || (addr.corner ? `Corner: ${addr.corner}` : '')
+      const line2 = addr.addressLine2 || (addr.corner ? `Esquina: ${addr.corner}` : '')
       return line1 && addr.city && addr.state
         ? { addressLine1: line1, addressLine2: line2, city: addr.city, state: addr.state }
         : undefined
@@ -1474,7 +1480,7 @@ export class SalesDocumentsService {
       if (!primaryAddr) throw new BadRequestException('sales.orders.validation.customerAddressRequired')
       shippingAddress = {
         addressLine1: `${primaryAddr.street} ${primaryAddr.number}${primaryAddr.apartment ? ' Apt ' + primaryAddr.apartment : ''}`,
-        addressLine2: primaryAddr.corner ? `Corner: ${primaryAddr.corner}` : '',
+        addressLine2: primaryAddr.corner ? `Esquina: ${primaryAddr.corner}` : '',
         city: primaryAddr.city,
         state: primaryAddr.country,
       }
@@ -1513,7 +1519,7 @@ export class SalesDocumentsService {
         currencySnapshot: monetary.orderCurrency,
         taxRateSnapshot: decimal(taxRate).toFixed(4),
         exchangeRateSnapshot: this.serializeFxSnapshot(monetary.snapshot),
-        validUntil: dto.validUntil ? new Date(dto.validUntil) : existing.validUntil,
+        validUntil: dto.validUntilDate ? new Date(dto.validUntilDate) : existing.validUntil,
         documentFilePath: null,
         documentFileName: null,
         documentFileMime: null,
@@ -1664,7 +1670,7 @@ export class SalesDocumentsService {
       return {
         budgetId: budget.id,
         statusId: sentStatusId,
-        validUntil: validity,
+        validUntilDate: validity,
         updatedBy: userId ?? null,
       }
     })

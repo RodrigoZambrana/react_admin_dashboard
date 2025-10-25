@@ -20,6 +20,7 @@ import {
     getEffectiveQuantity,
     resolveSalesUnit,
 } from '@/utils/salesUnitCalculation'
+import { useSalesDocumentI18n } from '../../context/useSalesDocumentI18n'
 
 type Product = {
     id: string
@@ -170,136 +171,155 @@ const columns = (
     orderCurrency: string,
     defaultCurrency: string,
     fxSnapshot?: FxSnapshot,
-) => [
-    columnHelper.accessor('name', {
-        header: t('text.columns.product'),
-        cell: (props) => {
-            const row = props.row.original
-            return <ProductColumn row={row} />
-        },
-    }),
-    columnHelper.accessor('quantity', {
-        header: t('text.columns.quantity'),
-        cell: (props) => {
-            const row = props.row.original
-            const unit = resolveSalesUnit(
-                row.unitOfMeasure,
-                row.pricingMethod,
-            )
-            const effectiveQuantity =
-                row.effectiveQuantity ??
-                getEffectiveQuantity({
+    options: { showSpecifications?: boolean } = {},
+) => {
+    const showSpecifications = options.showSpecifications !== false
+    const definition = [
+        columnHelper.accessor('name', {
+            header: t('text.columns.product'),
+            cell: (props) => {
+                const row = props.row.original
+                return <ProductColumn row={row} />
+            },
+        }),
+        columnHelper.accessor('quantity', {
+            header: t('text.columns.quantity'),
+            cell: (props) => {
+                const row = props.row.original
+                const unit = resolveSalesUnit(
+                    row.unitOfMeasure,
+                    row.pricingMethod,
+                )
+                const effectiveQuantity =
+                    row.effectiveQuantity ??
+                    getEffectiveQuantity({
+                        qty: row.quantity,
+                        unitOfMeasure: row.unitOfMeasure,
+                        pricingMethod: row.pricingMethod,
+                        customAttributes: row.customAttributes,
+                    })
+                const formattedQuantity = Number.isFinite(effectiveQuantity)
+                    ? effectiveQuantity.toFixed(2)
+                    : '0.00'
+                if (unit === 'UNIT') {
+                    return <span>{Number(row.quantity) || 0}</span>
+                }
+                const measurementSuffix =
+                    unit === 'SQUARE_METER'
+                        ? 'm²'
+                        : unit === 'LINEAR_METER'
+                        ? 'm'
+                        : ''
+                return (
+                    <span>
+                        {formattedQuantity}
+                        {measurementSuffix ? ` ${measurementSuffix}` : ''}
+                    </span>
+                )
+            },
+        }),
+    ]
+
+    if (showSpecifications) {
+        definition.push(
+            columnHelper.display({
+                id: 'specifications',
+                header: t('text.columns.specifications', {
+                    defaultValue: 'Especificaciones',
+                }),
+                cell: (props) => {
+                    const row = props.row.original
+                    const summary = resolveSpecifications(row)
+                    return (
+                        <span
+                            className="whitespace-pre-wrap"
+                            dir={resolveTextDirection(summary)}
+                        >
+                            {summary || '—'}
+                        </span>
+                    )
+                },
+            }),
+        )
+    }
+
+    definition.push(
+        columnHelper.accessor('comments', {
+            header: t('text.columns.comments'),
+            cell: (props) => {
+                const value = props.row.original.comments
+                const text =
+                    typeof value === 'string' && value.trim().length > 0
+                        ? value
+                        : '—'
+                return (
+                    <span
+                        className="whitespace-pre-wrap"
+                        dir={resolveTextDirection(value)}
+                    >
+                        {text}
+                    </span>
+                )
+            },
+        }),
+        columnHelper.accessor('price', {
+            header: t('text.columns.price'),
+            cell: (props) => {
+                const row = props.row.original
+                const displayCurrency =
+                    normalizeCurrencyCode(orderCurrency, defaultCurrency) ||
+                    defaultCurrency
+                const baseUnitPrice = resolvePriceInOrderCurrency(
+                    row,
+                    displayCurrency,
+                    fxSnapshot,
+                )
+                const derivedPrice = getDerivedUnitPrice({
+                    unitPrice: baseUnitPrice,
+                    unitOfMeasure: row.unitOfMeasure,
+                    pricingMethod: row.pricingMethod,
+                    customAttributes: row.customAttributes,
+                })
+                return (
+                    <span>{formatAmount(derivedPrice, displayCurrency)}</span>
+                )
+            },
+        }),
+        columnHelper.accessor('total', {
+            header: t('text.columns.total'),
+            cell: (props) => {
+                const row = props.row.original
+                const displayCurrency =
+                    normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
+                const storedTotal = Number(row.total)
+                if (Number.isFinite(storedTotal)) {
+                    return (
+                        <span>{formatAmount(storedTotal, displayCurrency)}</span>
+                    )
+                }
+                const baseUnitPrice =
+                    getNumeric(row.unitPrice) ??
+                    resolvePriceInOrderCurrency(row, displayCurrency, fxSnapshot)
+                const fallbackTotal = calculateLineTotal({
+                    unitPrice: baseUnitPrice,
                     qty: row.quantity,
                     unitOfMeasure: row.unitOfMeasure,
                     pricingMethod: row.pricingMethod,
                     customAttributes: row.customAttributes,
                 })
-            const formattedQuantity = Number.isFinite(effectiveQuantity)
-                ? effectiveQuantity.toFixed(2)
-                : '0.00'
-            if (unit === 'UNIT') {
-                return <span>{Number(row.quantity) || 0}</span>
-            }
-            const measurementSuffix =
-                unit === 'SQUARE_METER' ? 'm²' : unit === 'LINEAR_METER' ? 'm' : ''
-            return (
-                <span>
-                    {formattedQuantity}
-                    {measurementSuffix ? ` ${measurementSuffix}` : ''}
-                </span>
-            )
-        },
-    }),
-    columnHelper.display({
-        id: 'specifications',
-        header: t('text.columns.specifications', {
-            defaultValue: 'Especificaciones',
-        }),
-        cell: (props) => {
-            const row = props.row.original
-            const summary = resolveSpecifications(row)
-            return (
-                <span
-                    className="whitespace-pre-wrap"
-                    dir={resolveTextDirection(summary)}
-                >
-                    {summary || '—'}
-                </span>
-            )
-        },
-    }),
-    columnHelper.accessor('comments', {
-        header: t('text.columns.comments'),
-        cell: (props) => {
-            const value = props.row.original.comments
-            const text =
-                typeof value === 'string' && value.trim().length > 0
-                    ? value
-                    : '—'
-            return (
-                <span
-                    className="whitespace-pre-wrap"
-                    dir={resolveTextDirection(value)}
-                >
-                    {text}
-                </span>
-            )
-        },
-    }),
-    columnHelper.accessor('price', {
-        header: t('text.columns.price'),
-        cell: (props) => {
-            const row = props.row.original
-            const displayCurrency =
-                normalizeCurrencyCode(orderCurrency, defaultCurrency) ||
-                defaultCurrency
-            const baseUnitPrice = resolvePriceInOrderCurrency(
-                row,
-                displayCurrency,
-                fxSnapshot,
-            )
-            const derivedPrice = getDerivedUnitPrice({
-                unitPrice: baseUnitPrice,
-                unitOfMeasure: row.unitOfMeasure,
-                pricingMethod: row.pricingMethod,
-                customAttributes: row.customAttributes,
-            })
-            return (
-                <span>{formatAmount(derivedPrice, displayCurrency)}</span>
-            )
-        },
-    }),
-    columnHelper.accessor('total', {
-        header: t('text.columns.total'),
-        cell: (props) => {
-            const row = props.row.original
-            const displayCurrency =
-                normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
-            const storedTotal = Number(row.total)
-            if (Number.isFinite(storedTotal)) {
                 return (
-                    <span>{formatAmount(storedTotal, displayCurrency)}</span>
+                    <span>{formatAmount(fallbackTotal, displayCurrency)}</span>
                 )
-            }
-            const baseUnitPrice =
-                getNumeric(row.unitPrice) ??
-                resolvePriceInOrderCurrency(row, displayCurrency, fxSnapshot)
-            const fallbackTotal = calculateLineTotal({
-                unitPrice: baseUnitPrice,
-                qty: row.quantity,
-                unitOfMeasure: row.unitOfMeasure,
-                pricingMethod: row.pricingMethod,
-                customAttributes: row.customAttributes,
-            })
-            return (
-                <span>{formatAmount(fallbackTotal, displayCurrency)}</span>
-            )
-        },
-    }),
-]
+            },
+        }),
+    )
+
+    return definition
+}
 
 const OrderProducts = ({ data = [], orderCurrency, fxSnapshot }: OrderProductsProps) => {
     const { t, i18n } = useTranslation()
+    const { showProductSpecifications } = useSalesDocumentI18n()
     const storeCurrency = useAppSelector((state) => state.currency.code)
     const defaultCurrency =
         normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
@@ -311,7 +331,14 @@ const OrderProducts = ({ data = [], orderCurrency, fxSnapshot }: OrderProductsPr
         })
     const table = useReactTable({
         data,
-        columns: columns(t, formatAmount, normalizedOrderCurrency, defaultCurrency, fxSnapshot),
+        columns: columns(
+            t,
+            formatAmount,
+            normalizedOrderCurrency,
+            defaultCurrency,
+            fxSnapshot,
+            { showSpecifications: showProductSpecifications },
+        ),
         getCoreRowModel: getCoreRowModel(),
     })
 
