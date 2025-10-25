@@ -4,6 +4,7 @@ import {
     Form,
     Field,
     getIn,
+    type FieldProps,
     type FormikProps,
     type FormikHelpers,
 } from 'formik'
@@ -282,6 +283,11 @@ const OrderNew = ({
         'disclaimerLabel',
         'sales.orders.disclaimerLabel',
         t('text.labels.disclaimer', { defaultValue: 'Disclaimer' }),
+    )
+    const validUntilLabel = docMessage(
+        'validUntilLabel',
+        'sales.orders.validUntilLabel',
+        t('text.labels.budgetValidity', { defaultValue: 'Valid until' }),
     )
     const exchangeRateMissingMessage = docMessage(
         'exchangeRateMissing',
@@ -1252,7 +1258,6 @@ const OrderNew = ({
         const plain = documentDisclaimer.replace(/<[^>]+>/g, ' ').trim()
         return resolveTextDirection(plain)
     }, [documentDisclaimer, hasDisclaimer])
-    const showDisclaimerCard = mode === 'budget' && (hasDisclaimer || disclaimerLoading)
     const pageHeading = layoutMode === 'itemsOnly'
         ? pageTitle
         : isEditing
@@ -2892,6 +2897,137 @@ const OrderNew = ({
 
                             {currentStep === 2 && (
                                 <div className="flex flex-col gap-6">
+                                    <Card bodyClass="p-5">
+                                        <h4 className="mb-4">
+                                            {docSummary(
+                                                'notesAndScheduling',
+                                                'Notes & scheduling',
+                                            )}
+                                        </h4>
+                                        <FormContainer>
+                                            <FormItem
+                                                label={t('text.labels.comments')}
+                                                invalid={Boolean(
+                                                    getIn(touched, 'comment') &&
+                                                        getIn(errors, 'comment'),
+                                                )}
+                                                errorMessage={
+                                                    getIn(errors, 'comment') as string
+                                                }
+                                            >
+                                                <Field name="comment">
+                                                    {({ field, form }: FieldProps<string>) => (
+                                                        <Input
+                                                            {...field}
+                                                            textArea
+                                                            rows={4}
+                                                            placeholder={t(
+                                                                'text.labels.comments',
+                                                            )}
+                                                            onChange={(event) => {
+                                                                form.setFieldValue(
+                                                                    field.name,
+                                                                    event.target.value,
+                                                                )
+                                                                clearQuickMessage()
+                                                            }}
+                                                        />
+                                                    )}
+                                                </Field>
+                                            </FormItem>
+                                            <div
+                                                className={classNames(
+                                                    'grid gap-4',
+                                                    mode === 'budget'
+                                                        ? 'md:grid-cols-2'
+                                                        : 'md:grid-cols-1',
+                                                )}
+                                            >
+                                                <FormItem
+                                                    label={t('text.labels.date')}
+                                                    invalid={Boolean(
+                                                        getIn(touched, 'date') &&
+                                                            getIn(errors, 'date'),
+                                                    )}
+                                                    errorMessage={
+                                                        getIn(errors, 'date') as string
+                                                    }
+                                                >
+                                                    <DatePicker
+                                                        value={values.date ?? null}
+                                                        onChange={(val) => {
+                                                            setFieldValue('date', val)
+                                                            setFieldTouched(
+                                                                'date',
+                                                                true,
+                                                                false,
+                                                            )
+                                                            clearQuickMessage()
+                                                        }}
+                                                    />
+                                                </FormItem>
+                                                {mode === 'budget' && (
+                                                    <FormItem
+                                                        label={validUntilLabel}
+                                                        invalid={Boolean(
+                                                            getIn(touched, 'validUntil') &&
+                                                                getIn(errors, 'validUntil'),
+                                                        )}
+                                                        errorMessage={
+                                                            getIn(errors, 'validUntil') as string
+                                                        }
+                                                    >
+                                                        <DatePicker
+                                                            value={values.validUntil ?? null}
+                                                            onChange={(val) => {
+                                                                setFieldValue(
+                                                                    'validUntil',
+                                                                    val,
+                                                                )
+                                                                setFieldTouched(
+                                                                    'validUntil',
+                                                                    true,
+                                                                    false,
+                                                                )
+                                                                clearQuickMessage()
+                                                            }}
+                                                        />
+                                                    </FormItem>
+                                                )}
+                                            </div>
+                                            <FormItem label={disclaimerLabel}>
+                                                {mode === 'budget' ? (
+                                                    disclaimerLoading ? (
+                                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                            Cargando...
+                                                        </div>
+                                                    ) : hasDisclaimer ? (
+                                                        <div
+                                                            className="text-sm text-gray-600 dark:text-gray-300 space-y-2"
+                                                            dir={disclaimerDirection}
+                                                            dangerouslySetInnerHTML={{
+                                                                __html: documentDisclaimer,
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                            {docSummary(
+                                                                'notAvailable',
+                                                                'Not available',
+                                                            )}
+                                                        </div>
+                                                    )
+                                                ) : (
+                                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                        {docSummary(
+                                                            'notAvailable',
+                                                            'Not available',
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </FormItem>
+                                        </FormContainer>
+                                    </Card>
                                 </div>
                             )}
 
@@ -3079,14 +3215,19 @@ const OrderNew = ({
                                                         },
                                                         {
                                                             label: t('text.labels.deliveryFee'),
-                                                            value: formattedDeliveryFee,
-                                                        },
-                                                        {
-                                                            label: docSummary('totalDue', 'Total due'),
-                                                            value: formattedGrandTotal,
-                                                        },
-                                                    ]
-                                                    return overviewItems.map(({ label, value }) => (
+                                                                    value: formattedDeliveryFee,
+                                                                },
+                                                            {
+                                                                label: docSummary('totalDue', 'Total due'),
+                                                                value: formattedGrandTotal,
+                                                                variant: 'highlight' as const,
+                                                            },
+                                                    ] as Array<{
+                                                        label: string
+                                                        value: string
+                                                        variant?: 'highlight'
+                                                    }>
+                                                    return overviewItems.map(({ label, value, variant }) => (
                                                         <div
                                                             key={label as string}
                                                             className="flex items-center justify-between gap-4"
@@ -3094,7 +3235,14 @@ const OrderNew = ({
                                                             <span className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                                 {label}
                                                             </span>
-                                                            <span className="font-medium text-right">
+                                                            <span
+                                                                className={classNames(
+                                                                    'font-semibold text-right text-sm px-2 py-1 rounded-md min-w-[6rem]',
+                                                                    variant === 'highlight'
+                                                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
+                                                                        : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
+                                                                )}
+                                                            >
                                                                 {value}
                                                             </span>
                                                         </div>
