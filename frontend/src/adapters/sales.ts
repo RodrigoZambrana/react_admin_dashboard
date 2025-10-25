@@ -13,6 +13,73 @@ export type FxSnapshot = {
   rates: Record<string, number>
   generatedAt?: string
 }
+
+const VALIDITY_ALIAS_KEYS = [
+  'validUntil',
+  'valid_until',
+  'validUntilDate',
+  'valid_until_at',
+  'validityDate',
+  'validity_date',
+] as const
+
+type ValidityAliasKey = (typeof VALIDITY_ALIAS_KEYS)[number]
+
+export type ValidityRecord = Partial<Record<ValidityAliasKey, unknown>> &
+  Record<string, unknown>
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value)
+
+const assignValidityAliases = (raw: unknown): ValidityRecord => {
+  const result: Partial<Record<ValidityAliasKey, unknown>> = {}
+  for (const key of VALIDITY_ALIAS_KEYS) {
+    result[key] = raw
+  }
+  return result as ValidityRecord
+}
+
+export const parseValidityRecord = (value: unknown): ValidityRecord | null => {
+  if (value === null || value === undefined) {
+    return null
+  }
+
+  if (isPlainObject(value)) {
+    return value as ValidityRecord
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed.length) {
+      return null
+    }
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (isPlainObject(parsed)) {
+        return parsed as ValidityRecord
+      }
+      if (parsed === null || parsed === undefined) {
+        return null
+      }
+      return assignValidityAliases(parsed)
+    } catch {
+      return assignValidityAliases(trimmed)
+    }
+  }
+
+  if (Array.isArray(value)) {
+    if (!value.length) {
+      return null
+    }
+    return parseValidityRecord(value[0])
+  }
+
+  if (value instanceof Date || typeof value === 'number') {
+    return assignValidityAliases(value)
+  }
+
+  return assignValidityAliases(value)
+}
 export function toUnixSeconds(date: any): number {
   try {
     const d = date ? new Date(date) : new Date()
@@ -390,6 +457,7 @@ export function adaptOrderToDetailsView(o: any) {
     payementStatus,
     dateTime,
     validUntil,
+    validityDate: validUntil,
     paymentSummary,
     shipping,
     product,
