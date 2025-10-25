@@ -27,12 +27,19 @@ type RangeOption = {
 const SalesDashboardHeader = () => {
     const dispatch = useAppDispatch()
 
-    const startDate = useAppSelector(
-        (state) => state.salesDashboard.data.startDate,
+    const fallbackStart = useMemo(
+        () => dayjs().startOf('month').unix(),
+        [],
     )
-    const endDate = useAppSelector((state) => state.salesDashboard.data.endDate)
+    const fallbackEnd = useMemo(() => dayjs().endOf('month').unix(), [])
+    const startDate = useAppSelector(
+        (state) => state.salesDashboard?.data?.startDate ?? fallbackStart,
+    )
+    const endDate = useAppSelector(
+        (state) => state.salesDashboard?.data?.endDate ?? fallbackEnd,
+    )
     const dateRangePreset = useAppSelector(
-        (state) => state.salesDashboard.data.dateRangePreset,
+        (state) => state.salesDashboard?.data?.dateRangePreset ?? 'thisMonth',
     )
 
     const { t } = useTranslation()
