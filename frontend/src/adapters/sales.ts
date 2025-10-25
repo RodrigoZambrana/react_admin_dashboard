@@ -390,6 +390,7 @@ export function adaptOrderToDetailsView(o: any) {
     payementStatus,
     dateTime,
     validUntil,
+    validityDate: validUntil,
     paymentSummary,
     shipping,
     product,

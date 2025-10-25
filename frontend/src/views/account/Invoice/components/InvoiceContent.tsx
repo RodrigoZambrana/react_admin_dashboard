@@ -422,6 +422,7 @@ type Invoice = {
     paymentSummary: Summary
     comment?: string
     validUntil?: number | string | null
+    validityDate?: number | string | null
     disclaimer?: string | null
 }
 
@@ -480,6 +481,7 @@ type InvoiceOrderDetails = {
     id?: string
     dateTime?: number
     validUntil?: number | string | null
+    validityDate?: number | string | null
     paymentSummary?: Summary
     product?: Product[]
     customer?: InvoiceCustomerDetails
@@ -723,15 +725,19 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                         const normalized: Partial<Invoice> = {
                             ...invoiceData,
                         }
+                        const initialValiditySource =
+                            normalized.validityDate ?? normalized.validUntil
                         const resolvedValidUntil = normalizeValidUntilValue(
-                            normalized.validUntil,
+                            initialValiditySource,
                         )
                         if (resolvedValidUntil !== undefined) {
+                            normalized.validityDate = resolvedValidUntil
                             normalized.validUntil = resolvedValidUntil
                         } else {
+                            delete normalized.validityDate
                             delete normalized.validUntil
                         }
-                        if (normalized.validUntil === undefined) {
+                        if (normalized.validityDate === undefined) {
                             const fallbackCandidates = [
                                 (invoiceData as any)?.valid_until,
                                 (invoiceData as any)?.valid_until_at,
@@ -743,6 +749,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                 const normalizedCandidate =
                                     normalizeValidUntilValue(candidate)
                                 if (normalizedCandidate !== undefined) {
+                                    normalized.validityDate = normalizedCandidate
                                     normalized.validUntil = normalizedCandidate
                                     break
                                 }
@@ -781,6 +788,8 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                         customer: mapped.customer as InvoiceCustomerDetails,
                         fxSnapshot: mapped.fxSnapshot,
                         validUntil: mapped.validUntil,
+                        validityDate:
+                            (mapped as any)?.validityDate ?? mapped.validUntil,
                         comment:
                             typeof mapped.comment === 'string'
                                 ? mapped.comment
@@ -1039,15 +1048,19 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
     }, [data.product, orderData])
 
     const invoiceDate = orderData?.dateTime ?? data.dateTime
-    const rawValidUntil = orderData?.validUntil ?? data.validUntil
+    const rawValidityDate =
+        orderData?.validityDate ??
+        data.validityDate ??
+        orderData?.validUntil ??
+        data.validUntil
     const invoiceId = orderData?.id ?? data?.id
     const formattedInvoiceDate = useMemo(
         () => formatDateValue(invoiceDate),
         [invoiceDate],
     )
-    const formattedValidUntil = useMemo(
-        () => formatDateValue(rawValidUntil),
-        [rawValidUntil],
+    const formattedValidityDate = useMemo(
+        () => formatDateValue(rawValidityDate),
+        [rawValidityDate],
     )
     const customer = orderData?.customer
     const recipientName =
@@ -1144,7 +1157,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
             {
                 key: 'valid-until',
                 label: budgetValidityLabel,
-                value: valueOrDash(formattedValidUntil),
+                value: valueOrDash(formattedValidityDate),
             },
             {
                 key: 'name',
@@ -1176,7 +1189,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         customerPhone,
         documentNumberLabel,
         formattedInvoiceDate,
-        formattedValidUntil,
+        formattedValidityDate,
         invoiceDate,
         invoiceId,
         isBudgetDocument,

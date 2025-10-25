@@ -848,17 +848,21 @@ export class SalesDocumentsService {
       ? await this.prisma.orderStatus.findUnique({ where: { code: BUDGET_STATUS.DRAFT.code } })
       : await this.getDefaultOrderStatus()
 
-    const data = orders.map((o: OrderWithRelations) => ({
-      id: String(o.id),
-      date: Math.floor(new Date(o.date).getTime() / 1000),
-      validUntilDate: o.validUntil ? new Date(o.validUntil).toISOString() : null,
-      customer: o.customer?.name || '',
-      status: (o.statusId ?? defaultStatus?.id) || 0,
-      paymentMehod: o.paymentMethod?.name || '',
-      paymentIdendifier: '',
-      totalAmount: Number(o.grandTotal?.toString?.() ?? o.grandTotal ?? 0),
-      orderCurrency: o.orderCurrency,
-    }))
+    const data = orders.map((o: OrderWithRelations) => {
+      const validity = o.validUntil ? new Date(o.validUntil).toISOString() : null
+      return {
+        id: String(o.id),
+        date: Math.floor(new Date(o.date).getTime() / 1000),
+        validUntilDate: validity,
+        validityDate: validity,
+        customer: o.customer?.name || '',
+        status: (o.statusId ?? defaultStatus?.id) || 0,
+        paymentMehod: o.paymentMethod?.name || '',
+        paymentIdendifier: '',
+        totalAmount: Number(o.grandTotal?.toString?.() ?? o.grandTotal ?? 0),
+        orderCurrency: o.orderCurrency,
+      }
+    })
     return { data, total }
   }
 
@@ -1212,10 +1216,13 @@ export class SalesDocumentsService {
     const disclaimer =
       order.disclaimer ?? (await this.getDefaultDocumentDisclaimer()) ?? null
 
+    const validity = order.validUntil ? order.validUntil.toISOString() : null
+
     return {
       id: order.id,
       date: order.date,
-      validUntilDate: order.validUntil ? order.validUntil.toISOString() : null,
+      validUntilDate: validity,
+      validityDate: validity,
       customer,
       items: order.items.map((item) => ({
         ...item,
@@ -1671,6 +1678,7 @@ export class SalesDocumentsService {
         budgetId: budget.id,
         statusId: sentStatusId,
         validUntilDate: validity,
+        validityDate: validity,
         updatedBy: userId ?? null,
       }
     })
