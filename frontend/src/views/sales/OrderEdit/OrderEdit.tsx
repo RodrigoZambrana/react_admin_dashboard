@@ -279,6 +279,30 @@ const mapItemsToEditable = (
     })
 }
 
+const unwrapPossibleJsonDate = (value: string): unknown => {
+    const trimmed = value.trim()
+    if (!trimmed.length) {
+        return null
+    }
+    const firstChar = trimmed[0]
+    const lastChar = trimmed[trimmed.length - 1]
+    if ((firstChar === '"' && lastChar === '"') || (firstChar === "'" && lastChar === "'")) {
+        try {
+            const parsed = JSON.parse(trimmed)
+            if (parsed !== value) {
+                return parsed
+            }
+        } catch {
+            return trimmed.slice(1, -1)
+        }
+    }
+    if (/^\d+$/.test(trimmed)) {
+        const numeric = Number(trimmed)
+        return Number.isNaN(numeric) ? trimmed : numeric
+    }
+    return trimmed
+}
+
 const parseDateValue = (value: unknown): Date | null => {
     if (value === null || value === undefined) {
         return null
@@ -295,7 +319,22 @@ const parseDateValue = (value: unknown): Date | null => {
     }
 
     if (typeof value === 'string') {
-        const trimmed = value.trim()
+        const unwrapped = unwrapPossibleJsonDate(value)
+        if (unwrapped === null) {
+            return null
+        }
+
+        if (unwrapped instanceof Date) {
+            const timestamp = unwrapped.getTime()
+            return Number.isNaN(timestamp) ? null : new Date(timestamp)
+        }
+
+        if (typeof unwrapped === 'number') {
+            const numericDate = new Date(unwrapped)
+            return Number.isNaN(numericDate.getTime()) ? null : numericDate
+        }
+
+        const trimmed = typeof unwrapped === 'string' ? unwrapped.trim() : String(unwrapped)
         if (!trimmed.length) {
             return null
         }
@@ -452,10 +491,29 @@ const OrderEdit = () => {
                 )
 
                 const validitySource = parseValidityRecord(orderData?.validity)
+                const rawDocumentDate =
+                    orderData?.date ??
+                    orderData?.documentDate ??
+                    orderData?.document_date ??
+                    orderData?.createdAt ??
+                    orderData?.created_at ??
+                    orderData?.createdDate ??
+                    orderData?.created_date ??
+                    (orderData as any)?.created ??
+                    null
                 const rawValidUntil =
                     orderData?.validUntil ??
                     orderData?.valid_until ??
-                    (validitySource?.validUntil ?? validitySource?.valid_until)
+                    orderData?.validUntilDate ??
+                    orderData?.valid_until_at ??
+                    orderData?.validityDate ??
+                    orderData?.validity_date ??
+                    (validitySource?.validUntil ??
+                        validitySource?.valid_until ??
+                        validitySource?.validUntilDate ??
+                        validitySource?.valid_until_at ??
+                        validitySource?.validityDate ??
+                        validitySource?.validity_date)
 
                 const resolvedCustomerIdRaw =
                     orderData?.customerId ?? (orderData?.customer as any)?.id ?? null
@@ -464,7 +522,7 @@ const OrderEdit = () => {
                         ? String(resolvedCustomerIdRaw)
                         : ''
 
-                const parsedDocumentDate = parseDateValue(orderData?.date)
+                const parsedDocumentDate = parseDateValue(rawDocumentDate)
                 const parsedValidUntil = parseDateValue(rawValidUntil)
 
                 const formValues: SalesDocumentFormValues = {
