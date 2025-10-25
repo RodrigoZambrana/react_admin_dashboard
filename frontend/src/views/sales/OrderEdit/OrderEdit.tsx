@@ -203,6 +203,20 @@ const parseBooleanLike = (value: unknown): boolean => {
     return Boolean(value)
 }
 
+const customerHasContactDetails = (detail: any | null | undefined): boolean => {
+    if (!detail || typeof detail !== 'object') {
+        return false
+    }
+    if (detail.email && String(detail.email).trim().length) {
+        return true
+    }
+    const phones = (detail as any)?.personalInfo?.phoneNumbers
+    if (Array.isArray(phones) && phones.some((phone) => typeof phone === 'string' && phone.trim())) {
+        return true
+    }
+    return false
+}
+
 const mapItemsToEditable = (
     items: any[],
     products: any[],
@@ -477,11 +491,13 @@ const OrderEdit = () => {
 
                 if (resolvedCustomerId) {
                     const fallbackDetail = (orderData?.customer as any) ?? null
-                    if (fallbackDetail) {
-                        if (active) {
-                            setInitialCustomerDetail(fallbackDetail)
-                        }
-                    } else {
+                    const needsDetailedFetch = !customerHasContactDetails(fallbackDetail)
+
+                    if (fallbackDetail && active) {
+                        setInitialCustomerDetail(fallbackDetail)
+                    }
+
+                    if (needsDetailedFetch) {
                         try {
                             const detailRes = await apiGetCustomerDetails<any, { id: string }>({
                                 id: resolvedCustomerId,
@@ -491,7 +507,7 @@ const OrderEdit = () => {
                                 setInitialCustomerDetail(detail)
                             }
                         } catch {
-                            if (active) {
+                            if (!fallbackDetail && active) {
                                 setInitialCustomerDetail(null)
                             }
                         }
