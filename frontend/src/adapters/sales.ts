@@ -1,12 +1,13 @@
 /* eslint-disable  @typescript-eslint/no-explicit-any */
 import { normalizeCurrencyCode } from '@/utils/currency'
 import i18n from '@/locales'
+import { resolveSalesUnit, type SalesUnitAwareItem } from '@/utils/salesUnitCalculation'
 import {
-  calculateLineTotal,
-  getDerivedUnitPrice,
-  getEffectiveQuantity,
-  resolveSalesUnit,
-} from '@/utils/salesUnitCalculation'
+  computeSalesDocumentLine,
+  computeSalesDocumentSummary,
+  createSalesDocumentRounder,
+  type SalesDocumentMode,
+} from '@/utils/salesDocumentCalculations'
 
 export type FxSnapshot = {
   base: string
@@ -244,7 +245,10 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
   }
 }
 
-export function adaptOrderToDetailsView(o: any) {
+export function adaptOrderToDetailsView(
+  o: any,
+  options?: { mode?: SalesDocumentMode },
+) {
   if (!o) return {}
   const dateTime = toUnixSeconds(o.date)
   const rawValidUntil = (() => {
@@ -307,13 +311,10 @@ export function adaptOrderToDetailsView(o: any) {
   const normalizedOrderCurrency =
     normalizeCurrencyCode(o.orderCurrency, detectedCurrency) ||
     normalizeCurrencyCode(detectedCurrency)
-  const paymentSummary = {
-    subTotal: Number(o.subTotal || 0),
-    tax: Number(o.tax || 0),
-    deliveryFees: Number(o.deliveryFees || 0),
-    total: Number(o.grandTotal || 0),
-    currency: normalizedOrderCurrency,
-  }
+  const resolvedMode: SalesDocumentMode =
+    options?.mode === 'budget' ? 'budget' : 'order'
+  const roundAmount = createSalesDocumentRounder(resolvedMode)
+  const summaryItems: SalesUnitAwareItem[] = []
   const product = Array.isArray(o.items)
     ? o.items.map((it: any) => {
         const rawQty = Number(it.qty ?? 0)
@@ -352,18 +353,18 @@ export function adaptOrderToDetailsView(o: any) {
           pricingMethod: resolvedUnit,
           customAttributes,
         }
-        const derivedUnitPrice = getDerivedUnitPrice(computeItem)
-        const computedTotal = calculateLineTotal(computeItem)
+        summaryItems.push(computeItem)
+        const lineComputation = computeSalesDocumentLine(computeItem, roundAmount)
         return {
           id: String(it.id),
           productId: it.productId ? String(it.productId) : undefined,
           name: it.name,
           productCode: it.product?.productCode || '',
           img: it.img || '',
-          price: derivedUnitPrice,
+          price: lineComputation.unitPrice,
           quantity: rawQty,
           qty: rawQty,
-          total: computedTotal,
+          total: lineComputation.lineTotal,
           currency: normalizedOrderCurrency,
           unitCurrency:
             normalizeCurrencyCode(it.unitCurrency, normalizedOrderCurrency) ||
@@ -383,7 +384,7 @@ export function adaptOrderToDetailsView(o: any) {
           customAttributes,
           unitOfMeasure: resolvedUnit,
           pricingMethod: resolvedUnit,
-          effectiveQuantity: getEffectiveQuantity(computeItem),
+          effectiveQuantity: lineComputation.effectiveQuantity,
           unitCostOrderCurrency: Number.isFinite(unitCostAmount)
             ? unitCostAmount
             : 0,
@@ -394,6 +395,31 @@ export function adaptOrderToDetailsView(o: any) {
         }
       })
     : []
+  const summaryComputation = computeSalesDocumentSummary(summaryItems, {
+    mode: resolvedMode,
+    round: roundAmount,
+    deliveryFees: shipping.deliveryFees,
+    taxRate:
+      (o as any)?.taxRate ??
+      (o as any)?.tax_rate ??
+      (o as any)?.taxRateSnapshot ??
+      (o as any)?.tax_rate_snapshot,
+    fallbackTaxAmount:
+      (o as any)?.tax ??
+      (o as any)?.taxAmount ??
+      (o as any)?.tax_amount,
+  })
+  const paymentSummary = {
+    subTotal: summaryComputation.subTotal,
+    tax: summaryComputation.tax,
+    deliveryFees: summaryComputation.deliveryFees,
+    total: summaryComputation.total,
+    currency: normalizedOrderCurrency,
+  }
+  const normalizedShipping = {
+    ...shipping,
+    deliveryFees: summaryComputation.deliveryFees,
+  }
   const fxSnapshot = (() => {
     const raw = o.fxRates
     const normalizedBase = normalizeCurrencyCode(raw?.base, normalizedOrderCurrency) || normalizedOrderCurrency
@@ -459,7 +485,7 @@ export function adaptOrderToDetailsView(o: any) {
     validUntil,
     validityDate: validUntil,
     paymentSummary,
-    shipping,
+    shipping: normalizedShipping,
     product,
     activity: [],
     customer,
