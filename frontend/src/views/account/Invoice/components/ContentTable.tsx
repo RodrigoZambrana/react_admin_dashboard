@@ -276,11 +276,6 @@ const ProductColumn = ({ row }: { row: Product }) => {
         <div className="flex">
             <div className="ltr:ml-2 rtl:mr-2">
                 <h6 className="mb-1 font-semibold">{row.name}</h6>
-                {row.productCode && (
-                    <div className="mb-2 text-sm text-gray-500 dark:text-gray-300">
-                        {row.productCode}
-                    </div>
-                )}
                 {detailKeys.map((key, i) => (
                     <div key={key + i} className="mb-1 text-sm">
                         <span className="capitalize text-gray-500 dark:text-gray-400">
