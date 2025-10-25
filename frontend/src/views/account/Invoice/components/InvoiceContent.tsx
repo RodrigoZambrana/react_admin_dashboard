@@ -641,66 +641,6 @@ const normalizeValidUntilValue = (
     if (value === null) {
         return null
     }
-    if (value && typeof value === 'object' && !(value instanceof Date)) {
-        const record = value as Record<string, unknown>
-        if (typeof (record as { toDate?: unknown }).toDate === 'function') {
-            try {
-                const converted = (record as { toDate: () => unknown }).toDate()
-                const normalized = normalizeValidUntilValue(converted)
-                if (normalized !== undefined) {
-                    return normalized
-                }
-            } catch {
-                // fall through to consider other object keys
-            }
-        }
-        const candidateKeys = [
-            'date',
-            'datetime',
-            'value',
-            'validUntil',
-            'valid_until',
-            'validUntilDate',
-            'validityDate',
-            'validity_date',
-            'validTo',
-            'valid_to',
-            'validThru',
-            'valid_thru',
-            'expiresAt',
-            'expires_at',
-            'expirationAt',
-            'expiration_at',
-            'expirationDate',
-            'expiration_date',
-            'expiryDate',
-            'expiry_date',
-            'expires',
-            'expiration',
-            'expiry',
-            'timestamp',
-            'seconds',
-        ]
-        for (const key of candidateKeys) {
-            if (Object.prototype.hasOwnProperty.call(record, key)) {
-                const nested = normalizeValidUntilValue(record[key])
-                if (nested !== undefined) {
-                    return nested
-                }
-            }
-        }
-        if (typeof record.toString === 'function') {
-            const stringValue = record.toString()
-            if (
-                typeof stringValue === 'string' &&
-                stringValue &&
-                stringValue !== '[object Object]'
-            ) {
-                return normalizeValidUntilValue(stringValue)
-            }
-        }
-        return undefined
-    }
     const unixValue = toUnixSeconds(value as Date | string | number)
     if (Number.isFinite(unixValue)) {
         return unixValue
@@ -798,21 +738,6 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                 (invoiceData as any)?.validUntilDate,
                                 (invoiceData as any)?.validityDate,
                                 (invoiceData as any)?.validity_date,
-                                (invoiceData as any)?.validTo,
-                                (invoiceData as any)?.valid_to,
-                                (invoiceData as any)?.validThru,
-                                (invoiceData as any)?.valid_thru,
-                                (invoiceData as any)?.expiresAt,
-                                (invoiceData as any)?.expires_at,
-                                (invoiceData as any)?.expirationAt,
-                                (invoiceData as any)?.expiration_at,
-                                (invoiceData as any)?.expirationDate,
-                                (invoiceData as any)?.expiration_date,
-                                (invoiceData as any)?.expiryDate,
-                                (invoiceData as any)?.expiry_date,
-                                (invoiceData as any)?.expires,
-                                (invoiceData as any)?.expiration,
-                                (invoiceData as any)?.expiry,
                             ]
                             for (const candidate of fallbackCandidates) {
                                 const normalizedCandidate =
