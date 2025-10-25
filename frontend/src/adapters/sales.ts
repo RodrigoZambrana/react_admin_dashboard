@@ -13,6 +13,11 @@ import {
   type SalesDocumentSummaryComputation,
 } from '@/utils/salesDocumentCalculations'
 
+const coerceDocumentNumber = (value: unknown, fallback = 0) => {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : fallback
+}
+
 export type FxSnapshot = {
   base: string
   rates: Record<string, number>
@@ -495,11 +500,11 @@ export function adaptSalesDocumentListRecord<T extends Record<string, any>>(
   }
   const resolvedMode: SalesDocumentMode =
     options?.mode ?? (options?.resource === 'budgets' ? 'budget' : 'order')
-  const round = createSalesDocumentRounder(resolvedMode)
+  const roundValue = createSalesDocumentRounder(resolvedMode)
   const summaryItems = mapSalesDocumentItemsForComputation((raw as any)?.items)
-  const summary = computeSalesDocumentSummary(summaryItems, {
+  let summary = computeSalesDocumentSummary(summaryItems, {
     mode: resolvedMode,
-    round,
+    round: roundValue,
     deliveryFees: (raw as any)?.deliveryFees ?? (raw as any)?.shipping?.deliveryFees,
     taxRate:
       (raw as any)?.taxRate ??
@@ -511,6 +516,46 @@ export function adaptSalesDocumentListRecord<T extends Record<string, any>>(
       (raw as any)?.taxAmount ??
       (raw as any)?.tax_amount,
   })
+  const fallbackTotals = {
+    deliveryFees:
+      (raw as any)?.deliveryFees ??
+      (raw as any)?.shipping?.deliveryFees ??
+      (raw as any)?.paymentSummary?.deliveryFees,
+    total:
+      (raw as any)?.totalAmount ??
+      (raw as any)?.grandTotal ??
+      (raw as any)?.grand_total ??
+      (raw as any)?.total,
+    tax:
+      (raw as any)?.tax ??
+      (raw as any)?.taxAmount ??
+      (raw as any)?.tax_amount ??
+      (raw as any)?.paymentSummary?.tax,
+  }
+  const fallbackDelivery = coerceDocumentNumber(fallbackTotals.deliveryFees, 0)
+  const fallbackTotal = coerceDocumentNumber(fallbackTotals.total, 0)
+  const fallbackTax = coerceDocumentNumber(fallbackTotals.tax, 0)
+  const fallbackSubTotal = Math.max(fallbackTotal - fallbackDelivery, 0)
+
+  const shouldUseFallbackSummary =
+    summaryItems.length === 0 || (!summary.total && fallbackTotal !== 0)
+
+  if (shouldUseFallbackSummary) {
+    summary = {
+      lines: summary.lines,
+      subTotal: roundValue(fallbackSubTotal),
+      deliveryFees: roundValue(fallbackDelivery),
+      total: roundValue(fallbackTotal),
+      tax: roundValue(fallbackTax),
+    }
+  } else {
+    if (!summary.deliveryFees && fallbackDelivery) {
+      summary.deliveryFees = roundValue(fallbackDelivery)
+    }
+    if (!summary.tax && fallbackTax) {
+      summary.tax = roundValue(fallbackTax)
+    }
+  }
   const currency =
     detectSalesDocumentCurrency((raw as any)?.items, (raw as any)?.orderCurrency) ??
     normalizeCurrencyCode((raw as any)?.orderCurrency)
