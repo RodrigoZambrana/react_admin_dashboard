@@ -1294,71 +1294,65 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                             </div>
                             <div className="grid gap-6 md:grid-cols-2">
                                 <div className="rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-700">
-                                    <div className="grid gap-6 sm:grid-cols-2">
-                                        <div className="space-y-4 sm:col-span-2">
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                    {t('text.labels.issuedBy')}
+                                    <div className="grid gap-4 sm:grid-cols-2">
+                                        <div className="space-y-1">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                {t('text.labels.issuedBy')}
+                                            </p>
+                                            <p className="font-medium text-gray-800 dark:text-gray-100">
+                                                {companyDetails.legalName}
+                                            </p>
+                                            {companyDetails.tradeName ? (
+                                                <p className="text-sm text-gray-500 dark:text-gray-300">
+                                                    {companyDetails.tradeName}
                                                 </p>
-                                                <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                    {companyDetails.legalName}
-                                                </p>
-                                                {companyDetails.tradeName ? (
-                                                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
-                                                        {companyDetails.tradeName}
-                                                    </p>
-                                                ) : null}
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                    {t('text.labels.address')}
-                                                </p>
-                                                <address className="mt-1 not-italic space-y-1 text-gray-800 dark:text-gray-100">
-                                                    {companyDetails.address.length > 0 ? (
-                                                        companyDetails.address.map((line) => (
-                                                            <div key={line}>{line}</div>
-                                                        ))
-                                                    ) : (
-                                                        <div>{valueOrDash()}</div>
-                                                    )}
-                                                </address>
-                                            </div>
+                                            ) : null}
                                         </div>
-                                        <div className="space-y-4">
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                    {t('text.labels.phone')}
-                                                </p>
-                                                <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                    {valueOrDash(companyDetails.phone)}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                    {t('text.labels.email')}
-                                                </p>
-                                                <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                    {valueOrDash(companyDetails.email)}
-                                                </p>
-                                            </div>
+                                        <div className="space-y-1">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                {t('text.labels.phone')}
+                                            </p>
+                                            <p className="font-medium text-gray-800 dark:text-gray-100">
+                                                {valueOrDash(companyDetails.phone)}
+                                            </p>
                                         </div>
-                                        <div className="space-y-4">
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                    {t('text.labels.website')}
-                                                </p>
-                                                <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                    {valueOrDash(companyDetails.website)}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                    {t('text.labels.taxId')}
-                                                </p>
-                                                <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                    {valueOrDash(companyDetails.taxId)}
-                                                </p>
-                                            </div>
+                                        <div className="space-y-1">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                {t('text.labels.email')}
+                                            </p>
+                                            <p className="font-medium text-gray-800 dark:text-gray-100">
+                                                {valueOrDash(companyDetails.email)}
+                                            </p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                {t('text.labels.website')}
+                                            </p>
+                                            <p className="font-medium text-gray-800 dark:text-gray-100">
+                                                {valueOrDash(companyDetails.website)}
+                                            </p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                {t('text.labels.taxId')}
+                                            </p>
+                                            <p className="font-medium text-gray-800 dark:text-gray-100">
+                                                {valueOrDash(companyDetails.taxId)}
+                                            </p>
+                                        </div>
+                                        <div className="space-y-1 sm:col-span-2">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                {t('text.labels.address')}
+                                            </p>
+                                            <address className="space-y-1 not-italic text-gray-800 dark:text-gray-100">
+                                                {companyDetails.address.length > 0 ? (
+                                                    companyDetails.address.map((line) => (
+                                                        <div key={line}>{line}</div>
+                                                    ))
+                                                ) : (
+                                                    <div>{valueOrDash()}</div>
+                                                )}
+                                            </address>
                                         </div>
                                     </div>
                                 </div>
@@ -1397,66 +1391,56 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="grid gap-6 sm:grid-cols-2">
-                                            <div className="space-y-4">
-                                                <div>
-                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                        {t('text.labels.issuedBy')}
-                                                    </p>
-                                                    <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                        {companyDetails.legalName}
-                                                    </p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                        {documentNumberLabel}
-                                                    </p>
-                                                    <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                        {invoiceId}
-                                                    </p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                        {t('text.labels.issuedOn')}
-                                                    </p>
-                                                    <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                        {invoiceDate
-                                                            ? formattedInvoiceDate
-                                                            : t('text.labels.unknownDate')}
-                                                    </p>
-                                                </div>
+                                        <div className="grid gap-4 sm:grid-cols-2">
+                                            <div className="space-y-1">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                    {documentNumberLabel}
+                                                </p>
+                                                <p className="font-medium text-gray-800 dark:text-gray-100">
+                                                    {invoiceId}
+                                                </p>
                                             </div>
-                                            <div className="space-y-4">
-                                                <div>
-                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                        {t('text.labels.billTo')}
-                                                    </p>
-                                                    <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                        {valueOrDash(customerFullName)}
-                                                    </p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                        {t('text.labels.email')}
-                                                    </p>
-                                                    <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                        {valueOrDash(customerEmail)}
-                                                    </p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                                        {t('text.labels.phone')}
-                                                    </p>
-                                                    <p className="mt-1 font-medium text-gray-800 dark:text-gray-100">
-                                                        {valueOrDash(customerPhone)}
-                                                    </p>
-                                                </div>
+                                            <div className="space-y-1">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                    {t('text.labels.issuedOn')}
+                                                </p>
+                                                <p className="font-medium text-gray-800 dark:text-gray-100">
+                                                    {invoiceDate
+                                                        ? formattedInvoiceDate
+                                                        : t('text.labels.unknownDate')}
+                                                </p>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                    {t('text.labels.billTo')}
+                                                </p>
+                                                <p className="font-medium text-gray-800 dark:text-gray-100">
+                                                    {valueOrDash(customerFullName)}
+                                                </p>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                    {t('text.labels.email')}
+                                                </p>
+                                                <p className="font-medium text-gray-800 dark:text-gray-100">
+                                                    {valueOrDash(customerEmail)}
+                                                </p>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                    {t('text.labels.phone')}
+                                                </p>
+                                                <p className="font-medium text-gray-800 dark:text-gray-100">
+                                                    {valueOrDash(customerPhone)}
+                                                </p>
+                                            </div>
+                                            <div className="sm:col-span-2">
                                                 <div className="grid gap-4 sm:grid-cols-2">
-                                                    <div>
+                                                    <div className="space-y-1">
                                                         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                             {t('text.titles.shippingAddress')}
                                                         </p>
-                                                        <address className="mt-1 space-y-1 not-italic text-gray-800 dark:text-gray-100">
+                                                        <address className="space-y-1 not-italic text-gray-800 dark:text-gray-100">
                                                             {shippingAddressLines.length > 0 ? (
                                                                 shippingAddressLines.map((line, index) => (
                                                                     <div key={`shipping-${index}`}>{line}</div>
@@ -1467,11 +1451,11 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                                         </address>
                                                     </div>
                                                     {showBillingAddress && (
-                                                        <div>
+                                                        <div className="space-y-1">
                                                             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                                 {t('text.titles.billingAddress')}
                                                             </p>
-                                                            <address className="mt-1 space-y-1 not-italic text-gray-800 dark:text-gray-100">
+                                                            <address className="space-y-1 not-italic text-gray-800 dark:text-gray-100">
                                                                 {billingAddressLines.length > 0 ? (
                                                                     billingAddressLines.map((line, index) => (
                                                                         <div key={`billing-${index}`}>{line}</div>

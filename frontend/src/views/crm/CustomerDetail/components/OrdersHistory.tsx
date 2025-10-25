@@ -9,7 +9,7 @@ import {
     useReactTable,
     createColumnHelper,
 } from '@tanstack/react-table'
-import { CustomerOrder } from '../store'
+import { CustomerBudget, CustomerOrder } from '../store'
 import { useSelector } from 'react-redux'
 import dayjs from 'dayjs'
 import { Link } from 'react-router-dom'
@@ -29,9 +29,10 @@ const statusColor: Record<string, string> = {
 
 const columnHelper = createColumnHelper<CustomerOrder>()
 
-const columns = (
+const buildColumns = (
     t: (k: string) => string,
     formatAmount: (value?: number, currency?: string) => string,
+    options: { detailsPath: string },
 ) => [
     columnHelper.accessor('id', {
         header: t('text.columns.reference'),
@@ -39,7 +40,7 @@ const columns = (
             const row = props.row.original
             return (
                 <Link
-                    to={`/app/sales/order-details/${row.id}`}
+                    to={`${options.detailsPath}/${row.id}`}
                     className="text-primary-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded-sm"
                 >
                     #{row.id}
@@ -90,7 +91,7 @@ const columns = (
             const row = props.row.original
             return (
                 <div className="flex justify-end">
-                    <Link to={`/app/sales/order-details/${row.id}`}>
+                    <Link to={`${options.detailsPath}/${row.id}`}>
                         <Button size="xs" variant="twoTone">
                             {t('text.actions.view')}
                         </Button>
@@ -103,6 +104,7 @@ const columns = (
 
 const OrdersHistory = () => {
     const EMPTY_ORDERS: CustomerOrder[] = []
+    const EMPTY_BUDGETS: CustomerBudget[] = []
     const crmDetails = useSelector(
         (state: any) => state.crmCustomerDetails?.data,
     )
@@ -113,8 +115,16 @@ const OrdersHistory = () => {
         (crmDetails?.ordersData?.length ?? 0) > 0
             ? crmDetails.ordersData
             : activityDetails?.ordersData ?? EMPTY_ORDERS
+    const budgets = crmDetails?.budgetsData ?? EMPTY_BUDGETS
 
     const [sorting, setSorting] = useState<
+        {
+            id: string
+            desc: boolean
+        }[]
+    >([])
+
+    const [budgetSorting, setBudgetSorting] = useState<
         {
             id: string
             desc: boolean
@@ -131,9 +141,11 @@ const OrdersHistory = () => {
         formatCurrency(value, currency, i18n.language, {
             fallbackCurrency: defaultCurrency,
         })
-    const table = useReactTable({
+    const ordersTable = useReactTable({
         data,
-        columns: columns(t, formatAmount),
+        columns: buildColumns(t, formatAmount, {
+            detailsPath: '/app/sales/order-details',
+        }),
         state: {
             sorting,
         },
@@ -142,54 +154,117 @@ const OrdersHistory = () => {
         getSortedRowModel: getSortedRowModel(),
     })
 
+    const budgetsTable = useReactTable({
+        data: budgets,
+        columns: buildColumns(t, formatAmount, {
+            detailsPath: '/app/sales/budget-details',
+        }),
+        state: {
+            sorting: budgetSorting,
+        },
+        onSortingChange: setBudgetSorting,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+    })
+
     return (
-        <div className="mb-0">
-            <h6 className="mb-4">{t('text.titles.orderHistory')}</h6>
-            <Table>
-                <THead>
-                    {table.getHeaderGroups().map((headerGroup) => (
-                        <Tr key={headerGroup.id}>
-                            {headerGroup.headers.map((header) => (
-                                <Th key={header.id} colSpan={header.colSpan}>
-                                    {header.isPlaceholder ? null : (
-                                        <div
-                                            className={
-                                                header.column.getCanSort()
-                                                    ? 'cursor-pointer select-none'
-                                                    : ''
-                                            }
-                                            onClick={header.column.getToggleSortingHandler()}
-                                        >
-                                            {flexRender(
-                                                header.column.columnDef.header,
-                                                header.getContext(),
-                                            )}
-                                            <Sorter sort={header.column.getIsSorted()} />
-                                        </div>
-                                    )}
-                                </Th>
-                            ))}
-                        </Tr>
-                    ))}
-                </THead>
-                <TBody>
-                    {table
-                        .getRowModel()
-                        .rows.slice(0, 10)
-                        .map((row) => (
-                            <Tr key={row.id}>
-                                {row.getVisibleCells().map((cell) => (
-                                    <Td key={cell.id}>
-                                        {flexRender(
-                                            cell.column.columnDef.cell,
-                                            cell.getContext(),
+        <div className="mb-0 space-y-8">
+            <div>
+                <h6 className="mb-4">{t('text.titles.orderHistory')}</h6>
+                <Table>
+                    <THead>
+                        {ordersTable.getHeaderGroups().map((headerGroup) => (
+                            <Tr key={headerGroup.id}>
+                                {headerGroup.headers.map((header) => (
+                                    <Th key={header.id} colSpan={header.colSpan}>
+                                        {header.isPlaceholder ? null : (
+                                            <div
+                                                className={
+                                                    header.column.getCanSort()
+                                                        ? 'cursor-pointer select-none'
+                                                        : ''
+                                                }
+                                                onClick={header.column.getToggleSortingHandler()}
+                                            >
+                                                {flexRender(
+                                                    header.column.columnDef.header,
+                                                    header.getContext(),
+                                                )}
+                                                <Sorter sort={header.column.getIsSorted()} />
+                                            </div>
                                         )}
-                                    </Td>
+                                    </Th>
                                 ))}
                             </Tr>
                         ))}
-                </TBody>
-            </Table>
+                    </THead>
+                    <TBody>
+                        {ordersTable
+                            .getRowModel()
+                            .rows.slice(0, 10)
+                            .map((row) => (
+                                <Tr key={row.id}>
+                                    {row.getVisibleCells().map((cell) => (
+                                        <Td key={cell.id}>
+                                            {flexRender(
+                                                cell.column.columnDef.cell,
+                                                cell.getContext(),
+                                            )}
+                                        </Td>
+                                    ))}
+                                </Tr>
+                            ))}
+                    </TBody>
+                </Table>
+            </div>
+            <div>
+                <h6 className="mb-4">{t('text.titles.budgetHistory')}</h6>
+                <Table>
+                    <THead>
+                        {budgetsTable.getHeaderGroups().map((headerGroup) => (
+                            <Tr key={headerGroup.id}>
+                                {headerGroup.headers.map((header) => (
+                                    <Th key={header.id} colSpan={header.colSpan}>
+                                        {header.isPlaceholder ? null : (
+                                            <div
+                                                className={
+                                                    header.column.getCanSort()
+                                                        ? 'cursor-pointer select-none'
+                                                        : ''
+                                                }
+                                                onClick={header.column.getToggleSortingHandler()}
+                                            >
+                                                {flexRender(
+                                                    header.column.columnDef.header,
+                                                    header.getContext(),
+                                                )}
+                                                <Sorter sort={header.column.getIsSorted()} />
+                                            </div>
+                                        )}
+                                    </Th>
+                                ))}
+                            </Tr>
+                        ))}
+                    </THead>
+                    <TBody>
+                        {budgetsTable
+                            .getRowModel()
+                            .rows.slice(0, 10)
+                            .map((row) => (
+                                <Tr key={row.id}>
+                                    {row.getVisibleCells().map((cell) => (
+                                        <Td key={cell.id}>
+                                            {flexRender(
+                                                cell.column.columnDef.cell,
+                                                cell.getContext(),
+                                            )}
+                                        </Td>
+                                    ))}
+                                </Tr>
+                            ))}
+                    </TBody>
+                </Table>
+            </div>
         </div>
     )
 }

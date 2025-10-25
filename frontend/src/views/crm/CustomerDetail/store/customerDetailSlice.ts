@@ -26,6 +26,8 @@ export type CustomerOrder = {
     currency?: string
 }
 
+export type CustomerBudget = CustomerOrder
+
 export type CustomerActivity = {
     id: string
     title: string
@@ -52,6 +54,7 @@ export type Customer = {
     phoneNumbers?: string[]
     personalInfo: PersonalInfo
     orders?: CustomerOrder[]
+    budgets?: CustomerBudget[]
     activities?: CustomerActivity[]
     addresses?: Array<{
         street?: string
@@ -79,6 +82,7 @@ export type CustomerDetailState = {
     loading: boolean
     profileData: Partial<Customer>
     ordersData: CustomerOrder[]
+    budgetsData: CustomerBudget[]
     activitiesData: CustomerActivity[]
     editCustomerDetailDialog: boolean
     error?: string | null
@@ -118,6 +122,7 @@ const initialState: CustomerDetailState = {
     loading: true,
     profileData: {},
     ordersData: [],
+    budgetsData: [],
     activitiesData: [],
     editCustomerDetailDialog: false,
     error: null,
@@ -131,6 +136,12 @@ const customerDetailSlice = createSlice({
             state.profileData = action.payload
             if (Array.isArray(action.payload?.activities)) {
                 state.activitiesData = action.payload.activities
+            }
+            if (Array.isArray(action.payload?.budgets)) {
+                state.budgetsData = action.payload.budgets
+            }
+            if (Array.isArray(action.payload?.orders)) {
+                state.ordersData = action.payload.orders
             }
         },
         openEditCustomerDetailDialog: (state) => {
@@ -146,6 +157,7 @@ const customerDetailSlice = createSlice({
                 state.loading = false
                 state.profileData = action.payload
                 state.ordersData = action.payload?.orders || []
+                state.budgetsData = action.payload?.budgets || []
                 state.activitiesData = action.payload?.activities || []
                 state.error = null
             })
@@ -157,6 +169,7 @@ const customerDetailSlice = createSlice({
                 state.loading = false
                 state.profileData = {}
                 state.ordersData = []
+                state.budgetsData = []
                 state.activitiesData = []
                 state.error = action.error?.message || 'Failed to load customer'
             })
