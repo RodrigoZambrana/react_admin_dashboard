@@ -12,90 +12,12 @@ export type FxSnapshot = {
   rates: Record<string, number>
   generatedAt?: string
 }
-
-export type ValidityRecord = {
-  validUntil?: unknown
-  valid_until?: unknown
-  [key: string]: unknown
-}
-
-export const parseValidityRecord = (
-  value: unknown,
-): ValidityRecord | undefined => {
-  if (value === null || value === undefined) {
-    return undefined
-  }
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    if (!trimmed) {
-      return undefined
-    }
-    try {
-      const parsed = JSON.parse(trimmed)
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as ValidityRecord
-      }
-    } catch {
-      return undefined
-    }
-    return undefined
-  }
-  if (typeof value === 'object' && !Array.isArray(value)) {
-    return value as ValidityRecord
-  }
-  return undefined
-}
-export function toUnixSeconds(date: any): number | undefined {
-  if (date === null || date === undefined) {
-    return undefined
-  }
-
-  const normalizeNumber = (value: number) => {
-    if (!Number.isFinite(value)) {
-      return undefined
-    }
-    // Values greater than millisecond precision thresholds are assumed
-    // to represent millisecond timestamps.
-    if (value > 1e12) {
-      return Math.floor(value / 1000)
-    }
-    if (value > 0) {
-      return Math.floor(value)
-    }
-    return undefined
-  }
-
-  if (typeof date === 'number') {
-    return normalizeNumber(date)
-  }
-
-  if (typeof date === 'string') {
-    const trimmed = date.trim()
-    if (!trimmed) {
-      return undefined
-    }
-    const numeric = Number(trimmed)
-    if (!Number.isNaN(numeric)) {
-      const normalized = normalizeNumber(numeric)
-      if (normalized !== undefined) {
-        return normalized
-      }
-    }
-    const parsed = Date.parse(trimmed)
-    if (!Number.isNaN(parsed)) {
-      return normalizeNumber(parsed)
-    }
-    return undefined
-  }
-
-  if (date instanceof Date) {
-    return normalizeNumber(date.getTime())
-  }
-
+export function toUnixSeconds(date: any): number {
   try {
-    return normalizeNumber(new Date(date).getTime())
+    const d = date ? new Date(date) : new Date()
+    return Math.floor(d.getTime() / 1000)
   } catch {
-    return undefined
+    return Math.floor(Date.now() / 1000)
   }
 }
 
@@ -192,17 +114,149 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
   }
 }
 
+const resolveNestedValidUntil = (
+  value: unknown,
+  seen = new Set<unknown>(),
+): unknown => {
+  if (!value || typeof value !== 'object' || value instanceof Date) {
+    return undefined
+  }
+  if (seen.has(value)) {
+    return undefined
+  }
+  seen.add(value)
+  const record = value as Record<string, unknown>
+  if (typeof (record as { toDate?: unknown }).toDate === 'function') {
+    try {
+      const converted = (record as { toDate: () => unknown }).toDate()
+      if (converted !== undefined) {
+        return converted
+      }
+    } catch {
+      // ignore conversion errors and keep looking for other fields
+    }
+  }
+  const candidateKeys = [
+    'date',
+    'datetime',
+    'value',
+    'validUntil',
+    'valid_until',
+    'validUntilDate',
+    'validityDate',
+    'validity_date',
+    'validTo',
+    'valid_to',
+    'validThru',
+    'valid_thru',
+    'expiresAt',
+    'expires_at',
+    'expirationAt',
+    'expiration_at',
+    'expirationDate',
+    'expiration_date',
+    'expiryDate',
+    'expiry_date',
+    'expires',
+    'expiration',
+    'expiry',
+    'timestamp',
+    'seconds',
+  ]
+  for (const key of candidateKeys) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) {
+      const nestedValue = record[key]
+      if (nestedValue instanceof Date) {
+        return nestedValue
+      }
+      if (nestedValue && typeof nestedValue === 'object') {
+        const resolved = resolveNestedValidUntil(nestedValue, seen)
+        if (resolved !== undefined) {
+          return resolved
+        }
+      } else if (nestedValue !== undefined) {
+        return nestedValue
+      }
+    }
+  }
+  if (typeof record.toString === 'function') {
+    const stringValue = record.toString()
+    if (typeof stringValue === 'string' && stringValue && stringValue !== '[object Object]') {
+      return stringValue
+    }
+  }
+  return undefined
+}
+
 export function adaptOrderToDetailsView(o: any) {
   if (!o) return {}
   const dateTime = toUnixSeconds(o.date)
-  const validitySource = parseValidityRecord(o?.validity)
-  const rawValidUntil =
-    o.validUntil ??
-    o.valid_until ??
-    (validitySource
-      ? validitySource.validUntil ?? validitySource.valid_until
-      : undefined)
-  const validUntil = toUnixSeconds(rawValidUntil)
+  const rawValidUntil = (() => {
+    if (o?.validUntil !== undefined) {
+      if (o.validUntil && typeof o.validUntil === 'object' && !(o.validUntil instanceof Date)) {
+        const nested = resolveNestedValidUntil(o.validUntil)
+        if (nested !== undefined) {
+          return nested
+        }
+      }
+      return o.validUntil
+    }
+    const candidates = [
+      (o as any)?.valid_until,
+      (o as any)?.valid_until_at,
+      (o as any)?.validUntilDate,
+      (o as any)?.validityDate,
+      (o as any)?.validity_date,
+      (o as any)?.validTo,
+      (o as any)?.valid_to,
+      (o as any)?.validThru,
+      (o as any)?.valid_thru,
+      (o as any)?.expiresAt,
+      (o as any)?.expires_at,
+      (o as any)?.expirationAt,
+      (o as any)?.expiration_at,
+      (o as any)?.expirationDate,
+      (o as any)?.expiration_date,
+      (o as any)?.expiryDate,
+      (o as any)?.expiry_date,
+      (o as any)?.expires,
+      (o as any)?.expiration,
+      (o as any)?.expiry,
+    ]
+    for (const candidate of candidates) {
+      if (candidate !== undefined) {
+        if (candidate && typeof candidate === 'object' && !(candidate instanceof Date)) {
+          const nested = resolveNestedValidUntil(candidate)
+          if (nested !== undefined) {
+            return nested
+          }
+        }
+        return candidate
+      }
+    }
+    return undefined
+  })()
+  const validUntil = (() => {
+    if (rawValidUntil === undefined || rawValidUntil === null) {
+      return undefined
+    }
+    const normalized = toUnixSeconds(rawValidUntil)
+    if (Number.isFinite(normalized)) {
+      return normalized
+    }
+    if (rawValidUntil instanceof Date) {
+      const asString = rawValidUntil.toString()
+      return asString && asString !== 'Invalid Date' ? asString : undefined
+    }
+    if (typeof rawValidUntil === 'string') {
+      const trimmed = rawValidUntil.trim()
+      return trimmed.length > 0 ? trimmed : undefined
+    }
+    if (typeof rawValidUntil === 'number' && Number.isFinite(rawValidUntil)) {
+      return rawValidUntil
+    }
+    return rawValidUntil ?? undefined
+  })()
   const shipping = {
     deliveryFees: Number(o.deliveryFees || 0),
     estimatedMin: Number(o.estimatedMin || 0),

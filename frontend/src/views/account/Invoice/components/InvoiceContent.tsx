@@ -19,13 +19,11 @@ import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
 import {
     adaptOrderToDetailsView,
-    parseValidityRecord,
     toUnixSeconds,
     type FxSnapshot,
 } from '@/adapters/sales'
 import { normalizeCurrencyCode } from '@/utils/currency'
 import { resolveTextDirection } from '@/utils/textDirection'
-import { sanitizeRichText } from '@/utils/security/inputGuards'
 import type { Product, Summary } from './ContentTable'
 import ContentTable from './ContentTable'
 
@@ -423,7 +421,8 @@ type Invoice = {
     product: Product[]
     paymentSummary: Summary
     comment?: string
-    validUntilDate?: number | string | null
+    validUntil?: number | string | null
+    disclaimer?: string | null
 }
 
 type GetAccountInvoiceDataRequest = {
@@ -480,12 +479,13 @@ type InvoiceCustomerDetails = {
 type InvoiceOrderDetails = {
     id?: string
     dateTime?: number
-    validUntilDate?: number | string | null
+    validUntil?: number | string | null
     paymentSummary?: Summary
     product?: Product[]
     customer?: InvoiceCustomerDetails
     fxSnapshot?: FxSnapshot
     comment?: string
+    disclaimer?: string | null
 }
 
 type BudgetInfoItem = {
@@ -516,41 +516,23 @@ const mapCompanyProfileToDetails = (
     if (!profile) {
         return { ...DEFAULT_COMPANY_DETAILS }
     }
-
-    const safeTrim = (value: string | null | undefined) =>
-        typeof value === 'string' ? value.trim() : ''
-
-    const hasCustomData = Object.entries(profile).some(([key, raw]) => {
-        if (key === 'logo') {
-            return false
-        }
-        return safeTrim(raw as string).length > 0
-    })
-
     const ensureValue = (value: string | null | undefined, fallback?: string) => {
-        const trimmed = safeTrim(value)
+        const trimmed = typeof value === 'string' ? value.trim() : ''
         if (trimmed) {
             return trimmed
         }
-        if (!hasCustomData && fallback) {
-            return fallback
-        }
-        return ''
+        return fallback ?? ''
     }
-
     const optionalValue = (value: string | null | undefined) => {
-        const trimmed = safeTrim(value)
+        const trimmed = typeof value === 'string' ? value.trim() : ''
         return trimmed.length ? trimmed : null
     }
-
     const addressEntries = [profile.addressLine1, profile.addressLine2]
-        .map((line) => safeTrim(line))
+        .map((line) => ensureValue(line))
         .filter((line) => line.length > 0)
 
     const resolvedAddress = addressEntries.length
         ? addressEntries
-        : hasCustomData
-        ? []
         : [...DEFAULT_COMPANY_DETAILS.address]
 
     return {
@@ -598,23 +580,38 @@ const valueOrDash = (value?: string | null) => {
     return trimmed && trimmed.length > 0 ? trimmed : '—'
 }
 
+const pickFirstNonEmptyString = (
+    ...values: Array<unknown>
+): string | undefined => {
+    for (const value of values) {
+        if (typeof value !== 'string') {
+            continue
+        }
+        const trimmed = value.trim()
+        if (trimmed.length > 0) {
+            return trimmed
+        }
+    }
+    return undefined
+}
+
 const formatDateValue = (value: unknown): string => {
     if (value === null || value === undefined) {
         return ''
     }
     if (value instanceof Date) {
         const parsed = dayjs(value)
-        return parsed.isValid() ? parsed.format('DD/MM/YYYY') : ''
+        return parsed.isValid() ? parsed.format('DD/MM/YYYY') : value.toString()
     }
     if (typeof value === 'number') {
-        if (!Number.isFinite(value) || value <= 0) {
-            return ''
+        if (!Number.isFinite(value)) {
+            return value.toString()
         }
         const dayjsInstance =
-            value > 1e12 ? dayjs(value) : dayjs.unix(value)
+            Math.abs(value) > 1e12 ? dayjs(value) : dayjs.unix(value)
         return dayjsInstance.isValid()
             ? dayjsInstance.format('DD/MM/YYYY')
-            : ''
+            : value.toString()
     }
     if (typeof value === 'string') {
         const trimmed = value.trim()
@@ -630,9 +627,96 @@ const formatDateValue = (value: unknown): string => {
             }
         }
         const parsed = dayjs(trimmed)
-        return parsed.isValid() ? parsed.format('DD/MM/YYYY') : ''
+        return parsed.isValid() ? parsed.format('DD/MM/YYYY') : trimmed
     }
     return ''
+}
+
+const normalizeValidUntilValue = (
+    value: unknown,
+): number | string | null | undefined => {
+    if (value === undefined) {
+        return undefined
+    }
+    if (value === null) {
+        return null
+    }
+    if (value && typeof value === 'object' && !(value instanceof Date)) {
+        const record = value as Record<string, unknown>
+        if (typeof (record as { toDate?: unknown }).toDate === 'function') {
+            try {
+                const converted = (record as { toDate: () => unknown }).toDate()
+                const normalized = normalizeValidUntilValue(converted)
+                if (normalized !== undefined) {
+                    return normalized
+                }
+            } catch {
+                // fall through to consider other object keys
+            }
+        }
+        const candidateKeys = [
+            'date',
+            'datetime',
+            'value',
+            'validUntil',
+            'valid_until',
+            'validUntilDate',
+            'validityDate',
+            'validity_date',
+            'validTo',
+            'valid_to',
+            'validThru',
+            'valid_thru',
+            'expiresAt',
+            'expires_at',
+            'expirationAt',
+            'expiration_at',
+            'expirationDate',
+            'expiration_date',
+            'expiryDate',
+            'expiry_date',
+            'expires',
+            'expiration',
+            'expiry',
+            'timestamp',
+            'seconds',
+        ]
+        for (const key of candidateKeys) {
+            if (Object.prototype.hasOwnProperty.call(record, key)) {
+                const nested = normalizeValidUntilValue(record[key])
+                if (nested !== undefined) {
+                    return nested
+                }
+            }
+        }
+        if (typeof record.toString === 'function') {
+            const stringValue = record.toString()
+            if (
+                typeof stringValue === 'string' &&
+                stringValue &&
+                stringValue !== '[object Object]'
+            ) {
+                return normalizeValidUntilValue(stringValue)
+            }
+        }
+        return undefined
+    }
+    const unixValue = toUnixSeconds(value as Date | string | number)
+    if (Number.isFinite(unixValue)) {
+        return unixValue
+    }
+    if (value instanceof Date) {
+        const asString = value.toString()
+        return asString && asString !== 'Invalid Date' ? asString : undefined
+    }
+    if (typeof value === 'string') {
+        const trimmed = value.trim()
+        return trimmed.length > 0 ? trimmed : undefined
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value
+    }
+    return undefined
 }
 
 const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
@@ -696,59 +780,59 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                 if (response?.data) {
                     const { company, ...invoiceData } = response.data
                     if (invoiceData && typeof invoiceData === 'object') {
-                        const validitySource = parseValidityRecord(
-                            (invoiceData as any).validity,
+                        const normalized: Partial<Invoice> = {
+                            ...invoiceData,
+                        }
+                        const resolvedValidUntil = normalizeValidUntilValue(
+                            normalized.validUntil,
                         )
-                        const normalizedValidity =
-                            (invoiceData as any).validUntil ??
-                            (invoiceData as any).valid_until ??
-                            (validitySource?.validUntil ??
-                                validitySource?.valid_until)
-                        let normalizedValidUntil =
-                            toUnixSeconds(normalizedValidity) ?? undefined
-                        if (
-                            normalizedValidUntil === undefined &&
-                            normalizedValidity &&
-                            typeof normalizedValidity === 'object'
-                        ) {
-                            if (
-                                typeof (normalizedValidity as any).toDate ===
-                                'function'
-                            ) {
-                                normalizedValidUntil = toUnixSeconds(
-                                    (normalizedValidity as any).toDate(),
-                                )
-                            }
-                            if (normalizedValidUntil === undefined) {
-                                const secondsValue =
-                                    (normalizedValidity as any).seconds ??
-                                    (normalizedValidity as any)._seconds
-                                const nanosValue =
-                                    (normalizedValidity as any).nanoseconds ??
-                                    (normalizedValidity as any)._nanoseconds
-                                if (typeof secondsValue === 'number') {
-                                    const millis =
-                                        secondsValue * 1000 +
-                                        (typeof nanosValue === 'number'
-                                            ? Math.floor(nanosValue / 1e6)
-                                            : 0)
-                                    normalizedValidUntil = toUnixSeconds(millis)
+                        if (resolvedValidUntil !== undefined) {
+                            normalized.validUntil = resolvedValidUntil
+                        } else {
+                            delete normalized.validUntil
+                        }
+                        if (normalized.validUntil === undefined) {
+                            const fallbackCandidates = [
+                                (invoiceData as any)?.valid_until,
+                                (invoiceData as any)?.valid_until_at,
+                                (invoiceData as any)?.validUntilDate,
+                                (invoiceData as any)?.validityDate,
+                                (invoiceData as any)?.validity_date,
+                                (invoiceData as any)?.validTo,
+                                (invoiceData as any)?.valid_to,
+                                (invoiceData as any)?.validThru,
+                                (invoiceData as any)?.valid_thru,
+                                (invoiceData as any)?.expiresAt,
+                                (invoiceData as any)?.expires_at,
+                                (invoiceData as any)?.expirationAt,
+                                (invoiceData as any)?.expiration_at,
+                                (invoiceData as any)?.expirationDate,
+                                (invoiceData as any)?.expiration_date,
+                                (invoiceData as any)?.expiryDate,
+                                (invoiceData as any)?.expiry_date,
+                                (invoiceData as any)?.expires,
+                                (invoiceData as any)?.expiration,
+                                (invoiceData as any)?.expiry,
+                            ]
+                            for (const candidate of fallbackCandidates) {
+                                const normalizedCandidate =
+                                    normalizeValidUntilValue(candidate)
+                                if (normalizedCandidate !== undefined) {
+                                    normalized.validUntil = normalizedCandidate
+                                    break
                                 }
                             }
                         }
-                        if (normalizedValidUntil === undefined) {
-                            if (typeof normalizedValidity === 'string') {
-                                normalizedValidUntil = normalizedValidity
-                            } else if (normalizedValidity instanceof Date) {
-                                normalizedValidUntil =
-                                    normalizedValidity.toISOString()
-                            }
+                        const resolvedDisclaimer = pickFirstNonEmptyString(
+                            normalized.disclaimer,
+                            (invoiceData as any)?.disclaimer,
+                            (invoiceData as any)?.documentDisclaimer,
+                            (invoiceData as any)?.document_disclaimer,
+                        )
+                        if (resolvedDisclaimer !== undefined) {
+                            normalized.disclaimer = resolvedDisclaimer
                         }
-                        const normalizedData = {
-                            ...invoiceData,
-                            validUntil: normalizedValidUntil,
-                        }
-                        setData(normalizedData)
+                        setData(normalized)
                     }
                     setCompanyDetails(mapCompanyProfileToDetails(company))
                 } else {
@@ -771,10 +855,14 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                         product: mapped.product as Product[],
                         customer: mapped.customer as InvoiceCustomerDetails,
                         fxSnapshot: mapped.fxSnapshot,
-                        validUntilDate: mapped.validUntilDate,
+                        validUntil: mapped.validUntil,
                         comment:
                             typeof mapped.comment === 'string'
                                 ? mapped.comment
+                                : undefined,
+                        disclaimer:
+                            typeof mapped.disclaimer === 'string'
+                                ? mapped.disclaimer
                                 : undefined,
                     }
                     setOrderData(structured)
@@ -1026,7 +1114,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
     }, [data.product, orderData])
 
     const invoiceDate = orderData?.dateTime ?? data.dateTime
-    const rawValidUntil = orderData?.validUntilDate ?? data.validUntilDate
+    const rawValidUntil = orderData?.validUntil ?? data.validUntil
     const invoiceId = orderData?.id ?? data?.id
     const formattedInvoiceDate = useMemo(
         () => formatDateValue(invoiceDate),
@@ -1199,31 +1287,41 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         return typeof first === 'string' ? first.trim() : ''
     }, [data.comment, orderData?.comment])
 
-    const disclaimerLabel = t('text.labels.disclaimer', {
-        defaultValue: 'Disclaimer',
-    })
-
-    const documentDisclaimerHtml = useMemo(() => {
-        const candidates = [orderData?.disclaimer, data.disclaimer]
-        const first = candidates.find(
+    const orderDisclaimerHtml = useMemo(() => {
+        const disclaimers = [orderData?.disclaimer, data.disclaimer]
+        const first = disclaimers.find(
             (value) => typeof value === 'string' && value.trim().length > 0,
         )
-        if (typeof first !== 'string') {
-            return ''
-        }
-        return sanitizeRichText(first)
+        return typeof first === 'string' ? first.trim() : ''
     }, [data.disclaimer, orderData?.disclaimer])
 
-    const documentDisclaimerDirection = useMemo(() => {
-        if (!documentDisclaimerHtml) {
+    const orderDisclaimerText = useMemo(() => {
+        if (!orderDisclaimerHtml) {
+            return ''
+        }
+        return orderDisclaimerHtml
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+    }, [orderDisclaimerHtml])
+
+    const orderDisclaimerDirection = useMemo(() => {
+        if (!orderDisclaimerText) {
             return 'ltr'
         }
-        const plain = documentDisclaimerHtml.replace(/<[^>]+>/g, ' ').trim()
-        if (!plain) {
-            return 'ltr'
-        }
-        return resolveTextDirection(plain)
-    }, [documentDisclaimerHtml])
+        return resolveTextDirection(orderDisclaimerText)
+    }, [orderDisclaimerText])
+
+    const disclaimerLabel = useMemo(
+        () =>
+            t('sales.orders.disclaimerLabel', {
+                defaultValue: t('text.labels.disclaimer', {
+                    defaultValue: 'Disclaimer',
+                }),
+            }),
+        [t],
+    )
 
     const hasContent =
         Boolean(orderData) ||
@@ -1459,30 +1557,32 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                 fxSnapshot={orderData?.fxSnapshot}
                                 resource={resource}
                             />
-                            {isBudgetDocument && documentDisclaimerHtml && (
-                                <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                            <div className="mt-6 grid gap-4">
+                                <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                                     <h6 className="font-semibold text-gray-700 dark:text-gray-200">
-                                        {disclaimerLabel}
+                                        {t('text.columns.comments')}
                                     </h6>
-                                    <div
-                                        className="mt-2 text-sm text-gray-700 dark:text-gray-200"
-                                        dir={documentDisclaimerDirection}
-                                        dangerouslySetInnerHTML={{
-                                            __html: documentDisclaimerHtml,
-                                        }}
-                                    />
+                                    <p
+                                        className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200"
+                                        dir={resolveTextDirection(orderComment)}
+                                    >
+                                        {orderComment || '\u00a0'}
+                                    </p>
                                 </div>
-                            )}
-                            <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                                <h6 className="font-semibold text-gray-700 dark:text-gray-200">
-                                    {t('text.columns.comments')}
-                                </h6>
-                                <p
-                                    className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200"
-                                    dir={resolveTextDirection(orderComment)}
-                                >
-                                    {orderComment || '\u00a0'}
-                                </p>
+                                {orderDisclaimerHtml ? (
+                                    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                        <h6 className="font-semibold text-gray-700 dark:text-gray-200">
+                                            {disclaimerLabel}
+                                        </h6>
+                                        <div
+                                            className="mt-2 text-sm text-gray-700 dark:text-gray-200"
+                                            dir={orderDisclaimerDirection}
+                                            dangerouslySetInnerHTML={{
+                                                __html: orderDisclaimerHtml,
+                                            }}
+                                        />
+                                    </div>
+                                ) : null}
                             </div>
                         </div>
                     </div>
