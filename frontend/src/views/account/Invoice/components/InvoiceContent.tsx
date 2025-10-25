@@ -1274,7 +1274,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                     <div
                         id={INVOICE_CONTAINER_ID}
                         ref={invoiceRef}
-                        className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 print:rounded-none print:border-0 print:shadow-none"
+                        className="rounded-lg border border-gray-200 bg-white p-6 text-[15px] leading-relaxed shadow-sm dark:border-gray-700 dark:bg-gray-800 print:rounded-none print:border-0 print:shadow-none"
                     >
                         <div className="flex flex-col gap-6">
                             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1293,23 +1293,23 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                 </div>
                             </div>
                             <div className="grid gap-6 md:grid-cols-2">
-                                <div className="rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-700">
+                                <div className="rounded-lg border border-gray-200 p-4 text-base dark:border-gray-700">
                                     <div className="grid gap-4 sm:grid-cols-2">
                                         <div className="space-y-1">
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                            <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                 {t('text.labels.issuedBy')}
                                             </p>
                                             <p className="font-medium text-gray-800 dark:text-gray-100">
                                                 {companyDetails.legalName}
                                             </p>
                                             {companyDetails.tradeName ? (
-                                                <p className="text-sm text-gray-500 dark:text-gray-300">
+                                                <p className="text-base text-gray-500 dark:text-gray-300">
                                                     {companyDetails.tradeName}
                                                 </p>
                                             ) : null}
                                         </div>
                                         <div className="space-y-1">
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                            <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                 {t('text.labels.phone')}
                                             </p>
                                             <p className="font-medium text-gray-800 dark:text-gray-100">
@@ -1317,7 +1317,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                             </p>
                                         </div>
                                         <div className="space-y-1">
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                            <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                 {t('text.labels.email')}
                                             </p>
                                             <p className="font-medium text-gray-800 dark:text-gray-100">
@@ -1325,7 +1325,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                             </p>
                                         </div>
                                         <div className="space-y-1">
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                            <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                 {t('text.labels.website')}
                                             </p>
                                             <p className="font-medium text-gray-800 dark:text-gray-100">
@@ -1333,7 +1333,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                             </p>
                                         </div>
                                         <div className="space-y-1">
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                            <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                 {t('text.labels.taxId')}
                                             </p>
                                             <p className="font-medium text-gray-800 dark:text-gray-100">
@@ -1341,7 +1341,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                             </p>
                                         </div>
                                         <div className="space-y-1 sm:col-span-2">
-                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                            <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                 {t('text.labels.address')}
                                             </p>
                                             <address className="space-y-1 not-italic text-gray-800 dark:text-gray-100">
@@ -1356,7 +1356,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-700">
+                                <div className="rounded-lg border border-gray-200 p-4 text-base dark:border-gray-700">
                                     {isBudgetDocument ? (
                                         <div className="grid gap-6">
                                             <div className="grid gap-4 sm:grid-cols-2">
@@ -1365,7 +1365,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                                         key={item.key}
                                                         className={`space-y-1 ${item.fullWidth ? 'sm:col-span-2' : ''}`}
                                                     >
-                                                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                        <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                             {item.label}
                                                         </p>
                                                         {item.isAddress ? (
@@ -1393,7 +1393,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                     ) : (
                                         <div className="grid gap-4 sm:grid-cols-2">
                                             <div className="space-y-1">
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                     {documentNumberLabel}
                                                 </p>
                                                 <p className="font-medium text-gray-800 dark:text-gray-100">
@@ -1401,7 +1401,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                                 </p>
                                             </div>
                                             <div className="space-y-1">
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                     {t('text.labels.issuedOn')}
                                                 </p>
                                                 <p className="font-medium text-gray-800 dark:text-gray-100">
@@ -1411,7 +1411,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                                 </p>
                                             </div>
                                             <div className="space-y-1">
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                     {t('text.labels.billTo')}
                                                 </p>
                                                 <p className="font-medium text-gray-800 dark:text-gray-100">
@@ -1419,7 +1419,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                                 </p>
                                             </div>
                                             <div className="space-y-1">
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                     {t('text.labels.email')}
                                                 </p>
                                                 <p className="font-medium text-gray-800 dark:text-gray-100">
@@ -1427,7 +1427,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                                 </p>
                                             </div>
                                             <div className="space-y-1">
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                     {t('text.labels.phone')}
                                                 </p>
                                                 <p className="font-medium text-gray-800 dark:text-gray-100">
@@ -1437,7 +1437,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                             <div className="sm:col-span-2">
                                                 <div className="grid gap-4 sm:grid-cols-2">
                                                     <div className="space-y-1">
-                                                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                        <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                             {t('text.titles.shippingAddress')}
                                                         </p>
                                                         <address className="space-y-1 not-italic text-gray-800 dark:text-gray-100">
@@ -1452,7 +1452,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                                     </div>
                                                     {showBillingAddress && (
                                                         <div className="space-y-1">
-                                                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                            <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                                                 {t('text.titles.billingAddress')}
                                                             </p>
                                                             <address className="space-y-1 not-italic text-gray-800 dark:text-gray-100">
@@ -1487,7 +1487,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                         {t('text.columns.comments')}
                                     </h6>
                                     <p
-                                        className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200"
+                                        className="mt-2 whitespace-pre-wrap text-base text-gray-700 dark:text-gray-200"
                                         dir={resolveTextDirection(orderComment)}
                                     >
                                         {orderComment || '\u00a0'}
@@ -1499,7 +1499,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                                             {disclaimerLabel}
                                         </h6>
                                         <div
-                                            className="mt-2 text-sm text-gray-700 dark:text-gray-200"
+                                            className="mt-2 text-base text-gray-700 dark:text-gray-200"
                                             dir={orderDisclaimerDirection}
                                             dangerouslySetInnerHTML={{
                                                 __html: orderDisclaimerHtml,
