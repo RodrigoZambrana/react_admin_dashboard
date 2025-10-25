@@ -1331,7 +1331,7 @@ export class SalesDocumentsService {
     const composeAddress = (addr?: any) => {
       if (!addr) return undefined
       const line1 = addr.addressLine1 || `${addr.street || ''} ${addr.number || ''}${addr.apartment ? ' Apt ' + addr.apartment : ''}`.trim()
-      const line2 = addr.addressLine2 || (addr.corner ? `Corner: ${addr.corner}` : '')
+      const line2 = addr.addressLine2 || (addr.corner ? `Esquina: ${addr.corner}` : '')
       return line1 && addr.city && addr.state
         ? { addressLine1: line1, addressLine2: line2, city: addr.city, state: addr.state }
         : undefined
@@ -1365,7 +1365,7 @@ export class SalesDocumentsService {
       if (!primaryAddr) throw new BadRequestException('sales.orders.validation.customerAddressRequired')
       shippingAddress = {
         addressLine1: `${primaryAddr.street} ${primaryAddr.number}${primaryAddr.apartment ? ' Apt ' + primaryAddr.apartment : ''}`,
-        addressLine2: primaryAddr.corner ? `Corner: ${primaryAddr.corner}` : '',
+        addressLine2: primaryAddr.corner ? `Esquina: ${primaryAddr.corner}` : '',
         city: primaryAddr.city,
         state: primaryAddr.country,
       }
@@ -1446,7 +1446,7 @@ export class SalesDocumentsService {
     const composeAddress = (addr?: any) => {
       if (!addr) return undefined
       const line1 = addr.addressLine1 || `${addr.street || ''} ${addr.number || ''}${addr.apartment ? ' Apt ' + addr.apartment : ''}`.trim()
-      const line2 = addr.addressLine2 || (addr.corner ? `Corner: ${addr.corner}` : '')
+      const line2 = addr.addressLine2 || (addr.corner ? `Esquina: ${addr.corner}` : '')
       return line1 && addr.city && addr.state
         ? { addressLine1: line1, addressLine2: line2, city: addr.city, state: addr.state }
         : undefined
@@ -1480,7 +1480,7 @@ export class SalesDocumentsService {
       if (!primaryAddr) throw new BadRequestException('sales.orders.validation.customerAddressRequired')
       shippingAddress = {
         addressLine1: `${primaryAddr.street} ${primaryAddr.number}${primaryAddr.apartment ? ' Apt ' + primaryAddr.apartment : ''}`,
-        addressLine2: primaryAddr.corner ? `Corner: ${primaryAddr.corner}` : '',
+        addressLine2: primaryAddr.corner ? `Esquina: ${primaryAddr.corner}` : '',
         city: primaryAddr.city,
         state: primaryAddr.country,
       }
