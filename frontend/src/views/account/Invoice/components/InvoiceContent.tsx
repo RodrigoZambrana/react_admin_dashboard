@@ -928,11 +928,8 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         }
     }, [])
 
-    const persistBudgetDocument = useCallback(
+    const persistGeneratedDocument = useCallback(
         async (blob: Blob, fileName: string) => {
-            if (!isBudgetDocument) {
-                return
-            }
             const rawId = orderData?.id ?? data?.id
             const numericId = Number(rawId)
             if (!Number.isFinite(numericId) || numericId <= 0) {
@@ -944,10 +941,10 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
                 await apiPersistSalesDocumentFile(numericId, formData, resource)
             } catch (error) {
                 // eslint-disable-next-line no-console
-                console.error('Failed to persist budget document file', error)
+                console.error('Failed to persist generated document file', error)
             }
         },
-        [data?.id, isBudgetDocument, orderData?.id, resource],
+        [data?.id, orderData?.id, resource],
     )
 
     const handleDownloadPdf = useCallback(async () => {
@@ -957,7 +954,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
             const fileName = documentFileName
             const blobOutput = pdf.output('blob')
             if (blobOutput instanceof Blob) {
-                void persistBudgetDocument(blobOutput, fileName)
+                void persistGeneratedDocument(blobOutput, fileName)
             }
             pdf.save(fileName)
         } catch (error) {
@@ -975,15 +972,19 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         } finally {
             setDownloadingPdf(false)
         }
-    }, [documentFileName, generateInvoicePdf, persistBudgetDocument, t])
+    }, [documentFileName, generateInvoicePdf, persistGeneratedDocument, t])
 
     const handlePrintPdf = useCallback(async () => {
         try {
             setPrintingPdf(true)
             const pdf = await generateInvoicePdf()
             pdf.autoPrint()
-            const blob = pdf.output('blob')
-            const blobUrl = URL.createObjectURL(blob)
+            const blobOutput = pdf.output('blob')
+            if (!(blobOutput instanceof Blob)) {
+                return
+            }
+            void persistGeneratedDocument(blobOutput, documentFileName)
+            const blobUrl = URL.createObjectURL(blobOutput)
             const iframe = document.createElement('iframe')
             iframe.style.position = 'fixed'
             iframe.style.width = '0'
@@ -1019,7 +1020,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         } finally {
             setPrintingPdf(false)
         }
-    }, [generateInvoicePdf, t])
+    }, [documentFileName, generateInvoicePdf, persistGeneratedDocument, t])
 
     const paymentSummary = useMemo<Summary | undefined>(() => {
         if (orderData?.paymentSummary) {

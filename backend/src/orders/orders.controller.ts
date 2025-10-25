@@ -18,6 +18,7 @@ import type { FastifyRequest } from 'fastify'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { SalesDocumentsService } from './sales-documents.service'
 import { CreateOrderDto } from '../sales/dto/order.dto'
+import { parseSingleFileMultipart } from '../common/uploads/multipart'
 
 @UseGuards(JwtAuthGuard)
 @Controller('orders')
@@ -80,5 +81,11 @@ export class OrdersController {
     @Body() body: { paymentMehod?: string | number | null },
   ) {
     return this.documents.updateDocumentPaymentMethod(DocumentType.ORDER, id, body)
+  }
+
+  @Post(':id/document')
+  async uploadOrderDocument(@Param('id', ParseIntPipe) id: number, @Req() req: FastifyRequest) {
+    const { file } = await parseSingleFileMultipart(req)
+    return this.documents.persistDocumentFile(DocumentType.ORDER, id, file)
   }
 }
