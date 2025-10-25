@@ -86,6 +86,7 @@ type SalesOrderDetailsResponse = {
         phone: string
         img: string
         previousOrder: number
+        previousBudgets?: number
         shippingAddress: {
             line1: string
             line2: string

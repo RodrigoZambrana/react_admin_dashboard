@@ -13,7 +13,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common'
-import { Prisma, InboxMessageDirection } from '@prisma/client'
+import { Prisma, InboxMessageDirection, DocumentType } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { TableQueryDto } from './dto/table-query.dto'
@@ -1003,6 +1003,7 @@ export class CustomersController {
         status: true,
         phones: true,
         orders: {
+          where: { documentType: DocumentType.ORDER },
           include: {
             items: true,
             status: true,
@@ -1013,6 +1014,26 @@ export class CustomersController {
     })
     if (!customer) return null
     const orders = (customer.orders || []).map((o) => {
+      const amount = decimalToNumber(o.grandTotal, 2)
+      const currencyRaw =
+        typeof o.orderCurrency === 'string' ? o.orderCurrency.trim() : ''
+      const currency = currencyRaw.length ? currencyRaw : undefined
+      return {
+        id: String(o.id),
+        status: o.status?.name || '',
+        statusCode: o.status?.code,
+        amount,
+        currency,
+        date: Math.floor(new Date(o.date).getTime() / 1000),
+        itemCount: (o.items || []).reduce((sum, it) => sum + (it.qty || 0), 0),
+      }
+    })
+    const budgetsRaw = await this.prisma.order.findMany({
+      where: { customerId: id, documentType: DocumentType.BUDGET },
+      include: { items: true, status: true },
+      orderBy: { date: 'desc' },
+    })
+    const budgets = budgetsRaw.map((o) => {
       const amount = decimalToNumber(o.grandTotal, 2)
       const currencyRaw =
         typeof o.orderCurrency === 'string' ? o.orderCurrency.trim() : ''
@@ -1110,6 +1131,7 @@ export class CustomersController {
       },
       addresses: customer.addresses,
       orders,
+      budgets,
       activities,
     }
   }
