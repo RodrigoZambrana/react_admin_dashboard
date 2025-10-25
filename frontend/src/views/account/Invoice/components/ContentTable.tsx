@@ -72,7 +72,6 @@ const MAX_MEASUREMENT_DECIMALS = 3
 const SPEC_KEY_PRIORITY: Record<string, number> = {
     width: 0,
     height: 1,
-    length: 2,
 }
 
 const getNumeric = (value?: number | string | null) => {
@@ -218,7 +217,10 @@ const resolveSpecifications = (
                 normalizedKey: normalizeSpecText(key),
                 index,
             }))
-            .filter(({ value }) => {
+            .filter(({ value, normalizedKey }) => {
+                if (normalizedKey !== 'width' && normalizedKey !== 'height') {
+                    return false
+                }
                 if (value === null || value === undefined) {
                     return false
                 }
@@ -260,15 +262,6 @@ const resolveSpecifications = (
             const label = translateKey(entry.key)
             pushUnique(`${label}: ${formatted}`)
         }
-    }
-    if (
-        typeof row.specSummary === 'string' &&
-        (!options?.skipSpecSummaryIfCustomAttributes || !hasCustomAttributes)
-    ) {
-        pushUnique(row.specSummary)
-    }
-    if (typeof row.specifications === 'string') {
-        pushUnique(row.specifications)
     }
     return parts.join('\n') || undefined
 }
