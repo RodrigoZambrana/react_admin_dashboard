@@ -138,6 +138,7 @@ model User {
   activities            UserActivity[]
   devices               UserDevice[]
   convertedOrders       Order[]                @relation("OrderConvertedBy")
+  assignedProductionOrders ProductionOrder[] @relation("ProductionOrderAssignedTo")
 }
 
 model UserDevice {
@@ -321,6 +322,7 @@ model Order {
   payments              Payment[]
   paymentPlan           PaymentPlan?
   workOrders            WorkOrder[]
+  productionOrders      ProductionOrder[] @relation("OrderProduction")
 
   @@unique([originId])
   @@unique([convertedOrderId])
@@ -382,6 +384,7 @@ model Payment {
   metadata        Json?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+  attachments     PaymentAttachment[]
 
   @@index([orderId])
   @@index([status, type])
@@ -429,9 +432,47 @@ model WorkOrder {
   metadata    Json?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+  productionOrders ProductionOrder[] @relation("WorkOrderProduction")
 
   @@index([orderId])
   @@index([status])
+}
+
+model PaymentAttachment {
+  id         Int      @id @default(autoincrement())
+  paymentId  Int
+  payment    Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  name       String
+  mimeType   String?
+  size       Int?
+  content    Bytes
+  createdAt  DateTime @default(now())
+}
+
+model ProductionOrder {
+  id           Int             @id @default(autoincrement())
+  workOrderId  Int
+  workOrder    WorkOrder       @relation("WorkOrderProduction", fields: [workOrderId], references: [id], onDelete: Cascade)
+  orderId      Int
+  order        Order           @relation("OrderProduction", fields: [orderId], references: [id], onDelete: Cascade)
+  status       WorkOrderStatus @default(PENDING)
+  priority     Int             @default(1)
+  assignedToId Int?
+  assignedTo   User?           @relation("ProductionOrderAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  deliveredAt  DateTime?
+  notes        String?
+  metadata     Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([orderId])
+  @@index([workOrderId])
+  @@index([status])
+  @@index([assignedToId])
+  @@unique([workOrderId])
 }
 
 model CurrencyRate {

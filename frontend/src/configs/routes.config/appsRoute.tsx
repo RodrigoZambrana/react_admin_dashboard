@@ -2,7 +2,9 @@ import { lazy } from 'react'
 import { APP_PREFIX_PATH } from '@/constants/route.constant'
 import { FEATURES, getRolesForFeature } from '@/constants/roleAccess.constant'
 import type { Routes } from '@/@types/routes'
-import { applyClientRouteOverrides } from '../clientConfig'
+import { applyClientRouteOverrides, clientConfig } from '../clientConfig'
+
+const isUrucortinas = clientConfig.slug === 'urucortinas'
 
 const baseAppsRoute: Routes = [
     // Calendar
@@ -178,6 +180,20 @@ const baseAppsRoute: Routes = [
         component: lazy(() => import('@/views/sales/OrderDetails')),
         authority: getRolesForFeature(FEATURES.SALES),
     },
+
+    ...(isUrucortinas
+        ? [
+              {
+                  key: 'appsSales.productionOrders',
+                  path: `${APP_PREFIX_PATH}/sales/production-orders`,
+                  component: lazy(() => import('@/views/sales/ProductionOrders')),
+                  authority: getRolesForFeature(FEATURES.SALES),
+                  meta: {
+                      header: 'Production Orders',
+                  },
+              },
+          ]
+        : []),
     {
         key: 'appsExpenses.expenseList',
         path: `${APP_PREFIX_PATH}/expenses/expense-list`,

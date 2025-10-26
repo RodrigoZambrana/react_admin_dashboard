@@ -1,4 +1,5 @@
 import Card from '@/components/ui/Card'
+import classNames from 'classnames'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAppSelector } from '@/store'
@@ -21,6 +22,11 @@ type PaymentSummaryProps = {
     }
     taxRate?: number
     currency?: string
+    paymentsSummary?: {
+        totalPaidConfirmed: number
+        outstanding: number
+        currency: string
+    } | null
 }
 
 const PaymentInfo = ({ label, value, isLast, format }: PaymentInfoProps) => {
@@ -38,7 +44,7 @@ const PaymentInfo = ({ label, value, isLast, format }: PaymentInfoProps) => {
     )
 }
 
-const PaymentSummary = ({ data, taxRate, currency }: PaymentSummaryProps) => {
+const PaymentSummary = ({ data, taxRate, currency, paymentsSummary }: PaymentSummaryProps) => {
     const { t, i18n } = useTranslation()
     const storeCurrency = useAppSelector((state) => state.currency.code)
     const defaultCurrency =
@@ -61,6 +67,28 @@ const PaymentSummary = ({ data, taxRate, currency }: PaymentSummaryProps) => {
     const totalLabel = t('sales.orders.summary.totalDue', {
         defaultValue: 'Total due',
     })
+    const paidAmount = paymentsSummary?.totalPaidConfirmed ?? 0
+    const outstanding = paymentsSummary?.outstanding ?? (Number(data?.total ?? 0) - paidAmount)
+    const remainingClass =
+        outstanding > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+    const totalPaidLabel = t('sales.orders.payments.totalPaid', {
+        defaultValue: 'Total paid',
+    })
+    const remainingLabel = t('sales.orders.payments.remaining', {
+        defaultValue: 'Remaining',
+    })
+    const paidCurrency =
+        paymentsSummary?.currency && normalizeCurrencyCode(paymentsSummary.currency, normalizedCurrency)
+            ? paymentsSummary.currency
+            : normalizedCurrency
+    const formatPaid = useMemo(
+        () => (value?: number) =>
+            formatCurrency(value, paidCurrency ?? normalizedCurrency, i18n.language, {
+                fallbackCurrency: defaultCurrency,
+            }),
+        [paidCurrency, normalizedCurrency, i18n.language, defaultCurrency],
+    )
+
     return (
         <Card className="mb-4">
             <h5 className="mb-4">{t('text.titles.paymentSummary')}</h5>
@@ -88,6 +116,22 @@ const PaymentSummary = ({ data, taxRate, currency }: PaymentSummaryProps) => {
                     format={formatValue}
                 />
             </ul>
+            <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-gray-600 dark:text-gray-300">
+                        {totalPaidLabel}
+                    </span>
+                    <span className="font-semibold">{formatPaid(paidAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-gray-600 dark:text-gray-300">
+                        {remainingLabel}
+                    </span>
+                    <span className={classNames('font-semibold', remainingClass)}>
+                        {formatPaid(outstanding)}
+                    </span>
+                </div>
+            </div>
         </Card>
     )
 }

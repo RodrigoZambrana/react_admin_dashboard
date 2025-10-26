@@ -21,6 +21,7 @@ import { ActivitiesModule } from './activities/activities.module'
 import { CurrencyModule } from './common/currency/currency.module'
 import { ClientConfigModule } from './config/client-config.module'
 import { InboxModule } from './inbox/inbox.module'
+import { ProductionOrdersModule } from './production-orders/production-orders.module'
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { InboxModule } from './inbox/inbox.module'
     HealthModule,
     ActivitiesModule,
     InboxModule,
+    ProductionOrdersModule,
   ],
   providers: [
     {

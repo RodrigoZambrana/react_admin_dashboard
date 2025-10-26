@@ -475,6 +475,7 @@ export function adaptOrderToDetailsView(
     validUntil,
     validityDate: validUntil,
     paymentSummary,
+    payments: o.payments ?? null,
     shipping: normalizedShipping,
     product,
     activity: [],

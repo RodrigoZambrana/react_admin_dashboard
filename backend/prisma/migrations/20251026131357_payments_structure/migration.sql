@@ -10,9 +10,6 @@ CREATE TYPE "DepositRequirementType" AS ENUM ('PERCENTAGE', 'FIXED');
 -- CreateEnum
 CREATE TYPE "WorkOrderStatus" AS ENUM ('PENDING', 'IN_PROGRESS', 'READY', 'DELIVERED', 'CLOSED', 'CANCELED');
 
--- DropIndex
-DROP INDEX "public"."InboxAttachment_messageId_idx";
-
 -- AlterTable
 ALTER TABLE "CompanyProfile" ALTER COLUMN "updatedAt" DROP DEFAULT;
 

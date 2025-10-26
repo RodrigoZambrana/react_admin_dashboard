@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException, StreamableFile } from '@nestjs/common'
 import {
   PaymentStatus,
   PaymentType,
@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { OrderFinanceService } from '../orders/order-finance.service'
 import {
   CreatePaymentDto,
+  PaymentAttachmentDto,
   PaymentListQueryDto,
   UpdatePaymentDto,
 } from './dto/payment.dto'
@@ -56,8 +57,27 @@ export class PaymentsService {
         }
       }
       paymentMethod: true
+      attachments: {
+        select: {
+          id: true
+          name: true
+          mimeType: true
+          size: true
+          createdAt: true
+        }
+      }
     }
   }>) {
+    const serializeAttachments = () =>
+      payment.attachments?.map((attachment) => ({
+        id: attachment.id,
+        name: attachment.name,
+        type: attachment.mimeType ?? null,
+        size: attachment.size ?? null,
+        createdAt: attachment.createdAt.toISOString(),
+        url: `/accounting/payments/${payment.id}/attachments/${attachment.id}`,
+      })) ?? []
+
     return {
       id: payment.id,
       orderId: payment.orderId,
@@ -72,6 +92,7 @@ export class PaymentsService {
       notes: payment.notes ?? null,
       createdAt: payment.createdAt.toISOString(),
       updatedAt: payment.updatedAt.toISOString(),
+      attachments: serializeAttachments(),
       order: payment.order
         ? {
             id: payment.order.id,
@@ -89,6 +110,68 @@ export class PaymentsService {
           }
         : null,
     }
+  }
+
+  private decodeAttachmentContent(content?: string | null) {
+    if (!content) {
+      return null
+    }
+    const trimmed = content.trim()
+    if (!trimmed.length) {
+      return null
+    }
+    const base64Index = trimmed.indexOf('base64,')
+    const data = base64Index >= 0 ? trimmed.slice(base64Index + 7) : trimmed
+    try {
+      return Buffer.from(data, 'base64')
+    } catch (error) {
+      return null
+    }
+  }
+
+  private extractAttachmentPayload(attachments?: PaymentAttachmentDto[] | null) {
+    const keepIds = new Set<number>()
+    const newAttachments: Array<{
+      name: string
+      mimeType?: string | null
+      size?: number | null
+      content: Buffer
+    }> = []
+
+    if (!Array.isArray(attachments)) {
+      return { keepIds: [], newAttachments, provided: false }
+    }
+
+    for (const attachment of attachments) {
+      if (!attachment) {
+        continue
+      }
+      const maybeId = Number(attachment.id)
+      const hasId = Number.isFinite(maybeId) && maybeId > 0
+      const buffer = this.decodeAttachmentContent(attachment.content ?? null)
+      if (hasId && !buffer) {
+        keepIds.add(maybeId)
+        continue
+      }
+      if (!buffer) {
+        continue
+      }
+      const normalizedName = String(attachment.name ?? '').trim()
+      if (!normalizedName) {
+        continue
+      }
+      newAttachments.push({
+        name: normalizedName,
+        mimeType: attachment.type?.trim() || null,
+        size:
+          attachment.size !== undefined && attachment.size !== null
+            ? Number(attachment.size)
+            : buffer.length,
+        content: buffer,
+      })
+    }
+
+    return { keepIds: Array.from(keepIds), newAttachments, provided: true }
   }
 
   async listPayments(query: PaymentListQueryDto) {
@@ -167,6 +250,15 @@ export class PaymentsService {
             },
           },
           paymentMethod: true,
+          attachments: {
+            select: {
+              id: true,
+              name: true,
+              mimeType: true,
+              size: true,
+              createdAt: true,
+            },
+          },
         },
       }),
       this.prisma.payment.count({ where }),
@@ -191,6 +283,15 @@ export class PaymentsService {
           },
         },
         paymentMethod: true,
+        attachments: {
+          select: {
+            id: true,
+            name: true,
+            mimeType: true,
+            size: true,
+            createdAt: true,
+          },
+        },
       },
     })
     if (!payment) {
@@ -231,6 +332,7 @@ export class PaymentsService {
         dto.method ?? null,
       )
       const amountDecimal = roundDecimal(dto.amount, 2)
+      const attachmentsPayload = this.extractAttachmentPayload(dto.attachments)
       const payment = await tx.payment.create({
         data: {
           orderId: order.id,
@@ -245,6 +347,19 @@ export class PaymentsService {
           notes: dto.notes?.trim() || null,
         },
       })
+      if (attachmentsPayload.newAttachments.length) {
+        for (const attachment of attachmentsPayload.newAttachments) {
+          await tx.paymentAttachment.create({
+            data: {
+              paymentId: payment.id,
+              name: attachment.name,
+              mimeType: attachment.mimeType,
+              size: attachment.size ?? attachment.content.length,
+              content: Buffer.from(attachment.content),
+            },
+          })
+        }
+      }
       await this.orderFinance.recalculateOrderFinancials(order.id, tx)
       return payment
     }).then((payment) => this.getPayment(payment.id))
@@ -294,6 +409,30 @@ export class PaymentsService {
         where: { id },
         data,
       })
+      const attachmentPayload = this.extractAttachmentPayload(dto.attachments)
+      if (attachmentPayload.provided) {
+        if (attachmentPayload.keepIds.length) {
+          await tx.paymentAttachment.deleteMany({
+            where: {
+              paymentId: payment.id,
+              id: { notIn: attachmentPayload.keepIds },
+            },
+          })
+        } else {
+          await tx.paymentAttachment.deleteMany({ where: { paymentId: payment.id } })
+        }
+        for (const attachment of attachmentPayload.newAttachments) {
+          await tx.paymentAttachment.create({
+            data: {
+              paymentId: payment.id,
+              name: attachment.name,
+              mimeType: attachment.mimeType,
+              size: attachment.size ?? attachment.content.length,
+              content: Buffer.from(attachment.content),
+            },
+          })
+        }
+      }
       await this.orderFinance.recalculateOrderFinancials(payment.orderId, tx)
       return id
     }).then(() => this.getPayment(id))
@@ -311,5 +450,41 @@ export class PaymentsService {
       await this.orderFinance.recalculateOrderFinancials(existing.orderId, tx)
       return true
     })
+  }
+
+  async getAttachment(attachmentId: number) {
+    const attachment = await this.prisma.paymentAttachment.findUnique({
+      where: { id: attachmentId },
+      include: {
+        payment: {
+          select: { id: true },
+        },
+      },
+    })
+    if (!attachment) {
+      throw new NotFoundException('accounting.payments.attachments.notFound')
+    }
+    const buffer = Buffer.isBuffer(attachment.content)
+      ? attachment.content
+      : Buffer.from(attachment.content)
+    return {
+      paymentId: attachment.paymentId,
+      attachment,
+      stream: new StreamableFile(buffer, {
+        disposition: `inline; filename="${attachment.name}"`,
+        type: attachment.mimeType ?? 'application/octet-stream',
+        length: attachment.size ?? buffer.length,
+      }),
+    }
+  }
+
+  async deleteAttachment(attachmentId: number) {
+    const deleted = await this.prisma.paymentAttachment.deleteMany({
+      where: { id: attachmentId },
+    })
+    if (!deleted.count) {
+      throw new NotFoundException('accounting.payments.attachments.notFound')
+    }
+    return true
   }
 }

@@ -32,7 +32,8 @@
             "addOrder": "Agregar pedido",
             "budgetList": "Presupuestos",
             "budgetQuick": "Presupuesto rápido",
-            "budgetNew": "Agregar presupuesto"
+            "budgetNew": "Agregar presupuesto",
+            "productionOrders": "Ordenes de Producción"
         },
         "appsBudgets": {
             "budgets": "Presupuestos",
@@ -475,7 +476,8 @@
             "published": "Publicado",
             "stock": "Stock",
             "comments": "Comentarios",
-            "specifications": "Especificaciones"
+            "specifications": "Especificaciones",
+            "type": "Tipo"
         },
         "mobileNav": {
             "home": "Inicio",
@@ -1134,6 +1136,26 @@
                 "netIncome": "Ingreso neto",
                 "lineDetail": "{{qty}} × {{unitCost}}",
                 "empty": "No hay datos de costos disponibles"
+            },
+            "payments": {
+                "title": "Pagos",
+                "orderLabel": "Pedido ID #{id}",
+                "add": "Agregar pago",
+                "totalPaid": "Total pagado",
+                "remaining": "Restante",
+                "method": "Método",
+                "attachments": "Adjuntos",
+                "empty": "Aún no hay pagos registrados.",
+                "new": "Registrar pago",
+                "save": "Guardar pago",
+                "attachmentDeletedTitle": "Adjunto eliminado",
+                "attachmentDeletedDesc": "El adjunto se eliminó correctamente.",
+                "attachmentDeleteFailedTitle": "No se pudo eliminar el adjunto",
+                "attachmentDeleteFailedDesc": "Inténtalo nuevamente en unos instantes.",
+                "type": "Tipo",
+                "status": "Estado",
+                "date": "Fecha",
+                "idLabel": "ID de pago"
             }
         },
         "documents": {
@@ -1245,6 +1267,68 @@
                 "netIncome": "Ingreso neto",
                 "lineDetail": "{{qty}} × {{unitCost}}",
                 "empty": "No hay datos de costos disponibles"
+            }
+        },
+        "productionOrders": {
+            "title": "Órdenes de producción",
+            "actions": {
+                "new": "Nueva orden de producción"
+            },
+            "columns": {
+                "order": "Pedido",
+                "workOrder": "Orden de trabajo",
+                "priority": "Prioridad",
+                "assignee": "Asignado a",
+                "scheduled": "Programada"
+            },
+            "filters": {
+                "search": "Buscar por cliente, código o id",
+                "status": "Estado"
+            },
+            "summary": {
+                "total": "Órdenes totales",
+                "overdue": "Atrasadas"
+            },
+            "stats": {
+                "title": "Actividad mensual",
+                "subtitle": "Órdenes creadas vs finalizadas",
+                "empty": "Aún no hay actividad registrada.",
+                "created": "Creadas",
+                "completed": "Finalizadas"
+            },
+            "form": {
+                "createTitle": "Crear orden de producción",
+                "editTitle": "Editar orden de producción",
+                "submit": "Crear orden de producción",
+                "orderId": "ID del pedido",
+                "workOrderId": "ID de la orden de trabajo",
+                "priority": "Prioridad",
+                "assignedTo": "Asignado a",
+                "scheduledAt": "Programada",
+                "startedAt": "Iniciada",
+                "completedAt": "Completada",
+                "deliveredAt": "Entregada"
+            },
+            "delete": {
+                "title": "Eliminar orden de producción",
+                "confirm": "¿Eliminar la orden de producción #{id}?"
+            },
+            "validation": {
+                "orderId": "Se requiere un ID de pedido válido",
+                "priority": "La prioridad debe ser un número positivo",
+                "invalidDate": "Selecciona una fecha válida",
+                "startedBeforeScheduled": "La fecha de inicio no puede ser anterior a la fecha programada",
+                "completedBeforeStarted": "La fecha de finalización no puede ser anterior a la fecha de inicio",
+                "deliveredBeforeCompleted": "La fecha de entrega no puede ser anterior a la fecha de finalización",
+                "assigneeNotFound": "No pudimos encontrar al usuario seleccionado"
+            },
+            "status": {
+                "PENDING": "Pendiente",
+                "IN_PROGRESS": "En progreso",
+                "READY": "Listo",
+                "DELIVERED": "Entregado",
+                "CLOSED": "Cerrado",
+                "CANCELED": "Cancelado"
             }
         }
     },
@@ -1879,7 +1963,8 @@
         "labels": {
             "yes": "Sí",
             "no": "No",
-            "notSpecified": "No indicado"
+            "notSpecified": "No indicado",
+            "unassigned": "Sin asignar"
         }
     },
     "notification": {
@@ -1890,5 +1975,17 @@
             "desc": "Por favor, inténtalo más tarde"
         },
         "viewAll": "Ver toda la actividad"
+    },
+    "production": {
+        "orders": {
+            "disabled": "La función de órdenes de producción no está habilitada.",
+            "notFound": "Orden de producción no encontrada.",
+            "validation": {
+                "orderNotFound": "El pedido especificado no existe.",
+                "workOrderMismatch": "La orden de trabajo no pertenece al pedido indicado.",
+                "metadataJson": "Los metadatos deben ser un JSON válido.",
+                "assigneeNotFound": "No pudimos encontrar al responsable seleccionado."
+            }
+        }
     }
 }

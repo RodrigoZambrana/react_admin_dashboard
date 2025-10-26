@@ -6,10 +6,11 @@ import Container from '@/components/shared/Container'
 import DoubleSidedImage from '@/components/shared/DoubleSidedImage'
 import OrderProducts from './components/OrderProducts'
 import PaymentSummary from './components/PaymentSummary'
-import AdministrativeSummary from './components/AdministrativeSummary'
 import ShippingInfo from './components/ShippingInfo'
 import Activity from './components/Activity'
 import CustomerInfo from './components/CustomerInfo'
+import OrderPaymentsCard from './components/OrderPaymentsCard'
+import NewPaymentDialog from './components/NewPaymentDialog'
 import { HiOutlineCalendar, HiOutlineDocumentText, HiOutlinePencil } from 'react-icons/hi'
 import { apiGetSalesOrderDetails } from '@/services/SalesService'
 import { apiGetOrderStatuses, apiGetSystemConfig } from '@/services/SettingsService'
@@ -20,9 +21,12 @@ import dayjs from 'dayjs'
 import { useTranslation } from 'react-i18next'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
+import toast from '@/components/ui/toast'
+import Notification from '@/components/ui/Notification'
 import { useSalesDocumentI18n } from '../context/useSalesDocumentI18n'
 import { resolveTextDirection } from '@/utils/textDirection'
 import { sanitizeRichText } from '@/utils/security/inputGuards'
+import { apiDeletePaymentAttachment } from '@/services/AccountingService'
 
 type SalesOrderDetailsResponse = {
     id?: string
@@ -37,6 +41,45 @@ type SalesOrderDetailsResponse = {
         total: number
         currency?: string
     }
+    payments?: {
+        summary: {
+            currency: string
+            depositRequired: number
+            depositPaidConfirmed: number
+            balancePaidConfirmed: number
+            refundsConfirmed: number
+            totalPaidConfirmed: number
+            depositPending: number
+            balancePending: number
+            refundsPending: number
+            outstanding: number
+            customerCredit: number
+            depositMet: boolean
+        } | null
+        records: Array<{
+            id: number
+            orderId: number
+            amount: number
+            currency: string
+            type: string
+            status: string
+            reference: string | null
+            method: string | null
+            paymentMethodId: number | null
+            date: string
+            notes: string | null
+            createdAt: string
+            updatedAt: string
+            attachments: Array<{
+                id: number
+                name: string
+                type: string | null
+                size: number | null
+                createdAt: string
+                url: string
+            }>
+        }>
+    } | null
     shipping?: {
         deliveryFees: number
         estimatedMin: number
@@ -102,6 +145,10 @@ type SalesOrderDetailsResponse = {
     }
     comment?: string
     disclaimer?: string
+    fxSnapshot?: {
+        base: string
+        rates: Record<string, number>
+    }
 }
 
 const OrderDetails = () => {
@@ -112,35 +159,34 @@ const OrderDetails = () => {
     const [data, setData] = useState<SalesOrderDetailsResponse>({})
     const [orderStatuses, setOrderStatuses] = useState<{ id: number; name: string; color: string }[]>([])
     const [taxRate, setTaxRate] = useState<number>()
+    const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
     const { t } = useTranslation()
     const { tDoc, resource, routes, mode } = useSalesDocumentI18n()
     const showValidUntil = resource === 'budgets'
 
-    useEffect(() => {
-        fetchData()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [resource])
-
-    const fetchData = async () => {
-        const id = location.pathname.substring(
+    const fetchData = useCallback(async () => {
+        const idSegment = location.pathname.substring(
             location.pathname.lastIndexOf('/') + 1,
         )
-        if (id) {
+        if (idSegment) {
             setLoading(true)
             const response = await apiGetSalesOrderDetails<
                 SalesOrderDetailsResponse,
                 { id: string }
-            >({ id }, resource)
+            >({ id: idSegment }, resource)
             if (response) {
                 setLoading(false)
-                // Backend returns raw Order; map to unified view shape
                 const mapped = adaptOrderToDetailsView((response as any).data, {
                     mode,
                 })
                 setData(mapped as SalesOrderDetailsResponse)
             }
         }
-    }
+    }, [location.pathname, mode, resource])
+
+    useEffect(() => {
+        fetchData()
+    }, [fetchData])
 
     useEffect(() => {
         // Load order statuses for colored tag mapping
@@ -168,21 +214,6 @@ const OrderDetails = () => {
         'invoiceAction',
         'sales.orders.invoiceAction',
         t('text.actions.viewInvoice', { defaultValue: 'View invoice' }),
-    )
-    const administrativeTitle = docMessage(
-        'administrativeTitle',
-        'sales.orders.administrative.title',
-        'Administrative info',
-    )
-    const administrativeTotalLabel = docMessage(
-        'administrativeTotalCost',
-        'sales.orders.administrative.totalCost',
-        'Total cost',
-    )
-    const administrativeNetLabel = docMessage(
-        'administrativeNetIncome',
-        'sales.orders.administrative.netIncome',
-        'Net income',
     )
     const disclaimerLabel = docMessage(
         'disclaimerLabel',
@@ -220,38 +251,40 @@ const OrderDetails = () => {
         navigate(`${routes.invoice}/${data.id}`)
     }, [data.id, navigate, routes.invoice])
 
-    const administrativeSummary = useMemo(() => {
-        const items = Array.isArray(data.product)
-            ? data.product.map((item, index) => {
-                  const quantity = Number(item?.quantity ?? item?.qty ?? 0)
-                  const unitCost = Number(item?.unitCostOrderCurrency ?? 0)
-                  const fallbackCost = Number.isFinite(unitCost) ? unitCost * quantity : 0
-                  const lineCostRaw = Number(item?.costTotal ?? fallbackCost)
-                  const lineCost = Number.isFinite(lineCostRaw)
-                      ? Math.round(lineCostRaw * 100) / 100
-                      : 0
-                  return {
-                      id: item?.id ?? `${index}`,
-                      name: item?.name ?? t('text.columns.product'),
-                      quantity: Number.isFinite(quantity) ? quantity : 0,
-                      unitCost: Number.isFinite(unitCost) ? unitCost : 0,
-                      lineCost,
-                      currency: item?.costCurrency ?? data.paymentSummary?.currency,
-                  }
-              })
-            : []
-        const totalCost = Math.round(
-            items.reduce((sum, item) => sum + (Number.isFinite(item.lineCost) ? item.lineCost : 0), 0) * 100,
-        ) / 100
-        const grandTotal = Number(data.paymentSummary?.total ?? 0)
-        const netIncome = Math.round(((Number.isFinite(grandTotal) ? grandTotal : 0) - totalCost) * 100) / 100
-        return {
-            items,
-            totalCost,
-            netIncome,
-            currency: data.paymentSummary?.currency,
-        }
-    }, [data, t])
+    const handleDeleteAttachment = useCallback(
+        async (attachmentId: number) => {
+            try {
+                await apiDeletePaymentAttachment<boolean>(attachmentId)
+                toast.push(
+                    <Notification
+                        title={t('sales.orders.payments.attachmentDeletedTitle', {
+                            defaultValue: 'Attachment removed',
+                        })}
+                        type="success"
+                    >
+                        {t('sales.orders.payments.attachmentDeletedDesc', {
+                            defaultValue: 'The attachment was removed successfully.',
+                        })}
+                    </Notification>,
+                )
+                fetchData()
+            } catch (error) {
+                toast.push(
+                    <Notification
+                        title={t('sales.orders.payments.attachmentDeleteFailedTitle', {
+                            defaultValue: 'Could not remove attachment',
+                        })}
+                        type="danger"
+                    >
+                        {t('sales.orders.payments.attachmentDeleteFailedDesc', {
+                            defaultValue: 'Please try again in a moment.',
+                        })}
+                    </Notification>,
+                )
+            }
+        },
+        [fetchData, t],
+    )
 
     const disclaimerHtml = useMemo(() => {
         if (typeof data.disclaimer === 'string') {
@@ -338,28 +371,25 @@ const OrderDetails = () => {
                             </div>
                         </div>
                         <div className="xl:flex gap-4">
-                            <div className="w-full">
+                            <div className="w-full space-y-4">
+                                <PaymentSummary
+                                    data={data.paymentSummary}
+                                    taxRate={taxRate}
+                                    currency={data.paymentSummary?.currency}
+                                    paymentsSummary={data.payments?.summary ?? null}
+                                />
+                                <OrderPaymentsCard
+                                    orderId={data.id ? Number(data.id) : undefined}
+                                    orderCurrency={data.paymentSummary?.currency}
+                                    payments={data.payments ?? undefined}
+                                    onAddPayment={() => setPaymentDialogOpen(true)}
+                                    onDeleteAttachment={handleDeleteAttachment}
+                                />
                                 <OrderProducts
                                     data={data.product}
                                     orderCurrency={data.paymentSummary?.currency}
                                     fxSnapshot={data.fxSnapshot}
                                 />
-                                <PaymentSummary
-                                    data={data.paymentSummary}
-                                    taxRate={taxRate}
-                                    currency={data.paymentSummary?.currency}
-                                />
-                                {mode !== 'budget' && (
-                                    <AdministrativeSummary
-                                        title={administrativeTitle}
-                                        items={administrativeSummary.items}
-                                        currency={administrativeSummary.currency}
-                                        totalCost={administrativeSummary.totalCost}
-                                        netIncome={administrativeSummary.netIncome}
-                                        totalCostLabel={administrativeTotalLabel}
-                                        netIncomeLabel={administrativeNetLabel}
-                                    />
-                                )}
                                 <Activity data={data.activity} />
                             </div>
                             <div className="xl:max-w-[360px] w-full space-y-4">
@@ -390,6 +420,16 @@ const OrderDetails = () => {
                     <h3 className="mt-8">{t('common.notFound.order')}</h3>
                 </div>
             )}
+            <NewPaymentDialog
+                open={paymentDialogOpen}
+                onClose={() => setPaymentDialogOpen(false)}
+                orderId={data.id ? Number(data.id) : undefined}
+                orderCurrency={data.paymentSummary?.currency}
+                onCreated={() => {
+                    setPaymentDialogOpen(false)
+                    fetchData()
+                }}
+            />
         </Container>
     )
 }
