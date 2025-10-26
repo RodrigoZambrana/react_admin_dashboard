@@ -1257,6 +1257,21 @@ export class SalesDocumentsService {
         items: { include: { product: true } },
         paymentMethod: true,
         status: true,
+        payments: {
+          include: {
+            paymentMethod: true,
+            attachments: {
+              select: {
+                id: true,
+                name: true,
+                mimeType: true,
+                size: true,
+                createdAt: true,
+              },
+            },
+          },
+          orderBy: { date: 'asc' },
+        },
       },
     })
     if (!order) return null
@@ -1423,22 +1438,47 @@ export class SalesDocumentsService {
       ),
       confirmedAt: order.confirmedAt ? order.confirmedAt.toISOString() : null,
       depositSatisfiedAt: order.depositSatisfiedAt ? order.depositSatisfiedAt.toISOString() : null,
-      payments: paymentSummary
-        ? {
-            currency: paymentSummary.currency,
-            depositRequired: Number(paymentSummary.depositRequired.toString()),
-            depositPaidConfirmed: Number(paymentSummary.depositPaidConfirmed.toString()),
-            balancePaidConfirmed: Number(paymentSummary.balancePaidConfirmed.toString()),
-            refundsConfirmed: Number(paymentSummary.refundsConfirmed.toString()),
-            totalPaidConfirmed: Number(paymentSummary.totalPaidConfirmed.toString()),
-            depositPending: Number(paymentSummary.depositPending.toString()),
-            balancePending: Number(paymentSummary.balancePending.toString()),
-            refundsPending: Number(paymentSummary.refundsPending.toString()),
-            outstanding: Number(paymentSummary.outstanding.toString()),
-            customerCredit: Number(paymentSummary.customerCredit.toString()),
-            depositMet: paymentSummary.depositMet,
-          }
-        : null,
+      payments: {
+        summary: paymentSummary
+          ? {
+              currency: paymentSummary.currency,
+              depositRequired: Number(paymentSummary.depositRequired.toString()),
+              depositPaidConfirmed: Number(paymentSummary.depositPaidConfirmed.toString()),
+              balancePaidConfirmed: Number(paymentSummary.balancePaidConfirmed.toString()),
+              refundsConfirmed: Number(paymentSummary.refundsConfirmed.toString()),
+              totalPaidConfirmed: Number(paymentSummary.totalPaidConfirmed.toString()),
+              depositPending: Number(paymentSummary.depositPending.toString()),
+              balancePending: Number(paymentSummary.balancePending.toString()),
+              refundsPending: Number(paymentSummary.refundsPending.toString()),
+              outstanding: Number(paymentSummary.outstanding.toString()),
+              customerCredit: Number(paymentSummary.customerCredit.toString()),
+              depositMet: paymentSummary.depositMet,
+            }
+          : null,
+        records: order.payments.map((payment) => ({
+          id: payment.id,
+          orderId: payment.orderId,
+          amount: Number(payment.amount.toString()),
+          currency: payment.currency,
+          type: payment.type,
+          status: payment.status,
+          reference: payment.reference ?? null,
+          method: payment.method ?? payment.paymentMethod?.name ?? null,
+          paymentMethodId: payment.paymentMethodId ?? null,
+          date: payment.date.toISOString(),
+          notes: payment.notes ?? null,
+          createdAt: payment.createdAt.toISOString(),
+          updatedAt: payment.updatedAt.toISOString(),
+          attachments: payment.attachments.map((attachment) => ({
+            id: attachment.id,
+            name: attachment.name,
+            type: attachment.mimeType ?? null,
+            size: attachment.size ?? null,
+            createdAt: attachment.createdAt.toISOString(),
+            url: `/accounting/payments/${payment.id}/attachments/${attachment.id}`,
+          })),
+        })),
+      },
     }
   }
 

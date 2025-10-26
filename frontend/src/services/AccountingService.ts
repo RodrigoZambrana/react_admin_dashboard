@@ -48,3 +48,10 @@ export async function apiDeletePayment<T>(id: number) {
         method: 'delete',
     })
 }
+
+export async function apiDeletePaymentAttachment<T>(attachmentId: number) {
+    return ApiService.fetchData<T>({
+        url: `/accounting/payments/attachments/${attachmentId}`,
+        method: 'delete',
+    })
+}

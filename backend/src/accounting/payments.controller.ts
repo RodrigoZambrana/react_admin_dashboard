@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   ParseIntPipe,
   Post,
@@ -42,5 +43,22 @@ export class PaymentsController {
   @Delete(':id')
   deletePayment(@Param('id', ParseIntPipe) id: number) {
     return this.payments.deletePayment(id)
+  }
+
+  @Get(':id/attachments/:attachmentId')
+  async downloadAttachment(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('attachmentId', ParseIntPipe) attachmentId: number,
+  ) {
+    const result = await this.payments.getAttachment(attachmentId)
+    if (result.paymentId !== id) {
+      throw new NotFoundException('accounting.payments.attachments.notFound')
+    }
+    return result.stream
+  }
+
+  @Delete('attachments/:attachmentId')
+  deleteAttachment(@Param('attachmentId', ParseIntPipe) attachmentId: number) {
+    return this.payments.deleteAttachment(attachmentId)
   }
 }

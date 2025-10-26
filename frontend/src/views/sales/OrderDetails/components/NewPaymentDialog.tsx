@@ -1,0 +1,335 @@
+import { useEffect, useMemo, useState } from 'react'
+import Dialog from '@/components/ui/Dialog'
+import Button from '@/components/ui/Button'
+import { Formik, Form, Field, FieldArray } from 'formik'
+import * as Yup from 'yup'
+import Input from '@/components/ui/Input'
+import DatePicker from '@/components/ui/DatePicker'
+import { FormContainer, FormItem } from '@/components/ui/Form'
+import Select from '@/components/ui/Select'
+import SelectAcceptedCurrencies from '@/components/shared/SelectAcceptedCurrencies'
+import { useTranslation } from 'react-i18next'
+import { apiCreatePayment } from '@/services/AccountingService'
+import { apiGetPaymentMethods } from '@/services/SettingsService'
+import toast from '@/components/ui/toast'
+import Notification from '@/components/ui/Notification'
+import { useAppSelector } from '@/store'
+
+type AttachmentDraft = {
+    id?: number
+    name: string
+    type: string | null
+    size: number | null
+    content?: string | null
+}
+
+type PaymentFormValues = {
+    orderId: string
+    amount: string
+    currency: string
+    date: Date | null
+    type: string
+    status: string
+    paymentMethodId: string | null
+    method: string
+    reference: string
+    notes: string
+    attachments: AttachmentDraft[]
+}
+
+type NewPaymentDialogProps = {
+    open: boolean
+    onClose: () => void
+    onCreated: () => void
+    orderId?: number
+    orderCurrency?: string
+}
+
+const statusOptions = [
+    { value: 'CONFIRMED', label: 'accounting.payments.status.confirmed' },
+    { value: 'REGISTERED', label: 'accounting.payments.status.registered' },
+    { value: 'FAILED', label: 'accounting.payments.status.failed' },
+]
+
+const typeOptions = [
+    { value: 'DEPOSIT', label: 'accounting.payments.type.deposit' },
+    { value: 'BALANCE', label: 'accounting.payments.type.balance' },
+    { value: 'REFUND', label: 'accounting.payments.type.refund' },
+]
+
+const validationSchema = (t: (key: string) => string) =>
+    Yup.object().shape({
+        amount: Yup.number()
+            .typeError(t('accounting.payments.validation.amountRequired'))
+            .moreThan(0, t('accounting.payments.validation.amountPositive'))
+            .required(t('accounting.payments.validation.amountRequired')),
+        orderId: Yup.number()
+            .typeError(t('accounting.payments.validation.orderIdRequired'))
+            .required(t('accounting.payments.validation.orderIdRequired')),
+    })
+
+const NewPaymentDialog = ({ open, onClose, onCreated, orderId, orderCurrency }: NewPaymentDialogProps) => {
+    const { t } = useTranslation()
+    const storeCurrency = useAppSelector((state) => state.currency.code)
+    const [methods, setMethods] = useState<Array<{ value: string; label: string }>>([])
+    const [loading, setLoading] = useState(false)
+
+    useEffect(() => {
+        const fetchMethods = async () => {
+            try {
+                const res = await apiGetPaymentMethods<{ id: number; name: string }[]>()
+                const options = (res.data as Array<{ id: number; name: string }>).map((item) => ({
+                    value: String(item.id),
+                    label: item.name,
+                }))
+                setMethods(options)
+            } catch (error) {
+                setMethods([])
+            }
+        }
+        fetchMethods()
+    }, [])
+
+    const initialValues = useMemo<PaymentFormValues>(
+        () => ({
+            orderId: orderId ? String(orderId) : '',
+            amount: '',
+            currency: (orderCurrency || storeCurrency || 'UYU').toUpperCase(),
+            date: new Date(),
+            type: 'BALANCE',
+            status: 'CONFIRMED',
+            paymentMethodId: null,
+            method: '',
+            reference: '',
+            notes: '',
+            attachments: [],
+        }),
+        [orderCurrency, orderId, storeCurrency],
+    )
+
+    const onSubmit = async (values: PaymentFormValues) => {
+        setLoading(true)
+        try {
+            const payload = {
+                orderId: Number(values.orderId),
+                amount: Number(values.amount),
+                currency: values.currency ? values.currency.toUpperCase() : 'UYU',
+                date: values.date ? values.date.toISOString() : new Date().toISOString(),
+                type: values.type,
+                status: values.status,
+                paymentMethodId: values.paymentMethodId ? Number(values.paymentMethodId) : null,
+                method: values.method?.trim() || null,
+                reference: values.reference?.trim() || null,
+                notes: values.notes?.trim() || null,
+                attachments: values.attachments.map((attachment) => ({
+                    id: attachment.id,
+                    name: attachment.name,
+                    type: attachment.type,
+                    size: attachment.size,
+                    content: attachment.content ?? null,
+                })),
+            }
+            await apiCreatePayment<boolean, typeof payload>(payload)
+            toast.push(
+                <Notification title={t('accounting.payments.feedback.createdTitle')} type="success">
+                    {t('accounting.payments.feedback.createdDesc')}
+                </Notification>,
+            )
+            onCreated()
+        } catch (error) {
+            toast.push(
+                <Notification title={t('accounting.payments.feedback.saveFailedTitle')} type="danger">
+                    {t('accounting.payments.feedback.saveFailedDesc')}
+                </Notification>,
+            )
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleFilesSelected = async (
+        files: FileList | null,
+        push: (attachment: AttachmentDraft) => void,
+    ) => {
+        if (!files || files.length === 0) {
+            return
+        }
+        for (const file of Array.from(files)) {
+            const base64 = await toBase64(file)
+            push({
+                name: file.name,
+                type: file.type || null,
+                size: file.size,
+                content: base64,
+            })
+        }
+    }
+
+    return (
+        <Dialog isOpen={open} onClose={onClose} onRequestClose={onClose} width={520}>
+            <h4 className="mb-4">
+                {t('sales.orders.payments.new', { defaultValue: 'Register payment' })}
+            </h4>
+            <Formik<PaymentFormValues>
+                initialValues={initialValues}
+                enableReinitialize
+                validationSchema={validationSchema(t)}
+                onSubmit={(values) => onSubmit(values)}
+            >
+                {({ values, errors, touched, setFieldValue }) => (
+                    <Form>
+                        <FormContainer>
+                            <FormItem
+                                label={t('accounting.payments.form.orderId')}
+                                invalid={Boolean(errors.orderId && touched.orderId)}
+                                errorMessage={errors.orderId as string}
+                            >
+                                <Field name="orderId">
+                                    {({ field }) => (
+                                        <Input
+                                            {...field}
+                                            type="number"
+                                            readOnly={Boolean(orderId)}
+                                            value={field.value}
+                                        />
+                                    )}
+                                </Field>
+                            </FormItem>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <FormItem
+                                    label={t('text.columns.amount')}
+                                    invalid={Boolean(errors.amount && touched.amount)}
+                                    errorMessage={errors.amount as string}
+                                >
+                                    <Field
+                                        name="amount"
+                                        type="number"
+                                        component={Input}
+                                        value={values.amount}
+                                    />
+                                </FormItem>
+                                <FormItem label={t('text.columns.currency')}>
+                                    <SelectAcceptedCurrencies
+                                        value={values.currency}
+                                        onChange={(val) => setFieldValue('currency', val)}
+                                    />
+                                </FormItem>
+                            </div>
+                            <FormItem label={t('text.columns.date')}>
+                                <DatePicker value={values.date} onChange={(val) => setFieldValue('date', val)} />
+                            </FormItem>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <FormItem label={t('text.columns.type')}>
+                                    <Select
+                                        value={typeOptions.find((option) => option.value === values.type) ?? null}
+                                        options={typeOptions.map((option) => ({
+                                            value: option.value,
+                                            label: t(option.label),
+                                        }))}
+                                        onChange={(option) =>
+                                            setFieldValue('type', option ? (option as any).value : 'BALANCE')
+                                        }
+                                    />
+                                </FormItem>
+                                <FormItem label={t('text.columns.status')}>
+                                    <Select
+                                        value={statusOptions.find((option) => option.value === values.status) ?? null}
+                                        options={statusOptions.map((option) => ({
+                                            value: option.value,
+                                            label: t(option.label),
+                                        }))}
+                                        onChange={(option) =>
+                                            setFieldValue('status', option ? (option as any).value : 'CONFIRMED')
+                                        }
+                                    />
+                                </FormItem>
+                            </div>
+                            <FormItem label={t('accounting.payments.form.paymentMethod')}>
+                                <Select
+                                    isClearable
+                                    value={
+                                        values.paymentMethodId
+                                            ? methods.find((method) => method.value === values.paymentMethodId) ?? null
+                                            : null
+                                    }
+                                    options={methods}
+                                    onChange={(option) =>
+                                        setFieldValue('paymentMethodId', option ? (option as any).value : null)
+                                    }
+                                />
+                            </FormItem>
+                            <FormItem label={t('accounting.payments.form.methodLabel')}>
+                                <Field type="text" name="method" component={Input} value={values.method} />
+                            </FormItem>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <FormItem label={t('accounting.payments.form.reference')}>
+                                    <Field type="text" name="reference" component={Input} value={values.reference} />
+                                </FormItem>
+                                <FormItem label={t('accounting.payments.form.notes')}>
+                                    <Field type="text" name="notes" component={Input} value={values.notes} />
+                                </FormItem>
+                            </div>
+                            <FormItem label={t('sales.orders.payments.attachments', { defaultValue: 'Attachments' })}>
+                                <FieldArray name="attachments">
+                                    {({ remove, push }) => (
+                                        <div className="space-y-3">
+                                            <input
+                                                type="file"
+                                                accept=".pdf,image/*"
+                                                multiple
+                                                onChange={async (event) => {
+                                                    await handleFilesSelected(event.target.files, push)
+                                                    event.target.value = ''
+                                                }}
+                                            />
+                                            {values.attachments.length > 0 && (
+                                                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                                                    {values.attachments.map((attachment, index) => (
+                                                        <li
+                                                            key={`${attachment.name}${index}`}
+                                                            className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/60 px-3 py-2 rounded-md"
+                                                        >
+                                                            <span>{attachment.name}</span>
+                                                            <button
+                                                                type="button"
+                                                                className="text-red-500 hover:text-red-600"
+                                                                onClick={() => remove(index)}
+                                                            >
+                                                                {t('text.actions.remove')}
+                                                            </button>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </div>
+                                    )}
+                                </FieldArray>
+                            </FormItem>
+                            <div className="flex justify-end gap-2">
+                                <Button type="button" variant="plain" onClick={onClose}>
+                                    {t('text.actions.cancel')}
+                                </Button>
+                                <Button type="submit" variant="solid" loading={loading}>
+                                    {t('sales.orders.payments.save', { defaultValue: 'Save payment' })}
+                                </Button>
+                            </div>
+                        </FormContainer>
+                    </Form>
+                )}
+            </Formik>
+        </Dialog>
+    )
+}
+
+export default NewPaymentDialog
+
+async function toBase64(file: File) {
+    return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+            resolve(typeof reader.result === 'string' ? reader.result : '')
+        }
+        reader.onerror = (error) => reject(error)
+        reader.readAsDataURL(file)
+    })
+}

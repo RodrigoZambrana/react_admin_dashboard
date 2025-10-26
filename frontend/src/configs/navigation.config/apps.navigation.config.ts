@@ -43,6 +43,20 @@ const salesSubMenu: NavigationTree[] = [
         authority: getRolesForFeature(FEATURES.SALES),
         subMenu: [],
     },
+    ...(isUrucortinas
+        ? [
+              {
+                  key: 'appsSales.productionOrders',
+                  path: `${APP_PREFIX_PATH}/sales/production-orders`,
+                  title: 'Production Orders',
+                  translateKey: 'nav.appsSales.productionOrders',
+                  icon: '',
+                  type: NAV_ITEM_TYPE_ITEM,
+                  authority: getRolesForFeature(FEATURES.SALES),
+                  subMenu: [],
+              },
+          ]
+        : []),
 ]
 
 if (hasBudgetsFeature && !isUrucortinas) {

@@ -32,7 +32,8 @@
             "addOrder": "Add Order",
             "budgetList": "Budgets",
             "budgetQuick": "Quick Budget",
-            "budgetNew": "Add Budget"
+            "budgetNew": "Add Budget",
+            "productionOrders": "Production Orders"
         },
         "appsBudgets": {
             "budgets": "Budgets",
@@ -590,7 +591,8 @@
             "published": "Published",
             "stock": "Stock",
             "comments": "Comments",
-            "specifications": "Specifications"
+            "specifications": "Specifications",
+            "type": "Type"
         },
         "mobileNav": {
             "home": "Home",
@@ -1132,6 +1134,26 @@
                 "netIncome": "Net income",
                 "lineDetail": "{{qty}} × {{unitCost}}",
                 "empty": "No cost data available"
+            },
+            "payments": {
+                "title": "Payments",
+                "orderLabel": "Order ID #{id}",
+                "add": "Add payment",
+                "totalPaid": "Total paid",
+                "remaining": "Remaining",
+                "method": "Method",
+                "attachments": "Attachments",
+                "empty": "No payments recorded yet.",
+                "new": "Register payment",
+                "save": "Save payment",
+                "attachmentDeletedTitle": "Attachment removed",
+                "attachmentDeletedDesc": "The attachment was removed successfully.",
+                "attachmentDeleteFailedTitle": "Could not remove attachment",
+                "attachmentDeleteFailedDesc": "Please try again in a moment.",
+                "type": "Type",
+                "status": "Status",
+                "date": "Date",
+                "idLabel": "Payment ID"
             }
         },
         "documents": {
@@ -1243,6 +1265,68 @@
                 "parcel_has_arrived_at_delivery_station": "Parcel has arrived at delivery station",
                 "parcel_has_been_picked_up_by_courier": "Parcel has been picked up by courier",
                 "seller_is_preparing_to_ship_your_parcel": "Seller is preparing to ship your parcel"
+            }
+        },
+        "productionOrders": {
+            "title": "Production orders",
+            "actions": {
+                "new": "New production order"
+            },
+            "columns": {
+                "order": "Order",
+                "workOrder": "Work order",
+                "priority": "Priority",
+                "assignee": "Assignee",
+                "scheduled": "Scheduled"
+            },
+            "filters": {
+                "search": "Search by customer, code or id",
+                "status": "Status"
+            },
+            "summary": {
+                "total": "Total orders",
+                "overdue": "Overdue"
+            },
+            "stats": {
+                "title": "Monthly activity",
+                "subtitle": "Orders created vs completed",
+                "empty": "No activity recorded yet.",
+                "created": "Created",
+                "completed": "Completed"
+            },
+            "form": {
+                "createTitle": "Create production order",
+                "editTitle": "Edit production order",
+                "submit": "Create production order",
+                "orderId": "Order ID",
+                "workOrderId": "Work order ID",
+                "priority": "Priority",
+                "assignedTo": "Assigned to",
+                "scheduledAt": "Scheduled",
+                "startedAt": "Started",
+                "completedAt": "Completed",
+                "deliveredAt": "Delivered"
+            },
+            "delete": {
+                "title": "Delete production order",
+                "confirm": "Are you sure you want to delete production order #{id}?"
+            },
+            "validation": {
+                "orderId": "A valid order id is required",
+                "priority": "Priority must be a positive number",
+                "invalidDate": "Select a valid date",
+                "startedBeforeScheduled": "Start date cannot be before the scheduled date",
+                "completedBeforeStarted": "Completion date cannot be before the start date",
+                "deliveredBeforeCompleted": "Delivery date cannot be before the completion date",
+                "assigneeNotFound": "Selected assignee could not be found"
+            },
+            "status": {
+                "PENDING": "Pending",
+                "IN_PROGRESS": "In progress",
+                "READY": "Ready",
+                "DELIVERED": "Delivered",
+                "CLOSED": "Closed",
+                "CANCELED": "Canceled"
             }
         }
     },
@@ -1877,7 +1961,8 @@
         "labels": {
             "yes": "Yes",
             "no": "No",
-            "notSpecified": "Not specified"
+            "notSpecified": "Not specified",
+            "unassigned": "Unassigned"
         }
     },
     "notification": {
@@ -1888,5 +1973,17 @@
             "desc": "Please try again later"
         },
         "viewAll": "View All Activity"
+    },
+    "production": {
+        "orders": {
+            "disabled": "Production orders feature is not enabled.",
+            "notFound": "Production order not found.",
+            "validation": {
+                "orderNotFound": "Order not found.",
+                "workOrderMismatch": "Work order does not belong to the target order.",
+                "metadataJson": "Metadata must be valid JSON.",
+                "assigneeNotFound": "Selected assignee could not be found."
+            }
+        }
     }
 }

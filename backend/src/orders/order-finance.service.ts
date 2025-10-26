@@ -7,6 +7,7 @@ import {
   WorkOrderStatus,
 } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { ConfigService } from '@nestjs/config'
 import {
   addDecimals,
   decimal,
@@ -37,7 +38,7 @@ export type OrderPaymentSummary = {
 
 @Injectable()
 export class OrderFinanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly config: ConfigService) {}
 
   private readonly STATUS_CODES = {
     PENDING: 100,
@@ -248,6 +249,10 @@ export class OrderFinanceService {
     const pendingStatusId = await this.getStatusId(this.STATUS_CODES.PENDING, client)
     const confirmedStatusId = await this.getStatusId(this.STATUS_CODES.CONFIRMED, client)
 
+    const slug = this.config.get<string>('CLIENT_SLUG') || this.config.get<string>('CLIENT') || ''
+    const enableWorkOrders = slug.toLowerCase() === 'urucortinas'
+    let targetWorkOrderId: number | null = order.workOrders[0]?.id ?? null
+
     if (depositMet) {
       if (!order.confirmedAt) {
         updateData.confirmedAt = now
@@ -258,14 +263,15 @@ export class OrderFinanceService {
       ) {
         updateData.status = { connect: { id: confirmedStatusId } }
       }
-      if (!order.workOrders.length) {
-        await client.workOrder.create({
+      if (enableWorkOrders && !targetWorkOrderId) {
+        const workOrder = await client.workOrder.create({
           data: {
             orderId: order.id,
             code: this.generateWorkOrderCode(order.id),
             status: WorkOrderStatus.PENDING,
           },
         })
+        targetWorkOrderId = workOrder.id
       }
     } else if (order.confirmedAt && confirmedStatusId && order.statusId === confirmedStatusId) {
       updateData.confirmedAt = null
@@ -275,6 +281,27 @@ export class OrderFinanceService {
       where: { id: order.id },
       data: updateData,
     })
+
+    if (depositMet && enableWorkOrders && targetWorkOrderId) {
+      const existingProduction = await client.productionOrder.findFirst({
+        where: { orderId: order.id },
+      })
+      if (!existingProduction) {
+        await client.productionOrder.create({
+          data: {
+            orderId: order.id,
+            workOrderId: targetWorkOrderId,
+            status: WorkOrderStatus.PENDING,
+            priority: 1,
+          },
+        })
+      } else if (existingProduction.workOrderId !== targetWorkOrderId) {
+        await client.productionOrder.update({
+          where: { id: existingProduction.id },
+          data: { workOrderId: targetWorkOrderId },
+        })
+      }
+    }
 
     return {
       orderId: order.id,

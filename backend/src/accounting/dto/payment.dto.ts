@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsDateString,
   IsEnum,
   IsIn,
@@ -9,6 +10,7 @@ import {
   IsString,
   Max,
   Min,
+  ValidateNested,
 } from 'class-validator'
 import { Type } from 'class-transformer'
 import { PaymentStatus, PaymentType } from '@prisma/client'
@@ -106,6 +108,32 @@ export class PaymentBaseDto {
   currency?: string
 }
 
+export class PaymentAttachmentDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  id?: number
+
+  @IsString()
+  @IsSafeString()
+  name!: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  type?: string | null
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  size?: number | null
+
+  @IsOptional()
+  @IsString()
+  content?: string | null
+}
+
 export class CreatePaymentDto extends PaymentBaseDto {
   @IsInt()
   @Min(1)
@@ -115,6 +143,12 @@ export class CreatePaymentDto extends PaymentBaseDto {
   @Type(() => Number)
   @IsPositive()
   amount!: number
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PaymentAttachmentDto)
+  attachments?: PaymentAttachmentDto[]
 }
 
 export class UpdatePaymentDto extends PaymentBaseDto {
@@ -123,4 +157,10 @@ export class UpdatePaymentDto extends PaymentBaseDto {
   @Type(() => Number)
   @IsPositive()
   amount?: number
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PaymentAttachmentDto)
+  attachments?: PaymentAttachmentDto[]
 }
