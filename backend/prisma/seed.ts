@@ -14,9 +14,12 @@ const ENABLE_DEMO_SEED = process.env.ENABLE_DEMO_SEED === 'true'
 const DEMO_PASSWORD = process.env.SEED_USER_PASSWORD || 'User@123!'
 
 const DEFAULT_ORDER_STATUSES: Prisma.OrderStatusCreateInput[] = [
-  { code: 0, name: 'Pagado', color: 'emerald-500' },
-  { code: 1, name: 'Pendiente', color: 'amber-500' },
-  { code: 2, name: 'Cancelado', color: 'red-500' },
+  { code: 100, name: 'Pendiente', color: 'amber-500' },
+  { code: 200, name: 'Confirmado', color: 'emerald-500' },
+  { code: 300, name: 'Orden de Trabajo', color: 'blue-500' },
+  { code: 400, name: 'Listo', color: 'cyan-500' },
+  { code: 500, name: 'Entregado', color: 'indigo-500' },
+  { code: 600, name: 'Cerrado', color: 'slate-600' },
   { code: 1000, name: 'Presupuesto - Borrador', color: '#9ca3af' },
   { code: 1010, name: 'Presupuesto - Enviado', color: '#3b82f6' },
   { code: 1020, name: 'Presupuesto - Aceptado', color: '#10b981' },
@@ -95,11 +98,12 @@ async function seedDemoData(superAdminEmail?: string) {
 
   // Order statuses
   const oStatuses = [
-    { code: 0, name: 'Pending', color: '#9ca3af' },
-    { code: 1, name: 'Processing', color: '#3b82f6' },
-    { code: 2, name: 'Shipped', color: '#8b5cf6' },
-    { code: 3, name: 'Completed', color: '#16a34a' },
-    { code: 4, name: 'Cancelled', color: '#ef4444' },
+    { code: 100, name: 'Pending', color: '#f59e0b' },
+    { code: 200, name: 'Confirmed', color: '#10b981' },
+    { code: 300, name: 'Work Order', color: '#3b82f6' },
+    { code: 400, name: 'Ready', color: '#06b6d4' },
+    { code: 500, name: 'Delivered', color: '#8b5cf6' },
+    { code: 600, name: 'Closed', color: '#64748b' },
     { code: 1000, name: 'Presupuesto - Borrador', color: '#9ca3af' },
     { code: 1010, name: 'Presupuesto - Enviado', color: '#3b82f6' },
     { code: 1020, name: 'Presupuesto - Aceptado', color: '#10b981' },
@@ -176,6 +180,12 @@ async function seedDemoData(superAdminEmail?: string) {
     where: { key: 'taxRate' },
     update: { value: '22' },
     create: { key: 'taxRate', value: '22' },
+  })
+
+  await prisma.systemConfig.upsert({
+    where: { key: 'orderMinimumDeposit' },
+    update: { value: JSON.stringify({ type: 'PERCENTAGE', value: 30 }) },
+    create: { key: 'orderMinimumDeposit', value: JSON.stringify({ type: 'PERCENTAGE', value: 30 }) },
   })
 
   const defaultEventTypes = [

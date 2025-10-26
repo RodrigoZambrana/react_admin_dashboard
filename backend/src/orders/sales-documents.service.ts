@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, StreamableFile } from '@nestjs/common'
-import { Prisma, CustomerAddress, DocumentType, SalesUnit } from '@prisma/client'
+import { Prisma, CustomerAddress, DocumentType, SalesUnit, DepositRequirementType } from '@prisma/client'
 import { createReadStream } from 'fs'
 import { stat } from 'fs/promises'
 import { parse } from 'path'
@@ -22,6 +22,7 @@ import {
   addDecimals,
   divideDecimals,
 } from '../common/currency/money.util'
+import { OrderFinanceService } from './order-finance.service'
 
 const BUDGET_STATUS = {
   DRAFT: { code: 1000, name: 'Presupuesto - Borrador', color: '#9ca3af' },
@@ -54,6 +55,15 @@ const SALES_UNIT_KEYWORDS: Record<SalesUnit, string[]> = {
   ],
 }
 
+const ORDER_STATUS_CODES = {
+  PENDING: 100,
+  CONFIRMED: 200,
+  WORK_ORDER: 300,
+  READY: 400,
+  DELIVERED: 500,
+  CLOSED: 600,
+} as const
+
 const ORDER_LIST_INCLUDE = {
   customer: true,
   paymentMethod: true,
@@ -79,6 +89,7 @@ export class SalesDocumentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly currencyConversion: CurrencyConversionService,
+    private readonly orderFinance: OrderFinanceService,
   ) {}
 
   private readonly budgetStatusCache = new Map<keyof typeof BUDGET_STATUS, number>()
@@ -335,7 +346,7 @@ export class SalesDocumentsService {
     }
   }
 
-  private async getDefaultOrderStatus(preferredCode = 3) {
+  private async getDefaultOrderStatus(preferredCode = ORDER_STATUS_CODES.PENDING) {
     const preferred = await this.prisma.orderStatus.findUnique({ where: { code: preferredCode } })
     if (preferred) {
       return preferred
@@ -1344,6 +1355,13 @@ export class SalesDocumentsService {
 
     const validity = order.validUntil ? order.validUntil.toISOString() : null
 
+    let paymentSummary: Awaited<ReturnType<OrderFinanceService['getOrderPaymentSummary']>> | null = null
+    try {
+      paymentSummary = await this.orderFinance.getOrderPaymentSummary(order.id)
+    } catch (error) {
+      paymentSummary = null
+    }
+
     return {
       id: order.id,
       date: order.date,
@@ -1396,6 +1414,31 @@ export class SalesDocumentsService {
       estimatedMin: order.estimatedMin ?? null,
       estimatedMax: order.estimatedMax ?? null,
       disclaimer,
+      minimumDepositType: order.minimumDepositType,
+      minimumDepositValue: Number(
+        order.minimumDepositValue?.toString?.() ?? order.minimumDepositValue ?? 0,
+      ),
+      customerCredit: Number(
+        order.customerCredit?.toString?.() ?? order.customerCredit ?? 0,
+      ),
+      confirmedAt: order.confirmedAt ? order.confirmedAt.toISOString() : null,
+      depositSatisfiedAt: order.depositSatisfiedAt ? order.depositSatisfiedAt.toISOString() : null,
+      payments: paymentSummary
+        ? {
+            currency: paymentSummary.currency,
+            depositRequired: Number(paymentSummary.depositRequired.toString()),
+            depositPaidConfirmed: Number(paymentSummary.depositPaidConfirmed.toString()),
+            balancePaidConfirmed: Number(paymentSummary.balancePaidConfirmed.toString()),
+            refundsConfirmed: Number(paymentSummary.refundsConfirmed.toString()),
+            totalPaidConfirmed: Number(paymentSummary.totalPaidConfirmed.toString()),
+            depositPending: Number(paymentSummary.depositPending.toString()),
+            balancePending: Number(paymentSummary.balancePending.toString()),
+            refundsPending: Number(paymentSummary.refundsPending.toString()),
+            outstanding: Number(paymentSummary.outstanding.toString()),
+            customerCredit: Number(paymentSummary.customerCredit.toString()),
+            depositMet: paymentSummary.depositMet,
+          }
+        : null,
     }
   }
 
@@ -1457,9 +1500,14 @@ export class SalesDocumentsService {
     const taxRate = await this.getTaxRate()
     const monetary = await this.prepareOrderMonetaryData(dto, taxRate)
 
-    const completedStatus = await this.getDefaultOrderStatus()
+    const completedStatus = await this.getDefaultOrderStatus(ORDER_STATUS_CODES.PENDING)
 
     const disclaimer = await this.resolveDocumentDisclaimer(dto.disclaimer)
+
+    const depositRequirement = await this.orderFinance.resolveDepositRequirement({
+      type: dto.minimumDepositType ?? null,
+      value: dto.minimumDepositValue ?? null,
+    })
 
     const composeAddress = (addr?: any) => {
       if (!addr) return undefined
@@ -1506,7 +1554,7 @@ export class SalesDocumentsService {
 
     const rawValidUntil = dto.validUntil ?? dto.validUntilDate ?? null
 
-    await this.prisma.order.create({
+    const created = await this.prisma.order.create({
       data: {
         documentType,
         customerId,
@@ -1544,6 +1592,8 @@ export class SalesDocumentsService {
         subTotal: monetary.subTotal.toFixed(2),
         tax: monetary.tax.toFixed(2),
         grandTotal: monetary.grandTotal.toFixed(2),
+        minimumDepositType: depositRequirement.type,
+        minimumDepositValue: depositRequirement.value.toFixed(2),
         orderCurrency: monetary.orderCurrency,
         fxBase: monetary.snapshot.base,
         fxRates: this.serializeFxSnapshot(monetary.snapshot),
@@ -1555,6 +1605,7 @@ export class SalesDocumentsService {
         items: { create: monetary.items },
       },
     })
+    await this.orderFinance.recalculateOrderFinancials(created.id)
     return true
   }
 
@@ -1627,6 +1678,19 @@ export class SalesDocumentsService {
 
     const rawValidUntil = dto.validUntil ?? dto.validUntilDate ?? null
 
+    let depositRequirement:
+      | {
+          type: DepositRequirementType
+          value: Prisma.Decimal
+        }
+      | null = null
+    if (dto.minimumDepositType !== undefined || dto.minimumDepositValue !== undefined) {
+      depositRequirement = await this.orderFinance.resolveDepositRequirement({
+        type: dto.minimumDepositType ?? null,
+        value: dto.minimumDepositValue ?? null,
+      })
+    }
+
     await this.prisma.order.update({
       where: { id },
       data: {
@@ -1650,6 +1714,12 @@ export class SalesDocumentsService {
         subTotal: monetary.subTotal.toFixed(2),
         tax: monetary.tax.toFixed(2),
         grandTotal: monetary.grandTotal.toFixed(2),
+        ...(depositRequirement
+          ? {
+              minimumDepositType: depositRequirement.type,
+              minimumDepositValue: depositRequirement.value.toFixed(2),
+            }
+          : {}),
         orderCurrency: monetary.orderCurrency,
         fxBase: monetary.snapshot.base,
         fxRates: this.serializeFxSnapshot(monetary.snapshot),
@@ -1670,6 +1740,7 @@ export class SalesDocumentsService {
       },
     })
     await deleteSalesDocumentFile(existing.documentFilePath)
+    await this.orderFinance.recalculateOrderFinancials(existing.id)
     return true
   }
 
@@ -1684,7 +1755,14 @@ export class SalesDocumentsService {
     return true
   }
 
-  async updateDocumentStatus(documentType: DocumentType, id: number, body: { status: number }) {
+  async updateDocumentStatus(
+    documentType: DocumentType,
+    id: number,
+    body: { status: number; force?: boolean },
+  ) {
+    if (documentType === DocumentType.ORDER) {
+      await this.orderFinance.ensureStatusCanTransition(id, body.status, Boolean(body.force))
+    }
     const result = await this.prisma.order.updateMany({
       where: { id: id, documentType },
       data: { statusId: body.status },

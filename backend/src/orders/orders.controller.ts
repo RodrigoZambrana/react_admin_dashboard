@@ -71,7 +71,10 @@ export class OrdersController {
   }
 
   @Put(':id/status')
-  updateOrderStatus(@Param('id', ParseIntPipe) id: number, @Body() body: { status: number }) {
+  updateOrderStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { status: number; force?: boolean },
+  ) {
     return this.documents.updateDocumentStatus(DocumentType.ORDER, id, body)
   }
 

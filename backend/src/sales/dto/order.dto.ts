@@ -1,6 +1,18 @@
-import { IsArray, IsBoolean, IsDateString, IsNumber, IsOptional, IsString, ValidateNested, IsNotEmpty, IsObject } from 'class-validator'
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateNested,
+  IsNotEmpty,
+  IsObject,
+} from 'class-validator'
 import { Type } from 'class-transformer'
 import { IsSafeString } from '../../common/validation/is-safe-string.decorator'
+import { DepositRequirementType } from '@prisma/client'
 
 export class OrderItemDto {
   @IsString()
@@ -180,4 +192,12 @@ export class CreateOrderDto {
   @IsString()
   @IsSafeString()
   disclaimer?: string
+
+  @IsOptional()
+  @IsEnum(DepositRequirementType)
+  minimumDepositType?: DepositRequirementType
+
+  @IsOptional()
+  @IsNumber()
+  minimumDepositValue?: number
 }
