@@ -182,6 +182,7 @@ model Customer {
   location    String?
   title       String?
   phoneNumber String?           @unique
+  passwordHash String?
   birthday    DateTime?
   facebook    String?
   twitter     String?

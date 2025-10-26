@@ -113,6 +113,7 @@ export class AuthService {
       name: user.name || '',
       lastName: user.lastName || '',
       lang,
+      scope: 'admin' as const,
     }
     const token = this.jwt.sign(payload)
     const expiresAt = new Date(Date.now() + SESSION_TTL_MILLISECONDS).toISOString()
