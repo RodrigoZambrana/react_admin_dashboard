@@ -1,0 +1,67 @@
+import { OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { ChannelAccount, ChannelAdapter, ChannelAttachmentContent, ChannelListMessagesOptions, ChannelListMessagesResult, ChannelMailbox, ChannelMessageBody, ChannelMessageIdentifier, ChannelSendMessageInput, ChannelSendMessageResult, ChannelSetFlagsInput } from '../../types/channel-adapter';
+import { ChannelRegistry } from '../../registry/channel-registry';
+import { EmailChannelConfig } from './email-channel.types';
+export declare class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
+    private readonly configService;
+    private readonly registry;
+    readonly type: "EMAIL";
+    private readonly logger;
+    private config;
+    private cachedSentMailbox;
+    constructor(configService: ConfigService, registry: ChannelRegistry);
+    onModuleInit(): void;
+    listMailboxes(_account: ChannelAccount): Promise<ChannelMailbox[]>;
+    listMessages(_account: ChannelAccount, _options: ChannelListMessagesOptions): Promise<ChannelListMessagesResult>;
+    getMessage(_account: ChannelAccount, _identifier: ChannelMessageIdentifier): Promise<ChannelMessageBody>;
+    getAttachmentContent(_account: ChannelAccount, _identifier: ChannelMessageIdentifier & {
+        attachmentRemoteId: string;
+    }): Promise<ChannelAttachmentContent>;
+    sendMessage(account: ChannelAccount, payload: ChannelSendMessageInput): Promise<ChannelSendMessageResult>;
+    setFlags(_account: ChannelAccount, _identifier: ChannelMessageIdentifier, _flags: ChannelSetFlagsInput): Promise<void>;
+    moveMessage(_account: ChannelAccount, _identifier: ChannelMessageIdentifier, _targetMailbox: string): Promise<void>;
+    markAsSpam(_account: ChannelAccount, _identifier: ChannelMessageIdentifier): Promise<void>;
+    refreshConfig(): void;
+    getSanitizedConfig(): Omit<EmailChannelConfig, 'credentials'> & {
+        credentials: {
+            user: string;
+        };
+    };
+    private resolveSender;
+    private normalizeAddressArray;
+    private buildMailComposerOptions;
+    private buildRawMessage;
+    private buildEnvelope;
+    private appendToSentMailbox;
+    private resolveSentMailboxCandidates;
+    private extractAppendUid;
+    private extractThreadRemoteId;
+    private extractMessageId;
+    private normalizeRecipientResult;
+    private buildSendMetadata;
+    private formatAddress;
+    private buildSmtpOptions;
+    private assertConfigured;
+    private isConfigured;
+    private buildFallbackMailboxes;
+    private withImapClient;
+    private buildImapOptions;
+    private mapMailbox;
+    private resolveMailboxLabel;
+    private resolveMailboxType;
+    private mapFetchMessage;
+    private extractSingleAddress;
+    private extractAddressList;
+    private resolveDirection;
+    private detectAttachments;
+    private normalizeFlags;
+    private mapParsedAttachments;
+    private mergeAddresses;
+    private extractParsedAddressList;
+    private extractSingleParsedAddress;
+    private safeParseMessage;
+    private buildSnippet;
+    private stripHtml;
+    private extractHeaders;
+}

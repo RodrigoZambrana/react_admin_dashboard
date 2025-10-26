@@ -1,0 +1,48 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const client_1 = require("@prisma/client");
+const bcrypt = require("bcrypt");
+const prisma = new client_1.PrismaClient();
+const DEFAULT_EMAIL = process.env.DEFAULT_ADMIN_EMAIL || 'admin@example.com';
+const DEFAULT_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD || 'Admin@123!';
+const DEFAULT_NAME = process.env.DEFAULT_ADMIN_NAME || 'Admin';
+async function main() {
+    const target = await prisma.user.findUnique({
+        where: { email: DEFAULT_EMAIL },
+    });
+    const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
+    if (target) {
+        await prisma.user.update({
+            where: { id: target.id },
+            data: {
+                email: DEFAULT_EMAIL,
+                name: target.name || DEFAULT_NAME,
+                passwordHash,
+                role: 'SUPERADMIN',
+            },
+        });
+        console.log(`Updated existing admin (id=${target.id}) with email=${DEFAULT_EMAIL} and password=${DEFAULT_PASSWORD}`);
+    }
+    else {
+        const created = await prisma.user.create({
+            data: {
+                email: DEFAULT_EMAIL,
+                name: DEFAULT_NAME,
+                lastName: '',
+                img: '',
+                role: 'SUPERADMIN',
+                passwordHash,
+            },
+        });
+        console.log(`Created admin user (id=${created.id}) with email=${DEFAULT_EMAIL} and password=${DEFAULT_PASSWORD}`);
+    }
+}
+main()
+    .catch((error) => {
+    console.error('Failed to reset admin user:', error);
+    process.exitCode = 1;
+})
+    .finally(async () => {
+    await prisma.$disconnect();
+});
+//# sourceMappingURL=reset-admin.js.map
