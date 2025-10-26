@@ -1,0 +1,487 @@
+[
+  {
+    "id": 1,
+    "text": "HOME",
+    "link": "/",
+    "submenu": [
+      {
+        "id": 1.1,
+        "title": "HOME STYLES",
+        "lists": [
+          {
+            "text": "Home - Example 1",
+            "link": "/",
+            "badge": "popular"
+          },
+          {
+            "text": "Home - Example 2",
+            "link": "/home/two",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 3",
+            "link": "/home/three",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 4",
+            "link": "/home/four",
+            "badge": "popular"
+          },
+          {
+            "text": "Home - Example 5",
+            "link": "/home/five",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 6",
+            "link": "/home/six",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 7",
+            "link": "/home/seven",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 8",
+            "link": "/home/eight",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 9",
+            "link": "/home/nine",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 10",
+            "link": "/home/ten",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 11",
+            "link": "/home/eleven",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 12",
+            "link": "/home/twelve",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 13",
+            "link": "/home/thirteen",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 14",
+            "link": "/home/fourteen",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 15",
+            "link": "/home/fifteen",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 16",
+            "link": "/home/sixteen",
+            "badge": "popular"
+          },
+          {
+            "text": "Home - Example 17",
+            "link": "/home/seventeen",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 18",
+            "link": "/home/eighteen",
+            "badge": null
+          },
+          {
+            "text": "Home - Example 19",
+            "link": "/home/nineteen",
+            "badge": "new"
+          },
+          {
+            "text": "Home - Example 20",
+            "link": "/home/twenty",
+            "badge": "new"
+          }
+        ]
+      },
+      {
+        "id": 1.2,
+        "title": "NEW SKINS",
+        "lists": [
+          {
+            "text": "Baby Shop",
+            "link": "/skin/baby-shop",
+            "badge": null
+          },
+          {
+            "text": "Books Shop",
+            "link": "/skin/books-shop",
+            "badge": null
+          },
+          {
+            "text": "Care Shop",
+            "link": "/skin/care-shop",
+            "badge": null
+          },
+          {
+            "text": "Cakes Shop",
+            "link": "/skin/cake-shop",
+            "badge": null
+          },
+          {
+            "text": "Coffee Shop",
+            "link": "/skin/coffee-shop",
+            "badge": null
+          },
+          {
+            "text": "Comic Books Shop",
+            "link": "/skin/comic-books-shop",
+            "badge": null
+          },
+          {
+            "text": "Cookware Shop",
+            "link": "/skin/cookware-shop",
+            "badge": null
+          },
+          {
+            "text": "Flowers Shop",
+            "link": "/skin/flower-shop",
+            "badge": null
+          },
+          {
+            "text": "Food Shop",
+            "link": "/skin/food-shop",
+            "badge": "hot"
+          },
+          {
+            "text": "Furniture Shop",
+            "link": "/skin/furniture-shop",
+            "badge": null
+          },
+          {
+            "text": "Handmade Shop",
+            "link": "/skin/handmade-shop",
+            "badge": null
+          },
+          {
+            "text": "One Products",
+            "link": "/skin/oneproduct",
+            "badge": null
+          },
+          {
+            "text": "T-shirts Shop",
+            "link": "/skin/t-shirt-shop",
+            "badge": null
+          },
+          {
+            "text": "Tea Shop",
+            "link": "/skin/tea-shop",
+            "badge": null
+          },
+          {
+            "text": "Tools Shop",
+            "link": "/skin/tools-shop",
+            "badge": null
+          },
+          {
+            "text": "Wallets Shop",
+            "link": "/skin/wallets-shop",
+            "badge": "hot"
+          },
+          {
+            "text": "Watches Shop",
+            "link": "/skin/watch-shop",
+            "badge": null
+          },
+          {
+            "text": "Bicycle Shop",
+            "link": "/skin/bicycle-shop",
+            "badge": "popular"
+          },
+          {
+            "text": "Bikes Shop",
+            "link": "/skin/bike-shop",
+            "badge": "hot"
+          }
+        ]
+      },
+      {
+        "id": 1.3,
+        "title": "HOME SKINS",
+        "lists": [
+          {
+            "text": "Books shop 2",
+            "link": "/skin/books-shop-2",
+            "badge": null
+          },
+          {
+            "text": "Cars Shop",
+            "link": "/skin/car-shop",
+            "badge": null
+          },
+          {
+            "text": "Clothes Shop",
+            "link": "/skin/clothes-shop",
+            "badge": null
+          },
+          {
+            "text": "Cosmetics Shop",
+            "link": "/skin/cosmetics-shop",
+            "badge": null
+          },
+          {
+            "text": "Echo Food Shop",
+            "link": "/skin/echo-food-shop",
+            "badge": null
+          },
+          {
+            "text": "Electronics Shop",
+            "link": "/skin/electronics-shop",
+            "badge": null
+          },
+          {
+            "text": "Furniture Shop",
+            "link": "/skin/furniture-shop",
+            "badge": null
+          },
+          {
+            "text": "Glasses Shop",
+            "link": "/skin/glasses-shop",
+            "badge": null
+          },
+          {
+            "text": "Gothic Clothing",
+            "link": "/skin/gothic-clothing-shop",
+            "badge": null
+          },
+          {
+            "text": "Jewelry Shop",
+            "link": "/skin/jewelry-shop",
+            "badge": null
+          },
+          {
+            "text": "Kids Clothes Shop",
+            "link": "/skin/kids-clothes-shop",
+            "badge": null
+          },
+          {
+            "text": "Kids Toys Shop",
+            "link": "/skin/kids-toys-shop",
+            "badge": null
+          },
+          {
+            "text": "Lingerie Shop",
+            "link": "/skin/lingerie-shop",
+            "badge": null
+          },
+          {
+            "text": "Medical Shop",
+            "link": "/skin/medical-shop",
+            "badge": null
+          },
+          {
+            "text": "Snowboards Shop",
+            "link": "/skin/snowboards-shop",
+            "badge": "hot"
+          },
+          {
+            "text": "Weapons Shop",
+            "link": "/",
+            "badge": null
+          },
+          {
+            "text": "One Products Shop",
+            "link": "/skin/oneproduct",
+            "badge": null
+          },
+          {
+            "text": "Phones Shop",
+            "link": "/skin/phone-shop",
+            "badge": null
+          },
+          {
+            "text": "Phone Cases Shop",
+            "link": "/skin/phone-cases-shop",
+            "badge": null
+          }
+        ]
+      }
+    ],
+    "mega_menu": true,
+    "promo": "/assets/images/no-placeholder/desktop-menu-promo.png"
+  },
+  {
+    "id": 2,
+    "text": "SHOP",
+    "link": "/shop",
+    "submenu": [
+      {
+        "id": 2.1,
+        "title": "SHOP PAGES",
+        "lists": [
+          {
+            "text": "Listing Not Sidebar",
+            "link": "/shop",
+            "badge": null
+          },
+          {
+            "text": "Listing With Left Sidebar",
+            "link": "/shop/left-sidebar",
+            "badge": null
+          },
+          {
+            "text": "Listing With Right Sidebar",
+            "link": "/shop/right-sidebar",
+            "badge": null
+          },
+          {
+            "text": "Listing Not Sidebar Full Width",
+            "link": "/shop/full-width",
+            "badge": null
+          }
+        ]
+      },
+      {
+        "id": 2.2,
+        "title": "PRODUCT DETAILS",
+        "lists": [
+          {
+            "text": "Product Details Standard",
+            "link": "/product/relaxed-fit-cotton-shirt",
+            "badge": null
+          }
+        ]
+      },
+      {
+        "id": 2.3,
+        "title": "OTHER PAGES",
+        "lists": [
+          {
+            "text": "Cart",
+            "link": "/cart",
+            "badge": null
+          },
+          {
+            "text": "Compare",
+            "link": "/compare",
+            "badge": null
+          },
+          {
+            "text": "Wishlist",
+            "link": "/wishlist",
+            "badge": null
+          }
+        ]
+      }
+    ],
+    "mega_menu": false,
+    "promo": false
+  },
+  {
+    "id": 3,
+    "text": "BLOG",
+    "link": "/blog",
+    "submenu": [
+      {
+        "id": 3.1,
+        "title": "BLOG STYLES",
+        "lists": [
+          {
+            "text": "Blog Standard",
+            "link": "/blog",
+            "badge": null
+          },
+          {
+            "text": "Standard Full Width",
+            "link": "/blog/full-width",
+            "badge": null
+          }
+        ]
+      },
+      {
+        "id": 3.2,
+        "title": "POST TYPES",
+        "lists": [
+          {
+            "text": "Standard Post",
+            "link": "/blog/incididunt-ut-labore-et-dolore",
+            "badge": null
+          }
+        ]
+      }
+    ],
+    "mega_menu": false
+  },
+  {
+    "id": 4,
+    "text": "PORTFOLIO",
+    "link": "/portfolio",
+    "submenu": false,
+    "mega_menu": false,
+    "promo": false
+  },
+  {
+    "id": 5,
+    "text": "PAGES",
+    "link": "/",
+    "submenu": [
+      {
+        "id": 5.1,
+        "title": "PAGES",
+        "lists": [
+          {
+            "text": "About",
+            "link": "/about",
+            "badge": null
+          },
+          {
+            "text": "Contact",
+            "link": "/contact",
+            "badge": null
+          },
+          {
+            "text": "Register",
+            "link": "/account/register",
+            "badge": null
+          },
+          {
+            "text": "Login",
+            "link": "/account/login",
+            "badge": null
+          },
+          {
+            "text": "FAQ",
+            "link": "/faq",
+            "badge": null
+          },
+          {
+            "text": "Page 404",
+            "link": "/404",
+            "badge": null
+          },
+          {
+            "text": "Typography",
+            "link": "/",
+            "badge": null
+          }
+        ]
+      }
+    ],
+    "mega_menu": false,
+    "promo": false
+  },
+  {
+    "id": 6,
+    "text": "CONTACT",
+    "link": "/contact",
+    "submenu": null,
+    "mega_menu": false,
+    "promo": false
+  }
+]
