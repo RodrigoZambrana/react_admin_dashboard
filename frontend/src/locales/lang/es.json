@@ -42,7 +42,8 @@
         },
         "appsAccounting": {
             "accounting": "Contabilidad",
-            "dashboard": "Resumen"
+            "dashboard": "Resumen",
+            "payments": "Pagos"
         },
         "appsProducts": {
             "products": "Productos"
@@ -647,7 +648,6 @@
             "inProgress": "En progreso",
             "linkedTickets": "Tickets vinculados",
             "recipient": "Destinatario",
-            "name": "Nombre",
             "billTo": "Facturar a",
             "address": "Dirección",
             "budgetValidity": "Vigencia del presupuesto",
@@ -1319,6 +1319,69 @@
                     "uyu": "UYU",
                     "other": "Otros"
                 }
+            }
+        },
+        "payments": {
+            "title": "Pagos",
+            "columns": {
+                "order": "Pedido",
+                "customer": "Cliente",
+                "method": "Método",
+                "reference": "Referencia"
+            },
+            "filters": {
+                "statusAll": "Todos los estados",
+                "typeAll": "Todos los tipos",
+                "searchPlaceholder": "Buscar pagos por pedido, referencia o método"
+            },
+            "actions": {
+                "search": "Buscar",
+                "new": "Agregar pago",
+                "save": "Guardar",
+                "create": "Crear"
+            },
+            "status": {
+                "confirmed": "Confirmado",
+                "registered": "Registrado",
+                "failed": "Fallido"
+            },
+            "type": {
+                "deposit": "Depósito",
+                "balance": "Saldo",
+                "refund": "Reembolso"
+            },
+            "form": {
+                "editTitle": "Editar pago",
+                "createTitle": "Nuevo pago",
+                "orderId": "ID de pedido",
+                "paymentMethod": "Método de pago",
+                "methodLabel": "Descripción del método",
+                "reference": "Referencia",
+                "notes": "Notas"
+            },
+            "validation": {
+                "orderIdRequired": "El ID de pedido es obligatorio",
+                "amountRequired": "El importe es obligatorio",
+                "amountPositive": "El importe debe ser mayor que cero"
+            },
+            "feedback": {
+                "loading": "Cargando información del pago...",
+                "loadFailedTitle": "No se pudo cargar el pago",
+                "loadFailedDesc": "No pudimos recuperar el pago seleccionado. Inténtalo nuevamente.",
+                "createdTitle": "Pago creado",
+                "createdDesc": "El pago fue registrado correctamente.",
+                "updatedTitle": "Pago actualizado",
+                "updatedDesc": "Los cambios del pago fueron guardados.",
+                "saveFailedTitle": "No se pudo guardar el pago",
+                "saveFailedDesc": "Revisa la información e inténtalo nuevamente.",
+                "deletedTitle": "Pago eliminado",
+                "deletedDesc": "El pago fue eliminado correctamente.",
+                "deleteFailedTitle": "No se pudo eliminar el pago",
+                "deleteFailedDesc": "No pudimos eliminar el pago. Inténtalo nuevamente."
+            },
+            "delete": {
+                "title": "Eliminar pago",
+                "confirm": "¿Seguro que deseas eliminar este pago? Esta acción no se puede deshacer."
             }
         }
     },

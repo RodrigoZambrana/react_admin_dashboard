@@ -110,6 +110,15 @@ const baseAppsRoute: Routes = [
         authority: getRolesForFeature(FEATURES.ACCOUNTING),
     },
     {
+        key: 'appsAccounting.payments',
+        path: `${APP_PREFIX_PATH}/accounting/payments`,
+        component: lazy(() => import('@/views/accounting/Payments')),
+        authority: getRolesForFeature(FEATURES.ACCOUNTING),
+        meta: {
+            header: 'Payments',
+        },
+    },
+    {
         key: 'appsExpenses.dashboard',
         path: `${APP_PREFIX_PATH}/expenses/dashboard`,
         component: lazy(() => import('@/views/expenses/ExpensesDashboard/ExpensesDashboard')),

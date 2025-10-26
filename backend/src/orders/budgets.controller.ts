@@ -72,7 +72,10 @@ export class BudgetsController {
   }
 
   @Put(':id/status')
-  updateBudgetStatus(@Param('id', ParseIntPipe) id: number, @Body() body: { status: number }) {
+  updateBudgetStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { status: number; force?: boolean },
+  ) {
     return this.documents.updateDocumentStatus(DocumentType.BUDGET, id, body)
   }
 

@@ -269,14 +269,35 @@ const appsNavigationConfig: NavigationTree[] = [
             },
             // Contabilidad
             {
-                key: 'appsAccounting.dashboard',
-                path: `${APP_PREFIX_PATH}/accounting/dashboard`,
+                key: 'apps.accounting',
+                path: '',
                 title: 'Contabilidad',
                 translateKey: 'nav.appsAccounting.accounting',
                 icon: 'accounting',
-                type: NAV_ITEM_TYPE_ITEM,
+                type: NAV_ITEM_TYPE_COLLAPSE,
                 authority: getRolesForFeature(FEATURES.ACCOUNTING),
-                subMenu: [],
+                subMenu: [
+                    {
+                        key: 'appsAccounting.dashboard',
+                        path: `${APP_PREFIX_PATH}/accounting/dashboard`,
+                        title: 'Dashboard',
+                        translateKey: 'nav.appsAccounting.dashboard',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: getRolesForFeature(FEATURES.ACCOUNTING),
+                        subMenu: [],
+                    },
+                    {
+                        key: 'appsAccounting.payments',
+                        path: `${APP_PREFIX_PATH}/accounting/payments`,
+                        title: 'Payments',
+                        translateKey: 'nav.appsAccounting.payments',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: getRolesForFeature(FEATURES.ACCOUNTING),
+                        subMenu: [],
+                    },
+                ],
             },
             // Actividades
             {

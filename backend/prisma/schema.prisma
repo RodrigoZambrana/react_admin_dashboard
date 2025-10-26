@@ -47,6 +47,32 @@ enum DocumentType {
   BUDGET
 }
 
+enum PaymentType {
+  DEPOSIT
+  BALANCE
+  REFUND
+}
+
+enum PaymentStatus {
+  REGISTERED
+  CONFIRMED
+  FAILED
+}
+
+enum DepositRequirementType {
+  PERCENTAGE
+  FIXED
+}
+
+enum WorkOrderStatus {
+  PENDING
+  IN_PROGRESS
+  READY
+  DELIVERED
+  CLOSED
+  CANCELED
+}
+
 enum InboxChannelType {
   EMAIL
   WHATSAPP
@@ -260,6 +286,11 @@ model Order {
   subTotal              Decimal        @default(0) @db.Decimal(18, 2)
   tax                   Decimal        @default(0) @db.Decimal(18, 2)
   grandTotal            Decimal        @default(0) @db.Decimal(18, 2)
+  minimumDepositType    DepositRequirementType @default(PERCENTAGE)
+  minimumDepositValue   Decimal        @default(0) @db.Decimal(18, 2)
+  confirmedAt           DateTime?
+  depositSatisfiedAt    DateTime?
+  customerCredit        Decimal        @default(0) @db.Decimal(18, 2)
   orderCurrency         String         @default("UYU")
   fxBase                String?
   fxRates               Json?
@@ -287,6 +318,9 @@ model Order {
   items                 OrderItem[]
   conversions           Order[]        @relation("OrderOrigin")
   budgetSource          Order?         @relation("OrderConversion")
+  payments              Payment[]
+  paymentPlan           PaymentPlan?
+  workOrders            WorkOrder[]
 
   @@unique([originId])
   @@unique([convertedOrderId])
@@ -328,6 +362,76 @@ model PaymentMethod {
   name     String    @unique
   orders   Order[]
   expenses Expense[]
+  payments Payment[]
+}
+
+model Payment {
+  id              Int             @id @default(autoincrement())
+  orderId         Int
+  order           Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  paymentMethodId Int?
+  paymentMethod   PaymentMethod?  @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  method          String?
+  amount          Decimal         @db.Decimal(18, 2)
+  currency        String
+  type            PaymentType     @default(BALANCE)
+  status          PaymentStatus   @default(REGISTERED)
+  reference       String?
+  date            DateTime        @default(now())
+  notes           String?
+  metadata        Json?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([orderId])
+  @@index([status, type])
+  @@index([paymentMethodId])
+}
+
+model PaymentPlan {
+  id          Int       @id @default(autoincrement())
+  orderId     Int       @unique
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  name        String?
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  milestones  PaymentPlanMilestone[]
+}
+
+model PaymentPlanMilestone {
+  id               Int                    @id @default(autoincrement())
+  paymentPlanId    Int
+  paymentPlan      PaymentPlan            @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
+  name             String
+  dueDate          DateTime?
+  requirementType  DepositRequirementType @default(PERCENTAGE)
+  value            Decimal                @default(0) @db.Decimal(18, 4)
+  notes            String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@index([paymentPlanId])
+}
+
+model WorkOrder {
+  id          Int             @id @default(autoincrement())
+  orderId     Int
+  order       Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  code        String          @unique
+  status      WorkOrderStatus @default(PENDING)
+  issuedAt    DateTime        @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  deliveredAt DateTime?
+  closedAt    DateTime?
+  notes       String?
+  metadata    Json?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([orderId])
+  @@index([status])
 }
 
 model CurrencyRate {
