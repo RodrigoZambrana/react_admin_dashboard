@@ -1,3 +1,10 @@
+import { notFound } from "next/navigation";
+
+export default function TicketDetails() {
+  notFound();
+}
+
+/*
 import Link from "next/link";
 import { Fragment } from "react";
 import { format } from "date-fns/format";
@@ -59,3 +66,4 @@ export default async function TicketDetails({ params }: SlugParams) {
     </Fragment>
   );
 }
+*/

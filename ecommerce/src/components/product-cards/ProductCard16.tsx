@@ -17,6 +17,7 @@ import { H3, Paragraph, Span } from "@component/Typography";
 import ProductQuickView from "@component/products/ProductQuickView";
 import useCart from "@hook/useCart";
 import { calculateDiscount, currency } from "@utils/utils";
+import ProductWishlistButton from "./ProductWishlistButton";
 
 // STYLED COMPONENTS
 const StyledBazaarCard = styled(Card)(({ theme }) => ({
@@ -181,6 +182,8 @@ export default function ProductCard16(props: ProductCardProps) {
             </Span>
           </HoverWrapper>
         </ImageBox>
+
+        <ProductWishlistButton style={{ position: "absolute", top: 16, right: 16 }} />
       </ImageWrapper>
 
       <ProductQuickView

@@ -42,7 +42,7 @@ Deliverable: new layout scaffold using Bonik theme provider, plus an adapter mod
 - Storefront configuration context + persisted cart provider are wired through the new layout, ready for Bonik UI integration.
 - Session management now lives in `src/state/session-context.tsx`, providing login/register/logout helpers backed by the real `StorefrontApi` and exposing state to all Bonik pages.
 - Customer authentication now uses the backend `STOREFRONT_GENERIC_CUSTOMER_PASSWORD` (development default `Storefront@2024`) when legacy records lack credentials; new registrations clear the generic hash so the shared password is only used for staged accounts.
-- `NEXT_PUBLIC_STOREFRONT_HOME_PATH` controls which layout is served at `/` (default `/market-1`), and `/sale-page-1` now renders live catalog data for products and categories via the Storefront API with mock fallbacks.
+- `NEXT_PUBLIC_STOREFRONT_HOME_PATH` controls which layout is served at `/` (default `/`), and `/shop` now renders live catalog data for products and categories via the Storefront API with mock fallbacks.
 - Legacy landing `page.tsx` now re-exports the storefront home route so the new tree owns `/`.
 - Default API base points at `http://localhost:4000/api/storefront`, matching the existing backend route structure (override via `NEXT_PUBLIC_STOREFRONT_API_URL` / `STOREFRONT_API_URL` as needed).
 - `/` now redirects to `/market-1`, preserving the Bonik demo entry point while we progressively swap mock endpoints for live data.

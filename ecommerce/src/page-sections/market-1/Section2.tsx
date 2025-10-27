@@ -1,6 +1,6 @@
 import Box from "@component/Box";
 import { Carousel } from "@component/carousel";
-import ProductCard1 from "@component/product-cards/ProductCard1";
+import StorefrontProductCard from "@component/product-cards/StorefrontProductCard";
 import CategorySectionCreator from "@component/CategorySectionCreator";
 // API FUNCTIONS
 import api from "@utils/__api__/market-1";
@@ -21,15 +21,22 @@ export default async function Section2() {
         <Carousel slidesToShow={4} responsive={responsive}>
           {products.map((item) => (
             <Box py="0.25rem" key={item.id}>
-              <ProductCard1
+              <StorefrontProductCard
                 id={item.id}
                 slug={item.slug}
-                price={item.price}
                 title={item.title}
-                off={item.discount}
-                images={item.images}
+                price={item.price}
                 imgUrl={item.thumbnail}
-                rating={item.rating || 4}
+                images={item.images}
+                category={
+                  Array.isArray(item.categories)
+                    ? item.categories[0]?.name ?? item.categories[0]
+                    : undefined
+                }
+                rating={typeof item.rating === "number" ? item.rating : undefined}
+                reviewCount={
+                  typeof item.ratingCount === "number" ? item.ratingCount : undefined
+                }
               />
             </Box>
           ))}

@@ -16,6 +16,7 @@ import {
 import { ComponentPropsWithRef } from "react";
 import styled from "styled-components";
 import { isValidProp } from "@utils/utils";
+import { useTranslatedNode } from "@/state/i18n-context";
 
 // ==============================================================
 interface IconButtonProps {
@@ -91,9 +92,11 @@ interface BtnProps extends Props, Omit<ComponentPropsWithRef<"button">, "color">
 // ==============================================================
 
 export default function IconButton({ ref, children, size = "small", ...props }: BtnProps) {
+  const content = useTranslatedNode(children);
+
   return (
     <StyledIconButton ref={ref} size={size} {...props}>
-      {children}
+      {content}
     </StyledIconButton>
   );
 }

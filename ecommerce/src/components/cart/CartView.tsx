@@ -11,7 +11,6 @@ import Grid from "@component/grid/Grid";
 import { Card1 } from "@component/Card1";
 import Divider from "@component/Divider";
 import FlexBox from "@component/FlexBox";
-import TextArea from "@component/textarea";
 import TextField from "@component/text-field";
 import Select from "@component/Select";
 import Typography, { Paragraph } from "@component/Typography";
@@ -22,6 +21,10 @@ import { isValidProp } from "@utils/utils";
 
 import { type CartLineItem, useStorefrontCart } from "@/state/cart-context";
 import { formatMoney, normalizeMoney } from "@/lib/utils/format";
+import CheckoutCostSummary from "./CheckoutCostSummary";
+
+// Feature flag to re-enable voucher and shipping estimators when backend is ready.
+const SHOW_VOUCHER_AND_SHIPPING = false;
 
 type CartLineItemCardProps = SpaceProps & {
   item: CartLineItem;
@@ -156,7 +159,7 @@ export function CartView() {
           <Paragraph mt="1rem" color="text.muted" textAlign="center" maxWidth="260px">
             Your shopping bag is empty. Start shopping
           </Paragraph>
-          <Button mt="1.5rem" variant="contained" color="primary" href="/sale-page-1">
+          <Button mt="1.5rem" variant="contained" color="primary" href="/shop">
             Continue Shopping
           </Button>
         </FlexBox>
@@ -181,74 +184,46 @@ export function CartView() {
         </Grid>
 
         <Grid item lg={4} md={4} xs={12}>
-          <Card1>
-            <FlexBox justifyContent="space-between" alignItems="center" mb="1rem">
-              <Typography color="gray.600">Total:</Typography>
+          <CheckoutCostSummary />
 
-              <Typography fontSize="18px" fontWeight="600" lineHeight="1">
-                {formatMoney(subtotal)}
-              </Typography>
-            </FlexBox>
+          {SHOW_VOUCHER_AND_SHIPPING && (
+            <Card1 mt="1.5rem">
+              <TextField placeholder="Voucher" fullWidth />
 
-            <Divider mb="1rem" />
-
-            <FlexBox alignItems="center" mb="1rem">
-              <Typography fontWeight="600" mr="10px">
-                Additional Comments
-              </Typography>
-
-              <Box p="3px 10px" bg="primary.light" borderRadius="3px">
-                <Typography fontSize="12px" color="primary.main">
-                  Note
-                </Typography>
-              </Box>
-            </FlexBox>
-
-            <TextArea rows={6} fullWidth mb="1rem" />
-
-            <Divider mb="1rem" />
-
-            <TextField placeholder="Voucher" fullWidth />
-
-            <Button variant="outlined" color="primary" mt="1rem" mb="30px" fullWidth>
-              Apply Voucher
-            </Button>
-
-            <Divider mb="1.5rem" />
-
-            <Typography fontWeight="600" mb="1rem">
-              Shipping Estimates
-            </Typography>
-
-            <Select
-              mb="1rem"
-              label="Country"
-              options={countryList}
-              placeholder="Select Country"
-              onChange={(e) => console.log(e)}
-            />
-
-            <Select
-              label="State"
-              options={stateList}
-              placeholder="Select State"
-              onChange={(e) => console.log(e)}
-            />
-
-            <Box mt="1rem">
-              <TextField label="Zip Code" placeholder="3100" fullWidth />
-            </Box>
-
-            <Button variant="outlined" color="primary" my="1rem" fullWidth>
-              Calculate Shipping
-            </Button>
-
-            <Link href="/checkout">
-              <Button variant="contained" color="primary" fullWidth>
-                Checkout Now
+              <Button variant="outlined" color="primary" mt="1rem" mb="30px" fullWidth>
+                Apply Voucher
               </Button>
-            </Link>
-          </Card1>
+
+              <Divider mb="1.5rem" />
+
+              <Typography fontWeight="600" mb="1rem">
+                Shipping Estimates
+              </Typography>
+
+              <Select
+                mb="1rem"
+                label="Country"
+                options={countryList}
+                placeholder="Select Country"
+                onChange={(e) => console.log(e)}
+              />
+
+              <Select
+                label="State"
+                options={stateList}
+                placeholder="Select State"
+                onChange={(e) => console.log(e)}
+              />
+
+              <Box mt="1rem">
+                <TextField label="Zip Code" placeholder="3100" fullWidth />
+              </Box>
+
+              <Button variant="outlined" color="primary" my="1rem" fullWidth>
+                Calculate Shipping
+              </Button>
+            </Card1>
+          )}
         </Grid>
       </Grid>
     </Fragment>

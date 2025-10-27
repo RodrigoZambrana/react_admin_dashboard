@@ -23,7 +23,7 @@ export default function Section2() {
     <Fragment>
       <Grid container spacing={6}>
         <Grid item xs={12} md={7}>
-          <Link href="/sale-page-1">
+          <Link href="/shop">
             <LeftContentBox imgUrl={product1}>
               <RightContent>
                 <H6>Modern Furniture.</H6>
@@ -38,7 +38,7 @@ export default function Section2() {
         </Grid>
 
         <Grid item xs={12} md={5}>
-          <Link href="/sale-page-1">
+          <Link href="/shop">
             <RightContentBox imgUrl={product2} mb={2}>
               <Box textAlign="center" pt={3}>
                 <H6>Sofa Collection</H6>
@@ -54,7 +54,7 @@ export default function Section2() {
 
       <Grid container spacing={6}>
         <Grid item xs={12} md={7}>
-          <Link href="/sale-page-1">
+          <Link href="/shop">
             <RightContentBox
               imgUrl={product4}
               style={{
@@ -69,7 +69,7 @@ export default function Section2() {
                   50% OFF
                 </H1>
                 <H6>All Kind of Furniture Items</H6>
-                <StyledButton onClick={() => router.push("/sale-page-1")}>Shop Now</StyledButton>
+                <StyledButton onClick={() => router.push("/shop")}>Shop Now</StyledButton>
               </Box>
               <Box className="content" />
             </RightContentBox>
@@ -77,7 +77,7 @@ export default function Section2() {
         </Grid>
 
         <Grid item xs={12} md={5}>
-          <Link href="/sale-page-1">
+          <Link href="/shop">
             <LeftContentBox imgUrl={product5} style={{ padding: "20px auto 20px 20px" }}>
               <RightContent>
                 <Paragraph>Modern & Comfortable</Paragraph>
@@ -90,7 +90,7 @@ export default function Section2() {
             </LeftContentBox>
           </Link>
 
-          <Link href="/sale-page-1">
+          <Link href="/shop">
             <LeftContentBox
               imgUrl={product3}
               style={{ marginTop: 24, padding: "20px auto 20px 20px" }}>

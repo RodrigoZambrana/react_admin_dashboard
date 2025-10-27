@@ -12,6 +12,7 @@ import { Button } from "@component/buttons";
 import LazyImage from "@component/LazyImage";
 import Typography from "@component/Typography";
 import { IconButton } from "@component/buttons";
+import ProductWishlistButton from "./ProductWishlistButton";
 
 import { currency, isValidProp } from "@utils/utils";
 
@@ -95,7 +96,16 @@ export default function ProductCard7({
           </Typography>
         </Link>
 
-        <Box position="absolute" right="1rem" top="1rem">
+        <Box
+          position="absolute"
+          right="1rem"
+          top="1rem"
+          display="flex"
+          flexDirection="column"
+          alignItems="flex-end"
+          style={{ gap: "0.5rem" }}>
+          <ProductWishlistButton />
+
           <IconButton color="gray.600" padding="4px" ml="12px" onClick={handleCartAmountChange(0)}>
             <IconX size={18} />
           </IconButton>

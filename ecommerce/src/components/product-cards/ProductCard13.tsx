@@ -14,6 +14,7 @@ import { Button } from "@component/buttons";
 import { H3, Paragraph, Span } from "@component/Typography";
 import { calculateDiscount, currency } from "@utils/utils";
 import useCart from "@hook/useCart";
+import ProductWishlistButton from "./ProductWishlistButton";
 
 // STYLED COMPONENTS
 const StyledCard = styled("div")(({ theme }) => ({
@@ -31,6 +32,7 @@ const StyledCard = styled("div")(({ theme }) => ({
 }));
 
 const ImgBox = styled("div")(({ theme }) => ({
+  position: "relative",
   background: theme.colors.primary[50]
 }));
 
@@ -147,36 +149,38 @@ export default function ProductCard13({
 
   return (
     <StyledCard>
-      <Link href={`/product/${slug}`}>
-        <ImgBox id="imgBox">
-          {status && (
-            <StatusChipBox>
-              <StatusChip>{status}</StatusChip>
-              <Box width="100%" display="flex">
-                <Box className="triangle-left" />
-                <Box className="triangle-right" />
-              </Box>
-            </StatusChipBox>
-          )}
+      <ImgBox id="imgBox">
+        {status && (
+          <StatusChipBox>
+            <StatusChip>{status}</StatusChip>
+            <Box width="100%" display="flex">
+              <Box className="triangle-left" />
+              <Box className="triangle-right" />
+            </Box>
+          </StatusChipBox>
+        )}
 
-          {!!off && (
-            <Chip
-              top="10px"
-              zIndex={1}
-              left="10px"
-              p="5px 10px"
-              fontSize="10px"
-              fontWeight="600"
-              bg="primary.main"
-              position="absolute"
-              color="primary.text">
-              {off}% off
-            </Chip>
-          )}
+        {!!off && (
+          <Chip
+            top="10px"
+            zIndex={1}
+            left="10px"
+            p="5px 10px"
+            fontSize="10px"
+            fontWeight="600"
+            bg="primary.main"
+            position="absolute"
+            color="primary.text">
+            {off}% off
+          </Chip>
+        )}
 
+        <ProductWishlistButton style={{ position: "absolute", top: 16, right: 16 }} />
+
+        <Link href={`/product/${slug}`}>
           <Image width={400} height={400} src={imgUrl} id="productImg" alt="bonik" />
-        </ImgBox>
-      </Link>
+        </Link>
+      </ImgBox>
 
       <ContentWrapper>
         <FlexBox>

@@ -4,6 +4,7 @@ import styled from "styled-components";
 
 import LazyImage from "components/LazyImage";
 import { H6, Paragraph } from "components/Typography";
+import ProductWishlistButton from "./ProductWishlistButton";
 
 // STYLED COMPONENTS
 const StyledCard = styled("div")(({ theme }) => ({
@@ -13,6 +14,7 @@ const StyledCard = styled("div")(({ theme }) => ({
 }));
 
 const ImgBox = styled("div")(({ theme }) => ({
+  position: "relative",
   padding: "0 40px 20px 40px",
   background: theme.colors.marron[100]
 }));
@@ -29,6 +31,7 @@ export default function ProductCard14({ imgUrl, title, available }: Props) {
   return (
     <StyledCard>
       <ImgBox>
+        <ProductWishlistButton style={{ position: "absolute", top: 16, right: 16 }} />
         <LazyImage
           src={imgUrl}
           width={256}

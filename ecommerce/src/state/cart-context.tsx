@@ -13,8 +13,8 @@ import {
 import type { Money, ProductSummary } from "@/types/storefront";
 import { normalizeMoney } from "@/lib/utils/format";
 
-interface CartProductSnapshot {
-  id: number;
+export interface CartProductSnapshot {
+  id: number | string;
   slug: string;
   name: string;
   thumbnail?: ProductSummary["thumbnail"];
@@ -36,8 +36,8 @@ interface CartState {
 type CartAction =
   | { type: "LOADED"; payload: CartState }
   | { type: "ADD_ITEM"; payload: { product: CartProductSnapshot; quantity: number } }
-  | { type: "REMOVE_ITEM"; payload: { productId: number } }
-  | { type: "UPDATE_QUANTITY"; payload: { productId: number; quantity: number } }
+  | { type: "REMOVE_ITEM"; payload: { productId: number | string } }
+  | { type: "UPDATE_QUANTITY"; payload: { productId: number | string; quantity: number } }
   | { type: "CLEAR" };
 
 const initialState: CartState = {
@@ -89,18 +89,22 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
 const CartContext = createContext<{
   state: CartState;
   addItem: (product: ProductSummary, quantity?: number) => void;
-  removeItem: (productId: number) => void;
-  updateQuantity: (productId: number, quantity: number) => void;
+  addItemSnapshot: (product: CartProductSnapshot, quantity?: number) => void;
+  removeItem: (productId: number | string) => void;
+  updateQuantity: (productId: number | string, quantity: number) => void;
   clearCart: () => void;
   subtotal: Money;
-}>({
-  state: initialState,
-  addItem: () => undefined,
-  removeItem: () => undefined,
-  updateQuantity: () => undefined,
-  clearCart: () => undefined,
-  subtotal: { amount: 0, currency: "USD", formatted: "$0.00" }
-});
+}>(
+  {
+    state: initialState,
+    addItem: () => undefined,
+    addItemSnapshot: () => undefined,
+    removeItem: () => undefined,
+    updateQuantity: () => undefined,
+    clearCart: () => undefined,
+    subtotal: { amount: 0, currency: "USD", formatted: "$0.00" }
+  }
+);
 
 const snapshotProduct = (product: ProductSummary): CartProductSnapshot => ({
   id: product.id,
@@ -146,11 +150,15 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
     dispatch({ type: "ADD_ITEM", payload: { product: snapshotProduct(product), quantity } });
   }, []);
 
-  const removeItem = useCallback((productId: number) => {
+  const addItemSnapshot = useCallback((product: CartProductSnapshot, quantity = 1) => {
+    dispatch({ type: "ADD_ITEM", payload: { product, quantity } });
+  }, []);
+
+  const removeItem = useCallback((productId: number | string) => {
     dispatch({ type: "REMOVE_ITEM", payload: { productId } });
   }, []);
 
-  const updateQuantity = useCallback((productId: number, quantity: number) => {
+  const updateQuantity = useCallback((productId: number | string, quantity: number) => {
     dispatch({ type: "UPDATE_QUANTITY", payload: { productId, quantity } });
   }, []);
 
@@ -163,7 +171,8 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
       return { amount: 0, currency: "USD", formatted: "$0.00" };
     }
 
-    const currency = state.items[0].product.salePrice?.currency ?? state.items[0].product.price.currency;
+    const currency =
+      state.items[0].product.salePrice?.currency ?? state.items[0].product.price.currency;
     const amount = state.items.reduce((sum, item) => {
       const unit = item.product.salePrice ?? item.product.price;
       return sum + unit.amount * item.quantity;
@@ -172,8 +181,8 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
   }, [state.items]);
 
   const value = useMemo(
-    () => ({ state, addItem, removeItem, updateQuantity, clearCart, subtotal }),
-    [state, addItem, removeItem, updateQuantity, clearCart, subtotal]
+    () => ({ state, addItem, addItemSnapshot, removeItem, updateQuantity, clearCart, subtotal }),
+    [state, addItem, addItemSnapshot, removeItem, updateQuantity, clearCart, subtotal]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
@@ -186,4 +195,3 @@ export const useStorefrontCart = () => {
   }
   return context;
 };
-

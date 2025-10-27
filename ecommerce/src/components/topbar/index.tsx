@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import NextImage from "next/image";
+import { useCallback, useState } from "react";
 import { IconChevronDown, IconMail, IconPhone } from "@tabler/icons-react";
 
 import Menu from "../menu";
@@ -12,61 +11,78 @@ import Container from "../Container";
 import { Small } from "../Typography";
 import { StyledTopbar } from "./styles";
 import { LANGUAGES, CURRENCIES } from "./data";
-
-import logo from "../../../public/assets/images/logo.svg";
+import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
+import { useI18n, useTranslation } from "@/state/i18n-context";
 
 export default function Topbar() {
   const [currency, setCurrency] = useState(CURRENCIES[0]);
-  const [language, setLanguage] = useState(LANGUAGES[0]);
+  const storefrontConfig = useStorefrontConfig();
+  const { locale, setLocale } = useI18n();
+  const t = useTranslation();
+  const companyProfile = storefrontConfig.companyProfile;
+
+  const logoSrc = companyProfile?.logo ?? "/assets/images/logo.svg";
+  const brandName =
+    companyProfile?.tradeName ??
+    companyProfile?.legalName ??
+    (typeof storefrontConfig.seo?.siteName === "string"
+      ? storefrontConfig.seo.siteName
+      : "Storefront");
+  const phone = companyProfile?.phone ?? "+88012 3456 7894";
+  const email = companyProfile?.email ?? "support@ui-lib.com";
+
+  const activeLanguage = LANGUAGES.find((item) => item.locale === locale) ?? LANGUAGES[0];
 
   const handleCurrencyClick = useCallback((curr: typeof currency) => () => setCurrency(curr), []);
 
-  const handleLanguageClick = useCallback((lang: typeof language) => () => setLanguage(lang), []);
-
-  useEffect(() => {
-    // get language from browser
-    // console.log(navigator.language);
-  }, []);
+  const handleLanguageClick = useCallback(
+    (langLocale: (typeof LANGUAGES)[number]["locale"]) => () => setLocale(langLocale),
+    [setLocale]
+  );
 
   return (
     <StyledTopbar>
       <Container className="container">
         <div className="topbar-left">
           <div className="logo">
-            <NextImage src={logo} alt="Bonik" />
+            <Image src={logoSrc} alt={brandName} height="36px" />
           </div>
 
-          <div className="phone">
-            <IconPhone size={16} stroke={1.5} />
-            <span>+88012 3456 7894</span>
-          </div>
+          {phone && (
+            <div className="phone">
+              <IconPhone size={16} stroke={1.5} />
+              <span>{phone}</span>
+            </div>
+          )}
 
-          <div className="email">
-            <IconMail size={16} stroke={1.5} />
-            <span>support@ui-lib.com</span>
-          </div>
+          {email && (
+            <div className="email">
+              <IconMail size={16} stroke={1.5} />
+              <span>{email}</span>
+            </div>
+          )}
         </div>
 
         <div className="topbar-right">
           <NavLink className="link" href="/">
-            Theme FAQ"s
+            {t('Theme FAQ"s')}
           </NavLink>
 
           <NavLink className="link" href="/">
-            Need Help?
+            {t("Need Help?")}
           </NavLink>
 
           <Menu
             direction="right"
             handler={(handleOpen) => (
               <div className="dropdown-handler" onClick={handleOpen}>
-                <Image src={language.imgUrl} alt={language.title} />
-                <Small fontWeight="600">{language.title}</Small>
+                <Image src={activeLanguage.imgUrl} alt={activeLanguage.title} />
+                <Small fontWeight="600">{activeLanguage.shortLabel}</Small>
                 <IconChevronDown size={16} stroke={1.5} />
               </div>
             )}>
             {LANGUAGES.map((item) => (
-              <MenuItem key={item.id} onClick={handleLanguageClick(item)}>
+              <MenuItem key={item.id} onClick={handleLanguageClick(item.locale)}>
                 <Image src={item.imgUrl} borderRadius="2px" mr="0.5rem" alt={item.title} />
                 <Small fontWeight="600">{item.title}</Small>
               </MenuItem>

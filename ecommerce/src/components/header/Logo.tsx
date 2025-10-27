@@ -1,7 +1,21 @@
 import { useTheme } from "styled-components";
 
+import Image from "@component/Image";
+import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
+
 export default function Logo() {
   const theme = useTheme();
+  const config = useStorefrontConfig();
+  const companyProfile = config.companyProfile;
+  const logoSrc = companyProfile?.logo;
+  const altText =
+    companyProfile?.tradeName ??
+    companyProfile?.legalName ??
+    (typeof config.seo?.siteName === "string" ? config.seo.siteName : "Storefront");
+
+  if (logoSrc) {
+    return <Image src={logoSrc} alt={altText} height="44px" />;
+  }
 
   return (
     <svg width="98" height="44" viewBox="0 0 98 44" fill="none" xmlns="http://www.w3.org/2000/svg">

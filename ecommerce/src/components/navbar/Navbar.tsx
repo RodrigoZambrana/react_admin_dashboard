@@ -15,16 +15,10 @@ import Typography, { Span } from "../Typography";
 import Categories from "../categories/Categories";
 
 import StyledNavbar from "./styles";
-import navbarNavigations from "@data/navbarNavigations";
+import { useStorefrontNavigation, type StorefrontNavigationNode } from "@/hooks/useStorefrontNavigation";
 
 // ==============================================================
-interface Nav {
-  title: string;
-  url?: string;
-  extLink?: boolean;
-  badge?: string;
-  child?: Nav[];
-}
+type Nav = StorefrontNavigationNode;
 
 type NavbarProps = { navListOpen?: boolean };
 // ==============================================================
@@ -97,15 +91,20 @@ const NavItem = ({ nav, isRoot = false }: { nav: Nav; isRoot?: boolean }) => {
   return null;
 };
 
-const NestedNav = ({ list, isRoot = false }: { list: Nav[]; isRoot?: boolean }) => {
-  return (
-    <>
-      {list?.map((nav) => (
-        <NavItem key={nav.title} nav={nav} isRoot={isRoot} />
-      ))}
-    </>
-  );
+type NestedNavProps = {
+  list?: Nav[];
+  isRoot?: boolean;
 };
+
+const NestedNav = ({ list = [], isRoot = false }: NestedNavProps) => (
+  <>
+    {list.map((nav, index) => {
+      const fallbackSegment = nav.url ?? `idx-${index}`;
+      const navKey = `${nav.title}|${fallbackSegment}|${index}`;
+      return <NavItem key={navKey} nav={nav} isRoot={isRoot} />;
+    })}
+  </>
+);
 
 const renderNestedNav = (list: Nav[], isRoot = false) => {
   return <NestedNav list={list} isRoot={isRoot} />;
@@ -113,12 +112,15 @@ const renderNestedNav = (list: Nav[], isRoot = false) => {
 
 export default function Navbar({ navListOpen }: NavbarProps) {
   const theme = useTheme();
+  const { navItems, categoriesForMenu, categoryIcons } = useStorefrontNavigation();
 
   return (
     <StyledNavbar>
       <Container height="100%" display="flex" alignItems="center" justifyContent="space-between">
         <Categories
           open={navListOpen}
+          categories={categoriesForMenu}
+          icons={categoryIcons}
           handler={(handleOpen) => (
             <Button
               width="278px"
@@ -142,7 +144,7 @@ export default function Navbar({ navListOpen }: NavbarProps) {
           )}
         />
 
-        <FlexBox style={{ gap: 32 }}>{renderNestedNav(navbarNavigations, true)}</FlexBox>
+        <FlexBox style={{ gap: 32 }}>{renderNestedNav(navItems, true)}</FlexBox>
       </Container>
     </StyledNavbar>
   );

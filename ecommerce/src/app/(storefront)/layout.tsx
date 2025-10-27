@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 
 import { getStorefrontConfig } from "@/lib/storefront-config";
-import { StorefrontCartProvider } from "@/state/cart-context";
 import { StorefrontSessionProvider } from "@/state/session-context";
 
 import { StorefrontConfigProvider } from "./storefront-context";
@@ -15,9 +14,7 @@ export default async function StorefrontLayout({ children }: StorefrontLayoutPro
 
   return (
     <StorefrontConfigProvider config={config}>
-      <StorefrontSessionProvider>
-        <StorefrontCartProvider>{children}</StorefrontCartProvider>
-      </StorefrontSessionProvider>
+      <StorefrontSessionProvider>{children}</StorefrontSessionProvider>
     </StorefrontConfigProvider>
   );
 }

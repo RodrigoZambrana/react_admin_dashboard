@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 import Card from "@component/Card";
@@ -6,6 +8,7 @@ import HoverBox from "@component/HoverBox";
 import NextImage from "@component/NextImage";
 import { H6, SemiSpan } from "@component/Typography";
 import { calculateDiscount, currency } from "@utils/utils";
+import ProductWishlistButton from "./ProductWishlistButton";
 
 // ==============================================================
 type ProductCard8Props = {
@@ -29,7 +32,9 @@ export default function ProductCard8({
   ...props
 }: ProductCard8Props) {
   return (
-    <Card p="1rem" borderRadius={12} {...props}>
+    <Card p="1rem" borderRadius={12} position="relative" {...props}>
+      <ProductWishlistButton style={{ position: "absolute", top: 16, right: 16 }} />
+
       <Link href={`/product/${slug}`}>
         <HoverBox mb="0.75rem" borderRadius={8} overflow="hidden">
           <NextImage

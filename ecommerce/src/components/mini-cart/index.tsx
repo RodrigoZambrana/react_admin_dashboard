@@ -18,7 +18,7 @@ type MiniCartProps = { toggleSidenav?: () => void };
 // ==============================================================
 
 export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
-  const { state, dispatch } = useCart();
+  const { state, dispatch, itemCount, subtotal } = useCart();
 
   const handleCartAmountChange = (amount: number, product: any) => () => {
     dispatch({
@@ -27,9 +27,7 @@ export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
     });
   };
 
-  const getTotalPrice = () => {
-    return state.cart.reduce((accumulator, item) => accumulator + item.price * item.qty, 0) || 0;
-  };
+  const totalFormatted = subtotal.formatted ?? currency(subtotal.amount);
 
   return (
     <StyledMiniCart>
@@ -37,13 +35,13 @@ export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
         <FlexBox alignItems="center" m="0px 20px" height="74px">
           <Icon size="1.5rem">bag</Icon>
           <Typography fontWeight={600} fontSize="16px" ml="0.5rem">
-            {state.cart.length} item
+            {itemCount} {itemCount === 1 ? "item" : "items"}
           </Typography>
         </FlexBox>
 
         <Divider />
 
-        {state.cart.length === 0 && (
+        {itemCount === 0 && (
           <FlexBox
             alignItems="center"
             flexDirection="column"
@@ -126,11 +124,11 @@ export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
         ))}
       </div>
 
-      {state.cart.length > 0 && (
+      {itemCount > 0 && (
         <div className="actions">
           <Link href="/checkout">
             <Button fullWidth color="primary" variant="contained" onClick={toggleSidenav}>
-              <Typography fontWeight={600}>Checkout Now ({currency(getTotalPrice())})</Typography>
+              <Typography fontWeight={600}>Checkout Now ({totalFormatted})</Typography>
             </Button>
           </Link>
 

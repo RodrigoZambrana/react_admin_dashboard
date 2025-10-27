@@ -1,3 +1,5 @@
+'use client';
+
 import styled from "styled-components";
 
 import Chip from "@component/Chip";
@@ -8,31 +10,33 @@ import useWindowSize from "@hook/useWindowSize";
 import { layoutConstant } from "@utils/constants";
 
 // STYLED COMPONENT
-const Wrapper = styled.div`
+const Wrapper = styled.div<{ $itemCount: number }>`
+  --nav-gap: clamp(0.35rem, 1.8vw, 1.25rem);
   left: 0;
   right: 0;
   bottom: 0;
   display: none;
   position: fixed;
   align-items: center;
-  justify-content: space-around;
+  padding: 0 calc(var(--nav-gap) / 2);
   height: ${layoutConstant.mobileNavHeight};
   background: ${({ theme }) => theme.colors.body.paper};
   box-shadow: 0px 1px 4px 3px rgba(0, 0, 0, 0.1);
   z-index: 999;
 
   .link {
-    flex: 1 1 0;
+    width: 100%;
     display: flex;
     font-size: 13px;
     align-items: center;
     flex-direction: column;
     justify-content: center;
     position: relative;
+    padding: 0.35rem 0;
+    gap: 6px;
 
     .icon {
       display: flex;
-      margin-bottom: 4px;
       align-items: center;
       justify-content: center;
     }
@@ -46,12 +50,14 @@ const Wrapper = styled.div`
   }
 
   @media (max-width: 900px) {
-    display: flex;
+    display: grid;
     width: 100vw;
+    grid-template-columns: repeat(${({ $itemCount }) => $itemCount}, minmax(0, 1fr));
+    column-gap: var(--nav-gap);
   }
 `;
 
-const HOME_PATH = process.env.NEXT_PUBLIC_STOREFRONT_HOME_PATH || "/market-1";
+const HOME_PATH = process.env.NEXT_PUBLIC_STOREFRONT_HOME_PATH || "/";
 
 type MobileNavItem = {
   title: string;
@@ -61,7 +67,7 @@ type MobileNavItem = {
 };
 
 export default function MobileNavigationBar() {
-  const { state } = useCart();
+  const { state, itemCount } = useCart();
   const width = useWindowSize();
 
   const handleAction = (action: string) => () => {
@@ -72,7 +78,7 @@ export default function MobileNavigationBar() {
 
   if (width <= 900) {
     return (
-      <Wrapper>
+      <Wrapper $itemCount={list.length}>
         {list.map((item) => {
           const content = (
             <>
@@ -82,7 +88,7 @@ export default function MobileNavigationBar() {
 
               {item.title}
 
-              {item.title === "Cart" && !!state.cart.length && (
+              {item.title === "Cart" && !!itemCount && (
                 <Chip
                   top="4px"
                   px="0.25rem"
@@ -91,7 +97,7 @@ export default function MobileNavigationBar() {
                   position="absolute"
                   color="primary.text"
                   left="calc(50% + 8px)">
-                  {state.cart.length}
+                  {itemCount}
                 </Chip>
               )}
             </>
@@ -129,7 +135,12 @@ const list: MobileNavItem[] = [
     icon: "home",
     href: HOME_PATH.startsWith("/") ? HOME_PATH : `/${HOME_PATH}`
   },
+  {
+    title: "Shop",
+    icon: "bag",
+    href: "/shop"
+  },
   { title: "Categories", icon: "category", action: "mobile-nav:open-categories" },
-  { title: "Cart", icon: "bag", action: "mobile-nav:open-cart" },
+  { title: "Cart", icon: "shopping-cart", action: "mobile-nav:open-cart" },
   { title: "Account", icon: "user-2", action: "mobile-nav:open-account" }
 ];

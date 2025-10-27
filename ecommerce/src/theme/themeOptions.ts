@@ -62,11 +62,7 @@ const themesOptions = {
   }
 };
 
-const routeThemeMap: Record<string, THEMES> = {
-  "/furniture-shop": THEMES.FURNITURE,
-  "/health-beauty": THEMES.HEALTH,
-  "/gift-shop": THEMES.GIFT
-};
+const routeThemeMap: Record<string, THEMES> = {};
 
 export default function getThemeOptions(pathname: string): ThemeOption {
   const themeKey = routeThemeMap[pathname] || THEMES.DEFAULT;

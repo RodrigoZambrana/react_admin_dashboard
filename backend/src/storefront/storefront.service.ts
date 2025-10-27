@@ -6,12 +6,13 @@ import {
   OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common'
-import { Prisma, DocumentType, Customer, CustomerAddress, OrderItem, ProductType } from '@prisma/client'
+import { Prisma, DocumentType, Customer, CustomerAddress, OrderItem, ProductType, CompanyProfile } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
 import { decimal, decimalToNumber } from '../common/currency/money.util'
+import { buildImageDataUrl, ensureNodeBuffer } from '../common/images/image.utils'
 import { DEFAULT_STOREFRONT_CONFIG } from './defaults/config'
 import { DEFAULT_HOME_LAYOUTS, FALLBACK_LAYOUT_KEY } from './defaults/layouts'
 import { buildCategorySlug, buildProductSlug, slugify } from './utils'
@@ -164,6 +165,27 @@ export class StorefrontService implements OnModuleInit {
 
   private defaultCustomerPassword!: string
   private defaultCustomerPasswordHash!: string
+  private readonly companySingletonKey = 'default'
+
+  private mapCompanyProfile(record?: CompanyProfile | null): StorefrontConfig['companyProfile'] {
+    if (!record) {
+      return null
+    }
+
+    const logoBuffer = ensureNodeBuffer(record.logo)
+
+    return {
+      legalName: record.legalName ?? null,
+      tradeName: record.tradeName ?? null,
+      taxId: record.taxId ?? null,
+      email: record.email ?? null,
+      phone: record.phone ?? null,
+      website: record.website ?? null,
+      addressLine1: record.addressLine1 ?? null,
+      addressLine2: record.addressLine2 ?? null,
+      logo: logoBuffer ? buildImageDataUrl(logoBuffer) : null,
+    }
+  }
 
   async onModuleInit() {
     await this.ensureDefaultPasswordHash()
@@ -192,10 +214,23 @@ export class StorefrontService implements OnModuleInit {
     const merged = mergeDeep(DEFAULT_STOREFRONT_CONFIG, overrides)
     const layouts = Array.isArray(merged.layouts) && merged.layouts.length > 0 ? merged.layouts : DEFAULT_HOME_LAYOUTS
     const defaultLayout = layouts.some((layout) => layout.key === merged.defaultLayout) ? merged.defaultLayout : FALLBACK_LAYOUT_KEY
+
+    let companyProfile: StorefrontConfig['companyProfile'] = merged.companyProfile ?? null
+    const hasCompanyProfileOverride = Object.prototype.hasOwnProperty.call(overrides, 'companyProfile')
+
+    if (!hasCompanyProfileOverride) {
+      const record = await this.prisma.companyProfile.findUnique({
+        where: { singleton: this.companySingletonKey },
+      })
+      const resolved = this.mapCompanyProfile(record)
+      companyProfile = resolved ?? companyProfile
+    }
+
     return {
       ...merged,
       layouts,
       defaultLayout,
+      companyProfile,
     }
   }
 

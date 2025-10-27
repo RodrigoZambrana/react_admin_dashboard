@@ -1,7 +1,7 @@
 "use client";
 
-import { Fragment } from "react";
-import { useRouter } from "next/navigation";
+import { Fragment, useCallback } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import Grid from "@component/grid/Grid";
 import FlexBox from "@component/FlexBox";
@@ -16,12 +16,29 @@ import { Meta } from "interfaces";
 interface Props {
   meta: Meta;
   products: Product[];
+  selectedCategorySlug?: string;
 }
 // ==============================================================
 
-export default function SaleProducts({ products, meta }: Props) {
+export default function SaleProducts({ products, meta, selectedCategorySlug }: Props) {
   const { push } = useRouter();
-  const handlePageChange = (page: number) => push(`?page=${page + 1}`);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const handlePageChange = useCallback(
+    (page: number) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("page", String(page + 1));
+      if (selectedCategorySlug) {
+        params.set("category", selectedCategorySlug);
+      } else {
+        params.delete("category");
+      }
+      const query = params.toString();
+      push(query ? `${pathname}?${query}` : pathname);
+    },
+    [pathname, push, searchParams, selectedCategorySlug]
+  );
 
   return (
     <Fragment>

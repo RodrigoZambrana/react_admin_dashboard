@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 import Box from "@component/Box";
@@ -11,13 +13,24 @@ import { Paragraph } from "@component/Typography";
 import { StyledBox, StyledLink, Wrapper } from "./styles";
 // CUSTOM DATA
 import { customerCareLinks, iconList } from "./data";
+import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
 
 export default function Footer2() {
+  const storefrontConfig = useStorefrontConfig();
+  const companyProfile = storefrontConfig.companyProfile;
+  const logoSrc = companyProfile?.logo ?? "/assets/images/logo.svg";
+  const brandName =
+    companyProfile?.tradeName ??
+    companyProfile?.legalName ??
+    (typeof storefrontConfig.seo?.siteName === "string"
+      ? storefrontConfig.seo.siteName
+      : "Storefront");
+
   return (
     <footer>
       <Wrapper>
         <Link href="/">
-          <Image mb="1.5rem" src="/assets/images/logo.svg" alt="logo" />
+          <Image mb="1.5rem" src={logoSrc} alt={brandName} height="44px" />
         </Link>
 
         <Grid container spacing={6}>

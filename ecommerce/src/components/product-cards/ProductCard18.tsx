@@ -9,11 +9,13 @@ import Rating from "@component/rating";
 import NavLink from "@component/nav-link";
 import { Paragraph } from "@component/Typography";
 import { currency } from "@utils/utils";
+import ProductWishlistButton from "./ProductWishlistButton";
 
 // STYLED COMPONENT
 const StyledFlexBox = styled("div")({
   gap: "1rem",
   display: "flex",
+  position: "relative",
   marginBottom: "1rem",
   alignItems: "center",
   "& a": { flexShrink: 0 },
@@ -35,6 +37,8 @@ type ProductCard18Props = {
 export default function ProductCard18({ image, title, price, slug, rating }: ProductCard18Props) {
   return (
     <StyledFlexBox>
+      <ProductWishlistButton style={{ position: "absolute", top: 8, right: 8 }} />
+
       <Link href={`/product/${slug}`}>
         <Box maxWidth={100} bg="gray.300">
           <Image width="100%" alt="product" src={image} />
