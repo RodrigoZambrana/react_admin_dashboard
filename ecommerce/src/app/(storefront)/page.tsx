@@ -1,23 +1,12 @@
-// @ts-nocheck
+import { redirect } from "next/navigation";
 
-import HomeClient from "./HomeClient"
-import { getBlogPosts } from "@utils/blog"
+const HOME_PATH = process.env.NEXT_PUBLIC_STOREFRONT_HOME_PATH || "/market-1";
 
 export const metadata = {
-  title: "Wokiee React Storefront",
-  description: "Responsive multipurpose ecommerce storefront built on the Wokiee React template.",
-}
+  title: "Storefront",
+  description: "Configurable ecommerce storefront powered by the Bonik UI."
+};
 
-export default async function HomePage() {
-  const blogs = await getBlogPosts([
-    "title",
-    "excerpt",
-    "date",
-    "author",
-    "thumb",
-    "slug",
-    "categories",
-  ], 3)
-
-  return <HomeClient blogs={blogs} />
+export default function StorefrontHomePage() {
+  redirect(HOME_PATH.startsWith("/") ? HOME_PATH : `/${HOME_PATH}`);
 }

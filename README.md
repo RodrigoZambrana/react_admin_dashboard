@@ -9,8 +9,7 @@ root/
 ├── frontend/                 # Aplicación React + Vite + TS
 │   ├── Dockerfile            # Build multi-stage (Node -> Nginx)
 │   └── nginx/default.conf.template
-├── ecommerce/              # Storefront Next.js 16 + Tailwind (consumo vía /storefront)
-│   └── documentation/      # Recursos del storefront (imágenes, assets de diseño)
+├── ecommerce/              # Storefront (Next.js + styled-components) consumiendo la API /storefront
 ├── backend/                  # API NestJS + Fastify
 │   ├── Dockerfile            # Build multi-stage
 │   ├── prisma/schema.prisma  # Modelo de datos (incluye User)

@@ -543,7 +543,7 @@ export class SettingsController {
     const costPriceRaw = this.parseNumber(raw['costPrice'], Number.NaN)
     const costPrice = Number.isNaN(costPriceRaw) ? null : Math.max(costPriceRaw, 0)
 
-    const currency = String(raw['currency'] ?? 'UYU').trim() || 'UYU'
+    const currency = (String(raw['currency'] ?? 'UYU').trim() || 'UYU').toUpperCase()
     const descriptionValue = this.normalizeOptionalString(raw['description'])
     const productCodeValue = this.normalizeOptionalString(raw['productCode'])
     const description = descriptionValue === undefined ? null : descriptionValue

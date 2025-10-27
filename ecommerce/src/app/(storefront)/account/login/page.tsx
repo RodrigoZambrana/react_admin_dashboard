@@ -1,9 +1,5 @@
-import LoginClient from "./LoginClient"
+import { redirect } from "next/navigation";
 
-export const metadata = {
-  title: "Login | Storefront",
-}
-
-export default function LoginPage() {
-  return <LoginClient />
+export default function AccountLoginRedirect() {
+  redirect("/market-1");
 }

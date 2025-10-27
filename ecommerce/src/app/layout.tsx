@@ -1,39 +1,40 @@
-// @ts-nocheck
+import type { Metadata } from "next";
+import type { PropsWithChildren } from "react";
+import { Public_Sans } from "next/font/google";
+// THEME PROVIDER
+import StyledComponentsRegistry from "@lib/registry";
+// CONTEXT PROVIDER
+import CartProvider from "@context/CartContext";
+// THIRD PARTY CSS FILE
+import "slick-carousel/slick/slick.css";
+import "slick-carousel/slick/slick-theme.css";
 
-import "./globals.css"
-import "react-tippy/dist/tippy.css"
-import "@/theme/styles/index.scss"
-import CartContextProvider from "@global/CartContext"
-import CompareContextProvider from "@global/CompareContext"
-import WishlistContextProvider from "@global/WishlistContext"
-import ProductsContextProvider from "@global/ProductsContext"
+import { ThemeProvider } from "theme";
+import NProgressBar from "@component/NProgress";
 
-export const metadata = {
-  metadataBase: process.env.NEXT_PUBLIC_SITE_URL ? new URL(process.env.NEXT_PUBLIC_SITE_URL) : undefined,
-  title: {
-    default: "Ecommerce Storefront",
-    template: "%s · Ecommerce Storefront",
-  },
+const publicSans = Public_Sans({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: "Bonik - The Best React eCommerce Template",
   description:
-    "Configurable Next.js storefront powered by a headless Node.js backend. Supports dynamic layouts, merchandising, and secure commerce flows.",
-}
+    "Bonik is a React Next.js E-commerce template. Build SEO friendly Online store, delivery app and Multi vendor store",
+  authors: [{ name: "UI-LIB", url: "https://ui-lib.com" }],
+  keywords: ["e-commerce", "e-commerce template", "next.js", "react", "bonik"]
+};
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export default function RootLayout({ children }: PropsWithChildren) {
   return (
     <html lang="en">
-      <body>
-        <CartContextProvider>
-          <CompareContextProvider>
-            <WishlistContextProvider>
-              <ProductsContextProvider>{children}</ProductsContextProvider>
-            </WishlistContextProvider>
-          </CompareContextProvider>
-        </CartContextProvider>
+      <body className={publicSans.className}>
+        <StyledComponentsRegistry>
+          <CartProvider>
+            <ThemeProvider>
+              {children}
+              <NProgressBar />
+            </ThemeProvider>
+          </CartProvider>
+        </StyledComponentsRegistry>
       </body>
     </html>
-  )
+  );
 }

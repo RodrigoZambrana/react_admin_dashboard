@@ -1,15 +1,30 @@
-import { CartView } from "@/components/cart/CartView"
+import Box from "@component/Box";
+import Container from "@component/Container";
+import { H2, Paragraph } from "@component/Typography";
+import ShopLayout from "@component/layout/layout-1";
+
+import { CartView } from "@/components/cart/CartView";
+
+export const metadata = {
+  title: "Your cart · Storefront"
+};
 
 export default function CartPage() {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Your cart</h1>
-        <p className="text-sm text-slate-500">
-          Items in your cart are reserved for a limited time. Complete checkout to confirm inventory allocation.
-        </p>
-      </header>
-      <CartView />
-    </div>
-  )
+    <ShopLayout>
+      <Container my="3rem">
+        <Box mb="2rem">
+          <H2 fontWeight={600} mb="0.5rem">
+            Your Cart
+          </H2>
+          <Paragraph color="text.muted" maxWidth="520px">
+            Items in your cart are reserved for a limited time. Complete checkout to confirm
+            inventory allocation.
+          </Paragraph>
+        </Box>
+
+        <CartView />
+      </Container>
+    </ShopLayout>
+  );
 }

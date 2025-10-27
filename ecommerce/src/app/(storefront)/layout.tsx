@@ -1,13 +1,23 @@
-import { SiteLayout } from "@/components/layout/SiteLayout"
-import { getStorefrontConfig } from "@/lib/storefront-config"
-import { CartProvider } from "@/state/cart-context"
+import type { ReactNode } from "react";
 
-export default async function StorefrontLayout({ children }: { children: React.ReactNode }) {
-  const config = await getStorefrontConfig()
+import { getStorefrontConfig } from "@/lib/storefront-config";
+import { StorefrontCartProvider } from "@/state/cart-context";
+import { StorefrontSessionProvider } from "@/state/session-context";
+
+import { StorefrontConfigProvider } from "./storefront-context";
+
+type StorefrontLayoutProps = {
+  children: ReactNode;
+};
+
+export default async function StorefrontLayout({ children }: StorefrontLayoutProps) {
+  const config = await getStorefrontConfig();
 
   return (
-    <CartProvider>
-      <SiteLayout config={config}>{children}</SiteLayout>
-    </CartProvider>
-  )
+    <StorefrontConfigProvider config={config}>
+      <StorefrontSessionProvider>
+        <StorefrontCartProvider>{children}</StorefrontCartProvider>
+      </StorefrontSessionProvider>
+    </StorefrontConfigProvider>
+  );
 }

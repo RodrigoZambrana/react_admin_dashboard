@@ -1,18 +1,18 @@
+export const metadata = {
+  title: "Search · Storefront"
+};
+
 export default function SearchPage() {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6 lg:px-8">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Search catalog</h1>
-        <p className="text-sm text-slate-500">
-          Real-time search is handled by the backend catalog service. Hook this page into `/storefront/products` with
-          debounced queries to deliver instant results across categories, tags, and collections.
+    <main>
+      {/* TODO: implement client-side search experience using backend catalog endpoint */}
+      <section style={{ padding: "3rem 1.5rem" }}>
+        <h1 style={{ fontSize: "2rem", fontWeight: 600, marginBottom: "0.5rem" }}>Search</h1>
+        <p style={{ color: "#475569" }}>
+          Live search UI will query the `/storefront/products` endpoint with debounced requests.
         </p>
-      </header>
-      <div className="rounded-[var(--radius-lg)] border border-slate-200 bg-white p-10 text-slate-500">
-        Implement a client-side search experience by calling the catalog endpoint with query parameters. The backend is
-        optimized for full-text search and faceted filtering, ensuring parity between the storefront and the
-        administrative dashboard.
-      </div>
-    </div>
-  )
+      </section>
+    </main>
+  );
 }
+

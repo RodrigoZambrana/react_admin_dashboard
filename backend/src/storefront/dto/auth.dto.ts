@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator'
+import { IsDateString, IsEmail, IsOptional, IsString, MinLength } from 'class-validator'
 
 export class StorefrontRegisterDto {
   @IsEmail()
@@ -44,6 +44,14 @@ export class StorefrontUpdateProfileDto {
   lastName?: string
 
   @IsOptional()
+  @IsEmail()
+  email?: string | null
+
+  @IsOptional()
   @IsString()
   phone?: string
+
+  @IsOptional()
+  @IsDateString()
+  dateOfBirth?: string | null
 }

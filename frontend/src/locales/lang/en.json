@@ -1678,6 +1678,7 @@
             "columns": {
                 "id": "ID",
                 "name": "Name",
+                "service": "Installation service",
                 "parent": "Parent",
                 "description": "Description",
                 "image": "Image"
@@ -1685,14 +1686,30 @@
             "placeholders": {
                 "name": "Category name",
                 "description": "Description (optional)",
-                "image": "Image URL (optional)"
+                "image": "Image URL (optional)",
+                "serviceName": "Installation service name",
+                "serviceProductCode": "Service code (optional)",
+                "serviceSalePrice": "Sale price",
+                "serviceCostPrice": "Cost price (optional)",
+                "serviceCurrency": "Currency",
+                "serviceTaxRate": "Tax rate (optional)",
+                "serviceUnitOfMeasure": "Unit of measure",
+                "serviceDescription": "Service description (optional)"
             },
             "form": {
                 "parent": "Parent category",
                 "noParent": "No parent"
             },
             "validation": {
-                "selfParent": "A category cannot be its own parent."
+                "selfParent": "A category cannot be its own parent.",
+                "invalidServicePrice": "Please provide a valid installation price.",
+                "invalidServiceCost": "Please provide a valid installation cost.",
+                "invalidServiceTax": "Please provide a valid tax rate."
+            },
+            "labels": {
+                "installable": "This category includes an optional installation service",
+                "serviceHeading": "Installation Service",
+                "serviceSubtitle": "Define the installation product created automatically for this category."
             },
             "created": {
                 "title": "Successfully created",
