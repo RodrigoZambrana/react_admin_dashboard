@@ -58,6 +58,14 @@ const FALLBACK_CONFIG: StorefrontConfig = {
     defaultDescription:
       "Configurable eCommerce experience powered by a headless backend and Bonik presentation layer."
   },
+  companyProfile: {
+    legalName: "Bonik Storefront",
+    tradeName: "Bonik",
+    email: "support@ui-lib.com",
+    phone: "+88012 3456 7894",
+    addressLine1: "70 Washington Square South, New York, NY 10012, United States",
+    logo: "/assets/images/logo.svg"
+  },
   policies: [
     {
       title: "Shipping & delivery",
@@ -122,4 +130,3 @@ export const resolveHomeLayout = async (layoutKey?: string): Promise<HomeLayoutD
     return DEFAULT_HOME_LAYOUTS.find((candidate) => candidate.key === FALLBACK_LAYOUT_KEY)!;
   }
 };
-

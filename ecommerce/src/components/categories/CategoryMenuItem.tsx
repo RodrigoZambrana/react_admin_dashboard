@@ -10,6 +10,7 @@ interface CategoryMenuItemProps {
   icon?: string;
   title: string;
   caret?: boolean;
+  showChevron?: boolean;
   children: ReactNode;
 }
 // ===============================================================
@@ -19,15 +20,20 @@ export default function CategoryMenuItem({
   icon,
   title,
   children,
-  caret = true
+  caret = true,
+  showChevron = true
 }: CategoryMenuItemProps) {
+  const chevronClassName = caret ? "chevron-icon has-children" : "chevron-icon";
+
   return (
     <StyledCategoryMenuItem>
       <Link href={href}>
         <div className="category-dropdown-link">
           {icon && <Icon variant="small">{icon}</Icon>}
           <span className="title">{title}</span>
-          {caret && <IconChevronRight stroke={1.5} size={16} />}
+          {showChevron && (
+            <IconChevronRight className={chevronClassName} stroke={1.5} size={16} />
+          )}
         </div>
       </Link>
 

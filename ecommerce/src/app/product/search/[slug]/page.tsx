@@ -1,17 +1,14 @@
-import Box from "@component/Box";
-import SearchResult from "./SearchResult";
+import { redirect } from "next/navigation";
 
-export default function ProductSearchResult() {
-  return (
-    <Box pt="20px">
-      <SearchResult sortOptions={sortOptions} />
-    </Box>
-  );
+type ProductSearchResultProps = {
+  params: {
+    slug?: string;
+  };
+};
+
+export default function ProductSearchResult({ params }: ProductSearchResultProps) {
+  const searchTerm = params.slug?.trim();
+  const destination = searchTerm ? `/shop?query=${encodeURIComponent(searchTerm)}` : "/shop";
+
+  redirect(destination);
 }
-
-const sortOptions = [
-  { label: "Relevance", value: "Relevance" },
-  { label: "Date", value: "Date" },
-  { label: "Price Low to High", value: "Price Low to High" },
-  { label: "Price High to Low", value: "Price High to Low" }
-];

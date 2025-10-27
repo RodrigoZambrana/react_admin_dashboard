@@ -23,7 +23,7 @@ type HeaderProps = { className?: string };
 // ========================================================================
 
 export default function HeaderTwo({ className }: HeaderProps) {
-  const { state } = useCart();
+  const { state, itemCount } = useCart();
   const [open, setOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
 
@@ -38,7 +38,7 @@ export default function HeaderTwo({ className }: HeaderProps) {
         <IconShoppingCart size={16} stroke={1.5} />
       </IconButton>
 
-      {state.cart.length > 0 && (
+      {itemCount > 0 && (
         <FlexBox
           px="5px"
           py="2px"
@@ -49,7 +49,7 @@ export default function HeaderTwo({ className }: HeaderProps) {
           borderRadius="300px"
           justifyContent="center">
           <Tiny color="white" fontWeight="600">
-            {state.cart.length}
+            {itemCount}
           </Tiny>
         </FlexBox>
       )}

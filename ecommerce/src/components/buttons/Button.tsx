@@ -4,6 +4,7 @@ import { ComponentPropsWithRef } from "react";
 import { SpaceProps, ColorProps, LayoutProps, BorderProps, BackgroundProps } from "styled-system";
 import { colorOptions } from "interfaces";
 import { StyledButton } from "./styles";
+import { useTranslatedNode } from "@/state/i18n-context";
 
 // ==============================================================
 type ButtonSize = "small" | "medium" | "large" | "none";
@@ -39,6 +40,8 @@ export default function Button({
   variant = "contained",
   ...props
 }: ButtonProps) {
+  const content = useTranslatedNode(children);
+
   return (
     <StyledButton
       ref={ref}
@@ -47,7 +50,7 @@ export default function Button({
       variant={variant}
       fullWidth={fullWidth}
       {...props}>
-      {children}
+      {content}
     </StyledButton>
   );
 }

@@ -6,11 +6,11 @@ import Box from "@component/Box";
 import Shop from "@models/shop.model";
 import FlexBox from "@component/FlexBox";
 import { H6 } from "@component/Typography";
-import ProductReview from "@component/products/ProductReview";
 import AvailableShops from "@component/products/AvailableShops";
 import RelatedProducts from "@component/products/RelatedProducts";
 import FrequentlyBought from "@component/products/FrequentlyBought";
 import ProductDescription from "@component/products/ProductDescription";
+import ProductSpecifications from "@component/products/ProductSpecifications";
 import Product from "@models/product.model";
 
 // ==============================================================
@@ -33,6 +33,8 @@ export default function ProductView({
   specifications
 }: Props) {
   const [selectedOption, setSelectedOption] = useState("description");
+  const showFrequentlyBoughtSection = false; // hide Frequently Bought Together section
+  const showAvailableShopsSection = false; // hide Available Shops section
   const handleOptionClick = (opt: any) => () => setSelectedOption(opt);
 
   return (
@@ -55,30 +57,30 @@ export default function ProductView({
           fontWeight={500}
           className="cursor-pointer"
           borderColor="primary.main"
-          onClick={handleOptionClick("review")}
-          borderBottom={selectedOption === "review" ? "2px solid" : ""}
-          color={selectedOption === "review" ? "primary.main" : "text.muted"}>
-          Review (3)
+          onClick={handleOptionClick("specifications")}
+          borderBottom={selectedOption === "specifications" ? "2px solid" : ""}
+          color={selectedOption === "specifications" ? "primary.main" : "text.muted"}>
+          Specifications
         </H6>
       </FlexBox>
 
-      {/* DESCRIPTION AND REVIEW TAB DETAILS */}
+      {/* DESCRIPTION AND SPECIFICATION TAB DETAILS */}
       <Box mb="50px">
         {selectedOption === "description" && (
-          <ProductDescription
-            description={description}
-            descriptionHtml={descriptionHtml}
-            specifications={specifications}
-          />
+          <ProductDescription description={description} descriptionHtml={descriptionHtml} />
         )}
-        {selectedOption === "review" && <ProductReview />}
+        {selectedOption === "specifications" && (
+          <ProductSpecifications specifications={specifications} />
+        )}
       </Box>
 
       {/* FREQUENTLY BOUGHT TOGETHER PRODUCTS */}
-      {frequentlyBought && <FrequentlyBought products={frequentlyBought} />}
+      {showFrequentlyBoughtSection && frequentlyBought && (
+        <FrequentlyBought products={frequentlyBought} />
+      )}
 
       {/* AVAILABLE SHOPS */}
-      {shops && <AvailableShops shops={shops} />}
+      {showAvailableShopsSection && shops && <AvailableShops shops={shops} />}
 
       {/* RELATED PRODUCTS */}
       {relatedProducts && <RelatedProducts products={relatedProducts} />}

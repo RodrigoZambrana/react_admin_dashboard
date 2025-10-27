@@ -1,4 +1,6 @@
-import { useMemo, memo } from "react";
+"use client";
+
+import { useMemo, memo, useId } from "react";
 import { useTheme } from "styled-components";
 import { SpaceProps } from "styled-system";
 import ReactSelect, { Props, Theme } from "react-select";
@@ -29,8 +31,19 @@ const styles = (errorText: string) =>
     })
   } as Props["styles"]);
 
-const Select = memo(({ options, isMulti = false, id, label, errorText, ...props }: SelectProps) => {
+const Select = memo(
+  ({
+    options,
+    isMulti = false,
+    id,
+    label,
+    errorText,
+    inputId: providedInputId,
+    instanceId: providedInstanceId,
+    ...restProps
+  }: SelectProps) => {
   const { colors } = useTheme();
+  const autoId = useId();
 
   const selectTheme = (theme: Theme) => ({
     ...theme,
@@ -41,22 +54,53 @@ const Select = memo(({ options, isMulti = false, id, label, errorText, ...props 
       neutral20: colors.text.disabled
     }
   });
-  const spacingProps = useMemo(() => {
-    const spacing = {};
+  const computedIds = useMemo(() => {
+    const resolvedInstance = providedInstanceId ?? id ?? `select-${autoId}`;
+    return {
+      instance: resolvedInstance,
+      input: providedInputId ?? `${resolvedInstance}-input`,
+      label: label ? `${resolvedInstance}-label` : undefined
+    };
+  }, [autoId, id, label, providedInputId, providedInstanceId]);
 
-    Object.entries(props).forEach(([key, value]) => {
+  const spacingProps = useMemo(() => {
+    const spacing: Record<string, unknown> = {};
+    Object.entries(restProps as Record<string, unknown>).forEach(([key, value]) => {
       if (key.startsWith("m") || key.startsWith("p")) {
         spacing[key] = value;
       }
     });
-
     return spacing;
-  }, [props]);
+  }, [restProps]);
+
+  const baseSelectProps = useMemo(() => {
+    const result = { ...(restProps as Record<string, unknown>) };
+    Object.keys(result).forEach((key) => {
+      if (key.startsWith("m") || key.startsWith("p")) {
+        delete result[key];
+      }
+    });
+    return result;
+  }, [restProps]);
+
+  const selectProps = useMemo(() => {
+    if (!computedIds.label) {
+      return baseSelectProps;
+    }
+    const existing = baseSelectProps["aria-labelledby"] as string | undefined;
+    if (existing === computedIds.label) {
+      return baseSelectProps;
+    }
+    return {
+      ...baseSelectProps,
+      "aria-labelledby": existing ?? computedIds.label
+    };
+  }, [baseSelectProps, computedIds.label]);
 
   return (
-    <Box {...spacingProps}>
+    <Box {...(spacingProps as SpaceProps)}>
       {label && (
-        <Typography fontSize="0.875rem" mb="6px" fontWeight={500}>
+        <Typography id={computedIds.label} fontSize="0.875rem" mb="6px" fontWeight={500}>
           {label}
         </Typography>
       )}
@@ -66,7 +110,9 @@ const Select = memo(({ options, isMulti = false, id, label, errorText, ...props 
         options={options}
         theme={selectTheme}
         styles={styles(errorText)}
-        {...props}
+        instanceId={computedIds.instance}
+        inputId={computedIds.input}
+        {...(selectProps as Props)}
       />
 
       {errorText && (
@@ -76,6 +122,7 @@ const Select = memo(({ options, isMulti = false, id, label, errorText, ...props 
       )}
     </Box>
   );
-});
+  }
+);
 
 export default Select;

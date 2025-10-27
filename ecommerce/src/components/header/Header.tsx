@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import type { JSX, MouseEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { FormikHelpers } from "formik";
-import { IconShoppingCart, IconUser } from "@tabler/icons-react";
+import { IconChevronRight, IconShoppingCart, IconUser } from "@tabler/icons-react";
 
 import Login, { type LoginFormValues } from "@sections/auth/Login";
 
@@ -15,7 +15,7 @@ import Icon from "@component/icon/Icon";
 import FlexBox from "@component/FlexBox";
 import MiniCart from "@component/mini-cart";
 import Container from "@component/Container";
-import { H4, H5, Span, Tiny } from "@component/Typography";
+import { H4, Span, Tiny } from "@component/Typography";
 import { Button, IconButton } from "@component/buttons";
 import Sidenav from "@component/sidenav/Sidenav";
 import Categories from "@component/categories/Categories";
@@ -23,33 +23,25 @@ import { SearchInputWithCategory } from "@component/search-box";
 import useCart from "@hook/useCart";
 import { useSession } from "@/state/session-context";
 import { looksLikePhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
+import type { CategorySummary } from "@/types/storefront";
+import { useStorefrontNavigation, type StorefrontNavigationNode } from "@/hooks/useStorefrontNavigation";
 import DashboardNavigation from "@component/layout/DashboardNavigation";
 import StyledHeader from "./styles";
 import Logo from "./Logo";
-import navbarNavigations from "@data/navbarNavigations";
-import categoryNavigations from "@data/navigations";
-
-const HOME_PATH = process.env.NEXT_PUBLIC_STOREFRONT_HOME_PATH || "/market-1";
-
-const normalizePath = (path: string) => (path.startsWith("/") ? path : `/${path}`);
 
 type HeaderProps = { isFixed?: boolean; className?: string };
 
-type NavItem = {
-  title: string;
-  url?: string;
-  extLink?: boolean;
-  child?: NavItem[];
-};
+type NavItem = StorefrontNavigationNode;
 
 const renderNavTree = (
   items: NavItem[],
   depth: number,
   onNavigate: () => void
 ): JSX.Element[] =>
-  items.map((item) => {
+  items.map((item, index) => {
     const hasChildren = Array.isArray(item.child) && item.child.length > 0;
     const paddingLeft = depth === 0 ? 0 : depth * 16;
+    const itemKey = `${item.title}-${item.url ?? index}-${depth}`;
 
     const content = item.url ? (
       item.extLink ? (
@@ -70,7 +62,7 @@ const renderNavTree = (
     );
 
     return (
-      <Box key={`${item.title}-${depth}`} pl={`${paddingLeft}px`} mt="0.5rem">
+      <Box key={itemKey} pl={`${paddingLeft}px`} mt="0.5rem">
         {content}
         {hasChildren && (
           <Box mt="0.35rem">{renderNavTree(item.child!, depth + 1, onNavigate)}</Box>
@@ -79,70 +71,69 @@ const renderNavTree = (
     );
   });
 
-const renderCategorySections = (onNavigate: () => void): JSX.Element[] =>
-  categoryNavigations.map((section) => {
-    const menuData = (
-      section as {
-        menuData?: {
-          categories?: Array<{
-            title: string;
-            href?: string;
-            subCategories?: Array<{ title: string; href: string }>;
-          }>;
-          brands?: Array<{ title: string; href?: string }>;
-        };
-      }
-    ).menuData ?? {};
-    const categories = menuData.categories ?? [];
-    const brands = menuData.brands ?? [];
+const renderCategoryDrawer = (
+  categories: CategorySummary[],
+  icons: string[],
+  onNavigate: () => void
+): JSX.Element[] =>
+  categories.map((category, index) => {
+    const iconName = icons[index % icons.length] ?? "category";
+    const childCategories = Array.isArray(category.children) ? category.children : [];
+
+    const categoryLink = category.slug
+      ? `/product/search/${encodeURIComponent(category.slug)}`
+      : undefined;
 
     return (
-      <Box key={section.title} mt="1.25rem">
-        <FlexBox alignItems="center" mb="0.35rem" justifyContent="space-between">
-          <H5 fontWeight={600}>{section.title}</H5>
-          {section.href ? (
-            <Link href={section.href} onClick={onNavigate}>
-              <Span fontSize="12px" color="primary.main">
-                Explore
-              </Span>
-            </Link>
-          ) : null}
-        </FlexBox>
-
-        {categories.map((category) => (
-          <Box key={category.title} pl="16px" mt="0.5rem">
-            {category.href ? (
-              <Link href={category.href} onClick={onNavigate}>
-                <Span fontWeight={500}>{category.title}</Span>
+      <Box key={category.slug ?? category.id} mt="0.75rem">
+        <FlexBox alignItems="center" justifyContent="space-between" gridGap="0.75rem">
+          <FlexBox alignItems="center" gridGap="0.5rem" flex="1 1 auto">
+            <Icon variant="small">{iconName}</Icon>
+            {categoryLink ? (
+              <Link href={categoryLink} onClick={onNavigate}>
+                <Span fontWeight={600}>{category.name}</Span>
               </Link>
             ) : (
-              <Span fontWeight={500}>{category.title}</Span>
+              <Span fontWeight={600}>{category.name}</Span>
             )}
+          </FlexBox>
 
-            {category.subCategories?.map((sub) => (
-              <Box key={sub.title} pl="16px" mt="0.35rem">
-                <Link href={sub.href} onClick={onNavigate}>
-                  <Span color="text.muted" fontSize="14px">
-                    {sub.title}
-                  </Span>
-                </Link>
-              </Box>
-            ))}
-          </Box>
-        ))}
+          <IconChevronRight size={16} stroke={1.5} />
+        </FlexBox>
 
-        {brands.length > 0 && (
-          <Box pl="16px" mt="0.75rem">
-            <Span fontWeight={500}>Popular Brands</Span>
-            <FlexBox flexWrap="wrap" gridGap="0.5rem" mt="0.35rem">
-              {brands.map((brand: any) => (
-                <Link key={brand.title} href={brand.href} onClick={onNavigate}>
-                  <Span color="text.muted" fontSize="14px">
-                    {brand.title}
-                  </Span>
-                </Link>
-              ))}
-            </FlexBox>
+        {childCategories.length > 0 && (
+          <Box
+            mt="0.4rem"
+            pl="1.75rem"
+            display="flex"
+            flexDirection="column"
+            gridGap="0.35rem">
+            {childCategories.map((child) => {
+              const childKey = child.slug ?? `${category.slug}-${child.name}`;
+              const content = (
+                <FlexBox
+                  alignItems="center"
+                  justifyContent="space-between"
+                  gridGap="0.5rem"
+                  color="text.muted">
+                  <Span fontSize="14px">{child.name}</Span>
+                  <IconChevronRight size={14} stroke={1.5} />
+                </FlexBox>
+              );
+
+              if (child.slug) {
+                return (
+                  <Link
+                    key={child.slug}
+                    href={`/product/search/${encodeURIComponent(child.slug)}`}
+                    onClick={onNavigate}>
+                    {content}
+                  </Link>
+                );
+              }
+
+              return <Box key={childKey}>{content}</Box>;
+            })}
           </Box>
         )}
       </Box>
@@ -150,7 +141,7 @@ const renderCategorySections = (onNavigate: () => void): JSX.Element[] =>
   });
 
 export default function Header({ isFixed, className }: HeaderProps) {
-  const { state } = useCart();
+  const { state, itemCount } = useCart();
   const router = useRouter();
   const { isAuthenticated, logout, login, error, clearError } = useSession();
   const [cartOpen, setCartOpen] = useState(false);
@@ -159,8 +150,7 @@ export default function Header({ isFixed, className }: HeaderProps) {
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [loginSubmitting, setLoginSubmitting] = useState(false);
-
-  const homePath = useMemo(() => normalizePath(HOME_PATH), []);
+  const { homePath, navItems, categoriesForMenu, categoryIcons } = useStorefrontNavigation();
 
   const handleOpenCart = useCallback(() => setCartOpen(true), []);
   const handleCloseCart = useCallback(() => setCartOpen(false), []);
@@ -295,7 +285,7 @@ export default function Header({ isFixed, className }: HeaderProps) {
         <IconShoppingCart size={16} stroke={1.5} />
       </IconButton>
 
-      {state.cart.length > 0 && (
+      {itemCount > 0 && (
         <FlexBox
           top={-5}
           right={-5}
@@ -307,7 +297,7 @@ export default function Header({ isFixed, className }: HeaderProps) {
           position="absolute"
           justifyContent="center">
           <Tiny color="white" fontWeight="600" lineHeight={1}>
-            {state.cart.length}
+            {itemCount}
           </Tiny>
         </FlexBox>
       )}
@@ -341,7 +331,7 @@ export default function Header({ isFixed, className }: HeaderProps) {
               <H4 mb="0.75rem" fontWeight={600}>
                 Navegación
               </H4>
-              {renderNavTree(navbarNavigations as NavItem[], 0, handleNavigateFromNav)}
+              {renderNavTree(navItems as NavItem[], 0, handleNavigateFromNav)}
             </Box>
           </Sidenav>
 
@@ -356,7 +346,9 @@ export default function Header({ isFixed, className }: HeaderProps) {
               <H4 mb="0.75rem" fontWeight={600}>
                 Categorías
               </H4>
-              {renderCategorySections(handleNavigateFromNav)}
+              <Box mt="0.75rem" display="flex" flexDirection="column" gridGap="0.25rem">
+                {renderCategoryDrawer(categoriesForMenu, categoryIcons, handleNavigateFromNav)}
+              </Box>
             </Box>
           </Sidenav>
         </FlexBox>
@@ -369,6 +361,8 @@ export default function Header({ isFixed, className }: HeaderProps) {
           {isFixed && (
             <div className="category-holder">
               <Categories
+                categories={categoriesForMenu}
+                icons={categoryIcons}
                 handler={(handleOpen) => (
                   <FlexBox color="text.hint" alignItems="center" ml="1rem" onClick={handleOpen}>
                     <Icon>categories</Icon>

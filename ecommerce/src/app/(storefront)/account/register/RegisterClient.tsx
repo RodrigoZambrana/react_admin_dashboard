@@ -72,7 +72,7 @@ export default function RegisterClient() {
         lastName: values.lastName.trim(),
         phone: normalizedPhone
       });
-      router.replace("/market-1");
+      router.replace("/");
     } catch (err) {
       // session context provides the error message; nothing else to do here
     } finally {

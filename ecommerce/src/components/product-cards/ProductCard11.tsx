@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import styled from "styled-components";
 
@@ -7,6 +9,7 @@ import FlexBox from "@component/FlexBox";
 import NextImage from "@component/NextImage";
 import { H6, SemiSpan, Small } from "@component/Typography";
 import { calculateDiscount, currency } from "@utils/utils";
+import ProductWishlistButton from "./ProductWishlistButton";
 
 // STYLED COMPONENT
 const StyledProductCard = styled.div`
@@ -49,32 +52,36 @@ export default function ProductCard11(props: ProductCard11Props) {
   const { title, imgUrl, price, rating, slug, off = 0 } = props;
 
   return (
-    <Link href={`/product/${slug}`}>
-      <StyledProductCard>
-        <Box mb="1rem" className="image-holder">
+    <StyledProductCard>
+      <Box mb="1rem" className="image-holder">
+        <Link href={`/product/${slug}`}>
           <NextImage src={imgUrl} width={150} height={150} alt="bonik" />
-        </Box>
+        </Link>
 
-        <Box mb="0.5rem">
-          <Rating value={rating} outof={5} color="warn" readOnly />
-        </Box>
+        <ProductWishlistButton style={{ position: "absolute", top: 12, right: 12 }} />
+      </Box>
 
+      <Box mb="0.5rem">
+        <Rating value={rating} outof={5} color="warn" readOnly />
+      </Box>
+
+      <Link href={`/product/${slug}`}>
         <H6 className="ellipsis" mb="6px" title={title}>
           {title}
         </H6>
+      </Link>
 
-        <FlexBox alignItems="center">
-          <SemiSpan pr="0.3rem" fontWeight="600" color="primary.main" lineHeight="1">
-            {calculateDiscount(price, off)}
-          </SemiSpan>
+      <FlexBox alignItems="center">
+        <SemiSpan pr="0.3rem" fontWeight="600" color="primary.main" lineHeight="1">
+          {calculateDiscount(price, off)}
+        </SemiSpan>
 
-          {!!off && (
-            <Small color="text.muted" lineHeight="1">
-              <del>{currency(price, 0)}</del>
-            </Small>
-          )}
-        </FlexBox>
-      </StyledProductCard>
-    </Link>
+        {!!off && (
+          <Small color="text.muted" lineHeight="1">
+            <del>{currency(price, 0)}</del>
+          </Small>
+        )}
+      </FlexBox>
+    </StyledProductCard>
   );
 }

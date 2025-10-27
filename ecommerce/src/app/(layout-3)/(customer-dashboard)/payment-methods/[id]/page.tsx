@@ -1,3 +1,10 @@
+import { notFound } from "next/navigation";
+
+export default function PaymentMethodEditor() {
+  notFound();
+}
+
+/*
 import Link from "next/link";
 import { Fragment } from "react";
 import { IconCreditCard } from "@tabler/icons-react";
@@ -33,3 +40,4 @@ export default async function PaymentMethodEditor({ params }: IDParams) {
     </Fragment>
   );
 }
+*/

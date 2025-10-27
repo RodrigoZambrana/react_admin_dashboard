@@ -1,7 +1,10 @@
+"use client";
+
 import Box from "@component/Box";
 import Card from "@component/Card";
 import Chip from "@component/Chip";
 import NextImage from "@component/NextImage";
+import ProductWishlistButton from "./ProductWishlistButton";
 
 // ===========================================================================
 type ProductCard6Props = {
@@ -43,6 +46,8 @@ const ProductCard6 = ({ title, subtitle, imgUrl }: ProductCard6Props) => {
       <Box borderRadius={8} display="flex" overflow="hidden">
         <NextImage src={imgUrl} width={345} height={120} alt="bonik" />
       </Box>
+
+      <ProductWishlistButton style={{ position: "absolute", bottom: 16, right: 16 }} />
     </Card>
   );
 };

@@ -66,22 +66,12 @@ export default function SearchInputWithCategory() {
 
   const latestRequestRef = useRef(0);
 
-  const buildCategoryOptions = useCallback(
-    (categories: CategorySummary[], ancestors: string[] = []): CategoryOption[] => {
-      return categories.flatMap((category) => {
-        const path = [...ancestors, category.name];
-        const option: CategoryOption = {
-          label: path.join(" › "),
-          slug: category.slug
-        };
-        const children = Array.isArray(category.children)
-          ? buildCategoryOptions(category.children, path)
-          : [];
-        return [option, ...children];
-      });
-    },
-    []
-  );
+  const buildCategoryOptions = useCallback((categories: CategorySummary[]): CategoryOption[] => {
+    return categories.map((category) => ({
+      label: category.name,
+      slug: category.slug
+    }));
+  }, []);
 
   const fetchCategories = useCallback(async () => {
     try {

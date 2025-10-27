@@ -1,3 +1,10 @@
+import { notFound } from "next/navigation";
+
+export default function PaymentMethods() {
+  notFound();
+}
+
+/*
 import Link from "next/link";
 import { Fragment } from "react";
 import { IconCreditCard } from "@tabler/icons-react";
@@ -53,3 +60,4 @@ const methodList = [
     card_no: "1234 **** **** ****"
   }
 ];
+*/

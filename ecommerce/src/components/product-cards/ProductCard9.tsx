@@ -18,6 +18,7 @@ import { H5, SemiSpan } from "../Typography";
 import ProductQuickView from "@component/products/ProductQuickView";
 import useCart from "@hook/useCart";
 import { calculateDiscount, currency } from "@utils/utils";
+import ProductWishlistButton from "./ProductWishlistButton";
 
 // STYLED COMPONENT
 const Wrapper = styled(Card)`
@@ -201,9 +202,7 @@ export default function ProductCard9({
                 alignItems="center"
                 flexDirection="row-reverse"
                 justifyContent="space-between">
-                <Icon className="favorite-icon outlined-icon" variant="small">
-                  heart
-                </Icon>
+                <ProductWishlistButton className="favorite-icon outlined-icon" />
 
                 <FlexBox alignItems="center" flexDirection="row-reverse">
                   <Button
@@ -249,9 +248,7 @@ export default function ProductCard9({
             alignItems="center"
             flexDirection="column"
             justifyContent="space-between">
-            <Icon className="favorite-icon outlined-icon" variant="small">
-              heart
-            </Icon>
+            <ProductWishlistButton className="favorite-icon outlined-icon" />
 
             <FlexBox
               alignItems="center"

@@ -77,6 +77,18 @@ export interface AnnouncementBanner {
   active: boolean;
 }
 
+export interface CompanyProfile {
+  legalName?: string | null;
+  tradeName?: string | null;
+  taxId?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  logo?: string | null;
+}
+
 export interface StorefrontConfig {
   defaultLayout: string;
   layouts: HomeLayoutDefinition[];
@@ -85,6 +97,7 @@ export interface StorefrontConfig {
   seo: SeoConfig;
   policies: StorefrontPolicy[];
   announcement?: AnnouncementBanner | null;
+  companyProfile?: CompanyProfile | null;
 }
 
 export type InventoryStatus = "in-stock" | "limited" | "back-order" | "out-of-stock";

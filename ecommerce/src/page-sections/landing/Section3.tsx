@@ -81,88 +81,22 @@ export default function Section3() {
 const demoPageList = [
   {
     imgUrl: "/assets/images/landing/page-1.png",
-    previewUrl: "/market-1",
-    title: "Market 1",
+    previewUrl: "/",
+    title: "Storefront",
     new: false
-  },
-  {
-    imgUrl: "/assets/images/landing/market-2.png",
-    previewUrl: "/market-2",
-    title: "Market 2",
-    new: true
-  },
-  {
-    imgUrl: "/assets/images/landing/page-4.png",
-    previewUrl: "/gadget-shop",
-    title: "Gadget Shop",
-    new: false
-  },
-  {
-    imgUrl: "/assets/images/landing/grocery-1.png",
-    previewUrl: "/grocery-1",
-    title: "Grocery 1",
-    new: true
-  },
-  {
-    imgUrl: "/assets/images/landing/grocery-2.png",
-    previewUrl: "/grocery-2",
-    title: "Grocery 2",
-    new: false
-  },
-  {
-    imgUrl: "/assets/images/landing/grocery-3.png",
-    previewUrl: "/grocery-3",
-    title: "Grocery 3",
-    new: true
-  },
-  {
-    imgUrl: "/assets/images/landing/page-3.png",
-    previewUrl: "/fashion-1",
-    title: "Fashion 1",
-    new: false
-  },
-  {
-    imgUrl: "/assets/images/landing/fashion-2.png",
-    previewUrl: "/fashion-2",
-    title: "Fashion 2",
-    new: true
-  },
-  {
-    imgUrl: "/assets/images/landing/fashion-3.png",
-    previewUrl: "/fashion-3",
-    title: "Fashion 3",
-    new: true
-  },
-  {
-    imgUrl: "/assets/images/landing/gift-shop.png",
-    previewUrl: "/gift-shop",
-    title: "Gift Shop",
-    new: true
-  },
-  {
-    imgUrl: "/assets/images/landing/furniture.png",
-    previewUrl: "/furniture-shop",
-    title: "Furniture Shop",
-    new: true
-  },
-  {
-    imgUrl: "/assets/images/landing/health-beauty.png",
-    previewUrl: "/health-beauty",
-    title: "Health Beauty Shop",
-    new: true
   }
 ];
 
 const shopPageList = [
   {
     imgUrl: "/assets/images/landing/shop/page-7.png",
-    previewUrl: "/sale-page-1",
+    previewUrl: "/shop",
     title: "Sale Page 1",
     new: false
   },
   {
     imgUrl: "/assets/images/landing/shop/page-8.png",
-    previewUrl: "/sale-page-2",
+    previewUrl: "/shop",
     title: "Sale Page 2",
     new: false
   },

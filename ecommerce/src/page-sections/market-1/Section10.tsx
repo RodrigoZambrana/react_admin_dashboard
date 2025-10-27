@@ -1,12 +1,8 @@
-import Link from "next/link";
-import Box from "@component/Box";
-import Card from "@component/Card";
+import Image from "next/image";
 import Grid from "@component/grid/Grid";
 import Container from "@component/Container";
-import NextImage from "@component/NextImage";
-import Typography from "@component/Typography";
-import CategorySectionHeader from "@component/CategorySectionHeader";
-// API FUNCTIONS
+import { H2, H4 } from "@component/Typography";
+import { CategoryWrapper, CategoryTitle } from "./Section10.styles";
 import api from "@utils/__api__/market-1";
 
 export default async function Section10() {
@@ -14,28 +10,26 @@ export default async function Section10() {
 
   return (
     <Container mb="70px">
-      <CategorySectionHeader title="Categories" iconName="categories" seeMoreLink="#" />
+      <H2 textAlign="center" mb={4} fontWeight={700}>
+        Explore Popular Categories
+      </H2>
 
       <Grid container spacing={6}>
-        {categories.map((item) => (
-          <Grid item lg={2} md={3} sm={4} xs={12} key={item.id}>
-            <Link href="/">
-              <Card
-                hoverEffect
-                p="0.75rem"
-                display="flex"
-                borderRadius={8}
-                boxShadow="small"
-                alignItems="center">
-                <Box width={50} height={50}>
-                  <NextImage width={52} height={52} alt="fashion" src={item.image} />
-                </Box>
+        {categories.map((category) => (
+          <Grid item md={3} sm={6} xs={12} key={category.id}>
+            <CategoryWrapper>
+              <Image
+                width={400}
+                height={400}
+                src={category.image}
+                alt={category.name}
+                style={{ width: "100%", height: "auto", objectFit: "cover" }}
+              />
 
-                <Typography fontWeight={600} fontSize={14} ml="8px">
-                  {item.name}
-                </Typography>
-              </Card>
-            </Link>
+              <CategoryTitle className="category-title">
+                <H4 fontWeight={600}>{category.name}</H4>
+              </CategoryTitle>
+            </CategoryWrapper>
           </Grid>
         ))}
       </Grid>

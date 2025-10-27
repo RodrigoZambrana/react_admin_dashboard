@@ -118,7 +118,8 @@ const getOpticsList = async (): Promise<Product[]> => {
 };
 
 const getCategories = async (): Promise<Category[]> => {
-  return fetchCategoriesWithFallback("/api/market-1/bottom-categories");
+  const categories = await fetchCategoriesWithFallback("/api/market-1/bottom-categories");
+  return categories.filter((category) => !category.parent || category.parent.length === 0);
 };
 
 const getMoreItems = async (): Promise<Product[]> => {
@@ -137,7 +138,7 @@ const getMainCarousel = async (): Promise<[MainCarouselItem]> => {
 
 const getTopCategories = async (): Promise<Category[]> => {
   const categories = await fetchCategoriesWithFallback("/api/market-1/top-categories");
-  return categories.slice(0, 6);
+  return categories.filter((category) => !category.parent || category.parent.length === 0).slice(0, 6);
 };
 
 const BIG_DISCOUNT_MIN_ITEMS = 6;

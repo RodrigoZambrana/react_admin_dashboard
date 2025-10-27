@@ -5,6 +5,7 @@ import Rating from "../rating";
 import Icon from "../icon/Icon";
 import FlexBox from "../FlexBox";
 import { Button } from "../buttons";
+import ProductWishlistButton from "./ProductWishlistButton";
 
 // STYLED COMPONENT
 const Wrapper = styled.div`
@@ -114,9 +115,7 @@ export default function ProductCard3({ ...props }: ProductCard3Props) {
           </div>
 
           <div className="icon-holder">
-            <Icon className="favorite-icon" color="primary" variant="small">
-              heart-filled
-            </Icon>
+            <ProductWishlistButton className="favorite-icon" />
           </div>
         </FlexBox>
 

@@ -62,6 +62,19 @@ export interface StorefrontConfig {
     updatedAt: string
   }>
   announcement?: Record<string, unknown> | null
+  companyProfile?: CompanyProfileDto | null
+}
+
+export interface CompanyProfileDto {
+  legalName?: string | null
+  tradeName?: string | null
+  taxId?: string | null
+  email?: string | null
+  phone?: string | null
+  website?: string | null
+  addressLine1?: string | null
+  addressLine2?: string | null
+  logo?: string | null
 }
 
 export interface MoneyDto {

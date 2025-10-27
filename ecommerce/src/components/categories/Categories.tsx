@@ -3,15 +3,23 @@
 import { useState, useEffect, useCallback, ReactNode } from "react";
 import CategoryDropdown from "./CategoryDropdown";
 import { StyledCategory } from "./styles";
+import type { CategorySummary } from "@/types/storefront";
 
 // =====================================================================
 interface CategoriesProps {
   open?: boolean;
   handler: (handleOpen: () => void) => ReactNode;
+  categories?: CategorySummary[];
+  icons?: string[];
 }
 // =====================================================================
 
-export default function Categories({ open: controlledOpen, handler }: CategoriesProps) {
+export default function Categories({
+  open: controlledOpen,
+  handler,
+  categories,
+  icons
+}: CategoriesProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
 
   const isControlled = controlledOpen !== undefined;
@@ -32,6 +40,14 @@ export default function Categories({ open: controlledOpen, handler }: Categories
     }
   }, [open, isControlled, handleOpen]);
 
+  const handleMouseEnter = useCallback(() => {
+    handleOpen(true);
+  }, [handleOpen]);
+
+  const handleMouseLeave = useCallback(() => {
+    handleOpen(false);
+  }, [handleOpen]);
+
   useEffect(() => {
     if (open) {
       document.addEventListener("click", handleDocumentClick);
@@ -45,10 +61,10 @@ export default function Categories({ open: controlledOpen, handler }: Categories
   }, [open, handleDocumentClick]);
 
   return (
-    <StyledCategory open={open}>
+    <StyledCategory open={open} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       {handler(() => handleOpen(true))}
 
-      <CategoryDropdown open={open} />
+      <CategoryDropdown open={open} categories={categories} icons={icons} />
     </StyledCategory>
   );
 }

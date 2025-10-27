@@ -7,20 +7,16 @@ import MenuItem from "../MenuItem";
 import Container from "../Container";
 import { Span } from "../Typography";
 import StyledNavbar from "./styles";
-import navbarNavigations from "@data/navbarNavigations";
+import { useStorefrontNavigation, type StorefrontNavigationNode } from "@/hooks/useStorefrontNavigation";
 
 // ==============================================================
-interface Nav {
-  title: string;
-  url: string;
-  child: Nav[];
-  extLink?: boolean;
-}
+type Nav = StorefrontNavigationNode;
 
 type NavbarProps = { navListOpen?: boolean };
 // ==============================================================
 
 export default function Navbar2(props: NavbarProps) {
+  const { navItems } = useStorefrontNavigation();
   const renderNestedNav = (list: any[], isRoot = false) => {
     return list?.map((nav: Nav) => {
       if (isRoot) {
@@ -94,7 +90,7 @@ export default function Navbar2(props: NavbarProps) {
     <StyledNavbar>
       <Container display="flex" justifyContent="space-between" alignItems="center" height="100%">
         <div />
-        <FlexBox style={{ gap: 32 }}>{renderNestedNav(navbarNavigations, true)}</FlexBox>
+        <FlexBox style={{ gap: 32 }}>{renderNestedNav(navItems, true)}</FlexBox>
       </Container>
     </StyledNavbar>
   );

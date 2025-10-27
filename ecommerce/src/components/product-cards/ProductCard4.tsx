@@ -1,9 +1,13 @@
+"use client";
+
+import Box from "@component/Box";
 import Rating from "@component/rating";
 import FlexBox from "@component/FlexBox";
 import HoverBox from "@component/HoverBox";
 import NextImage from "@component/NextImage";
 import { H4, Small } from "@component/Typography";
 import { currency } from "@utils/utils";
+import ProductWishlistButton from "./ProductWishlistButton";
 
 // =======================================================
 type ProductCard4Props = {
@@ -20,9 +24,13 @@ export default function ProductCard4(props: ProductCard4Props) {
 
   return (
     <div>
-      <HoverBox mb="1rem" mx="auto" borderRadius={8} display="flex">
-        <NextImage src={imgUrl} width={100} height={100} alt={title} />
-      </HoverBox>
+      <Box position="relative" mb="1rem" mx="auto" width="max-content">
+        <HoverBox mx="auto" borderRadius={8} display="flex">
+          <NextImage src={imgUrl} width={100} height={100} alt={title} />
+        </HoverBox>
+
+        <ProductWishlistButton style={{ position: "absolute", top: 12, right: 12 }} />
+      </Box>
 
       <FlexBox justifyContent="center" alignItems="center" mb="0.25rem">
         <Rating value={rating} color="warn" size="small" />

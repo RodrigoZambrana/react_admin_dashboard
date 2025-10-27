@@ -73,4 +73,5 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontConfig = {
     active: true,
     cta: { id: 'announcement-learn-more', label: 'See details', href: '/policies/shipping' },
   },
+  companyProfile: null,
 }

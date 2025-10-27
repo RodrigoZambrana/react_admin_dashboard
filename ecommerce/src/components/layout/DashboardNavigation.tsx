@@ -6,8 +6,8 @@ import {
   IconPin,
   IconUser,
   IconHeart,
-  IconHelpCircle,
-  IconCreditCard,
+  // IconHelpCircle,
+  // IconCreditCard,
   IconShoppingBagCheck
 } from "@tabler/icons-react";
 
@@ -43,13 +43,13 @@ export default function DashboardNavigation() {
             title: "Wishlist",
             Icon: IconHeart,
             count: 0
-          },
-          {
-            href: "/support-tickets",
-            title: "Support Tickets",
-            Icon: IconHelpCircle,
-            count: 0
           }
+          // {
+          //   href: "/support-tickets",
+          //   title: "Support Tickets",
+          //   Icon: IconHelpCircle,
+          //   count: 0
+          // }
         ]
       },
       {
@@ -66,13 +66,13 @@ export default function DashboardNavigation() {
             title: "Addresses",
             Icon: IconPin,
             count: addressCount
-          },
-          {
-            href: "/payment-methods",
-            title: "Payment Methods",
-            Icon: IconCreditCard,
-            count: 0
           }
+          // {
+          //   href: "/payment-methods",
+          //   title: "Payment Methods",
+          //   Icon: IconCreditCard,
+          //   count: 0
+          // }
         ]
       }
     ];
