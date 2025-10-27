@@ -1,9 +1,13 @@
-import RegisterClient from "./RegisterClient"
+import type { Metadata } from "next";
 
-export const metadata = {
-  title: "Create Account | Storefront",
+import RegisterClient from "./RegisterClient";
+
+export const metadata: Metadata = {
+  title: "Create account · Storefront",
+  description: "Join the storefront community to track orders, addresses, and exclusive offers."
+};
+
+export default function AccountRegisterPage() {
+  return <RegisterClient />;
 }
 
-export default function RegisterPage() {
-  return <RegisterClient />
-}

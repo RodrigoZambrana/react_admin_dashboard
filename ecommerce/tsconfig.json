@@ -1,14 +1,12 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "baseUrl": "src",
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": true,
+    "strict": false,
+    "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
@@ -17,49 +15,21 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "@components/*": [
-        "./src/theme/components/*"
-      ],
-      "@layouts": [
-        "./src/theme/layouts"
-      ],
-      "@assets/*": [
-        "./public/assets/*"
-      ],
-      "@data/*": [
-        "./src/theme/data/*"
-      ],
-      "@global/*": [
-        "./src/theme/global/*"
-      ],
-      "@hooks": [
-        "./src/theme/hooks/index"
-      ],
-      "@utils/*": [
-        "./src/theme/utils/*"
-      ],
-      "@public/*": [
-        "./public/*"
-      ]
-    },
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ]
+      "@/*": ["*"],
+      "@lib/*": ["lib/*"],
+      "@data/*": ["data/*"],
+      "@hook/*": ["hooks/*"],
+      "@utils/*": ["utils/*"],
+      "@context/*": ["contexts/*"],
+      "@reducer/*": ["reducers/*"],
+      "@component/*": ["components/*"],
+      "@sections/*": ["page-sections/*"],
+      "@models/*": ["models/*"],
+      "@state/*": ["state/*"]
+    }
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    "**/*.mts",
-    ".next/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", "./src/components/icon/Icon.tsx"]
 }

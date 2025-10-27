@@ -172,6 +172,7 @@ export interface CheckoutSummary {
 
 export interface OrderSummary {
   id: number
+  uuid: string
   orderNumber: string
   reference?: string
   placedAt: string
@@ -196,10 +197,16 @@ export interface CustomerProfile {
     id: number
     line1: string
     line2?: string
+    street?: string | null
+    number?: string | null
+    apartment?: string | null
+    corner?: string | null
+    comments?: string | null
     city: string
     state?: string
     zip?: string
     country: string
+    countryCode?: string | null
     label?: string | null
     isPrimary: boolean
   }>

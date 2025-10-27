@@ -45,6 +45,7 @@ async function bootstrap() {
       }
       cb(new Error('Origin not allowed'), false)
     },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
   })
 

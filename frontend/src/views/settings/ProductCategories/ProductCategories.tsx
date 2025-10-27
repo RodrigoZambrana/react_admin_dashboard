@@ -151,8 +151,8 @@ const normalizeCategoryResponse = (entry: unknown, fallbackId: number): RawCateg
                 serviceEntry.description === undefined || serviceEntry.description === null
                     ? null
                     : toNullableString(String(serviceEntry.description))
-            const currencyValue = String(serviceEntry.currency ?? 'UYU').trim() || 'UYU'
-            const unitValue = String(serviceEntry.unitOfMeasure ?? 'UNIT').trim() || 'UNIT'
+            const currencyValue = (String(serviceEntry.currency ?? 'UYU').trim() || 'UYU').toUpperCase()
+            const unitValue = String(serviceEntry.unitOfMeasure ?? 'UNIT').trim().toUpperCase() || 'UNIT'
 
             service = {
                 id: Math.trunc(parsedServiceId),
@@ -162,7 +162,10 @@ const normalizeCategoryResponse = (entry: unknown, fallbackId: number): RawCateg
                 salePrice: Number.isFinite(salePriceValue) ? salePriceValue : 0,
                 costPrice: Number.isFinite(costPriceValue) ? costPriceValue : 0,
                 currency: currencyValue,
-                taxRate: Number.isFinite(taxRateValue ?? NaN) ? (taxRateValue as number) : null,
+                taxRate:
+                    taxRateValue !== null && Number.isFinite(taxRateValue)
+                        ? (taxRateValue as number)
+                        : null,
                 unitOfMeasure: unitValue,
             }
         }
@@ -331,22 +334,56 @@ const ProductCategories = () => {
                 return
             }
 
-            const costPriceValue = Number(form.service.costPrice)
-            const taxRateValue = Number(form.service.taxRate)
             const productCode = toNullableString(form.service.productCode)
             const serviceDescription = toNullableString(form.service.description)
-            const currency = form.service.currency.trim().toUpperCase() || 'UYU'
-            const unitOfMeasure = form.service.unitOfMeasure || 'UNIT'
+            const currency = (form.service.currency || 'UYU').trim().toUpperCase() || 'UYU'
+            const unitOfMeasure = form.service.unitOfMeasure.trim().toUpperCase() || 'UNIT'
+
+            let costPriceValue: number | undefined
+            if (form.service.costPrice.trim().length > 0) {
+                const parsedCost = Number(form.service.costPrice)
+                if (!Number.isFinite(parsedCost) || parsedCost < 0) {
+                    toast.push(
+                        <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                            {t('settings.productCategories.validation.invalidServiceCost', {
+                                defaultValue: 'Please provide a valid installation cost.',
+                            })}
+                        </Notification>,
+                    )
+                    return
+                }
+                costPriceValue = parsedCost
+            }
+
+            let taxRateValue: number | undefined
+            if (form.service.taxRate.trim().length > 0) {
+                const parsedTax = Number(form.service.taxRate)
+                if (!Number.isFinite(parsedTax)) {
+                    toast.push(
+                        <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                            {t('settings.productCategories.validation.invalidServiceTax', {
+                                defaultValue: 'Please provide a valid tax rate.',
+                            })}
+                        </Notification>,
+                    )
+                    return
+                }
+                taxRateValue = parsedTax
+            }
 
             servicePayload = {
                 name: serviceName,
                 productCode,
                 description: serviceDescription,
                 salePrice: salePriceValue,
-                costPrice: Number.isFinite(costPriceValue) ? costPriceValue : undefined,
                 currency,
-                taxRate: Number.isFinite(taxRateValue) ? taxRateValue : undefined,
                 unitOfMeasure,
+            }
+            if (typeof costPriceValue === 'number') {
+                servicePayload.costPrice = costPriceValue
+            }
+            if (typeof taxRateValue === 'number') {
+                servicePayload.taxRate = taxRateValue
             }
         }
 
@@ -407,12 +444,14 @@ const ProductCategories = () => {
                       name: category.service.name ?? '',
                       productCode: category.service.productCode ?? '',
                       description: category.service.description ?? '',
-                      salePrice: category.service.salePrice
-                          ? String(category.service.salePrice)
-                          : '',
-                      costPrice: category.service.costPrice
-                          ? String(category.service.costPrice)
-                          : '',
+                      salePrice:
+                          category.service.salePrice !== undefined && category.service.salePrice !== null
+                              ? String(category.service.salePrice)
+                              : '',
+                      costPrice:
+                          category.service.costPrice !== undefined && category.service.costPrice !== null
+                              ? String(category.service.costPrice)
+                              : '',
                       currency: category.service.currency ?? 'UYU',
                       taxRate:
                           category.service.taxRate !== null && category.service.taxRate !== undefined
@@ -509,9 +548,9 @@ const ProductCategories = () => {
                               description: String(row.serviceDescription ?? '').trim(),
                               salePrice: String(row.serviceSalePrice ?? '').trim(),
                               costPrice: String(row.serviceCostPrice ?? '').trim(),
-                              currency: String(row.serviceCurrency ?? '').trim(),
+                              currency: (String(row.serviceCurrency ?? '').trim() || 'UYU').toUpperCase(),
                               taxRate: String(row.serviceTaxRate ?? '').trim(),
-                              unitOfMeasure: String(row.serviceUnitOfMeasure ?? '').trim(),
+                              unitOfMeasure: (String(row.serviceUnitOfMeasure ?? '').trim() || 'UNIT').toUpperCase(),
                           }
                         : undefined
                     return {
@@ -806,10 +845,14 @@ const ProductCategories = () => {
                                         <div className="space-y-1">
                                             <div className="font-semibold">{category.service.name}</div>
                                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                {`${category.service.currency} ${category.service.salePrice.toLocaleString(undefined, {
-                                                    minimumFractionDigits: 2,
-                                                    maximumFractionDigits: 2,
-                                                })}`}
+                                                {(() => {
+                                                    const salePriceNumber = Number(category.service?.salePrice ?? 0)
+                                                    const currency = category.service?.currency ?? 'UYU'
+                                                    return `${currency} ${salePriceNumber.toLocaleString(undefined, {
+                                                        minimumFractionDigits: 2,
+                                                        maximumFractionDigits: 2,
+                                                    })}`
+                                                })()}
                                             </div>
                                         </div>
                                     ) : (

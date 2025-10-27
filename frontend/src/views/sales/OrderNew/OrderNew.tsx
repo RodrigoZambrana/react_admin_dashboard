@@ -3278,8 +3278,8 @@ const OrderNew = ({
                                             <h4 className="mb-4">{t('text.titles.shippingAddress')}</h4>
                                             {shippingAddressLines.length ? (
                                                 <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                                                    {shippingAddressLines.map((line) => (
-                                                        <div key={`shipping-${line}`}>{line}</div>
+                                                    {shippingAddressLines.map((line, index) => (
+                                                        <div key={`shipping-${index}`}>{line}</div>
                                                     ))}
                                                 </div>
                                             ) : (
@@ -3296,8 +3296,8 @@ const OrderNew = ({
                                                 </div>
                                             ) : billingAddressLines.length ? (
                                                 <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                                                    {billingAddressLines.map((line) => (
-                                                        <div key={`billing-${line}`}>{line}</div>
+                                                    {billingAddressLines.map((line, index) => (
+                                                        <div key={`billing-${index}`}>{line}</div>
                                                     ))}
                                                 </div>
                                             ) : (

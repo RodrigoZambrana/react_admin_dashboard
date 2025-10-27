@@ -278,6 +278,7 @@ model SystemConfig {
 // Sales Orders
 model Order {
   id                    Int            @id @default(autoincrement())
+  uuid                  String         @unique @default(uuid())
   documentType          DocumentType   @default(ORDER)
   customerId            Int
   customer              Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)

@@ -6,7 +6,7 @@ import {
   OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common'
-import { Prisma, DocumentType, Customer, CustomerAddress, OrderItem } from '@prisma/client'
+import { Prisma, DocumentType, Customer, CustomerAddress, OrderItem, ProductType } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
@@ -37,6 +37,7 @@ import {
 } from './dto/auth.dto'
 import { StorefrontCreateOrderDto } from './dto/order.dto'
 import { createHash } from 'crypto'
+import { StorefrontAddressDto } from './dto/address.dto'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
@@ -66,6 +67,48 @@ const sanitizePhoneInput = (value?: string | null): string | null => {
   }
   const normalized = normalizePhone(value)
   return normalized.length >= 6 ? normalized : null
+}
+
+const deriveCountryCode = (countryName?: string | null): string | null => {
+  if (!countryName) return null
+  const normalized = countryName.trim()
+  if (!normalized) return null
+  const predefined: Record<string, string> = {
+    Uruguay: 'UY',
+    Argentina: 'AR',
+    Brasil: 'BR',
+    Brazil: 'BR',
+    Chile: 'CL',
+    Paraguay: 'PY',
+    Perú: 'PE',
+    Peru: 'PE',
+    Bolivia: 'BO',
+    Colombia: 'CO',
+    México: 'MX',
+    Mexico: 'MX',
+    España: 'ES',
+    Spain: 'ES',
+  }
+  if (predefined[normalized]) {
+    return predefined[normalized]
+  }
+  const sanitized = normalized.replace(/[^A-Za-z]/g, ' ').trim()
+  if (!sanitized) return null
+  const words = sanitized.split(/\s+/)
+  if (words.length === 1) {
+    const word = words[0].toUpperCase()
+    if (word.length >= 2) return word.slice(0, 2)
+    if (word.length === 1) return `${word}${word}`
+    return null
+  }
+  const initials = words
+    .map((word) => (word[0] || '').toUpperCase())
+    .join('')
+    .replace(/[^A-Z]/g, '')
+  if (initials.length >= 2) {
+    return initials.slice(0, 3)
+  }
+  return sanitized.slice(0, 2).toUpperCase() || null
 }
 
 const mergeDeep = <T>(target: T, source: Record<string, unknown>): T => {
@@ -107,7 +150,7 @@ type OrderWithRelations = Prisma.OrderGetPayload<{
   }
 }>
 
-type OrderIdentifierCandidate = { id: number; createdAt: Date }
+type OrderIdentifierCandidate = { id: number; createdAt: Date; uuid: string | null }
 type CustomerWithAddresses = Customer & { addresses: CustomerAddress[] }
 type OrderSummaryWithReference = OrderSummary & { reference: string }
 
@@ -174,6 +217,8 @@ export class StorefrontService implements OnModuleInit {
     const nodes = new Map<number, StorefrontCategoryTree>()
     for (const category of categories) {
       const imageUrl = category.image ? String(category.image).trim() : null
+      const productCount =
+        category._count.products - (category.installServiceProductId ? 1 : 0)
       nodes.set(category.id, {
         id: category.id,
         slug: buildCategorySlug(category.id, category.name),
@@ -182,7 +227,7 @@ export class StorefrontService implements OnModuleInit {
         thumbnail: imageUrl
           ? { id: `category-${category.id}`, url: imageUrl, alt: category.name }
           : null,
-        productCount: category._count.products,
+        productCount: Math.max(0, productCount),
         parentId: category.parentId ?? null,
         children: [],
       })
@@ -244,7 +289,7 @@ export class StorefrontService implements OnModuleInit {
   async listProducts(query: StorefrontProductQueryDto) {
     const page = parsePositiveInt(query.page, 1)
     const pageSize = Math.min(parsePositiveInt(query.pageSize, 12), 48)
-    const where: Prisma.ProductWhereInput = { published: true }
+    const where: Prisma.ProductWhereInput = { published: true, productType: ProductType.PHYSICAL }
 
     if (query.category) {
       const trimmed = query.category.trim()
@@ -338,6 +383,7 @@ export class StorefrontService implements OnModuleInit {
       where: {
         AND: [
           { published: true },
+          { productType: ProductType.PHYSICAL },
           {
             OR: [
               byId > 0 ? { id: byId } : undefined,
@@ -363,6 +409,7 @@ export class StorefrontService implements OnModuleInit {
         published: true,
         id: { not: product.id },
         categoryId: product.categoryId ?? undefined,
+        productType: ProductType.PHYSICAL,
       },
       orderBy: { createdAt: 'desc' },
       take: 8,
@@ -383,7 +430,7 @@ export class StorefrontService implements OnModuleInit {
         category: true,
       },
     })
-    if (!product) {
+    if (!product || product.productType !== ProductType.PHYSICAL) {
       throw new NotFoundException('Product not found')
     }
 
@@ -392,6 +439,7 @@ export class StorefrontService implements OnModuleInit {
         published: true,
         id: { not: product.id },
         categoryId: product.categoryId ?? undefined,
+        productType: ProductType.PHYSICAL,
       },
       take: limit,
       include: {
@@ -673,6 +721,9 @@ export class StorefrontService implements OnModuleInit {
       throw new NotFoundException('Customer not found')
     }
 
+    let nextEmail = customer.email ? customer.email.trim().toLowerCase() : null
+    let nextPhone = customer.phoneNumber ? customer.phoneNumber.trim() : null
+
     const updateData: Prisma.CustomerUpdateInput = {}
     if (dto.firstName !== undefined) {
       updateData.firstName = dto.firstName
@@ -689,12 +740,63 @@ export class StorefrontService implements OnModuleInit {
       }
     }
 
+    if (dto.email !== undefined) {
+      const trimmedEmail = dto.email ? dto.email.trim() : ''
+      if (trimmedEmail) {
+        const normalizedEmail = normalizeEmail(trimmedEmail)
+        const existingEmail = await this.prisma.customer.findFirst({
+          where: {
+            email: normalizedEmail,
+            id: { not: customerId },
+          },
+          select: { id: true },
+        })
+        if (existingEmail) {
+          throw new ConflictException('Email is already in use')
+        }
+        updateData.email = normalizedEmail
+        nextEmail = normalizedEmail
+      } else {
+        updateData.email = null
+        nextEmail = null
+      }
+    }
+
     if (dto.phone !== undefined) {
       const sanitizedPhone = dto.phone ? sanitizePhoneInput(dto.phone) : null
       if (dto.phone && !sanitizedPhone) {
         throw new BadRequestException('Invalid phone number')
       }
+      if (sanitizedPhone) {
+        const existingPhone = await this.prisma.customer.findFirst({
+          where: {
+            phoneNumber: sanitizedPhone,
+            id: { not: customerId },
+          },
+          select: { id: true },
+        })
+        if (existingPhone) {
+          throw new ConflictException('Phone number is already in use')
+        }
+      }
       updateData.phoneNumber = sanitizedPhone
+      nextPhone = sanitizedPhone
+    }
+
+    if (dto.dateOfBirth !== undefined) {
+      let birthday: Date | null = null
+      if (dto.dateOfBirth) {
+        const parsed = new Date(dto.dateOfBirth)
+        if (Number.isNaN(parsed.getTime())) {
+          throw new BadRequestException('Invalid date of birth')
+        }
+        birthday = parsed
+      }
+      updateData.birthday = birthday
+    }
+
+    if (!nextEmail && !nextPhone) {
+      throw new BadRequestException('At least one contact method is required')
     }
 
     if (Object.keys(updateData).length > 0) {
@@ -877,6 +979,7 @@ export class StorefrontService implements OnModuleInit {
 
     return {
       id: order.id,
+      uuid: order.uuid,
       orderNumber: this.buildOrderNumber(order.id),
       reference: this.buildOrderReference(order),
       placedAt: order.createdAt.toISOString(),
@@ -900,15 +1003,25 @@ export class StorefrontService implements OnModuleInit {
   private toCustomerAddress(address: CustomerAddress): CustomerProfile['addresses'][number] {
     const line1 = [address.street, address.number].filter(Boolean).join(' ').trim()
     const line2 = [address.apartment, address.corner, address.comments].filter(Boolean).join(', ').trim()
+    const normalizeOptional = (value?: string | null) => {
+      const trimmed = String(value ?? '').trim()
+      return trimmed.length ? trimmed : null
+    }
 
     return {
       id: address.id,
       line1,
       line2: line2 || undefined,
+      street: normalizeOptional(address.street),
+      number: normalizeOptional(address.number),
+      apartment: normalizeOptional(address.apartment),
+      corner: normalizeOptional(address.corner),
+      comments: normalizeOptional(address.comments),
       city: address.city,
       state: '',
       zip: '',
       country: address.country,
+      countryCode: deriveCountryCode(address.country),
       label: address.label ?? undefined,
       isPrimary: address.isPrimary,
     }
@@ -932,7 +1045,7 @@ export class StorefrontService implements OnModuleInit {
       lastName: customer.lastName ?? '',
       phone: customer.phoneNumber ?? undefined,
       avatarUrl: customer.img ?? undefined,
-       dateOfBirth: customer.birthday ? customer.birthday.toISOString() : null,
+      dateOfBirth: customer.birthday ? customer.birthday.toISOString() : null,
       addresses,
     }
   }
@@ -941,6 +1054,22 @@ export class StorefrontService implements OnModuleInit {
     const normalized = identifier.trim()
     if (!normalized) {
       throw new NotFoundException('Order not found')
+    }
+
+    const normalizedLower = normalized.toLowerCase()
+
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalized)) {
+      const byUuid = await this.prisma.order.findFirst({
+        where: {
+          customerId,
+          documentType: DocumentType.ORDER,
+          uuid: { equals: normalized, mode: 'insensitive' },
+        },
+        select: { id: true },
+      })
+      if (byUuid) {
+        return byUuid.id
+      }
     }
 
     const numericCandidate = Number.parseInt(normalized.replace(/^ord[-_]?/i, ''), 10)
@@ -963,10 +1092,14 @@ export class StorefrontService implements OnModuleInit {
       select: {
         id: true,
         createdAt: true,
+        uuid: true,
       },
     })
 
-    const match = orders.find((order) => this.buildOrderReference(order) === normalized)
+    const match = orders.find((order) => {
+      const orderUuid = order.uuid ? order.uuid.toLowerCase() : null
+      return orderUuid === normalizedLower || this.buildOrderReference(order) === normalized
+    })
     if (!match) {
       throw new NotFoundException('Order not found')
     }
@@ -1011,5 +1144,163 @@ export class StorefrontService implements OnModuleInit {
         addresses: addresses.map((address) => this.toCustomerAddress(address)),
       },
     }
+  }
+
+  private trim(value: unknown): string {
+    return String(value ?? '').trim()
+  }
+
+  private normalizeNullable(value: unknown): string | null {
+    const trimmed = this.trim(value)
+    return trimmed.length ? trimmed : null
+  }
+
+  private normalizeAddressInput(dto: StorefrontAddressDto) {
+    return {
+      street: this.trim(dto.street),
+      number: this.trim(dto.number),
+      city: this.trim(dto.city),
+      country: this.trim(dto.country),
+      corner: this.normalizeNullable(dto.corner),
+      apartment: this.normalizeNullable(dto.apartment),
+      comments: this.normalizeNullable(dto.comments),
+      label: this.normalizeNullable(dto.label),
+      isPrimary:
+        dto.isPrimary === undefined || dto.isPrimary === null ? undefined : Boolean(dto.isPrimary),
+    }
+  }
+
+  async listCustomerAddresses(customerId: number) {
+    const addresses = await this.prisma.customerAddress.findMany({
+      where: { customerId },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+    })
+    return addresses.map((address) => this.toCustomerAddress(address))
+  }
+
+  async createCustomerAddress(customerId: number, dto: StorefrontAddressDto): Promise<CustomerProfile> {
+    const normalized = this.normalizeAddressInput(dto)
+
+    const addressCount = await this.prisma.customerAddress.count({ where: { customerId } })
+    let isPrimary = normalized.isPrimary ?? false
+    if (addressCount === 0) {
+      isPrimary = true
+    }
+
+    const created = await this.prisma.customerAddress.create({
+      data: {
+        customerId,
+        street: normalized.street,
+        number: normalized.number,
+        corner: normalized.corner,
+        apartment: normalized.apartment,
+        city: normalized.city,
+        country: normalized.country,
+        comments: normalized.comments,
+        label: normalized.label,
+        isPrimary,
+      },
+    })
+
+    if (created.isPrimary) {
+      await this.prisma.customerAddress.updateMany({
+        where: { customerId, NOT: { id: created.id } },
+        data: { isPrimary: false },
+      })
+    }
+
+    return this.getCustomerProfile(customerId)
+  }
+
+  async updateCustomerAddress(
+    customerId: number,
+    addressId: number,
+    dto: StorefrontAddressDto,
+  ): Promise<CustomerProfile> {
+    const existing = await this.prisma.customerAddress.findUnique({ where: { id: addressId, customerId } })
+    if (!existing) {
+      throw new NotFoundException('storefront.address.not_found')
+    }
+
+    const normalized = this.normalizeAddressInput(dto)
+    const shouldUpdatePrimary = normalized.isPrimary !== undefined
+
+    const updated = await this.prisma.customerAddress.update({
+      where: { id: addressId, customerId },
+      data: {
+        street: normalized.street,
+        number: normalized.number,
+        corner: normalized.corner,
+        apartment: normalized.apartment,
+        city: normalized.city,
+        country: normalized.country,
+        comments: normalized.comments,
+        label: normalized.label,
+        ...(shouldUpdatePrimary ? { isPrimary: Boolean(normalized.isPrimary) } : {}),
+      },
+    })
+
+    if (shouldUpdatePrimary && updated.isPrimary) {
+      await this.prisma.customerAddress.updateMany({
+        where: { customerId, NOT: { id: updated.id } },
+        data: { isPrimary: false },
+      })
+    } else if (shouldUpdatePrimary && !updated.isPrimary) {
+      const primaryExists = await this.prisma.customerAddress.count({
+        where: { customerId, isPrimary: true },
+      })
+      if (primaryExists === 0) {
+        await this.prisma.customerAddress.update({
+          where: { id: updated.id },
+          data: { isPrimary: true },
+        })
+      }
+    }
+
+    return this.getCustomerProfile(customerId)
+  }
+
+  async deleteCustomerAddress(customerId: number, addressId: number): Promise<CustomerProfile> {
+    const existing = await this.prisma.customerAddress.findUnique({ where: { id: addressId, customerId } })
+    if (!existing) {
+      throw new NotFoundException('storefront.address.not_found')
+    }
+
+    await this.prisma.customerAddress.delete({ where: { id: addressId, customerId } })
+
+    if (existing.isPrimary) {
+      const next = await this.prisma.customerAddress.findFirst({
+        where: { customerId },
+        orderBy: [{ createdAt: 'asc' }],
+      })
+      if (next) {
+        await this.prisma.customerAddress.update({
+          where: { id: next.id },
+          data: { isPrimary: true },
+        })
+      }
+    }
+
+    return this.getCustomerProfile(customerId)
+  }
+
+  async setPrimaryCustomerAddress(customerId: number, addressId: number): Promise<CustomerProfile> {
+    const target = await this.prisma.customerAddress.findUnique({ where: { id: addressId, customerId } })
+    if (!target) {
+      throw new NotFoundException('storefront.address.not_found')
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.customerAddress.updateMany({
+        where: { customerId },
+        data: { isPrimary: false },
+      }),
+      this.prisma.customerAddress.update({
+        where: { id: target.id },
+        data: { isPrimary: true },
+      }),
+    ])
+
+    return this.getCustomerProfile(customerId)
   }
 }

@@ -1680,6 +1680,7 @@
             "columns": {
                 "id": "ID",
                 "name": "Nombre",
+                "service": "Servicio de instalación",
                 "parent": "Categoría padre",
                 "description": "Descripción",
                 "image": "Imagen"
@@ -1687,14 +1688,30 @@
             "placeholders": {
                 "name": "Nombre de la categoría",
                 "description": "Descripción (opcional)",
-                "image": "URL de imagen (opcional)"
+                "image": "URL de imagen (opcional)",
+                "serviceName": "Nombre del servicio de instalación",
+                "serviceProductCode": "Código del servicio (opcional)",
+                "serviceSalePrice": "Precio de venta",
+                "serviceCostPrice": "Costo (opcional)",
+                "serviceCurrency": "Moneda",
+                "serviceTaxRate": "Tasa de impuesto (opcional)",
+                "serviceUnitOfMeasure": "Unidad de medida",
+                "serviceDescription": "Descripción del servicio (opcional)"
             },
             "form": {
                 "parent": "Categoría padre",
                 "noParent": "Sin padre"
             },
             "validation": {
-                "selfParent": "Una categoría no puede ser su propia categoría padre."
+                "selfParent": "Una categoría no puede ser su propia categoría padre.",
+                "invalidServicePrice": "Ingrese un precio de instalación válido.",
+                "invalidServiceCost": "Ingrese un costo de instalación válido.",
+                "invalidServiceTax": "Ingrese una tasa de impuesto válida."
+            },
+            "labels": {
+                "installable": "Esta categoría incluye un servicio de instalación opcional",
+                "serviceHeading": "Servicio de instalación",
+                "serviceSubtitle": "Define el producto de instalación que se creará automáticamente para esta categoría."
             },
             "created": {
                 "title": "Creado correctamente",

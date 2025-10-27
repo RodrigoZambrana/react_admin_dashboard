@@ -1,4 +1,17 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common'
 import { StorefrontService } from './storefront.service'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
 import {
@@ -8,6 +21,7 @@ import {
   StorefrontUpdateProfileDto,
 } from './dto/auth.dto'
 import { StorefrontCreateOrderDto } from './dto/order.dto'
+import { StorefrontAddressDto } from './dto/address.dto'
 import type { FastifyRequest } from 'fastify'
 import { StorefrontJwtGuard } from './storefront-jwt.guard'
 import type { StorefrontJwtPayload } from './storefront-jwt.strategy'
@@ -100,5 +114,53 @@ export class StorefrontController {
   ) {
     const user = req.user
     return this.storefront.getCustomerOrder(user.sub, identifier)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Get('account/addresses')
+  listAccountAddresses(@Req() req: FastifyRequest & { user: StorefrontJwtPayload }) {
+    const user = req.user
+    return this.storefront.listCustomerAddresses(user.sub)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Post('account/addresses')
+  createAccountAddress(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Body() dto: StorefrontAddressDto,
+  ) {
+    const user = req.user
+    return this.storefront.createCustomerAddress(user.sub, dto)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Put('account/addresses/:id')
+  updateAccountAddress(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: StorefrontAddressDto,
+  ) {
+    const user = req.user
+    return this.storefront.updateCustomerAddress(user.sub, id, dto)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Delete('account/addresses/:id')
+  deleteAccountAddress(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    const user = req.user
+    return this.storefront.deleteCustomerAddress(user.sub, id)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Post('account/addresses/:id/set-primary')
+  setPrimaryAccountAddress(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    const user = req.user
+    return this.storefront.setPrimaryCustomerAddress(user.sub, id)
   }
 }

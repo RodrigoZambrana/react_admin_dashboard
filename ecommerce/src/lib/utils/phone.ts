@@ -1,53 +1,53 @@
-const DEFAULT_COUNTRY_CODE = "598"
+const DEFAULT_COUNTRY_CODE = "598";
 
-const NON_DIGIT_EXCEPT_PLUS = /[^\d+]/g
-const NON_DIGIT = /\D/g
-const LEADING_ZEROS = /^0+/
+const NON_DIGIT_EXCEPT_PLUS = /[^\d+]/g;
+const NON_DIGIT = /\D/g;
+const LEADING_ZEROS = /^0+/;
 
 export const normalizePhoneNumber = (
   rawInput: string,
   countryCode: string = DEFAULT_COUNTRY_CODE
 ): string | null => {
-  const trimmed = rawInput.trim()
+  const trimmed = rawInput.trim();
   if (!trimmed) {
-    return null
+    return null;
   }
 
-  const cleaned = trimmed.replace(NON_DIGIT_EXCEPT_PLUS, "")
+  const cleaned = trimmed.replace(NON_DIGIT_EXCEPT_PLUS, "");
   if (!cleaned) {
-    return null
+    return null;
   }
 
   if (cleaned.startsWith("+")) {
-    const digits = cleaned.slice(1).replace(NON_DIGIT, "")
-    return digits ? `+${digits}` : null
+    const digits = cleaned.slice(1).replace(NON_DIGIT, "");
+    return digits ? `+${digits}` : null;
   }
 
-  const digitsOnly = cleaned.replace(NON_DIGIT, "")
+  const digitsOnly = cleaned.replace(NON_DIGIT, "");
   if (!digitsOnly) {
-    return null
+    return null;
   }
 
   if (digitsOnly.startsWith(countryCode)) {
-    return `+${digitsOnly}`
+    return `+${digitsOnly}`;
   }
 
-  const withoutLeadingZeros = digitsOnly.replace(LEADING_ZEROS, "")
+  const withoutLeadingZeros = digitsOnly.replace(LEADING_ZEROS, "");
   if (!withoutLeadingZeros) {
-    return null
+    return null;
   }
 
-  return `+${countryCode}${withoutLeadingZeros}`
-}
+  return `+${countryCode}${withoutLeadingZeros}`;
+};
 
 export const looksLikePhoneNumber = (value: string): boolean => {
-  const trimmed = value.trim()
+  const trimmed = value.trim();
   if (!trimmed) {
-    return false
+    return false;
   }
   if (trimmed.startsWith("+")) {
-    return /\+\d{6,}$/.test(trimmed.replace(/\s+/g, ""))
+    return /\+\d{6,}$/.test(trimmed.replace(/\s+/g, ""));
   }
-  const digits = trimmed.replace(NON_DIGIT, "")
-  return digits.length >= 6 && !trimmed.includes("@")
-}
+  const digits = trimmed.replace(NON_DIGIT, "");
+  return digits.length >= 6 && !trimmed.includes("@");
+};
