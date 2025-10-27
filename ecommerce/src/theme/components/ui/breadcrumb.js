@@ -1,41 +1,40 @@
-import {useEffect, useState} from "react";
+"use client";
+
 import Link from "next/link";
-import {useRouter} from "next/router";
-import {toCapitalize} from "@utils/toCapitalize";
+import { useMemo } from "react";
+import { usePathname } from "next/navigation";
+import { toCapitalize } from "@utils/toCapitalize";
 
 const Breadcrumb = () => {
-    const router = useRouter();
-    const [breadcrumbs, setBreadcrumbs] = useState(null);
+    const pathname = usePathname();
 
-    useEffect(() => {
-        if (router) {
-            const linkPath = router.asPath.split('/');
-            linkPath.shift();
-
-            const pathArray = linkPath.map((path, i) => {
-                return {breadcrumb: path.replace(/-/g, ' '), href: '/' + linkPath.slice(0, i + 1).join('/')};
-            });
-
-            setBreadcrumbs(pathArray);
-        }
-    }, [router]);
+    const breadcrumbs = useMemo(() => {
+        if (!pathname) return [];
+        const sanitized = pathname.split("?")[0];
+        const segments = sanitized.split("/").filter(Boolean);
+        return segments.map((segment, index) => ({
+            label: toCapitalize(segment.replace(/-/g, " ")),
+            href: "/" + segments.slice(0, index + 1).join("/"),
+        }));
+    }, [pathname]);
 
     return (
         <div className="tt-breadcrumb">
             <div className="container">
                 <ul>
-                    <li><Link href="/">Home</Link></li>
-                    {breadcrumbs?.map((breadcrumb, i) => (
-                        breadcrumbs.length !== (i + 1) ? (
-                            <li key={breadcrumb.breadcrumb}>
-                                <Link href={breadcrumb.href}>{toCapitalize(breadcrumb.breadcrumb)}</Link>
-                            </li>
+                    <li>
+                        <Link href="/">Home</Link>
+                    </li>
+                    {breadcrumbs.map(({ label, href }, index) => {
+                        const isLast = index === breadcrumbs.length - 1;
+                        return isLast ? (
+                            <li key={href}>{label.replace(/\?(.*)/g, "")}</li>
                         ) : (
-                            <li key={breadcrumb.breadcrumb}>
-                                {toCapitalize(breadcrumb.breadcrumb).replace(/\?(.*)/g, '')}
+                            <li key={href}>
+                                <Link href={href}>{label}</Link>
                             </li>
-                        )
-                    ))}
+                        );
+                    })}
                 </ul>
             </div>
         </div>

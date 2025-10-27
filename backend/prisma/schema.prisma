@@ -73,6 +73,11 @@ enum WorkOrderStatus {
   CANCELED
 }
 
+enum ProductType {
+  PHYSICAL
+  SERVICE
+}
+
 enum InboxChannelType {
   EMAIL
   WHATSAPP
@@ -183,6 +188,7 @@ model Customer {
   title       String?
   phoneNumber String?           @unique
   passwordHash String?
+  storefrontDefaultPasswordHash String?
   birthday    DateTime?
   facebook    String?
   twitter     String?
@@ -217,6 +223,7 @@ model Product {
   specifications    String?
   categoryId        Int?
   category          ProductCategory? @relation(fields: [categoryId], references: [id])
+  productType       ProductType      @default(PHYSICAL)
   salePrice         Decimal          @default(0) @map("precio_venta") @db.Decimal(12, 2)
   costPrice         Decimal          @default(0) @map("precio_costo") @db.Decimal(12, 2)
   currency          String           @default("UYU")
@@ -235,6 +242,7 @@ model Product {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   orderItems        OrderItem[]
+  installServiceForCategory ProductCategory? @relation("CategoryInstallService")
 }
 
 model ProductImage {
@@ -247,9 +255,19 @@ model ProductImage {
 }
 
 model ProductCategory {
-  id       Int       @id @default(autoincrement())
-  name     String    @unique
-  products Product[]
+  id                     Int               @id @default(autoincrement())
+  name                   String            @unique
+  description            String?
+  image                  String?
+  parentId               Int?
+  parent                 ProductCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children               ProductCategory[] @relation("CategoryHierarchy")
+  products               Product[]
+  installServiceProductId Int?
+  installServiceProduct  Product?          @relation("CategoryInstallService", fields: [installServiceProductId], references: [id], onDelete: SetNull)
+
+  @@index([parentId])
+  @@unique([installServiceProductId])
 }
 
 model SystemConfig {
@@ -716,6 +734,7 @@ model CustomerAddress {
   city       String
   country    String
   comments   String?
+  label      String?
   isPrimary  Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

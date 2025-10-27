@@ -13,11 +13,16 @@ export class StorefrontRegisterDto {
 
   @IsString()
   lastName!: string
+
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  phone?: string
 }
 
 export class StorefrontLoginDto {
-  @IsEmail()
-  email!: string
+  @IsString()
+  identifier!: string
 
   @IsString()
   @MinLength(8)

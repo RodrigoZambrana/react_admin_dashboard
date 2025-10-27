@@ -507,6 +507,7 @@
             "recipient": "Recipient",
             "billTo": "Bill to",
             "address": "Address",
+            "addressLabel": "Address label",
             "budgetValidity": "Budget validity",
             "storyPoint": "{{count}} story point",
             "createdOn": "Created on",
@@ -524,6 +525,7 @@
             "conversionRates": "Conversion rates",
             "snapshotGeneratedAt": "Snapshot generated at",
             "primary": "Primary",
+            "none": "None",
             "expired": "Expired",
             "about": "About",
             "keyFeatures": "Key Features",
@@ -1675,11 +1677,22 @@
             "title": "Product Categories",
             "columns": {
                 "id": "ID",
-                "name": "Name"
+                "name": "Name",
+                "parent": "Parent",
+                "description": "Description",
+                "image": "Image"
             },
             "placeholders": {
-                "id": "Category ID (e.g. devices)",
-                "name": "Category name"
+                "name": "Category name",
+                "description": "Description (optional)",
+                "image": "Image URL (optional)"
+            },
+            "form": {
+                "parent": "Parent category",
+                "noParent": "No parent"
+            },
+            "validation": {
+                "selfParent": "A category cannot be its own parent."
             },
             "created": {
                 "title": "Successfully created",

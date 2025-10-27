@@ -8,6 +8,7 @@ Stack
 
 Quick Start
 - Copy `.env.example` to `.env` and adjust `DATABASE_URL`, `JWT_SECRET`, `ALLOWED_ORIGINS`, and `RECAPTCHA_SECRET_KEY` as needed.
+- Configure `STOREFRONT_GENERIC_CUSTOMER_PASSWORD` to the shared temporary password you want assigned to storefront customers that do not yet have credentials (defaults to `Storefront@2024` for local development).
 - Install deps: `npm i`
 - Generate Prisma client: `npm run prisma:generate`
 - Create DB schema and run migrations: `npm run prisma:migrate`

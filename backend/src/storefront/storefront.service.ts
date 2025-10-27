@@ -1,7 +1,15 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common'
-import { Prisma, DocumentType, Customer } from '@prisma/client'
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+  UnauthorizedException,
+} from '@nestjs/common'
+import { Prisma, DocumentType, Customer, CustomerAddress, OrderItem } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 import { JwtService } from '@nestjs/jwt'
+import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
 import { decimal, decimalToNumber } from '../common/currency/money.util'
 import { DEFAULT_STOREFRONT_CONFIG } from './defaults/config'
@@ -12,13 +20,23 @@ import type {
   HomeModuleConfig,
   InventoryStatus,
   MoneyDto,
+  OrderSummary,
   ProductDetailDto,
   ProductSummaryDto,
   StorefrontConfig,
+  CheckoutLineItem,
+  CustomerProfile,
+  StorefrontCategoryTree,
 } from './types'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
-import { StorefrontRegisterDto, StorefrontLoginDto, StorefrontRefreshDto } from './dto/auth.dto'
+import {
+  StorefrontRegisterDto,
+  StorefrontLoginDto,
+  StorefrontRefreshDto,
+  StorefrontUpdateProfileDto,
+} from './dto/auth.dto'
 import { StorefrontCreateOrderDto } from './dto/order.dto'
+import { createHash } from 'crypto'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
@@ -37,6 +55,18 @@ const parsePositiveInt = (value?: string | number | null, fallback = 1): number 
 }
 
 const normalizeEmail = (email: string): string => email.trim().toLowerCase()
+
+const normalizePhone = (phone: string): string => phone.replace(/[^\d+]/g, '')
+
+const isEmailIdentifier = (value: string): boolean => value.includes('@')
+
+const sanitizePhoneInput = (value?: string | null): string | null => {
+  if (!value) {
+    return null
+  }
+  const normalized = normalizePhone(value)
+  return normalized.length >= 6 ? normalized : null
+}
 
 const mergeDeep = <T>(target: T, source: Record<string, unknown>): T => {
   if (typeof target !== 'object' || target === null) {
@@ -69,12 +99,42 @@ const mapInventoryStatus = (product: { status: number; permanentStock: boolean |
 
 const money = (amount: number, currency = 'USD'): MoneyDto => ({ amount, currency })
 
+type OrderWithRelations = Prisma.OrderGetPayload<{
+  include: {
+    items: true
+    status: true
+    paymentMethod: true
+  }
+}>
+
+type OrderIdentifierCandidate = { id: number; createdAt: Date }
+type CustomerWithAddresses = Customer & { addresses: CustomerAddress[] }
+type OrderSummaryWithReference = OrderSummary & { reference: string }
+
 @Injectable()
-export class StorefrontService {
+export class StorefrontService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly config: ConfigService,
   ) {}
+
+  private defaultCustomerPassword!: string
+  private defaultCustomerPasswordHash!: string
+
+  async onModuleInit() {
+    await this.ensureDefaultPasswordHash()
+
+    await this.prisma.customer.updateMany({
+      where: {
+        passwordHash: null,
+        storefrontDefaultPasswordHash: null,
+      },
+      data: {
+        storefrontDefaultPasswordHash: this.defaultCustomerPasswordHash,
+      },
+    })
+  }
 
   async getConfig(): Promise<StorefrontConfig> {
     const configRow = await this.prisma.systemConfig.findUnique({ where: { key: 'storefront:config' } })
@@ -106,18 +166,79 @@ export class StorefrontService {
     throw new NotFoundException('Layout not found')
   }
 
-  async listCategories() {
+  async listCategories(): Promise<StorefrontCategoryTree[]> {
     const categories = await this.prisma.productCategory.findMany({
-      orderBy: { name: 'asc' },
+      orderBy: [{ parentId: 'asc' }, { name: 'asc' }],
       include: { _count: { select: { products: true } } },
     })
-    return categories.map((category) => ({
-      id: category.id,
-      slug: buildCategorySlug(category.id, category.name),
-      name: category.name,
-      description: null,
-      productCount: category._count.products,
-    }))
+    const nodes = new Map<number, StorefrontCategoryTree>()
+    for (const category of categories) {
+      const imageUrl = category.image ? String(category.image).trim() : null
+      nodes.set(category.id, {
+        id: category.id,
+        slug: buildCategorySlug(category.id, category.name),
+        name: category.name,
+        description: category.description ?? null,
+        thumbnail: imageUrl
+          ? { id: `category-${category.id}`, url: imageUrl, alt: category.name }
+          : null,
+        productCount: category._count.products,
+        parentId: category.parentId ?? null,
+        children: [],
+      })
+    }
+
+    const roots: StorefrontCategoryTree[] = []
+    for (const node of nodes.values()) {
+      if (node.parentId !== null && nodes.has(node.parentId)) {
+        nodes.get(node.parentId)!.children.push(node)
+      } else {
+        roots.push(node)
+      }
+    }
+
+    const sortTree = (branch: StorefrontCategoryTree[]) => {
+      branch.sort((a, b) => a.name.localeCompare(b.name))
+      branch.forEach((child) => sortTree(child.children))
+    }
+
+    sortTree(roots)
+    return roots
+  }
+
+  private async collectCategoryHierarchyIds(categoryId: number): Promise<number[]> {
+    const categories = await this.prisma.productCategory.findMany({
+      select: { id: true, parentId: true },
+    })
+    const exists = categories.some((category) => category.id === categoryId)
+    if (!exists) {
+      return []
+    }
+    const childrenMap = new Map<number, number[]>()
+    for (const category of categories) {
+      if (category.parentId !== null) {
+        if (!childrenMap.has(category.parentId)) {
+          childrenMap.set(category.parentId, [])
+        }
+        childrenMap.get(category.parentId)!.push(category.id)
+      }
+    }
+    const result: number[] = []
+    const stack: number[] = [categoryId]
+    const visited = new Set<number>()
+    while (stack.length > 0) {
+      const current = stack.pop()!
+      if (visited.has(current)) {
+        continue
+      }
+      visited.add(current)
+      result.push(current)
+      const children = childrenMap.get(current)
+      if (children && children.length) {
+        stack.push(...children)
+      }
+    }
+    return result
   }
 
   async listProducts(query: StorefrontProductQueryDto) {
@@ -126,12 +247,33 @@ export class StorefrontService {
     const where: Prisma.ProductWhereInput = { published: true }
 
     if (query.category) {
-      const normalized = query.category.toLowerCase()
-      where.category = {
-        OR: [
-          { name: { equals: normalized, mode: 'insensitive' } },
-          { name: { equals: query.category, mode: 'insensitive' } },
-        ],
+      const trimmed = query.category.trim()
+      const slugMatch = trimmed.match(/-(\d+)$/)
+      if (slugMatch) {
+        const categoryId = Number.parseInt(slugMatch[1], 10)
+        if (Number.isFinite(categoryId) && categoryId > 0) {
+          const categoryIds = await this.collectCategoryHierarchyIds(categoryId)
+          if (categoryIds.length > 0) {
+            where.categoryId =
+              categoryIds.length === 1 ? categoryIds[0] : { in: categoryIds }
+          } else {
+            const normalized = trimmed.toLowerCase()
+            where.category = {
+              OR: [
+                { name: { equals: normalized, mode: 'insensitive' } },
+                { name: { equals: trimmed, mode: 'insensitive' } },
+              ],
+            }
+          }
+        }
+      } else {
+        const normalized = trimmed.toLowerCase()
+        where.category = {
+          OR: [
+            { name: { equals: normalized, mode: 'insensitive' } },
+            { name: { equals: trimmed, mode: 'insensitive' } },
+          ],
+        }
       }
     }
 
@@ -260,13 +402,75 @@ export class StorefrontService {
     return items.map((item) => this.toProductSummary(item))
   }
 
+  private async ensureDefaultPasswordHash() {
+    if (this.defaultCustomerPasswordHash) {
+      return
+    }
+
+    const configured = this.config.get<string>('STOREFRONT_GENERIC_CUSTOMER_PASSWORD')?.trim()
+    const fallback = 'Storefront@2024'
+
+    if (!configured || configured.length < 8) {
+      if (this.config.get<string>('NODE_ENV') === 'production') {
+        throw new Error('STOREFRONT_GENERIC_CUSTOMER_PASSWORD must be configured with at least 8 characters in production.')
+      }
+      console.warn('[storefront] Using fallback STOREFRONT_GENERIC_CUSTOMER_PASSWORD for development. Set a custom value in your environment to override it.')
+      this.defaultCustomerPassword = fallback
+    } else {
+      this.defaultCustomerPassword = configured
+    }
+
+    this.defaultCustomerPasswordHash = await bcrypt.hash(this.defaultCustomerPassword, 12)
+  }
+
+  private async findCustomerByIdentifier(identifier: string): Promise<Customer | null> {
+    const trimmed = identifier.trim()
+    if (!trimmed) {
+      return null
+    }
+
+    if (isEmailIdentifier(trimmed)) {
+      const email = normalizeEmail(trimmed)
+      if (!email) return null
+      return this.prisma.customer.findUnique({ where: { email } })
+    }
+
+    const phone = sanitizePhoneInput(trimmed)
+    if (!phone) {
+      return null
+    }
+
+    return this.prisma.customer.findUnique({ where: { phoneNumber: phone } })
+  }
+
+  private async verifyCustomerPassword(customer: Customer, password: string): Promise<{ valid: boolean; usingDefault: boolean }> {
+    if (customer.passwordHash) {
+      const matchesPrimary = await bcrypt.compare(password, customer.passwordHash)
+      if (matchesPrimary) {
+        return { valid: true, usingDefault: false }
+      }
+    }
+
+    if (customer.storefrontDefaultPasswordHash) {
+      const matchesDefault = await bcrypt.compare(password, customer.storefrontDefaultPasswordHash)
+      if (matchesDefault) {
+        return { valid: true, usingDefault: true }
+      }
+    }
+
+    return { valid: false, usingDefault: false }
+  }
+
   async registerCustomer(dto: StorefrontRegisterDto) {
+    await this.ensureDefaultPasswordHash()
+
     const email = normalizeEmail(dto.email)
     const existing = await this.prisma.customer.findUnique({ where: { email } })
     if (existing?.passwordHash) {
       throw new ConflictException('Customer already exists')
     }
 
+    const phone = sanitizePhoneInput(dto.phone)
     const passwordHash = await bcrypt.hash(dto.password, 12)
     const customer = existing
       ? await this.prisma.customer.update({
@@ -276,6 +480,8 @@ export class StorefrontService {
             lastName: dto.lastName,
             name: `${dto.firstName} ${dto.lastName}`.trim(),
             passwordHash,
+            storefrontDefaultPasswordHash: null,
+            ...(phone ? { phoneNumber: phone } : {}),
           },
         })
       : await this.prisma.customer.create({
@@ -285,6 +491,8 @@ export class StorefrontService {
             lastName: dto.lastName,
             name: `${dto.firstName} ${dto.lastName}`.trim(),
             passwordHash,
+            storefrontDefaultPasswordHash: null,
+            ...(phone ? { phoneNumber: phone } : {}),
           },
         })
 
@@ -292,23 +500,31 @@ export class StorefrontService {
   }
 
   async login(dto: StorefrontLoginDto) {
-    const email = normalizeEmail(dto.email)
-    const customer = await this.prisma.customer.findUnique({ where: { email } })
-    if (!customer?.passwordHash) {
+    await this.ensureDefaultPasswordHash()
+
+    const customer = await this.findCustomerByIdentifier(dto.identifier)
+    if (!customer) {
       throw new UnauthorizedException('Invalid credentials')
     }
 
-    const valid = await bcrypt.compare(dto.password, customer.passwordHash)
+    const { valid, usingDefault } = await this.verifyCustomerPassword(customer, dto.password)
     if (!valid) {
       throw new UnauthorizedException('Invalid credentials')
     }
 
-    await this.prisma.customer.update({
+    const updateData: Prisma.CustomerUpdateInput = { updatedAt: new Date() }
+    if (!usingDefault) {
+      updateData.storefrontDefaultPasswordHash = null
+    } else if (!customer.storefrontDefaultPasswordHash) {
+      updateData.storefrontDefaultPasswordHash = this.defaultCustomerPasswordHash
+    }
+
+    const updated = await this.prisma.customer.update({
       where: { id: customer.id },
-      data: { updatedAt: new Date() },
+      data: updateData,
     })
 
-    return this.buildSession(customer)
+    return this.buildSession(updated)
   }
 
   async refreshSession(dto: StorefrontRefreshDto) {
@@ -330,6 +546,8 @@ export class StorefrontService {
 
   async createOrder(dto: StorefrontCreateOrderDto) {
     const email = normalizeEmail(dto.customer.email)
+    const phone = sanitizePhoneInput(dto.customer.phone)
+    await this.ensureDefaultPasswordHash()
     let customer = await this.prisma.customer.findUnique({ where: { email } })
     if (!customer) {
       customer = await this.prisma.customer.create({
@@ -338,11 +556,28 @@ export class StorefrontService {
           firstName: dto.customer.firstName,
           lastName: dto.customer.lastName,
           name: `${dto.customer.firstName} ${dto.customer.lastName}`.trim(),
+          phoneNumber: phone,
+          storefrontDefaultPasswordHash: this.defaultCustomerPasswordHash,
           phones: dto.customer.phone
             ? {
-                create: [{ phone: dto.customer.phone }],
+                create: [{ phone: phone ?? dto.customer.phone }],
               }
             : undefined,
+        },
+      })
+    } else if (!customer.passwordHash && !customer.storefrontDefaultPasswordHash) {
+      customer = await this.prisma.customer.update({
+        where: { id: customer.id },
+        data: {
+          storefrontDefaultPasswordHash: this.defaultCustomerPasswordHash,
+          ...(phone && !customer.phoneNumber ? { phoneNumber: phone } : {}),
+        },
+      })
+    } else if (phone && !customer.phoneNumber) {
+      customer = await this.prisma.customer.update({
+        where: { id: customer.id },
+        data: {
+          phoneNumber: phone,
         },
       })
     }
@@ -407,37 +642,115 @@ export class StorefrontService {
       },
       include: {
         items: true,
+        status: true,
+        paymentMethod: true,
       },
     })
 
-    return {
-      id: order.id,
-      orderNumber: `ORD-${order.id}`,
-      placedAt: order.createdAt.toISOString(),
-      status: 'pending',
-      paymentStatus: 'pending',
-      fulfillmentStatus: 'pending',
-      items: order.items.map((item) => ({
-        productId: item.productId!,
-        quantity: item.qty,
-        price: money(decimalToNumber(item.unitAmount ?? item.price), currency),
-        total: money(decimalToNumber(item.price.times(item.qty)), currency),
-      })),
-      summary: {
-        items: order.items.map((item) => ({
-          productId: item.productId!,
-          quantity: item.qty,
-          price: money(decimalToNumber(item.unitAmount ?? item.price), currency),
-          total: money(decimalToNumber(item.price.times(item.qty)), currency),
-        })),
-        subtotal: money(decimalToNumber(subtotalDecimal), currency),
-        tax: money(decimalToNumber(taxDecimal), currency),
-        shipping: money(0, currency),
-        grandTotal: money(decimalToNumber(grandTotalDecimal), currency),
-      },
+    return this.toOrderSummary(order, {
       shippingAddress: dto.shippingAddress,
       billingAddress: dto.billingAddress ?? dto.shippingAddress,
+    })
+  }
+
+  async getCustomerProfile(customerId: number): Promise<CustomerProfile> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      include: { addresses: true },
+    })
+    if (!customer) {
+      throw new NotFoundException('Customer not found')
     }
+    return this.toCustomerProfile(customer)
+  }
+
+  async updateCustomerProfile(customerId: number, dto: StorefrontUpdateProfileDto): Promise<CustomerProfile> {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      include: { addresses: true },
+    })
+    if (!customer) {
+      throw new NotFoundException('Customer not found')
+    }
+
+    const updateData: Prisma.CustomerUpdateInput = {}
+    if (dto.firstName !== undefined) {
+      updateData.firstName = dto.firstName
+    }
+    if (dto.lastName !== undefined) {
+      updateData.lastName = dto.lastName
+    }
+    if (dto.firstName !== undefined || dto.lastName !== undefined) {
+      const first = dto.firstName ?? customer.firstName ?? ''
+      const last = dto.lastName ?? customer.lastName ?? ''
+      const fullName = `${first} ${last}`.trim()
+      if (fullName) {
+        updateData.name = fullName
+      }
+    }
+
+    if (dto.phone !== undefined) {
+      const sanitizedPhone = dto.phone ? sanitizePhoneInput(dto.phone) : null
+      if (dto.phone && !sanitizedPhone) {
+        throw new BadRequestException('Invalid phone number')
+      }
+      updateData.phoneNumber = sanitizedPhone
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await this.prisma.customer.update({
+        where: { id: customerId },
+        data: updateData,
+      })
+    }
+
+    const updated = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      include: { addresses: true },
+    })
+    if (!updated) {
+      throw new NotFoundException('Customer not found')
+    }
+    return this.toCustomerProfile(updated)
+  }
+
+  async listCustomerOrders(customerId: number): Promise<OrderSummaryWithReference[]> {
+    const orders = await this.prisma.order.findMany({
+      where: {
+        customerId,
+        documentType: DocumentType.ORDER,
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        items: true,
+        status: true,
+        paymentMethod: true,
+      },
+    })
+
+    return orders.map((order) => this.toOrderSummary(order))
+  }
+
+  async getCustomerOrder(customerId: number, identifier: string): Promise<OrderSummaryWithReference> {
+    const orderId = await this.resolveCustomerOrderId(customerId, identifier)
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: orderId,
+        customerId,
+        documentType: DocumentType.ORDER,
+      },
+      include: {
+        items: true,
+        status: true,
+        paymentMethod: true,
+      },
+    })
+
+    if (!order) {
+      throw new NotFoundException('Order not found')
+    }
+
+    return this.toOrderSummary(order)
   }
 
   private toProductSummary(product: Prisma.ProductGetPayload<{ include: { images: true; category: true } }>): ProductSummaryDto {
@@ -495,6 +808,171 @@ export class StorefrontService {
     }
   }
 
+  private buildOrderNumber(orderId: number): string {
+    return `ORD-${orderId.toString().padStart(6, '0')}`
+  }
+
+  private buildOrderReference(order: OrderIdentifierCandidate): string {
+    const hash = createHash('sha1')
+      .update(`storefront-order:${order.id}:${order.createdAt.toISOString()}`)
+      .digest('hex')
+    return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(
+      20,
+      32,
+    )}`
+  }
+
+  private toCheckoutLineItem(item: OrderItem, currency: string): CheckoutLineItem {
+    const unitAmount = decimalToNumber(item.unitAmount ?? item.price)
+    const totalAmount = decimalToNumber(item.price) * item.qty
+    return {
+      productId: item.productId ?? 0,
+      quantity: item.qty,
+      price: money(unitAmount, currency),
+      total: money(totalAmount, currency),
+      name: item.nameSnapshot ?? item.name,
+      image: item.img ?? undefined,
+    }
+  }
+
+  private toOrderSummary(
+    order: OrderWithRelations,
+    overrides?: {
+      shippingAddress?: StorefrontCreateOrderDto['shippingAddress']
+      billingAddress?: StorefrontCreateOrderDto['billingAddress']
+    },
+  ): OrderSummaryWithReference {
+    const currency = order.orderCurrency || 'USD'
+    const items = order.items.map((item) => this.toCheckoutLineItem(item, currency))
+
+    const subtotal = decimalToNumber(order.subTotal ?? decimal(0))
+    const tax = decimalToNumber(order.tax ?? decimal(0))
+    const shipping = decimalToNumber(order.deliveryFees ?? decimal(0))
+    const grandTotal =
+      order.grandTotal !== null && order.grandTotal !== undefined
+        ? decimalToNumber(order.grandTotal)
+        : subtotal + tax + shipping
+
+    const shippingAddress =
+      overrides?.shippingAddress ?? {
+        line1: order.shippingAddress1 ?? '',
+        line2: order.shippingAddress2 ?? undefined,
+        city: order.shippingCity ?? '',
+        state: order.shippingState ?? '',
+        zip: order.shippingZip ?? '',
+        country: 'Unknown',
+      }
+
+    const billingAddress =
+      overrides?.billingAddress ?? {
+        line1: order.billingAddress1 ?? shippingAddress.line1,
+        line2: order.billingAddress2 ?? shippingAddress.line2,
+        city: order.billingCity ?? shippingAddress.city,
+        state: order.billingState ?? shippingAddress.state,
+        zip: order.billingZip ?? shippingAddress.zip,
+        country: shippingAddress.country,
+      }
+
+    const status = order.status?.name ?? 'pending'
+
+    return {
+      id: order.id,
+      orderNumber: this.buildOrderNumber(order.id),
+      reference: this.buildOrderReference(order),
+      placedAt: order.createdAt.toISOString(),
+      status,
+      paymentStatus: 'pending',
+      fulfillmentStatus: status,
+      items,
+      summary: {
+        items,
+        subtotal: money(subtotal, currency),
+        tax: money(tax, currency),
+        shipping: money(shipping, currency),
+        discounts: [],
+        grandTotal: money(grandTotal, currency),
+      },
+      shippingAddress,
+      billingAddress,
+    }
+  }
+
+  private toCustomerAddress(address: CustomerAddress): CustomerProfile['addresses'][number] {
+    const line1 = [address.street, address.number].filter(Boolean).join(' ').trim()
+    const line2 = [address.apartment, address.corner, address.comments].filter(Boolean).join(', ').trim()
+
+    return {
+      id: address.id,
+      line1,
+      line2: line2 || undefined,
+      city: address.city,
+      state: '',
+      zip: '',
+      country: address.country,
+      label: address.label ?? undefined,
+      isPrimary: address.isPrimary,
+    }
+  }
+
+  private toCustomerProfile(customer: CustomerWithAddresses): CustomerProfile {
+    const addresses = customer.addresses
+      .slice()
+      .sort((a, b) => {
+        if (a.isPrimary === b.isPrimary) {
+          return a.id - b.id
+        }
+        return a.isPrimary ? -1 : 1
+      })
+      .map((address) => this.toCustomerAddress(address))
+
+    return {
+      id: customer.id,
+      email: customer.email ?? '',
+      firstName: customer.firstName ?? '',
+      lastName: customer.lastName ?? '',
+      phone: customer.phoneNumber ?? undefined,
+      avatarUrl: customer.img ?? undefined,
+       dateOfBirth: customer.birthday ? customer.birthday.toISOString() : null,
+      addresses,
+    }
+  }
+
+  private async resolveCustomerOrderId(customerId: number, identifier: string): Promise<number> {
+    const normalized = identifier.trim()
+    if (!normalized) {
+      throw new NotFoundException('Order not found')
+    }
+
+    const numericCandidate = Number.parseInt(normalized.replace(/^ord[-_]?/i, ''), 10)
+    if (!Number.isNaN(numericCandidate)) {
+      return numericCandidate
+    }
+
+    if (/^[a-z0-9]+$/i.test(normalized)) {
+      const base36Candidate = Number.parseInt(normalized, 36)
+      if (!Number.isNaN(base36Candidate)) {
+        return base36Candidate
+      }
+    }
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        customerId,
+        documentType: DocumentType.ORDER,
+      },
+      select: {
+        id: true,
+        createdAt: true,
+      },
+    })
+
+    const match = orders.find((order) => this.buildOrderReference(order) === normalized)
+    if (!match) {
+      throw new NotFoundException('Order not found')
+    }
+    return match.id
+  }
+
   private async buildSession(customer: Customer) {
     const accessPayload = {
       sub: customer.id,
@@ -511,9 +989,13 @@ export class StorefrontService {
       tokenType: 'refresh' as const,
     }
 
-    const [accessToken, refreshToken] = await Promise.all([
+    const [accessToken, refreshToken, addresses] = await Promise.all([
       this.jwt.signAsync(accessPayload, { expiresIn: ACCESS_TOKEN_EXPIRES_IN }),
       this.jwt.signAsync(refreshPayload, { expiresIn: REFRESH_TOKEN_EXPIRES_IN }),
+      this.prisma.customerAddress.findMany({
+        where: { customerId: customer.id },
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      }),
     ])
 
     return {
@@ -525,6 +1007,8 @@ export class StorefrontService {
         email: customer.email,
         firstName: customer.firstName,
         lastName: customer.lastName,
+        phone: customer.phoneNumber ?? undefined,
+        addresses: addresses.map((address) => this.toCustomerAddress(address)),
       },
     }
   }

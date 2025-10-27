@@ -26,6 +26,7 @@ type Address = {
   countryCode?: string
   isPrimary?: boolean
   comments?: string
+  label?: string
 }
 
 export default function CustomerAddresses({
@@ -62,6 +63,7 @@ export default function CustomerAddresses({
         country: addr.country ?? '',
         countryCode: addr.countryCode ?? deriveCountryCode(addr.country ?? ''),
         comments: addr.comments ?? '',
+        label: addr.label ?? '',
       })
       return
     }
@@ -76,13 +78,18 @@ export default function CustomerAddresses({
         countryCode: '',
         isPrimary: list.length === 0,
         comments: '',
+        label: '',
       },
     )
   }
 
   const save = async () => {
     if (!editing) return
-    const payload = { ...editing, customerId }
+    const payload = {
+      ...editing,
+      customerId,
+      label: (editing.label ?? '').trim(),
+    }
     if (editing.id) await apiUpdateCustomerAddress<boolean, any>(payload as any)
     else await apiCreateCustomerAddress<boolean, any>(payload as any)
     setEditing(null)
@@ -155,6 +162,7 @@ export default function CustomerAddresses({
           return (
             <div key={a.id} className="flex items-center justify-between border p-3 rounded">
               <div>
+                {a.label && <div className="text-sm font-semibold text-gray-700">{a.label}</div>}
                 <div className="font-semibold">
                   {a.street} {a.number} {a.apartment && `Apt ${a.apartment}`}
                 </div>
@@ -187,6 +195,7 @@ export default function CustomerAddresses({
       {editing && (
         <div className="mt-4 border-t pt-4 space-y-2">
           <div className="grid grid-cols-2 gap-2">
+            <Input value={editing.label ?? ''} placeholder={t('text.labels.addressLabel') || 'Etiqueta'} onChange={(e) => setEditing({ ...editing, label: e.target.value })} />
             <Input value={editing.street ?? ''} placeholder={t('text.labels.street') || 'Street'} onChange={(e) => setEditing({ ...editing, street: e.target.value })} />
             <Input value={editing.number ?? ''} placeholder={t('text.labels.number') || 'Number'} onChange={(e) => setEditing({ ...editing, number: e.target.value })} />
             <Input value={editing.corner ?? ''} placeholder={t('text.labels.corner') || 'Corner'} onChange={(e) => setEditing({ ...editing, corner: e.target.value })} />
