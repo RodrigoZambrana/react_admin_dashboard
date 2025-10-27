@@ -148,3 +148,70 @@ export interface CreateOrderInput {
   notes?: string
   paymentIntentId?: string
 }
+
+export interface CheckoutLineItem {
+  productId: number
+  quantity: number
+  variantId?: number
+  price: MoneyDto
+  total: MoneyDto
+  name?: string
+  image?: string | null
+}
+
+export interface CheckoutSummary {
+  items: CheckoutLineItem[]
+  subtotal: MoneyDto
+  tax: MoneyDto
+  shipping: MoneyDto
+  discounts?: MoneyDto[]
+  grandTotal: MoneyDto
+  estimatedDelivery?: string
+  notes?: string
+}
+
+export interface OrderSummary {
+  id: number
+  orderNumber: string
+  reference?: string
+  placedAt: string
+  status: string
+  paymentStatus: string
+  fulfillmentStatus: string
+  items: CheckoutLineItem[]
+  summary: CheckoutSummary
+  shippingAddress: CreateOrderInput['shippingAddress']
+  billingAddress?: CreateOrderInput['billingAddress']
+}
+
+export interface CustomerProfile {
+  id: number
+  email: string
+  firstName?: string | null
+  lastName?: string | null
+  phone?: string | null
+  avatarUrl?: string | null
+  dateOfBirth?: string | null
+  addresses: Array<{
+    id: number
+    line1: string
+    line2?: string
+    city: string
+    state?: string
+    zip?: string
+    country: string
+    label?: string | null
+    isPrimary: boolean
+  }>
+}
+
+export interface StorefrontCategoryTree {
+  id: number
+  slug: string
+  name: string
+  description?: string | null
+  thumbnail?: ImageAssetDto | null
+  productCount: number
+  parentId: number | null
+  children: StorefrontCategoryTree[]
+}

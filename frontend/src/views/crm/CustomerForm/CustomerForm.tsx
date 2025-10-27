@@ -36,6 +36,7 @@ export type CustomerAddress = {
     state: string
     countryCode: string
     comments: string
+    label: string
 }
 
 export const ADDRESS_REQUIRED_FIELDS: (keyof CustomerAddress)[] = [
@@ -103,6 +104,7 @@ const addressSchema = (t: (k: string) => string) =>
         corner: Yup.string().nullable(),
         apartment: Yup.string().nullable(),
         comments: Yup.string().nullable(),
+        label: Yup.string().nullable(),
     })
 
 // ─────────────────────────────────────────────────────────────
@@ -279,6 +281,7 @@ const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
             'Uruguay',
         countryCode: primaryAddress.countryCode || '', // puede quedar vacío
         comments: primaryAddress.comments || '',
+        label: primaryAddress.label || '',
     }
 
     const extractPhoneValues = (input: unknown): string[] => {

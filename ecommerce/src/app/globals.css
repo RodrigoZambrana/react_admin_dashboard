@@ -43,3 +43,73 @@ img {
 .prose p {
   color: var(--muted-text-color);
 }
+
+.tt-login-form.tt-login-clean {
+  background-color: #ffffff;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+  padding: 3rem 3rem 2.5rem;
+}
+
+.tt-login-form.tt-login-clean .tt-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.tt-login-form.tt-login-clean .form-control-clean {
+  background-color: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: 0.75rem;
+  padding: 0.9rem 1.25rem;
+  color: #0f172a;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tt-login-form.tt-login-clean .form-control-clean::placeholder {
+  color: rgba(71, 85, 105, 0.75);
+}
+
+.tt-login-form.tt-login-clean .form-control-clean:focus {
+  background-color: #ffffff;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.15);
+  outline: none;
+}
+
+
+.tt-login-form.tt-login-clean .tt-auth-actions {
+  margin-top: 1.5rem;
+}
+
+.tt-login-form.tt-login-clean .additional-links {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tt-login-form.tt-login-clean .additional-links li {
+  list-style: none;
+}
+
+.tt-login-form.tt-login-clean .additional-links a {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-color);
+  text-decoration: underline;
+}
+
+.tt-login-form.tt-login-clean .tt-error-text {
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.tt-login-form.tt-login-clean .tt-link-underlined {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-color);
+  text-decoration: underline;
+}

@@ -878,6 +878,7 @@ export class CustomersController {
           city: String(addr.city || '').trim(),
           country: String(addr.country || '').trim(),
           comments: normalizeNullable(addr.comments),
+          label: normalizeNullable(addr.label),
           isPrimary: true,
         }
 
@@ -1170,6 +1171,7 @@ export class CustomersController {
         city: this.trimOrEmpty(body.city),
         country: this.trimOrEmpty(body.country),
         comments: this.normalizeNullable(body.comments),
+        label: this.normalizeNullable(body.label),
         isPrimary: Boolean(body.isPrimary),
       },
     })
@@ -1198,6 +1200,7 @@ export class CustomersController {
         city: this.trimOrEmpty(body.city),
         country: this.trimOrEmpty(body.country),
         comments: this.normalizeNullable(body.comments),
+        label: this.normalizeNullable(body.label),
         isPrimary: Boolean(body.isPrimary),
       },
     })

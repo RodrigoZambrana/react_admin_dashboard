@@ -58,10 +58,10 @@ export const StorefrontApi = {
     })
   },
 
-  async login(email: string, password: string): Promise<AuthSession> {
+  async login(identifier: string, password: string): Promise<AuthSession> {
     return apiFetch<AuthSession>("auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, password }),
       cache: "no-store",
     })
   },
@@ -71,6 +71,7 @@ export const StorefrontApi = {
     password: string
     firstName: string
     lastName: string
+    phone?: string
   }): Promise<AuthSession> {
     return apiFetch<AuthSession>("auth/register", {
       method: "POST",

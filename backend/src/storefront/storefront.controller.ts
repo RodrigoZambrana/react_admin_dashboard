@@ -1,8 +1,17 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common'
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common'
 import { StorefrontService } from './storefront.service'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
-import { StorefrontRegisterDto, StorefrontLoginDto, StorefrontRefreshDto } from './dto/auth.dto'
+import {
+  StorefrontRegisterDto,
+  StorefrontLoginDto,
+  StorefrontRefreshDto,
+  StorefrontUpdateProfileDto,
+} from './dto/auth.dto'
 import { StorefrontCreateOrderDto } from './dto/order.dto'
+import type { FastifyRequest } from 'fastify'
+import { StorefrontJwtGuard } from './storefront-jwt.guard'
+import type { StorefrontJwtPayload } from './storefront-jwt.strategy'
+import type { StorefrontCategoryTree } from './types'
 
 @Controller('storefront')
 export class StorefrontController {
@@ -19,7 +28,7 @@ export class StorefrontController {
   }
 
   @Get('categories')
-  listCategories() {
+  listCategories(): Promise<StorefrontCategoryTree[]> {
     return this.storefront.listCategories()
   }
 
@@ -57,5 +66,39 @@ export class StorefrontController {
   @Post('orders')
   createOrder(@Body() dto: StorefrontCreateOrderDto) {
     return this.storefront.createOrder(dto)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Get('account/profile')
+  getAccountProfile(@Req() req: FastifyRequest & { user: StorefrontJwtPayload }) {
+    const user = req.user
+    return this.storefront.getCustomerProfile(user.sub)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Patch('account/profile')
+  updateAccountProfile(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Body() dto: StorefrontUpdateProfileDto,
+  ) {
+    const user = req.user
+    return this.storefront.updateCustomerProfile(user.sub, dto)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Get('account/orders')
+  listAccountOrders(@Req() req: FastifyRequest & { user: StorefrontJwtPayload }) {
+    const user = req.user
+    return this.storefront.listCustomerOrders(user.sub)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Get('account/orders/:identifier')
+  getAccountOrder(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Param('identifier') identifier: string,
+  ) {
+    const user = req.user
+    return this.storefront.getCustomerOrder(user.sub, identifier)
   }
 }

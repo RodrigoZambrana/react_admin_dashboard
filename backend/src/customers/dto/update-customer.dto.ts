@@ -109,6 +109,10 @@ class CustomerAddressDto {
   comments?: string
 
   @IsOptional()
+  @IsString()
+  label?: string
+
+  @IsOptional()
   @IsBoolean()
   isPrimary?: boolean
 }

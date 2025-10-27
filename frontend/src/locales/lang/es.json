@@ -652,6 +652,7 @@
             "recipient": "Destinatario",
             "billTo": "Facturar a",
             "address": "Dirección",
+            "addressLabel": "Etiqueta de dirección",
             "budgetValidity": "Vigencia del presupuesto",
             "storyPoint": "{{count}} punto de historia",
             "createdOn": "Creado el",
@@ -669,6 +670,7 @@
             "conversionRates": "Tasas de conversión",
             "snapshotGeneratedAt": "Generado el",
             "primary": "Principal",
+            "none": "Ninguno",
             "expired": "Vence",
             "about": "Acerca de",
             "keyFeatures": "Características clave",
@@ -1677,11 +1679,22 @@
             "title": "Categorías de productos",
             "columns": {
                 "id": "ID",
-                "name": "Nombre"
+                "name": "Nombre",
+                "parent": "Categoría padre",
+                "description": "Descripción",
+                "image": "Imagen"
             },
             "placeholders": {
-                "id": "ID de categoría (ej. devices)",
-                "name": "Nombre de la categoría"
+                "name": "Nombre de la categoría",
+                "description": "Descripción (opcional)",
+                "image": "URL de imagen (opcional)"
+            },
+            "form": {
+                "parent": "Categoría padre",
+                "noParent": "Sin padre"
+            },
+            "validation": {
+                "selfParent": "Una categoría no puede ser su propia categoría padre."
             },
             "created": {
                 "title": "Creado correctamente",

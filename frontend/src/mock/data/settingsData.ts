@@ -17,11 +17,11 @@ export const expenseStatusesData = [
 ]
 
 export const productCategoriesData = [
-    { id: 'devices', name: 'Dispositivos' },
-    { id: 'bags', name: 'Bolsos' },
-    { id: 'shoes', name: 'Zapatos' },
-    { id: 'watches', name: 'Relojes' },
-    { id: 'cloths', name: 'Ropa' },
+    { id: 1, name: 'Dispositivos', description: 'Tecnología y electrónica', image: null, parentId: null },
+    { id: 2, name: 'Smartphones', description: null, image: null, parentId: 1 },
+    { id: 3, name: 'Accesorios', description: null, image: null, parentId: 1 },
+    { id: 4, name: 'Bolsos', description: null, image: null, parentId: null },
+    { id: 5, name: 'Zapatos', description: null, image: null, parentId: null },
 ]
 
 export const paymentMethodsData = [

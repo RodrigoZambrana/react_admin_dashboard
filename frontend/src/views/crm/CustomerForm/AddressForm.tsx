@@ -73,6 +73,20 @@ const AddressForm = () => {
 
   return (
     <div className="grid grid-cols-1 gap-3">
+      <FormItem
+        label={t('text.labels.addressLabel', { defaultValue: 'Address label' })}
+        invalid={Boolean(fieldTouched('label') && fieldError('label'))}
+        errorMessage={fieldError('label') as string}
+      >
+        <Field name="address.label">
+          {({ field }: FieldProps<string>) => (
+            <Input
+              {...field}
+              onChange={(e) => setFieldValue('address.label', e.target.value)}
+            />
+          )}
+        </Field>
+      </FormItem>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <FormItem
           label={t('text.labels.street')}

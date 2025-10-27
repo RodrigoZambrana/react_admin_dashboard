@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
-import { Prisma } from '@prisma/client'
+import { Prisma, ProductType, SalesUnit } from '@prisma/client'
 import type { CompanyProfile } from '@prisma/client'
 import { Roles, ROLES } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
@@ -41,6 +41,25 @@ type ThemeConfigPayload = {
 type BasicStatusConfig = { name: string; color?: string | null }
 type OrderStatusConfig = BasicStatusConfig & { code?: number | null }
 type NamedEntityConfig = { name: string }
+type ProductCategoryServiceConfig = {
+  name?: string | null
+  productCode?: string | null
+  description?: string | null
+  salePrice?: number | string | null
+  costPrice?: number | string | null
+  currency?: string | null
+  taxRate?: number | string | null
+  unitOfMeasure?: string | null
+}
+
+type ProductCategoryConfig = {
+  name: string
+  description?: string | null
+  image?: string | null
+  parent?: string | null
+  installable?: boolean
+  service?: ProductCategoryServiceConfig | null
+}
 type ShippingOptionConfig = {
   name: string
   deliveryFees?: number | null
@@ -67,7 +86,7 @@ type SettingsExportPayload = {
   customerStatuses: BasicStatusConfig[]
   expenseStatuses: BasicStatusConfig[]
   expenseCategories: NamedEntityConfig[]
-  productCategories: NamedEntityConfig[]
+  productCategories: ProductCategoryConfig[]
   paymentMethods: NamedEntityConfig[]
   shippingOptions: ShippingOptionConfig[]
   calendarEventTypes: CalendarEventTypeConfig[]
@@ -377,6 +396,22 @@ export class SettingsController {
     return name.length ? name : null
   }
 
+  private normalizeBoolean(value: unknown): boolean {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase()
+      if (!normalized.length) {
+        return false
+      }
+      if (['false', '0', 'no', 'off'].includes(normalized)) {
+        return false
+      }
+      if (['true', '1', 'yes', 'on'].includes(normalized)) {
+        return true
+      }
+    }
+    return Boolean(value)
+  }
+
   private parseOptionalNumber(value: unknown) {
     if (value === null || value === undefined || value === '') {
       return null
@@ -388,6 +423,147 @@ export class SettingsController {
   private parseOptionalInteger(value: unknown) {
     const num = this.parseOptionalNumber(value)
     return num === null ? null : Math.round(num)
+  }
+
+  private normalizeOptionalString(value: unknown) {
+    if (value === undefined) {
+      return undefined
+    }
+    if (value === null) {
+      return null
+    }
+    const trimmed = String(value).trim()
+    return trimmed.length ? trimmed : null
+  }
+
+  private parseCategoryParentId(value: unknown) {
+    if (value === undefined || value === null || value === '') {
+      return null
+    }
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) {
+        throw new BadRequestException('Invalid parent category')
+      }
+      const normalized = Math.trunc(value)
+      if (normalized < 1) {
+        throw new BadRequestException('Invalid parent category')
+      }
+      return normalized
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed.length) {
+        return null
+      }
+      const parsed = Number(trimmed)
+      if (!Number.isFinite(parsed)) {
+        throw new BadRequestException('Invalid parent category')
+      }
+      const normalized = Math.trunc(parsed)
+      if (normalized < 1) {
+        throw new BadRequestException('Invalid parent category')
+      }
+      return normalized
+    }
+    throw new BadRequestException('Invalid parent category')
+  }
+
+  private async ensureValidCategoryParent(categoryId: number | null, parentId: number | null) {
+    if (parentId === null) {
+      return
+    }
+    const parent = await this.prisma.productCategory.findUnique({
+      where: { id: parentId },
+      select: { id: true, parentId: true },
+    })
+    if (!parent) {
+      throw new BadRequestException('Parent category not found')
+    }
+    if (categoryId !== null && parent.id === categoryId) {
+      throw new BadRequestException('Category cannot be its own parent')
+    }
+    if (categoryId === null) {
+      return
+    }
+    let ancestorId = parent.parentId
+    while (ancestorId !== null) {
+      if (ancestorId === categoryId) {
+        throw new BadRequestException('Parent category would create a cycle')
+      }
+      const ancestor = await this.prisma.productCategory.findUnique({
+        where: { id: ancestorId },
+        select: { parentId: true },
+      })
+      if (!ancestor) {
+        break
+      }
+      ancestorId = ancestor.parentId
+    }
+  }
+
+  private resolveSalesUnit(value: unknown): SalesUnit {
+    if (value === null || value === undefined || value === '') {
+      return SalesUnit.UNIT
+    }
+    const normalized = String(value).trim().toUpperCase().replace(/\s+/g, '_')
+    const match = (Object.values(SalesUnit) as string[]).find((candidate) => candidate === normalized)
+    if (!match) {
+      throw new BadRequestException('Invalid unit of measure')
+    }
+    return match as SalesUnit
+  }
+
+  private normalizeCategoryServicePayload(
+    input: unknown,
+    categoryName: string,
+  ): {
+    name: string
+    productCode: string | null
+    description: string | null
+    salePrice: number
+    costPrice: number | null
+    currency: string
+    taxRate: number | null
+    unitOfMeasure: SalesUnit
+  } {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw new BadRequestException('Service details are required when installable is enabled')
+    }
+    const raw = input as Record<string, unknown>
+    const name = this.sanitizeName(raw['name']) ?? `${categoryName} Installation`
+    if (!name) {
+      throw new BadRequestException('Service name is required')
+    }
+
+    const salePrice = this.parseNumber(raw['salePrice'], Number.NaN)
+    if (!Number.isFinite(salePrice) || salePrice < 0) {
+      throw new BadRequestException('Invalid service sale price')
+    }
+
+    const costPriceRaw = this.parseNumber(raw['costPrice'], Number.NaN)
+    const costPrice = Number.isNaN(costPriceRaw) ? null : Math.max(costPriceRaw, 0)
+
+    const currency = String(raw['currency'] ?? 'UYU').trim() || 'UYU'
+    const descriptionValue = this.normalizeOptionalString(raw['description'])
+    const productCodeValue = this.normalizeOptionalString(raw['productCode'])
+    const description = descriptionValue === undefined ? null : descriptionValue
+    const productCode = productCodeValue === undefined ? null : productCodeValue
+
+    const taxRateRaw = this.parseNumber(raw['taxRate'], Number.NaN)
+    const taxRate = Number.isNaN(taxRateRaw) ? null : taxRateRaw
+
+    const unitOfMeasure = this.resolveSalesUnit(raw['unitOfMeasure'])
+
+    return {
+      name,
+      productCode,
+      description,
+      salePrice,
+      costPrice,
+      currency,
+      taxRate,
+      unitOfMeasure,
+    }
   }
 
   private async ensureCalendarEventTypesSeeded() {
@@ -567,27 +743,224 @@ export class SettingsController {
   @Get('product-categories')
   @UseGuards(JwtAuthGuard)
   getProductCategories() {
-    return this.prisma.productCategory.findMany({ orderBy: { id: 'asc' } })
+    return this.prisma.productCategory.findMany({
+      orderBy: [{ parentId: 'asc' }, { name: 'asc' }],
+      include: { installServiceProduct: true },
+    })
   }
   @Post('product-categories/create')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async createProductCategory(@Body() body: { name: string }) {
-    await this.prisma.productCategory.create({ data: { name: body.name } })
+  async createProductCategory(
+    @Body()
+    body: {
+      name: string
+      description?: string | null
+      image?: string | null
+      parentId?: number | string | null
+      installable?: boolean
+      service?: ProductCategoryServiceConfig | null
+    },
+  ) {
+    const name = this.sanitizeName(body.name)
+    if (!name) {
+      throw new BadRequestException('Name is required')
+    }
+    const description = this.normalizeOptionalString(body.description)
+    const image = this.normalizeOptionalString(body.image)
+    const parentId = this.parseCategoryParentId(body.parentId)
+    await this.ensureValidCategoryParent(null, parentId)
+
+    const installable = Boolean(body.installable)
+    const serviceData = installable ? this.normalizeCategoryServicePayload(body.service, name) : null
+
+    await this.prisma.$transaction(async (tx) => {
+      const category = await tx.productCategory.create({
+        data: {
+          name,
+          description: description ?? null,
+          image: image ?? null,
+          parentId,
+        },
+      })
+
+      if (serviceData) {
+        const serviceProduct = await tx.product.create({
+          data: {
+            name: serviceData.name,
+            productCode: serviceData.productCode ?? undefined,
+            description: serviceData.description ?? undefined,
+            salePrice: serviceData.salePrice,
+            costPrice: serviceData.costPrice ?? 0,
+            currency: serviceData.currency,
+            unitOfMeasure: serviceData.unitOfMeasure,
+            taxRate: serviceData.taxRate ?? undefined,
+            productType: ProductType.SERVICE,
+            stock: 0,
+            permanentStock: false,
+            status: 0,
+            published: true,
+            category: { connect: { id: category.id } },
+          },
+        })
+
+        await tx.productCategory.update({
+          where: { id: category.id },
+          data: { installServiceProductId: serviceProduct.id },
+        })
+      }
+    })
     return true
   }
   @Put('product-categories/update')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async updateProductCategory(@Body() body: { id: number; name?: string }) {
-    await this.prisma.productCategory.update({ where: { id: body.id }, data: { name: body.name } })
+  async updateProductCategory(
+    @Body()
+    body: {
+      id: number | string
+      name?: string | null
+      description?: string | null
+      image?: string | null
+      parentId?: number | string | null
+      installable?: boolean
+      service?: ProductCategoryServiceConfig | null
+    },
+  ) {
+    const id = Number(body.id)
+    if (!Number.isFinite(id) || id <= 0) {
+      throw new BadRequestException('Invalid category id')
+    }
+    const existing = await this.prisma.productCategory.findUnique({
+      where: { id },
+      include: { installServiceProduct: true },
+    })
+    if (!existing) {
+      throw new BadRequestException('Category not found')
+    }
+
+    const data: Prisma.ProductCategoryUncheckedUpdateInput = {}
+    let categoryName = existing.name
+
+    if (body.name !== undefined) {
+      const sanitizedName = this.sanitizeName(body.name)
+      if (!sanitizedName) {
+        throw new BadRequestException('Name is required')
+      }
+      data.name = sanitizedName
+      categoryName = sanitizedName
+    }
+    const description = this.normalizeOptionalString(body.description)
+    if (description !== undefined) {
+      data.description = description
+    }
+    const image = this.normalizeOptionalString(body.image)
+    if (image !== undefined) {
+      data.image = image
+    }
+    if (Object.prototype.hasOwnProperty.call(body, 'parentId')) {
+      const parentId = this.parseCategoryParentId(body.parentId)
+      await this.ensureValidCategoryParent(id, parentId)
+      data.parentId = parentId
+    }
+
+    const hasInstallableFlag = Object.prototype.hasOwnProperty.call(body, 'installable')
+    const installable = hasInstallableFlag
+      ? this.normalizeBoolean(body.installable)
+      : existing.installServiceProductId !== null
+    const servicePayloadProvided = body.service !== undefined && body.service !== null
+    const serviceData =
+      installable && servicePayloadProvided
+        ? this.normalizeCategoryServicePayload(body.service, categoryName)
+        : null
+
+    if (installable && !existing.installServiceProductId && !serviceData) {
+      throw new BadRequestException('Service details are required when enabling installation')
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (Object.keys(data).length > 0) {
+        await tx.productCategory.update({ where: { id }, data })
+      }
+
+      if (installable) {
+        if (existing.installServiceProductId) {
+          if (serviceData) {
+            await tx.product.update({
+              where: { id: existing.installServiceProductId },
+              data: {
+                name: serviceData.name,
+                productCode: serviceData.productCode ?? undefined,
+                description: serviceData.description ?? undefined,
+                salePrice: serviceData.salePrice,
+                costPrice: serviceData.costPrice ?? 0,
+                currency: serviceData.currency,
+                unitOfMeasure: serviceData.unitOfMeasure,
+                taxRate: serviceData.taxRate ?? undefined,
+                productType: ProductType.SERVICE,
+                stock: 0,
+                permanentStock: false,
+                status: 0,
+                published: true,
+                category: { connect: { id } },
+              },
+            })
+          }
+        } else if (serviceData) {
+          const serviceProduct = await tx.product.create({
+            data: {
+              name: serviceData.name,
+              productCode: serviceData.productCode ?? undefined,
+              description: serviceData.description ?? undefined,
+              salePrice: serviceData.salePrice,
+              costPrice: serviceData.costPrice ?? 0,
+              currency: serviceData.currency,
+              unitOfMeasure: serviceData.unitOfMeasure,
+              taxRate: serviceData.taxRate ?? undefined,
+              productType: ProductType.SERVICE,
+              stock: 0,
+              permanentStock: false,
+              status: 0,
+              published: true,
+              category: { connect: { id } },
+            },
+          })
+          await tx.productCategory.update({
+            where: { id },
+            data: { installServiceProductId: serviceProduct.id },
+          })
+        }
+      } else if (existing.installServiceProductId) {
+        await tx.product.delete({ where: { id: existing.installServiceProductId } })
+        await tx.productCategory.update({
+          where: { id },
+          data: { installServiceProductId: null },
+        })
+      }
+    })
     return true
   }
   @Delete('product-categories/delete')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async deleteProductCategory(@Body() body: { id: number }) {
-    await this.prisma.productCategory.delete({ where: { id: body.id } })
+  async deleteProductCategory(@Body() body: { id: number | string }) {
+    const id = Number(body.id)
+    if (!Number.isFinite(id) || id <= 0) {
+      throw new BadRequestException('Invalid category id')
+    }
+    const existing = await this.prisma.productCategory.findUnique({
+      where: { id },
+      select: { installServiceProductId: true },
+    })
+    if (!existing) {
+      throw new BadRequestException('Category not found')
+    }
+    await this.prisma.$transaction(async (tx) => {
+      if (existing.installServiceProductId) {
+        await tx.product.delete({ where: { id: existing.installServiceProductId } })
+      }
+      await tx.productCategory.delete({ where: { id } })
+    })
     return true
   }
 
@@ -757,7 +1130,7 @@ export class SettingsController {
       this.prisma.customerStatus.findMany({ orderBy: { id: 'asc' } }),
       this.prisma.expenseStatus.findMany({ orderBy: { id: 'asc' } }),
       this.prisma.expenseCategory.findMany({ orderBy: { id: 'asc' } }),
-      this.prisma.productCategory.findMany({ orderBy: { id: 'asc' } }),
+      this.prisma.productCategory.findMany({ orderBy: { id: 'asc' }, include: { installServiceProduct: true } }),
       this.prisma.paymentMethod.findMany({ orderBy: { id: 'asc' } }),
       this.prisma.shippingOption.findMany({ orderBy: { id: 'asc' } }),
       this.prisma.calendarEventType.findMany({ orderBy: { id: 'asc' } }),
@@ -811,6 +1184,8 @@ export class SettingsController {
     }))
     exchangeRates.unshift({ quote: currencyBase, rate: '1', updatedAt: null })
 
+    const categoryNameById = new Map(productCategories.map((category) => [category.id, category.name]))
+
     return {
       meta: { exportedAt: new Date().toISOString(), version: 1 },
       orderStatuses: orderStatuses.map(({ name, color, code }) => ({
@@ -827,7 +1202,28 @@ export class SettingsController {
         color,
       })),
       expenseCategories: expenseCategories.map(({ name }) => ({ name })),
-      productCategories: productCategories.map(({ name }) => ({ name })),
+      productCategories: productCategories.map((category) => {
+        const service = category.installServiceProduct
+        return {
+          name: category.name,
+          description: category.description ?? null,
+          image: category.image ?? null,
+          parent: category.parentId ? categoryNameById.get(category.parentId) ?? null : null,
+          installable: Boolean(service),
+          service: service
+            ? {
+                name: service.name,
+                productCode: service.productCode ?? null,
+                description: service.description ?? null,
+                salePrice: Number(service.salePrice),
+                costPrice: Number(service.costPrice),
+                currency: service.currency,
+                taxRate: service.taxRate ?? null,
+                unitOfMeasure: service.unitOfMeasure,
+              }
+            : null,
+        }
+      }),
       paymentMethods: paymentMethods.map(({ name }) => ({ name })),
       shippingOptions: shippingOptions.map(
         ({ name, deliveryFees, estimatedMin, estimatedMax, img }) => ({
@@ -984,10 +1380,58 @@ export class SettingsController {
       : []
 
     const sanitizedProductCategories = hasProductCategories
-      ? collectNamedItems(
-          readArray(payload.productCategories as unknown, 'productCategories'),
-          (_, name) => ({ name }),
-        )
+      ? (() => {
+          const items = readArray(payload.productCategories as unknown, 'productCategories')
+          const map = new Map<
+            string,
+            {
+              name: string
+              description: string | null
+              image: string | null
+              parentName: string | null
+              installable: boolean
+              service: {
+                name: string
+                productCode: string | null
+                description: string | null
+                salePrice: number
+                costPrice: number | null
+                currency: string
+                taxRate: number | null
+                unitOfMeasure: SalesUnit
+              } | null
+            }
+          >()
+          for (const entry of items) {
+            if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+              continue
+            }
+            const raw = entry as Record<string, unknown>
+            const name = this.sanitizeName(raw['name'])
+            if (!name || map.has(name)) {
+              continue
+            }
+            const descriptionValue = this.normalizeOptionalString(raw['description'])
+            const imageValue = this.normalizeOptionalString(raw['image'])
+            const parentName = this.sanitizeName(raw['parent'])
+            const rawService = raw['service']
+            const installableFlag = raw['installable']
+            const hasServicePayload = rawService !== undefined && rawService !== null
+            const installable = installableFlag !== undefined ? this.normalizeBoolean(installableFlag) : hasServicePayload
+            const service = installable
+              ? this.normalizeCategoryServicePayload(rawService, name)
+              : null
+            map.set(name, {
+              name,
+              description: descriptionValue ?? null,
+              image: imageValue ?? null,
+              parentName: parentName ?? null,
+              installable,
+              service,
+            })
+          }
+          return Array.from(map.values())
+        })()
       : []
 
     const sanitizedPaymentMethods = hasPaymentMethods
@@ -1227,9 +1671,65 @@ export class SettingsController {
       if (hasProductCategories) {
         await tx.productCategory.deleteMany({})
         if (sanitizedProductCategories.length) {
-          await tx.productCategory.createMany({
-            data: sanitizedProductCategories.map(({ name }) => ({ name })),
-          })
+          const pending = new Map(
+            sanitizedProductCategories.map((entry) => [entry.name, entry]),
+          )
+          const created = new Map<string, number>()
+          while (pending.size > 0) {
+            let advanced = false
+            for (const [name, entry] of Array.from(pending.entries())) {
+              const parentName = entry.parentName
+              if (parentName && !created.has(parentName)) {
+                continue
+              }
+              const parentId = parentName ? created.get(parentName)! : null
+              const createdCategory = await tx.productCategory.create({
+                data: {
+                  name: entry.name,
+                  description: entry.description,
+                  image: entry.image,
+                  parentId,
+                },
+                select: { id: true },
+              })
+
+              if (entry.installable) {
+                if (!entry.service) {
+                  throw new BadRequestException('Service details are required for installable categories')
+                }
+                const serviceProduct = await tx.product.create({
+                  data: {
+                    name: entry.service.name,
+                    productCode: entry.service.productCode ?? undefined,
+                    description: entry.service.description ?? undefined,
+                    salePrice: entry.service.salePrice,
+                    costPrice: entry.service.costPrice ?? 0,
+                    currency: entry.service.currency,
+                    unitOfMeasure: entry.service.unitOfMeasure,
+                    taxRate: entry.service.taxRate ?? undefined,
+                    productType: ProductType.SERVICE,
+                    stock: 0,
+                    permanentStock: false,
+                    status: 0,
+                    published: true,
+                    category: { connect: { id: createdCategory.id } },
+                  },
+                })
+                await tx.productCategory.update({
+                  where: { id: createdCategory.id },
+                  data: { installServiceProductId: serviceProduct.id },
+                })
+              }
+              created.set(name, createdCategory.id)
+              pending.delete(name)
+              advanced = true
+            }
+            if (!advanced) {
+              throw new BadRequestException(
+                'Invalid product category hierarchy in import payload',
+              )
+            }
+          }
         }
         summary.productCategories = sanitizedProductCategories.length
       }
