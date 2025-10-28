@@ -306,6 +306,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         let completed = false;
         let detachPopupCloseListener: (() => void) | null = null;
         let fallbackTimer: number | undefined;
+        let popupClosePoll: number | undefined;
 
         const clearFallbackTimer = () => {
           if (fallbackTimer) {
@@ -315,14 +316,11 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         };
 
         const removePopupCloseListener = () => {
-          if (!detachPopupCloseListener) {
-            return;
+          if (popupClosePoll !== undefined) {
+            window.clearInterval(popupClosePoll);
+            popupClosePoll = undefined;
           }
-          try {
-            detachPopupCloseListener();
-          } catch {
-            /* ignore: window might already be closing */
-          }
+
           detachPopupCloseListener = null;
         };
 
@@ -360,25 +358,25 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           if (!popup) {
             return;
           }
-          const events: Array<keyof WindowEventMap> = ["pagehide", "beforeunload", "unload"];
-          const detach = () => {
-            events.forEach((eventName) => {
-              try {
-                popup.removeEventListener(eventName, handlePopupManualClose);
-              } catch {
-                /* ignore: window already closed */
+
+          popupClosePoll = window.setInterval(() => {
+            if (!popup) {
+              removePopupCloseListener();
+              return;
+            }
+
+            try {
+              if (popup.closed) {
+                removePopupCloseListener();
+                handlePopupManualClose();
               }
-            });
-          };
-          try {
-            events.forEach((eventName) => {
-              popup.addEventListener(eventName, handlePopupManualClose);
-            });
-            detachPopupCloseListener = detach;
-          } catch (error) {
-            detachPopupCloseListener = null;
-            console.warn("[session] Unable to observe Google auth popup close events", error);
-          }
+            } catch (error) {
+              removePopupCloseListener();
+              console.warn("[session] Error while polling Google auth popup state", error);
+            }
+          }, 500);
+
+          detachPopupCloseListener = removePopupCloseListener;
         };
 
         const startFallbackTimer = () => {
