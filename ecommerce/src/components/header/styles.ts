@@ -75,7 +75,7 @@ const StyledHeader = styled.header`
       padding: 0 4px;
       border-radius: 999px;
       background-color: ${({ theme }) => theme.colors.primary.main};
-      color: ${({ theme }) => theme.colors.common.white};
+      color: ${({ theme }) => theme.colors.primary.text};
       font-size: 10px;
       font-weight: 600;
       display: flex;

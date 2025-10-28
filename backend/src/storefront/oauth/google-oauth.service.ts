@@ -290,14 +290,37 @@ export class StorefrontGoogleOAuthService {
       (function() {
         const payload = ${payload};
         const origin = ${JSON.stringify(targetOrigin)};
+        const fallbackOrigin = origin !== '*' ? origin : window.location.origin;
+        const returnPath = typeof payload.returnPath === 'string' ? payload.returnPath : null;
+        const normalizeBase = function(url) {
+          if (typeof url !== 'string') return url;
+          return url.endsWith('/') ? url.slice(0, -1) : url;
+        };
+        let delivered = false;
+
         try {
           if (window.opener && typeof window.opener.postMessage === 'function') {
             window.opener.postMessage(payload, origin);
-          } else if (window.parent && window.parent !== window) {
+            delivered = true;
+          } else if (window.parent && window.parent !== window && typeof window.parent.postMessage === 'function') {
             window.parent.postMessage(payload, origin);
+            delivered = true;
           }
+        } catch (error) {
+          console.warn('[storefront] Failed to post Google auth result to opener:', error);
         } finally {
-          setTimeout(function() { window.close(); }, 500);
+          if (delivered) {
+            setTimeout(function() { window.close(); }, 500);
+          } else if (fallbackOrigin) {
+            var base = normalizeBase(fallbackOrigin);
+            var target = base;
+            if (returnPath && returnPath.charAt(0) === '/') {
+              target = base + returnPath;
+            }
+            setTimeout(function() { window.location.replace(target); }, 400);
+          } else {
+            setTimeout(function() { window.close(); }, 800);
+          }
         }
       })();
     </script>

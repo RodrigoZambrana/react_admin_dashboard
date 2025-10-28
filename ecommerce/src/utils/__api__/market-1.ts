@@ -126,14 +126,60 @@ const getMoreItems = async (): Promise<Product[]> => {
   return fetchProductsWithFallback({ pageSize: 12 }, "/api/market-1/get-more-items");
 };
 
-const getServiceList = async (): Promise<Service[]> => {
-  const response = await axios.get("/api/market-1/get-service-list");
-  return response.data;
+const loadMockServiceList = async (): Promise<Service[]> => {
+  const { serviceList } = await import("@/__server__/__db__/market-1/data");
+  return serviceList as Service[];
 };
 
-const getMainCarousel = async (): Promise<[MainCarouselItem]> => {
-  const response = await axios.get("/api/market-1/main-carousel");
-  return response.data;
+const getServiceList = async (): Promise<Service[]> => {
+  try {
+    const response = await axios.get("/api/market-1/get-service-list");
+    const services = response.data;
+
+    if (Array.isArray(services) && services.length > 0) {
+      return services;
+    }
+
+    console.warn("[storefront] Received empty service list response, using mock data instead.");
+    return loadMockServiceList();
+  } catch (error) {
+    if (isApiError(error)) {
+      console.warn(
+        `[storefront] Falling back to mock service list (status ${error.status}): ${error.message}`
+      );
+    } else {
+      console.warn("[storefront] Falling back to mock service list due to error:", error);
+    }
+    return loadMockServiceList();
+  }
+};
+
+const loadMockMainCarousel = async (): Promise<MainCarouselItem[]> => {
+  const { mainCarouselData } = await import("@/__server__/__db__/market-1/data");
+  return mainCarouselData as MainCarouselItem[];
+};
+
+const getMainCarousel = async (): Promise<MainCarouselItem[]> => {
+  try {
+    const response = await axios.get("/api/market-1/main-carousel");
+    const items = response.data;
+
+    if (Array.isArray(items) && items.length > 0) {
+      return items;
+    }
+
+    console.warn("[storefront] Received empty main carousel response, using mock data instead.");
+    return loadMockMainCarousel();
+  } catch (error) {
+    if (isApiError(error)) {
+      console.warn(
+        `[storefront] Falling back to mock main carousel data (status ${error.status}): ${error.message}`
+      );
+    } else {
+      console.warn("[storefront] Falling back to mock main carousel data due to error:", error);
+    }
+    return loadMockMainCarousel();
+  }
 };
 
 const getTopCategories = async (): Promise<Category[]> => {

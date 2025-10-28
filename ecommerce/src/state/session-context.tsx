@@ -288,7 +288,11 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         throw popupError;
       }
 
-      popup.focus();
+      try {
+        popup.focus();
+      } catch (error) {
+        console.warn("[session] Unable to focus Google auth popup due to window policy", error);
+      }
 
       const trustedOrigins = new Set<string>();
       try {
@@ -300,16 +304,37 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
 
       return new Promise<{ session: AuthSession; returnPath: string | null }>((resolve, reject) => {
         let completed = false;
-        let closeTimer: number | undefined;
+        let detachPopupCloseListener: (() => void) | null = null;
+        let fallbackTimer: number | undefined;
+
+        const clearFallbackTimer = () => {
+          if (fallbackTimer) {
+            window.clearTimeout(fallbackTimer);
+            fallbackTimer = undefined;
+          }
+        };
+
+        const removePopupCloseListener = () => {
+          if (!detachPopupCloseListener) {
+            return;
+          }
+          try {
+            detachPopupCloseListener();
+          } catch {
+            /* ignore: window might already be closing */
+          }
+          detachPopupCloseListener = null;
+        };
 
         const cleanup = () => {
           completed = true;
           window.removeEventListener("message", handleMessage);
-          if (closeTimer) {
-            window.clearInterval(closeTimer);
-          }
-          if (!popup.closed) {
+          clearFallbackTimer();
+          removePopupCloseListener();
+          try {
             popup.close();
+          } catch (error) {
+            console.warn("[session] Unable to close Google auth popup", error);
           }
         };
 
@@ -322,6 +347,53 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
             return;
           }
           reject(error);
+        };
+
+        const handlePopupManualClose = () => {
+          if (completed) {
+            return;
+          }
+          fail(new Error("Se cerró la ventana de Google antes de finalizar el acceso."));
+        };
+
+        const attachPopupCloseListener = () => {
+          if (!popup) {
+            return;
+          }
+          const events: Array<keyof WindowEventMap> = ["pagehide", "beforeunload", "unload"];
+          const detach = () => {
+            events.forEach((eventName) => {
+              try {
+                popup.removeEventListener(eventName, handlePopupManualClose);
+              } catch {
+                /* ignore: window already closed */
+              }
+            });
+          };
+          try {
+            events.forEach((eventName) => {
+              popup.addEventListener(eventName, handlePopupManualClose);
+            });
+            detachPopupCloseListener = detach;
+          } catch (error) {
+            detachPopupCloseListener = null;
+            console.warn("[session] Unable to observe Google auth popup close events", error);
+          }
+        };
+
+        const startFallbackTimer = () => {
+          const timeoutMs = 2 * 60 * 1000;
+          clearFallbackTimer();
+          fallbackTimer = window.setTimeout(() => {
+            if (completed) {
+              return;
+            }
+            fail(
+              new Error(
+                "La autenticación con Google tardó demasiado. Cierra la ventana e inténtalo nuevamente."
+              )
+            );
+          }, timeoutMs);
         };
 
         const handleMessage = (event: MessageEvent) => {
@@ -356,17 +428,8 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         };
 
         window.addEventListener("message", handleMessage);
-
-        closeTimer = window.setInterval(() => {
-          if (completed) {
-            window.clearInterval(closeTimer);
-            return;
-          }
-          if (popup.closed) {
-            window.clearInterval(closeTimer);
-            fail(new Error("Se cerró la ventana de Google antes de finalizar el acceso."));
-          }
-        }, 400);
+        attachPopupCloseListener();
+        startFallbackTimer();
       });
     },
     [clearError, handleAuthError, handleAuthSuccess]

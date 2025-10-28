@@ -3,11 +3,10 @@ import Divider from "@component/Divider";
 import FlexBox from "@component/FlexBox";
 import Container from "@component/Container";
 import { Carousel } from "@component/carousel";
-// API FUNCTIONS
-import api from "@utils/__api__/fashion-2";
+import defaultFashion2Brands from "@/data/fashion2Brands";
 
-export default async function Section9() {
-  const brands = await api.getBrands();
+export default function Section9() {
+  const brands = defaultFashion2Brands;
 
   const responsive = [
     { breakpoint: 1024, settings: { slidesToShow: 3 } },

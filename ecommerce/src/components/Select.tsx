@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, memo, useId } from "react";
+import { useEffect, useMemo, useState, memo, useId } from "react";
 import { useTheme } from "styled-components";
 import { SpaceProps } from "styled-system";
 import ReactSelect, { Props, Theme } from "react-select";
@@ -44,6 +44,11 @@ const Select = memo(
   }: SelectProps) => {
   const { colors } = useTheme();
   const autoId = useId();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const selectTheme = (theme: Theme) => ({
     ...theme,
@@ -97,6 +102,11 @@ const Select = memo(
     };
   }, [baseSelectProps, computedIds.label]);
 
+  const fallbackPlaceholder =
+    typeof (baseSelectProps as Props).placeholder === "string"
+      ? (baseSelectProps as Props).placeholder
+      : "";
+
   return (
     <Box {...(spacingProps as SpaceProps)}>
       {label && (
@@ -105,15 +115,31 @@ const Select = memo(
         </Typography>
       )}
 
-      <ReactSelect
-        isMulti={isMulti}
-        options={options}
-        theme={selectTheme}
-        styles={styles(errorText)}
-        instanceId={computedIds.instance}
-        inputId={computedIds.input}
-        {...(selectProps as Props)}
-      />
+      {isMounted ? (
+        <ReactSelect
+          isMulti={isMulti}
+          options={options}
+          theme={selectTheme}
+          styles={styles(errorText)}
+          instanceId={computedIds.instance}
+          inputId={computedIds.input}
+          {...(selectProps as Props)}
+        />
+      ) : (
+        <Box
+          aria-hidden="true"
+          border="1px solid"
+          borderColor={errorText ? "primary.main" : "gray.300"}
+          borderRadius="8px"
+          color="text.disabled"
+          display="flex"
+          alignItems="center"
+          minHeight="40px"
+          px="0.75rem"
+        >
+          {fallbackPlaceholder}
+        </Box>
+      )}
 
       {errorText && (
         <Typography as="small" color="error.main" ml="0.75rem" mt="0.25rem">
