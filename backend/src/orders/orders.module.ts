@@ -4,10 +4,10 @@ import { BudgetsController } from './budgets.controller'
 import { SalesDocumentsService } from './sales-documents.service'
 import { BudgetsFeatureGuard } from './guards/budgets-feature.guard'
 import { OrderFinanceService } from './order-finance.service'
-import { EmailModule } from '../email/email.module'
+import { NotificationsModule } from '../notifications/notifications.module'
 
 @Module({
-  imports: [EmailModule],
+  imports: [NotificationsModule],
   controllers: [OrdersController, BudgetsController],
   providers: [SalesDocumentsService, BudgetsFeatureGuard, OrderFinanceService],
   exports: [SalesDocumentsService, OrderFinanceService],

@@ -167,6 +167,7 @@ export default function ProductCard1({
   );
 
   const resolvedCurrency = currencyCode ?? baseCurrency;
+  const productCurrency = currencyCode ?? baseCurrency;
   const hasExplicitBasePrice =
     typeof basePrice === "number" && Number.isFinite(basePrice) && basePrice > 0 && basePrice > price;
   const hasDiscountPercentage = typeof off === "number" && Number.isFinite(off) && off > 0;
@@ -192,13 +193,14 @@ export default function ProductCard1({
           id,
           slug,
           price: effectivePrice,
+          currency: productCurrency,
           imgUrl: primaryImage,
           name: title,
           qty: amount
         }
       });
     },
-    [dispatch, id, slug, effectivePrice, primaryImage, title]
+    [dispatch, id, slug, effectivePrice, primaryImage, productCurrency, title]
   );
 
   return (
@@ -224,15 +226,15 @@ export default function ProductCard1({
             className="extra-icons overlay-actions"
             compact
             productId={id}
-            productSlug={slug}
-            productTitle={title}
-            productPrice={effectivePrice}
-            productBasePrice={showListPrice ? baselineAmount : undefined}
-            productCurrency={resolvedCurrency}
-            productImages={gallery}
-            productImage={primaryImage}
-            onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)}
-          />
+          productSlug={slug}
+          productTitle={title}
+          productPrice={effectivePrice}
+          productBasePrice={showListPrice ? baselineAmount : undefined}
+          productCurrency={productCurrency}
+          productImages={gallery}
+          productImage={primaryImage}
+          onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)}
+        />
 
           <Link href={`/product/${slug}`}>
             {primaryImage ? (

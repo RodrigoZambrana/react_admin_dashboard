@@ -90,12 +90,13 @@ export default function StorefrontProductCard({
         id,
         slug,
         price,
+        currency: currencyCode ?? baseCurrency,
         imgUrl: primaryImage,
         name: title,
         qty: (cartItem?.qty ?? 0) + 1
       }
     });
-  }, [cartItem?.qty, dispatch, id, primaryImage, price, slug, title]);
+  }, [baseCurrency, cartItem?.qty, currencyCode, dispatch, id, primaryImage, price, slug, title]);
 
   const normalizedRating = typeof rating === "number" ? rating : null;
   const normalizedReviews = typeof reviewCount === "number" ? reviewCount : null;

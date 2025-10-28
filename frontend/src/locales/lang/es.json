@@ -92,6 +92,7 @@
             "paymentMethods": "Formas de pago",
             "shippingOptions": "Opciones de envío",
             "systemConfig": "Configuración del sistema",
+            "email": "Correo electrónico",
             "calendarEventTypes": "Tipos de evento"
         },
         "uiComponents": "Componentes de la UI",
@@ -875,30 +876,29 @@
                 "updated": "Configuración de notificaciones actualizada",
                 "channels": {
                     "email": "Correo",
-                    "browser": "Navegador",
-                    "app": "App"
+                    "inApp": "En la app",
+                    "push": "Push (próximamente)"
                 },
-                "general": {
-                    "title": "Notificaciones generales",
-                    "desc": "Selecciona cómo quieres recibir notificaciones cuando ocurran los siguientes cambios.",
-                    "news": "Noticias",
-                    "accountActivity": "Actividad de la cuenta",
-                    "signIn": "Nuevo dispositivo usado para iniciar sesión",
-                    "reminders": "Recordatorios"
+                "audience": {
+                    "admin": "Administradores",
+                    "customer": "Clientes"
                 },
-                "project": {
-                    "title": "Notificaciones del proyecto",
-                    "desc": "Selecciona cómo quieres recibir notificaciones cuando sucedan eventos relacionados al proyecto.",
-                    "mentioned": "Alguien te menciona",
-                    "replies": "Alguien responde a tu mensaje",
-                    "taskUpdate": "Estado de tarea actualizado",
-                    "assigned": "Tarea asignada a ti"
+                "roles": {
+                    "hint": "Selecciona qué roles internos deben recibir estas notificaciones."
                 },
-                "sales": {
-                    "title": "Notificaciones de ventas",
-                    "desc": "Selecciona cómo quieres recibir notificaciones cuando se actualicen productos u órdenes.",
-                    "newProduct": "Nuevo producto",
-                    "newOrder": "Nueva orden realizada"
+                "events": {
+                    "orderReceived": {
+                        "title": "Pedido recibido",
+                        "desc": "Configura notificaciones para clientes y equipo cuando se crea un nuevo pedido."
+                    },
+                    "paymentReceived": {
+                        "title": "Pago confirmado",
+                        "desc": "Avisá a los equipos y al cliente cuando se confirme un pago."
+                    },
+                    "orderStatusChanged": {
+                        "title": "Estado de pedido actualizado",
+                        "desc": "Alertá a los involucrados cuando el pedido cambie de estado (confirmado o cancelado)."
+                    }
                 }
             }
         },
@@ -1868,6 +1868,102 @@
                 "invalidImageType": "Tipo de archivo no soportado. Sube una imagen JPG, PNG, WEBP, GIF o SVG."
             }
         },
+        "email": {
+            "title": "Correo electrónico",
+            "categories": {
+                "orders": "Pedidos",
+                "payments": "Pagos",
+                "auth": "Autenticación"
+            },
+            "category": {
+                "description": "Configura la información del remitente y los destinatarios para esta categoría de correos."
+            },
+            "status": {
+                "enabled": "Habilitado",
+                "disabled": "Deshabilitado"
+            },
+            "fields": {
+                "fromName": "Nombre del remitente",
+                "fromAddress": "Correo del remitente"
+            },
+            "recipients": {
+                "admin": "Destinatarios administrativos",
+                "empty": "Sin destinatarios"
+            },
+            "actions": {
+                "add": "Agregar",
+                "save": "Guardar cambios",
+                "sendTest": "Enviar correo de prueba",
+                "refresh": "Actualizar",
+                "addRule": "Agregar regla",
+                "removeRecipient": "Quitar destinatario"
+            },
+            "updatedAtExact": "Última actualización {{value}}",
+            "test": {
+                "title": "Enviar correo de prueba",
+                "variant": {
+                    "orders": "Tipo de correo",
+                    "payments": "Tipo de correo",
+                    "auth": "Tipo de correo"
+                },
+                "locale": "Idioma",
+                "emailPlaceholder": "Correo electrónico",
+                "sent": "Se encoló el correo de prueba correctamente."
+            },
+            "validation": {
+                "invalidEmail": "Ingresa un correo electrónico válido.",
+                "selectCategory": "Selecciona al menos una categoría."
+            },
+            "saveSuccess": "Los cambios se guardaron correctamente.",
+            "roles": {
+                "title": "Reglas según rol",
+                "description": "Notifica automáticamente a los usuarios internos según su rol. Los destinatarios se combinan con los definidos manualmente.",
+                "fields": {
+                    "role": "Rol",
+                    "categories": "Categorías"
+                },
+                "placeholders": {
+                    "role": "Selecciona un rol"
+                },
+                "list": "Reglas existentes",
+                "empty": "Aún no se definieron reglas por rol."
+            },
+            "logs": {
+                "title": "Registro de envíos",
+                "description": "Revisa los correos enviados recientemente, sus estados y errores.",
+                "filters": {
+                    "category": "Todas las categorías",
+                    "status": "Todos los estados",
+                    "recipient": "Todos los destinatarios"
+                },
+                "columns": {
+                    "date": "Fecha",
+                    "category": "Categoría",
+                    "recipient": "Destinatario",
+                    "subject": "Asunto",
+                    "status": "Estado"
+                },
+                "status": {
+                    "queued": "En cola",
+                    "sent": "Enviado",
+                    "failed": "Fallido",
+                    "retrying": "Reintentando"
+                },
+                "recipient": {
+                    "customer": "Cliente",
+                    "admin": "Administrador",
+                    "system": "Sistema"
+                },
+                "empty": "No se encontraron registros.",
+                "actions": {
+                    "loadMore": "Ver más"
+                }
+            },
+            "templates": {
+                "title": "Plantillas activas",
+                "description": "Resumen de las plantillas MJML activas por categoría, idioma y variante."
+            }
+        },
         "companyProfile": {
             "title": "Datos de la empresa",
             "subtitle": "Personaliza los datos de la empresa que se muestran en las facturas y otros documentos.",
@@ -2004,7 +2100,11 @@
             "title": "¡Sin notificaciones!",
             "desc": "Por favor, inténtalo más tarde"
         },
-        "viewAll": "Ver toda la actividad"
+        "viewAll": "Ver toda la actividad",
+        "untitled": "Notificación",
+        "loading": "Cargando notificaciones...",
+        "lastUpdated": "Actualizado {{date}}",
+        "viewRecent": "Mostraremos las novedades aquí."
     },
     "production": {
         "orders": {

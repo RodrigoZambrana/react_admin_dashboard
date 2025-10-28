@@ -23,7 +23,7 @@ import {
   divideDecimals,
 } from '../common/currency/money.util'
 import { OrderFinanceService } from './order-finance.service'
-import { EmailService } from '../email/email.service'
+import { NotificationOrchestratorService } from '../notifications/notification-orchestrator.service'
 
 const BUDGET_STATUS = {
   DRAFT: { code: 1000, name: 'Presupuesto - Borrador', color: '#9ca3af' },
@@ -91,7 +91,7 @@ export class SalesDocumentsService {
     private readonly prisma: PrismaService,
     private readonly currencyConversion: CurrencyConversionService,
     private readonly orderFinance: OrderFinanceService,
-    private readonly emailService: EmailService,
+    private readonly notifications: NotificationOrchestratorService,
   ) {}
 
   private readonly logger = new Logger(SalesDocumentsService.name)
@@ -1651,9 +1651,9 @@ export class SalesDocumentsService {
     })
     await this.orderFinance.recalculateOrderFinancials(created.id)
     if (documentType === DocumentType.ORDER) {
-      this.emailService
-        .sendOrderReceived({ orderId: created.id })
-        .catch((error) => this.logger.error(`Failed to enqueue order email for order ${created.id}: ${(error as Error).message}`))
+      this.notifications
+        .notifyOrderReceived(created.id)
+        .catch((error) => this.logger.error(`Failed to dispatch notifications for order ${created.id}: ${(error as Error).message}`))
     }
     return true
   }
@@ -1809,8 +1809,17 @@ export class SalesDocumentsService {
     id: number,
     body: { status: number; force?: boolean },
   ) {
+    let previousStatusId: number | null = null
     if (documentType === DocumentType.ORDER) {
       await this.orderFinance.ensureStatusCanTransition(id, body.status, Boolean(body.force))
+      const existing = await this.prisma.order.findFirst({
+        where: { id, documentType },
+        select: { statusId: true },
+      })
+      if (!existing) {
+        throw new BadRequestException('sales.orders.validation.notFound')
+      }
+      previousStatusId = existing.statusId ?? null
     }
     const result = await this.prisma.order.updateMany({
       where: { id: id, documentType },
@@ -1818,6 +1827,11 @@ export class SalesDocumentsService {
     })
     if (result.count === 0) {
       throw new BadRequestException('sales.orders.validation.notFound')
+    }
+    if (documentType === DocumentType.ORDER) {
+      this.notifications
+        .notifyOrderStatusChanged(id, previousStatusId, body.status)
+        .catch((error) => this.logger.error(`Failed to dispatch status change notifications for order ${id}: ${(error as Error).message}`))
     }
     return true
   }

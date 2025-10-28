@@ -1,4 +1,7 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import classNames from 'classnames'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
 import withHeaderItem from '@/utils/hoc/withHeaderItem'
 import Avatar from '@/components/ui/Avatar'
 import Dropdown from '@/components/ui/Dropdown'
@@ -6,91 +9,24 @@ import ScrollBar from '@/components/ui/ScrollBar'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Tooltip from '@/components/ui/Tooltip'
-import {
-    HiOutlineBell,
-    HiOutlineCalendar,
-    HiOutlineClipboardCheck,
-    HiOutlineBan,
-    HiOutlineMailOpen,
-} from 'react-icons/hi'
-import { Link } from 'react-router-dom'
-import isLastChild from '@/utils/isLastChild'
-import useTwColorByName from '@/utils/hooks/useTwColorByName'
-import useThemeClass from '@/utils/hooks/useThemeClass'
-import { useAppSelector } from '@/store'
-import useResponsive from '@/utils/hooks/useResponsive'
-import acronym from '@/utils/acronym'
+import { HiOutlineBell, HiOutlineMailOpen } from 'react-icons/hi'
 import { useTranslation } from 'react-i18next'
-import { useMemo } from 'react'
-
-type NotificationList = {
-    id: string
-    target: string
-    description: string
-    date: string
-    image: string
-    type: number
-    location: string
-    locationLabel: string
-    status: string
-    readed: boolean
-}
+import appConfig from '@/configs/app.config'
+import {
+    fetchNotifications,
+    fetchUnreadCount,
+    markNotificationsRead,
+    notificationReceived,
+    selectNotifications,
+    selectNotificationsMeta,
+    setStreaming,
+} from '@/store/slices/notifications'
+import { useAppDispatch, useAppSelector } from '@/store'
+import type { NotificationItem } from '@/services/NotificationService'
 
 const notificationHeight = 'h-72'
-const imagePath = '/img/avatars/'
 
-const GeneratedAvatar = ({ target }: { target: string }) => {
-    const color = useTwColorByName()
-    return (
-        <Avatar shape="circle" className={`${color(target)}`}>
-            {acronym(target)}
-        </Avatar>
-    )
-}
-
-const notificationTypeAvatar = (data: {
-    type: number
-    target: string
-    image: string
-    status: string
-}) => {
-    const { type, target, image, status } = data
-    switch (type) {
-        case 0:
-            if (image) {
-                return <Avatar shape="circle" src={`${imagePath}${image}`} />
-            }
-            return <GeneratedAvatar target={target} />
-        case 1:
-            return (
-                <Avatar
-                    shape="circle"
-                    className="bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-100"
-                    icon={<HiOutlineCalendar />}
-                />
-            )
-        case 2:
-            return (
-                <Avatar
-                    shape="circle"
-                    className={
-                        status === 'succeed'
-                            ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-100'
-                            : 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-100'
-                    }
-                    icon={
-                        status === 'succeed' ? (
-                            <HiOutlineClipboardCheck />
-                        ) : (
-                            <HiOutlineBan />
-                        )
-                    }
-                />
-            )
-        default:
-            return <Avatar />
-    }
-}
+dayjs.extend(relativeTime)
 
 const NotificationToggle = ({
     className,
@@ -112,30 +48,115 @@ const NotificationToggle = ({
     )
 }
 
+type NotificationEntry = NotificationItem & {
+    displayDate: string
+    isUnread: boolean
+}
+
+const buildEntry = (item: NotificationItem): NotificationEntry => {
+    const createdAt = dayjs(item.createdAt)
+    return {
+        ...item,
+        displayDate: createdAt.format('DD MMM YYYY HH:mm'),
+        isUnread: !item.readAt,
+    }
+}
+
+const formatMetadataSummary = (item: NotificationItem): string | null => {
+    if (!item.metadata) {
+        return null
+    }
+    if (item.metadata.orderNumber) {
+        return `#${item.metadata.orderNumber}`
+    }
+    if (item.metadata.orderId) {
+        return `#${item.metadata.orderId}`
+    }
+    if (item.metadata.paymentId) {
+        return `Payment ${item.metadata.paymentId}`
+    }
+    return null
+}
+
 const _Notification = ({ className }: { className?: string }) => {
-    const { bgTheme } = useThemeClass()
-    const { larger } = useResponsive()
-    const direction = useAppSelector((state) => state.theme.direction)
-    const notificationList = useMemo<NotificationList[]>(() => [], [])
-    const unreadNotification = false
-    const noResult = true
+    const dispatch = useAppDispatch()
+    const notifications = useAppSelector(selectNotifications)
+    const { unreadCount, loading } = useAppSelector(selectNotificationsMeta)
+    const { t, i18n } = useTranslation()
+    const eventSourceRef = useRef<EventSource | null>(null)
+    const hasLoadedRef = useRef(false)
 
-    const onNotificationOpen = () => {}
-    const onMarkAllAsRead = () => {}
-    const onMarkAsRead = (_id: string) => {}
+    const entries = useMemo(() => notifications.map(buildEntry), [notifications])
 
-    const { t } = useTranslation()
+    useEffect(() => {
+        if (eventSourceRef.current) {
+            return
+        }
+        const url = `${appConfig.apiPrefix}/notifications/events`
+        const source = new EventSource(url, { withCredentials: true })
+        eventSourceRef.current = source
+        dispatch(setStreaming(true))
+
+        source.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data) as NotificationItem
+                dispatch(notificationReceived(data))
+            } catch (error) {
+                // eslint-disable-next-line no-console
+                console.error('Failed to parse notification event', error)
+            }
+        }
+
+        source.onerror = () => {
+            dispatch(setStreaming(false))
+            source.close()
+            eventSourceRef.current = null
+        }
+
+        return () => {
+            source.close()
+            eventSourceRef.current = null
+            dispatch(setStreaming(false))
+        }
+    }, [dispatch])
+
+    useEffect(() => {
+        void dispatch(fetchUnreadCount())
+    }, [dispatch])
+
+    const onNotificationOpen = useCallback(() => {
+        void dispatch(
+            fetchNotifications({
+                page: 1,
+                pageSize: 20,
+            }),
+        )
+        hasLoadedRef.current = true
+    }, [dispatch])
+
+    const onMarkAllAsRead = useCallback(() => {
+        if (unreadCount === 0) {
+            return
+        }
+        void dispatch(markNotificationsRead({ markAll: true }))
+    }, [dispatch, unreadCount])
+
+    const onMarkAsRead = useCallback(
+        (id: number) => {
+            void dispatch(markNotificationsRead({ ids: [id] }))
+        },
+        [dispatch],
+    )
+
+    const noResult = entries.length === 0 && !loading
 
     return (
         <Dropdown
             renderTitle={
-                <NotificationToggle
-                    dot={unreadNotification}
-                    className={className}
-                />
+                <NotificationToggle dot={unreadCount > 0} className={className} />
             }
             menuClass="p-0 min-w-[280px] md:min-w-[340px]"
-            placement={larger.md ? 'bottom-end' : 'bottom-center'}
+            placement="bottom-end"
             onOpen={onNotificationOpen}
         >
             <Dropdown.Item variant="header">
@@ -146,6 +167,7 @@ const _Notification = ({ className }: { className?: string }) => {
                             variant="plain"
                             shape="circle"
                             size="sm"
+                            disabled={unreadCount === 0}
                             icon={<HiOutlineMailOpen className="text-xl" />}
                             onClick={onMarkAllAsRead}
                         />
@@ -153,38 +175,58 @@ const _Notification = ({ className }: { className?: string }) => {
                 </div>
             </Dropdown.Item>
             <div className={classNames('overflow-y-auto', notificationHeight)}>
-                <ScrollBar direction={direction}>
-                    {notificationList.length > 0 &&
-                        notificationList.map((item, index) => (
-                            <div
-                                key={item.id}
-                                className={`relative flex px-4 py-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-black/20  ${
-                                    !isLastChild(notificationList, index)
-                                        ? 'border-b border-gray-200 dark:border-gray-600'
-                                        : ''
-                                }`}
-                                onClick={() => onMarkAsRead(item.id)}
-                            >
-                                <div>{notificationTypeAvatar(item)}</div>
-                                <div className="ltr:ml-3 rtl:mr-3">
-                                    <div>
-                                        {item.target && (
-                                            <span className="font-semibold heading-text">
-                                                {item.target}{' '}
-                                            </span>
+                <ScrollBar>
+                    {entries.length > 0 &&
+                        entries.map((item) => {
+                            const summary = formatMetadataSummary(item)
+                            return (
+                                <div
+                                    key={item.id}
+                                    className={classNames(
+                                        'relative flex px-4 py-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-black/20',
+                                        'border-b border-gray-200 dark:border-gray-600 last:border-b-0',
+                                    )}
+                                    onClick={() => onMarkAsRead(item.id)}
+                                >
+                                    <Avatar
+                                        shape="circle"
+                                        className={classNames(
+                                            'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-100',
                                         )}
-                                        <span>{item.description}</span>
+                                    >
+                                        {item.eventType?.[0] ?? 'N'}
+                                    </Avatar>
+                                    <div className="ltr:ml-3 rtl:mr-3 flex-1 min-w-0">
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-semibold heading-text truncate">
+                                                {item.title ?? t('notification.untitled')}
+                                            </span>
+                                            <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
+                                                {dayjs(item.createdAt)
+                                                    .locale(i18n.language)
+                                                    .fromNow()}
+                                            </span>
+                                        </div>
+                                        {summary && (
+                                            <div className="text-xs text-gray-500">{summary}</div>
+                                        )}
+                                        {item.body && (
+                                            <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                                                {item.body}
+                                            </p>
+                                        )}
                                     </div>
-                                    <span className="text-xs">{item.date}</span>
+                                    <Badge
+                                        className="absolute top-4 ltr:right-4 rtl:left-4 mt-1.5"
+                                        innerClass={classNames(
+                                            item.isUnread
+                                                ? 'bg-red-500'
+                                                : 'bg-gray-300 dark:bg-gray-600',
+                                        )}
+                                    />
                                 </div>
-                                <Badge
-                                    className="absolute top-4 ltr:right-4 rtl:left-4 mt-1.5"
-                                    innerClass={`${
-                                        item.readed ? 'bg-gray-300' : bgTheme
-                                    } `}
-                                />
-                            </div>
-                        ))}
+                            )
+                        })}
                     {noResult && (
                         <div
                             className={classNames(
@@ -192,7 +234,7 @@ const _Notification = ({ className }: { className?: string }) => {
                                 notificationHeight,
                             )}
                         >
-                            <div className="text-center">
+                            <div className="text-center px-6">
                                 <img
                                     className="mx-auto mb-2 max-w-[150px]"
                                     src="/img/others/no-notification.png"
@@ -201,20 +243,23 @@ const _Notification = ({ className }: { className?: string }) => {
                                 <h6 className="font-semibold">
                                     {t('notification.empty.title')}
                                 </h6>
-                                <p className="mt-1">{t('notification.empty.desc')}</p>
+                                <p className="mt-1 text-sm text-gray-500">
+                                    {t('notification.empty.desc')}
+                                </p>
                             </div>
                         </div>
                     )}
                 </ScrollBar>
             </div>
             <Dropdown.Item variant="header">
-                <div className="flex justify-center border-t border-gray-200 dark:border-gray-600 px-4 py-2">
-                    <Link
-                        to="/app/account/activity-log"
-                        className="font-semibold cursor-pointer p-2 px-3 text-gray-600 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white"
-                    >
-                        {t('notification.viewAll')}
-                    </Link>
+                <div className="flex justify-center border-t border-gray-200 dark:border-gray-600 px-4 py-2 text-sm text-gray-500">
+                    {loading
+                        ? t('notification.loading')
+                        : hasLoadedRef.current
+                          ? t('notification.lastUpdated', {
+                                date: dayjs().locale(i18n.language).format('DD MMM YYYY HH:mm'),
+                            })
+                          : t('notification.viewRecent')}
                 </div>
             </Dropdown.Item>
         </Dropdown>

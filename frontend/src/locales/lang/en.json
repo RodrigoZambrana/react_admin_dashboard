@@ -93,6 +93,7 @@
             "paymentMethods": "Payment Methods",
             "shippingOptions": "Shipping Options",
             "systemConfig": "System Config",
+            "email": "Email",
             "calendarEventTypes": "Calendar Event Types"
         },
         "uiComponents": "UI Components",
@@ -872,33 +873,32 @@
                 }
             },
             "notification": {
-                "updated": "Notification setting updated",
+                "updated": "Notification settings updated",
                 "channels": {
                     "email": "Email",
-                    "browser": "Browser",
-                    "app": "App"
+                    "inApp": "In-app",
+                    "push": "Push (coming soon)"
                 },
-                "general": {
-                    "title": "General Notification",
-                    "desc": "Select how you'll be notified when the following changes occur.",
-                    "news": "News",
-                    "accountActivity": "Account activity",
-                    "signIn": "New device used to sign in",
-                    "reminders": "Reminders"
+                "audience": {
+                    "admin": "Administrators",
+                    "customer": "Customers"
                 },
-                "project": {
-                    "title": "Project Notification",
-                    "desc": "Select how you'll be notified when the project related events happened.",
-                    "mentioned": "Someone mentions you",
-                    "replies": "Someone replies to your message",
-                    "taskUpdate": "Task status updated",
-                    "assigned": "Task assigned to you"
+                "roles": {
+                    "hint": "Select which internal roles should receive these notifications."
                 },
-                "sales": {
-                    "title": "Sales Notification",
-                    "desc": "Select how you'll be notified when any products & order updated.",
-                    "newProduct": "New product",
-                    "newOrder": "New order placed"
+                "events": {
+                    "orderReceived": {
+                        "title": "Order received",
+                        "desc": "Configure customer and internal notifications when a new order is created."
+                    },
+                    "paymentReceived": {
+                        "title": "Payment received",
+                        "desc": "Notify teams and customers when a payment is confirmed."
+                    },
+                    "orderStatusChanged": {
+                        "title": "Order status updated",
+                        "desc": "Alert stakeholders whenever an order changes status (confirmed or canceled)."
+                    }
                 }
             }
         },
@@ -1866,6 +1866,102 @@
                 "invalidImageType": "Unsupported file type. Please upload a JPG, PNG, WEBP, GIF, or SVG image."
             }
         },
+        "email": {
+            "title": "Email",
+            "categories": {
+                "orders": "Orders",
+                "payments": "Payments",
+                "auth": "Authentication"
+            },
+            "category": {
+                "description": "Configure sender information and recipients for this email category."
+            },
+            "status": {
+                "enabled": "Enabled",
+                "disabled": "Disabled"
+            },
+            "fields": {
+                "fromName": "From name",
+                "fromAddress": "From email"
+            },
+            "recipients": {
+                "admin": "Administrator recipients",
+                "empty": "No recipients"
+            },
+            "actions": {
+                "add": "Add",
+                "save": "Save changes",
+                "sendTest": "Send test email",
+                "refresh": "Refresh",
+                "addRule": "Add rule",
+                "removeRecipient": "Remove recipient"
+            },
+            "updatedAtExact": "Last updated {{value}}",
+            "test": {
+                "title": "Send test email",
+                "variant": {
+                    "orders": "Email type",
+                    "payments": "Email type",
+                    "auth": "Email type"
+                },
+                "locale": "Locale",
+                "emailPlaceholder": "Email address",
+                "sent": "Test email queued successfully."
+            },
+            "validation": {
+                "invalidEmail": "Enter a valid email address.",
+                "selectCategory": "Select at least one category."
+            },
+            "saveSuccess": "Settings were updated successfully.",
+            "roles": {
+                "title": "Role routing rules",
+                "description": "Automatically notify internal users based on their role. Recipients are merged with manual admin recipients.",
+                "fields": {
+                    "role": "Role",
+                    "categories": "Categories"
+                },
+                "placeholders": {
+                    "role": "Select role"
+                },
+                "list": "Existing rules",
+                "empty": "No role-based rules defined yet."
+            },
+            "logs": {
+                "title": "Delivery logs",
+                "description": "Inspect recent email deliveries, statuses, and errors.",
+                "filters": {
+                    "category": "All categories",
+                    "status": "All statuses",
+                    "recipient": "All recipients"
+                },
+                "columns": {
+                    "date": "Date",
+                    "category": "Category",
+                    "recipient": "Recipient",
+                    "subject": "Subject",
+                    "status": "Status"
+                },
+                "status": {
+                    "queued": "Queued",
+                    "sent": "Sent",
+                    "failed": "Failed",
+                    "retrying": "Retrying"
+                },
+                "recipient": {
+                    "customer": "Customer",
+                    "admin": "Administrator",
+                    "system": "System"
+                },
+                "empty": "No logs found.",
+                "actions": {
+                    "loadMore": "Load more"
+                }
+            },
+            "templates": {
+                "title": "Active templates",
+                "description": "Overview of active MJML templates per category, locale, and variant."
+            }
+        },
         "companyProfile": {
             "title": "Company information",
             "subtitle": "Customize the company data displayed on invoices and other documents.",
@@ -2002,7 +2098,11 @@
             "title": "No notifications!",
             "desc": "Please try again later"
         },
-        "viewAll": "View All Activity"
+        "viewAll": "View All Activity",
+        "untitled": "Notification",
+        "loading": "Loading notifications...",
+        "lastUpdated": "Updated {{date}}",
+        "viewRecent": "Notifications will appear here."
     },
     "production": {
         "orders": {

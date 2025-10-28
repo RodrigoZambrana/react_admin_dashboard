@@ -13,7 +13,7 @@ import {
   UpdatePaymentDto,
 } from './dto/payment.dto'
 import { roundDecimal } from '../common/currency/money.util'
-import { EmailService } from '../email/email.service'
+import { NotificationOrchestratorService } from '../notifications/notification-orchestrator.service'
 
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient
 
@@ -22,7 +22,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly orderFinance: OrderFinanceService,
-    private readonly emailService: EmailService,
+    private readonly notifications: NotificationOrchestratorService,
   ) {}
 
   private readonly logger = new Logger(PaymentsService.name)
@@ -455,9 +455,9 @@ export class PaymentsService {
     if (normalizedStatus !== PaymentStatus.CONFIRMED) {
       return
     }
-    this.emailService
-      .sendPaymentReceived({ paymentId })
-      .catch((error) => this.logger.error(`Failed to enqueue payment email for payment ${paymentId}: ${(error as Error).message}`))
+    this.notifications
+      .notifyPaymentReceived(paymentId)
+      .catch((error) => this.logger.error(`Failed to dispatch notifications for payment ${paymentId}: ${(error as Error).message}`))
   }
 
   async deletePayment(id: number) {

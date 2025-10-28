@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { env } from "@/lib/env";
 import { looksLikePhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
 import type { AuthSession, CustomerProfile } from "@/types/storefront";
 import { useToast } from "@/contexts/ToastContext";
@@ -23,7 +24,8 @@ interface SessionContextValue {
   isAuthenticated: boolean;
   login: (identifier: string, password: string) => Promise<AuthSession>;
   register: (payload: RegisterPayload) => Promise<AuthSession>;
-  logout: () => void;
+  loginWithGoogle: (options?: { returnPath?: string }) => Promise<{ session: AuthSession; returnPath: string | null }>;
+  logout: () => Promise<void>;
   error: string | null;
   clearError: () => void;
   updateCustomerProfile: (profile: CustomerProfile) => void;
@@ -112,6 +114,43 @@ const persistSession = (session: AuthSession | null) => {
   } catch (error) {
     console.warn("[session] Failed to persist session", error);
   }
+};
+
+const GOOGLE_AUTH_MESSAGE_TYPE = "storefront:google-auth";
+
+type GoogleAuthSuccessMessage = {
+  type: typeof GOOGLE_AUTH_MESSAGE_TYPE;
+  status: "success";
+  session: AuthSession;
+  returnPath?: string | null;
+};
+
+type GoogleAuthErrorMessage = {
+  type: typeof GOOGLE_AUTH_MESSAGE_TYPE;
+  status: "error";
+  errorCode?: string;
+  message?: string;
+  details?: string | null;
+  returnPath?: string | null;
+};
+
+type GoogleAuthMessage = GoogleAuthSuccessMessage | GoogleAuthErrorMessage;
+
+const isGoogleAuthMessage = (value: unknown): value is GoogleAuthMessage => {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const payload = value as Record<string, unknown>;
+  if (payload.type !== GOOGLE_AUTH_MESSAGE_TYPE) {
+    return false;
+  }
+  if (payload.status === "success") {
+    return typeof payload.session === "object" && payload.session !== null;
+  }
+  if (payload.status === "error") {
+    return true;
+  }
+  return false;
 };
 
 export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -205,6 +244,134 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
     [handleAuthError, handleAuthSuccess]
   );
 
+  const loginWithGoogle = useCallback(
+    async (options?: { returnPath?: string }) => {
+      if (typeof window === "undefined") {
+        throw new Error("Google authentication is only available in the browser.");
+      }
+
+      clearError();
+      setStatus("loading");
+
+      let startResponse: { url: string; state: string; expiresAt: string };
+      try {
+        startResponse = await StorefrontApi.startGoogleLogin(options?.returnPath);
+      } catch (cause) {
+        handleAuthError(cause, "login");
+        throw cause;
+      }
+
+      const width = 480;
+      const height = 640;
+      const screenX = window.screenX ?? window.screenLeft ?? 0;
+      const screenY = window.screenY ?? window.screenTop ?? 0;
+      const outerWidth = window.outerWidth ?? window.innerWidth ?? 1280;
+      const outerHeight = window.outerHeight ?? window.innerHeight ?? 720;
+      const left = Math.max(0, screenX + (outerWidth - width) / 2);
+      const top = Math.max(0, screenY + (outerHeight - height) / 2);
+
+      const popup = window.open(
+        startResponse.url,
+        "storefront-google-auth",
+        `width=${width},height=${height},left=${left},top=${top},status=no,toolbar=no,menubar=no,resizable=yes,scrollbars=yes`
+      );
+
+      if (!popup) {
+        const popupError = new Error(
+          "No pudimos abrir la ventana de Google. Habilita las ventanas emergentes e inténtalo nuevamente."
+        );
+        try {
+          handleAuthError(popupError, "login");
+        } catch (cause) {
+          throw cause;
+        }
+        throw popupError;
+      }
+
+      popup.focus();
+
+      const trustedOrigins = new Set<string>();
+      try {
+        trustedOrigins.add(new URL(env.publicApiBaseUrl).origin);
+      } catch (error) {
+        console.warn("[session] Invalid API base URL for Google auth origin", error);
+      }
+      trustedOrigins.add(window.location.origin);
+
+      return new Promise<{ session: AuthSession; returnPath: string | null }>((resolve, reject) => {
+        let completed = false;
+        let closeTimer: number | undefined;
+
+        const cleanup = () => {
+          completed = true;
+          window.removeEventListener("message", handleMessage);
+          if (closeTimer) {
+            window.clearInterval(closeTimer);
+          }
+          if (!popup.closed) {
+            popup.close();
+          }
+        };
+
+        const fail = (error: Error) => {
+          cleanup();
+          try {
+            handleAuthError(error, "login");
+          } catch (cause) {
+            reject(cause as Error);
+            return;
+          }
+          reject(error);
+        };
+
+        const handleMessage = (event: MessageEvent) => {
+          if (!trustedOrigins.has(event.origin)) {
+            return;
+          }
+          const data = event.data;
+          if (!isGoogleAuthMessage(data)) {
+            return;
+          }
+          cleanup();
+
+          if (data.status === "success") {
+            try {
+              const normalized = handleAuthSuccess(data.session, "login");
+              resolve({
+                session: normalized,
+                returnPath:
+                  typeof data.returnPath === "string" && data.returnPath.trim()
+                    ? data.returnPath.trim()
+                    : null
+              });
+            } catch (cause) {
+              reject(cause as Error);
+            }
+          } else {
+            const message =
+              (typeof data.message === "string" && data.message.trim()) ||
+              "Unable to sign in with Google. Please try again.";
+            fail(new Error(message));
+          }
+        };
+
+        window.addEventListener("message", handleMessage);
+
+        closeTimer = window.setInterval(() => {
+          if (completed) {
+            window.clearInterval(closeTimer);
+            return;
+          }
+          if (popup.closed) {
+            window.clearInterval(closeTimer);
+            fail(new Error("Se cerró la ventana de Google antes de finalizar el acceso."));
+          }
+        }, 400);
+      });
+    },
+    [clearError, handleAuthError, handleAuthSuccess]
+  );
+
   const register = useCallback(
     async (payload: RegisterPayload) => {
       try {
@@ -230,11 +397,16 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
     [handleAuthError, handleAuthSuccess]
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     persistSession(null);
     setSession(null);
     setStatus("unauthenticated");
     setError(null);
+    try {
+      await StorefrontApi.logout();
+    } catch (error) {
+      console.warn("[session] Failed to revoke storefront session", error);
+    }
     toast.info({
       title: "Sesión cerrada",
       description: "Cerraste sesión correctamente."
@@ -288,6 +460,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       isAuthenticated: status === "authenticated" && !!session,
       login,
       register,
+      loginWithGoogle,
       logout,
       error,
       clearError,
@@ -299,6 +472,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       status,
       login,
       register,
+      loginWithGoogle,
       logout,
       error,
       clearError,

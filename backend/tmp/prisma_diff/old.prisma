@@ -1,0 +1,1026 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  //output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum Role {
+  SUPERADMIN
+  ADMIN
+  USER
+}
+
+enum EventType {
+  MEETING
+  TASK
+  WORKSHOP
+  OTHER
+}
+
+enum UserActivityType {
+  LOGIN
+  PASSWORD_CHANGE
+  DEVICE_SIGN_IN
+  PROFILE_UPDATE
+  SECURITY_ALERT
+}
+
+enum SalesUnit {
+  UNIT
+  SQUARE_METER
+  LINEAR_METER
+}
+
+enum DocumentType {
+  ORDER
+  BUDGET
+}
+
+enum PaymentType {
+  DEPOSIT
+  BALANCE
+  REFUND
+}
+
+enum PaymentStatus {
+  REGISTERED
+  CONFIRMED
+  FAILED
+}
+
+enum DepositRequirementType {
+  PERCENTAGE
+  FIXED
+}
+
+enum WorkOrderStatus {
+  PENDING
+  IN_PROGRESS
+  READY
+  DELIVERED
+  CLOSED
+  CANCELED
+}
+
+enum ProductType {
+  PHYSICAL
+  SERVICE
+}
+
+enum InboxChannelType {
+  EMAIL
+  WHATSAPP
+  MESSENGER
+  INSTAGRAM
+  SMS
+  OTHER
+}
+
+enum InboxMessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum InboxMessageEventType {
+  CREATED
+  FETCHED
+  FLAG_UPDATED
+  MOVED
+  SENT
+  SYNCED
+  ERROR
+}
+
+enum EmailCategory {
+  ORDERS
+  PAYMENTS
+  AUTH
+}
+
+enum EmailRecipientType {
+  CUSTOMER
+  ADMIN
+  SYSTEM
+}
+
+enum EmailLogStatus {
+  QUEUED
+  SENT
+  FAILED
+  RETRYING
+}
+
+enum EmailTemplateVariant {
+  CUSTOMER
+  ADMIN
+}
+
+// Notification
+model Notification {
+  id            Int      @id @default(autoincrement())
+  recipientId   Int?
+  recipient     User?    @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  target        String?
+  description   String?
+  type          Int      @default(0)
+  image         String?
+  location      String?
+  locationLabel String?
+  status        String? // e.g. info, success, warning
+  readed        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+// Users and Auth
+model User {
+  id                       Int                    @id @default(autoincrement())
+  name                     String?
+  lastName                 String?
+  email                    String                 @unique
+  img                      String?
+  role                     Role                   @default(USER)
+  lang                     String                 @default("en")
+  country                  String?
+  countryCode              String?
+  city                     String?
+  passwordHash             String
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  // relations
+  createdTasks             Task[]
+  taskAssignees            TaskAssignee[]
+  events                   CalendarEvent[]
+  notifications            Notification[]
+  activityTicketMembers    ActivityTicketMember[]
+  calendarComments         CalendarEventComment[]
+  activities               UserActivity[]
+  devices                  UserDevice[]
+  convertedOrders          Order[]                @relation("OrderConvertedBy")
+  assignedProductionOrders ProductionOrder[]      @relation("ProductionOrderAssignedTo")
+  passwordResetTokens      PasswordResetToken[]
+}
+
+model UserDevice {
+  id            Int            @id @default(autoincrement())
+  userId        Int
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fingerprint   String         @unique
+  displayName   String?
+  userAgent     String?
+  location      String?
+  lastIpAddress String?
+  deviceType    String?
+  firstSeenAt   DateTime       @default(now())
+  lastSeenAt    DateTime       @default(now())
+  activities    UserActivity[]
+}
+
+model UserActivity {
+  id          Int              @id @default(autoincrement())
+  userId      Int
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        UserActivityType
+  description String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  deviceId    Int?
+  device      UserDevice?      @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  performedAt DateTime         @default(now())
+  createdAt   DateTime         @default(now())
+}
+
+// CRM Customer
+model Customer {
+  id                            Int                  @id @default(autoincrement())
+  name                          String
+  firstName                     String?
+  lastName                      String?
+  email                         String?              @unique
+  img                           String?
+  location                      String?
+  title                         String?
+  phoneNumber                   String?              @unique
+  passwordHash                  String?
+  storefrontDefaultPasswordHash String?
+  birthday                      DateTime?
+  facebook                      String?
+  twitter                       String?
+  pinterest                     String?
+  linkedIn                      String?
+  phones                        CustomerPhone[]
+  createdAt                     DateTime             @default(now())
+  updatedAt                     DateTime             @updatedAt
+  orders                        Order[]
+  passwordResetTokens           PasswordResetToken[]
+  addresses                     CustomerAddress[]
+  statusId                      Int?
+  status                        CustomerStatus?      @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  wishlist                      Wishlist?
+}
+
+model CustomerPhone {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  phone      String
+  label      String?
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model Wishlist {
+  id         Int            @id @default(autoincrement())
+  customerId Int            @unique
+  customer   Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  items      WishlistItem[]
+}
+
+model WishlistItem {
+  id         Int      @id @default(autoincrement())
+  wishlistId Int
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([wishlistId, productId])
+}
+
+// Sales Product
+model Product {
+  id                        Int              @id @default(autoincrement())
+  name                      String
+  productCode               String?
+  img                       String?
+  description               String?
+  specifications            String?
+  categoryId                Int?
+  category                  ProductCategory? @relation(fields: [categoryId], references: [id])
+  productType               ProductType      @default(PHYSICAL)
+  salePrice                 Decimal          @default(0) @map("precio_venta") @db.Decimal(12, 2)
+  costPrice                 Decimal          @default(0) @map("precio_costo") @db.Decimal(12, 2)
+  currency                  String           @default("UYU")
+  unitOfMeasure             SalesUnit        @default(UNIT)
+  stock                     Int              @default(0)
+  permanentStock            Boolean          @default(false)
+  status                    Int              @default(0) // 0=inStock,1=limited,2=outOfStock
+  costPerItem               Float?
+  bulkDiscountPrice         Float?
+  taxRate                   Float?           @default(22)
+  tags                      String[]
+  brand                     String?
+  vendor                    String?
+  published                 Boolean          @default(true)
+  images                    ProductImage[]
+  wishlistItems             WishlistItem[]
+  createdAt                 DateTime         @default(now())
+  updatedAt                 DateTime         @updatedAt
+  orderItems                OrderItem[]
+  installServiceForCategory ProductCategory? @relation("CategoryInstallService")
+}
+
+model ProductImage {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String?
+  img       String
+  sortOrder Int     @default(0)
+}
+
+model ProductCategory {
+  id                      Int               @id @default(autoincrement())
+  name                    String            @unique
+  description             String?
+  image                   String?
+  parentId                Int?
+  parent                  ProductCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children                ProductCategory[] @relation("CategoryHierarchy")
+  products                Product[]
+  installServiceProductId Int?
+  installServiceProduct   Product?          @relation("CategoryInstallService", fields: [installServiceProductId], references: [id], onDelete: SetNull)
+
+  @@unique([installServiceProductId])
+  @@index([parentId])
+}
+
+model SystemConfig {
+  key   String @id
+  value String
+}
+
+// Sales Orders
+model Order {
+  id                    Int                    @id @default(autoincrement())
+  uuid                  String                 @unique @default(uuid())
+  documentType          DocumentType           @default(ORDER)
+  customerId            Int
+  customer              Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  date                  DateTime               @default(now())
+  paymentMethodId       Int?
+  paymentMethod         PaymentMethod?         @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  shippingAddress1      String?
+  shippingAddress2      String?
+  shippingCity          String?
+  shippingState         String?
+  shippingZip           String?
+  billingAddress1       String?
+  billingAddress2       String?
+  billingCity           String?
+  billingState          String?
+  billingZip            String?
+  billingSameAsShipping Boolean                @default(false)
+  shippingVendor        String? // e.g., FedEx
+  deliveryFees          Decimal?               @default(0) @db.Decimal(18, 2)
+  estimatedMin          Int?                   @default(1)
+  estimatedMax          Int?                   @default(3)
+  comment               String?
+  disclaimer            String?
+  statusId              Int?
+  status                OrderStatus?           @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  subTotal              Decimal                @default(0) @db.Decimal(18, 2)
+  tax                   Decimal                @default(0) @db.Decimal(18, 2)
+  grandTotal            Decimal                @default(0) @db.Decimal(18, 2)
+  minimumDepositType    DepositRequirementType @default(PERCENTAGE)
+  minimumDepositValue   Decimal                @default(0) @db.Decimal(18, 2)
+  confirmedAt           DateTime?
+  depositSatisfiedAt    DateTime?
+  customerCredit        Decimal                @default(0) @db.Decimal(18, 2)
+  orderCurrency         String                 @default("UYU")
+  fxBase                String?
+  fxRates               Json?
+  currencySnapshot      String?
+  taxRateSnapshot       Decimal?               @db.Decimal(18, 4)
+  priceListIdSnapshot   Int?
+  exchangeRateSnapshot  Json?
+  validUntil            DateTime?
+  originId              Int?
+  origin                Order?                 @relation("OrderOrigin", fields: [originId], references: [id], onDelete: SetNull)
+  convertedOrderId      Int?
+  convertedOrder        Order?                 @relation("OrderConversion", fields: [convertedOrderId], references: [id], onDelete: SetNull)
+  convertedAt           DateTime?
+  convertedBy           Int?
+  convertedByUser       User?                  @relation("OrderConvertedBy", fields: [convertedBy], references: [id], onDelete: SetNull)
+  documentFilePath      String?
+  documentFileName      String?
+  documentFileMime      String?
+  documentFileSize      Int?
+  documentGeneratedAt   DateTime?
+  documentPdf           Bytes?
+  version               Int                    @default(1)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  items                 OrderItem[]
+  conversions           Order[]                @relation("OrderOrigin")
+  budgetSource          Order?                 @relation("OrderConversion")
+  payments              Payment[]
+  paymentPlan           PaymentPlan?
+  workOrders            WorkOrder[]
+  productionOrders      ProductionOrder[]      @relation("OrderProduction")
+  storefrontPayments    StorefrontPaymentIntent[]
+
+  @@unique([originId])
+  @@unique([convertedOrderId])
+  @@index([documentType, statusId, customerId, createdAt])
+  @@index([documentType, createdAt])
+  @@index([validUntil])
+}
+
+model OrderItem {
+  id                      Int        @id @default(autoincrement())
+  orderId                 Int
+  order                   Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId               Int?
+  product                 Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+  name                    String
+  price                   Decimal    @default(0) @db.Decimal(18, 2)
+  qty                     Int        @default(1)
+  img                     String?
+  description             String?
+  comments                String?
+  unitAmount              Decimal?   @db.Decimal(18, 4)
+  unitCurrency            String?
+  unitAmountOrderCurrency Decimal?   @db.Decimal(18, 4)
+  conversionRate          Decimal?   @db.Decimal(18, 8)
+  unitCostAmount          Decimal?   @db.Decimal(18, 4)
+  unitCostCurrency        String?
+  unitCostOrderCurrency   Decimal?   @db.Decimal(18, 4)
+  customAttributes        Json?      @default("{}")
+  pricingMethodSnapshot   SalesUnit?
+  unitPriceSnapshot       Decimal?   @db.Decimal(18, 4)
+  skuSnapshot             String?
+  nameSnapshot            String?
+  specSummary             String?
+  specJson                Json?      @default("{}")
+}
+
+model PaymentMethod {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  orders   Order[]
+  expenses Expense[]
+  payments Payment[]
+}
+
+model Payment {
+  id              Int                 @id @default(autoincrement())
+  orderId         Int
+  order           Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  paymentMethodId Int?
+  paymentMethod   PaymentMethod?      @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  method          String?
+  amount          Decimal             @db.Decimal(18, 2)
+  currency        String
+  type            PaymentType         @default(BALANCE)
+  status          PaymentStatus       @default(REGISTERED)
+  reference       String?
+  date            DateTime            @default(now())
+  notes           String?
+  metadata        Json?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  attachments     PaymentAttachment[]
+
+  @@index([orderId])
+  @@index([status, type])
+  @@index([paymentMethodId])
+}
+
+model PaymentPlan {
+  id          Int                    @id @default(autoincrement())
+  orderId     Int                    @unique
+  order       Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  name        String?
+  description String?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  milestones  PaymentPlanMilestone[]
+}
+
+model PaymentPlanMilestone {
+  id              Int                    @id @default(autoincrement())
+  paymentPlanId   Int
+  paymentPlan     PaymentPlan            @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
+  name            String
+  dueDate         DateTime?
+  requirementType DepositRequirementType @default(PERCENTAGE)
+  value           Decimal                @default(0) @db.Decimal(18, 4)
+  notes           String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@index([paymentPlanId])
+}
+
+model WorkOrder {
+  id               Int               @id @default(autoincrement())
+  orderId          Int
+  order            Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  code             String            @unique
+  status           WorkOrderStatus   @default(PENDING)
+  issuedAt         DateTime          @default(now())
+  startedAt        DateTime?
+  completedAt      DateTime?
+  deliveredAt      DateTime?
+  closedAt         DateTime?
+  notes            String?
+  metadata         Json?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  productionOrders ProductionOrder[] @relation("WorkOrderProduction")
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model PaymentAttachment {
+  id        Int      @id @default(autoincrement())
+  paymentId Int
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  name      String
+  mimeType  String?
+  size      Int?
+  content   Bytes
+  createdAt DateTime @default(now())
+}
+
+model ProductionOrder {
+  id           Int             @id @default(autoincrement())
+  workOrderId  Int
+  workOrder    WorkOrder       @relation("WorkOrderProduction", fields: [workOrderId], references: [id], onDelete: Cascade)
+  orderId      Int
+  order        Order           @relation("OrderProduction", fields: [orderId], references: [id], onDelete: Cascade)
+  status       WorkOrderStatus @default(PENDING)
+  priority     Int             @default(1)
+  assignedToId Int?
+  assignedTo   User?           @relation("ProductionOrderAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  deliveredAt  DateTime?
+  notes        String?
+  metadata     Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([workOrderId])
+  @@index([orderId])
+  @@index([workOrderId])
+  @@index([status])
+  @@index([assignedToId])
+}
+
+model CurrencyRate {
+  id        Int      @id @default(autoincrement())
+  base      String
+  quote     String
+  rate      Decimal  @db.Decimal(18, 8)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([base, quote])
+}
+
+model StorefrontPaymentIntent {
+  id                        String   @id @default(cuid())
+  provider                  String
+  externalPaymentId         String?
+  status                    String
+  statusDetail              String?
+  amount                    Decimal  @db.Decimal(18, 2)
+  currency                  String
+  installments              Int?
+  paymentMethodId           String?
+  paymentTypeId             String?
+  cardBrand                 String?
+  cardLastFour              String?
+  cardholderName            String?
+  statementDescriptor       String?
+  description               String?
+  cartId                    String?
+  orderId                   Int?
+  order                     Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  payerEmail                String?
+  payerIdentificationType   String?
+  payerIdentificationNumber String?
+  payerFirstName            String?
+  payerLastName             String?
+  riskLevel                 String?
+  fraudStatus               String?
+  captureMethod             String?
+  paymentMethodType         String?
+  metadata                  Json?
+  rawResponse               Json?
+  rawError                  Json?
+  idempotencyKey            String?
+  requestId                 String?
+  liveMode                  Boolean?
+  refundsRaw                Json?
+  processedAt               DateTime?
+  statusUpdatedAt           DateTime?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@index([externalPaymentId])
+  @@index([orderId])
+  @@index([status])
+  @@index([provider, status])
+}
+
+model ShippingOption {
+  id           Int      @id @default(autoincrement())
+  name         String   @unique
+  deliveryFees Float?   @default(0)
+  estimatedMin Int?     @default(0)
+  estimatedMax Int?     @default(0)
+  img          String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model OrderStatus {
+  id     Int     @id @default(autoincrement())
+  code   Int     @unique
+  name   String
+  color  String?
+  orders Order[]
+}
+
+// Expenses
+model Expense {
+  id                Int                 @id @default(autoincrement())
+  title             String
+  name              String?
+  description       String?
+  amount            Decimal             @default(0) @db.Decimal(18, 2)
+  date              DateTime            @default(now())
+  currency          String?             @db.VarChar(8)
+  categoryId        Int?
+  category          ExpenseCategory?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  statusId          Int?
+  status            ExpenseStatus?      @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  paymentMethodId   Int?
+  paymentMethod     PaymentMethod?      @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  paymentReference  String?
+  taxCreditEligible Boolean             @default(true)
+  attachments       ExpenseAttachment[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+model ExpenseAttachment {
+  id        Int      @id @default(autoincrement())
+  expenseId Int
+  expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  name      String
+  mimeType  String?
+  size      Int?
+  content   Bytes
+  createdAt DateTime @default(now())
+}
+
+model ExpenseCategory {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  expenses Expense[]
+}
+
+model ExpenseStatus {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  color    String?
+  expenses Expense[]
+}
+
+model CustomerStatus {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  color     String?
+  customers Customer[]
+}
+
+model Project {
+  id          Int             @id @default(autoincrement())
+  name        String
+  code        String?
+  description String?
+  startDate   DateTime?       @default(now())
+  endDate     DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  tasks       Task[]
+  events      CalendarEvent[]
+}
+
+model Task {
+  id          Int             @id @default(autoincrement())
+  code        String?
+  subject     String
+  description String?
+  priority    Int             @default(1) // 0=High,1=Medium,2=Low
+  status      String?
+  projectId   Int?
+  project     Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdById Int?
+  createdBy   User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  dueDate     DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  assignees   TaskAssignee[]
+  events      CalendarEvent[]
+}
+
+model TaskAssignee {
+  taskId Int
+  userId Int
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+}
+
+model ActivityColumn {
+  id        Int              @id @default(autoincrement())
+  title     String           @unique
+  sortOrder Int              @default(0)
+  tickets   ActivityTicket[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+model ActivityTicket {
+  id          Int                    @id @default(autoincrement())
+  columnId    Int
+  column      ActivityColumn         @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  priority    String?                @default("Medium priority")
+  labels      String[]               @default([])
+  dueDate     DateTime?
+  order       Int                    @default(0)
+  cover       String?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  members     ActivityTicketMember[]
+}
+
+model ActivityTicketMember {
+  ticketId Int
+  userId   Int
+  ticket   ActivityTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, userId])
+}
+
+model CalendarEvent {
+  id          Int                       @id @default(autoincrement())
+  title       String
+  description String?
+  type        EventType                 @default(OTHER)
+  startAt     DateTime
+  endAt       DateTime?
+  allDay      Boolean                   @default(false)
+  location    String?
+  color       String?                   @db.VarChar(32)
+  metadata    Json?
+  createdById Int?
+  createdBy   User?                     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  projectId   Int?
+  project     Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  taskId      Int?
+  task        Task?                     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  eventTypeId Int?
+  eventType   CalendarEventType?        @relation(fields: [eventTypeId], references: [id], onDelete: SetNull)
+  attachments CalendarEventAttachment[]
+  comments    CalendarEventComment[]
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+}
+
+model CalendarEventType {
+  id          Int             @id @default(autoincrement())
+  name        String
+  color       String          @default("#2563eb")
+  description String?
+  events      CalendarEvent[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model CalendarEventAttachment {
+  id        Int           @id @default(autoincrement())
+  eventId   Int
+  event     CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  mimeType  String?
+  size      Int?
+  content   Bytes
+  createdAt DateTime      @default(now())
+}
+
+model CalendarEventComment {
+  id        Int           @id @default(autoincrement())
+  eventId   Int
+  event     CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    Int?
+  author    User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  message   String
+  createdAt DateTime      @default(now())
+}
+
+model CompanyProfile {
+  id           Int      @id @default(autoincrement())
+  singleton    String   @unique @default("default")
+  legalName    String
+  tradeName    String
+  taxId        String?
+  email        String?
+  phone        String?
+  website      String?
+  addressLine1 String?
+  addressLine2 String?
+  logo         Bytes?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model CustomerAddress {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  street     String
+  number     String
+  corner     String?
+  apartment  String?
+  city       String
+  country    String
+  comments   String?
+  label      String?
+  isPrimary  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model InboxAccount {
+  id          String           @id @default(cuid())
+  displayName String?
+  address     String?
+  channel     InboxChannelType
+  active      Boolean          @default(true)
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  messages    InboxMessage[]
+  syncStates  InboxSyncState[]
+
+  @@unique([channel, address])
+}
+
+model InboxMessage {
+  id               String                @id @default(cuid())
+  accountId        String
+  account          InboxAccount          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  channel          InboxChannelType
+  provider         String                @default("generic")
+  messageUid       String
+  remoteId         String
+  threadRemoteId   String?
+  subject          String?
+  snippet          String?
+  previewText      String?
+  fromAddress      String?
+  fromName         String?
+  toAddresses      String[]
+  ccAddresses      String[]
+  bccAddresses     String[]
+  replyToAddresses String[]
+  direction        InboxMessageDirection
+  folder           String?
+  queueId          String?
+  queue            InboxQueue?           @relation(fields: [queueId], references: [id], onDelete: SetNull)
+  isRead           Boolean               @default(false)
+  isStarred        Boolean               @default(false)
+  isSpam           Boolean               @default(false)
+  hasAttachments   Boolean               @default(false)
+  sentAt           DateTime?
+  receivedAt       DateTime?
+  bodyHash         String?
+  metadata         Json?
+  attachments      InboxAttachment[]
+  events           InboxMessageEvent[]
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@unique([accountId, channel, remoteId])
+  @@unique([messageUid, provider, folder])
+  @@index([accountId, folder])
+  @@index([accountId, isRead])
+  @@index([accountId, sentAt])
+  @@index([queueId, receivedAt])
+}
+
+model InboxAttachment {
+  id          String       @id @default(cuid())
+  messageId   String
+  message     InboxMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  remoteId    String?
+  fileName    String?
+  contentType String?
+  size        Int?
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+}
+
+model InboxSyncState {
+  id           String           @id @default(cuid())
+  accountId    String
+  account      InboxAccount     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  channel      InboxChannelType
+  folder       String
+  lastRemoteId String?
+  lastSyncAt   DateTime?
+  metadata     Json?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([accountId, channel, folder])
+}
+
+model InboxQueue {
+  id          String         @id @default(cuid())
+  slug        String         @unique
+  name        String
+  description String?
+  rules       Json?
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  messages    InboxMessage[]
+}
+
+model InboxMessageEvent {
+  id         Int                   @id @default(autoincrement())
+  messageId  String
+  message    InboxMessage          @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  type       InboxMessageEventType
+  payload    Json?
+  occurredAt DateTime              @default(now())
+
+  @@index([messageId, occurredAt])
+}
+
+model EmailSetting {
+  id              Int           @id @default(autoincrement())
+  category        EmailCategory @unique
+  fromAddress     String
+  fromName        String?
+  adminRecipients String[]      @default([])
+  cc              String[]      @default([])
+  bcc             String[]      @default([])
+  enabled         Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model EmailTemplate {
+  id        Int                  @id @default(autoincrement())
+  category  EmailCategory
+  locale    String               @default("en")
+  variant   EmailTemplateVariant
+  subject   String
+  body      String
+  version   Int                  @default(1)
+  active    Boolean              @default(true)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  logs      EmailLog[]
+
+  @@unique([category, locale, variant, version])
+  @@index([category, locale, active])
+}
+
+model RoleNotificationRule {
+  id         Int             @id @default(autoincrement())
+  role       Role
+  categories EmailCategory[]
+  enabled    Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+}
+
+model EmailLog {
+  id                Int                @id @default(autoincrement())
+  category          EmailCategory
+  templateId        Int?
+  template          EmailTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  locale            String
+  recipientType     EmailRecipientType
+  toAddress         String
+  ccAddresses       String[]           @default([])
+  bccAddresses      String[]           @default([])
+  subject           String
+  payload           Json
+  payloadHash       String
+  status            EmailLogStatus     @default(QUEUED)
+  providerMessageId String?
+  errorMessage      String?
+  attempts          Int                @default(0)
+  lastAttemptAt     DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([category, status, createdAt])
+  @@index([templateId])
+}
+
+model PasswordResetToken {
+  id         Int       @id @default(autoincrement())
+  tokenHash  String    @unique
+  userId     Int?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId Int?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  usedAt     DateTime?
+  ipAddress  String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([customerId])
+}

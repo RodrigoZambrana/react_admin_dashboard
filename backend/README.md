@@ -35,6 +35,11 @@ Environment Configuration & Deployment Notes
   - Set `VITE_STATE_SIGNATURE_KEY=<random secret>` so Redux Persist signatures remain environment-specific.
   - After sign-in, verify that requests keep `withCredentials: true` and that the `Authorization: Bearer <token>` header is present to avoid 401 responses.
   - The frontend loads reCAPTCHA Enterprise in every environment and requests a token for the `LOGIN` action before sign-in; provide `RECAPTCHA_SECRET_KEY` (backend) and `VITE_RECAPTCHA_SITE_KEY` (frontend) so validation succeeds.
+- Storefront Google OAuth:
+  - Populate `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_OAUTH_REDIRECT_URI` in every environment (dev redirect typically `http://localhost:4000/api/storefront/auth/google/callback`).
+  - Optional cookie tuning: `STOREFRONT_COOKIE_SECURE`, `STOREFRONT_COOKIE_SAMESITE`, `STOREFRONT_COOKIE_DOMAIN`.
+  - Run the new Prisma migration `20260615120000_storefront_google_oauth` and keep Prisma client regenerated.
+  - Refer to `../docs/storefront-google-auth.md` for the complete Google Cloud Console walkthrough and testing checklist.
 
 Resetting the Database
 - Ensure your `.env` is configured (especially `DATABASE_URL`) before touching Prisma commands.

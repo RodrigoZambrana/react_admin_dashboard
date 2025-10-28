@@ -12,7 +12,7 @@ import Divider from "@component/Divider";
 import { Button } from "@component/buttons";
 import Typography from "@component/Typography";
 
-import { StorefrontApi, isApiError, type MercadoPagoChargeResponse } from "@/lib/api/storefront";
+import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { useCheckout } from "@/state/checkout-context";
 import { useStorefrontCart } from "@/state/cart-context";
 import { useCheckoutTotals } from "@/hooks/useCheckoutTotals";
@@ -138,7 +138,9 @@ export default function PaymentForm() {
   );
 
   const handleMercadoPagoSubmit = useCallback(
-    async (cardData: MercadoPagoCardSubmitPayload): Promise<MercadoPagoChargeResponse> => {
+    async (
+      cardData: MercadoPagoCardSubmitPayload
+    ): Promise<{ status: "success" | "pending" | "error"; paymentId?: string | null; statusDetail?: string | null }> => {
       setErrorMessage(null);
       setStatusMessage("Processing payment with Mercado Pago...");
       const idempotencyKey = generateIdempotencyKey();
@@ -207,7 +209,18 @@ export default function PaymentForm() {
           });
         }
 
-        return response;
+        const brickStatus =
+          normalizedStatus === "approved" || normalizedStatus === "authorized"
+            ? "success"
+            : normalizedStatus === "in_process" || normalizedStatus === "pending"
+              ? "pending"
+              : "error";
+
+        return {
+          status: brickStatus,
+          paymentId: response.paymentId ?? response.paymentIntentId ?? null,
+          statusDetail: response.statusDetail ?? null
+        };
       } catch (cause) {
         const message = isApiError(cause)
           ? cause.payload?.message ?? cause.message

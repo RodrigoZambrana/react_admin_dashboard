@@ -59,8 +59,14 @@ const convertAmount = (
   if (!fromRate || !toRate) {
     return amount;
   }
-  if (fromRate === 0) return amount;
-  const converted = (amount * toRate) / fromRate;
+  let amountInBase = amount;
+  if (from !== baseCurrency) {
+    amountInBase = amountInBase * fromRate;
+  }
+  let converted = amountInBase;
+  if (to !== baseCurrency) {
+    converted = converted / toRate;
+  }
   return converted;
 };
 

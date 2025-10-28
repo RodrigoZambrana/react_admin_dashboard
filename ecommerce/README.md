@@ -81,6 +81,14 @@ Deliverable: all user-facing pages styled with Bonik, backed by the existing RES
 
 Deliverable: final storefront ready for QA and deployment.
 
+## Google Authentication Configuration
+
+- The storefront login modal now supports Google OAuth via the backend endpoints under `/api/storefront/auth/google/*`.
+- Backend env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, plus optional cookie flags (`STOREFRONT_COOKIE_*`). Update the backend `.env`, apply the migration `20260615120000_storefront_google_oauth`, and redeploy.
+- Frontend env vars: `NEXT_PUBLIC_STOREFRONT_API_URL`, `NEXT_PUBLIC_SITE_URL`, and optional `NEXT_PUBLIC_GOOGLE_BUTTON_ENABLED=false` to hide the button without code changes.
+- The flow uses a popup + `postMessage`; success emits `{ type: "storefront:google-auth", status: "success" }`, allowing the session context to persist tokens and refresh UI state.
+- For the full configuration and Google Cloud Console instructions, see `../docs/storefront-google-auth.md`.
+
 ---
 
 Next Steps:

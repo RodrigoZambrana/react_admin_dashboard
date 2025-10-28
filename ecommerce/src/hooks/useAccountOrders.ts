@@ -41,7 +41,7 @@ export function useAccountOrders(): UseAccountOrdersResult {
       if (isApiError(cause)) {
         if (cause.status === 401) {
           setNeedsReauthentication(true);
-          logout();
+          void logout();
           const message = "Your session has expired. Please log in again.";
           setError(message);
           toast.error({
@@ -127,7 +127,7 @@ export function useAccountOrder(identifier: string): UseAccountOrderResult {
       if (isApiError(cause)) {
         if (cause.status === 401) {
           setNeedsReauthentication(true);
-          logout();
+          void logout();
           const message = "Your session has expired. Please log in again.";
           setError(message);
           toast.error({

@@ -94,7 +94,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       let message = "Unable to update wishlist. Please try again.";
       if (isApiError(cause)) {
         if (cause.status === 401) {
-          logout();
+          void logout();
           message = "Your session expired. Please sign in again.";
           setError(message);
           toast.error({

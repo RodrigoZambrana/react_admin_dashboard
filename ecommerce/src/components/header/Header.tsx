@@ -28,6 +28,7 @@ import { useStorefrontNavigation, type StorefrontNavigationNode } from "@/hooks/
 import DashboardNavigation from "@component/layout/DashboardNavigation";
 import StyledHeader from "./styles";
 import Logo from "./Logo";
+import CustomerNotifications from "./CustomerNotifications";
 
 type HeaderProps = { isFixed?: boolean; className?: string };
 
@@ -143,14 +144,16 @@ const renderCategoryDrawer = (
 export default function Header({ isFixed, className }: HeaderProps) {
   const { state, itemCount } = useCart();
   const router = useRouter();
-  const { isAuthenticated, logout, login, error, clearError } = useSession();
+  const { isAuthenticated, logout, login, loginWithGoogle, error, clearError } = useSession();
   const [cartOpen, setCartOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [loginSubmitting, setLoginSubmitting] = useState(false);
+  const [googleSigningIn, setGoogleSigningIn] = useState(false);
   const { homePath, navItems, categoriesForMenu, categoryIcons } = useStorefrontNavigation();
+  const googleButtonEnabled = process.env.NEXT_PUBLIC_GOOGLE_BUTTON_ENABLED !== "false";
 
   const handleOpenCart = useCallback(() => setCartOpen(true), []);
   const handleCloseCart = useCallback(() => setCartOpen(false), []);
@@ -175,8 +178,8 @@ export default function Header({ isFixed, className }: HeaderProps) {
     setAccountOpen(false);
   }, []);
 
-  const handleLogout = useCallback(() => {
-    logout();
+  const handleLogout = useCallback(async () => {
+    await logout();
     setAccountOpen(false);
     router.push(homePath);
   }, [homePath, logout, router]);
@@ -228,6 +231,24 @@ export default function Header({ isFixed, className }: HeaderProps) {
     isAuthenticated
   ]);
 
+  const handleGoogleSignIn = useCallback(async () => {
+    if (googleSigningIn) {
+      return;
+    }
+    setGoogleSigningIn(true);
+    try {
+      const result = await loginWithGoogle();
+      setLoginOpen(false);
+      if (result.returnPath) {
+        router.push(result.returnPath);
+      }
+    } catch (error) {
+      // handled by session context
+    } finally {
+      setGoogleSigningIn(false);
+    }
+  }, [googleSigningIn, loginWithGoogle, router, setLoginOpen]);
+
   const handleAccountNavClick = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       const target = event.target as HTMLElement;
@@ -249,6 +270,12 @@ export default function Header({ isFixed, className }: HeaderProps) {
       setAccountOpen(false);
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!loginOpen) {
+      setGoogleSigningIn(false);
+    }
+  }, [loginOpen]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -387,6 +414,7 @@ export default function Header({ isFixed, className }: HeaderProps) {
         </FlexBox>
 
         <FlexBox className="header-right desktop-only" alignItems="center" gridGap="1rem">
+          <CustomerNotifications />
           <Sidenav
             open={accountOpen}
             width={320}
@@ -401,7 +429,7 @@ export default function Header({ isFixed, className }: HeaderProps) {
               <Box flex="1 1 0" overflow="auto" pr="0.25rem">
                 <DashboardNavigation />
               </Box>
-              <Button variant="outlined" color="primary" mt="1.5rem" onClick={handleLogout}>
+              <Button variant="outlined" color="primary" mt="1.5rem" onClick={() => { void handleLogout(); }}>
                 Log out
               </Button>
             </Box>
@@ -426,6 +454,9 @@ export default function Header({ isFixed, className }: HeaderProps) {
             errorMessage={error}
             registerHref="/account/register"
             forgotPasswordHref="/account/forgot-password"
+            onGoogleSignIn={handleGoogleSignIn}
+            googleSubmitting={googleSigningIn}
+            googleEnabled={googleButtonEnabled}
           />
         </Box>
       </Modal>

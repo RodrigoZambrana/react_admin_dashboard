@@ -203,6 +203,94 @@ export async function apiDeleteShippingOption<
     })
 }
 
+// Email settings
+export async function apiGetEmailSettings<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/email/categories',
+        method: 'get',
+    })
+}
+
+export async function apiUpdateEmailSettings<
+    T,
+    U extends Record<string, unknown>,
+>(category: string, data: U) {
+    return ApiService.fetchData<T>({
+        url: `/settings/email/categories/${category}`,
+        method: 'put',
+        data,
+    })
+}
+
+export async function apiGetEmailRoleRules<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/email/rules',
+        method: 'get',
+    })
+}
+
+export async function apiGetEmailRoleOptions<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/email/rules/options',
+        method: 'get',
+    })
+}
+
+export async function apiCreateEmailRoleRule<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/email/rules',
+        method: 'post',
+        data,
+    })
+}
+
+export async function apiUpdateEmailRoleRule<
+    T,
+    U extends Record<string, unknown>,
+>(id: number, data: U) {
+    return ApiService.fetchData<T>({
+        url: `/settings/email/rules/${id}`,
+        method: 'put',
+        data,
+    })
+}
+
+export async function apiDeleteEmailRoleRule<T>(id: number) {
+    return ApiService.fetchData<T>({
+        url: `/settings/email/rules/${id}`,
+        method: 'delete',
+    })
+}
+
+export async function apiSendEmailTest<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/email/test',
+        method: 'post',
+        data,
+    })
+}
+
+export async function apiListEmailLogs<T>(params?: Record<string, unknown>) {
+    return ApiService.fetchData<T>({
+        url: '/settings/email/logs',
+        method: 'get',
+        params,
+    })
+}
+
+export async function apiListEmailTemplates<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/email/templates',
+        method: 'get',
+    })
+}
+
 // Payment methods
 export async function apiGetPaymentMethods<T>() {
     return ApiService.fetchData<T>({

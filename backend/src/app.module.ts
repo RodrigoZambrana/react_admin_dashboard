@@ -15,7 +15,7 @@ import { ProjectModule } from './project/project.module'
 import { OrdersModule } from './orders/orders.module'
 import { CalendarModule } from './calendar/calendar.module'
 import { TasksModule } from './tasks/tasks.module'
-import { NotificationModule } from './notification/notification.module'
+import { NotificationsModule } from './notifications/notifications.module'
 import { HealthModule } from './health/health.module'
 import { ActivitiesModule } from './activities/activities.module'
 import { CurrencyModule } from './common/currency/currency.module'
@@ -52,7 +52,7 @@ import { EmailModule } from './email/email.module'
     OrdersModule,
     CalendarModule,
     TasksModule,
-    NotificationModule,
+    NotificationsModule,
     HealthModule,
     ActivitiesModule,
     InboxModule,

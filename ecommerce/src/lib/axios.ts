@@ -1,15 +1,22 @@
 import axios from "axios";
 import MockAdapter from "axios-mock-adapter";
 import { MockEndPoints } from "__server__";
+import { env } from "./env";
 
-// Axios instance
+const enableMocks =
+  process.env.NEXT_PUBLIC_ENABLE_STOREFRONT_MOCKS === "true" ||
+  process.env.ENABLE_STOREFRONT_MOCKS === "true";
+
+// Axios instance points to the backend storefront API by default
 const axiosInstance = axios.create({
-  // baseURL: "http://localhost:3000",
-  // Axios configuration options here
+  baseURL: env.publicApiBaseUrl,
 });
 
-// Remove following 2 lines if you don't want to use MockAdapter
-export const Mock = new MockAdapter(axiosInstance);
-MockEndPoints(Mock);
+export let Mock: MockAdapter | null = null;
+
+if (enableMocks) {
+  Mock = new MockAdapter(axiosInstance, { delayResponse: 400 });
+  MockEndPoints(Mock);
+}
 
 export default axiosInstance;
