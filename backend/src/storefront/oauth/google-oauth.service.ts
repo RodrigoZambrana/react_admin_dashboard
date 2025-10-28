@@ -298,33 +298,42 @@ export class StorefrontGoogleOAuthService {
         };
         let delivered = false;
 
+        var opener = null;
         try {
-          if (
-            window.opener &&
-            typeof window.opener.postMessage === 'function' &&
-            window.opener.closed !== true
-          ) {
-            window.opener.postMessage(payload, origin);
+          opener = window.opener || null;
+        } catch (error) {
+          console.warn('[storefront] Unable to access opener window', error);
+        }
+
+        if (opener && typeof opener.postMessage === 'function') {
+          try {
+            opener.postMessage(payload, origin);
             delivered = true;
-          } else if (window.parent && window.parent !== window && typeof window.parent.postMessage === 'function') {
+          } catch (error) {
+            console.warn('[storefront] Failed to post Google auth result to opener:', error);
+          }
+        }
+
+        if (!delivered && window.parent && window.parent !== window && typeof window.parent.postMessage === 'function') {
+          try {
             window.parent.postMessage(payload, origin);
             delivered = true;
+          } catch (error) {
+            console.warn('[storefront] Failed to post Google auth result to parent:', error);
           }
-        } catch (error) {
-          console.warn('[storefront] Failed to post Google auth result to opener:', error);
-        } finally {
-          if (delivered) {
-            setTimeout(function() { window.close(); }, 500);
-          } else if (fallbackOrigin) {
-            var base = normalizeBase(fallbackOrigin);
-            var target = base;
-            if (returnPath && returnPath.charAt(0) === '/') {
-              target = base + returnPath;
-            }
-            setTimeout(function() { window.location.replace(target); }, 400);
-          } else {
-            setTimeout(function() { window.close(); }, 800);
+        }
+
+        if (delivered) {
+          setTimeout(function() { window.close(); }, 500);
+        } else if (fallbackOrigin) {
+          var base = normalizeBase(fallbackOrigin);
+          var target = base;
+          if (returnPath && returnPath.charAt(0) === '/') {
+            target = base + returnPath;
           }
+          setTimeout(function() { window.location.replace(target); }, 400);
+        } else {
+          setTimeout(function() { window.close(); }, 800);
         }
       })();
     </script>
