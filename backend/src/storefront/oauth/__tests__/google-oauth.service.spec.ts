@@ -85,6 +85,7 @@ describe('StorefrontGoogleOAuthService', () => {
     expect(result.status).toBe('error')
     if (result.status === 'error') {
       expect(result.errorCode).toBe('missing_state')
+      expect(result.state).toBe('')
     }
   })
 
@@ -94,6 +95,7 @@ describe('StorefrontGoogleOAuthService', () => {
     expect(result.status).toBe('error')
     if (result.status === 'error') {
       expect(result.errorCode).toBe('session_not_found')
+      expect(result.state).toBe('unknown-state')
     }
   })
 
@@ -132,6 +134,7 @@ describe('StorefrontGoogleOAuthService', () => {
 
     expect(result.status).toBe('success')
     if (result.status === 'success') {
+      expect(result.state).toBe('test-state')
       expect(result.session.accessToken).toBe('access')
       expect(result.returnPath).toBe('/account')
       expect(storefront.createSessionForCustomer).toHaveBeenCalled()

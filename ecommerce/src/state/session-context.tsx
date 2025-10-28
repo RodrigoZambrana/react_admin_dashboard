@@ -15,6 +15,12 @@ import { env } from "@/lib/env";
 import { looksLikePhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
 import type { AuthSession, CustomerProfile } from "@/types/storefront";
 import { useToast } from "@/contexts/ToastContext";
+import {
+  GOOGLE_AUTH_STORAGE_KEY,
+  GoogleAuthMessage,
+  isGoogleAuthMessage,
+  parseGoogleAuthStorageValue
+} from "@/state/google-auth-channel";
 
 type SessionStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -114,43 +120,6 @@ const persistSession = (session: AuthSession | null) => {
   } catch (error) {
     console.warn("[session] Failed to persist session", error);
   }
-};
-
-const GOOGLE_AUTH_MESSAGE_TYPE = "storefront:google-auth";
-
-type GoogleAuthSuccessMessage = {
-  type: typeof GOOGLE_AUTH_MESSAGE_TYPE;
-  status: "success";
-  session: AuthSession;
-  returnPath?: string | null;
-};
-
-type GoogleAuthErrorMessage = {
-  type: typeof GOOGLE_AUTH_MESSAGE_TYPE;
-  status: "error";
-  errorCode?: string;
-  message?: string;
-  details?: string | null;
-  returnPath?: string | null;
-};
-
-type GoogleAuthMessage = GoogleAuthSuccessMessage | GoogleAuthErrorMessage;
-
-const isGoogleAuthMessage = (value: unknown): value is GoogleAuthMessage => {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const payload = value as Record<string, unknown>;
-  if (payload.type !== GOOGLE_AUTH_MESSAGE_TYPE) {
-    return false;
-  }
-  if (payload.status === "success") {
-    return typeof payload.session === "object" && payload.session !== null;
-  }
-  if (payload.status === "error") {
-    return true;
-  }
-  return false;
 };
 
 export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -270,6 +239,12 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       const left = Math.max(0, screenX + (outerWidth - width) / 2);
       const top = Math.max(0, screenY + (outerHeight - height) / 2);
 
+      try {
+        window.localStorage.removeItem(GOOGLE_AUTH_STORAGE_KEY);
+      } catch (error) {
+        console.warn("[session] Failed to clear stale Google auth payload", error);
+      }
+
       const popup = window.open(
         startResponse.url,
         "storefront-google-auth",
@@ -286,12 +261,6 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           throw cause;
         }
         throw popupError;
-      }
-
-      try {
-        popup.focus();
-      } catch (error) {
-        console.warn("[session] Unable to focus Google auth popup due to window policy", error);
       }
 
       const trustedOrigins = new Set<string>();
@@ -314,6 +283,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       return new Promise<{ session: AuthSession; returnPath: string | null }>((resolve, reject) => {
         let completed = false;
         let detachPopupCloseListener: (() => void) | null = null;
+        let detachStorageListener: (() => void) | null = null;
         let fallbackTimer: number | undefined;
         let popupClosePoll: number | undefined;
 
@@ -333,11 +303,48 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           detachPopupCloseListener = null;
         };
 
+        const removeStorageListener = () => {
+          if (detachStorageListener) {
+            detachStorageListener();
+            detachStorageListener = null;
+          }
+        };
+
+        const deliverResult = (data: GoogleAuthMessage) => {
+          if (completed) {
+            return;
+          }
+
+          if (data.status === "success") {
+            cleanup();
+            try {
+              const normalized = handleAuthSuccess(data.session, "login");
+              resolve({
+                session: normalized,
+                returnPath:
+                  typeof data.returnPath === "string" && data.returnPath.trim()
+                    ? data.returnPath.trim()
+                    : null
+              });
+            } catch (cause) {
+              reject(cause as Error);
+            }
+            return;
+          }
+
+          const message =
+            (typeof data.message === "string" && data.message.trim()) ||
+            "Unable to sign in with Google. Please try again.";
+          fail(new Error(message));
+        };
+
         const cleanup = () => {
           completed = true;
           window.removeEventListener("message", handleMessage);
+          window.removeEventListener("storage", handleStorage);
           clearFallbackTimer();
           removePopupCloseListener();
+          removeStorageListener();
           try {
             popup.close();
           } catch (error) {
@@ -360,6 +367,13 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           if (completed) {
             return;
           }
+
+          const stored = consumeStoredResult();
+          if (stored) {
+            deliverResult(stored);
+            return;
+          }
+
           fail(new Error("Se cerró la ventana de Google antes de finalizar el acceso."));
         };
 
@@ -386,6 +400,50 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           }, 500);
 
           detachPopupCloseListener = removePopupCloseListener;
+        };
+
+        const consumeStoredResult = (): GoogleAuthMessage | null => {
+          try {
+            const raw = window.localStorage.getItem(GOOGLE_AUTH_STORAGE_KEY);
+            if (!raw) {
+              return null;
+            }
+
+            const parsed = parseGoogleAuthStorageValue(raw);
+            if (!parsed || parsed.state !== startResponse.state) {
+              return null;
+            }
+
+            window.localStorage.removeItem(GOOGLE_AUTH_STORAGE_KEY);
+            return parsed;
+          } catch (error) {
+            console.warn("[session] Failed to read Google auth result from storage", error);
+            return null;
+          }
+        };
+
+        const handleStorage = (event: StorageEvent) => {
+          if (event.key !== GOOGLE_AUTH_STORAGE_KEY || !event.newValue) {
+            return;
+          }
+
+          const parsed = parseGoogleAuthStorageValue(event.newValue);
+          if (!parsed || parsed.state !== startResponse.state) {
+            return;
+          }
+
+          try {
+            window.localStorage.removeItem(GOOGLE_AUTH_STORAGE_KEY);
+          } catch (error) {
+            console.warn("[session] Failed to clear Google auth storage key", error);
+          }
+
+          deliverResult(parsed);
+        };
+
+        const attachStorageListener = () => {
+          window.addEventListener("storage", handleStorage);
+          detachStorageListener = () => window.removeEventListener("storage", handleStorage);
         };
 
         const startFallbackTimer = () => {
@@ -422,32 +480,22 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           if (!isGoogleAuthMessage(data)) {
             return;
           }
-          cleanup();
-
-          if (data.status === "success") {
-            try {
-              const normalized = handleAuthSuccess(data.session, "login");
-              resolve({
-                session: normalized,
-                returnPath:
-                  typeof data.returnPath === "string" && data.returnPath.trim()
-                    ? data.returnPath.trim()
-                    : null
-              });
-            } catch (cause) {
-              reject(cause as Error);
-            }
-          } else {
-            const message =
-              (typeof data.message === "string" && data.message.trim()) ||
-              "Unable to sign in with Google. Please try again.";
-            fail(new Error(message));
+          if (data.state !== startResponse.state) {
+            return;
           }
+
+          deliverResult(data);
         };
 
         window.addEventListener("message", handleMessage);
+        attachStorageListener();
         attachPopupCloseListener();
         startFallbackTimer();
+
+        const immediateResult = consumeStoredResult();
+        if (immediateResult) {
+          deliverResult(immediateResult);
+        }
       });
     },
     [clearError, handleAuthError, handleAuthSuccess]

@@ -13,6 +13,7 @@ import { ThemeProvider } from "theme";
 import NProgressBar from "@component/NProgress";
 import { I18nProvider } from "@/state/i18n-context";
 import ToastProvider from "@context/ToastContext";
+import GoogleAuthBridge from "@/state/GoogleAuthBridge";
 
 const publicSans = Public_Sans({ subsets: ["latin"] });
 
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
             <ThemeProvider>
               <ToastProvider>
                 <CartProvider>
+                  <GoogleAuthBridge />
                   {children}
                   <NProgressBar />
                 </CartProvider>

@@ -53,6 +53,7 @@ export type GoogleOAuthStartResult = {
 export type GoogleOAuthResult =
   | {
       status: 'success'
+      state: string
       session: StorefrontAuthSession
       returnPath: string | null
       profile: {
@@ -63,6 +64,7 @@ export type GoogleOAuthResult =
     }
   | {
       status: 'error'
+      state: string
       errorCode: string
       message: string
       details?: string | null
@@ -141,9 +143,11 @@ export class StorefrontGoogleOAuthService {
     query: { state?: string | null; code?: string | null; error?: string | null; error_description?: string | null },
   ): Promise<GoogleOAuthResult> {
     const { clientId, clientSecret, redirectUri } = this.getCredentials()
+    const state = (query.state ?? '').trim()
     if (!clientId || !clientSecret || !redirectUri) {
       return {
         status: 'error',
+        state,
         errorCode: 'not_configured',
         message: 'Google authentication is not available.',
         details: null,
@@ -151,10 +155,10 @@ export class StorefrontGoogleOAuthService {
       }
     }
 
-    const state = (query.state ?? '').trim()
     if (!state) {
       return {
         status: 'error',
+        state,
         errorCode: 'missing_state',
         message: 'We could not verify the Google sign-in request. Please start again.',
         returnPath: null,
@@ -165,6 +169,7 @@ export class StorefrontGoogleOAuthService {
     if (!session) {
       return {
         status: 'error',
+        state,
         errorCode: 'session_not_found',
         message: 'The Google sign-in session has expired. Please start again.',
         returnPath: null,
@@ -175,6 +180,7 @@ export class StorefrontGoogleOAuthService {
       await this.markSessionError(state, 'expired', 'The OAuth session expired before completion.')
       return {
         status: 'error',
+        state,
         errorCode: 'session_expired',
         message: 'Your sign-in session expired. Please try again.',
         returnPath: session.returnPath ?? null,
@@ -189,6 +195,7 @@ export class StorefrontGoogleOAuthService {
           : 'Google sign-in could not be completed.'
       return {
         status: 'error',
+        state,
         errorCode: query.error,
         message,
         details: query.error_description ?? null,
@@ -201,6 +208,7 @@ export class StorefrontGoogleOAuthService {
       await this.markSessionError(state, 'missing_code', 'Authorization code was not returned by Google.')
       return {
         status: 'error',
+        state,
         errorCode: 'missing_code',
         message: 'Google did not return a valid authorization code. Please retry.',
         returnPath: session.returnPath ?? null,
@@ -235,6 +243,7 @@ export class StorefrontGoogleOAuthService {
 
       return {
         status: 'success',
+        state,
         session: storefrontSession,
         returnPath: session.returnPath ?? null,
         profile: {
@@ -249,6 +258,7 @@ export class StorefrontGoogleOAuthService {
       await this.markSessionError(state, 'callback_failed', message)
       return {
         status: 'error',
+        state,
         errorCode: 'callback_failed',
         message: 'We could not sign you in with Google. Please try again.',
         details: message,
@@ -297,6 +307,17 @@ export class StorefrontGoogleOAuthService {
           return url.endsWith('/') ? url.slice(0, -1) : url;
         };
         let delivered = false;
+
+        const persistForOpenerFallback = function() {
+          try {
+            const encoded = encodeURIComponent(JSON.stringify(payload));
+            window.name = 'storefront:google-auth:' + encoded;
+          } catch (error) {
+            console.warn('[storefront] Unable to persist Google auth result in window.name:', error);
+          }
+        };
+
+        persistForOpenerFallback();
 
         try {
           if (window.opener && typeof window.opener.postMessage === 'function') {
