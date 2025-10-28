@@ -1,230 +1,404 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChangeEvent, Fragment, useState } from "react";
-import { Formik } from "formik";
-import * as yup from "yup";
 
 import Box from "@component/Box";
 import Radio from "@component/radio";
 import Grid from "@component/grid/Grid";
 import { Card1 } from "@component/Card1";
-import FlexBox from "@component/FlexBox";
 import Divider from "@component/Divider";
 import { Button } from "@component/buttons";
-import TextField from "@component/text-field";
 import Typography from "@component/Typography";
-import useWindowSize from "@hook/useWindowSize";
 
-const initialValues = {
-  card_no: "",
-  name: "",
-  exp_date: "",
-  cvc: "",
-  shipping_zip: "",
-  shipping_country: "",
-  shipping_address1: "",
-  shipping_address2: "",
+import { StorefrontApi, isApiError, type MercadoPagoChargeResponse } from "@/lib/api/storefront";
+import { useCheckout } from "@/state/checkout-context";
+import { useStorefrontCart } from "@/state/cart-context";
+import { useCheckoutTotals } from "@/hooks/useCheckoutTotals";
+import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
+import { useToast } from "@/contexts/ToastContext";
+import MercadoPagoCardBrick, {
+  type MercadoPagoCardSubmitPayload
+} from "./MercadoPagoCardBrick";
+import {
+  buildMercadoPagoStatusMessage,
+  MERCADO_PAGO_STATUS_DETAIL_MESSAGES,
+  normalizeMercadoPagoStatus
+} from "@/utils/mercadopago";
 
-  billing_name: "",
-  billing_email: "",
-  billing_contact: "",
-  billing_company: "",
-  billing_zip: "",
-  billing_country: "",
-  billing_address1: "",
-  billing_address2: ""
+const COUNTRY_LOCALE_MAP: Record<string, string> = {
+  AR: "es-AR",
+  BR: "pt-BR",
+  CL: "es-CL",
+  CO: "es-CO",
+  MX: "es-MX",
+  PE: "es-PE",
+  UY: "es-UY",
+  US: "en-US"
 };
 
-const checkoutSchema = yup.object().shape({
-  card_no: yup.string().required("required"),
-  name: yup.string().required("required"),
-  exp_date: yup.string().required("required"),
-  cvc: yup.string().required("required")
-  // shipping_zip: yup.string().required("required"),
-  // shipping_country: yup.object().required("required"),
-  // shipping_address1: yup.string().required("required"),
-  // billing_name: yup.string().required("required"),
-  // billing_email: yup.string().required("required"),
-  // billing_contact: yup.string().required("required"),
-  // billing_zip: yup.string().required("required"),
-  // billing_country: yup.string().required("required"),
-  // billing_address1: yup.string().required("required"),
-});
+const mapCountryToLocale = (country?: string) => {
+  if (!country) return COUNTRY_LOCALE_MAP.AR;
+  const normalized = country.trim().toUpperCase();
+  return COUNTRY_LOCALE_MAP[normalized] ?? COUNTRY_LOCALE_MAP.AR;
+};
 
-type FormValues = yup.InferType<typeof checkoutSchema>;
+const generateIdempotencyKey = () => {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `mp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+type PaymentMethod = "mercadopago" | "cod";
 
 export default function PaymentForm() {
   const router = useRouter();
-  const width = useWindowSize();
-  const [paymentMethod, setPaymentMethod] = useState("credit-card");
+  const toast = useToast();
+  const { state: cartState } = useStorefrontCart();
+  const { totals } = useCheckoutTotals();
+  const storefrontConfig = useStorefrontConfig();
+  const {
+    contact,
+    hasDetails,
+    payment,
+    setPayment,
+    clearPayment
+  } = useCheckout();
 
-  const isMobile = width < 769;
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(() =>
+    payment?.method === "cod" ? "cod" : "mercadopago"
+  );
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleFormSubmit = async (values: typeof initialValues) => {
-    console.log(values);
-    router.push("/payment");
-  };
+  useEffect(() => {
+    if (cartState.items.length === 0) {
+      router.replace("/cart");
+    }
+  }, [cartState.items.length, router]);
 
-  const handlePaymentMethodChange = ({ target: { name } }: ChangeEvent<HTMLInputElement>) => {
-    setPaymentMethod(name);
-  };
+  useEffect(() => {
+    if (!hasDetails) {
+      router.replace("/checkout");
+    }
+  }, [hasDetails, router]);
+
+  useEffect(() => {
+    if (payment?.method === "mercadopago") {
+      const status = normalizeMercadoPagoStatus(payment.status);
+      setSelectedMethod("mercadopago");
+      setStatusMessage(buildMercadoPagoStatusMessage(status, payment.statusDetail));
+      setErrorMessage(null);
+    } else if (payment?.method === "cod") {
+      setSelectedMethod("cod");
+      setStatusMessage(null);
+      setErrorMessage(null);
+    }
+  }, [payment]);
+
+  const publicKey = process.env.NEXT_PUBLIC_MP_PUBLIC_KEY ?? "";
+  const locale = mapCountryToLocale(process.env.NEXT_PUBLIC_MP_COUNTRY ?? "AR");
+
+  const companyName = useMemo(() => {
+    const profile = storefrontConfig?.companyProfile;
+    const candidate = profile?.tradeName ?? profile?.legalName ?? "Storefront";
+    return candidate.trim().length > 0 ? candidate.trim() : "Storefront";
+  }, [storefrontConfig]);
+
+  const statementDescriptor = useMemo(() => {
+    const sanitized = companyName.replace(/[^A-Za-z0-9\s]/g, "");
+    return sanitized.slice(0, 22).toUpperCase();
+  }, [companyName]);
+
+  const description = useMemo(() => `Order payment · ${companyName}`, [companyName]);
+
+  const payerName = useMemo(
+    () => [contact.firstName, contact.lastName].filter(Boolean).join(" ").trim(),
+    [contact.firstName, contact.lastName]
+  );
+
+  const cartId = useMemo(() => `cart-${cartState.updatedAt}`, [cartState.updatedAt]);
+  const amount = totals.total.amount;
+  const currency = totals.total.currency;
+
+  const canRenderBrick = publicKey.length > 0 && amount > 0;
+
+  const handleProcessingChange = useCallback(
+    (processing: boolean) => {
+      setIsProcessingPayment(processing);
+      if (processing) {
+        setStatusMessage("Processing payment with Mercado Pago...");
+        setErrorMessage(null);
+      }
+    },
+    []
+  );
+
+  const handleMercadoPagoSubmit = useCallback(
+    async (cardData: MercadoPagoCardSubmitPayload): Promise<MercadoPagoChargeResponse> => {
+      setErrorMessage(null);
+      setStatusMessage("Processing payment with Mercado Pago...");
+      const idempotencyKey = generateIdempotencyKey();
+
+      try {
+        const response = await StorefrontApi.createMercadoPagoCharge(
+          {
+            token: cardData.token,
+            transactionAmount: amount,
+            currency,
+            installments: cardData.installments,
+            paymentMethodId: cardData.paymentMethodId,
+            payer: {
+              email: cardData.payer.email,
+              identification: cardData.payer.identification,
+              firstName: cardData.payer.firstName,
+              lastName: cardData.payer.lastName
+            },
+            issuerId: cardData.issuerId,
+            description,
+            orderId: undefined,
+            cartId,
+            statementDescriptor
+          },
+          { idempotencyKey }
+        );
+
+        const normalizedStatus = normalizeMercadoPagoStatus(response.status);
+        const checkoutPayment = {
+          method: "mercadopago" as const,
+          paymentIntentId: response.paymentIntentId,
+          paymentId: response.paymentId ?? undefined,
+          status: normalizedStatus,
+          statusDetail: response.statusDetail ?? undefined,
+          currency: response.currency ?? currency,
+          amount: response.amount ?? amount,
+          installments: response.installments ?? undefined,
+          cardBrand: response.cardBrand ?? undefined,
+          cardLastFour: response.cardLastFour ?? undefined,
+          cardholderName: response.cardholderName ?? payerName,
+          updatedAt: response.createdAt ?? new Date().toISOString()
+        };
+
+        setPayment(checkoutPayment);
+        const statusText = buildMercadoPagoStatusMessage(normalizedStatus, checkoutPayment.statusDetail);
+        setStatusMessage(statusText);
+        setErrorMessage(null);
+
+        if (normalizedStatus === "approved" || normalizedStatus === "authorized") {
+          toast.success({
+            title: "Payment approved",
+            description: "Mercado Pago accepted your card."
+          });
+        } else if (normalizedStatus === "in_process" || normalizedStatus === "pending") {
+          toast.info({
+            title: "Payment under review",
+            description: "Mercado Pago is reviewing your payment. You can continue with your order."
+          });
+        } else if (normalizedStatus === "rejected") {
+          toast.error({
+            title: "Payment rejected",
+            description:
+              checkoutPayment.statusDetail && MERCADO_PAGO_STATUS_DETAIL_MESSAGES[checkoutPayment.statusDetail]
+                ? MERCADO_PAGO_STATUS_DETAIL_MESSAGES[checkoutPayment.statusDetail]
+                : "Your bank declined the transaction. Please review the details and try again."
+          });
+        }
+
+        return response;
+      } catch (cause) {
+        const message = isApiError(cause)
+          ? cause.payload?.message ?? cause.message
+          : cause instanceof Error
+            ? cause.message
+            : "We couldn't process your payment. Please try again.";
+        setErrorMessage(message);
+        setStatusMessage(null);
+        clearPayment();
+        toast.error({
+          title: "We couldn't process the payment",
+          description: message
+        });
+        throw cause;
+      }
+    },
+    [amount, cartId, clearPayment, currency, description, payerName, setPayment, statementDescriptor, toast]
+  );
+
+  const handleMethodChange = useCallback(
+    (method: PaymentMethod) => {
+      setSelectedMethod(method);
+      setErrorMessage(null);
+      setStatusMessage(null);
+      if (method === "cod") {
+        setPayment({ method: "cod" });
+      } else if (payment?.method === "cod") {
+        clearPayment();
+      }
+    },
+    [clearPayment, payment?.method, setPayment]
+  );
+
+  const canProceedToReview = useMemo(() => {
+    if (selectedMethod === "cod") {
+      return true;
+    }
+    if (!payment || payment.method !== "mercadopago") {
+      return false;
+    }
+    if (!payment.paymentIntentId) {
+      return false;
+    }
+    const status = normalizeMercadoPagoStatus(payment.status);
+    return status !== "rejected" && status !== "processing";
+  }, [payment, selectedMethod]);
+
+  const handleContinue = useCallback(() => {
+    if (selectedMethod === "cod") {
+      setPayment({ method: "cod" });
+      router.push("/review");
+      return;
+    }
+
+    if (!payment || payment.method !== "mercadopago") {
+      const message = "Process your payment with Mercado Pago before continuing.";
+      setErrorMessage(message);
+      toast.error({ title: "Payment required", description: message });
+      return;
+    }
+
+    const status = normalizeMercadoPagoStatus(payment.status);
+
+    if (status === "processing") {
+      toast.info({
+        title: "Payment in progress",
+        description: "Please wait while Mercado Pago completes the payment."
+      });
+      return;
+    }
+
+    if (status === "rejected") {
+      toast.error({
+        title: "Payment rejected",
+        description: "Your bank declined the transaction. Try again with another card."
+      });
+      return;
+    }
+
+    router.push("/review");
+  }, [payment, router, selectedMethod, setPayment, toast]);
+
+  const mpUnavailableMessage = !publicKey
+    ? "Mercado Pago public key is not configured. Add NEXT_PUBLIC_MP_PUBLIC_KEY to your environment."
+    : amount <= 0
+      ? "Add products to your cart to enable Mercado Pago payments."
+      : null;
 
   return (
-    <Fragment>
+    <Box>
       <Card1 mb="2rem">
+        <Typography fontWeight="600" mb="1rem">
+          Payment method
+        </Typography>
+
         <Radio
-          mb="1.5rem"
+          mb="1.25rem"
           color="secondary"
-          name="credit-card"
-          onChange={handlePaymentMethodChange}
-          checked={paymentMethod === "credit-card"}
+          name="paymentMethod"
+          value="mercadopago"
+          onChange={(event) => handleMethodChange(event.target.value as PaymentMethod)}
+          checked={selectedMethod === "mercadopago"}
           label={
             <Typography ml="6px" fontWeight="600" fontSize="18px">
-              Pay with credit card
+              Pay with card (Mercado Pago)
             </Typography>
           }
         />
 
-        <Divider mb="1.25rem" mx="-2rem" />
-
-        {paymentMethod === "credit-card" && (
-          <Formik
-            onSubmit={handleFormSubmit}
-            initialValues={initialValues}
-            validationSchema={checkoutSchema}>
-            {({ values, errors, touched, handleChange, handleBlur, handleSubmit }) => (
-              <form onSubmit={handleSubmit}>
-                <Box mb="1.5rem">
-                  <Grid container horizontal_spacing={6} vertical_spacing={4}>
-                    <Grid item sm={6} xs={12}>
-                      <TextField
-                        fullWidth
-                        name="card_no"
-                        placeholder="Card Number"
-                        label="Card Number"
-                        onBlur={handleBlur}
-                        value={values.card_no}
-                        onChange={handleChange}
-                        errorText={touched.card_no && errors.card_no}
-                      />
-                    </Grid>
-
-                    <Grid item sm={6} xs={12}>
-                      <TextField
-                        fullWidth
-                        name="exp_date"
-                        placeholder="MM/YY"
-                        label="Exp Date"
-                        onBlur={handleBlur}
-                        onChange={handleChange}
-                        value={values.exp_date}
-                        errorText={touched.exp_date && errors.exp_date}
-                      />
-                    </Grid>
-
-                    <Grid item sm={6} xs={12}>
-                      <TextField
-                        fullWidth
-                        name="name"
-                        placeholder="Name on Card"
-                        onBlur={handleBlur}
-                        value={values.name}
-                        label="Name on Card"
-                        onChange={handleChange}
-                        errorText={touched.name && errors.name}
-                      />
-                    </Grid>
-
-                    <Grid item sm={6} xs={12}>
-                      <TextField
-                        fullWidth
-                        name="name"
-                        placeholder="CVC"
-                        onBlur={handleBlur}
-                        value={values.name}
-                        label="Name on Card"
-                        onChange={handleChange}
-                        errorText={touched.name && errors.name}
-                      />
-                    </Grid>
-                  </Grid>
-                </Box>
-
-                <Button variant="outlined" color="primary" mb="30px">
-                  Submit
-                </Button>
-
-                <Divider mb="1.5rem" mx="-2rem" />
-              </form>
+        {selectedMethod === "mercadopago" && (
+          <Box mt="1rem">
+            {mpUnavailableMessage ? (
+              <Typography color="error.main" fontSize="14px">
+                {mpUnavailableMessage}
+              </Typography>
+            ) : (
+              <MercadoPagoCardBrick
+                publicKey={publicKey}
+                locale={locale}
+                amount={amount}
+                currency={currency}
+                payer={{
+                  email: contact.email,
+                  firstName: contact.firstName,
+                  lastName: contact.lastName
+                }}
+                description={description}
+                onSubmit={handleMercadoPagoSubmit}
+                onProcessingChange={handleProcessingChange}
+                onError={setErrorMessage}
+              />
             )}
-          </Formik>
+            {statusMessage && (
+              <Typography color="primary.main" fontSize="14px" mt="0.75rem">
+                {statusMessage}
+              </Typography>
+            )}
+            {errorMessage && (
+              <Typography color="error.main" fontSize="14px" mt="0.75rem">
+                {errorMessage}
+              </Typography>
+            )}
+          </Box>
         )}
 
-        <Radio
-          mb="1.5rem"
-          name="paypal"
-          color="secondary"
-          onChange={handlePaymentMethodChange}
-          checked={paymentMethod === "paypal"}
-          label={
-            <Typography ml="6px" fontWeight="600" fontSize="18px">
-              Pay with Paypal
-            </Typography>
-          }
-        />
         <Divider mb="1.5rem" mx="-2rem" />
 
-        {paymentMethod === "paypal" && (
-          <Fragment>
-            <FlexBox alignItems="flex-end" mb="30px">
-              <TextField
-                fullWidth
-                name="email"
-                type="email"
-                label="Paypal Email"
-                mr={isMobile ? "1rem" : "30px"}
-              />
-              <Button variant="outlined" color="primary" type="button">
-                Submit
-              </Button>
-            </FlexBox>
-
-            <Divider mb="1.5rem" mx="-2rem" />
-          </Fragment>
-        )}
-
         <Radio
-          name="cod"
           color="secondary"
-          checked={paymentMethod === "cod"}
-          onChange={handlePaymentMethodChange}
+          name="paymentMethod"
+          value="cod"
+          onChange={(event) => handleMethodChange(event.target.value as PaymentMethod)}
+          checked={selectedMethod === "cod"}
           label={
             <Typography ml="6px" fontWeight="600" fontSize="18px">
-              Cash On Delivery
+              Cash on delivery
             </Typography>
           }
         />
+
+        <Typography color="text.muted" fontSize="14px" mt="0.5rem">
+          You&apos;ll pay with cash or card when the order is delivered.
+        </Typography>
       </Card1>
 
       <Grid container spacing={7}>
         <Grid item sm={6} xs={12}>
           <Link href="/checkout">
             <Button variant="outlined" color="primary" type="button" fullWidth>
-              Back to checkout details
+              Back to details
             </Button>
           </Link>
         </Grid>
 
         <Grid item sm={6} xs={12}>
-          <Link href="/orders">
-            <Button variant="contained" color="primary" type="submit" fullWidth>
-              Review
-            </Button>
-          </Link>
+          <Button
+            variant="contained"
+            color="primary"
+            type="button"
+            fullWidth
+            disabled={isProcessingPayment || !canProceedToReview || Boolean(mpUnavailableMessage && selectedMethod === "mercadopago")}
+            onClick={handleContinue}
+          >
+            {selectedMethod === "cod"
+              ? "Review order"
+              : isProcessingPayment
+                ? "Processing..."
+                : "Review order"}
+          </Button>
         </Grid>
       </Grid>
-    </Fragment>
+    </Box>
   );
 }

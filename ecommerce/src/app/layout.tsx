@@ -12,6 +12,7 @@ import "slick-carousel/slick/slick-theme.css";
 import { ThemeProvider } from "theme";
 import NProgressBar from "@component/NProgress";
 import { I18nProvider } from "@/state/i18n-context";
+import ToastProvider from "@context/ToastContext";
 
 const publicSans = Public_Sans({ subsets: ["latin"] });
 
@@ -29,12 +30,14 @@ export default function RootLayout({ children }: PropsWithChildren) {
       <body className={publicSans.className}>
         <StyledComponentsRegistry>
           <I18nProvider>
-            <CartProvider>
-              <ThemeProvider>
-                {children}
-                <NProgressBar />
-              </ThemeProvider>
-            </CartProvider>
+            <ThemeProvider>
+              <ToastProvider>
+                <CartProvider>
+                  {children}
+                  <NProgressBar />
+                </CartProvider>
+              </ToastProvider>
+            </ThemeProvider>
           </I18nProvider>
         </StyledComponentsRegistry>
       </body>

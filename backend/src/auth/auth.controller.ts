@@ -9,6 +9,9 @@ import { resolveAvatarPublicUrl } from '../common/uploads/avatar'
 import { PrismaService } from '../prisma/prisma.service'
 import { UserActivityService } from '../user-activity/user-activity.service'
 import { SESSION_TTL_SECONDS } from './auth.config'
+import { PasswordResetService } from './password-reset.service'
+import { PasswordResetConfirmDto, PasswordResetRequestDto } from './dto/password-reset.dto'
+import { Throttle } from '@nestjs/throttler'
 
 @Controller()
 export class AuthController {
@@ -16,6 +19,7 @@ export class AuthController {
     private auth: AuthService,
     private prisma: PrismaService,
     private userActivity: UserActivityService,
+    private passwordReset: PasswordResetService,
   ) {}
 
   private buildAuthCookieOptions(): CookieSerializeOptions {
@@ -96,13 +100,29 @@ export class AuthController {
     return { ok: true }
   }
 
+  @Post('/auth/password/reset/request')
+  @Throttle({ default: { limit: 5, ttl: 300 } })
+  async requestPasswordReset(@Body() dto: PasswordResetRequestDto, @Req() req: FastifyRequest) {
+    await this.passwordReset.requestReset(dto.email, req)
+    return { ok: true }
+  }
+
+  @Post('/auth/password/reset/confirm')
+  async confirmPasswordReset(@Body() dto: PasswordResetConfirmDto, @Req() req: FastifyRequest) {
+    await this.passwordReset.resetPassword(dto.token, dto.password, req)
+    return { ok: true }
+  }
+
   @Post('/forgot-password')
-  async forgotPassword() {
+  @Throttle({ default: { limit: 5, ttl: 300 } })
+  async legacyForgotPassword(@Body() dto: PasswordResetRequestDto, @Req() req: FastifyRequest) {
+    await this.passwordReset.requestReset(dto.email, req)
     return { ok: true }
   }
 
   @Post('/reset-password')
-  async resetPassword() {
+  async legacyResetPassword(@Body() dto: PasswordResetConfirmDto, @Req() req: FastifyRequest) {
+    await this.passwordReset.resetPassword(dto.token, dto.password, req)
     return { ok: true }
   }
 }

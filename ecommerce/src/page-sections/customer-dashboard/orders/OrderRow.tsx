@@ -13,12 +13,20 @@ import { IconButton } from "@component/buttons";
 import Typography, { H5, Small } from "@component/Typography";
 
 import type { OrderSummary } from "@/types/storefront";
+import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 
-const STATUS_COLORS: Record<string, "error" | "secondary" | "success"> = {
+type StatusColor = "error" | "secondary" | "success" | "warning" | "primary";
+
+const STATUS_COLORS: Record<string, StatusColor> = {
   cancelled: "error",
-  pending: "secondary",
-  delivered: "success",
-  processing: "secondary"
+  canceled: "error",
+  pending: "warning",
+  processing: "warning",
+  confirmed: "primary",
+  shipped: "primary",
+  fulfilled: "success",
+  completed: "success",
+  delivered: "success"
 };
 
 // =================================================
@@ -28,12 +36,13 @@ type OrderRowProps = { order: OrderSummary };
 export default function OrderRow({ order }: OrderRowProps) {
   const statusKey = (order.status ?? "pending").toLowerCase();
   const colorKey = STATUS_COLORS[statusKey] ?? "secondary";
+  const statusLabel = order.status
+    ? order.status.replace(/[-_]+/g, " ")
+    : "Unknown";
   const placedDate = format(new Date(order.placedAt), "MMM dd, yyyy");
   const total = order.summary.grandTotal;
-  const formattedTotal = new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: total.currency
-  }).format(total.amount);
+  const { formatMoney } = useMoneyFormatter();
+  const formattedTotal = useMemo(() => formatMoney(total), [formatMoney, total]);
   const orderIdentifierRaw = order.uuid || order.reference || order.orderNumber || String(order.id);
   const orderIdentifier = String(orderIdentifierRaw);
   const encodedIdentifier = encodeURIComponent(orderIdentifier);
@@ -52,7 +61,7 @@ export default function OrderRow({ order }: OrderRowProps) {
 
         <Box m="6px">
           <Chip p="0.25rem 1rem" bg={`${colorKey}.light`}>
-            <Small color={`${colorKey}.main`}>{order.status}</Small>
+            <Small color={`${colorKey}.main`}>{statusLabel}</Small>
           </Chip>
         </Box>
 

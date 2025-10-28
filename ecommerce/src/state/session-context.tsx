@@ -13,6 +13,7 @@ import {
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { looksLikePhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
 import type { AuthSession, CustomerProfile } from "@/types/storefront";
+import { useToast } from "@/contexts/ToastContext";
 
 type SessionStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -118,6 +119,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
   const [status, setStatus] = useState<SessionStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const isBootstrapped = useRef(false);
+  const toast = useToast();
 
   useEffect(() => {
     if (isBootstrapped.current) return;
@@ -133,26 +135,53 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
 
   const clearError = useCallback(() => setError(null), []);
 
-  const handleAuthSuccess = useCallback((nextSession: AuthSession) => {
-    const normalizedSession = normalizeAuthSession(nextSession);
-    setSession(normalizedSession);
-    setStatus("authenticated");
-    persistSession(normalizedSession);
-    setError(null);
-    return normalizedSession;
-  }, []);
+  const handleAuthSuccess = useCallback(
+    (nextSession: AuthSession, origin: "login" | "register" = "login") => {
+      const normalizedSession = normalizeAuthSession(nextSession);
+      setSession(normalizedSession);
+      setStatus("authenticated");
+      persistSession(normalizedSession);
+      setError(null);
 
-  const handleAuthError = useCallback((cause: unknown) => {
-    let message = "Unable to authenticate. Please try again.";
-    if (isApiError(cause)) {
-      message = cause.payload?.message ?? cause.message ?? message;
-    } else if (cause instanceof Error) {
-      message = cause.message;
-    }
-    setError(message);
-    setStatus((current) => (current === "loading" ? "unauthenticated" : current));
-    throw cause;
-  }, []);
+      const customerName = [normalizedSession.customer.firstName, normalizedSession.customer.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      toast.success({
+        title: origin === "register" ? "Cuenta creada" : "Sesión iniciada",
+        description:
+          origin === "register"
+            ? customerName
+              ? `¡Bienvenido/a ${customerName}! Tu cuenta ya está activa.`
+              : "Tu cuenta fue creada y ya puedes comenzar a comprar."
+            : customerName
+              ? `Hola ${customerName}, nos alegra verte de vuelta.`
+              : "Iniciaste sesión correctamente."
+      });
+
+      return normalizedSession;
+    },
+    [toast]
+  );
+
+  const handleAuthError = useCallback(
+    (cause: unknown, origin: "login" | "register" = "login") => {
+      let message = "Unable to authenticate. Please try again.";
+      if (isApiError(cause)) {
+        message = cause.payload?.message ?? cause.message ?? message;
+      } else if (cause instanceof Error) {
+        message = cause.message;
+      }
+      setError(message);
+      setStatus((current) => (current === "loading" ? "unauthenticated" : current));
+      toast.error({
+        title: origin === "register" ? "No pudimos crear tu cuenta" : "No pudimos iniciar sesión",
+        description: message
+      });
+      throw cause;
+    },
+    [toast]
+  );
 
   const login = useCallback(
     async (identifier: string, password: string) => {
@@ -167,9 +196,9 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           payloadIdentifier = normalized;
         }
         const sessionResponse = await StorefrontApi.login(payloadIdentifier, password);
-        return handleAuthSuccess(sessionResponse);
+        return handleAuthSuccess(sessionResponse, "login");
       } catch (cause) {
-        handleAuthError(cause);
+        handleAuthError(cause, "login");
         throw cause;
       }
     },
@@ -192,9 +221,9 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           lastName: payload.lastName.trim(),
           phone: normalizedPhone
         });
-        return handleAuthSuccess(sessionResponse);
+        return handleAuthSuccess(sessionResponse, "register");
       } catch (cause) {
-        handleAuthError(cause);
+        handleAuthError(cause, "register");
         throw cause;
       }
     },
@@ -206,7 +235,11 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
     setSession(null);
     setStatus("unauthenticated");
     setError(null);
-  }, []);
+    toast.info({
+      title: "Sesión cerrada",
+      description: "Cerraste sesión correctamente."
+    });
+  }, [toast]);
 
   const updateCustomerProfile = useCallback((profile: CustomerProfile) => {
     const normalizedProfile = normalizeCustomerProfile(profile);

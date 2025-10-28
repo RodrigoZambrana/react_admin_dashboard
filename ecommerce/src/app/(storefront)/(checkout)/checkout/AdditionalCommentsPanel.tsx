@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 import Box from "@component/Box";
 import FlexBox from "@component/FlexBox";
 import { Card1 } from "@component/Card1";
@@ -9,9 +7,10 @@ import TextArea from "@component/textarea";
 import Typography from "@component/Typography";
 
 import { useTranslation } from "@/state/i18n-context";
+import { useCheckout } from "@/state/checkout-context";
 
 export default function AdditionalCommentsPanel() {
-  const [notes, setNotes] = useState("");
+  const { notes, setNotes } = useCheckout();
   const t = useTranslation();
 
   return (

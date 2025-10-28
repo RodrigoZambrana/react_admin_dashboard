@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { IconMinus, IconPlus } from "@tabler/icons-react";
@@ -13,9 +13,12 @@ import Grid from "@component/grid/Grid";
 import FlexBox from "@component/FlexBox";
 import { Button } from "@component/buttons";
 import { H1, H2, H3, H6, Paragraph, SemiSpan } from "@component/Typography";
+import NoImagePlaceholder from "@component/NoImagePlaceholder";
 import useCart from "@hook/useCart";
-import { formatInventoryStatus, formatMoney } from "@/lib/utils/format";
+import { formatInventoryStatus } from "@/lib/utils/format";
+import { filterValidProductImages, isMissingProductImage } from "@/lib/utils/image";
 import ProductWishlistButton from "@component/product-cards/ProductWishlistButton";
+import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 
 const fallbackCurrency = "USD";
 
@@ -23,7 +26,7 @@ const fallbackCurrency = "USD";
 interface Props {
   price: number;
   title: string;
-  images: string[];
+  images?: string[];
   id: string | number;
   currency?: string;
   basePrice?: number;
@@ -52,7 +55,10 @@ export default function ProductIntro({
 }: Props) {
   const param = useParams();
   const { state, dispatch } = useCart();
+  const { formatAmount, baseCurrency } = useMoneyFormatter();
   const [selectedImage, setSelectedImage] = useState(0);
+  const gallery = useMemo(() => filterValidProductImages(images ?? []), [images]);
+  const hasGallery = gallery.length > 0;
 
   const routerId = param.slug as string;
   const cartItem = state.cart.find((item) => item.id === id || item.id === routerId);
@@ -62,24 +68,30 @@ export default function ProductIntro({
     return Number.isFinite(parsed) ? parsed : undefined;
   }, [id]);
 
-  const moneyConfig = useMemo(
-    () => ({ amount: price, currency: currency ?? fallbackCurrency }),
-    [price, currency]
-  );
+  const resolvedCurrency = currency ?? baseCurrency ?? fallbackCurrency;
 
-  const displayPrice = useMemo(() => formatMoney(moneyConfig), [moneyConfig]);
+  const displayPrice = useMemo(
+    () => formatAmount(price, resolvedCurrency),
+    [formatAmount, price, resolvedCurrency]
+  );
 
   const basePriceLabel = useMemo(() => {
     if (!basePrice || basePrice <= price) return null;
-    return formatMoney({ amount: basePrice, currency: currency ?? fallbackCurrency });
-  }, [basePrice, price, currency]);
+    return formatAmount(basePrice, resolvedCurrency);
+  }, [basePrice, formatAmount, price, resolvedCurrency]);
 
   const formattedStatus = status ? formatInventoryStatus(status as any) : null;
   const productRating = rating ?? 4;
   const productRatingCount = ratingCount ?? 0;
   const productBrand = brand ?? "Store brand";
 
-  const handleImageClick = useCallback((ind: number) => () => setSelectedImage(ind), []);
+  const handleImageClick = useCallback(
+    (ind: number) => () => {
+      if (!hasGallery) return;
+      setSelectedImage(ind);
+    },
+    [hasGallery]
+  );
 
   const handleCartAmountChange = useCallback(
     (amount: number) => () => {
@@ -90,12 +102,22 @@ export default function ProductIntro({
           price,
           qty: amount,
           name: title,
-          imgUrl: images[0]
+          imgUrl: gallery[0]
         }
       });
     },
-    [dispatch, id, images, price, title]
+    [dispatch, gallery, id, price, title]
   );
+
+  useEffect(() => {
+    if (!hasGallery) {
+      setSelectedImage(0);
+      return;
+    }
+    if (selectedImage >= gallery.length) {
+      setSelectedImage(0);
+    }
+  }, [gallery, hasGallery, selectedImage]);
 
   return (
     <Box overflow="hidden">
@@ -103,35 +125,46 @@ export default function ProductIntro({
         <Grid item md={6} xs={12} alignItems="center">
           <div>
             <FlexBox mb="50px" overflow="hidden" borderRadius={16} justifyContent="center">
-              <Image
-                width={300}
-                height={300}
-                src={images[selectedImage]}
-                style={{ display: "block", width: "100%", height: "auto" }}
-              />
+              {hasGallery ? (
+                <Image
+                  width={300}
+                  height={300}
+                  src={gallery[Math.min(selectedImage, gallery.length - 1)]}
+                  style={{ display: "block", width: "100%", height: "auto" }}
+                />
+              ) : (
+                <NoImagePlaceholder
+                  width="100%"
+                  height="300px"
+                  text="No image available"
+                  borderRadius={16}
+                />
+              )}
             </FlexBox>
 
-            <FlexBox overflow="auto">
-              {images.map((url, ind) => (
-                <Box
-                  key={ind}
-                  size={70}
-                  bg="white"
-                  minWidth={70}
-                  display="flex"
-                  cursor="pointer"
-                  border="1px solid"
-                  borderRadius="10px"
-                  alignItems="center"
-                  justifyContent="center"
-                  ml={ind === 0 ? "auto" : ""}
-                  mr={ind === images.length - 1 ? "auto" : "10px"}
-                  borderColor={selectedImage === ind ? "primary.main" : "gray.400"}
-                  onClick={handleImageClick(ind)}>
-                  <Avatar src={url} borderRadius="10px" size={65} />
-                </Box>
-              ))}
-            </FlexBox>
+            {hasGallery ? (
+              <FlexBox overflow="auto">
+                {gallery.map((url, ind) => (
+                  <Box
+                    key={ind}
+                    size={70}
+                    bg="white"
+                    minWidth={70}
+                    display="flex"
+                    cursor="pointer"
+                    border="1px solid"
+                    borderRadius="10px"
+                    alignItems="center"
+                    justifyContent="center"
+                    ml={ind === 0 ? "auto" : ""}
+                    mr={ind === gallery.length - 1 ? "auto" : "10px"}
+                    borderColor={selectedImage === ind ? "primary.main" : "gray.400"}
+                    onClick={handleImageClick(ind)}>
+                    <Avatar src={url} borderRadius="10px" size={65} />
+                  </Box>
+                ))}
+              </FlexBox>
+            ) : null}
           </div>
         </Grid>
 

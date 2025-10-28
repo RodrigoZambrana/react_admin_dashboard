@@ -379,6 +379,7 @@ export interface CheckoutLineItem {
   total: Money;
   name?: string;
   image?: string | null;
+  specifications?: Array<{ label?: string | null; value?: string | null }>;
 }
 
 export interface CheckoutSummary {
@@ -390,6 +391,19 @@ export interface CheckoutSummary {
   grandTotal: Money;
   estimatedDelivery?: string;
   notes?: string;
+}
+
+export interface OrderPaymentSummary {
+  provider: string;
+  status: string;
+  statusDetail?: string;
+  paymentId?: string;
+  paymentIntentId?: string;
+  amount?: Money;
+  installments?: number;
+  cardBrand?: string;
+  cardLastFour?: string;
+  updatedAt?: string;
 }
 
 export interface CreateOrderPayload {
@@ -404,7 +418,7 @@ export interface CreateOrderPayload {
     line2?: string;
     city: string;
     state?: string;
-    zip: string;
+    zip?: string;
     country: string;
   };
   billingAddress?: {
@@ -412,7 +426,7 @@ export interface CreateOrderPayload {
     line2?: string;
     city: string;
     state?: string;
-    zip: string;
+    zip?: string;
     country: string;
   };
   items: Array<{ productId: number; quantity: number }>;
@@ -433,4 +447,5 @@ export interface OrderSummary {
   summary: CheckoutSummary;
   shippingAddress: CreateOrderPayload["shippingAddress"];
   billingAddress?: CreateOrderPayload["billingAddress"];
+  payment?: OrderPaymentSummary | null;
 }

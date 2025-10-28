@@ -35,29 +35,6 @@ export default function DashboardNavigation() {
 
     return [
       {
-        title: "DASHBOARD",
-        links: [
-          {
-            href: resolveHref("/orders"),
-            title: "Orders",
-            Icon: IconShoppingBagCheck,
-            count: totalOrders
-          },
-          {
-            href: resolveHref("/wish-list"),
-            title: "Wishlist",
-            Icon: IconHeart,
-            count: profile?.wishlistCount ?? 0
-          }
-          // {
-          //   href: "/support-tickets",
-          //   title: "Support Tickets",
-          //   Icon: IconHelpCircle,
-          //   count: 0
-          // }
-        ]
-      },
-      {
         title: "ACCOUNT SETTINGS",
         links: [
           {
@@ -72,12 +49,23 @@ export default function DashboardNavigation() {
             Icon: IconPin,
             count: addressCount
           }
-          // {
-          //   href: "/payment-methods",
-          //   title: "Payment Methods",
-          //   Icon: IconCreditCard,
-          //   count: 0
-          // }
+        ]
+      },
+      {
+        title: "DASHBOARD",
+        links: [
+          {
+            href: resolveHref("/orders"),
+            title: "Orders",
+            Icon: IconShoppingBagCheck,
+            count: totalOrders
+          },
+          {
+            href: resolveHref("/wish-list"),
+            title: "Wishlist",
+            Icon: IconHeart,
+            count: profile?.wishlistCount ?? 0
+          }
         ]
       }
     ];

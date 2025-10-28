@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma } from '@prisma/client'
+import { PrismaClient, Prisma, EmailCategory, Role } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 
 const prisma = new PrismaClient()
@@ -674,10 +674,40 @@ async function seedDefaultOrderStatuses() {
   }
 }
 
+async function seedEmailSettings() {
+  const categories = [EmailCategory.ORDERS, EmailCategory.PAYMENTS, EmailCategory.AUTH]
+  const defaultFromAddress = process.env.EMAIL_FROM_DEFAULT || 'no-reply@example.com'
+  const defaultFromName = process.env.EMAIL_FROM_NAME_DEFAULT || 'Sistema Administrativo'
+  for (const category of categories) {
+    const existing = await prisma.emailSetting.findUnique({ where: { category } })
+    if (!existing) {
+      await prisma.emailSetting.create({
+        data: {
+          category,
+          fromAddress: defaultFromAddress,
+          fromName: defaultFromName,
+          enabled: true,
+        },
+      })
+    }
+  }
+  const adminRule = await prisma.roleNotificationRule.findFirst({ where: { role: Role.ADMIN } })
+  if (!adminRule) {
+    await prisma.roleNotificationRule.create({
+      data: {
+        role: Role.ADMIN,
+        categories,
+        enabled: true,
+      },
+    })
+  }
+}
+
 async function main() {
   const superAdmin = await seedSuperAdmin()
   await seedDemoData(superAdmin?.email || SUPERADMIN_EMAIL)
   await seedDefaultOrderStatuses()
+  await seedEmailSettings()
 }
 
 main()

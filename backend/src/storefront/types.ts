@@ -170,6 +170,7 @@ export interface CheckoutLineItem {
   total: MoneyDto
   name?: string
   image?: string | null
+  specifications?: Array<{ label?: string | null; value?: string | null }>
 }
 
 export interface CheckoutSummary {
@@ -181,6 +182,19 @@ export interface CheckoutSummary {
   grandTotal: MoneyDto
   estimatedDelivery?: string
   notes?: string
+}
+
+export interface OrderPaymentSummary {
+  provider: string
+  status: string
+  statusDetail?: string
+  paymentId?: string
+  paymentIntentId?: string
+  amount?: MoneyDto
+  installments?: number
+  cardBrand?: string
+  cardLastFour?: string
+  updatedAt?: string
 }
 
 export interface OrderSummary {
@@ -196,6 +210,7 @@ export interface OrderSummary {
   summary: CheckoutSummary
   shippingAddress: CreateOrderInput['shippingAddress']
   billingAddress?: CreateOrderInput['billingAddress']
+  payment?: OrderPaymentSummary | null
 }
 
 export interface WishlistItemDto {

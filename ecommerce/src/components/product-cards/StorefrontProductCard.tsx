@@ -8,10 +8,11 @@ import Box from "@component/Box";
 import FlexBox from "@component/FlexBox";
 import Rating from "@component/rating";
 import NextImage from "@component/NextImage";
+import NoImagePlaceholder from "@component/NoImagePlaceholder";
 import { H4, Paragraph, Small } from "@component/Typography";
 import useCart from "@hook/useCart";
-import { currency } from "@utils/utils";
 import ProductQuickActions from "./ProductQuickActions";
+import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 
 const Wrapper = styled(Box)({
   position: "relative",
@@ -46,8 +47,8 @@ export type StorefrontProductCardProps = {
   slug: string;
   title: string;
   price: number;
-  imgUrl: string;
-  images?: string[];
+  imgUrl?: string | null;
+  images?: Array<string | null | undefined>;
   category?: string | null;
   rating?: number | null;
   reviewCount?: number | null;
@@ -67,12 +68,20 @@ export default function StorefrontProductCard({
   currencyCode
 }: StorefrontProductCardProps) {
   const { state, dispatch } = useCart();
+  const { formatAmount, baseCurrency } = useMoneyFormatter();
 
   const cartItem = state.cart.find((item) => item.id === id || item.slug === slug);
+  const primaryImage = typeof imgUrl === "string" && imgUrl.trim() ? imgUrl.trim() : undefined;
   const gallery = useMemo(() => {
-    if (Array.isArray(images) && images.length > 0) return images;
-    return [imgUrl];
-  }, [images, imgUrl]);
+    const list =
+      Array.isArray(images) && images.length > 0
+        ? images.filter((item): item is string => typeof item === "string" && item.trim())
+        : [];
+    if (primaryImage) {
+      list.unshift(primaryImage);
+    }
+    return Array.from(new Set(list));
+  }, [images, primaryImage]);
 
   const handleAddToCart = useCallback(() => {
     dispatch({
@@ -81,27 +90,33 @@ export default function StorefrontProductCard({
         id,
         slug,
         price,
-        imgUrl,
+        imgUrl: primaryImage,
         name: title,
         qty: (cartItem?.qty ?? 0) + 1
       }
     });
-  }, [cartItem?.qty, dispatch, id, imgUrl, price, slug, title]);
+  }, [cartItem?.qty, dispatch, id, primaryImage, price, slug, title]);
 
   const normalizedRating = typeof rating === "number" ? rating : null;
   const normalizedReviews = typeof reviewCount === "number" ? reviewCount : null;
+  const resolvedCurrency = currencyCode ?? baseCurrency;
+  const formattedPrice = formatAmount(price, resolvedCurrency);
 
   return (
     <Wrapper>
       <Media>
         <Link href={`/product/${slug}`}>
-          <NextImage
-            width={300}
-            height={300}
-            alt={title}
-            src={imgUrl}
-            style={{ width: "100%", height: "auto", objectFit: "cover" }}
-          />
+          {primaryImage ? (
+            <NextImage
+              width={300}
+              height={300}
+              alt={title}
+              src={primaryImage}
+              style={{ width: "100%", height: "auto", objectFit: "cover" }}
+            />
+          ) : (
+            <NoImagePlaceholder height="300px" width="100%" text="No image available" />
+          )}
         </Link>
 
         <ProductQuickActions
@@ -114,8 +129,9 @@ export default function StorefrontProductCard({
           productSlug={slug}
           productTitle={title}
           productPrice={price}
+          productCurrency={resolvedCurrency}
           productImages={gallery}
-          productImage={imgUrl}
+          productImage={primaryImage}
           onAddToCart={handleAddToCart}
         />
       </Media>
@@ -134,7 +150,7 @@ export default function StorefrontProductCard({
         </Link>
 
         <H4 fontWeight={700} mb="0.75rem">
-          {currencyCode ? `${currencyCode} ${price.toFixed(2)}` : currency(price)}
+          {formattedPrice}
         </H4>
 
         {normalizedRating !== null || normalizedReviews !== null ? (

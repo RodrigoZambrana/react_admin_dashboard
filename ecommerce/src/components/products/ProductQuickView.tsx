@@ -15,6 +15,8 @@ type Props = {
     slug: string;
     title: string;
     price: number;
+    basePrice?: number;
+    currency?: string;
     images: string[];
     id: string | number;
   };
@@ -29,6 +31,8 @@ export default function ProductQuickView({ open, onClose, product }: Props) {
           id={product.id}
           title={product.title}
           price={product.price}
+          basePrice={product.basePrice}
+          currency={product.currency}
           images={product.images}
         />
 

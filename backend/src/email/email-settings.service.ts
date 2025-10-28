@@ -1,0 +1,260 @@
+import { Injectable, Logger } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import { EmailCategory, Prisma, RoleNotificationRule, Role } from '@prisma/client'
+import { PrismaService } from '../prisma/prisma.service'
+import { RoleRuleInput } from './email.types'
+
+export type EmailCategorySettings = {
+  category: EmailCategory
+  fromAddress: string
+  fromName?: string | null
+  adminRecipients: string[]
+  cc: string[]
+  bcc: string[]
+  enabled: boolean
+  updatedAt: Date
+}
+
+@Injectable()
+export class EmailSettingsService {
+  private readonly logger = new Logger(EmailSettingsService.name)
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
+
+  private defaultFromAddress() {
+    return this.config.get<string>('EMAIL_FROM_DEFAULT') ?? 'no-reply@example.com'
+  }
+
+  private defaultFromName() {
+    return this.config.get<string>('EMAIL_FROM_NAME_DEFAULT') ?? 'Sistema Administrativo'
+  }
+
+  private async ensureSetting(category: EmailCategory) {
+    const existing = await this.prisma.emailSetting.findUnique({ where: { category } })
+    if (existing) {
+      return existing
+    }
+    return this.prisma.emailSetting.create({
+      data: {
+        category,
+        fromAddress: this.defaultFromAddress(),
+        fromName: this.defaultFromName(),
+        enabled: true,
+      },
+    })
+  }
+
+  async getCategorySettings(category: EmailCategory): Promise<EmailCategorySettings> {
+    const record = await this.ensureSetting(category)
+    return {
+      category,
+      fromAddress: record.fromAddress,
+      fromName: record.fromName,
+      adminRecipients: record.adminRecipients ?? [],
+      cc: record.cc ?? [],
+      bcc: record.bcc ?? [],
+      enabled: record.enabled,
+      updatedAt: record.updatedAt,
+    }
+  }
+
+  async listSettings(): Promise<EmailCategorySettings[]> {
+    const categories: EmailCategory[] = [EmailCategory.ORDERS, EmailCategory.PAYMENTS, EmailCategory.AUTH]
+    const settings = await this.prisma.emailSetting.findMany({
+      where: { category: { in: categories } },
+    })
+    const map = new Map<EmailCategory, typeof settings[number]>()
+    for (const setting of settings) {
+      map.set(setting.category, setting)
+    }
+    const result: EmailCategorySettings[] = []
+    for (const category of categories) {
+      const existing = map.get(category)
+      if (existing) {
+        result.push({
+          category,
+          fromAddress: existing.fromAddress,
+          fromName: existing.fromName,
+          adminRecipients: existing.adminRecipients ?? [],
+          cc: existing.cc ?? [],
+          bcc: existing.bcc ?? [],
+          enabled: existing.enabled,
+          updatedAt: existing.updatedAt,
+        })
+      } else {
+        const created = await this.ensureSetting(category)
+        result.push({
+          category,
+          fromAddress: created.fromAddress,
+          fromName: created.fromName,
+          adminRecipients: created.adminRecipients ?? [],
+          cc: created.cc ?? [],
+          bcc: created.bcc ?? [],
+          enabled: created.enabled,
+          updatedAt: created.updatedAt,
+        })
+      }
+    }
+    return result
+  }
+
+  async updateCategorySettings(
+    category: EmailCategory,
+    data: Partial<Pick<EmailCategorySettings, 'fromAddress' | 'fromName' | 'adminRecipients' | 'cc' | 'bcc' | 'enabled'>>,
+  ): Promise<EmailCategorySettings> {
+    const normalizedAdminRecipients = this.normalizeEmailList(data.adminRecipients)
+    const normalizedCc = this.normalizeEmailList(data.cc)
+    const normalizedBcc = this.normalizeEmailList(data.bcc)
+    const updateData: Prisma.EmailSettingUpdateInput = {}
+    if (data.fromAddress !== undefined) {
+      updateData.fromAddress = data.fromAddress.trim()
+    }
+    if (data.fromName !== undefined) {
+      updateData.fromName = data.fromName?.trim() || null
+    }
+    if (normalizedAdminRecipients !== undefined) {
+      updateData.adminRecipients = normalizedAdminRecipients
+    }
+    if (normalizedCc !== undefined) {
+      updateData.cc = normalizedCc
+    }
+    if (normalizedBcc !== undefined) {
+      updateData.bcc = normalizedBcc
+    }
+    if (data.enabled !== undefined) {
+      updateData.enabled = data.enabled
+    }
+    const updated = await this.prisma.emailSetting.update({
+      where: { category },
+      data: updateData,
+    })
+    return {
+      category,
+      fromAddress: updated.fromAddress,
+      fromName: updated.fromName,
+      adminRecipients: updated.adminRecipients ?? [],
+      cc: updated.cc ?? [],
+      bcc: updated.bcc ?? [],
+      enabled: updated.enabled,
+      updatedAt: updated.updatedAt,
+    }
+  }
+
+  private normalizeEmailList(input?: string[] | null) {
+    if (!input) {
+      return undefined
+    }
+    const emails = input
+      .map((email) => email.trim().toLowerCase())
+      .filter((email) => email.length)
+    return Array.from(new Set(emails))
+  }
+
+  async listRoleRules(): Promise<RoleNotificationRule[]> {
+    return this.prisma.roleNotificationRule.findMany({
+      orderBy: [
+        { enabled: 'desc' },
+        { role: 'asc' },
+      ],
+    })
+  }
+
+  async upsertRoleRule(id: number | null, payload: RoleRuleInput): Promise<RoleNotificationRule> {
+    const normalizedCategories = Array.from(new Set(payload.categories))
+    if (id) {
+      return this.prisma.roleNotificationRule.update({
+        where: { id },
+        data: {
+          role: payload.role,
+          categories: normalizedCategories,
+          enabled: payload.enabled,
+        },
+      })
+    }
+    return this.prisma.roleNotificationRule.create({
+      data: {
+        role: payload.role,
+        categories: normalizedCategories,
+        enabled: payload.enabled,
+      },
+    })
+  }
+
+  async deleteRoleRule(id: number) {
+    await this.prisma.roleNotificationRule.delete({ where: { id } })
+    return true
+  }
+
+  async resolveAdminRecipients(category: EmailCategory): Promise<{
+    to: string[]
+    cc: string[]
+    bcc: string[]
+  }> {
+    const setting = await this.ensureSetting(category)
+    const rules = await this.prisma.roleNotificationRule.findMany({
+      where: {
+        enabled: true,
+        categories: { has: category },
+      },
+    })
+    let ruleRecipients: string[] = []
+    if (rules.length) {
+      const roles = Array.from(new Set(rules.map((rule) => rule.role)))
+      const users = await this.prisma.user.findMany({
+        where: {
+          role: { in: roles },
+        },
+        select: { email: true },
+      })
+      ruleRecipients = users.map((user) => user.email.trim().toLowerCase())
+    }
+    const toRecipients = Array.from(
+      new Set([...(setting.adminRecipients ?? []).map((email) => email.trim().toLowerCase()), ...ruleRecipients]),
+    )
+    const cc = (setting.cc ?? []).map((email) => email.trim().toLowerCase())
+    const bcc = (setting.bcc ?? []).map((email) => email.trim().toLowerCase())
+    return {
+      to: toRecipients,
+      cc: Array.from(new Set(cc)),
+      bcc: Array.from(new Set(bcc)),
+    }
+  }
+
+  async isEnabled(category: EmailCategory): Promise<boolean> {
+    const setting = await this.ensureSetting(category)
+    return setting.enabled
+  }
+
+  async getCompanyProfile() {
+    const profile = await this.prisma.companyProfile.findFirst({
+      where: { singleton: 'default' },
+    })
+    if (!profile) {
+      return {
+        legalName: this.config.get<string>('COMPANY_NAME') ?? 'Sistema Administrativo',
+        tradeName: this.config.get<string>('COMPANY_NAME') ?? 'Sistema Administrativo',
+        email: this.config.get<string>('COMPANY_EMAIL') ?? this.defaultFromAddress(),
+        phone: null,
+        website: null,
+        addressLine1: null,
+        addressLine2: null,
+      }
+    }
+    return {
+      legalName: profile.legalName,
+      tradeName: profile.tradeName,
+      email: profile.email,
+      phone: profile.phone,
+      website: profile.website,
+      addressLine1: profile.addressLine1,
+      addressLine2: profile.addressLine2,
+    }
+  }
+
+  async getRoleOptions(): Promise<Role[]> {
+    return Object.values(Role)
+  }
+}

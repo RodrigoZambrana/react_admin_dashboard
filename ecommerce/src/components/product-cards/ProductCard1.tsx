@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useCallback } from "react";
+import { Fragment, useCallback, useMemo } from "react";
 import styled from "styled-components";
 import { IconPlus, IconMinus } from "@tabler/icons-react";
 
@@ -15,10 +15,11 @@ import NextImage from "@component/NextImage";
 import Card, { CardProps } from "@component/Card";
 import { H3, SemiSpan } from "@component/Typography";
 import { Button } from "@component/buttons";
+import NoImagePlaceholder from "@component/NoImagePlaceholder";
+import { filterValidProductImages, isMissingProductImage } from "@/lib/utils/image";
 import ProductQuickActions from "./ProductQuickActions";
-
-import { calculateDiscount, currency } from "@utils/utils";
 import { deviceSize } from "@utils/constants";
+import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 
 // STYLED COMPONENT
 const Wrapper = styled(Card)`
@@ -128,10 +129,12 @@ interface ProductCard1Props extends CardProps {
   slug: string;
   title: string;
   price: number;
-  imgUrl: string;
+  imgUrl?: string | null;
   rating: number;
-  images: string[];
+  images?: string[];
   id?: string | number;
+  basePrice?: number;
+  currencyCode?: string;
 }
 // =======================================================================
 
@@ -144,10 +147,42 @@ export default function ProductCard1({
   imgUrl,
   images,
   rating = 4,
+  basePrice,
+  currencyCode,
   ...props
 }: ProductCard1Props) {
   const { state, dispatch } = useCart();
+  const { formatAmount, baseCurrency } = useMoneyFormatter();
   const cartItem = state.cart.find((item) => item.id === id);
+
+  const primaryImage = useMemo(() => {
+    if (typeof imgUrl !== "string") return undefined;
+    const trimmed = imgUrl.trim();
+    return trimmed && !isMissingProductImage(trimmed) ? trimmed : undefined;
+  }, [imgUrl]);
+
+  const gallery = useMemo(
+    () => filterValidProductImages([primaryImage, ...(images ?? [])]),
+    [images, primaryImage]
+  );
+
+  const resolvedCurrency = currencyCode ?? baseCurrency;
+  const hasExplicitBasePrice =
+    typeof basePrice === "number" && Number.isFinite(basePrice) && basePrice > 0 && basePrice > price;
+  const hasDiscountPercentage = typeof off === "number" && Number.isFinite(off) && off > 0;
+  const baselineAmount = hasExplicitBasePrice ? basePrice! : price;
+  const computedSaleAmount = hasExplicitBasePrice
+    ? price
+    : hasDiscountPercentage
+      ? baselineAmount - baselineAmount * ((off as number) / 100)
+      : price;
+  const saleAmount = Number.isFinite(computedSaleAmount)
+    ? Math.max(0, computedSaleAmount)
+    : price;
+  const effectivePrice = saleAmount;
+  const showListPrice = hasExplicitBasePrice || hasDiscountPercentage;
+  const formattedSalePrice = formatAmount(saleAmount, resolvedCurrency);
+  const formattedListPrice = showListPrice ? formatAmount(baselineAmount, resolvedCurrency) : null;
 
   const handleCartAmountChange = useCallback(
     (amount: number) => {
@@ -156,14 +191,14 @@ export default function ProductCard1({
         payload: {
           id,
           slug,
-          price,
-          imgUrl,
+          price: effectivePrice,
+          imgUrl: primaryImage,
           name: title,
           qty: amount
         }
       });
     },
-    [dispatch, id, slug, price, imgUrl, title]
+    [dispatch, id, slug, effectivePrice, primaryImage, title]
   );
 
   return (
@@ -191,14 +226,20 @@ export default function ProductCard1({
             productId={id}
             productSlug={slug}
             productTitle={title}
-            productPrice={price}
-            productImages={images}
-            productImage={imgUrl}
+            productPrice={effectivePrice}
+            productBasePrice={showListPrice ? baselineAmount : undefined}
+            productCurrency={resolvedCurrency}
+            productImages={gallery}
+            productImage={primaryImage}
             onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)}
           />
 
           <Link href={`/product/${slug}`}>
-            <NextImage alt={title} width={277} src={imgUrl} height={270} />
+            {primaryImage ? (
+              <NextImage alt={title} width={277} src={primaryImage} height={270} />
+            ) : (
+              <NoImagePlaceholder width={277} height={270} text="No image available" />
+            )}
           </Link>
         </div>
 
@@ -222,14 +263,14 @@ export default function ProductCard1({
 
               <FlexBox alignItems="center" mt="10px">
                 <SemiSpan pr="0.5rem" fontWeight="600" color="primary.main">
-                  {calculateDiscount(price, off as number)}
+                  {formattedSalePrice}
                 </SemiSpan>
 
-                {!!off && (
+                {showListPrice && formattedListPrice ? (
                   <SemiSpan color="text.muted" fontWeight="600">
-                    <del>{currency(price)}</del>
+                    <del>{formattedListPrice}</del>
                   </SemiSpan>
-                )}
+                ) : null}
               </FlexBox>
             </Box>
 

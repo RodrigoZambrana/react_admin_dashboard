@@ -50,7 +50,9 @@ export default function SaleProducts({ products, meta, selectedCategorySlug }: P
               <ProductCard1
                 id={item.id}
                 slug={item.slug}
-                price={item.price}
+                price={item.salePrice ?? item.price}
+                basePrice={item.basePrice}
+                currencyCode={item.currency}
                 title={item.title}
                 off={item.discount}
                 images={item.images}

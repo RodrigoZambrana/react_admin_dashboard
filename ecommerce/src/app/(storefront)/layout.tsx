@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { getStorefrontConfig } from "@/lib/storefront-config";
 import { StorefrontSessionProvider } from "@/state/session-context";
 import { WishlistProvider } from "@/state/wishlist-context";
+import { StorefrontCurrencyProvider } from "@/state/currency-context";
 
 import { StorefrontConfigProvider } from "./storefront-context";
 
@@ -16,7 +17,9 @@ export default async function StorefrontLayout({ children }: StorefrontLayoutPro
   return (
     <StorefrontConfigProvider config={config}>
       <StorefrontSessionProvider>
-        <WishlistProvider>{children}</WishlistProvider>
+        <StorefrontCurrencyProvider>
+          <WishlistProvider>{children}</WishlistProvider>
+        </StorefrontCurrencyProvider>
       </StorefrontSessionProvider>
     </StorefrontConfigProvider>
   );

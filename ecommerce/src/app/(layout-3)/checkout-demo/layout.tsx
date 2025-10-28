@@ -6,16 +6,16 @@ import Hidden from "@component/hidden";
 import Stepper from "@component/Stepper";
 
 const STEPPER_LIST = [
-  { title: "Cart", disabled: false, path: "/cart" },
-  { title: "Details", disabled: false, path: "/checkout" },
-  { title: "Payment", disabled: false, path: "/payment" },
-  { title: "Review", disabled: true, path: "/orders" }
+  { title: "Cart", disabled: false, path: "/checkout-demo/cart-demo" },
+  { title: "Details", disabled: false, path: "/checkout-demo/checkout-demo" },
+  { title: "Payment", disabled: false, path: "/checkout-demo/payment" },
+  { title: "Review", disabled: true, path: "/checkout-demo/review" }
 ];
 
-const PATH_TO_STEP_MAP = {
-  "/cart": 1,
-  "/checkout": 2,
-  "/payment": 3
+const PATH_TO_STEP_MAP: Record<string, number> = {
+  "/checkout-demo/cart-demo": 1,
+  "/checkout-demo/checkout-demo": 2,
+  "/checkout-demo/payment": 3
 };
 
 export default function Layout({ children }: PropsWithChildren) {

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { getStorefrontConfig } from "@/lib/storefront-config";
 import { StorefrontSessionProvider } from "@/state/session-context";
+import { StorefrontCurrencyProvider } from "@/state/currency-context";
 import { WishlistProvider } from "@/state/wishlist-context";
 import Topbar from "@component/topbar";
 import { Header } from "@component/header";
@@ -19,16 +20,18 @@ export default async function ShopLayout({ children }: ShopLayoutProps) {
   return (
     <StorefrontConfigProvider config={config}>
       <StorefrontSessionProvider>
-        <WishlistProvider>
-          <Topbar />
-          <Header />
-          <Navbar />
+        <StorefrontCurrencyProvider>
+          <WishlistProvider>
+            <Topbar />
+            <Header />
+            <Navbar />
 
-          {children}
+            {children}
 
-          <MobileNavigationBar />
-          <Footer1 />
-        </WishlistProvider>
+            <MobileNavigationBar />
+            <Footer1 />
+          </WishlistProvider>
+        </StorefrontCurrencyProvider>
       </StorefrontSessionProvider>
     </StorefrontConfigProvider>
   );

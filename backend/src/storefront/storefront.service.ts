@@ -2,15 +2,28 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common'
-import { Prisma, DocumentType, Customer, CustomerAddress, OrderItem, ProductType, CompanyProfile } from '@prisma/client'
+import {
+  Prisma,
+  DocumentType,
+  Customer,
+  CustomerAddress,
+  OrderItem,
+  ProductType,
+  CompanyProfile,
+  PaymentStatus,
+  StorefrontPaymentIntent,
+} from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
+import { EmailService } from '../email/email.service'
+import { CurrencyConversionService } from '../common/currency/currency-conversion.service'
 import { decimal, decimalToNumber } from '../common/currency/money.util'
 import { buildImageDataUrl, ensureNodeBuffer } from '../common/images/image.utils'
 import { DEFAULT_STOREFRONT_CONFIG } from './defaults/config'
@@ -40,6 +53,7 @@ import {
 import { StorefrontCreateOrderDto } from './dto/order.dto'
 import { createHash } from 'crypto'
 import { StorefrontAddressDto } from './dto/address.dto'
+import { MercadoPagoService } from './payments/mercadopago.service'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
@@ -149,6 +163,8 @@ type OrderWithRelations = Prisma.OrderGetPayload<{
     items: true
     status: true
     paymentMethod: true
+    payments: true
+    storefrontPayments: true
   }
 }>
 
@@ -172,10 +188,15 @@ type WishlistWithItems = Prisma.WishlistGetPayload<{
 
 @Injectable()
 export class StorefrontService implements OnModuleInit {
+  private readonly logger = new Logger(StorefrontService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly currencyConversion: CurrencyConversionService,
+    private readonly emailService: EmailService,
+    private readonly mercadoPago: MercadoPagoService,
   ) {}
 
   private defaultCustomerPassword!: string
@@ -246,6 +267,23 @@ export class StorefrontService implements OnModuleInit {
       layouts,
       defaultLayout,
       companyProfile,
+    }
+  }
+
+  async getCurrencySettings() {
+    const enabledCurrencies = await this.currencyConversion.getEnabledCurrencies()
+    const snapshot = await this.currencyConversion.buildRatesSnapshot(enabledCurrencies)
+    const rates: Record<string, number> = {}
+    for (const [currency, rate] of Object.entries(snapshot.rates)) {
+      rates[currency] = Number(rate)
+    }
+    const uniqueCurrencies = Array.from(new Set([snapshot.base, ...enabledCurrencies]))
+
+    return {
+      baseCurrency: snapshot.base,
+      enabledCurrencies: uniqueCurrencies,
+      rates,
+      generatedAt: snapshot.generatedAt,
     }
   }
 
@@ -704,7 +742,7 @@ export class StorefrontService implements OnModuleInit {
     const taxDecimal = subtotalDecimal.times(taxRate)
     const grandTotalDecimal = subtotalDecimal.plus(taxDecimal)
 
-    const order = await this.prisma.order.create({
+    let order = await this.prisma.order.create({
       data: {
         documentType: DocumentType.ORDER,
         customer: { connect: { id: customer.id } },
@@ -742,13 +780,48 @@ export class StorefrontService implements OnModuleInit {
         items: true,
         status: true,
         paymentMethod: true,
+        payments: true,
+        storefrontPayments: true,
       },
     })
 
-    return this.toOrderSummary(order, {
+    if (dto.paymentIntentId && !this.mercadoPago.isEnabled()) {
+      throw new BadRequestException('Mercado Pago payments are not enabled en este entorno.')
+    }
+
+    if (dto.paymentIntentId) {
+      try {
+        await this.mercadoPago.attachPaymentIntentToOrder(order.id, dto.paymentIntentId)
+        const refreshed = await this.prisma.order.findUnique({
+          where: { id: order.id },
+          include: {
+            items: true,
+            status: true,
+            paymentMethod: true,
+            payments: true,
+            storefrontPayments: true,
+          },
+        })
+        if (refreshed) {
+          order = refreshed
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        this.logger.error(`Failed to attach Mercado Pago payment to order ${order.id}: ${message}`)
+        throw error
+      }
+    }
+
+    const summary = this.toOrderSummary(order, {
       shippingAddress: dto.shippingAddress,
       billingAddress: dto.billingAddress ?? dto.shippingAddress,
     })
+
+    this.emailService
+      .sendOrderReceived({ orderId: order.id })
+      .catch((error) => this.logger.error(`Failed to enqueue order email for order ${order.id}: ${(error as Error).message}`))
+
+    return summary
   }
 
   async getCustomerProfile(customerId: number): Promise<CustomerProfile> {
@@ -883,6 +956,8 @@ export class StorefrontService implements OnModuleInit {
         items: true,
         status: true,
         paymentMethod: true,
+        payments: true,
+        storefrontPayments: true,
       },
     })
 
@@ -901,6 +976,8 @@ export class StorefrontService implements OnModuleInit {
         items: true,
         status: true,
         paymentMethod: true,
+        payments: true,
+        storefrontPayments: true,
       },
     })
 
@@ -1081,6 +1158,7 @@ export class StorefrontService implements OnModuleInit {
   private toCheckoutLineItem(item: OrderItem, currency: string): CheckoutLineItem {
     const unitAmount = decimalToNumber(item.unitAmount ?? item.price)
     const totalAmount = decimalToNumber(item.price) * item.qty
+    const specifications = this.extractOrderItemSpecifications(item)
     return {
       productId: item.productId ?? 0,
       quantity: item.qty,
@@ -1088,7 +1166,50 @@ export class StorefrontService implements OnModuleInit {
       total: money(totalAmount, currency),
       name: item.nameSnapshot ?? item.name,
       image: item.img ?? undefined,
+      specifications,
     }
+  }
+
+  private extractOrderItemSpecifications(item: OrderItem): Array<{ label?: string | null; value?: string | null }> | undefined {
+    const specs: Array<{ label?: string | null; value?: string | null }> = []
+
+    const json = item.specJson as unknown
+    if (json && typeof json === 'object') {
+      if (Array.isArray(json)) {
+        json.forEach((entry) => {
+          if (entry && typeof entry === 'object') {
+            const record = entry as Record<string, unknown>
+            const label = typeof record.label === 'string' ? record.label : typeof record.name === 'string' ? record.name : undefined
+            const value = typeof record.value === 'string' ? record.value : undefined
+            if (label || value) {
+              specs.push({ label, value })
+            }
+          }
+        })
+      } else {
+        Object.entries(json as Record<string, unknown>).forEach(([label, rawValue]) => {
+          const value = typeof rawValue === 'string' ? rawValue : rawValue !== null && rawValue !== undefined ? String(rawValue) : undefined
+          specs.push({ label, value })
+        })
+      }
+    }
+
+    if (specs.length === 0 && typeof item.specSummary === 'string' && item.specSummary.trim()) {
+      item.specSummary
+        .split(/\n+/)
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .forEach((entry) => {
+          const [label, ...rest] = entry.split(':')
+          if (rest.length > 0) {
+            specs.push({ label: label.trim(), value: rest.join(':').trim() })
+          } else {
+            specs.push({ label: undefined, value: label.trim() })
+          }
+        })
+    }
+
+    return specs.length > 0 ? specs : undefined
   }
 
   private toOrderSummary(
@@ -1131,6 +1252,23 @@ export class StorefrontService implements OnModuleInit {
 
     const status = order.status?.name ?? 'pending'
 
+    const intents = (order.storefrontPayments ?? [])
+      .slice()
+      .sort((a, b) => {
+        const left = a.updatedAt ?? a.createdAt
+        const right = b.updatedAt ?? b.createdAt
+        return right.getTime() - left.getTime()
+      })
+    const primaryIntent = intents[0] ?? null
+
+    const payments = (order.payments ?? [])
+      .slice()
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+    const primaryPayment = payments[0] ?? null
+
+    const paymentStatus = this.resolvePaymentStatus(primaryIntent, payments)
+    const paymentSummary = this.buildOrderPaymentSummary(primaryIntent, primaryPayment, currency, order)
+
     return {
       id: order.id,
       uuid: order.uuid,
@@ -1138,7 +1276,7 @@ export class StorefrontService implements OnModuleInit {
       reference: this.buildOrderReference(order),
       placedAt: order.createdAt.toISOString(),
       status,
-      paymentStatus: 'pending',
+      paymentStatus,
       fulfillmentStatus: status,
       items,
       summary: {
@@ -1151,7 +1289,93 @@ export class StorefrontService implements OnModuleInit {
       },
       shippingAddress,
       billingAddress,
+      payment: paymentSummary ?? undefined,
     }
+  }
+
+  private resolvePaymentStatus(
+    intent: StorefrontPaymentIntent | null,
+    payments: Array<{ status: PaymentStatus }>,
+  ): string {
+    if (payments.some((payment) => payment.status === PaymentStatus.CONFIRMED)) {
+      return 'paid'
+    }
+
+    if (intent) {
+      const normalized = (intent.status ?? '').toLowerCase()
+      if (['approved', 'authorized', 'captured'].includes(normalized)) {
+        return 'paid'
+      }
+      if (['in_process', 'pending', 'in_mediation'].includes(normalized)) {
+        return 'processing'
+      }
+      if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(normalized)) {
+        return 'failed'
+      }
+      if (normalized) {
+        return normalized
+      }
+    }
+
+    if (payments.length > 0) {
+      return this.mapInternalPaymentStatus(payments[0].status)
+    }
+
+    return 'pending'
+  }
+
+  private mapInternalPaymentStatus(status: PaymentStatus): string {
+    switch (status) {
+      case PaymentStatus.CONFIRMED:
+        return 'paid'
+      case PaymentStatus.REGISTERED:
+        return 'pending'
+      case PaymentStatus.FAILED:
+        return 'failed'
+      default:
+        return String(status).toLowerCase()
+    }
+  }
+
+  private buildOrderPaymentSummary(
+    intent: StorefrontPaymentIntent | null,
+    payment: (OrderWithRelations['payments'][number] & { updatedAt: Date }) | null,
+    fallbackCurrency: string,
+    order: OrderWithRelations,
+  ) {
+    if (intent) {
+      const currency = intent.currency ?? fallbackCurrency
+      return {
+        provider: intent.provider,
+        status: intent.status ?? 'unknown',
+        statusDetail: intent.statusDetail ?? undefined,
+        paymentId: intent.externalPaymentId ?? undefined,
+        paymentIntentId: intent.id,
+        amount: money(decimalToNumber(intent.amount ?? decimal(0)), currency),
+        installments: intent.installments ?? undefined,
+        cardBrand: intent.cardBrand ?? undefined,
+        cardLastFour: intent.cardLastFour ?? undefined,
+        updatedAt: (intent.updatedAt ?? intent.createdAt).toISOString(),
+      }
+    }
+
+    if (payment) {
+      const currency = payment.currency ?? fallbackCurrency
+      return {
+        provider: order.paymentMethod?.name ?? payment.method ?? 'manual',
+        status: this.mapInternalPaymentStatus(payment.status),
+        statusDetail: undefined,
+        paymentId: payment.reference ?? undefined,
+        paymentIntentId: undefined,
+        amount: money(decimalToNumber(payment.amount ?? decimal(0)), currency),
+        installments: undefined,
+        cardBrand: undefined,
+        cardLastFour: undefined,
+        updatedAt: payment.updatedAt.toISOString(),
+      }
+    }
+
+    return null
   }
 
   private toCustomerAddress(address: CustomerAddress): CustomerProfile['addresses'][number] {

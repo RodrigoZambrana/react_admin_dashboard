@@ -64,12 +64,32 @@ export async function apiFetch<TResponse>(path: string, init: ApiRequestOptions 
       baseHeaders.set(key, value);
     });
 
-    const response = await fetch(url, {
-      ...init,
-      headers: baseHeaders,
-      signal: controller?.signal ?? init.signal,
-      cache: init.cache ?? "no-store"
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...init,
+        headers: baseHeaders,
+        signal: controller?.signal ?? init.signal,
+        cache: init.cache ?? "no-store"
+      });
+    } catch (rawError) {
+      if (rawError instanceof DOMException && rawError.name === "AbortError") {
+        throw new ApiError(
+          408,
+          "La solicitud tardó demasiado y se canceló. Revisa tu conexión e inténtalo nuevamente."
+        );
+      }
+      if (rawError instanceof TypeError) {
+        throw new ApiError(
+          0,
+          "No pudimos conectar con el servidor. Verifica tu conexión e intenta de nuevo."
+        );
+      }
+      if (rawError instanceof Error) {
+        throw new ApiError(0, rawError.message || "Ocurrió un error de red inesperado.");
+      }
+      throw rawError;
+    }
 
     const requestId = response.headers.get("x-request-id");
     const contentType = response.headers.get("content-type") ?? "";
