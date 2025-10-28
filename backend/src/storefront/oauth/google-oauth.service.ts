@@ -305,21 +305,52 @@ export class StorefrontGoogleOAuthService {
           console.warn('[storefront] Unable to access opener window', error);
         }
 
-        if (opener && typeof opener.postMessage === 'function') {
+        var messageTargets = [];
+        var seenTargets = Object.create(null);
+        var recordTarget = function(value) {
+          if (typeof value !== 'string' || !value) return;
+          if (seenTargets[value]) return;
+          seenTargets[value] = true;
+          messageTargets.push(value);
+        };
+
+        recordTarget(origin);
+        if (fallbackOrigin && fallbackOrigin !== origin) {
+          recordTarget(fallbackOrigin);
+        }
+        recordTarget(window.location.origin);
+        recordTarget('*');
+
+        var tryPostMessage = function(targetWindow, targetOrigin) {
+          if (!targetWindow || typeof targetWindow.postMessage !== 'function') {
+            return false;
+          }
           try {
-            opener.postMessage(payload, origin);
-            delivered = true;
+            targetWindow.postMessage(payload, targetOrigin);
+            return true;
           } catch (error) {
-            console.warn('[storefront] Failed to post Google auth result to opener:', error);
+            console.warn('[storefront] Failed to post Google auth result to target "' + targetOrigin + '":', error);
+            return false;
+          }
+        };
+
+        if (opener && typeof opener.postMessage === 'function') {
+          for (var i = 0; i < messageTargets.length; i += 1) {
+            if (delivered) break;
+            if (tryPostMessage(opener, messageTargets[i])) {
+              delivered = true;
+              break;
+            }
           }
         }
 
         if (!delivered && window.parent && window.parent !== window && typeof window.parent.postMessage === 'function') {
-          try {
-            window.parent.postMessage(payload, origin);
-            delivered = true;
-          } catch (error) {
-            console.warn('[storefront] Failed to post Google auth result to parent:', error);
+          for (var j = 0; j < messageTargets.length; j += 1) {
+            if (delivered) break;
+            if (tryPostMessage(window.parent, messageTargets[j])) {
+              delivered = true;
+              break;
+            }
           }
         }
 
