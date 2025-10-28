@@ -24,10 +24,3 @@ export const LANGUAGES: LanguageOption[] = [
     imgUrl: "/assets/images/flags/usa.png"
   }
 ];
-
-export const CURRENCIES = [
-  { id: 1, title: "USD", imgUrl: "/assets/images/flags/usa.png" },
-  { id: 2, title: "EUR", imgUrl: "/assets/images/flags/uk.png" },
-  { id: 3, title: "BDT", imgUrl: "/assets/images/flags/bd.png" },
-  { id: 4, title: "INR", imgUrl: "/assets/images/flags/in.png" }
-];

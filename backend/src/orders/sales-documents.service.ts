@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, StreamableFile } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, StreamableFile } from '@nestjs/common'
 import { Prisma, CustomerAddress, DocumentType, SalesUnit, DepositRequirementType } from '@prisma/client'
 import { createReadStream } from 'fs'
 import { stat } from 'fs/promises'
@@ -23,6 +23,7 @@ import {
   divideDecimals,
 } from '../common/currency/money.util'
 import { OrderFinanceService } from './order-finance.service'
+import { EmailService } from '../email/email.service'
 
 const BUDGET_STATUS = {
   DRAFT: { code: 1000, name: 'Presupuesto - Borrador', color: '#9ca3af' },
@@ -90,7 +91,10 @@ export class SalesDocumentsService {
     private readonly prisma: PrismaService,
     private readonly currencyConversion: CurrencyConversionService,
     private readonly orderFinance: OrderFinanceService,
+    private readonly emailService: EmailService,
   ) {}
+
+  private readonly logger = new Logger(SalesDocumentsService.name)
 
   private readonly budgetStatusCache = new Map<keyof typeof BUDGET_STATUS, number>()
 
@@ -1646,6 +1650,11 @@ export class SalesDocumentsService {
       },
     })
     await this.orderFinance.recalculateOrderFinancials(created.id)
+    if (documentType === DocumentType.ORDER) {
+      this.emailService
+        .sendOrderReceived({ orderId: created.id })
+        .catch((error) => this.logger.error(`Failed to enqueue order email for order ${created.id}: ${(error as Error).message}`))
+    }
     return true
   }
 

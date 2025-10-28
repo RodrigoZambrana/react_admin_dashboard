@@ -16,11 +16,14 @@ import Select from "@component/Select";
 import Typography, { Paragraph } from "@component/Typography";
 import { Button, IconButton } from "@component/buttons";
 import LazyImage from "@component/LazyImage";
+import NoImagePlaceholder from "@component/NoImagePlaceholder";
 import countryList from "@data/countryList";
 import { isValidProp } from "@utils/utils";
+import { isMissingProductImage } from "@/lib/utils/image";
 
 import { type CartLineItem, useStorefrontCart } from "@/state/cart-context";
-import { formatMoney, normalizeMoney } from "@/lib/utils/format";
+import { normalizeMoney } from "@/lib/utils/format";
+import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import CheckoutCostSummary from "./CheckoutCostSummary";
 
 // Feature flag to re-enable voucher and shipping estimators when backend is ready.
@@ -77,12 +80,18 @@ function CartLineItemCard({
     amount: unitPrice.amount * item.quantity,
     currency: unitPrice.currency
   });
+  const { formatMoney } = useMoneyFormatter();
 
-  const thumbnailSrc = item.product.thumbnail?.url || "/assets/images/products/iphone-xi.png";
+  const thumbnailSrc = item.product.thumbnail?.url;
+  const hasImage = thumbnailSrc && !isMissingProductImage(thumbnailSrc);
 
   return (
     <CartLineItemWrapper {...rest}>
-      <LazyImage alt={item.product.name} width={140} height={140} src={thumbnailSrc} />
+      {hasImage ? (
+        <LazyImage alt={item.product.name} width={140} height={140} src={thumbnailSrc!} />
+      ) : (
+        <NoImagePlaceholder width={140} height={140} text="No image available" />
+      )}
 
       <FlexBox
         width="100%"

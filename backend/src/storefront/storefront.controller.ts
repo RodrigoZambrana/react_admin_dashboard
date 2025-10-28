@@ -3,6 +3,9 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
+  HttpCode,
+  Logger,
   Param,
   ParseIntPipe,
   Patch,
@@ -27,14 +30,28 @@ import type { FastifyRequest } from 'fastify'
 import { StorefrontJwtGuard } from './storefront-jwt.guard'
 import type { StorefrontJwtPayload } from './storefront-jwt.strategy'
 import type { StorefrontCategoryTree } from './types'
+import { MercadoPagoChargeDto, MercadoPagoWebhookDto } from './dto/mercadopago-charge.dto'
+import { MercadoPagoService } from './payments/mercadopago.service'
+import { decimalToNumber } from '../common/currency/money.util'
+import { Throttle } from '@nestjs/throttler'
 
 @Controller('storefront')
 export class StorefrontController {
-  constructor(private readonly storefront: StorefrontService) {}
+  private readonly logger = new Logger(StorefrontController.name)
+
+  constructor(
+    private readonly storefront: StorefrontService,
+    private readonly mercadoPago: MercadoPagoService,
+  ) {}
 
   @Get('config')
   getConfig() {
     return this.storefront.getConfig()
+  }
+
+  @Get('currencies')
+  getCurrencySettings() {
+    return this.storefront.getCurrencySettings()
   }
 
   @Get('home-layouts/:key')
@@ -81,6 +98,60 @@ export class StorefrontController {
   @Post('orders')
   createOrder(@Body() dto: StorefrontCreateOrderDto) {
     return this.storefront.createOrder(dto)
+  }
+
+  @Post('payments/mercadopago/charge')
+  @Throttle({ default: { limit: 5, ttl: 60 } })
+  async createMercadoPagoCharge(
+    @Body() dto: MercadoPagoChargeDto,
+    @Headers('x-idempotency-key') idempotencyKey: string | undefined,
+    @Req() req: FastifyRequest,
+  ) {
+    const record = await this.mercadoPago.createCardPayment(dto, {
+      idempotencyKey: idempotencyKey ?? null,
+      cartId: dto.cartId ?? null,
+      userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
+      ipAddress: (req.headers['x-forwarded-for'] as string | undefined) ?? req.ip ?? null,
+    })
+
+    return {
+      status: record.status,
+      statusDetail: record.statusDetail,
+      paymentId: record.externalPaymentId,
+      paymentIntentId: record.id,
+      cartId: record.cartId,
+      orderId: record.orderId,
+      amount: decimalToNumber(record.amount),
+      currency: record.currency,
+      installments: record.installments,
+      cardBrand: record.cardBrand,
+      cardLastFour: record.cardLastFour,
+      createdAt: record.createdAt,
+    }
+  }
+
+  @Post('payments/mercadopago/webhook')
+  @HttpCode(200)
+  async handleMercadoPagoWebhook(@Body() payload: MercadoPagoWebhookDto) {
+    if (!this.mercadoPago.isEnabled()) {
+      return { received: true, ignored: true }
+    }
+
+    const type = payload.type?.toLowerCase()
+    const paymentId = payload.data?.id
+
+    if (type !== 'payment' || !paymentId) {
+      return { received: true }
+    }
+
+    try {
+      await this.mercadoPago.syncPaymentIntentByExternalId(paymentId)
+      return { received: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.logger.error(`Failed to handle Mercado Pago webhook for ${paymentId}: ${message}`)
+      return { received: false }
+    }
   }
 
   @UseGuards(StorefrontJwtGuard)

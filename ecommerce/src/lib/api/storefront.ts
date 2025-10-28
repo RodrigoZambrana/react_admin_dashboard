@@ -27,6 +27,41 @@ export interface StorefrontAddressInput {
   isPrimary?: boolean | null;
 }
 
+export interface MercadoPagoChargeRequest {
+  token: string;
+  transactionAmount: number;
+  currency: string;
+  installments: number;
+  paymentMethodId: string;
+  payer: {
+    email: string;
+    identification: { type: string; number: string };
+    firstName?: string;
+    lastName?: string;
+  };
+  issuerId?: string;
+  description?: string;
+  orderId?: string;
+  cartId?: string;
+  statementDescriptor?: string;
+}
+
+export interface MercadoPagoChargeResponse {
+  status: string;
+  statusDetail?: string | null;
+  paymentId?: string | null;
+  paymentIntentId: string;
+  cartId?: string | null;
+  orderId?: number | null;
+  amount: number;
+  currency: string;
+  installments?: number | null;
+  cardBrand?: string | null;
+  cardLastFour?: string | null;
+  cardholderName?: string | null;
+  createdAt: string;
+}
+
 export const StorefrontApi = {
   async getConfig(): Promise<StorefrontConfig> {
     return apiFetch<StorefrontConfig>("config", {
@@ -111,6 +146,25 @@ export const StorefrontApi = {
       body: JSON.stringify(payload),
       cache: "no-store"
     });
+  },
+
+  async createMercadoPagoCharge(
+    payload: MercadoPagoChargeRequest,
+    options: { idempotencyKey?: string } = {}
+  ): Promise<MercadoPagoChargeResponse> {
+    const headers: Record<string, string> = {};
+    if (options.idempotencyKey) {
+      headers["X-Idempotency-Key"] = options.idempotencyKey;
+    }
+    return apiFetch(
+      "payments/mercadopago/charge",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers,
+        cache: "no-store"
+      }
+    );
   },
 
   async getAccountProfile(token: string): Promise<CustomerProfile> {
@@ -237,6 +291,17 @@ export const StorefrontApi = {
       headers: {
         Authorization: `Bearer ${token}`
       },
+      cache: "no-store"
+    });
+  },
+
+  async getCurrencySettings(): Promise<{
+    baseCurrency: string;
+    enabledCurrencies: string[];
+    rates: Record<string, number>;
+    generatedAt: string;
+  }> {
+    return apiFetch("currencies", {
       cache: "no-store"
     });
   }

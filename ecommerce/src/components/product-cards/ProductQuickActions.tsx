@@ -5,6 +5,7 @@ import styled from "styled-components";
 import { IconEye, IconShoppingCart } from "@tabler/icons-react";
 
 import { IconButton } from "@component/buttons";
+import { filterValidProductImages } from "@/lib/utils/image";
 import ProductQuickView from "@component/products/ProductQuickView";
 import ProductWishlistButton from "./ProductWishlistButton";
 
@@ -61,6 +62,8 @@ export interface ProductQuickActionsProps {
   productSlug?: string;
   productTitle: string;
   productPrice?: number;
+  productCurrency?: string;
+  productBasePrice?: number;
   productImages?: string[];
   productImage?: string | null;
   className?: string;
@@ -80,19 +83,16 @@ const sanitizeProductId = (value?: number | string): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
-const buildImageList = (images?: string[], fallback?: string | null): string[] => {
-  const collected = [
-    ...(Array.isArray(images) ? images.filter((item) => typeof item === "string" && item.trim()) : []),
-    ...(fallback && typeof fallback === "string" && fallback.trim() ? [fallback] : [])
-  ];
-  return Array.from(new Set(collected));
-};
+const buildImageList = (images?: string[], fallback?: string | null): string[] =>
+  filterValidProductImages([...(images ?? []), fallback ?? undefined]);
 
 export default function ProductQuickActions({
   productId,
   productSlug,
   productTitle,
   productPrice,
+  productCurrency,
+  productBasePrice,
   productImages,
   productImage,
   className,
@@ -182,6 +182,8 @@ export default function ProductQuickActions({
             slug: productSlug ?? String(quickViewProductId),
             title: productTitle,
             price: productPrice ?? 0,
+            basePrice: productBasePrice,
+            currency: productCurrency,
             images: quickViewImages
           }}
         />

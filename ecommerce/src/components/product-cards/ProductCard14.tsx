@@ -7,6 +7,8 @@ import LazyImage from "components/LazyImage";
 import { H6, Paragraph } from "components/Typography";
 import useCart from "@hook/useCart";
 import ProductQuickActions from "./ProductQuickActions";
+import NoImagePlaceholder from "@component/NoImagePlaceholder";
+import { filterValidProductImages, isMissingProductImage } from "@/lib/utils/image";
 
 // STYLED COMPONENTS
 const StyledCard = styled("div")(({ theme }) => ({
@@ -41,7 +43,7 @@ const ImgBox = styled("div")(({ theme }) => ({
 // ===================================================
 type Props = {
   title: string;
-  imgUrl: string;
+  imgUrl?: string | null;
   available: string;
   id?: number | string;
   slug?: string;
@@ -55,6 +57,12 @@ export default function ProductCard14({ imgUrl, title, available, id, slug, pric
   const { state, dispatch } = useCart();
   const resolvedId = useMemo(() => id ?? fallbackSlug, [id, fallbackSlug]);
   const cartItem = state.cart.find((item) => String(item.id) === String(resolvedId));
+  const primaryImage = useMemo(() => {
+    if (typeof imgUrl !== "string") return undefined;
+    const trimmed = imgUrl.trim();
+    return trimmed && !isMissingProductImage(trimmed) ? trimmed : undefined;
+  }, [imgUrl]);
+  const gallery = useMemo(() => filterValidProductImages([primaryImage]), [primaryImage]);
 
   const handleAddToCart = useCallback(() => {
     if (!resolvedId) return;
@@ -66,11 +74,11 @@ export default function ProductCard14({ imgUrl, title, available, id, slug, pric
         qty: nextQty,
         slug: fallbackSlug,
         price: fallbackPrice,
-        imgUrl,
+        imgUrl: primaryImage,
         name: title
       }
     });
-  }, [dispatch, resolvedId, cartItem?.qty, fallbackSlug, fallbackPrice, imgUrl, title]);
+  }, [dispatch, resolvedId, cartItem?.qty, fallbackSlug, fallbackPrice, primaryImage, title]);
 
   return (
     <StyledCard>
@@ -83,16 +91,21 @@ export default function ProductCard14({ imgUrl, title, available, id, slug, pric
           productSlug={fallbackSlug}
           productTitle={title}
           productPrice={fallbackPrice}
-          productImage={imgUrl}
+          productImages={gallery}
+          productImage={primaryImage}
           onAddToCart={handleAddToCart}
         />
-        <LazyImage
-          src={imgUrl}
-          width={256}
-          height={166}
-          style={{ width: "100%", objectFit: "contain" }}
-          alt="bonik"
-        />
+        {primaryImage ? (
+          <LazyImage
+            src={primaryImage}
+            width={256}
+            height={166}
+            style={{ width: "100%", objectFit: "contain" }}
+            alt="bonik"
+          />
+        ) : (
+          <NoImagePlaceholder width="100%" height="166px" text="No image available" borderRadius={0} />
+        )}
       </ImgBox>
 
       <H6 fontSize={15} mt="8px" mb="2px">

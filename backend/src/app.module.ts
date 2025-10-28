@@ -23,6 +23,7 @@ import { ClientConfigModule } from './config/client-config.module'
 import { InboxModule } from './inbox/inbox.module'
 import { ProductionOrdersModule } from './production-orders/production-orders.module'
 import { StorefrontModule } from './storefront/storefront.module'
+import { EmailModule } from './email/email.module'
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { StorefrontModule } from './storefront/storefront.module'
     InboxModule,
     ProductionOrdersModule,
     StorefrontModule,
+    EmailModule,
   ],
   providers: [
     {

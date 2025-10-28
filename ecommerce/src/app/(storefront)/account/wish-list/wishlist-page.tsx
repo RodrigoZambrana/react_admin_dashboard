@@ -9,6 +9,7 @@ import Container from "@component/Container";
 import FlexBox from "@component/FlexBox";
 import Grid from "@component/grid/Grid";
 import NextImage from "@component/NextImage";
+import NoImagePlaceholder from "@component/NoImagePlaceholder";
 import Spinner from "@component/Spinner";
 import { Button } from "@component/buttons";
 import DashboardNavigation from "@component/layout/DashboardNavigation";
@@ -16,6 +17,7 @@ import { H3, H6, Paragraph, Small } from "@component/Typography";
 
 import ProductWishlistButton from "@/components/product-cards/ProductWishlistButton";
 import { useWishlist } from "@/state/wishlist-context";
+import { isMissingProductImage } from "@/lib/utils/image";
 
 const formatMoney = (money?: { amount: number; currency: string; formatted?: string | null }) => {
   if (!money) {
@@ -113,7 +115,8 @@ export function WishlistContent() {
         {items.map((item) => {
           const { product } = item;
           const productUrl = `/product/${encodeURIComponent(product.slug)}`;
-          const imageUrl = product.thumbnail?.url;
+          const imageUrl = product.thumbnail?.url ?? undefined;
+          const hasImage = imageUrl && !isMissingProductImage(imageUrl);
           const imageAlt = product.thumbnail?.alt ?? product.name;
           const addedText = formatAddedDate(item.addedAt);
           const pending = isPending(item.productId);
@@ -133,22 +136,16 @@ export function WishlistContent() {
                     position="relative"
                     bg="gray.200"
                     minHeight="180px">
-                    {imageUrl ? (
+                    {hasImage ? (
                       <NextImage
-                        src={imageUrl}
+                        src={imageUrl!}
                         alt={imageAlt}
                         width={400}
                         height={300}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
                     ) : (
-                      <FlexBox
-                        height="100%"
-                        alignItems="center"
-                        justifyContent="center"
-                        color="gray.500">
-                        No image available
-                      </FlexBox>
+                      <NoImagePlaceholder height="100%" width="100%" text="No image available" />
                     )}
                   </Box>
 
@@ -174,7 +171,7 @@ export function WishlistContent() {
                   <FlexBox gap="0.75rem" mt="auto" flexWrap="wrap">
                     <Link href={productUrl} style={{ flexGrow: 1 }}>
                       <Button
-                        variant="outlined"
+                        variant="contained"
                         size="small"
                         color="primary"
                         style={{ width: "100%" }}>

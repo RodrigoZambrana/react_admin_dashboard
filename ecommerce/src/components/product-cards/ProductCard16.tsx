@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useCallback, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import styled from "styled-components";
 
 import Box from "@component/Box";
@@ -16,8 +16,10 @@ import LazyImage from "@component/LazyImage";
 import { H3, Paragraph, Span } from "@component/Typography";
 import ProductQuickView from "@component/products/ProductQuickView";
 import useCart from "@hook/useCart";
-import { calculateDiscount, currency } from "@utils/utils";
 import ProductQuickActions from "./ProductQuickActions";
+import NoImagePlaceholder from "@component/NoImagePlaceholder";
+import { filterValidProductImages, isMissingProductImage } from "@/lib/utils/image";
+import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 
 // STYLED COMPONENTS
 const StyledBazaarCard = styled(Card)(({ theme }) => ({
@@ -129,28 +131,70 @@ type ProductCardProps = {
   slug: string;
   title: string;
   price: number;
-  imgUrl: string;
+  imgUrl?: string | null;
   rating?: number;
-  images: string[];
+  images?: string[];
   id: string | number;
   hoverEffect?: boolean;
+  basePrice?: number;
+  currencyCode?: string;
 };
 // =============================================================
 
 export default function ProductCard16(props: ProductCardProps) {
-  const { off, id, title, price, imgUrl, rating, hoverEffect, slug, images } = props;
+  const {
+    off,
+    id,
+    title,
+    price,
+    imgUrl,
+    rating,
+    hoverEffect,
+    slug,
+    images = [],
+    basePrice,
+    currencyCode
+  } = props;
 
   const { state, dispatch } = useCart();
+  const { formatAmount, baseCurrency } = useMoneyFormatter();
   const [openModal, setOpenModal] = useState(false);
 
   const cartItem = state.cart.find((item) => item.id === id);
+  const primaryImage = useMemo(() => {
+    if (typeof imgUrl !== "string") return undefined;
+    const trimmed = imgUrl.trim();
+    return trimmed && !isMissingProductImage(trimmed) ? trimmed : undefined;
+  }, [imgUrl]);
+
+  const gallery = useMemo(
+    () => filterValidProductImages([primaryImage, ...(images ?? [])]),
+    [images, primaryImage]
+  );
 
   const toggleDialog = useCallback(() => setOpenModal((open) => !open), []);
+
+  const resolvedCurrency = currencyCode ?? baseCurrency;
+  const hasExplicitBasePrice =
+    typeof basePrice === "number" && Number.isFinite(basePrice) && basePrice > 0 && basePrice > price;
+  const hasDiscountPercentage = typeof off === "number" && Number.isFinite(off) && off > 0;
+  const baselineAmount = hasExplicitBasePrice ? basePrice! : price;
+  const computedSaleAmount = hasExplicitBasePrice
+    ? price
+    : hasDiscountPercentage
+      ? baselineAmount - baselineAmount * (off / 100)
+      : price;
+  const saleAmount = Number.isFinite(computedSaleAmount)
+    ? Math.max(0, computedSaleAmount)
+    : price;
+  const showListPrice = hasExplicitBasePrice || hasDiscountPercentage;
+  const formattedSalePrice = formatAmount(saleAmount, resolvedCurrency);
+  const formattedListPrice = showListPrice ? formatAmount(baselineAmount, resolvedCurrency) : null;
 
   const handleCartAmountChange = (qty: number) => () => {
     dispatch({
       type: "CHANGE_CART_AMOUNT",
-      payload: { price, imgUrl, id, qty, slug, name: title }
+      payload: { price: saleAmount, imgUrl: primaryImage, id, qty, slug, name: title }
     });
   };
 
@@ -161,28 +205,39 @@ export default function ProductCard16(props: ProductCardProps) {
 
         <ImageBox>
           <Link href={`/product/${slug}`}>
-            <LazyImage
-              alt={title}
-              src={imgUrl}
-              width={190}
-              height={190}
-              style={{ objectFit: "contain" }}
-            />
+            {primaryImage ? (
+              <LazyImage
+                alt={title}
+                src={primaryImage}
+                width={190}
+                height={190}
+                style={{ objectFit: "contain" }}
+              />
+            ) : (
+              <NoImagePlaceholder
+                width="100%"
+                height="190px"
+                text="No image available"
+                borderRadius={0}
+              />
+            )}
           </Link>
 
           <HoverWrapper className="controller">
             <ProductQuickActions
               compact
-              direction="column"
-              productId={id}
-              productSlug={slug}
-              productTitle={title}
-              productPrice={price}
-              productImages={images}
-              productImage={imgUrl}
-              onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)()}
-              disableOverlay
-            />
+          direction="column"
+          productId={id}
+          productSlug={slug}
+          productTitle={title}
+          productPrice={saleAmount}
+          productBasePrice={showListPrice ? baselineAmount : undefined}
+          productCurrency={resolvedCurrency}
+          productImages={gallery}
+          productImage={primaryImage}
+          onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)()}
+          disableOverlay
+        />
 
             <Divider />
 
@@ -198,9 +253,11 @@ export default function ProductCard16(props: ProductCardProps) {
           productId={id}
           productSlug={slug}
           productTitle={title}
-          productPrice={price}
-          productImages={images}
-          productImage={imgUrl}
+          productPrice={saleAmount}
+          productBasePrice={showListPrice ? baselineAmount : undefined}
+          productCurrency={resolvedCurrency}
+          productImages={gallery}
+          productImage={primaryImage}
           onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)()}
           disableOverlay
         />
@@ -209,7 +266,15 @@ export default function ProductCard16(props: ProductCardProps) {
       <ProductQuickView
         open={openModal}
         onClose={toggleDialog}
-        product={{ id, images, slug, price, title }}
+        product={{
+          id,
+          images: gallery,
+          slug,
+          price: saleAmount,
+          basePrice: showListPrice ? baselineAmount : undefined,
+          currency: resolvedCurrency,
+          title
+        }}
       />
 
       <ContentWrapper>
@@ -235,14 +300,14 @@ export default function ProductCard16(props: ProductCardProps) {
 
           <FlexBox alignItems="center" mt={1}>
             <Box fontWeight="600" color="primary.main" mr={1}>
-              {calculateDiscount(price, off)}
+              {formattedSalePrice}
             </Box>
 
-            {off !== 0 && (
+            {showListPrice && formattedListPrice ? (
               <Box color="grey.600" fontWeight="600">
-                <del>{currency(price)}</del>
+                <del>{formattedListPrice}</del>
               </Box>
-            )}
+            ) : null}
           </FlexBox>
         </Box>
 

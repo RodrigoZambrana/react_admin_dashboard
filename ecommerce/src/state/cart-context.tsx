@@ -12,6 +12,7 @@ import {
 
 import type { Money, ProductSummary } from "@/types/storefront";
 import { normalizeMoney } from "@/lib/utils/format";
+import { useToast } from "@/contexts/ToastContext";
 
 export interface CartProductSnapshot {
   id: number | string;
@@ -118,7 +119,9 @@ const snapshotProduct = (product: ProductSummary): CartProductSnapshot => ({
 
 export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(cartReducer, initialState);
+  const toast = useToast();
   const isHydrated = useRef(false);
+  const stateRef = useRef(state);
 
   useEffect(() => {
     if (isHydrated.current) return;
@@ -146,25 +149,78 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
     }
   }, [state]);
 
-  const addItem = useCallback((product: ProductSummary, quantity = 1) => {
-    dispatch({ type: "ADD_ITEM", payload: { product: snapshotProduct(product), quantity } });
-  }, []);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
-  const addItemSnapshot = useCallback((product: CartProductSnapshot, quantity = 1) => {
-    dispatch({ type: "ADD_ITEM", payload: { product, quantity } });
-  }, []);
+  const addItem = useCallback(
+    (product: ProductSummary, quantity = 1) => {
+      dispatch({ type: "ADD_ITEM", payload: { product: snapshotProduct(product), quantity } });
+      toast.success({
+        title: "Producto agregado",
+        description: `${product.name} se añadió al carrito.`
+      });
+    },
+    [toast]
+  );
 
-  const removeItem = useCallback((productId: number | string) => {
-    dispatch({ type: "REMOVE_ITEM", payload: { productId } });
-  }, []);
+  const addItemSnapshot = useCallback(
+    (product: CartProductSnapshot, quantity = 1) => {
+      dispatch({ type: "ADD_ITEM", payload: { product, quantity } });
+      toast.success({
+        title: "Producto agregado",
+        description: `${product.name} se añadió al carrito.`
+      });
+    },
+    [toast]
+  );
 
-  const updateQuantity = useCallback((productId: number | string, quantity: number) => {
-    dispatch({ type: "UPDATE_QUANTITY", payload: { productId, quantity } });
-  }, []);
+  const removeItem = useCallback(
+    (productId: number | string) => {
+      const product = stateRef.current.items.find((item) => item.product.id === productId)?.product;
+      dispatch({ type: "REMOVE_ITEM", payload: { productId } });
+      toast.info({
+        title: "Producto eliminado",
+        description: product ? `${product.name} fue quitado del carrito.` : "Producto quitado del carrito."
+      });
+    },
+    [toast]
+  );
+
+  const updateQuantity = useCallback(
+    (productId: number | string, quantity: number) => {
+      const lineItem = stateRef.current.items.find((item) => item.product.id === productId);
+      const previousQuantity = lineItem?.quantity ?? 0;
+      dispatch({ type: "UPDATE_QUANTITY", payload: { productId, quantity } });
+      if (quantity <= 0) {
+        toast.info({
+          title: "Producto eliminado",
+          description: lineItem
+            ? `${lineItem.product.name} se retiró del carrito.`
+            : "Producto retirado del carrito."
+        });
+      } else if (quantity !== previousQuantity) {
+        toast.success({
+          title: "Cantidad actualizada",
+          description: lineItem
+            ? `Ahora tienes ${quantity} unidad${quantity === 1 ? "" : "es"} de ${lineItem.product.name}.`
+            : "Actualizaste la cantidad en el carrito."
+        });
+      }
+    },
+    [toast]
+  );
 
   const clearCart = useCallback(() => {
+    const hadItems = stateRef.current.items.length > 0;
     dispatch({ type: "CLEAR" });
-  }, []);
+    if (hadItems) {
+      toast.info({
+        title: "Carrito vacío",
+        description: "Vaciaste tu carrito de compras."
+      });
+    }
+  }, [toast]);
 
   const subtotal = useMemo<Money>(() => {
     if (state.items.length === 0) {

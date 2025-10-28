@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import styled from "styled-components";
 import { IconEye, IconHeart, IconShoppingCart } from "@tabler/icons-react";
 
@@ -11,8 +11,10 @@ import FlexBox from "@component/FlexBox";
 import LazyImage from "@component/LazyImage";
 import { H3, Paragraph, Span } from "@component/Typography";
 import ProductQuickView from "@component/products/ProductQuickView";
-import { calculateDiscount, currency } from "@utils/utils";
 import useCart from "@hook/useCart";
+import NoImagePlaceholder from "@component/NoImagePlaceholder";
+import { filterValidProductImages, isMissingProductImage } from "@/lib/utils/image";
+import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 
 // STYLED COMPONENTS
 const StyledCard = styled("div")(({ theme }) => ({
@@ -94,10 +96,12 @@ interface Props {
   slug: string;
   title: string;
   price: number;
-  imgUrl: string;
+  imgUrl?: string | null;
   rating?: number;
-  images: string[];
+  images?: string[];
   id: string | number;
+  basePrice?: number;
+  currencyCode?: string;
 }
 // ============================================================
 
@@ -109,27 +113,57 @@ export default function ProductCard15({
   price,
   imgUrl,
   rating,
-  images
+  images = [],
+  basePrice,
+  currencyCode
 }: Props) {
   const [open, setOpen] = useState(false);
   const { state, dispatch } = useCart();
+  const { formatAmount, baseCurrency } = useMoneyFormatter();
 
   const cartItem = state.cart.find((item) => item.slug === slug);
+  const primaryImage = useMemo(() => {
+    if (typeof imgUrl !== "string") return undefined;
+    const trimmed = imgUrl.trim();
+    return trimmed && !isMissingProductImage(trimmed) ? trimmed : undefined;
+  }, [imgUrl]);
+
+  const gallery = useMemo(
+    () => filterValidProductImages([primaryImage, ...(images ?? [])]),
+    [images, primaryImage]
+  );
 
   const toggleDialog = useCallback(() => setOpen((open) => !open), []);
+
+  const resolvedCurrency = currencyCode ?? baseCurrency;
+  const hasExplicitBasePrice =
+    typeof basePrice === "number" && Number.isFinite(basePrice) && basePrice > 0 && basePrice > price;
+  const hasDiscountPercentage = typeof off === "number" && Number.isFinite(off) && off > 0;
+  const baselineAmount = hasExplicitBasePrice ? basePrice! : price;
+  const computedSaleAmount = hasExplicitBasePrice
+    ? price
+    : hasDiscountPercentage
+      ? baselineAmount - baselineAmount * (off / 100)
+      : price;
+  const saleAmount = Number.isFinite(computedSaleAmount)
+    ? Math.max(0, computedSaleAmount)
+    : price;
+  const formattedSalePrice = formatAmount(saleAmount, resolvedCurrency);
+  const showListPrice = hasExplicitBasePrice || hasDiscountPercentage;
+  const formattedListPrice = showListPrice ? formatAmount(baselineAmount, resolvedCurrency) : null;
 
   const handleAddToCart = useCallback(() => {
     const payload = {
       id,
       slug,
-      price,
-      imgUrl,
+      price: saleAmount,
+      imgUrl: primaryImage,
       name: title,
       qty: (cartItem?.qty || 0) + 1
     };
 
     dispatch({ type: "CHANGE_CART_AMOUNT", payload });
-  }, [dispatch, id, imgUrl, price, slug, cartItem?.qty, title]);
+  }, [dispatch, id, primaryImage, saleAmount, slug, cartItem?.qty, title]);
 
   return (
     <StyledCard>
@@ -137,17 +171,26 @@ export default function ProductCard15({
         {off !== 0 && <StyledChip color="primary">{off}% off</StyledChip>}
 
         <Link href={`/product/${slug}`}>
-          <LazyImage
-            src={imgUrl}
-            width={200}
-            height={200}
-            alt="bonik"
-            style={{
-              width: "100%",
-              height: "auto",
-              objectFit: "contain"
-            }}
-          />
+          {primaryImage ? (
+            <LazyImage
+              src={primaryImage}
+              width={200}
+              height={200}
+              alt="bonik"
+              style={{
+                width: "100%",
+                height: "auto",
+                objectFit: "contain"
+              }}
+            />
+          ) : (
+            <NoImagePlaceholder
+              width="100%"
+              height="200px"
+              text="No image available"
+              borderRadius={0}
+            />
+          )}
         </Link>
 
         <ItemController className="controlBox">
@@ -168,20 +211,28 @@ export default function ProductCard15({
       <ProductQuickView
         open={open}
         onClose={toggleDialog}
-        product={{ id, slug, images, price, title }}
+        product={{
+          id,
+          slug,
+          images: gallery,
+          price: saleAmount,
+          basePrice: showListPrice ? baselineAmount : undefined,
+          currency: resolvedCurrency,
+          title
+        }}
       />
 
       <ContentWrapper>
         <FlexBox justifyContent="center">
           <Paragraph pr={2} fontWeight="600" color="marron.main">
-            {calculateDiscount(price, off)}
+            {formattedSalePrice}
           </Paragraph>
 
-          {off !== 0 && (
+          {showListPrice && formattedListPrice ? (
             <Paragraph color="gray.600" fontWeight="600">
-              <del>{currency(price)}</del>
+              <del>{formattedListPrice}</del>
             </Paragraph>
-          )}
+          ) : null}
         </FlexBox>
 
         <Link href={`/product/${slug}`}>

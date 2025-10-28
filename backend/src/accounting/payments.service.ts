@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, StreamableFile } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException, StreamableFile } from '@nestjs/common'
 import {
   PaymentStatus,
   PaymentType,
@@ -13,6 +13,7 @@ import {
   UpdatePaymentDto,
 } from './dto/payment.dto'
 import { roundDecimal } from '../common/currency/money.util'
+import { EmailService } from '../email/email.service'
 
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient
 
@@ -21,7 +22,10 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly orderFinance: OrderFinanceService,
+    private readonly emailService: EmailService,
   ) {}
+
+  private readonly logger = new Logger(PaymentsService.name)
 
   private async resolvePaymentMethod(
     client: PrismaClientOrTx,
@@ -362,7 +366,11 @@ export class PaymentsService {
       }
       await this.orderFinance.recalculateOrderFinancials(order.id, tx)
       return payment
-    }).then((payment) => this.getPayment(payment.id))
+    }).then(async (payment) => {
+      const details = await this.getPayment(payment.id)
+      this.notifyPayment(details.id, details.status as PaymentStatus | string | null | undefined)
+      return details
+    })
   }
 
   async updatePayment(id: number, dto: UpdatePaymentDto) {
@@ -435,7 +443,21 @@ export class PaymentsService {
       }
       await this.orderFinance.recalculateOrderFinancials(payment.orderId, tx)
       return id
-    }).then(() => this.getPayment(id))
+    }).then(async () => {
+      const details = await this.getPayment(id)
+      this.notifyPayment(details.id, details.status as PaymentStatus | string | null | undefined)
+      return details
+    })
+  }
+
+  private notifyPayment(paymentId: number, status: PaymentStatus | string | null | undefined) {
+    const normalizedStatus = typeof status === 'string' ? status : null
+    if (normalizedStatus !== PaymentStatus.CONFIRMED) {
+      return
+    }
+    this.emailService
+      .sendPaymentReceived({ paymentId })
+      .catch((error) => this.logger.error(`Failed to enqueue payment email for payment ${paymentId}: ${(error as Error).message}`))
   }
 
   async deletePayment(id: number) {

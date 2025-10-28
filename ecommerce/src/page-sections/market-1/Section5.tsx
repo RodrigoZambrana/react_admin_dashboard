@@ -1,6 +1,6 @@
 import Card from "@component/Card";
 import Grid from "@component/grid/Grid";
-import StorefrontProductCard from "@component/product-cards/StorefrontProductCard";
+import ProductCard1 from "@component/product-cards/ProductCard1";
 import CategorySectionCreator from "@component/CategorySectionCreator";
 // API FUNCTIONS
 import api from "@utils/__api__/market-1";
@@ -13,17 +13,16 @@ export default async function Section5() {
       <Card p="1rem" borderRadius={8}>
         <Grid container spacing={6}>
           {newArrivalsList.map((item) => (
-            <Grid item lg={2} md={3} sm={4} xs={6} key={item.title}>
-              <StorefrontProductCard
+            <Grid item lg={3} md={4} sm={6} xs={12} key={item.id}>
+              <ProductCard1
                 id={item.id}
                 slug={item.slug}
                 title={item.title}
                 price={item.price}
+                off={item.discount ?? 0}
                 imgUrl={item.thumbnail}
                 images={item.images}
-                category={Array.isArray(item.categories) ? item.categories[0]?.name ?? item.categories[0] : undefined}
-                rating={typeof item.rating === "number" ? item.rating : undefined}
-                reviewCount={typeof item.ratingCount === "number" ? item.ratingCount : undefined}
+                rating={item.rating ?? 4}
               />
             </Grid>
           ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as yup from "yup";
@@ -9,239 +9,256 @@ import { Formik } from "formik";
 import Select from "@component/Select";
 import Grid from "@component/grid/Grid";
 import { Card1 } from "@component/Card1";
-import CheckBox from "@component/CheckBox";
-import countryList from "@data/countryList";
 import { Button } from "@component/buttons";
 import TextField from "@component/text-field";
 import Typography from "@component/Typography";
 
-const initialValues = {
-  shipping_name: "",
-  shipping_email: "",
-  shipping_contact: "",
-  shipping_company: "",
-  shipping_zip: "",
-  shipping_country: "",
-  shipping_address1: "",
-  shipping_address2: "",
+import { useCheckout } from "@/state/checkout-context";
+import { useStorefrontCart } from "@/state/cart-context";
+import { useCountryCityData } from "@/lib/country-city";
 
-  billing_name: "",
-  billing_email: "",
-  billing_contact: "",
-  billing_company: "",
-  billing_zip: "",
-  billing_country: "",
-  billing_address1: "",
-  billing_address2: "",
-  same_as_shipping: true
+type CheckoutDetailsFormValues = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2: string;
+  department: string;
+  country: string;
 };
 
 const checkoutSchema = yup.object({
-  // shipping_name: yup.string().required("required"),
-  // shipping_email: yup.string().email("invalid email").required("required"),
-  // shipping_contact: yup.string().required("required"),
-  // shipping_zip: yup.string().required("required"),
-  // shipping_country: yup.object().required("required"),
-  // shipping_address1: yup.string().required("required"),
-  // billing_name: yup.string().required("required"),
-  // billing_email: yup.string().required("required"),
-  // billing_contact: yup.string().required("required"),
-  // billing_zip: yup.string().required("required"),
-  // billing_country: yup.string().required("required"),
-  // billing_address1: yup.string().required("required"),
+  firstName: yup.string().trim().required("Please enter your first name"),
+  lastName: yup.string().trim().required("Please enter your last name"),
+  email: yup.string().trim().email("Enter a valid email").required("An email address is required"),
+  phone: yup.string().trim().optional(),
+  addressLine1: yup.string().trim().required("Address line 1 is required"),
+  addressLine2: yup.string().trim().optional(),
+  department: yup.string().trim().required("Department is required"),
+  country: yup.string().trim().required("Country is required")
 });
+
+const COUNTRY_BY_CODE: Record<string, string> = {
+  UY: "Uruguay"
+};
+
+const COUNTRY_NAME_TO_CODE: Record<string, string> = Object.entries(COUNTRY_BY_CODE).reduce(
+  (acc, [code, name]) => {
+    acc[name.toLowerCase()] = code;
+    return acc;
+  },
+  {} as Record<string, string>
+);
+
+const DEFAULT_DEPARTMENT_BY_COUNTRY: Record<string, string> = {
+  UY: "Montevideo"
+};
+
+const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
+  UY: "11000"
+};
+
+const POSTAL_CODE_FALLBACK = "00000";
+
+const normalizeCountryCode = (value?: string | null) => {
+  if (!value) return "UY";
+  const trimmed = value.trim();
+  if (!trimmed) return "UY";
+  const upper = trimmed.toUpperCase();
+  if (COUNTRY_BY_CODE[upper]) {
+    return upper;
+  }
+  const byName = COUNTRY_NAME_TO_CODE[trimmed.toLowerCase()];
+  if (byName) {
+    return byName;
+  }
+  return "UY";
+};
 
 export default function CheckoutForm() {
   const router = useRouter();
-  const [sameAsShipping, setSameAsShipping] = useState(initialValues.same_as_shipping);
+  const { state: cartState } = useStorefrontCart();
+  const { contact, shippingAddress, setDetails } = useCheckout();
+  const { getCitiesForCountry, loading: locationLoading, error: locationError } = useCountryCityData();
 
-  const handleFormSubmit = async (values: typeof initialValues) => {
-    console.log(values);
+  const getDefaultDepartment = useCallback(
+    (countryCode: string) => {
+      if (!countryCode) return "";
+      const explicit = DEFAULT_DEPARTMENT_BY_COUNTRY[countryCode];
+      if (explicit) return explicit;
+      const countryName = COUNTRY_BY_CODE[countryCode];
+      if (!countryName) return "";
+      const cities = getCitiesForCountry(countryName);
+      return cities && cities.length > 0 ? cities[0] : "";
+    },
+    [getCitiesForCountry]
+  );
+
+  const buildDepartmentOptions = useCallback(
+    (countryCode: string) => {
+      const countryName = COUNTRY_BY_CODE[countryCode];
+      if (!countryName) {
+        const fallback =
+          DEFAULT_DEPARTMENT_BY_COUNTRY[countryCode] ?? DEFAULT_DEPARTMENT_BY_COUNTRY.UY;
+        return [{ value: fallback, label: fallback }];
+      }
+      const cities = getCitiesForCountry(countryName);
+      if (!cities || cities.length === 0) {
+        const fallback =
+          DEFAULT_DEPARTMENT_BY_COUNTRY[countryCode] ?? DEFAULT_DEPARTMENT_BY_COUNTRY.UY;
+        return [{ value: fallback, label: fallback }];
+      }
+      return cities.map((city) => ({
+        value: city,
+        label: city
+      }));
+    },
+    [getCitiesForCountry]
+  );
+
+  useEffect(() => {
+    if (cartState.items.length === 0) {
+      router.replace("/cart");
+    }
+  }, [cartState.items.length, router]);
+
+  const initialValues = useMemo<CheckoutDetailsFormValues>(() => {
+    const initialCountryCode = normalizeCountryCode(shippingAddress.country ?? "UY");
+    const initialDepartment =
+      shippingAddress.state?.trim() ||
+      shippingAddress.city?.trim() ||
+      DEFAULT_DEPARTMENT_BY_COUNTRY[initialCountryCode] ||
+      getDefaultDepartment(initialCountryCode) ||
+      DEFAULT_DEPARTMENT_BY_COUNTRY.UY;
+
+    return {
+      firstName: contact.firstName ?? "",
+      lastName: contact.lastName ?? "",
+      email: contact.email ?? "",
+      phone: contact.phone ?? "",
+      addressLine1: shippingAddress.line1 ?? "",
+      addressLine2: shippingAddress.line2 ?? "",
+      department: initialDepartment,
+      country: initialCountryCode
+    };
+  }, [contact, shippingAddress, getDefaultDepartment]);
+
+  const handleFormSubmit = (values: CheckoutDetailsFormValues) => {
+    const trimmed: CheckoutDetailsFormValues = Object.entries(values).reduce(
+      (accum, [key, value]) => {
+        accum[key as keyof CheckoutDetailsFormValues] = value.trim();
+        return accum;
+      },
+      { ...values }
+    );
+
+    const [firstName, lastName, email] = [trimmed.firstName, trimmed.lastName, trimmed.email];
+    const phone = trimmed.phone ? trimmed.phone : "";
+    const normalizedCountry = normalizeCountryCode(trimmed.country || "UY");
+    const department =
+      trimmed.department ||
+      DEFAULT_DEPARTMENT_BY_COUNTRY[normalizedCountry] ||
+      getDefaultDepartment(normalizedCountry) ||
+      DEFAULT_DEPARTMENT_BY_COUNTRY.UY;
+    const postalCode =
+      DEFAULT_POSTAL_CODE_BY_COUNTRY[normalizedCountry] ??
+      DEFAULT_POSTAL_CODE_BY_COUNTRY.UY ??
+      POSTAL_CODE_FALLBACK;
+
+    setDetails(
+      {
+        firstName,
+        lastName,
+        email,
+        phone: phone || undefined
+      },
+      {
+        line1: trimmed.addressLine1,
+        line2: trimmed.addressLine2,
+        city: department,
+        state: department,
+        zip: postalCode,
+        country: normalizedCountry
+      }
+    );
+
     router.push("/payment");
   };
 
-  const handleCheckboxChange =
-    (values: typeof initialValues, setFieldValue: any) =>
-    ({ target: { checked } }: React.ChangeEvent<HTMLInputElement>) => {
-      setSameAsShipping(checked);
-      setFieldValue("same_as_shipping", checked);
-      setFieldValue("billing_name", checked ? values.shipping_name : "");
-    };
+  const countryOptions = useMemo(
+    () =>
+      Object.entries(COUNTRY_BY_CODE).map(([code, name]) => ({
+        value: code,
+        label: name
+      })),
+    []
+  );
 
   return (
     <Formik
       initialValues={initialValues}
       validationSchema={checkoutSchema}
+      enableReinitialize
       onSubmit={handleFormSubmit}>
-      {({ values, errors, touched, handleChange, handleBlur, handleSubmit, setFieldValue }) => (
-        <form onSubmit={handleSubmit}>
-          <Card1 mb="2rem">
-            <Typography fontWeight="600" mb="1rem">
-              Shipping Address
-            </Typography>
+      {({ values, errors, touched, handleChange, handleBlur, handleSubmit, setFieldValue }) => {
+        const currentCountry = normalizeCountryCode(values.country);
+        const selectedCountry = countryOptions.find((option) => option.value === currentCountry);
+        const departmentOptions = buildDepartmentOptions(currentCountry);
 
-            <Grid container spacing={7}>
-              <Grid item sm={6} xs={12}>
-                <TextField
-                  fullWidth
-                  mb="1rem"
-                  label="Full Name"
-                  name="shipping_name"
-                  placeholder="Full Name"
-                  onBlur={handleBlur}
-                  onChange={handleChange}
-                  value={values.shipping_name}
-                  errorText={touched.shipping_name && errors.shipping_name}
-                />
+        const selectedDepartment =
+          departmentOptions.find((option) => option.value === values.department) ?? null;
 
-                <TextField
-                  fullWidth
-                  mb="1rem"
-                  label="Phone Number"
-                  placeholder="Phone Number"
-                  onBlur={handleBlur}
-                  onChange={handleChange}
-                  name="shipping_contact"
-                  value={values.shipping_contact}
-                  errorText={touched.shipping_contact && errors.shipping_contact}
-                />
+        const handleCountryChange = (option: any) => {
+          const choice = Array.isArray(option) ? option[0] : option;
+          const nextCode = normalizeCountryCode(choice?.value ?? "");
+          const effectiveCode = nextCode || "UY";
+          const defaultDepartment =
+            getDefaultDepartment(effectiveCode) ?? DEFAULT_DEPARTMENT_BY_COUNTRY.UY;
+          setFieldValue("country", effectiveCode);
+          setFieldValue("department", defaultDepartment);
+          // No explicit postal code field in the form; shipping zip is derived during submit.
+        };
 
-                <TextField
-                  fullWidth
-                  mb="1rem"
-                  type="number"
-                  label="Zip Code"
-                  placeholder="Zip Code"
-                  onBlur={handleBlur}
-                  name="shipping_zip"
-                  onChange={handleChange}
-                  value={values.shipping_zip}
-                  errorText={touched.shipping_zip && errors.shipping_zip}
-                />
+        const handleDepartmentChange = (option: any) => {
+          const choice = Array.isArray(option) ? option[0] : option;
+          const nextValue = choice?.value ?? "";
+          setFieldValue("department", nextValue);
+        };
 
-                <TextField
-                  fullWidth
-                  label="Address 1"
-                  placeholder="Address 1"
-                  onBlur={handleBlur}
-                  onChange={handleChange}
-                  name="shipping_address1"
-                  value={values.shipping_address1}
-                  errorText={touched.shipping_address1 && errors.shipping_address1}
-                />
-              </Grid>
+        return (
+          <form onSubmit={handleSubmit}>
+            <Card1 mb="2rem">
+              <Typography fontWeight="600" mb="1rem">
+                Contact information
+              </Typography>
 
-              <Grid item sm={6} xs={12}>
-                <TextField
-                  fullWidth
-                  mb="1rem"
-                  type="email"
-                  placeholder="Email Address"
-                  onBlur={handleBlur}
-                  label="Email Address"
-                  name="shipping_email"
-                  onChange={handleChange}
-                  value={values.shipping_email}
-                  errorText={touched.shipping_email && errors.shipping_email}
-                />
-
-                <TextField
-                  fullWidth
-                  mb="1rem"
-                  label="Company"
-                  placeholder="Company"
-                  onBlur={handleBlur}
-                  onChange={handleChange}
-                  name="shipping_company"
-                  value={values.shipping_company}
-                  errorText={touched.shipping_company && errors.shipping_company}
-                />
-
-                <Select
-                  mb="1rem"
-                  label="Country"
-                  options={countryList}
-                  value={values.shipping_country || "US"}
-                  errorText={touched.shipping_country && errors.shipping_country}
-                  onChange={(country) => setFieldValue("shipping_country", country)}
-                />
-
-                <TextField
-                  fullWidth
-                  label="Address 2"
-                  placeholder="Address 2"
-                  onBlur={handleBlur}
-                  onChange={handleChange}
-                  name="shipping_address2"
-                  value={values.shipping_address2}
-                  errorText={touched.shipping_address2 && errors.shipping_address2}
-                />
-              </Grid>
-            </Grid>
-          </Card1>
-
-          <Card1 mb="2rem">
-            <Typography fontWeight="600" mb="1rem">
-              Billing Address
-            </Typography>
-
-            <CheckBox
-              color="secondary"
-              label="Same as shipping address"
-              mb={sameAsShipping ? 0 : "1rem"}
-              checked={sameAsShipping}
-              onChange={handleCheckboxChange(values, setFieldValue)}
-            />
-
-            {!sameAsShipping && (
               <Grid container spacing={7}>
                 <Grid item sm={6} xs={12}>
                   <TextField
                     fullWidth
                     mb="1rem"
-                    label="Full Name"
-                    placeholder="Full Name"
-                    name="billing_name"
+                    label="First name"
+                    name="firstName"
+                    placeholder="First name"
                     onBlur={handleBlur}
                     onChange={handleChange}
-                    value={values.billing_name}
-                    errorText={touched.billing_name && errors.billing_name}
+                    value={values.firstName}
+                    errorText={touched.firstName && errors.firstName}
                   />
+                </Grid>
 
+                <Grid item sm={6} xs={12}>
                   <TextField
                     fullWidth
                     mb="1rem"
-                    label="Phone Number"
-                    placeholder="Phone Number"
-                    onBlur={handleBlur}
-                    name="billing_contact"
-                    onChange={handleChange}
-                    value={values.billing_contact}
-                    errorText={touched.billing_contact && errors.billing_contact}
-                  />
-
-                  <TextField
-                    fullWidth
-                    mb="1rem"
-                    type="number"
-                    label="Zip Code"
-                    placeholder="Zip Code"
-                    name="billing_zip"
+                    label="Last name"
+                    name="lastName"
+                    placeholder="Last name"
                     onBlur={handleBlur}
                     onChange={handleChange}
-                    value={values.billing_zip}
-                    errorText={touched.billing_zip && errors.billing_zip}
-                  />
-
-                  <TextField
-                    fullWidth
-                    label="Address 1"
-                    placeholder="Address 1"
-                    onBlur={handleBlur}
-                    onChange={handleChange}
-                    name="billing_address1"
-                    value={values.billing_address1}
-                    errorText={touched.billing_address1 && errors.billing_address1}
+                    value={values.lastName}
+                    errorText={touched.lastName && errors.lastName}
                   />
                 </Grid>
 
@@ -250,68 +267,113 @@ export default function CheckoutForm() {
                     fullWidth
                     mb="1rem"
                     type="email"
-                    placeholder="Email Address"
+                    label="Email address"
+                    name="email"
+                    placeholder="you@example.com"
                     onBlur={handleBlur}
-                    name="billing_email"
-                    label="Email Address"
                     onChange={handleChange}
-                    value={values.billing_email}
-                    errorText={touched.billing_email && errors.billing_email}
+                    value={values.email}
+                    errorText={touched.email && errors.email}
                   />
+                </Grid>
 
+                <Grid item sm={6} xs={12}>
                   <TextField
                     fullWidth
                     mb="1rem"
-                    label="Company"
-                    placeholder="Company"
+                    label="Phone number"
+                    name="phone"
+                    placeholder="Optional"
                     onBlur={handleBlur}
-                    name="billing_company"
                     onChange={handleChange}
-                    value={values.billing_company}
-                    errorText={touched.billing_company && errors.billing_company}
-                  />
-
-                  <Select
-                    mb="1rem"
-                    label="Country"
-                    options={countryList}
-                    value={values.billing_country || "US"}
-                    errorText={touched.billing_country && errors.billing_country}
-                    onChange={(country) => setFieldValue("billing_country", country)}
-                  />
-
-                  <TextField
-                    fullWidth
-                    label="Address 2"
-                    placeholder="Address 2"
-                    onBlur={handleBlur}
-                    name="billing_address2"
-                    onChange={handleChange}
-                    value={values.billing_address2}
-                    errorText={touched.billing_address2 && errors.billing_address2}
+                    value={values.phone}
+                    errorText={touched.phone && errors.phone}
                   />
                 </Grid>
               </Grid>
-            )}
-          </Card1>
 
-          <Grid container spacing={7}>
-            <Grid item sm={6} xs={12}>
-              <Link href="/cart">
-                <Button variant="outlined" color="primary" type="button" fullWidth>
-                  Back to Cart
+              <Typography fontWeight="600" mt="1.5rem" mb="1rem">
+                Shipping address
+              </Typography>
+
+              <Grid container spacing={7}>
+                <Grid item sm={6} xs={12}>
+                  <TextField
+                    fullWidth
+                    mb="1rem"
+                    label="Address line 1"
+                    name="addressLine1"
+                    placeholder="Street and number"
+                    onBlur={handleBlur}
+                    onChange={handleChange}
+                    value={values.addressLine1}
+                    errorText={touched.addressLine1 && errors.addressLine1}
+                  />
+                </Grid>
+
+                <Grid item sm={6} xs={12}>
+                  <TextField
+                    fullWidth
+                    mb="1rem"
+                    label="Address line 2"
+                    name="addressLine2"
+                    placeholder="Apartment, suite, etc."
+                    onBlur={handleBlur}
+                    onChange={handleChange}
+                    value={values.addressLine2}
+                    errorText={touched.addressLine2 && errors.addressLine2}
+                  />
+                </Grid>
+
+                <Grid item sm={6} xs={12}>
+                  <Select
+                    label="Country"
+                    options={countryOptions}
+                    placeholder="Select a country"
+                    value={selectedCountry ?? null}
+                    isDisabled={countryOptions.length <= 1}
+                    errorText={touched.country && errors.country}
+                    onChange={handleCountryChange}
+                  />
+                </Grid>
+
+                <Grid item sm={6} xs={12}>
+                  <Select
+                    label="Department"
+                    options={departmentOptions}
+                    placeholder={
+                      locationLoading
+                        ? "Loading departments..."
+                        : locationError
+                          ? "Failed to load departments"
+                          : "Select a department"
+                    }
+                    value={selectedDepartment}
+                    errorText={touched.department && errors.department}
+                    onChange={handleDepartmentChange}
+                  />
+                </Grid>
+              </Grid>
+            </Card1>
+
+            <Grid container spacing={7}>
+              <Grid item sm={6} xs={12}>
+                <Link href="/cart">
+                  <Button variant="outlined" color="primary" type="button" fullWidth>
+                    Back to cart
+                  </Button>
+                </Link>
+              </Grid>
+
+              <Grid item sm={6} xs={12}>
+                <Button variant="contained" color="primary" type="submit" fullWidth>
+                  Continue to payment
                 </Button>
-              </Link>
+              </Grid>
             </Grid>
-
-            <Grid item sm={6} xs={12}>
-              <Button variant="contained" color="primary" type="submit" fullWidth>
-                Proceed to Payment
-              </Button>
-            </Grid>
-          </Grid>
-        </form>
-      )}
+          </form>
+        );
+      }}
     </Formik>
   );
 }

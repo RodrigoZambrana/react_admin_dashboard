@@ -5,6 +5,7 @@ import { useCallback, useMemo } from "react";
 import { normalizeMoney } from "@/lib/utils/format";
 import { useStorefrontCart, type CartProductSnapshot } from "@/state/cart-context";
 import type { Money } from "@/types/storefront";
+import { useCurrency } from "@/state/currency-context";
 
 type LegacyCartItem = {
   qty: number;
@@ -48,6 +49,7 @@ export default function useCart(): UseCartReturn {
     clearCart,
     subtotal
   } = useStorefrontCart();
+  const { baseCurrency } = useCurrency();
 
   const items = state.items;
 
@@ -96,7 +98,7 @@ export default function useCart(): UseCartReturn {
         return;
       }
 
-      const resolvedCurrency = currency ?? items[0]?.product.price.currency ?? "USD";
+      const resolvedCurrency = currency ?? items[0]?.product.price.currency ?? baseCurrency;
 
       const snapshot: CartProductSnapshot = {
         id: normalizedId,
@@ -115,7 +117,7 @@ export default function useCart(): UseCartReturn {
 
       addItemSnapshot(snapshot, nextQuantity);
     },
-    [addItemSnapshot, items, removeItem, updateQuantity]
+    [addItemSnapshot, baseCurrency, items, removeItem, updateQuantity]
   );
 
   return {

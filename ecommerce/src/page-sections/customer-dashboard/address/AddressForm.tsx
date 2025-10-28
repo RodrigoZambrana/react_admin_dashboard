@@ -19,6 +19,7 @@ import { deriveCountryCode, useCountryCityData } from "@/lib/country-city";
 import { StorefrontApi, StorefrontAddressInput, isApiError } from "@/lib/api/storefront";
 import { useAccountProfile } from "@/hooks/useAccountProfile";
 import Address from "@models/address.model";
+import { useToast } from "@/contexts/ToastContext";
 
 const VALIDATION_SCHEMA = yup.object({
   label: yup.string().nullable(),
@@ -328,10 +329,16 @@ export default function AddressForm({ address }: AddressFormProps) {
   const { token, updateLocalProfile } = useAccountProfile();
   const router = useRouter();
   const isEditing = Boolean(address?.id);
+  const toast = useToast();
 
   const handleFormSubmit = async (values: AddressFormValues, helpers: FormikHelpers<AddressFormValues>) => {
     if (!token) {
-      helpers.setStatus({ error: "You must be signed in to manage addresses." });
+      const message = "You must be signed in to manage addresses.";
+      helpers.setStatus({ error: message });
+      toast.error({
+        title: "Inicia sesión para continuar",
+        description: "Debes iniciar sesión para administrar tus direcciones."
+      });
       helpers.setSubmitting(false);
       return;
     }
@@ -356,7 +363,12 @@ export default function AddressForm({ address }: AddressFormProps) {
 
     const addressId = address ? Number(address.id) : null;
     if (isEditing && (!addressId || Number.isNaN(addressId))) {
-      helpers.setStatus({ error: "Unable to determine address to update." });
+      const message = "Unable to determine address to update.";
+      helpers.setStatus({ error: message });
+      toast.error({
+        title: "No pudimos actualizar la dirección",
+        description: message
+      });
       helpers.setSubmitting(false);
       return;
     }
@@ -369,6 +381,12 @@ export default function AddressForm({ address }: AddressFormProps) {
 
       updateLocalProfile(profile);
       helpers.setSubmitting(false);
+      toast.success({
+        title: isEditing ? "Dirección actualizada" : "Dirección guardada",
+        description: isEditing
+          ? "Actualizamos la dirección en tu cuenta."
+          : "Agregamos la nueva dirección a tu cuenta."
+      });
       router.push("/address");
     } catch (error) {
       let message = "Unable to save address. Please try again.";
@@ -379,6 +397,10 @@ export default function AddressForm({ address }: AddressFormProps) {
       }
       helpers.setStatus({ error: message });
       helpers.setSubmitting(false);
+      toast.error({
+        title: "No pudimos guardar la dirección",
+        description: message
+      });
     }
   };
 

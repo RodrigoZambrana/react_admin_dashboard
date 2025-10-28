@@ -3,6 +3,7 @@
 import Link from "next/link";
 import styled from "styled-components";
 import { space, SpaceProps } from "styled-system";
+import { useMemo } from "react";
 import { IconMinus, IconPlus, IconX } from "@tabler/icons-react";
 
 import useCart from "@hook/useCart";
@@ -13,8 +14,11 @@ import LazyImage from "@component/LazyImage";
 import Typography from "@component/Typography";
 import { IconButton } from "@component/buttons";
 import ProductQuickActions from "./ProductQuickActions";
+import NoImagePlaceholder from "@component/NoImagePlaceholder";
+import { isMissingProductImage } from "@/lib/utils/image";
 
-import { currency, isValidProp } from "@utils/utils";
+import { isValidProp } from "@utils/utils";
+import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 
 // STYLED COMPONENTS
 const Wrapper = styled.div.withConfig({
@@ -74,6 +78,7 @@ interface ProductCard7Props extends SpaceProps {
   price: number;
   imgUrl?: string;
   id: string | number;
+  currencyCode?: string;
 }
 // =====================================================================
 
@@ -84,25 +89,35 @@ export default function ProductCard7({
   slug,
   price,
   imgUrl,
+  currencyCode,
   ...others
 }: ProductCard7Props) {
   const { dispatch } = useCart();
+  const { formatAmount, baseCurrency } = useMoneyFormatter();
+  const primaryImage = useMemo(() => {
+    if (typeof imgUrl !== "string") return undefined;
+    const trimmed = imgUrl.trim();
+    return trimmed && !isMissingProductImage(trimmed) ? trimmed : undefined;
+  }, [imgUrl]);
 
   const handleCartAmountChange = (amount: number) => () => {
     dispatch({
       type: "CHANGE_CART_AMOUNT",
-      payload: { qty: amount, name, price, imgUrl, id }
+      payload: { qty: amount, name, price, imgUrl: primaryImage, id }
     });
   };
 
+  const resolvedCurrency = currencyCode ?? baseCurrency;
+  const formattedUnitPrice = formatAmount(price, resolvedCurrency);
+  const formattedLineTotal = formatAmount(price * qty, resolvedCurrency);
+
   return (
     <Wrapper {...others}>
-      <LazyImage
-        alt={name}
-        width={140}
-        height={140}
-        src={imgUrl || "/assets/images/products/iphone-xi.png"}
-      />
+      {primaryImage ? (
+        <LazyImage alt={name} width={140} height={140} src={primaryImage} />
+      ) : (
+        <NoImagePlaceholder width={140} height={140} text="No image available" />
+      )}
 
       <FlexBox
         width="100%"
@@ -131,7 +146,8 @@ export default function ProductCard7({
             productSlug={slug}
             productTitle={name}
             productPrice={price}
-            productImage={imgUrl}
+            productCurrency={resolvedCurrency}
+            productImage={primaryImage}
             onAddToCart={() => handleCartAmountChange((qty || 0) + 1)()}
           />
 
@@ -143,11 +159,11 @@ export default function ProductCard7({
         <FlexBox justifyContent="space-between" alignItems="flex-end">
           <FlexBox flexWrap="wrap" alignItems="center">
             <Typography color="gray.600" mr="0.5rem">
-              {currency(price)} x {qty}
+              {formattedUnitPrice} x {qty}
             </Typography>
 
             <Typography fontWeight={600} color="primary.main" mr="1rem">
-              = {currency(price * qty)}
+              = {formattedLineTotal}
             </Typography>
           </FlexBox>
 

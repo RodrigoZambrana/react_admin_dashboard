@@ -5,6 +5,8 @@ import { JwtStrategy } from './jwt.strategy'
 import { AuthController } from './auth.controller'
 import { UserActivityModule } from '../user-activity/user-activity.module'
 import { SESSION_TTL_SECONDS } from './auth.config'
+import { PasswordResetService } from './password-reset.service'
+import { EmailModule } from '../email/email.module'
 
 @Module({
   imports: [
@@ -14,8 +16,9 @@ import { SESSION_TTL_SECONDS } from './auth.config'
       signOptions: { expiresIn: SESSION_TTL_SECONDS },
     }),
     UserActivityModule,
+    EmailModule,
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, PasswordResetService],
   controllers: [AuthController],
 })
 export class AuthModule {}

@@ -13,6 +13,7 @@ import {
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import type { CustomerWishlist, WishlistItem } from "@/types/storefront";
 import { useSession } from "./session-context";
+import { useToast } from "@/contexts/ToastContext";
 
 interface WishlistContextValue {
   items: WishlistItem[];
@@ -36,6 +37,7 @@ const WishlistContext = createContext<WishlistContextValue | undefined>(undefine
 export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { session, status, isAuthenticated, logout, updateWishlistSummary } = useSession();
   const token = session?.accessToken ?? null;
+  const toast = useToast();
 
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [productIds, setProductIds] = useState<number[]>([]);
@@ -89,20 +91,29 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (!isMounted.current) {
         return;
       }
+      let message = "Unable to update wishlist. Please try again.";
       if (isApiError(cause)) {
         if (cause.status === 401) {
           logout();
-          setError("Your session expired. Please sign in again.");
+          message = "Your session expired. Please sign in again.";
+          setError(message);
+          toast.error({
+            title: "Sesión expirada",
+            description: "Vuelve a iniciar sesión para administrar tu lista de deseos."
+          });
           return;
         }
-        setError(cause.payload?.message ?? cause.message);
+        message = cause.payload?.message ?? cause.message;
       } else if (cause instanceof Error) {
-        setError(cause.message);
-      } else {
-        setError("Unable to update wishlist. Please try again.");
+        message = cause.message;
       }
+      setError(message);
+      toast.error({
+        title: "No pudimos actualizar tu lista",
+        description: message
+      });
     },
-    [logout]
+    [logout, toast]
   );
 
   const clearError = useCallback(() => {
@@ -152,6 +163,10 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (!token || !isAuthenticated) {
         const errorMessage = "You need to sign in to manage your wishlist.";
         setError(errorMessage);
+        toast.info({
+          title: "Inicia sesión",
+          description: "Necesitas iniciar sesión para usar tu lista de deseos."
+        });
         throw new Error(errorMessage);
       }
 
@@ -160,6 +175,10 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       try {
         const response = await StorefrontApi.addWishlistItem(token, productId);
         applyResponse(response);
+        toast.success({
+          title: "Añadido a favoritos",
+          description: "Guardamos el producto en tu lista de deseos."
+        });
       } catch (cause) {
         handleRequestError(cause);
         throw cause;
@@ -167,7 +186,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         markPending(productId, false);
       }
     },
-    [token, isAuthenticated, applyResponse, handleRequestError, markPending]
+    [token, isAuthenticated, applyResponse, handleRequestError, markPending, toast]
   );
 
   const remove = useCallback(
@@ -175,6 +194,10 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (!token || !isAuthenticated) {
         const errorMessage = "You need to sign in to manage your wishlist.";
         setError(errorMessage);
+        toast.info({
+          title: "Inicia sesión",
+          description: "Necesitas iniciar sesión para usar tu lista de deseos."
+        });
         throw new Error(errorMessage);
       }
 
@@ -183,6 +206,10 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       try {
         const response = await StorefrontApi.removeWishlistItem(token, productId);
         applyResponse(response);
+        toast.info({
+          title: "Eliminado de favoritos",
+          description: "Quitamos el producto de tu lista de deseos."
+        });
       } catch (cause) {
         handleRequestError(cause);
         throw cause;
@@ -190,7 +217,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         markPending(productId, false);
       }
     },
-    [token, isAuthenticated, applyResponse, handleRequestError, markPending]
+    [token, isAuthenticated, applyResponse, handleRequestError, markPending, toast]
   );
 
   const hasItem = useCallback(
