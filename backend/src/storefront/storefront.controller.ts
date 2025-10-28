@@ -13,6 +13,7 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common'
 import { StorefrontService } from './storefront.service'
@@ -26,7 +27,7 @@ import {
 import { StorefrontCreateOrderDto } from './dto/order.dto'
 import { StorefrontAddressDto } from './dto/address.dto'
 import { StorefrontAddWishlistItemDto } from './dto/wishlist.dto'
-import type { FastifyRequest } from 'fastify'
+import type { FastifyRequest, FastifyReply } from 'fastify'
 import { StorefrontJwtGuard } from './storefront-jwt.guard'
 import type { StorefrontJwtPayload } from './storefront-jwt.strategy'
 import type { StorefrontCategoryTree } from './types'
@@ -34,6 +35,9 @@ import { MercadoPagoChargeDto, MercadoPagoWebhookDto } from './dto/mercadopago-c
 import { MercadoPagoService } from './payments/mercadopago.service'
 import { decimalToNumber } from '../common/currency/money.util'
 import { Throttle } from '@nestjs/throttler'
+import { StorefrontGoogleOAuthService } from './oauth/google-oauth.service'
+import { StorefrontSessionCookieService } from './storefront-session-cookie.service'
+import { StorefrontGoogleStartDto } from './dto/google-auth.dto'
 
 @Controller('storefront')
 export class StorefrontController {
@@ -42,6 +46,8 @@ export class StorefrontController {
   constructor(
     private readonly storefront: StorefrontService,
     private readonly mercadoPago: MercadoPagoService,
+    private readonly googleAuth: StorefrontGoogleOAuthService,
+    private readonly sessionCookies: StorefrontSessionCookieService,
   ) {}
 
   @Get('config')
@@ -81,18 +87,74 @@ export class StorefrontController {
   }
 
   @Post('auth/register')
-  register(@Body() dto: StorefrontRegisterDto) {
-    return this.storefront.registerCustomer(dto)
+  async register(
+    @Body() dto: StorefrontRegisterDto,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const session = await this.storefront.registerCustomer(dto)
+    this.sessionCookies.setSessionCookies(reply, session)
+    return session
   }
 
   @Post('auth/login')
-  login(@Body() dto: StorefrontLoginDto) {
-    return this.storefront.login(dto)
+  async login(
+    @Body() dto: StorefrontLoginDto,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const session = await this.storefront.login(dto)
+    this.sessionCookies.setSessionCookies(reply, session)
+    return session
   }
 
   @Post('auth/refresh')
-  refresh(@Body() dto: StorefrontRefreshDto) {
-    return this.storefront.refreshSession(dto)
+  async refresh(
+    @Body() dto: StorefrontRefreshDto,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const session = await this.storefront.refreshSession(dto)
+    this.sessionCookies.setSessionCookies(reply, session)
+    return session
+  }
+
+  @Post('auth/logout')
+  @HttpCode(200)
+  async logout(@Res({ passthrough: true }) reply: FastifyReply) {
+    this.sessionCookies.clearSessionCookies(reply)
+    return { ok: true }
+  }
+
+  @Post('auth/google/start')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async startGoogle(
+    @Body() dto: StorefrontGoogleStartDto,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.googleAuth.start(dto.returnPath, req)
+  }
+
+  @Get('auth/google/callback')
+  async completeGoogle(
+    @Query('state') state: string | undefined,
+    @Query('code') code: string | undefined,
+    @Query('error') error: string | undefined,
+    @Query('error_description') errorDescription: string | undefined,
+    @Res() reply: FastifyReply,
+  ) {
+    const result = await this.googleAuth.complete({
+      state,
+      code,
+      error,
+      error_description: errorDescription,
+    })
+
+    if (result.status === 'success') {
+      this.sessionCookies.setSessionCookies(reply, result.session)
+    } else {
+      this.sessionCookies.clearSessionCookies(reply)
+    }
+
+    reply.header('Content-Type', 'text/html; charset=utf-8')
+    reply.status(200).send(this.googleAuth.renderCallbackPage(result))
   }
 
   @Post('orders')
@@ -101,7 +163,7 @@ export class StorefrontController {
   }
 
   @Post('payments/mercadopago/charge')
-  @Throttle({ default: { limit: 5, ttl: 60 } })
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async createMercadoPagoCharge(
     @Body() dto: MercadoPagoChargeDto,
     @Headers('x-idempotency-key') idempotencyKey: string | undefined,
@@ -126,6 +188,7 @@ export class StorefrontController {
       installments: record.installments,
       cardBrand: record.cardBrand,
       cardLastFour: record.cardLastFour,
+      cardholderName: record.cardholderName,
       createdAt: record.createdAt,
     }
   }

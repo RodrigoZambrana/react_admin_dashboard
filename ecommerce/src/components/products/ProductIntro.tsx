@@ -69,6 +69,7 @@ export default function ProductIntro({
   }, [id]);
 
   const resolvedCurrency = currency ?? baseCurrency ?? fallbackCurrency;
+  const productCurrency = currency ?? baseCurrency ?? fallbackCurrency;
 
   const displayPrice = useMemo(
     () => formatAmount(price, resolvedCurrency),
@@ -100,13 +101,14 @@ export default function ProductIntro({
         payload: {
           id,
           price,
+          currency: productCurrency,
           qty: amount,
           name: title,
           imgUrl: gallery[0]
         }
       });
     },
-    [dispatch, gallery, id, price, title]
+    [dispatch, gallery, id, price, productCurrency, title]
   );
 
   useEffect(() => {

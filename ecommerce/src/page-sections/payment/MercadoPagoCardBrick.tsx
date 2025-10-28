@@ -7,8 +7,6 @@ import FlexBox from "@component/FlexBox";
 import Spinner from "@component/Spinner";
 import Typography from "@component/Typography";
 
-import type { MercadoPagoChargeResponse } from "@/lib/api/storefront";
-
 const SDK_URL = "https://sdk.mercadopago.com/js/v2";
 const SCRIPT_ID = "mercado-pago-sdk";
 
@@ -25,6 +23,12 @@ export type MercadoPagoCardSubmitPayload = {
   };
 };
 
+type BrickSubmitResult = {
+  status: "success" | "pending" | "error";
+  paymentId?: string | null;
+  statusDetail?: string | null;
+};
+
 interface MercadoPagoCardBrickProps {
   publicKey: string;
   locale: string;
@@ -37,7 +41,7 @@ interface MercadoPagoCardBrickProps {
   };
   description?: string;
   maxInstallments?: number;
-  onSubmit: (payload: MercadoPagoCardSubmitPayload) => Promise<MercadoPagoChargeResponse>;
+  onSubmit: (payload: MercadoPagoCardSubmitPayload) => Promise<BrickSubmitResult>;
   onProcessingChange?: (processing: boolean) => void;
   onReady?: () => void;
   onError?: (message: string) => void;
@@ -215,11 +219,9 @@ export default function MercadoPagoCardBrick({
 
               try {
                 onProcessingChange?.(true);
-                const response = await onSubmit(payload);
-                onProcessingChange?.(false);
-                return response;
+                const result = await onSubmit(payload);
+                return result;
               } catch (error) {
-                onProcessingChange?.(false);
                 if (onError) {
                   const message =
                     error instanceof Error
@@ -230,6 +232,8 @@ export default function MercadoPagoCardBrick({
                   onError(message);
                 }
                 throw error;
+              } finally {
+                onProcessingChange?.(false);
               }
             },
             onError: (error: unknown) => {
@@ -296,6 +300,7 @@ export default function MercadoPagoCardBrick({
       <Typography color="text.muted" fontSize="12px" mt="0.75rem">
         Pago seguro procesado por Mercado Pago.
         {description ? ` ${description}` : ""}
+        {currency ? ` · Total estimado ${amount.toFixed(2)} ${currency}` : ""}
       </Typography>
       <Typography color="text.muted" fontSize="12px" mt="0.25rem">
         Modo prueba activo: utiliza tarjetas de prueba de Mercado Pago.

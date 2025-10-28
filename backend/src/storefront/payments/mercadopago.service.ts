@@ -92,6 +92,7 @@ export class MercadoPagoService {
       installments: dto.installments,
       payment_method_id: dto.paymentMethodId,
       statement_descriptor: dto.statementDescriptor,
+      currency_id: dto.currency,
       payer: {
         email: dto.payer.email,
         first_name: dto.payer.firstName,
@@ -164,7 +165,7 @@ export class MercadoPagoService {
         riskLevel: (paymentData.risk_execution_mode as string | undefined) ?? null,
         fraudStatus: (paymentData.fraud_mode as string | undefined) ?? null,
         captureMethod: (paymentData.capture_method as string | undefined) ?? null,
-        paymentMethodType: paymentData.payment_method_id ?? null,
+        paymentMethodType: paymentData.payment_type_id ?? null,
         metadata: paymentData.metadata ? (paymentData.metadata as Prisma.JsonValue) : undefined,
         rawResponse: paymentData as Prisma.JsonValue,
         rawError: null,

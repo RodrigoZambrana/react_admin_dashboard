@@ -63,6 +63,28 @@ const StyledHeader = styled.header`
     cursor: pointer;
   }
 
+  .notification-handler {
+    position: relative;
+
+    .badge {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 999px;
+      background-color: ${({ theme }) => theme.colors.primary.main};
+      color: ${({ theme }) => theme.colors.common.white};
+      font-size: 10px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+  }
+
   @media only screen and (max-width: 900px) {
     height: ${layoutConstant.mobileHeaderHeight};
 

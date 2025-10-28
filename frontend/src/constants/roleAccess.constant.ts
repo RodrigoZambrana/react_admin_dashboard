@@ -1,4 +1,13 @@
-import { ADMIN, ROLE_HIERARCHY, SUPERADMIN, USER, type Role } from './roles.constant'
+import {
+    ADMIN,
+    ROLE_HIERARCHY,
+    SUPERADMIN,
+    USER,
+    OPS,
+    SALES,
+    FINANCE,
+    type Role,
+} from './roles.constant'
 
 export const FEATURES = {
     SALES: 'SALES',
@@ -55,8 +64,20 @@ const ROLE_GRANTS: Record<Role, RoleGrant> = {
     [USER]: {
         features: CORE_FEATURES,
     },
-    [ADMIN]: {
+    [OPS]: {
         inherits: [USER],
+        features: [],
+    },
+    [SALES]: {
+        inherits: [USER],
+        features: [],
+    },
+    [FINANCE]: {
+        inherits: [USER],
+        features: [FEATURES.ACCOUNTING, FEATURES.EXPENSES],
+    },
+    [ADMIN]: {
+        inherits: [USER, OPS, SALES, FINANCE],
         features: ADMIN_FEATURES,
     },
     [SUPERADMIN]: {

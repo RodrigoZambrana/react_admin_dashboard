@@ -13,12 +13,14 @@ export type MoneyFormatter = {
   formatMoney: FormatMoneyFn;
   formatAmount: FormatAmountFn;
   baseCurrency: string;
+  currency: string;
 };
 
 export function useMoneyFormatter(): MoneyFormatter {
   const optionalContext = useOptionalCurrency();
   const enforcedContext = optionalContext ?? useCurrency();
   const baseCurrency = enforcedContext.baseCurrency;
+  const activeCurrency = optionalContext?.currency ?? enforcedContext.currency;
   const convertMoneyFn = optionalContext?.convertMoney;
   const formatMoneyFn = optionalContext?.formatMoney;
 
@@ -58,8 +60,9 @@ export function useMoneyFormatter(): MoneyFormatter {
     () => ({
       formatMoney: cachedFormatMoney,
       formatAmount,
-      baseCurrency
+      baseCurrency,
+      currency: activeCurrency
     }),
-    [baseCurrency, cachedFormatMoney, formatAmount]
+    [activeCurrency, baseCurrency, cachedFormatMoney, formatAmount]
   );
 }

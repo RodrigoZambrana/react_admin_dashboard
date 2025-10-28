@@ -22,7 +22,7 @@ import * as bcrypt from 'bcrypt'
 import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
-import { EmailService } from '../email/email.service'
+import { NotificationOrchestratorService } from '../notifications/notification-orchestrator.service'
 import { CurrencyConversionService } from '../common/currency/currency-conversion.service'
 import { decimal, decimalToNumber } from '../common/currency/money.util'
 import { buildImageDataUrl, ensureNodeBuffer } from '../common/images/image.utils'
@@ -42,6 +42,7 @@ import type {
   CustomerProfile,
   CustomerWishlistDto,
   StorefrontCategoryTree,
+  StorefrontAuthSession,
 } from './types'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
 import {
@@ -195,7 +196,7 @@ export class StorefrontService implements OnModuleInit {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly currencyConversion: CurrencyConversionService,
-    private readonly emailService: EmailService,
+    private readonly notifications: NotificationOrchestratorService,
     private readonly mercadoPago: MercadoPagoService,
   ) {}
 
@@ -632,7 +633,7 @@ export class StorefrontService implements OnModuleInit {
           },
         })
 
-    return this.buildSession(customer)
+    return this.createSessionForCustomer(customer)
   }
 
   async login(dto: StorefrontLoginDto) {
@@ -660,7 +661,7 @@ export class StorefrontService implements OnModuleInit {
       data: updateData,
     })
 
-    return this.buildSession(updated)
+    return this.createSessionForCustomer(updated)
   }
 
   async refreshSession(dto: StorefrontRefreshDto) {
@@ -674,7 +675,7 @@ export class StorefrontService implements OnModuleInit {
       if (!customer) {
         throw new UnauthorizedException('Customer not found')
       }
-      return this.buildSession(customer)
+      return this.createSessionForCustomer(customer)
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token')
     }
@@ -817,9 +818,9 @@ export class StorefrontService implements OnModuleInit {
       billingAddress: dto.billingAddress ?? dto.shippingAddress,
     })
 
-    this.emailService
-      .sendOrderReceived({ orderId: order.id })
-      .catch((error) => this.logger.error(`Failed to enqueue order email for order ${order.id}: ${(error as Error).message}`))
+    this.notifications
+      .notifyOrderReceived(order.id)
+      .catch((error) => this.logger.error(`Failed to dispatch notifications for order ${order.id}: ${(error as Error).message}`))
 
     return summary
   }
@@ -1508,7 +1509,11 @@ export class StorefrontService implements OnModuleInit {
     }
   }
 
-  private async buildSession(customer: Customer) {
+  async createSessionForCustomer(customer: Customer): Promise<StorefrontAuthSession> {
+    return this.buildSession(customer)
+  }
+
+  private async buildSession(customer: Customer): Promise<StorefrontAuthSession> {
     const accessPayload = {
       sub: customer.id,
       email: customer.email,
@@ -1540,7 +1545,7 @@ export class StorefrontService implements OnModuleInit {
       expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       customer: {
         id: customer.id,
-        email: customer.email,
+        email: customer.email ?? '',
         firstName: customer.firstName,
         lastName: customer.lastName,
         phone: customer.phoneNumber ?? undefined,

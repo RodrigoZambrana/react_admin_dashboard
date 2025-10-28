@@ -3,10 +3,10 @@ import { AccountingController } from './accounting.controller'
 import { PaymentsController } from './payments.controller'
 import { PaymentsService } from './payments.service'
 import { OrdersModule } from '../orders/orders.module'
-import { EmailModule } from '../email/email.module'
+import { NotificationsModule } from '../notifications/notifications.module'
 
 @Module({
-  imports: [OrdersModule, EmailModule],
+  imports: [OrdersModule, NotificationsModule],
   controllers: [AccountingController, PaymentsController],
   providers: [PaymentsService],
 })

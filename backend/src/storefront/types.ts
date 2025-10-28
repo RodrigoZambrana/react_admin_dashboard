@@ -254,6 +254,13 @@ export interface CustomerProfile {
   }>
 }
 
+export interface StorefrontAuthSession {
+  accessToken: string
+  refreshToken?: string | null
+  expiresAt: string
+  customer: CustomerProfile
+}
+
 export interface StorefrontCategoryTree {
   id: number
   slug: string

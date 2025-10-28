@@ -310,6 +310,12 @@ const baseAppsRoute: Routes = [
         authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
+        key: 'appsSettings.email',
+        path: `${APP_PREFIX_PATH}/settings/email`,
+        component: lazy(() => import('@/views/settings/EmailSettings')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+    },
+    {
         key: 'appsSettings.calendarEventTypes',
         path: `${APP_PREFIX_PATH}/settings/calendar-event-types`,
         component: lazy(() => import('@/views/settings/CalendarEventTypes')),

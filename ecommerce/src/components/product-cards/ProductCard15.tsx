@@ -136,6 +136,7 @@ export default function ProductCard15({
   const toggleDialog = useCallback(() => setOpen((open) => !open), []);
 
   const resolvedCurrency = currencyCode ?? baseCurrency;
+  const productCurrency = currencyCode ?? baseCurrency;
   const hasExplicitBasePrice =
     typeof basePrice === "number" && Number.isFinite(basePrice) && basePrice > 0 && basePrice > price;
   const hasDiscountPercentage = typeof off === "number" && Number.isFinite(off) && off > 0;
@@ -157,13 +158,14 @@ export default function ProductCard15({
       id,
       slug,
       price: saleAmount,
+      currency: productCurrency,
       imgUrl: primaryImage,
       name: title,
       qty: (cartItem?.qty || 0) + 1
     };
 
     dispatch({ type: "CHANGE_CART_AMOUNT", payload });
-  }, [dispatch, id, primaryImage, saleAmount, slug, cartItem?.qty, title]);
+  }, [dispatch, id, primaryImage, productCurrency, saleAmount, slug, cartItem?.qty, title]);
 
   return (
     <StyledCard>

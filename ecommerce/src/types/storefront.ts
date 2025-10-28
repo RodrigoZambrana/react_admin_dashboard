@@ -406,6 +406,31 @@ export interface OrderPaymentSummary {
   updatedAt?: string;
 }
 
+export interface CustomerNotification {
+  id: number;
+  eventType: string | null;
+  audience: string | null;
+  channel: string | null;
+  deliveryStatus: string;
+  title: string | null;
+  body: string | null;
+  metadata: Record<string, unknown> | null;
+  readAt: string | null;
+  createdAt: string;
+  orderId: number | null;
+  paymentId: number | null;
+}
+
+export interface CustomerNotificationList {
+  items: CustomerNotification[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    unread: number;
+  };
+}
+
 export interface CreateOrderPayload {
   customer: {
     email: string;

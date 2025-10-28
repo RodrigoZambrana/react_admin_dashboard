@@ -3,6 +3,9 @@ import { SetMetadata } from '@nestjs/common'
 export const ROLES = {
   SUPERADMIN: 'SUPERADMIN',
   ADMIN: 'ADMIN',
+  OPS: 'OPS',
+  SALES: 'SALES',
+  FINANCE: 'FINANCE',
   USER: 'USER',
 } as const
 

@@ -18,7 +18,7 @@ import { normalizeMoney } from "@/lib/utils/format";
 import { useCheckout } from "@/state/checkout-context";
 import { useStorefrontCart } from "@/state/cart-context";
 import type { CheckoutPayment } from "@/state/checkout-context";
-import type { CreateOrderPayload, Money } from "@/types/storefront";
+import type { CreateOrderPayload, Money, OrderSummary } from "@/types/storefront";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import { useToast } from "@/contexts/ToastContext";
 import {
@@ -250,11 +250,14 @@ export default function ReviewClient() {
         },
         shippingAddress: shippingAddressPayload,
         items: orderItems,
-        notes: notes.trim().length > 0 ? notes.trim() : undefined
+        notes: notes.trim().length > 0 ? notes.trim() : undefined,
+        paymentIntentId:
+          payment && payment.method === "mercadopago" ? payment.paymentIntentId : undefined
       };
 
       const order = await StorefrontApi.createOrder(payload);
-      setConfirmedPayment(payment ?? null);
+      const normalizedPayment = mapOrderPaymentToCheckoutPayment(order.payment ?? null, order) ?? payment ?? null;
+      setConfirmedPayment(normalizedPayment);
       setConfirmedContact({
         name: nameForConfirmation || contact.email,
         email: contact.email

@@ -175,6 +175,7 @@ export default function ProductCard16(props: ProductCardProps) {
   const toggleDialog = useCallback(() => setOpenModal((open) => !open), []);
 
   const resolvedCurrency = currencyCode ?? baseCurrency;
+  const productCurrency = currencyCode ?? baseCurrency;
   const hasExplicitBasePrice =
     typeof basePrice === "number" && Number.isFinite(basePrice) && basePrice > 0 && basePrice > price;
   const hasDiscountPercentage = typeof off === "number" && Number.isFinite(off) && off > 0;
@@ -194,7 +195,15 @@ export default function ProductCard16(props: ProductCardProps) {
   const handleCartAmountChange = (qty: number) => () => {
     dispatch({
       type: "CHANGE_CART_AMOUNT",
-      payload: { price: saleAmount, imgUrl: primaryImage, id, qty, slug, name: title }
+      payload: {
+        price: saleAmount,
+        currency: productCurrency,
+        imgUrl: primaryImage,
+        id,
+        qty,
+        slug,
+        name: title
+      }
     });
   };
 
@@ -232,7 +241,7 @@ export default function ProductCard16(props: ProductCardProps) {
           productTitle={title}
           productPrice={saleAmount}
           productBasePrice={showListPrice ? baselineAmount : undefined}
-          productCurrency={resolvedCurrency}
+          productCurrency={productCurrency}
           productImages={gallery}
           productImage={primaryImage}
           onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)()}
@@ -255,7 +264,7 @@ export default function ProductCard16(props: ProductCardProps) {
           productTitle={title}
           productPrice={saleAmount}
           productBasePrice={showListPrice ? baselineAmount : undefined}
-          productCurrency={resolvedCurrency}
+          productCurrency={productCurrency}
           productImages={gallery}
           productImage={primaryImage}
           onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)()}

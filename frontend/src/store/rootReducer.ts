@@ -4,6 +4,7 @@ import base, { BaseState } from './slices/base'
 import locale, { LocaleState } from './slices/locale/localeSlice'
 import theme, { ThemeState } from './slices/theme/themeSlice'
 import currency, { CurrencyState } from './slices/currency/currencySlice'
+import notifications, { NotificationState } from './slices/notifications'
 import RtkQueryService from '@/services/RtkQueryService'
 
 export type RootState = {
@@ -12,6 +13,7 @@ export type RootState = {
     locale: LocaleState
     theme: ThemeState
     currency: CurrencyState
+    notifications: NotificationState
     /* eslint-disable @typescript-eslint/no-explicit-any */
     [RtkQueryService.reducerPath]: any
 }
@@ -26,6 +28,7 @@ const staticReducers = {
     locale,
     theme,
     currency,
+    notifications,
     [RtkQueryService.reducerPath]: RtkQueryService.reducer,
 }
 

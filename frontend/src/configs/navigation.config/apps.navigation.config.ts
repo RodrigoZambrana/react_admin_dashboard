@@ -426,6 +426,16 @@ const appsNavigationConfig: NavigationTree[] = [
                         subMenu: [],
                     },
                     {
+                        key: 'appsSettings.email',
+                        path: `${APP_PREFIX_PATH}/settings/email`,
+                        title: 'Email',
+                        translateKey: 'nav.appsSettings.email',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
+                        subMenu: [],
+                    },
+                    {
                         key: 'appsSettings.calendarEventTypes',
                         path: `${APP_PREFIX_PATH}/settings/calendar-event-types`,
                         title: 'Calendar Event Types',

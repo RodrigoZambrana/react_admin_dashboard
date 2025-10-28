@@ -2,6 +2,7 @@ import type {
   AuthSession,
   CategorySummary,
   CreateOrderPayload,
+  CustomerNotificationList,
   CustomerProfile,
   CustomerWishlist,
   HomeLayoutDefinition,
@@ -62,6 +63,12 @@ export interface MercadoPagoChargeResponse {
   createdAt: string;
 }
 
+export interface GoogleAuthStartResponse {
+  url: string;
+  state: string;
+  expiresAt: string;
+}
+
 export const StorefrontApi = {
   async getConfig(): Promise<StorefrontConfig> {
     return apiFetch<StorefrontConfig>("config", {
@@ -116,6 +123,13 @@ export const StorefrontApi = {
     });
   },
 
+  async logout(): Promise<void> {
+    await apiFetch("auth/logout", {
+      method: "POST",
+      cache: "no-store"
+    });
+  },
+
   async register(
     payload: {
       email: string;
@@ -132,6 +146,14 @@ export const StorefrontApi = {
     });
   },
 
+  async startGoogleLogin(returnPath?: string): Promise<GoogleAuthStartResponse> {
+    return apiFetch<GoogleAuthStartResponse>("auth/google/start", {
+      method: "POST",
+      body: JSON.stringify(returnPath ? { returnPath } : {}),
+      cache: "no-store"
+    });
+  },
+
   async refreshSession(refreshToken: string): Promise<AuthSession> {
     return apiFetch<AuthSession>("auth/refresh", {
       method: "POST",
@@ -144,6 +166,42 @@ export const StorefrontApi = {
     return apiFetch<OrderSummary>("orders", {
       method: "POST",
       body: JSON.stringify(payload),
+      cache: "no-store"
+    });
+  },
+
+  async listNotifications(
+    token: string,
+    params?: { page?: number; pageSize?: number }
+  ): Promise<CustomerNotificationList> {
+    return apiFetch<CustomerNotificationList>("account/notifications", {
+      params,
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      cache: "no-store"
+    });
+  },
+
+  async getNotificationUnreadCount(token: string): Promise<{ count: number }> {
+    return apiFetch<{ count: number }>("account/notifications/unread-count", {
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      cache: "no-store"
+    });
+  },
+
+  async markNotificationsRead(
+    token: string,
+    payload: { ids?: number[]; markAll?: boolean }
+  ): Promise<void> {
+    await apiFetch("account/notifications/read", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
       cache: "no-store"
     });
   },

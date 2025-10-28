@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { IconEye, IconEyeOff } from "@tabler/icons-react";
@@ -46,6 +46,9 @@ type LoginProps = {
   registerLabel?: string;
   forgotPasswordHref?: string;
   forgotPasswordLabel?: string;
+  onGoogleSignIn?: () => Promise<void> | void;
+  googleSubmitting?: boolean;
+  googleEnabled?: boolean;
 };
 
 export default function Login({
@@ -57,7 +60,10 @@ export default function Login({
   registerHref = "/signup",
   registerLabel = "Sign Up",
   forgotPasswordHref = "/",
-  forgotPasswordLabel = "Reset It"
+  forgotPasswordLabel = "Reset It",
+  onGoogleSignIn,
+  googleSubmitting,
+  googleEnabled = true
 }: LoginProps) {
   const router = useRouter();
   const { passwordVisibility, togglePasswordVisibility } = useVisibility();
@@ -66,6 +72,12 @@ export default function Login({
   const managesSubmitting = submitting === undefined;
 
   const effectiveSubmitting = submitting ?? internalSubmitting;
+  const effectiveGoogleSubmitting = Boolean(googleSubmitting);
+
+  const handleGoogleSignIn = useCallback(() => {
+    if (!onGoogleSignIn) return;
+    void onGoogleSignIn();
+  }, [onGoogleSignIn]);
 
   const { values, errors, touched, handleBlur, handleChange, handleSubmit } = useFormik<
     LoginFormValues
@@ -159,7 +171,12 @@ export default function Login({
 
         <Divide />
 
-        <SocialLinks />
+        <SocialLinks
+          onGoogleClick={handleGoogleSignIn}
+          googleDisabled={effectiveSubmitting}
+          googleLoading={effectiveGoogleSubmitting}
+          googleEnabled={googleEnabled}
+        />
 
         <FlexBox justifyContent="center" mb="1.25rem">
           <SemiSpan>Don’t have account?</SemiSpan>
