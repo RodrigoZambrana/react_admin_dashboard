@@ -68,6 +68,7 @@ export async function apiFetch<TResponse>(path: string, init: ApiRequestOptions 
     try {
       response = await fetch(url, {
         ...init,
+        credentials: init.credentials ?? "include",
         headers: baseHeaders,
         signal: controller?.signal ?? init.signal,
         cache: init.cache ?? "no-store"
