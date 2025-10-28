@@ -11,7 +11,7 @@ const BLOCKED_PATTERNS: RegExp[] = [
   /\bINSERT\b\s+\bINTO\b/i,
   /\bDELETE\b\s+\bFROM\b/i,
   /\bUPDATE\b\s+\bSET\b/i,
-  /--/,
+  /(^|[\s;'"`])--/,
   /\/\*/,
   /\*\//,
   /<[^>]+>/,
