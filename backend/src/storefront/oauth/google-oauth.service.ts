@@ -299,7 +299,11 @@ export class StorefrontGoogleOAuthService {
         let delivered = false;
 
         try {
-          if (window.opener && typeof window.opener.postMessage === 'function') {
+          if (
+            window.opener &&
+            typeof window.opener.postMessage === 'function' &&
+            window.opener.closed !== true
+          ) {
             window.opener.postMessage(payload, origin);
             delivered = true;
           } else if (window.parent && window.parent !== window && typeof window.parent.postMessage === 'function') {

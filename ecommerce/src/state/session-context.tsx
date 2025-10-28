@@ -301,6 +301,13 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         throw popupError;
       }
 
+      if (!canPollPopupClosedSafely(popup)) {
+        // Popup blocked or we cannot safely poll it: fall back to a full-page redirect.
+        return new Promise<{ session: AuthSession; returnPath: string | null }>(() => {
+          window.location.href = startResponse.url;
+        });
+      }
+
       try {
         popup.focus();
       } catch (error) {
@@ -317,7 +324,6 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
 
       return new Promise<{ session: AuthSession; returnPath: string | null }>((resolve, reject) => {
         let completed = false;
-        let detachPopupCloseListener: (() => void) | null = null;
         let fallbackTimer: number | undefined;
         let popupClosePoll: number | undefined;
 
@@ -333,8 +339,6 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
             window.clearInterval(popupClosePoll);
             popupClosePoll = undefined;
           }
-
-          detachPopupCloseListener = null;
         };
 
         const cleanup = () => {
@@ -373,7 +377,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           }
 
           // ⛔ If polling is unsafe/blocked, do not read popup.closed at all.
-          // We'll complete via postMessage/localStorage or the existing fallback timer.
+          // We'll complete via postMessage or the existing fallback timer.
           if (!canPollPopupClosedSafely(popup)) {
             // Make sure any previous poller is removed
             removePopupCloseListener();
@@ -400,7 +404,6 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           };
 
           popupClosePoll = window.setInterval(checkPopupClosed, 500);
-          detachPopupCloseListener = removePopupCloseListener;
           checkPopupClosed();
         };
 
