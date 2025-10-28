@@ -13,6 +13,7 @@ import { HiOutlineBell, HiOutlineMailOpen } from 'react-icons/hi'
 import { useTranslation } from 'react-i18next'
 import appConfig from '@/configs/app.config'
 import {
+    clearNotifications,
     fetchNotifications,
     fetchUnreadCount,
     markNotificationsRead,
@@ -82,6 +83,7 @@ const _Notification = ({ className }: { className?: string }) => {
     const dispatch = useAppDispatch()
     const notifications = useAppSelector(selectNotifications)
     const { unreadCount, loading } = useAppSelector(selectNotificationsMeta)
+    const signedIn = useAppSelector((state) => state.auth.session.signedIn)
     const { t, i18n } = useTranslation()
     const eventSourceRef = useRef<EventSource | null>(null)
     const hasLoadedRef = useRef(false)
@@ -89,6 +91,15 @@ const _Notification = ({ className }: { className?: string }) => {
     const entries = useMemo(() => notifications.map(buildEntry), [notifications])
 
     useEffect(() => {
+        if (!signedIn) {
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close()
+                eventSourceRef.current = null
+            }
+            dispatch(setStreaming(false))
+            return
+        }
+
         if (eventSourceRef.current) {
             return
         }
@@ -118,13 +129,21 @@ const _Notification = ({ className }: { className?: string }) => {
             eventSourceRef.current = null
             dispatch(setStreaming(false))
         }
-    }, [dispatch])
+    }, [dispatch, signedIn])
 
     useEffect(() => {
+        if (!signedIn) {
+            hasLoadedRef.current = false
+            dispatch(clearNotifications())
+            return
+        }
         void dispatch(fetchUnreadCount())
-    }, [dispatch])
+    }, [dispatch, signedIn])
 
     const onNotificationOpen = useCallback(() => {
+        if (!signedIn) {
+            return
+        }
         void dispatch(
             fetchNotifications({
                 page: 1,
@@ -132,20 +151,23 @@ const _Notification = ({ className }: { className?: string }) => {
             }),
         )
         hasLoadedRef.current = true
-    }, [dispatch])
+    }, [dispatch, signedIn])
 
     const onMarkAllAsRead = useCallback(() => {
-        if (unreadCount === 0) {
+        if (!signedIn || unreadCount === 0) {
             return
         }
         void dispatch(markNotificationsRead({ markAll: true }))
-    }, [dispatch, unreadCount])
+    }, [dispatch, unreadCount, signedIn])
 
     const onMarkAsRead = useCallback(
         (id: number) => {
+            if (!signedIn) {
+                return
+            }
             void dispatch(markNotificationsRead({ ids: [id] }))
         },
-        [dispatch],
+        [dispatch, signedIn],
     )
 
     const noResult = entries.length === 0 && !loading
