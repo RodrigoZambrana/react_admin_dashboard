@@ -116,19 +116,6 @@ const persistSession = (session: AuthSession | null) => {
   }
 };
 
-// Safe guard: avoid reading popup.closed when cross-origin isolation is active
-const canPollPopupClosedSafely = (win: Window | null): boolean => {
-  if (!win) return false;
-  if (typeof crossOriginIsolated !== "undefined" && crossOriginIsolated) return false;
-  try {
-    // Probe once; if it throws, polling is unsafe
-    void win.closed;
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 const GOOGLE_AUTH_MESSAGE_TYPE = "storefront:google-auth";
 
 type GoogleAuthSuccessMessage = {
@@ -301,13 +288,6 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         throw popupError;
       }
 
-      if (!canPollPopupClosedSafely(popup)) {
-        // Popup blocked or we cannot safely poll it: fall back to a full-page redirect.
-        return new Promise<{ session: AuthSession; returnPath: string | null }>(() => {
-          window.location.href = startResponse.url;
-        });
-      }
-
       try {
         popup.focus();
       } catch (error) {
@@ -325,7 +305,6 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       return new Promise<{ session: AuthSession; returnPath: string | null }>((resolve, reject) => {
         let completed = false;
         let fallbackTimer: number | undefined;
-        let popupClosePoll: number | undefined;
 
         const clearFallbackTimer = () => {
           if (fallbackTimer) {
@@ -334,18 +313,10 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           }
         };
 
-        const removePopupCloseListener = () => {
-          if (popupClosePoll !== undefined) {
-            window.clearInterval(popupClosePoll);
-            popupClosePoll = undefined;
-          }
-        };
-
         const cleanup = () => {
           completed = true;
           window.removeEventListener("message", handleMessage);
           clearFallbackTimer();
-          removePopupCloseListener();
           try {
             popup.close();
           } catch (error) {
@@ -364,49 +335,6 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           reject(error);
         };
 
-        const handlePopupManualClose = () => {
-          if (completed) {
-            return;
-          }
-          fail(new Error("Se cerró la ventana de Google antes de finalizar el acceso."));
-        };
-
-        const attachPopupCloseListener = () => {
-          if (!popup) {
-            return;
-          }
-
-          // ⛔ If polling is unsafe/blocked, do not read popup.closed at all.
-          // We'll complete via postMessage or the existing fallback timer.
-          if (!canPollPopupClosedSafely(popup)) {
-            // Make sure any previous poller is removed
-            removePopupCloseListener();
-            return;
-          }
-
-          const checkPopupClosed = () => {
-            if (!popup) {
-              removePopupCloseListener();
-              return;
-            }
-            let isClosed = false;
-            try {
-              isClosed = popup.closed;
-            } catch {
-              // Lost access mid-flight → stop polling; rely on other channels
-              removePopupCloseListener();
-              return;
-            }
-            if (isClosed) {
-              removePopupCloseListener();
-              handlePopupManualClose();
-            }
-          };
-
-          popupClosePoll = window.setInterval(checkPopupClosed, 500);
-          checkPopupClosed();
-        };
-
         const startFallbackTimer = () => {
           const timeoutMs = 2 * 60 * 1000;
           clearFallbackTimer();
@@ -416,7 +344,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
             }
             fail(
               new Error(
-                "La autenticación con Google tardó demasiado. Cierra la ventana e inténtalo nuevamente."
+                "La autenticación con Google tardó demasiado. Es posible que hayas cerrado la ventana. Inténtalo nuevamente."
               )
             );
           }, timeoutMs);
@@ -454,7 +382,6 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         };
 
         window.addEventListener("message", handleMessage);
-        attachPopupCloseListener();
         startFallbackTimer();
       });
     },
