@@ -32,7 +32,8 @@ const initialValues = {
   billing_zip: "",
   billing_country: "",
   billing_address1: "",
-  billing_address2: ""
+  billing_address2: "",
+  same_as_shipping: true
 };
 
 const checkoutSchema = yup.object({
@@ -52,7 +53,7 @@ const checkoutSchema = yup.object({
 
 export default function CheckoutForm() {
   const router = useRouter();
-  const [sameAsShipping, setSameAsShipping] = useState(false);
+  const [sameAsShipping, setSameAsShipping] = useState(initialValues.same_as_shipping);
 
   const handleFormSubmit = async (values: typeof initialValues) => {
     console.log(values);
@@ -187,7 +188,8 @@ export default function CheckoutForm() {
             <CheckBox
               color="secondary"
               label="Same as shipping address"
-              mb={sameAsShipping ? "" : "1rem"}
+              mb={sameAsShipping ? 0 : "1rem"}
+              checked={sameAsShipping}
               onChange={handleCheckboxChange(values, setFieldValue)}
             />
 

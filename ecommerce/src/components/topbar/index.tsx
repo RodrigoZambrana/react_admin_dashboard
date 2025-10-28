@@ -44,9 +44,9 @@ export default function Topbar() {
     <StyledTopbar>
       <Container className="container">
         <div className="topbar-left">
-          <div className="logo">
+          <NavLink className="logo" href="/" aria-label={brandName}>
             <Image src={logoSrc} alt={brandName} height="36px" />
-          </div>
+          </NavLink>
 
           {phone && (
             <div className="phone">

@@ -27,22 +27,27 @@ export default function DashboardNavigation() {
   const dynamicNavigation = useMemo(() => {
     const totalOrders = orders.length;
     const addressCount = profile?.addresses?.length ?? 0;
+    const basePath = pathname.startsWith("/account") ? "/account" : "";
+    const resolveHref = (target: string) => {
+      const normalized = target.startsWith("/") ? target : `/${target}`;
+      return basePath ? `${basePath}${normalized}` : normalized;
+    };
 
     return [
       {
         title: "DASHBOARD",
         links: [
           {
-            href: "/orders",
+            href: resolveHref("/orders"),
             title: "Orders",
             Icon: IconShoppingBagCheck,
             count: totalOrders
           },
           {
-            href: "/wish-list",
+            href: resolveHref("/wish-list"),
             title: "Wishlist",
             Icon: IconHeart,
-            count: 0
+            count: profile?.wishlistCount ?? 0
           }
           // {
           //   href: "/support-tickets",
@@ -56,13 +61,13 @@ export default function DashboardNavigation() {
         title: "ACCOUNT SETTINGS",
         links: [
           {
-            href: "/profile",
+            href: resolveHref("/profile"),
             title: "Profile Info",
             Icon: IconUser,
             count: undefined
           },
           {
-            href: "/address",
+            href: resolveHref("/address"),
             title: "Addresses",
             Icon: IconPin,
             count: addressCount
@@ -76,7 +81,7 @@ export default function DashboardNavigation() {
         ]
       }
     ];
-  }, [orders, profile?.addresses]);
+  }, [orders, pathname, profile?.addresses, profile?.wishlistCount]);
 
   return (
     <DashboardNavigationWrapper px="0px" pb="1.5rem" color="gray.900" borderRadius={8}>

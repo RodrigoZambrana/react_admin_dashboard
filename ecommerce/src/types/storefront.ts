@@ -331,6 +331,8 @@ export interface CustomerProfile {
   phone?: string | null;
   dateOfBirth?: string | null;
   avatarUrl?: string | null;
+  wishlistCount: number;
+  wishlistProductIds: number[];
   addresses: Array<{
     id: number;
     line1: string;
@@ -355,6 +357,18 @@ export interface AuthSession {
   refreshToken?: string;
   expiresAt: string;
   customer: CustomerProfile;
+}
+
+export interface WishlistItem {
+  productId: number;
+  addedAt: string;
+  product: ProductSummary;
+}
+
+export interface CustomerWishlist {
+  items: WishlistItem[];
+  count: number;
+  productIds: number[];
 }
 
 export interface CheckoutLineItem {

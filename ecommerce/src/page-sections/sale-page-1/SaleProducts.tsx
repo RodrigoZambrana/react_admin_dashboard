@@ -24,6 +24,7 @@ export default function SaleProducts({ products, meta, selectedCategorySlug }: P
   const { push } = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const hasProducts = products.length > 0;
 
   const handlePageChange = useCallback(
     (page: number) => {
@@ -42,26 +43,44 @@ export default function SaleProducts({ products, meta, selectedCategorySlug }: P
 
   return (
     <Fragment>
-      <Grid container spacing={6}>
-        {products.map((item: Product, ind: number) => (
-          <Grid item lg={3} md={4} sm={6} xs={12} key={ind}>
-            <ProductCard1
-              id={item.id}
-              slug={item.slug}
-              price={item.price}
-              title={item.title}
-              off={item.discount}
-              images={item.images}
-              imgUrl={item.thumbnail}
-              rating={item.rating || 4}
-            />
-          </Grid>
-        ))}
-      </Grid>
+      {hasProducts ? (
+        <Grid container spacing={6}>
+          {products.map((item: Product) => (
+            <Grid item lg={3} md={4} sm={6} xs={12} key={item.slug}>
+              <ProductCard1
+                id={item.id}
+                slug={item.slug}
+                price={item.price}
+                title={item.title}
+                off={item.discount}
+                images={item.images}
+                imgUrl={item.thumbnail}
+                rating={item.rating || 4}
+              />
+            </Grid>
+          ))}
+        </Grid>
+      ) : (
+        <FlexBox
+          py="6rem"
+          width="100%"
+          borderRadius="12px"
+          flexDirection="column"
+          alignItems="center"
+          justifyContent="center"
+          border="1px dashed"
+          borderColor="gray.400">
+          <SemiSpan color="text.muted">No products match your filters yet.</SemiSpan>
+        </FlexBox>
+      )}
 
       <FlexBox flexWrap="wrap" justifyContent="space-between" alignItems="center" my="4rem">
-        <SemiSpan>{renderProductCount(meta.page - 1, meta.pageSize, meta.total)}</SemiSpan>
-        <Pagination onChange={handlePageChange} pageCount={meta.totalPage} />
+        <SemiSpan>
+          {meta.total > 0
+            ? renderProductCount(meta.page - 1, meta.pageSize, meta.total)
+            : "Showing 0 products"}
+        </SemiSpan>
+        <Pagination currentPage={meta.page} onChange={handlePageChange} pageCount={meta.totalPage} />
       </FlexBox>
     </Fragment>
   );

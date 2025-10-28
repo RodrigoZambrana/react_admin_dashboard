@@ -14,7 +14,7 @@ import { Button } from "@component/buttons";
 import { H3, Paragraph, Span } from "@component/Typography";
 import { calculateDiscount, currency } from "@utils/utils";
 import useCart from "@hook/useCart";
-import ProductWishlistButton from "./ProductWishlistButton";
+import ProductQuickActions from "./ProductQuickActions";
 
 // STYLED COMPONENTS
 const StyledCard = styled("div")(({ theme }) => ({
@@ -25,9 +25,24 @@ const StyledCard = styled("div")(({ theme }) => ({
   position: "relative",
   transition: "all 250ms ease-in-out",
   outline: `2px solid ${theme.colors.gray[200]}`,
+  "& .overlay-actions": {
+    opacity: 0,
+    pointerEvents: "none",
+    transition: "opacity 0.2s ease"
+  },
   "&:hover": {
     boxShadow: theme.shadows[4],
-    "& .controlBox": { display: "block" }
+    "& .controlBox": { display: "block" },
+    "& .overlay-actions": {
+      opacity: 1,
+      pointerEvents: "auto"
+    }
+  },
+  "@media (hover: none)": {
+    "& .overlay-actions": {
+      opacity: 1,
+      pointerEvents: "auto"
+    }
   }
 }));
 
@@ -175,7 +190,17 @@ export default function ProductCard13({
           </Chip>
         )}
 
-        <ProductWishlistButton style={{ position: "absolute", top: 16, right: 16 }} />
+        <ProductQuickActions
+          className="overlay-actions"
+          style={{ position: "absolute", top: 16, right: 16 }}
+          compact
+          productId={id}
+          productSlug={slug}
+          productTitle={title}
+          productPrice={price}
+          productImage={imgUrl}
+          onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)()}
+        />
 
         <Link href={`/product/${slug}`}>
           <Image width={400} height={400} src={imgUrl} id="productImg" alt="bonik" />

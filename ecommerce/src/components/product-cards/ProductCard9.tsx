@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Fragment, useCallback, useState } from "react";
+import { Fragment } from "react";
 import styled from "styled-components";
 
 import Box from "../Box";
@@ -15,10 +15,9 @@ import FlexBox from "../FlexBox";
 import NavLink from "../nav-link";
 import { Button } from "../buttons";
 import { H5, SemiSpan } from "../Typography";
-import ProductQuickView from "@component/products/ProductQuickView";
 import useCart from "@hook/useCart";
 import { calculateDiscount, currency } from "@utils/utils";
-import ProductWishlistButton from "./ProductWishlistButton";
+import ProductQuickActions from "./ProductQuickActions";
 
 // STYLED COMPONENT
 const Wrapper = styled(Card)`
@@ -89,8 +88,25 @@ const Wrapper = styled(Card)`
     .add-cart {
       display: flex;
     }
-    .quick-view {
-      display: block;
+    .overlay-actions {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+  }
+
+  .overlay-actions {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  @media (hover: none) {
+    .overlay-actions {
+      opacity: 1;
+      pointer-events: auto;
+      transform: none;
     }
   }
 `;
@@ -122,17 +138,24 @@ export default function ProductCard9({
   categories,
   ...props
 }: ProductCard9Props) {
-  const [open, setOpen] = useState(false);
   const { state, dispatch } = useCart();
   const cartItem = state.cart.find((item) => item.id === id);
-
-  const toggleDialog = useCallback(() => setOpen((open) => !open), []);
 
   const handleCartAmountChange = (qty: number) => () => {
     dispatch({
       type: "CHANGE_CART_AMOUNT",
       payload: { price, imgUrl, id, qty, slug, name: title }
     });
+  };
+
+  const quickActionProps = {
+    productId: id,
+    productSlug: slug,
+    productTitle: title,
+    productPrice: price,
+    productImages: images,
+    productImage: imgUrl,
+    onAddToCart: () => handleCartAmountChange((cartItem?.qty || 0) + 1)()
   };
 
   return (
@@ -154,11 +177,12 @@ export default function ProductCard9({
               </Chip>
             )}
 
-            <span onClick={toggleDialog}>
-              <Icon color="secondary" variant="small" className="quick-view">
-                eye-alt
-              </Icon>
-            </span>
+            <ProductQuickActions
+              compact
+              className="overlay-actions"
+              style={{ position: "absolute", top: 12, right: 12, zIndex: 2 }}
+              {...quickActionProps}
+            />
 
             <Image src={imgUrl} alt={title} width="100%" borderRadius="0.5rem" />
           </Box>
@@ -198,11 +222,16 @@ export default function ProductCard9({
 
             <Hidden up="sm">
               <FlexBox
-                height="30px"
+                height="32px"
                 alignItems="center"
                 flexDirection="row-reverse"
                 justifyContent="space-between">
-                <ProductWishlistButton className="favorite-icon outlined-icon" />
+                <ProductQuickActions
+                  direction="row"
+                  compact
+                  className="overlay-actions"
+                  {...quickActionProps}
+                />
 
                 <FlexBox alignItems="center" flexDirection="row-reverse">
                   <Button
@@ -248,7 +277,12 @@ export default function ProductCard9({
             alignItems="center"
             flexDirection="column"
             justifyContent="space-between">
-            <ProductWishlistButton className="favorite-icon outlined-icon" />
+            <ProductQuickActions
+              direction="column"
+              compact
+              className="overlay-actions"
+              {...quickActionProps}
+            />
 
             <FlexBox
               alignItems="center"
@@ -285,12 +319,6 @@ export default function ProductCard9({
           </FlexBox>
         </Grid>
       </Grid>
-
-      <ProductQuickView
-        open={open}
-        onClose={toggleDialog}
-        product={{ id, images, price, title, slug }}
-      />
     </Wrapper>
   );
 }

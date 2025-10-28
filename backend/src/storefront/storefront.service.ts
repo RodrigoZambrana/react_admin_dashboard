@@ -27,6 +27,7 @@ import type {
   StorefrontConfig,
   CheckoutLineItem,
   CustomerProfile,
+  CustomerWishlistDto,
   StorefrontCategoryTree,
 } from './types'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
@@ -154,6 +155,20 @@ type OrderWithRelations = Prisma.OrderGetPayload<{
 type OrderIdentifierCandidate = { id: number; createdAt: Date; uuid: string | null }
 type CustomerWithAddresses = Customer & { addresses: CustomerAddress[] }
 type OrderSummaryWithReference = OrderSummary & { reference: string }
+type WishlistWithItems = Prisma.WishlistGetPayload<{
+  include: {
+    items: {
+      include: {
+        product: {
+          include: {
+            images: true
+            category: true
+          }
+        }
+      }
+    }
+  }
+}>
 
 @Injectable()
 export class StorefrontService implements OnModuleInit {
@@ -737,14 +752,17 @@ export class StorefrontService implements OnModuleInit {
   }
 
   async getCustomerProfile(customerId: number): Promise<CustomerProfile> {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-      include: { addresses: true },
-    })
+    const [customer, wishlistSummary] = await Promise.all([
+      this.prisma.customer.findUnique({
+        where: { id: customerId },
+        include: { addresses: true },
+      }),
+      this.getWishlistSummary(customerId),
+    ])
     if (!customer) {
       throw new NotFoundException('Customer not found')
     }
-    return this.toCustomerProfile(customer)
+    return this.toCustomerProfile(customer, wishlistSummary)
   }
 
   async updateCustomerProfile(customerId: number, dto: StorefrontUpdateProfileDto): Promise<CustomerProfile> {
@@ -841,14 +859,17 @@ export class StorefrontService implements OnModuleInit {
       })
     }
 
-    const updated = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-      include: { addresses: true },
-    })
+    const [updated, wishlistSummary] = await Promise.all([
+      this.prisma.customer.findUnique({
+        where: { id: customerId },
+        include: { addresses: true },
+      }),
+      this.getWishlistSummary(customerId),
+    ])
     if (!updated) {
       throw new NotFoundException('Customer not found')
     }
-    return this.toCustomerProfile(updated)
+    return this.toCustomerProfile(updated, wishlistSummary)
   }
 
   async listCustomerOrders(customerId: number): Promise<OrderSummaryWithReference[]> {
@@ -888,6 +909,104 @@ export class StorefrontService implements OnModuleInit {
     }
 
     return this.toOrderSummary(order)
+  }
+
+  async getCustomerWishlist(customerId: number): Promise<CustomerWishlistDto> {
+    const wishlist = await this.prisma.wishlist.findUnique({
+      where: { customerId },
+      include: {
+        items: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            product: {
+              include: {
+                images: { orderBy: { sortOrder: 'asc' } },
+                category: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    if (!wishlist) {
+      return { items: [], count: 0, productIds: [] }
+    }
+
+    return this.toWishlistDto(wishlist)
+  }
+
+  async addProductToWishlist(customerId: number, productId: number): Promise<CustomerWishlistDto> {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, published: true, productType: true },
+    })
+
+    if (!product || !product.published || product.productType !== ProductType.PHYSICAL) {
+      throw new NotFoundException('Product not found')
+    }
+
+    const wishlist = await this.ensureCustomerWishlist(customerId)
+
+    await this.prisma.wishlistItem.upsert({
+      where: { wishlistId_productId: { wishlistId: wishlist.id, productId } },
+      update: {},
+      create: {
+        wishlistId: wishlist.id,
+        productId,
+      },
+    })
+
+    return this.getCustomerWishlist(customerId)
+  }
+
+  async removeProductFromWishlist(customerId: number, productId: number): Promise<CustomerWishlistDto> {
+    const wishlist = await this.prisma.wishlist.findUnique({
+      where: { customerId },
+      select: { id: true },
+    })
+
+    if (!wishlist) {
+      return { items: [], count: 0, productIds: [] }
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.wishlistItem.deleteMany({
+        where: { wishlistId: wishlist.id, productId },
+      }),
+      this.prisma.wishlist.update({
+        where: { id: wishlist.id },
+        data: { updatedAt: new Date() },
+      }),
+    ])
+
+    return this.getCustomerWishlist(customerId)
+  }
+
+  private async ensureCustomerWishlist(customerId: number) {
+    return this.prisma.wishlist.upsert({
+      where: { customerId },
+      update: { updatedAt: new Date() },
+      create: { customerId },
+    })
+  }
+
+  private toWishlistDto(wishlist: WishlistWithItems): CustomerWishlistDto {
+    const items = wishlist.items
+      .filter((item) => item.product && item.product.published && item.product.productType === ProductType.PHYSICAL)
+      .map((item) => ({
+        productId: item.productId,
+        addedAt: item.createdAt.toISOString(),
+        product: this.toProductSummary(item.product),
+      }))
+
+    const productIds = items.map((item) => item.productId)
+
+    return {
+      items,
+      count: items.length,
+      productIds,
+    }
   }
 
   private toProductSummary(product: Prisma.ProductGetPayload<{ include: { images: true; category: true } }>): ProductSummaryDto {
@@ -1062,7 +1181,10 @@ export class StorefrontService implements OnModuleInit {
     }
   }
 
-  private toCustomerProfile(customer: CustomerWithAddresses): CustomerProfile {
+  private toCustomerProfile(
+    customer: CustomerWithAddresses,
+    wishlistSummary: { count: number; productIds: number[] } = { count: 0, productIds: [] },
+  ): CustomerProfile {
     const addresses = customer.addresses
       .slice()
       .sort((a, b) => {
@@ -1081,6 +1203,8 @@ export class StorefrontService implements OnModuleInit {
       phone: customer.phoneNumber ?? undefined,
       avatarUrl: customer.img ?? undefined,
       dateOfBirth: customer.birthday ? customer.birthday.toISOString() : null,
+      wishlistCount: wishlistSummary.count,
+      wishlistProductIds: wishlistSummary.productIds,
       addresses,
     }
   }
@@ -1141,6 +1265,25 @@ export class StorefrontService implements OnModuleInit {
     return match.id
   }
 
+  private async getWishlistSummary(customerId: number) {
+    const items = await this.prisma.wishlistItem.findMany({
+      where: {
+        wishlist: { customerId },
+        product: {
+          published: true,
+          productType: ProductType.PHYSICAL,
+        },
+      },
+      select: { productId: true },
+    })
+
+    const productIds = items.map((item) => item.productId)
+    return {
+      count: productIds.length,
+      productIds,
+    }
+  }
+
   private async buildSession(customer: Customer) {
     const accessPayload = {
       sub: customer.id,
@@ -1157,13 +1300,14 @@ export class StorefrontService implements OnModuleInit {
       tokenType: 'refresh' as const,
     }
 
-    const [accessToken, refreshToken, addresses] = await Promise.all([
+    const [accessToken, refreshToken, addresses, wishlistSummary] = await Promise.all([
       this.jwt.signAsync(accessPayload, { expiresIn: ACCESS_TOKEN_EXPIRES_IN }),
       this.jwt.signAsync(refreshPayload, { expiresIn: REFRESH_TOKEN_EXPIRES_IN }),
       this.prisma.customerAddress.findMany({
         where: { customerId: customer.id },
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
       }),
+      this.getWishlistSummary(customer.id),
     ])
 
     return {
@@ -1176,6 +1320,8 @@ export class StorefrontService implements OnModuleInit {
         firstName: customer.firstName,
         lastName: customer.lastName,
         phone: customer.phoneNumber ?? undefined,
+        wishlistCount: wishlistSummary.count,
+        wishlistProductIds: wishlistSummary.productIds,
         addresses: addresses.map((address) => this.toCustomerAddress(address)),
       },
     }

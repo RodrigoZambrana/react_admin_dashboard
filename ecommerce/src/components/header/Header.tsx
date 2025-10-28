@@ -259,19 +259,27 @@ export default function Header({ isFixed, className }: HeaderProps) {
     const openCategoriesListener = () => setCategoryOpen(true);
     const openCartListener = () => setCartOpen(true);
     const openAccountListener = () => handleAccountAction();
+    const openLoginListener = (event: Event) => {
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      handleOpenLogin();
+    };
 
     window.addEventListener("mobile-nav:open-menu", openMenuListener);
     window.addEventListener("mobile-nav:open-categories", openCategoriesListener);
     window.addEventListener("mobile-nav:open-cart", openCartListener);
     window.addEventListener("mobile-nav:open-account", openAccountListener);
+    window.addEventListener("storefront:auth:login", openLoginListener);
 
     return () => {
       window.removeEventListener("mobile-nav:open-menu", openMenuListener);
       window.removeEventListener("mobile-nav:open-categories", openCategoriesListener);
       window.removeEventListener("mobile-nav:open-cart", openCartListener);
       window.removeEventListener("mobile-nav:open-account", openAccountListener);
+      window.removeEventListener("storefront:auth:login", openLoginListener);
     };
-  }, [handleAccountAction]);
+  }, [handleAccountAction, handleOpenLogin]);
 
 
   const CartButton = ({ className }: { className?: string }) => (

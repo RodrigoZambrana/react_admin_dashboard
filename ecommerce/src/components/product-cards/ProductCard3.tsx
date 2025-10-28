@@ -1,11 +1,13 @@
 "use client";
 
+import { useCallback } from "react";
 import styled, { CSSProperties } from "styled-components";
 import Rating from "../rating";
 import Icon from "../icon/Icon";
 import FlexBox from "../FlexBox";
 import { Button } from "../buttons";
-import ProductWishlistButton from "./ProductWishlistButton";
+import ProductQuickActions from "./ProductQuickActions";
+import useCart from "@hook/useCart";
 
 // STYLED COMPONENT
 const Wrapper = styled.div`
@@ -20,6 +22,11 @@ const Wrapper = styled.div`
       .add-cart {
         display: flex;
       }
+    }
+    .overlay-actions {
+      opacity: 1;
+      pointer-events: auto;
+      transform: none;
     }
   }
 
@@ -91,6 +98,21 @@ const Wrapper = styled.div`
       }
     }
   }
+
+  .overlay-actions {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  @media (hover: none) {
+    .overlay-actions {
+      opacity: 1;
+      pointer-events: auto;
+      transform: none;
+    }
+  }
 `;
 
 // ========================================================
@@ -101,21 +123,58 @@ type ProductCard3Props = {
 // ========================================================
 
 export default function ProductCard3({ ...props }: ProductCard3Props) {
+  const product = {
+    id: 1001,
+    slug: "asus-rog-strix-g15",
+    title: "ASUS ROG Strix G15",
+    price: 445,
+    images: ["/assets/images/products/macbook.png"]
+  };
+
+  const { state, dispatch } = useCart();
+  const cartItem = state.cart.find((item) => item.id === product.id);
+  const primaryImage = product.images[0];
+
+  const handleAddToCart = useCallback(() => {
+    const nextQty = (cartItem?.qty ?? 0) + 1;
+    dispatch({
+      type: "CHANGE_CART_AMOUNT",
+      payload: {
+        id: product.id,
+        qty: nextQty,
+        slug: product.slug,
+        price: product.price,
+        imgUrl: primaryImage,
+        name: product.title
+      }
+    });
+  }, [dispatch, cartItem?.qty, product.id, product.slug, product.price, product.title, primaryImage]);
+
   return (
     <Wrapper {...props}>
       <div className="image-holder">
         <div className="sale-chip">50% off</div>
-        <img src="/assets/images/products/macbook.png" alt="golden-watch" />
+        <img src={product.images[0]} alt={product.title} />
       </div>
 
       <div className="details">
         <FlexBox justifyContent="space-between">
           <div>
-            <h4>ASUS ROG Strix G15</h4>
+            <h4>{product.title}</h4>
           </div>
 
           <div className="icon-holder">
-            <ProductWishlistButton className="favorite-icon" />
+            <ProductQuickActions
+              compact
+              className="overlay-actions"
+              productId={product.id}
+              productSlug={product.slug}
+              productTitle={product.title}
+              productPrice={product.price}
+              productImages={product.images}
+              productImage={product.images[0]}
+              onAddToCart={handleAddToCart}
+            />
           </div>
         </FlexBox>
 

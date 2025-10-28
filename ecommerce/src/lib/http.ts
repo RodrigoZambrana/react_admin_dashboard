@@ -51,13 +51,22 @@ export async function apiFetch<TResponse>(path: string, init: ApiRequestOptions 
   }
 
   try {
+    const providedHeaders = new Headers(init.headers ?? undefined);
+    const baseHeaders = new Headers({ Accept: "application/json" });
+    const shouldSetJsonContentType =
+      typeof init.body === "string" && !providedHeaders.has("Content-Type");
+
+    if (shouldSetJsonContentType) {
+      baseHeaders.set("Content-Type", "application/json");
+    }
+
+    providedHeaders.forEach((value, key) => {
+      baseHeaders.set(key, value);
+    });
+
     const response = await fetch(url, {
       ...init,
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...init.headers
-      },
+      headers: baseHeaders,
       signal: controller?.signal ?? init.signal,
       cache: init.cache ?? "no-store"
     });
@@ -89,4 +98,3 @@ export async function apiFetch<TResponse>(path: string, init: ApiRequestOptions 
     }
   }
 }
-

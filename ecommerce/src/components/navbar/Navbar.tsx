@@ -128,9 +128,15 @@ export default function Navbar({ navListOpen }: NavbarProps) {
               height="40px"
               bg="body.default"
               onClick={handleOpen}>
-              <IconCategoryFilled stroke={1.5} size={18} color={theme.colors.primary.main} />
+              <IconCategoryFilled
+                key="category-icon"
+                stroke={1.5}
+                size={18}
+                color={theme.colors.primary.main}
+              />
 
               <Typography
+                key="category-label"
                 ml="10px"
                 flex="1 1 0"
                 fontWeight="600"
@@ -139,7 +145,12 @@ export default function Navbar({ navListOpen }: NavbarProps) {
                 Categories
               </Typography>
 
-              <IconChevronDown className="dropdown-icon" size={18} stroke={1.5} />
+              <IconChevronDown
+                key="category-chevron"
+                className="dropdown-icon"
+                size={18}
+                stroke={1.5}
+              />
             </Button>
           )}
         />

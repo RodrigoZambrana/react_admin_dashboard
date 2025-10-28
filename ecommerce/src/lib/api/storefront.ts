@@ -3,6 +3,7 @@ import type {
   CategorySummary,
   CreateOrderPayload,
   CustomerProfile,
+  CustomerWishlist,
   HomeLayoutDefinition,
   OrderSummary,
   PaginatedResponse,
@@ -203,6 +204,36 @@ export const StorefrontApi = {
   async setPrimaryAddress(token: string, addressId: number): Promise<CustomerProfile> {
     return apiFetch<CustomerProfile>(`account/addresses/${addressId}/set-primary`, {
       method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      cache: "no-store"
+    });
+  },
+
+  async getWishlist(token: string): Promise<CustomerWishlist> {
+    return apiFetch<CustomerWishlist>("account/wishlist", {
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      cache: "no-store"
+    });
+  },
+
+  async addWishlistItem(token: string, productId: number): Promise<CustomerWishlist> {
+    return apiFetch<CustomerWishlist>("account/wishlist", {
+      method: "POST",
+      body: JSON.stringify({ productId }),
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      cache: "no-store"
+    });
+  },
+
+  async removeWishlistItem(token: string, productId: number): Promise<CustomerWishlist> {
+    return apiFetch<CustomerWishlist>(`account/wishlist/${productId}`, {
+      method: "DELETE",
       headers: {
         Authorization: `Bearer ${token}`
       },

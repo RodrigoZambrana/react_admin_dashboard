@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useMemo } from "react";
 import styled from "styled-components";
 
 import Box from "@component/Box";
@@ -9,7 +10,8 @@ import FlexBox from "@component/FlexBox";
 import NextImage from "@component/NextImage";
 import { H6, SemiSpan, Small } from "@component/Typography";
 import { calculateDiscount, currency } from "@utils/utils";
-import ProductWishlistButton from "./ProductWishlistButton";
+import useCart from "@hook/useCart";
+import ProductQuickActions from "./ProductQuickActions";
 
 // STYLED COMPONENT
 const StyledProductCard = styled.div`
@@ -34,6 +36,26 @@ const StyledProductCard = styled.div`
       bottom: 0;
       background: rgba(0, 0, 0, 0.07);
     }
+    .overlay-actions {
+      opacity: 1;
+      pointer-events: auto;
+      transform: none;
+    }
+  }
+
+  .overlay-actions {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  @media (hover: none) {
+    .overlay-actions {
+      opacity: 1;
+      pointer-events: auto;
+      transform: none;
+    }
   }
 `;
 
@@ -45,11 +67,31 @@ type ProductCard11Props = {
   price: number;
   imgUrl: string;
   rating: number;
+  id?: number | string;
 };
 // ===================================================
 
 export default function ProductCard11(props: ProductCard11Props) {
-  const { title, imgUrl, price, rating, slug, off = 0 } = props;
+  const { title, imgUrl, price, rating, slug, off = 0, id } = props;
+  const { state, dispatch } = useCart();
+  const resolvedId = useMemo(() => id ?? slug ?? title, [id, slug, title]);
+  const cartItem = state.cart.find((item) => String(item.id) === String(resolvedId));
+
+  const handleAddToCart = useCallback(() => {
+    if (!resolvedId) return;
+    const nextQty = (cartItem?.qty ?? 0) + 1;
+    dispatch({
+      type: "CHANGE_CART_AMOUNT",
+      payload: {
+        id: resolvedId,
+        qty: nextQty,
+        slug,
+        price,
+        imgUrl,
+        name: title
+      }
+    });
+  }, [dispatch, resolvedId, cartItem?.qty, slug, price, imgUrl, title]);
 
   return (
     <StyledProductCard>
@@ -58,7 +100,17 @@ export default function ProductCard11(props: ProductCard11Props) {
           <NextImage src={imgUrl} width={150} height={150} alt="bonik" />
         </Link>
 
-        <ProductWishlistButton style={{ position: "absolute", top: 12, right: 12 }} />
+        <ProductQuickActions
+          compact
+          className="overlay-actions"
+          style={{ position: "absolute", top: 12, right: 12 }}
+          productId={id}
+          productSlug={slug}
+          productTitle={title}
+          productPrice={price}
+          productImage={imgUrl}
+          onAddToCart={handleAddToCart}
+        />
       </Box>
 
       <Box mb="0.5rem">

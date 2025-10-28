@@ -1,26 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import styled from "styled-components";
-import { IconHeart, IconHeartFilled, IconShoppingCart } from "@tabler/icons-react";
 
 import Box from "@component/Box";
 import FlexBox from "@component/FlexBox";
 import Rating from "@component/rating";
 import NextImage from "@component/NextImage";
-import { Button, IconButton } from "@component/buttons";
 import { H4, Paragraph, Small } from "@component/Typography";
-import ProductQuickView from "@component/products/ProductQuickView";
 import useCart from "@hook/useCart";
 import { currency } from "@utils/utils";
+import ProductQuickActions from "./ProductQuickActions";
 
 const Wrapper = styled(Box)({
   position: "relative",
   "&:hover": {
-    "& .product-actions": { right: 12 },
     "& img": { transform: "scale(1.05)" },
-    "& .product-view-action": { opacity: 1, transform: "translateY(0)" }
+    "& .product-view-action": { opacity: 1, transform: "translateY(0)" },
+    ".overlay-actions": {
+      opacity: 1,
+      pointerEvents: "auto",
+      transform: "none"
+    }
+  },
+  "@media (hover: none)": {
+    ".overlay-actions": {
+      opacity: 1,
+      pointerEvents: "auto",
+      transform: "none"
+    }
   }
 });
 
@@ -30,36 +39,6 @@ const Media = styled(Box)(({ theme }) => ({
   borderRadius: "8px",
   backgroundColor: theme.colors.gray[200],
   "& img": { transition: "transform 0.35s ease" }
-}));
-
-const FloatingIconButton = styled(IconButton)(({ theme }) => ({
-  position: "absolute",
-  right: -40,
-  top: 12,
-  transition: "right 0.35s ease",
-  backgroundColor: theme.colors.body.paper,
-  boxShadow: theme.shadows.small,
-  "&:hover": {
-    backgroundColor: theme.colors.primary.main,
-    color: theme.colors.gray[0]
-  }
-}));
-
-const FavoriteButton = styled(FloatingIconButton)({
-  top: 56
-});
-
-const QuickViewButton = styled(Button)(({ theme }) => ({
-  position: "absolute",
-  left: 8,
-  right: 8,
-  bottom: 8,
-  opacity: 0,
-  transform: "translateY(12px)",
-  transition: "all 0.3s ease",
-  color: theme.colors.gray[0],
-  backgroundColor: theme.colors.secondary.main,
-  borderRadius: "6px"
 }));
 
 export type StorefrontProductCardProps = {
@@ -88,8 +67,6 @@ export default function StorefrontProductCard({
   currencyCode
 }: StorefrontProductCardProps) {
   const { state, dispatch } = useCart();
-  const [openQuickView, setOpenQuickView] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
 
   const cartItem = state.cart.find((item) => item.id === id || item.slug === slug);
   const gallery = useMemo(() => {
@@ -111,9 +88,6 @@ export default function StorefrontProductCard({
     });
   }, [cartItem?.qty, dispatch, id, imgUrl, price, slug, title]);
 
-  const handleToggleFavorite = useCallback(() => setIsFavorite((fav) => !fav), []);
-  const toggleQuickView = useCallback(() => setOpenQuickView((open) => !open), []);
-
   const normalizedRating = typeof rating === "number" ? rating : null;
   const normalizedReviews = typeof reviewCount === "number" ? reviewCount : null;
 
@@ -130,28 +104,21 @@ export default function StorefrontProductCard({
           />
         </Link>
 
-        <FloatingIconButton className="product-actions" onClick={handleAddToCart}>
-          <IconShoppingCart size={18} />
-        </FloatingIconButton>
-
-        <FavoriteButton className="product-actions" onClick={handleToggleFavorite}>
-          {isFavorite ? <IconHeartFilled size={18} /> : <IconHeart size={18} />}
-        </FavoriteButton>
-
-        <QuickViewButton
-          size="small"
-          variant="contained"
-          className="product-view-action"
-          onClick={toggleQuickView}>
-          Quick View
-        </QuickViewButton>
+        <ProductQuickActions
+          className="product-actions overlay-actions"
+          direction="column"
+          style={{ position: "absolute", top: 12, right: 12 }}
+          compact
+          showQuickViewButton
+          productId={id}
+          productSlug={slug}
+          productTitle={title}
+          productPrice={price}
+          productImages={gallery}
+          productImage={imgUrl}
+          onAddToCart={handleAddToCart}
+        />
       </Media>
-
-      <ProductQuickView
-        open={openQuickView}
-        onClose={toggleQuickView}
-        product={{ id, images: gallery, slug, price, title }}
-      />
 
       <Box pt={2} textAlign="center">
         {category ? (

@@ -48,7 +48,7 @@ export default function Footer1() {
                   elit at amet.
                 </Paragraph>
 
-                <AppStore />
+                {/* <AppStore /> */}
               </Grid>
 
               <Grid item lg={6} md={6} sm={6} xs={12}>

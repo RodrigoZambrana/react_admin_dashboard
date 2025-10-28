@@ -12,7 +12,7 @@ import { Button } from "@component/buttons";
 import LazyImage from "@component/LazyImage";
 import Typography from "@component/Typography";
 import { IconButton } from "@component/buttons";
-import ProductWishlistButton from "./ProductWishlistButton";
+import ProductQuickActions from "./ProductQuickActions";
 
 import { currency, isValidProp } from "@utils/utils";
 
@@ -34,6 +34,26 @@ const Wrapper = styled.div.withConfig({
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  .overlay-actions {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  &:hover {
+    .overlay-actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  @media (hover: none) {
+    .overlay-actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
 
   @media only screen and (max-width: 425px) {
@@ -102,9 +122,18 @@ export default function ProductCard7({
           top="1rem"
           display="flex"
           flexDirection="column"
-          alignItems="flex-end"
-          style={{ gap: "0.5rem" }}>
-          <ProductWishlistButton />
+        alignItems="flex-end"
+        style={{ gap: "0.5rem" }}>
+          <ProductQuickActions
+            compact
+            className="overlay-actions"
+            productId={id}
+            productSlug={slug}
+            productTitle={name}
+            productPrice={price}
+            productImage={imgUrl}
+            onAddToCart={() => handleCartAmountChange((qty || 0) + 1)()}
+          />
 
           <IconButton color="gray.600" padding="4px" ml="12px" onClick={handleCartAmountChange(0)}>
             <IconX size={18} />

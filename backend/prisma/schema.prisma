@@ -201,6 +201,7 @@ model Customer {
   addresses   CustomerAddress[]
   statusId    Int?
   status      CustomerStatus?   @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  wishlist    Wishlist?
 }
 
 model CustomerPhone {
@@ -211,6 +212,26 @@ model CustomerPhone {
   label      String?
   isPrimary  Boolean  @default(false)
   createdAt  DateTime @default(now())
+}
+
+model Wishlist {
+  id         Int            @id @default(autoincrement())
+  customerId Int            @unique
+  customer   Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  items      WishlistItem[]
+}
+
+model WishlistItem {
+  id         Int       @id @default(autoincrement())
+  wishlistId Int
+  wishlist   Wishlist  @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+
+  @@unique([wishlistId, productId])
 }
 
 // Sales Product
@@ -239,6 +260,7 @@ model Product {
   vendor            String?
   published         Boolean          @default(true)
   images            ProductImage[]
+  wishlistItems     WishlistItem[]
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   orderItems        OrderItem[]
