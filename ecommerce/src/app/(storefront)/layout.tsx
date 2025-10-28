@@ -4,6 +4,7 @@ import { getStorefrontConfig } from "@/lib/storefront-config";
 import { StorefrontSessionProvider } from "@/state/session-context";
 import { WishlistProvider } from "@/state/wishlist-context";
 import { StorefrontCurrencyProvider } from "@/state/currency-context";
+import { GoogleAuthDebugPanel } from "@/components/debug/GoogleAuthDebugPanel";
 
 import { StorefrontConfigProvider } from "./storefront-context";
 
@@ -18,7 +19,10 @@ export default async function StorefrontLayout({ children }: StorefrontLayoutPro
     <StorefrontConfigProvider config={config}>
       <StorefrontSessionProvider>
         <StorefrontCurrencyProvider>
-          <WishlistProvider>{children}</WishlistProvider>
+          <WishlistProvider>
+            {children}
+            <GoogleAuthDebugPanel />
+          </WishlistProvider>
         </StorefrontCurrencyProvider>
       </StorefrontSessionProvider>
     </StorefrontConfigProvider>

@@ -18,6 +18,13 @@ import { useToast } from "@/contexts/ToastContext";
 
 type SessionStatus = "loading" | "authenticated" | "unauthenticated";
 
+type GoogleAuthDebugEvent = {
+  id: string;
+  timestamp: number;
+  label: string;
+  details?: string;
+};
+
 interface SessionContextValue {
   session: AuthSession | null;
   status: SessionStatus;
@@ -30,6 +37,11 @@ interface SessionContextValue {
   clearError: () => void;
   updateCustomerProfile: (profile: CustomerProfile) => void;
   updateWishlistSummary: (summary: { count: number; productIds: number[] }) => void;
+  googleAuthDebug: {
+    events: GoogleAuthDebugEvent[];
+    isEnabled: boolean;
+    clear: () => void;
+  };
 }
 
 export interface RegisterPayload {
@@ -136,6 +148,63 @@ type GoogleAuthErrorMessage = {
 
 type GoogleAuthMessage = GoogleAuthSuccessMessage | GoogleAuthErrorMessage;
 
+const GOOGLE_AUTH_DEBUG_EVENT_LIMIT = 50;
+
+const maskTokenForDebug = (value: string | null | undefined): string | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  if (trimmed.length <= 8) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, 4)}…${trimmed.slice(-4)}`;
+};
+
+const maskEmailForDebug = (value: string | null | undefined): string | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const [local, domain] = value.split("@");
+  if (!domain) {
+    return value;
+  }
+  if (!local) {
+    return `*@${domain}`;
+  }
+  if (local.length <= 2) {
+    return `${local[0] ?? ""}*@${domain}`;
+  }
+  return `${local.slice(0, 2)}…@${domain}`;
+};
+
+const formatGoogleAuthDebugDetails = (details: unknown): string | undefined => {
+  if (details === undefined || details === null) {
+    return undefined;
+  }
+  if (details instanceof Error) {
+    if (details.stack) {
+      return `${details.name}: ${details.message}
+${details.stack}`;
+    }
+    return `${details.name}: ${details.message}`;
+  }
+  if (typeof details === "string") {
+    return details;
+  }
+  if (typeof details === "object") {
+    try {
+      return JSON.stringify(details, null, 2);
+    } catch (error) {
+      return `[unserializable-details]: ${String(error)}`;
+    }
+  }
+  return String(details);
+};
+
 const isGoogleAuthMessage = (value: unknown): value is GoogleAuthMessage => {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -159,6 +228,34 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
   const [error, setError] = useState<string | null>(null);
   const isBootstrapped = useRef(false);
   const toast = useToast();
+  const [googleAuthDebugEvents, setGoogleAuthDebugEvents] = useState<GoogleAuthDebugEvent[]>([]);
+  const googleAuthDebugEnabled = env.googleAuthDebugEnabled;
+
+  const clearGoogleAuthDebug = useCallback(() => {
+    setGoogleAuthDebugEvents([]);
+  }, []);
+
+  const logGoogleAuthDebug = useCallback(
+    (label: string, details?: unknown) => {
+      if (!googleAuthDebugEnabled) {
+        return;
+      }
+      const event: GoogleAuthDebugEvent = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: Date.now(),
+        label,
+        details: formatGoogleAuthDebugDetails(details)
+      };
+      setGoogleAuthDebugEvents((current) => {
+        const next = [...current, event];
+        if (next.length > GOOGLE_AUTH_DEBUG_EVENT_LIMIT) {
+          return next.slice(next.length - GOOGLE_AUTH_DEBUG_EVENT_LIMIT);
+        }
+        return next;
+      });
+    },
+    [googleAuthDebugEnabled]
+  );
 
   useEffect(() => {
     if (isBootstrapped.current) return;
@@ -252,11 +349,19 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
 
       clearError();
       setStatus("loading");
+      logGoogleAuthDebug("loginWithGoogle:initialize", {
+        returnPath: options?.returnPath ?? null
+      });
 
       let startResponse: { url: string; state: string; expiresAt: string };
       try {
         startResponse = await StorefrontApi.startGoogleLogin(options?.returnPath);
+        logGoogleAuthDebug("loginWithGoogle:startGoogleLogin:success", {
+          state: maskTokenForDebug(startResponse.state),
+          expiresAt: startResponse.expiresAt
+        });
       } catch (cause) {
+        logGoogleAuthDebug("loginWithGoogle:startGoogleLogin:error", cause);
         handleAuthError(cause, "login");
         throw cause;
       }
@@ -277,6 +382,9 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       );
 
       if (!popup) {
+        logGoogleAuthDebug("loginWithGoogle:popup:blocked", {
+          reason: "window.open returned null"
+        });
         const popupError = new Error(
           "No pudimos abrir la ventana de Google. Habilita las ventanas emergentes e inténtalo nuevamente."
         );
@@ -288,19 +396,31 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         throw popupError;
       }
 
+      logGoogleAuthDebug("loginWithGoogle:popup:opened", {
+        url: startResponse.url,
+        dimensions: { width, height, left, top }
+      });
+
       try {
         popup.focus();
       } catch (error) {
         console.warn("[session] Unable to focus Google auth popup due to window policy", error);
+        logGoogleAuthDebug("loginWithGoogle:popup:focus-error", error);
       }
 
       const trustedOrigins = new Set<string>();
       try {
-        trustedOrigins.add(new URL(env.publicApiBaseUrl).origin);
+        const apiOrigin = new URL(env.publicApiBaseUrl).origin;
+        trustedOrigins.add(apiOrigin);
       } catch (error) {
         console.warn("[session] Invalid API base URL for Google auth origin", error);
+        logGoogleAuthDebug("loginWithGoogle:invalid-api-origin", error);
       }
       trustedOrigins.add(window.location.origin);
+
+      logGoogleAuthDebug("loginWithGoogle:awaitingMessage", {
+        trustedOrigins: Array.from(trustedOrigins)
+      });
 
       return new Promise<{ session: AuthSession; returnPath: string | null }>((resolve, reject) => {
         let completed = false;
@@ -313,7 +433,8 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           }
         };
 
-        const cleanup = () => {
+        const cleanup = (reason: string) => {
+          logGoogleAuthDebug("loginWithGoogle:cleanup", { reason });
           completed = true;
           window.removeEventListener("message", handleMessage);
           clearFallbackTimer();
@@ -321,11 +442,13 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
             popup.close();
           } catch (error) {
             console.warn("[session] Unable to close Google auth popup", error);
+            logGoogleAuthDebug("loginWithGoogle:popup:close-error", error);
           }
         };
 
-        const fail = (error: Error) => {
-          cleanup();
+        const fail = (error: Error, reason: string) => {
+          logGoogleAuthDebug("loginWithGoogle:failed", { reason, message: error.message });
+          cleanup(reason);
           try {
             handleAuthError(error, "login");
           } catch (cause) {
@@ -337,38 +460,63 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
 
         const startFallbackTimer = () => {
           const timeoutMs = 2 * 60 * 1000;
+          logGoogleAuthDebug("loginWithGoogle:fallbackTimer:start", { timeoutMs });
           clearFallbackTimer();
           fallbackTimer = window.setTimeout(() => {
             if (completed) {
               return;
             }
+            logGoogleAuthDebug("loginWithGoogle:fallbackTimer:expired", { timeoutMs });
             fail(
               new Error(
                 "La autenticación con Google tardó demasiado. Es posible que hayas cerrado la ventana. Inténtalo nuevamente."
-              )
+              ),
+              "timeout"
             );
           }, timeoutMs);
         };
 
         const handleMessage = (event: MessageEvent) => {
           if (!trustedOrigins.has(event.origin)) {
+            logGoogleAuthDebug("loginWithGoogle:message:ignored-origin", { origin: event.origin });
             return;
           }
           const data = event.data;
           if (!isGoogleAuthMessage(data)) {
+            logGoogleAuthDebug("loginWithGoogle:message:unknown", {
+              origin: event.origin,
+              receivedType: typeof data
+            });
             return;
           }
-          cleanup();
+
+          logGoogleAuthDebug("loginWithGoogle:message:received", {
+            origin: event.origin,
+            status: data.status
+          });
 
           if (data.status === "success") {
+            const returnPath =
+              typeof data.returnPath === "string" && data.returnPath.trim()
+                ? data.returnPath.trim()
+                : null;
+
+            logGoogleAuthDebug("loginWithGoogle:message:success", {
+              origin: event.origin,
+              expiresAt: data.session.expiresAt,
+              accessTokenPreview: maskTokenForDebug(data.session.accessToken),
+              hasRefreshToken: Boolean(data.session.refreshToken),
+              customerId: data.session.customer.id,
+              customerEmail: maskEmailForDebug(data.session.customer.email),
+              returnPath
+            });
+
+            cleanup("success");
             try {
               const normalized = handleAuthSuccess(data.session, "login");
               resolve({
                 session: normalized,
-                returnPath:
-                  typeof data.returnPath === "string" && data.returnPath.trim()
-                    ? data.returnPath.trim()
-                    : null
+                returnPath
               });
             } catch (cause) {
               reject(cause as Error);
@@ -377,7 +525,14 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
             const message =
               (typeof data.message === "string" && data.message.trim()) ||
               "Unable to sign in with Google. Please try again.";
-            fail(new Error(message));
+
+            logGoogleAuthDebug("loginWithGoogle:message:error", {
+              origin: event.origin,
+              message: data.message,
+              errorCode: data.errorCode
+            });
+
+            fail(new Error(message), "message:error");
           }
         };
 
@@ -385,7 +540,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         startFallbackTimer();
       });
     },
-    [clearError, handleAuthError, handleAuthSuccess]
+    [clearError, handleAuthError, handleAuthSuccess, logGoogleAuthDebug]
   );
 
   const register = useCallback(
@@ -481,7 +636,12 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       error,
       clearError,
       updateCustomerProfile,
-      updateWishlistSummary
+      updateWishlistSummary,
+      googleAuthDebug: {
+        isEnabled: googleAuthDebugEnabled,
+        events: googleAuthDebugEvents,
+        clear: clearGoogleAuthDebug
+      }
     }),
     [
       session,
@@ -493,7 +653,10 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       error,
       clearError,
       updateCustomerProfile,
-      updateWishlistSummary
+      updateWishlistSummary,
+      googleAuthDebugEnabled,
+      googleAuthDebugEvents,
+      clearGoogleAuthDebug
     ]
   );
 

@@ -8,6 +8,7 @@ import { Header } from "@component/header";
 import { Footer1 } from "@component/footer";
 import Navbar from "@component/navbar/Navbar";
 import MobileNavigationBar from "@component/mobile-navigation";
+import { GoogleAuthDebugPanel } from "@/components/debug/GoogleAuthDebugPanel";
 import { StorefrontConfigProvider } from "../(storefront)/storefront-context";
 
 type ShopLayoutProps = {
@@ -30,6 +31,7 @@ export default async function ShopLayout({ children }: ShopLayoutProps) {
 
             <MobileNavigationBar />
             <Footer1 />
+            <GoogleAuthDebugPanel />
           </WishlistProvider>
         </StorefrontCurrencyProvider>
       </StorefrontSessionProvider>
