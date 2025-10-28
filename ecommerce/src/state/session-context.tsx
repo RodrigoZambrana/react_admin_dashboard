@@ -116,6 +116,19 @@ const persistSession = (session: AuthSession | null) => {
   }
 };
 
+// Safe guard: avoid reading popup.closed when cross-origin isolation is active
+const canPollPopupClosedSafely = (win: Window | null): boolean => {
+  if (!win) return false;
+  if (typeof crossOriginIsolated !== "undefined" && crossOriginIsolated) return false;
+  try {
+    // Probe once; if it throws, polling is unsafe
+    void win.closed;
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const GOOGLE_AUTH_MESSAGE_TYPE = "storefront:google-auth";
 
 type GoogleAuthSuccessMessage = {
@@ -359,24 +372,36 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
             return;
           }
 
-          popupClosePoll = window.setInterval(() => {
+          // ⛔ If polling is unsafe/blocked, do not read popup.closed at all.
+          // We'll complete via postMessage/localStorage or the existing fallback timer.
+          if (!canPollPopupClosedSafely(popup)) {
+            // Make sure any previous poller is removed
+            removePopupCloseListener();
+            return;
+          }
+
+          const checkPopupClosed = () => {
             if (!popup) {
               removePopupCloseListener();
               return;
             }
-
+            let isClosed = false;
             try {
-              if (popup.closed) {
-                removePopupCloseListener();
-                handlePopupManualClose();
-              }
-            } catch (error) {
+              isClosed = popup.closed;
+            } catch {
+              // Lost access mid-flight → stop polling; rely on other channels
               removePopupCloseListener();
-              console.warn("[session] Error while polling Google auth popup state", error);
+              return;
             }
-          }, 500);
+            if (isClosed) {
+              removePopupCloseListener();
+              handlePopupManualClose();
+            }
+          };
 
+          popupClosePoll = window.setInterval(checkPopupClosed, 500);
           detachPopupCloseListener = removePopupCloseListener;
+          checkPopupClosed();
         };
 
         const startFallbackTimer = () => {
