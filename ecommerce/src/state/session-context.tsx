@@ -295,11 +295,20 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       }
 
       const trustedOrigins = new Set<string>();
-      try {
-        trustedOrigins.add(new URL(env.publicApiBaseUrl).origin);
-      } catch (error) {
-        console.warn("[session] Invalid API base URL for Google auth origin", error);
-      }
+      const addTrustedOrigin = (value: string | null | undefined, context: string) => {
+        if (!value) {
+          return;
+        }
+        try {
+          trustedOrigins.add(new URL(value).origin);
+        } catch (error) {
+          console.warn(`[session] Invalid ${context} URL for Google auth origin`, error);
+        }
+      };
+
+      addTrustedOrigin(env.publicApiBaseUrl, "API base");
+      addTrustedOrigin(env.apiBaseUrl, "server API base");
+      addTrustedOrigin(startResponse.url, "Google auth start");
       trustedOrigins.add(window.location.origin);
 
       return new Promise<{ session: AuthSession; returnPath: string | null }>((resolve, reject) => {
@@ -398,7 +407,18 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           if (!trustedOrigins.has(event.origin)) {
             return;
           }
-          const data = event.data;
+          const rawData = event.data;
+          const data =
+            typeof rawData === "string"
+              ? (() => {
+                  try {
+                    return JSON.parse(rawData) as unknown;
+                  } catch (error) {
+                    console.warn("[session] Failed to parse Google auth message", error);
+                    return null;
+                  }
+                })()
+              : rawData;
           if (!isGoogleAuthMessage(data)) {
             return;
           }
