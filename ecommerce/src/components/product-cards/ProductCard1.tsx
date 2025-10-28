@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useCallback, useState } from "react";
-import styled, { useTheme } from "styled-components";
-import { IconEye, IconHeart, IconPlus, IconMinus } from "@tabler/icons-react";
+import { Fragment, useCallback } from "react";
+import styled from "styled-components";
+import { IconPlus, IconMinus } from "@tabler/icons-react";
 
 import useCart from "@hook/useCart";
 
@@ -14,8 +14,8 @@ import FlexBox from "@component/FlexBox";
 import NextImage from "@component/NextImage";
 import Card, { CardProps } from "@component/Card";
 import { H3, SemiSpan } from "@component/Typography";
-import { Button, IconButton } from "@component/buttons";
-import ProductQuickView from "@component/products/ProductQuickView";
+import { Button } from "@component/buttons";
+import ProductQuickActions from "./ProductQuickActions";
 
 import { calculateDiscount, currency } from "@utils/utils";
 import { deviceSize } from "@utils/constants";
@@ -38,7 +38,9 @@ const Wrapper = styled(Card)`
     }
     .image-holder {
       .extra-icons {
-        display: flex;
+        opacity: 1;
+        pointer-events: auto;
+        transform: none;
       }
     }
   }
@@ -52,16 +54,24 @@ const Wrapper = styled(Card)`
     .extra-icons {
       z-index: 2;
       top: 0.75rem;
-      display: none;
       right: 0.75rem;
       cursor: pointer;
       position: absolute;
       flex-direction: column;
       gap: 0.25rem;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-4px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
     }
 
     @media only screen and (max-width: ${deviceSize.sm}px) {
       display: block;
+      .extra-icons {
+        opacity: 1;
+        pointer-events: auto;
+        transform: none;
+      }
     }
   }
 
@@ -104,6 +114,11 @@ const Wrapper = styled(Card)`
         display: flex;
       }
     }
+    .image-holder .extra-icons {
+      opacity: 1;
+      pointer-events: auto;
+      transform: none;
+    }
   }
 `;
 
@@ -131,17 +146,11 @@ export default function ProductCard1({
   rating = 4,
   ...props
 }: ProductCard1Props) {
-  const theme = useTheme();
   const { state, dispatch } = useCart();
-  const [open, setOpen] = useState(false);
   const cartItem = state.cart.find((item) => item.id === id);
 
-  const toggleDialog = useCallback(() => {
-    setOpen((open) => !open);
-  }, []);
-
   const handleCartAmountChange = useCallback(
-    (amount: number) => () => {
+    (amount: number) => {
       dispatch({
         type: "CHANGE_CART_AMOUNT",
         payload: {
@@ -154,7 +163,7 @@ export default function ProductCard1({
         }
       });
     },
-    []
+    [dispatch, id, slug, price, imgUrl, title]
   );
 
   return (
@@ -176,18 +185,17 @@ export default function ProductCard1({
             </Chip>
           )}
 
-          <FlexBox className="extra-icons">
-            <IconButton
-              size="small"
-              onClick={toggleDialog}
-              style={{ width: 35, height: 35, padding: "0.5rem" }}>
-              <IconEye size={18} color={theme.colors.gray[500]} />
-            </IconButton>
-
-            <IconButton size="small" style={{ width: 35, height: 35, padding: "0.5rem" }}>
-              <IconHeart size={18} color={theme.colors.gray[500]} />
-            </IconButton>
-          </FlexBox>
+          <ProductQuickActions
+            className="extra-icons overlay-actions"
+            compact
+            productId={id}
+            productSlug={slug}
+            productTitle={title}
+            productPrice={price}
+            productImages={images}
+            productImage={imgUrl}
+            onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)}
+          />
 
           <Link href={`/product/${slug}`}>
             <NextImage alt={title} width={277} src={imgUrl} height={270} />
@@ -236,7 +244,7 @@ export default function ProductCard1({
                 color="primary"
                 variant="outlined"
                 borderColor="primary.light"
-                onClick={handleCartAmountChange((cartItem?.qty || 0) + 1)}>
+                onClick={() => handleCartAmountChange((cartItem?.qty || 0) + 1)}>
                 <IconPlus size={18} />
               </Button>
 
@@ -252,7 +260,7 @@ export default function ProductCard1({
                     color="primary"
                     variant="outlined"
                     borderColor="primary.light"
-                    onClick={handleCartAmountChange(cartItem.qty - 1)}>
+                    onClick={() => handleCartAmountChange(cartItem.qty - 1)}>
                     <IconMinus size={18} />
                   </Button>
                 </Fragment>
@@ -262,11 +270,6 @@ export default function ProductCard1({
         </div>
       </Wrapper>
 
-      <ProductQuickView
-        open={open}
-        onClose={toggleDialog}
-        product={{ images, title, price, id: id as number | string, slug }}
-      />
     </Fragment>
   );
 }

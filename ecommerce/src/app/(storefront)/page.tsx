@@ -23,7 +23,7 @@ export default async function StorefrontHomePage() {
       <Section2 />
       <Section5 />
       <Section6 />
-      <Section8 />
+      {/* <Section8 /> */}
       <Section9 />
     </AppLayout>
   );

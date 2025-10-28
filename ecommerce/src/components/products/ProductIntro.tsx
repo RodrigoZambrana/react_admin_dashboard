@@ -15,6 +15,7 @@ import { Button } from "@component/buttons";
 import { H1, H2, H3, H6, Paragraph, SemiSpan } from "@component/Typography";
 import useCart from "@hook/useCart";
 import { formatInventoryStatus, formatMoney } from "@/lib/utils/format";
+import ProductWishlistButton from "@component/product-cards/ProductWishlistButton";
 
 const fallbackCurrency = "USD";
 
@@ -55,6 +56,11 @@ export default function ProductIntro({
 
   const routerId = param.slug as string;
   const cartItem = state.cart.find((item) => item.id === id || item.id === routerId);
+  const productNumericId = useMemo(() => {
+    if (typeof id === "number" && Number.isFinite(id)) return id;
+    const parsed = Number(id);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }, [id]);
 
   const moneyConfig = useMemo(
     () => ({ amount: price, currency: currency ?? fallbackCurrency }),
@@ -171,16 +177,19 @@ export default function ProductIntro({
           </Box>
 
           {!cartItem?.qty ? (
-            <Button
-              mb="36px"
-              size="small"
-              color="primary"
-              variant="contained"
-              onClick={handleCartAmountChange(1)}>
-              Add to Cart
-            </Button>
+            <FlexBox alignItems="center" mb="36px" style={{ gap: "0.75rem" }}>
+              <Button
+                size="small"
+                color="primary"
+                variant="contained"
+                onClick={handleCartAmountChange(1)}>
+                Add to Cart
+              </Button>
+
+              <ProductWishlistButton productId={productNumericId} />
+            </FlexBox>
           ) : (
-            <FlexBox alignItems="center" mb="36px">
+            <FlexBox alignItems="center" mb="36px" style={{ gap: "0.75rem" }}>
               <Button
                 p="9px"
                 size="small"
@@ -202,6 +211,8 @@ export default function ProductIntro({
                 onClick={handleCartAmountChange(cartItem?.qty + 1)}>
                 <IconPlus size={22} />
               </Button>
+
+              <ProductWishlistButton productId={productNumericId} />
             </FlexBox>
           )}
 

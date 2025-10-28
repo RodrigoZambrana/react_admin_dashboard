@@ -88,14 +88,7 @@ export const translateNode = (
     return translate(node);
   }
   if (Array.isArray(node)) {
-    let mutated = false;
-    const result = node.map((child) => {
-      const translated = translateNode(child, translate);
-      if (translated !== child) mutated = true;
-      return translated;
-    });
-    if (!mutated) return node;
-    return Children.toArray(result);
+    return Children.toArray(node.map((child) => translateNode(child, translate)));
   }
   if (isValidElement(node) && node.props?.children) {
     const translatedChildren = translateNode(node.props.children, translate);

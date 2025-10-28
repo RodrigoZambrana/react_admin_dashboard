@@ -22,6 +22,7 @@ import {
 } from './dto/auth.dto'
 import { StorefrontCreateOrderDto } from './dto/order.dto'
 import { StorefrontAddressDto } from './dto/address.dto'
+import { StorefrontAddWishlistItemDto } from './dto/wishlist.dto'
 import type { FastifyRequest } from 'fastify'
 import { StorefrontJwtGuard } from './storefront-jwt.guard'
 import type { StorefrontJwtPayload } from './storefront-jwt.strategy'
@@ -162,5 +163,32 @@ export class StorefrontController {
   ) {
     const user = req.user
     return this.storefront.setPrimaryCustomerAddress(user.sub, id)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Get('account/wishlist')
+  getAccountWishlist(@Req() req: FastifyRequest & { user: StorefrontJwtPayload }) {
+    const user = req.user
+    return this.storefront.getCustomerWishlist(user.sub)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Post('account/wishlist')
+  addAccountWishlistItem(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Body() dto: StorefrontAddWishlistItemDto,
+  ) {
+    const user = req.user
+    return this.storefront.addProductToWishlist(user.sub, dto.productId)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Delete('account/wishlist/:productId')
+  removeAccountWishlistItem(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Param('productId', ParseIntPipe) productId: number,
+  ) {
+    const user = req.user
+    return this.storefront.removeProductFromWishlist(user.sub, productId)
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { IconShoppingCart, IconUser } from "@tabler/icons-react";
 
 import Login from "@sections/auth/Login";
@@ -31,6 +31,22 @@ export default function HeaderTwo({ className }: HeaderProps) {
   const handleCloseCart = useCallback(() => setOpen(false), []);
   const handleOpenLogin = useCallback(() => setLoginOpen(true), []);
   const handleCloseLogin = useCallback(() => setLoginOpen(false), []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+    const handleRequestLogin = (event: Event) => {
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      handleOpenLogin();
+    };
+    window.addEventListener("storefront:auth:login", handleRequestLogin);
+    return () => {
+      window.removeEventListener("storefront:auth:login", handleRequestLogin);
+    };
+  }, [handleOpenLogin]);
 
   const CART_HANDLE = (
     <FlexBox ml="20px" alignItems="flex-start" onClick={handleOpenCart}>

@@ -35,8 +35,10 @@ export const StyledTopbar = styled.div`
     @media only screen and (max-width: 900px) {
       .logo {
         display: block;
+        margin: 0.25rem 0;
       }
-      *:not(.logo) {
+      .phone,
+      .email {
         display: none;
       }
     }

@@ -15,8 +15,8 @@ interface ProductPageSearchParams {
 
 // ==============================================================
 interface Props {
-  params: { slug: string };
-  searchParams?: ProductPageSearchParams;
+  params: { slug: string } | Promise<{ slug: string }>;
+  searchParams?: ProductPageSearchParams | Promise<ProductPageSearchParams | undefined>;
 }
 // ==============================================================
 
@@ -55,8 +55,11 @@ const collectProductIdentifiers = (slug: string, searchParams?: ProductPageSearc
 };
 
 export default async function ProductDetails({ params, searchParams }: Props) {
-  const { slug } = params;
-  const identifierCandidates = collectProductIdentifiers(slug, searchParams);
+  const resolvedParams = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+
+  const { slug } = resolvedParams;
+  const identifierCandidates = collectProductIdentifiers(slug, resolvedSearchParams);
 
   let productDetail: ProductDetail | null = null;
   let product: Product | null = null;

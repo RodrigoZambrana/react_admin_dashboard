@@ -26,6 +26,7 @@ interface SessionContextValue {
   error: string | null;
   clearError: () => void;
   updateCustomerProfile: (profile: CustomerProfile) => void;
+  updateWishlistSummary: (summary: { count: number; productIds: number[] }) => void;
 }
 
 export interface RegisterPayload {
@@ -40,6 +41,45 @@ const SessionContext = createContext<SessionContextValue | undefined>(undefined)
 
 const STORAGE_KEY = "storefront.session.v1";
 
+const normalizeWishlistProductIds = (value: unknown): number[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<number>();
+  const ids: number[] = [];
+  value.forEach((entry) => {
+    const numeric = typeof entry === "number" ? entry : Number(entry);
+    if (!Number.isFinite(numeric)) {
+      return;
+    }
+    const parsed = Math.trunc(numeric);
+    if (parsed > 0 && !seen.has(parsed)) {
+      seen.add(parsed);
+      ids.push(parsed);
+    }
+  });
+  return ids;
+};
+
+const normalizeCustomerProfile = (profile: CustomerProfile): CustomerProfile => {
+  const wishlistProductIds = normalizeWishlistProductIds(profile?.wishlistProductIds);
+  const wishlistCount =
+    typeof profile?.wishlistCount === "number" && Number.isFinite(profile.wishlistCount)
+      ? Math.max(0, Math.trunc(profile.wishlistCount))
+      : wishlistProductIds.length;
+
+  return {
+    ...profile,
+    wishlistProductIds,
+    wishlistCount
+  };
+};
+
+const normalizeAuthSession = (session: AuthSession): AuthSession => ({
+  ...session,
+  customer: normalizeCustomerProfile(session.customer)
+});
+
 const readStoredSession = (): AuthSession | null => {
   if (typeof window === "undefined") {
     return null;
@@ -49,7 +89,8 @@ const readStoredSession = (): AuthSession | null => {
     if (!raw) {
       return null;
     }
-    return JSON.parse(raw) as AuthSession;
+    const parsed = JSON.parse(raw) as AuthSession;
+    return normalizeAuthSession(parsed);
   } catch (error) {
     console.warn("[session] Failed to parse stored session", error);
     return null;
@@ -62,7 +103,8 @@ const persistSession = (session: AuthSession | null) => {
   }
   try {
     if (session) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      const normalized = normalizeAuthSession(session);
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
     } else {
       window.localStorage.removeItem(STORAGE_KEY);
     }
@@ -92,11 +134,12 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
   const clearError = useCallback(() => setError(null), []);
 
   const handleAuthSuccess = useCallback((nextSession: AuthSession) => {
-    setSession(nextSession);
+    const normalizedSession = normalizeAuthSession(nextSession);
+    setSession(normalizedSession);
     setStatus("authenticated");
-    persistSession(nextSession);
+    persistSession(normalizedSession);
     setError(null);
-    return nextSession;
+    return normalizedSession;
   }, []);
 
   const handleAuthError = useCallback((cause: unknown) => {
@@ -166,16 +209,42 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
   }, []);
 
   const updateCustomerProfile = useCallback((profile: CustomerProfile) => {
+    const normalizedProfile = normalizeCustomerProfile(profile);
     setSession((current) => {
       if (!current) {
         return current;
       }
       const nextSession: AuthSession = {
         ...current,
-        customer: profile
+        customer: normalizedProfile
       };
-      persistSession(nextSession);
-      return nextSession;
+      const normalizedSession = normalizeAuthSession(nextSession);
+      persistSession(normalizedSession);
+      return normalizedSession;
+    });
+  }, []);
+
+  const updateWishlistSummary = useCallback((summary: { count: number; productIds: number[] }) => {
+    setSession((current) => {
+      if (!current) {
+        return current;
+      }
+      const normalizedIds = normalizeWishlistProductIds(summary.productIds);
+      const wishlistCount =
+        typeof summary.count === "number" && Number.isFinite(summary.count)
+          ? Math.max(0, Math.trunc(summary.count))
+          : normalizedIds.length;
+      const nextSession: AuthSession = {
+        ...current,
+        customer: {
+          ...current.customer,
+          wishlistCount,
+          wishlistProductIds: normalizedIds
+        }
+      };
+      const normalizedSession = normalizeAuthSession(nextSession);
+      persistSession(normalizedSession);
+      return normalizedSession;
     });
   }, []);
 
@@ -189,9 +258,20 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       logout,
       error,
       clearError,
-      updateCustomerProfile
+      updateCustomerProfile,
+      updateWishlistSummary
     }),
-    [session, status, login, register, logout, error, clearError, updateCustomerProfile]
+    [
+      session,
+      status,
+      login,
+      register,
+      logout,
+      error,
+      clearError,
+      updateCustomerProfile,
+      updateWishlistSummary
+    ]
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

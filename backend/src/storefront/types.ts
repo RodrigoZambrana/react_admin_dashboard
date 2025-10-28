@@ -198,6 +198,18 @@ export interface OrderSummary {
   billingAddress?: CreateOrderInput['billingAddress']
 }
 
+export interface WishlistItemDto {
+  productId: number
+  addedAt: string
+  product: ProductSummaryDto
+}
+
+export interface CustomerWishlistDto {
+  items: WishlistItemDto[]
+  count: number
+  productIds: number[]
+}
+
 export interface CustomerProfile {
   id: number
   email: string
@@ -206,6 +218,8 @@ export interface CustomerProfile {
   phone?: string | null
   avatarUrl?: string | null
   dateOfBirth?: string | null
+  wishlistCount: number
+  wishlistProductIds: number[]
   addresses: Array<{
     id: number
     line1: string

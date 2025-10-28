@@ -17,7 +17,7 @@ import { H3, Paragraph, Span } from "@component/Typography";
 import ProductQuickView from "@component/products/ProductQuickView";
 import useCart from "@hook/useCart";
 import { calculateDiscount, currency } from "@utils/utils";
-import ProductWishlistButton from "./ProductWishlistButton";
+import ProductQuickActions from "./ProductQuickActions";
 
 // STYLED COMPONENTS
 const StyledBazaarCard = styled(Card)(({ theme }) => ({
@@ -80,6 +80,12 @@ const HoverWrapper = styled(FlexBox)(({ theme }) => ({
     alignItems: "center",
     justifyContent: "center",
     "&:hover": { cursor: "pointer", background: "#f3f5f9" }
+  },
+  ".overlay-actions": {
+    opacity: 0,
+    pointerEvents: "none",
+    transform: "translateY(-4px)",
+    transition: "opacity 0.2s ease, transform 0.2s ease"
   }
 }));
 
@@ -165,15 +171,18 @@ export default function ProductCard16(props: ProductCardProps) {
           </Link>
 
           <HoverWrapper className="controller">
-            <Span onClick={toggleDialog}>
-              <Icon variant="small">eye-alt</Icon>
-            </Span>
-
-            <Divider />
-
-            <Span>
-              <Icon variant="small">heart</Icon>
-            </Span>
+            <ProductQuickActions
+              compact
+              direction="column"
+              productId={id}
+              productSlug={slug}
+              productTitle={title}
+              productPrice={price}
+              productImages={images}
+              productImage={imgUrl}
+              onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)()}
+              disableOverlay
+            />
 
             <Divider />
 
@@ -183,7 +192,18 @@ export default function ProductCard16(props: ProductCardProps) {
           </HoverWrapper>
         </ImageBox>
 
-        <ProductWishlistButton style={{ position: "absolute", top: 16, right: 16 }} />
+        <ProductQuickActions
+          compact
+          style={{ position: "absolute", top: 16, right: 16 }}
+          productId={id}
+          productSlug={slug}
+          productTitle={title}
+          productPrice={price}
+          productImages={images}
+          productImage={imgUrl}
+          onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)()}
+          disableOverlay
+        />
       </ImageWrapper>
 
       <ProductQuickView

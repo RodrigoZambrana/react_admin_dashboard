@@ -2,6 +2,7 @@ import { PropsWithChildren } from "react";
 
 import { getStorefrontConfig } from "@/lib/storefront-config";
 import { StorefrontSessionProvider } from "@/state/session-context";
+import { WishlistProvider } from "@/state/wishlist-context";
 import AppLayout from "@component/layout/layout-3";
 
 import { StorefrontConfigProvider } from "../(storefront)/storefront-context";
@@ -12,7 +13,9 @@ export default async function Layout({ children }: PropsWithChildren) {
   return (
     <StorefrontConfigProvider config={config}>
       <StorefrontSessionProvider>
-        <AppLayout>{children}</AppLayout>
+        <WishlistProvider>
+          <AppLayout>{children}</AppLayout>
+        </WishlistProvider>
       </StorefrontSessionProvider>
     </StorefrontConfigProvider>
   );
