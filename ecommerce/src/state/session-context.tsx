@@ -382,24 +382,65 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
             return;
           }
 
-          popupClosePoll = window.setInterval(() => {
+          let manualClosePollingDisabled = false;
+
+          const canInspectPopup = () => {
+            if (!popup) {
+              return false;
+            }
+
+            if (manualClosePollingDisabled) {
+              return false;
+            }
+
+            try {
+              // Attempt to access the property once to determine whether the browser will allow it.
+              void popup.closed;
+              return true;
+            } catch (error) {
+              manualClosePollingDisabled = true;
+              return false;
+            }
+          };
+
+          const checkPopupClosed = () => {
             if (!popup) {
               removePopupCloseListener();
               return;
             }
 
-            try {
-              if (popup.closed) {
-                removePopupCloseListener();
-                handlePopupManualClose();
-              }
-            } catch (error) {
+            if (manualClosePollingDisabled) {
               removePopupCloseListener();
-              console.warn("[session] Error while polling Google auth popup state", error);
+              return;
             }
-          }, 500);
 
+            let isClosed = false;
+            try {
+              isClosed = popup.closed;
+            } catch (error) {
+              manualClosePollingDisabled = true;
+            }
+
+            if (manualClosePollingDisabled) {
+              removePopupCloseListener();
+              return;
+            }
+
+            if (isClosed) {
+              removePopupCloseListener();
+              handlePopupManualClose();
+            }
+          };
+
+          if (!canInspectPopup()) {
+            return;
+          }
+
+          popupClosePoll = window.setInterval(checkPopupClosed, 500);
           detachPopupCloseListener = removePopupCloseListener;
+
+          // Run an initial check in case the popup was already closed.
+          checkPopupClosed();
         };
 
         const consumeStoredResult = (): GoogleAuthMessage | null => {
