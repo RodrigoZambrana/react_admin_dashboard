@@ -2,11 +2,10 @@ import Box from "@component/Box";
 import Container from "@component/Container";
 import { Carousel } from "@component/carousel";
 import { CarouselCard1 } from "@component/carousel-cards";
-// API FUNCTIONS
-import api from "@utils/__api__/market-1";
+import { defaultMarket1MainCarousel } from "@/data/market1Defaults";
 
-export default async function Section1() {
-  const carouselData = await api.getMainCarousel();
+export default function Section1() {
+  const carouselData = defaultMarket1MainCarousel;
 
   return (
     <Box bg="gray.white" mb="3.75rem">

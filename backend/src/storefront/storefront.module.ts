@@ -7,9 +7,10 @@ import { PrismaService } from '../prisma/prisma.service'
 import { MercadoPagoService } from './payments/mercadopago.service'
 import { StorefrontGoogleOAuthService } from './oauth/google-oauth.service'
 import { StorefrontSessionCookieService } from './storefront-session-cookie.service'
+import { NotificationsModule } from '../notifications/notifications.module'
 
 @Module({
-  imports: [CurrencyModule],
+  imports: [CurrencyModule, NotificationsModule],
   controllers: [StorefrontController],
   providers: [
     StorefrontService,

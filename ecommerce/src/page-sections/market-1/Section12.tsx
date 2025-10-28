@@ -4,11 +4,10 @@ import Icon from "@component/icon/Icon";
 import FlexBox from "@component/FlexBox";
 import Container from "@component/Container";
 import { H4, SemiSpan } from "@component/Typography";
-// API FUNCTIONS
-import api from "@utils/__api__/market-1";
+import { defaultMarket1ServiceList } from "@/data/market1Defaults";
 
-export default async function Section12() {
-  const serviceList = await api.getServiceList();
+export default function Section12() {
+  const serviceList = defaultMarket1ServiceList;
 
   return (
     <Container mb="70px">

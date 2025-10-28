@@ -22,7 +22,9 @@ async function bootstrap() {
     new FastifyAdapter({ logger: true, bodyLimit: BODY_LIMIT_BYTES }),
   )
 
-  await app.register(helmet as any)
+  const isDevelopment = process.env.NODE_ENV !== 'production'
+
+  await app.register(helmet as any, isDevelopment ? { contentSecurityPolicy: false } : undefined)
   const defaultAllowedOrigins = ['http://localhost:5173']
   const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
     .split(',')

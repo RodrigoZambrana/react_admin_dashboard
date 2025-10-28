@@ -73,11 +73,17 @@ const convertAmount = (
 export const StorefrontCurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<CurrencySettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currency, setCurrencyState] = useState<string>(() => {
-    if (typeof window === "undefined") return "UYU";
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    return normalizeCurrencyCode(stored) ?? "UYU";
-  });
+  const [currency, setCurrencyState] = useState<string>("UYU");
+  const [hasLoadedPreference, setHasLoadedPreference] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = normalizeCurrencyCode(window.localStorage.getItem(STORAGE_KEY));
+    if (stored) {
+      setCurrencyState(stored);
+    }
+    setHasLoadedPreference(true);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -176,11 +182,25 @@ export const StorefrontCurrencyProvider: React.FC<{ children: React.ReactNode }>
     [convertMoney]
   );
 
-  const contextValue = useMemo<CurrencyContextValue>(() => {
+  const contextValue = useMemo<CurrencyContextValue | null>(() => {
     const baseCurrency = settings?.baseCurrency ?? "UYU";
     const availableCurrencies = settings?.enabledCurrencies ?? [baseCurrency];
+    const resolvedCurrency = normalizeCurrencyCode(currency) ?? baseCurrency;
+
+    if (!hasLoadedPreference) {
+      return {
+        currency: resolvedCurrency,
+        baseCurrency,
+        availableCurrencies,
+        isLoading: true,
+        convertMoney,
+        formatMoney: formatMoneyValue,
+        setCurrency
+      };
+    }
+
     return {
-      currency: normalizeCurrencyCode(currency) ?? baseCurrency,
+      currency: resolvedCurrency,
       baseCurrency,
       availableCurrencies,
       isLoading,
@@ -188,7 +208,11 @@ export const StorefrontCurrencyProvider: React.FC<{ children: React.ReactNode }>
       formatMoney: formatMoneyValue,
       setCurrency
     };
-  }, [convertMoney, currency, formatMoneyValue, isLoading, setCurrency, settings]);
+  }, [convertMoney, currency, formatMoneyValue, hasLoadedPreference, isLoading, setCurrency, settings]);
+
+  if (!contextValue) {
+    return null;
+  }
 
   return <CurrencyContext.Provider value={contextValue}>{children}</CurrencyContext.Provider>;
 };

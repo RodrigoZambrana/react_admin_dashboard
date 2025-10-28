@@ -56,9 +56,26 @@ const getMainCarouselData = async (): Promise<MainCarouselItem[]> => {
   return response.data;
 };
 
+const loadMockBrands = async (): Promise<Brand[]> => {
+  const { brandList } = await import("@/__server__/__db__/fashion-2/data");
+  return brandList as Brand[];
+};
+
 const getBrands = async (): Promise<Brand[]> => {
-  const response = await axios.get("/api/fashion-shop-2/brands");
-  return response.data;
+  try {
+    const response = await axios.get("/api/fashion-shop-2/brands");
+    const brands = response.data;
+
+    if (Array.isArray(brands) && brands.length > 0) {
+      return brands;
+    }
+
+    console.warn("[storefront] Received empty fashion-2 brand list, using mock data instead.");
+    return loadMockBrands();
+  } catch (error) {
+    console.warn("[storefront] Falling back to mock fashion-2 brands due to error:", error);
+    return loadMockBrands();
+  }
 };
 
 export default {
