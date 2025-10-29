@@ -407,6 +407,13 @@ model SystemConfig {
   value String
 }
 
+model SecureConfig {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // Sales Orders
 model Order {
   id                    Int                       @id @default(autoincrement())

@@ -55,6 +55,7 @@ import { StorefrontCreateOrderDto } from './dto/order.dto'
 import { createHash } from 'crypto'
 import { StorefrontAddressDto } from './dto/address.dto'
 import { MercadoPagoService } from './payments/mercadopago.service'
+import { GoogleConfigService } from '../common/integrations/google-config.service'
 import type { FastifyRequest } from 'fastify'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
@@ -199,6 +200,7 @@ export class StorefrontService implements OnModuleInit {
     private readonly currencyConversion: CurrencyConversionService,
     private readonly notifications: NotificationOrchestratorService,
     private readonly mercadoPago: MercadoPagoService,
+    private readonly googleConfig: GoogleConfigService,
   ) {}
 
   private defaultCustomerPassword!: string
@@ -264,11 +266,49 @@ export class StorefrontService implements OnModuleInit {
       companyProfile = resolved ?? companyProfile
     }
 
+    const paymentInfo = await this.mercadoPago.getPublicConfig()
+    const payments =
+      paymentInfo.enabled || paymentInfo.publicKey || paymentInfo.country
+        ? {
+            mercadopago: {
+              enabled: paymentInfo.enabled,
+              publicKey: paymentInfo.publicKey,
+              country: paymentInfo.country,
+              updatedAt: paymentInfo.updatedAt ? paymentInfo.updatedAt.toISOString() : null,
+            },
+          }
+        : {
+            mercadopago: null,
+          }
+
+    const googleIntegration = await this.googleConfig.getEffectiveConfig()
+    const storefrontGoogleEnabled =
+      googleIntegration.google.enabled &&
+      googleIntegration.google.storefrontEnabled &&
+      Boolean(googleIntegration.google.clientId) &&
+      Boolean(googleIntegration.google.clientSecret) &&
+      Boolean(googleIntegration.google.redirectUri)
+    const storefrontRecaptchaEnabled =
+      googleIntegration.recaptcha.storefront.enabled &&
+      Boolean(googleIntegration.recaptcha.storefront.siteKey)
+
+    const integrations = {
+      google: {
+        enabled: storefrontGoogleEnabled,
+      },
+      recaptcha: {
+        enabled: storefrontRecaptchaEnabled,
+        siteKey: storefrontRecaptchaEnabled ? googleIntegration.recaptcha.storefront.siteKey : null,
+      },
+    }
+
     return {
       ...merged,
       layouts,
       defaultLayout,
       companyProfile,
+      payments,
+      integrations,
     }
   }
 

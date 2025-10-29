@@ -29,6 +29,7 @@ import DashboardNavigation from "@component/layout/DashboardNavigation";
 import StyledHeader from "./styles";
 import Logo from "./Logo";
 import CustomerNotifications from "./CustomerNotifications";
+import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
 
 type HeaderProps = { isFixed?: boolean; className?: string };
 
@@ -153,7 +154,10 @@ export default function Header({ isFixed, className }: HeaderProps) {
   const [loginSubmitting, setLoginSubmitting] = useState(false);
   const [googleSigningIn, setGoogleSigningIn] = useState(false);
   const { homePath, navItems, categoriesForMenu, categoryIcons } = useStorefrontNavigation();
-  const googleButtonEnabled = process.env.NEXT_PUBLIC_GOOGLE_BUTTON_ENABLED !== "false";
+  const storefrontConfig = useStorefrontConfig();
+  const googleIntegration = storefrontConfig?.integrations?.google;
+  const googleButtonEnabled =
+    googleIntegration?.enabled ?? process.env.NEXT_PUBLIC_GOOGLE_BUTTON_ENABLED !== "false";
 
   const handleOpenCart = useCallback(() => setCartOpen(true), []);
   const handleCloseCart = useCallback(() => setCartOpen(false), []);

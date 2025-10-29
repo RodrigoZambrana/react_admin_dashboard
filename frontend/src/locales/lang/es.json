@@ -90,6 +90,8 @@
             "customerStatuses": "Estados de clientes",
             "expenses": "Gastos",
             "paymentMethods": "Formas de pago",
+            "mercadoPago": "Mercado Pago",
+            "google": "Google y reCAPTCHA",
             "shippingOptions": "Opciones de envío",
             "systemConfig": "Configuración del sistema",
             "email": "Correo electrónico",

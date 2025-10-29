@@ -525,3 +525,39 @@ export async function apiGetCities<T, U extends Record<string, unknown>>(
         params,
     })
 }
+
+export async function apiGetMercadoPagoSettings<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/payments/mercadopago',
+        method: 'get',
+    })
+}
+
+export async function apiUpdateMercadoPagoSettings<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/payments/mercadopago',
+        method: 'put',
+        data,
+    })
+}
+
+export async function apiGetGoogleIntegrationSettings<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/integrations/google',
+        method: 'get',
+    })
+}
+
+export async function apiUpdateGoogleIntegrationSettings<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/settings/integrations/google',
+        method: 'put',
+        data,
+    })
+}

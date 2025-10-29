@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import ProductView from "@component/products/ProductView";
 import ProductIntro from "@component/products/ProductIntro";
 import api from "@utils/__api__/products";
+import { mocksEnabled } from "@/lib/axios";
 import type Product from "@models/product.model";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { mapProductDetailToProduct, mapProductSummaryToProduct } from "@/lib/storefront/adapters";
@@ -114,12 +115,14 @@ export default async function ProductDetails({ params, searchParams }: Props) {
     notFound();
   }
 
-  if (relatedProducts.length === 0) {
+  if (relatedProducts.length === 0 && mocksEnabled) {
     relatedProducts = await api.getRelatedProducts();
   }
 
-  frequentlyBought = await api.getFrequentlyBought();
-  shops = await api.getAvailableShop();
+  if (mocksEnabled) {
+    frequentlyBought = await api.getFrequentlyBought();
+    shops = await api.getAvailableShop();
+  }
 
   return (
     <Fragment>

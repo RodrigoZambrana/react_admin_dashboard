@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, Res } from '@nestjs/common'
+import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common'
 import { AuthService } from './auth.service'
 import { SignInDto } from './dto/sign-in.dto'
 import { SignUpDto } from './dto/sign-up.dto'
@@ -12,6 +12,7 @@ import { SESSION_TTL_SECONDS } from './auth.config'
 import { PasswordResetService } from './password-reset.service'
 import { PasswordResetConfirmDto, PasswordResetRequestDto } from './dto/password-reset.dto'
 import { Throttle } from '@nestjs/throttler'
+import { GoogleConfigService } from '../common/integrations/google-config.service'
 
 @Controller()
 export class AuthController {
@@ -20,6 +21,7 @@ export class AuthController {
     private prisma: PrismaService,
     private userActivity: UserActivityService,
     private passwordReset: PasswordResetService,
+    private readonly googleConfig: GoogleConfigService,
   ) {}
 
   private buildAuthCookieOptions(): CookieSerializeOptions {
@@ -89,6 +91,21 @@ export class AuthController {
       user: {
         ...result.user,
         avatar: resolveAvatarPublicUrl(req, result.user.avatar),
+      },
+    }
+  }
+
+  @Get('/auth/config')
+  async getAuthConfig() {
+    const config = await this.googleConfig.getEffectiveConfig()
+    const adminRecaptchaEnabled = config.recaptcha.admin.enabled && Boolean(config.recaptcha.admin.siteKey)
+    return {
+      recaptcha: {
+        enabled: adminRecaptchaEnabled,
+        siteKey: adminRecaptchaEnabled ? config.recaptcha.admin.siteKey : null,
+      },
+      google: {
+        enabled: config.google.enabled && Boolean(config.google.clientId) && Boolean(config.google.clientSecret),
       },
     }
   }

@@ -46,3 +46,13 @@ export async function apiResetPassword(data: ResetPassword) {
         data,
     })
 }
+
+export async function apiGetAuthConfig() {
+    return ApiService.fetchData<{
+        recaptcha: { enabled: boolean; siteKey: string | null }
+        google: { enabled: boolean }
+    }>({
+        url: '/auth/config',
+        method: 'get',
+    })
+}

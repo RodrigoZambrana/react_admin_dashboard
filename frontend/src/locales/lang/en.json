@@ -91,6 +91,8 @@
             "customerStatuses": "Customer Statuses",
             "expenses": "Expenses",
             "paymentMethods": "Payment Methods",
+            "mercadoPago": "Mercado Pago",
+            "google": "Google & reCAPTCHA",
             "shippingOptions": "Shipping Options",
             "systemConfig": "System Config",
             "email": "Email",

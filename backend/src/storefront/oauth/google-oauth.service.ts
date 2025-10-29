@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StorefrontService } from '../storefront.service'
+import { GoogleConfigService } from '../../common/integrations/google-config.service'
 import type { StorefrontAuthSession } from '../types'
 import type { FastifyRequest } from 'fastify'
 import { randomBytes, randomUUID, createHash } from 'crypto'
@@ -81,15 +82,13 @@ export class StorefrontGoogleOAuthService {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly storefront: StorefrontService,
+    private readonly googleConfig: GoogleConfigService,
   ) {
     this.frontendOrigin = this.resolveFrontendOrigin()
   }
 
   async start(returnPath: string | undefined, req: FastifyRequest): Promise<GoogleOAuthStartResult> {
-    const { clientId, clientSecret, redirectUri } = this.getCredentials()
-    if (!clientId || !clientSecret || !redirectUri) {
-      throw new ServiceUnavailableException('Google authentication is not configured.')
-    }
+    const { clientId, clientSecret, redirectUri } = await this.requireCredentials(true)
 
     await this.prisma.storefrontOAuthSession.deleteMany({
       where: {
@@ -142,8 +141,8 @@ export class StorefrontGoogleOAuthService {
   async complete(
     query: { state?: string | null; code?: string | null; error?: string | null; error_description?: string | null },
   ): Promise<GoogleOAuthResult> {
-    const { clientId, clientSecret, redirectUri } = this.getCredentials()
-    if (!clientId || !clientSecret || !redirectUri) {
+    const credentials = await this.requireCredentials(false)
+    if (!credentials) {
       return {
         status: 'error',
         errorCode: 'not_configured',
@@ -152,6 +151,7 @@ export class StorefrontGoogleOAuthService {
         returnPath: null,
       }
     }
+    const { clientId, clientSecret, redirectUri } = credentials
 
     const state = (query.state ?? '').trim()
     if (!state) {
@@ -376,10 +376,33 @@ export class StorefrontGoogleOAuthService {
     }
   }
 
-  private getCredentials() {
-    const clientId = (this.config.get<string>('GOOGLE_CLIENT_ID') ?? '').trim()
-    const clientSecret = (this.config.get<string>('GOOGLE_CLIENT_SECRET') ?? '').trim()
-    const redirectUri = (this.config.get<string>('GOOGLE_OAUTH_REDIRECT_URI') ?? '').trim()
+  private async requireCredentials(throwOnDisabled: true): Promise<{ clientId: string; clientSecret: string; redirectUri: string }>
+  private async requireCredentials(throwOnDisabled: false): Promise<{ clientId: string; clientSecret: string; redirectUri: string } | null>
+  private async requireCredentials(throwOnDisabled: boolean): Promise<{ clientId: string; clientSecret: string; redirectUri: string } | null> {
+    const config = await this.googleConfig.getEffectiveConfig()
+
+    if (!config.google.enabled) {
+      if (throwOnDisabled) {
+        throw new ServiceUnavailableException('Google authentication is disabled.')
+      }
+      return null
+    }
+
+    if (throwOnDisabled && !config.google.storefrontEnabled) {
+      throw new ServiceUnavailableException('Google authentication is not available en este entorno.')
+    }
+
+    const clientId = config.google.clientId?.trim() ?? ''
+    const clientSecret = config.google.clientSecret?.trim() ?? ''
+    const redirectUri = config.google.redirectUri?.trim() ?? ''
+
+    if (!clientId || !clientSecret || !redirectUri) {
+      if (throwOnDisabled) {
+        throw new ServiceUnavailableException('Google authentication is not configured.')
+      }
+      return null
+    }
+
     return { clientId, clientSecret, redirectUri }
   }
 

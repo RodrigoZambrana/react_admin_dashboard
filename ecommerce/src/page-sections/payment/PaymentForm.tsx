@@ -99,8 +99,16 @@ export default function PaymentForm() {
     }
   }, [payment]);
 
-  const publicKey = process.env.NEXT_PUBLIC_MP_PUBLIC_KEY ?? "";
-  const locale = mapCountryToLocale(process.env.NEXT_PUBLIC_MP_COUNTRY ?? "AR");
+  const mercadopagoConfig = storefrontConfig?.payments?.mercadopago ?? null;
+  const publicKey =
+    mercadopagoConfig?.publicKey ??
+    process.env.NEXT_PUBLIC_MP_PUBLIC_KEY ??
+    "";
+  const locale = mapCountryToLocale(
+    mercadopagoConfig?.country ?? process.env.NEXT_PUBLIC_MP_COUNTRY ?? "AR"
+  );
+  const isMercadoPagoEnabled =
+    mercadopagoConfig?.enabled ?? (publicKey.trim().length > 0);
 
   const companyName = useMemo(() => {
     const profile = storefrontConfig?.companyProfile;
@@ -124,7 +132,8 @@ export default function PaymentForm() {
   const amount = totals.total.amount;
   const currency = totals.total.currency;
 
-  const canRenderBrick = publicKey.length > 0 && amount > 0;
+  const hasPublicKey = publicKey.trim().length > 0;
+  const canRenderBrick = isMercadoPagoEnabled && hasPublicKey && amount > 0;
 
   const handleProcessingChange = useCallback(
     (processing: boolean) => {
@@ -303,8 +312,8 @@ export default function PaymentForm() {
     router.push("/review");
   }, [payment, router, selectedMethod, setPayment, toast]);
 
-  const mpUnavailableMessage = !publicKey
-    ? "Mercado Pago public key is not configured. Add NEXT_PUBLIC_MP_PUBLIC_KEY to your environment."
+  const mpUnavailableMessage = !isMercadoPagoEnabled
+    ? "Mercado Pago is not configured. Update the credentials in Configuraciones → Mercado Pago."
     : amount <= 0
       ? "Add products to your cart to enable Mercado Pago payments."
       : null;

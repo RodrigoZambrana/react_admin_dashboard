@@ -18,6 +18,8 @@ import type { CompanyProfile } from '@prisma/client'
 import { Roles, ROLES } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
 import { CurrencyConversionService } from '../common/currency/currency-conversion.service'
+import { SecureConfigService } from '../common/security/secure-config.service'
+import { GoogleConfigService, GOOGLE_INTEGRATION_SECURE_CONFIG_KEY } from '../common/integrations/google-config.service'
 import { STANDARD_CURRENCIES } from '../common/currency/currency.constants'
 import {
   buildImageDataUrl,
@@ -118,6 +120,27 @@ type CompanyProfilePayload = {
   addressLine2?: unknown
   logo?: unknown
 }
+type MercadoPagoSettingsDraft = {
+  publicKey: string | null
+  accessToken: string | null
+  integratorId: string | null
+  applicationId: string | null
+  country: string | null
+  timeoutMs: number | null
+}
+type GoogleIntegrationSettingsDraft = {
+  googleEnabled: boolean
+  storefrontGoogleEnabled: boolean
+  clientId: string | null
+  clientSecret: string | null
+  redirectUri: string | null
+  recaptchaEnabled: boolean
+  recaptchaSecretKey: string | null
+  adminRecaptchaEnabled: boolean
+  adminRecaptchaSiteKey: string | null
+  storefrontRecaptchaEnabled: boolean
+  storefrontRecaptchaSiteKey: string | null
+}
 import type { FastifyRequest } from 'fastify'
 import { parseSingleFileMultipart } from '../common/uploads/multipart'
 import {
@@ -126,12 +149,19 @@ import {
   deleteShippingLogo,
 } from '../common/uploads/shipping'
 import { sanitizeRichText } from '../common/utils/sanitize'
+import {
+  MercadoPagoService,
+  MERCADO_PAGO_SECURE_CONFIG_KEY,
+} from '../storefront/payments/mercadopago.service'
 
 @Controller('settings')
 export class SettingsController {
   constructor(
     private prisma: PrismaService,
     private currencyConversion: CurrencyConversionService,
+    private readonly secureConfig: SecureConfigService,
+    private readonly mercadoPago: MercadoPagoService,
+    private readonly googleConfig: GoogleConfigService,
   ) {}
 
   private readonly companySingletonKey = 'default'
@@ -178,6 +208,48 @@ export class SettingsController {
   }
 
   private readonly maxLogoSizeBytes = 512 * 1024
+
+  private sanitizeOptionalString(value: unknown): string | null {
+    if (typeof value !== 'string') {
+      return null
+    }
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
+  }
+
+  private sanitizeOptionalCountry(value: unknown): string | null {
+    const sanitized = this.sanitizeOptionalString(value)
+    if (!sanitized) {
+      return null
+    }
+    return sanitized.toUpperCase()
+  }
+
+  private sanitizeOptionalTimeout(value: unknown): number | null {
+    if (value === null || value === undefined || value === '') {
+      return null
+    }
+    const numeric = typeof value === 'number' ? value : Number(value)
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return null
+    }
+    return Math.round(numeric)
+  }
+
+  private sanitizeOptionalBoolean(value: unknown, fallback: boolean): boolean {
+    if (typeof value === 'boolean') {
+      return value
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase()
+      if (normalized === 'true') return true
+      if (normalized === 'false') return false
+    }
+    if (typeof value === 'number') {
+      return value !== 0
+    }
+    return fallback
+  }
 
   private mapCompanyProfile(record?: CompanyProfile | null): CompanyProfileResponse {
     if (!record) {
@@ -1933,6 +2005,125 @@ export class SettingsController {
       create: { key: this.disclaimerConfigKey, value: sanitized },
     })
     return { html: record.value }
+  }
+
+  @Get('payments/mercadopago')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  async getMercadoPagoSettings() {
+    const config = await this.mercadoPago.getEffectiveConfig()
+    return {
+      enabled: this.mercadoPago.isEnabled(),
+      source: config.source,
+      updatedAt: config.updatedAt,
+      publicKey: config.publicKey ?? null,
+      accessToken: config.accessToken ?? null,
+      integratorId: config.integratorId ?? null,
+      applicationId: config.applicationId ?? null,
+      country: config.country ?? null,
+      timeoutMs: config.timeoutMs,
+    }
+  }
+
+  @Put('payments/mercadopago')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  async updateMercadoPagoSettings(
+    @Body()
+    body: {
+      publicKey?: unknown
+      accessToken?: unknown
+      integratorId?: unknown
+      applicationId?: unknown
+      country?: unknown
+      timeoutMs?: unknown
+    },
+  ) {
+    const payload: MercadoPagoSettingsDraft = {
+      publicKey: this.sanitizeOptionalString(body.publicKey),
+      accessToken: this.sanitizeOptionalString(body.accessToken),
+      integratorId: this.sanitizeOptionalString(body.integratorId),
+      applicationId: this.sanitizeOptionalString(body.applicationId),
+      country: this.sanitizeOptionalCountry(body.country),
+      timeoutMs: this.sanitizeOptionalTimeout(body.timeoutMs),
+    }
+
+    await this.secureConfig.setJson(MERCADO_PAGO_SECURE_CONFIG_KEY, payload)
+    await this.mercadoPago.refreshConfig()
+
+    const updated = await this.mercadoPago.getEffectiveConfig()
+    return {
+      enabled: this.mercadoPago.isEnabled(),
+      source: updated.source,
+      updatedAt: updated.updatedAt,
+      publicKey: updated.publicKey ?? null,
+      accessToken: updated.accessToken ?? null,
+      integratorId: updated.integratorId ?? null,
+      applicationId: updated.applicationId ?? null,
+      country: updated.country ?? null,
+      timeoutMs: updated.timeoutMs,
+    }
+  }
+
+  @Get('integrations/google')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  async getGoogleIntegrationSettings() {
+    const config = await this.googleConfig.getEffectiveConfig()
+    return {
+      source: config.source,
+      updatedAt: config.updatedAt,
+      googleEnabled: config.google.enabled,
+      storefrontGoogleEnabled: config.google.storefrontEnabled,
+      clientId: config.google.clientId,
+      clientSecret: config.google.clientSecret,
+      redirectUri: config.google.redirectUri,
+      recaptchaEnabled: config.recaptcha.enabled,
+      recaptchaSecretKey: config.recaptcha.secretKey,
+      adminRecaptchaEnabled: config.recaptcha.admin.enabled,
+      adminRecaptchaSiteKey: config.recaptcha.admin.siteKey,
+      storefrontRecaptchaEnabled: config.recaptcha.storefront.enabled,
+      storefrontRecaptchaSiteKey: config.recaptcha.storefront.siteKey,
+    }
+  }
+
+  @Put('integrations/google')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  async updateGoogleIntegrationSettings(
+    @Body()
+    body: {
+      googleEnabled?: unknown
+      storefrontGoogleEnabled?: unknown
+      clientId?: unknown
+      clientSecret?: unknown
+      redirectUri?: unknown
+      recaptchaEnabled?: unknown
+      recaptchaSecretKey?: unknown
+      adminRecaptchaEnabled?: unknown
+      adminRecaptchaSiteKey?: unknown
+      storefrontRecaptchaEnabled?: unknown
+      storefrontRecaptchaSiteKey?: unknown
+    },
+  ) {
+    const payload: GoogleIntegrationSettingsDraft = {
+      googleEnabled: this.sanitizeOptionalBoolean(body.googleEnabled, false),
+      storefrontGoogleEnabled: this.sanitizeOptionalBoolean(body.storefrontGoogleEnabled, true),
+      clientId: this.sanitizeOptionalString(body.clientId),
+      clientSecret: this.sanitizeOptionalString(body.clientSecret),
+      redirectUri: this.sanitizeOptionalString(body.redirectUri),
+      recaptchaEnabled: this.sanitizeOptionalBoolean(body.recaptchaEnabled, false),
+      recaptchaSecretKey: this.sanitizeOptionalString(body.recaptchaSecretKey),
+      adminRecaptchaEnabled: this.sanitizeOptionalBoolean(body.adminRecaptchaEnabled, false),
+      adminRecaptchaSiteKey: this.sanitizeOptionalString(body.adminRecaptchaSiteKey),
+      storefrontRecaptchaEnabled: this.sanitizeOptionalBoolean(body.storefrontRecaptchaEnabled, false),
+      storefrontRecaptchaSiteKey: this.sanitizeOptionalString(body.storefrontRecaptchaSiteKey),
+    }
+
+    await this.secureConfig.setJson(GOOGLE_INTEGRATION_SECURE_CONFIG_KEY, payload)
+    await this.googleConfig.refresh()
+
+    return this.getGoogleIntegrationSettings()
   }
 
   @Get('theme-config')

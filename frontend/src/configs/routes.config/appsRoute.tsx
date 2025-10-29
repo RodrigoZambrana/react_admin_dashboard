@@ -298,9 +298,21 @@ const baseAppsRoute: Routes = [
         authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
+        key: 'appsSettings.google',
+        path: `${APP_PREFIX_PATH}/settings/google`,
+        component: lazy(() => import('@/views/settings/GoogleSettings')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+    },
+    {
         key: 'appsSettings.shippingOptions',
         path: `${APP_PREFIX_PATH}/settings/shipping-options`,
         component: lazy(() => import('@/views/settings/ShippingOptions')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+    },
+    {
+        key: 'appsSettings.mercadoPago',
+        path: `${APP_PREFIX_PATH}/settings/mercado-pago`,
+        component: lazy(() => import('@/views/settings/MercadoPagoSettings')),
         authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {

@@ -14,6 +14,8 @@ const axiosInstance = axios.create({
 
 export let Mock: MockAdapter | null = null;
 
+export const mocksEnabled = enableMocks;
+
 if (enableMocks) {
   Mock = new MockAdapter(axiosInstance, { delayResponse: 400 });
   MockEndPoints(Mock);

@@ -20,5 +20,6 @@ import { NotificationsModule } from '../notifications/notifications.module'
     StorefrontGoogleOAuthService,
     StorefrontSessionCookieService,
   ],
+  exports: [MercadoPagoService],
 })
 export class StorefrontModule {}

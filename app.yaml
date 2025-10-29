@@ -87,6 +87,37 @@ envs:
     scope: RUN_AND_BUILD_TIME
   - key: SENTRY_DSN
     scope: RUN_AND_BUILD_TIME
+  - key: PAYMENTS_PROVIDER
+    scope: RUN_AND_BUILD_TIME
+    value: mercadopago
+  - key: MP_PUBLIC_KEY
+    scope: RUN_AND_BUILD_TIME
+    value: TEST-632ebe0d-6895-4755-b5f7-22a831e45d27
+  - key: MP_ACCESS_TOKEN
+    scope: RUN_AND_BUILD_TIME
+    value: TEST-6249908203472499-102717-cf8020a9113d8f1574a5c8015683e0ba-670522668
+  - key: MP_COUNTRY
+    scope: RUN_AND_BUILD_TIME
+    value: AR
+  - key: MP_TIMEOUT_MS
+    scope: RUN_AND_BUILD_TIME
+    value: "12000"
+  - key: CONFIG_ENCRYPTION_KEY
+    scope: RUN_AND_BUILD_TIME
+    value: YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=
+  - key: GOOGLE_OAUTH_ENABLED
+    scope: RUN_AND_BUILD_TIME
+    value: "true"
+  - key: ADMIN_RECAPTCHA_ENABLED
+    scope: RUN_AND_BUILD_TIME
+    value: "false"
+  - key: ADMIN_RECAPTCHA_SITE_KEY
+    scope: RUN_AND_BUILD_TIME
+  - key: STOREFRONT_RECAPTCHA_ENABLED
+    scope: RUN_AND_BUILD_TIME
+    value: "false"
+  - key: STOREFRONT_RECAPTCHA_SITE_KEY
+    scope: RUN_AND_BUILD_TIME
 
 features:
   - buildpack-stack=ubuntu-22

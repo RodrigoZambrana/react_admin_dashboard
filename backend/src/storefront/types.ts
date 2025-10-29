@@ -63,6 +63,23 @@ export interface StorefrontConfig {
   }>
   announcement?: Record<string, unknown> | null
   companyProfile?: CompanyProfileDto | null
+  payments?: {
+    mercadopago?: {
+      enabled: boolean
+      publicKey: string | null
+      country: string | null
+      updatedAt: string | null
+    } | null
+  }
+  integrations?: {
+    google?: {
+      enabled: boolean
+    }
+    recaptcha?: {
+      enabled: boolean
+      siteKey: string | null
+    }
+  }
 }
 
 export interface CompanyProfileDto {
