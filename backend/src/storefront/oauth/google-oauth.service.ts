@@ -55,6 +55,7 @@ export type GoogleOAuthResult =
       status: 'success'
       session: StorefrontAuthSession
       returnPath: string | null
+      state?: string | null
       profile: {
         email: string
         name?: string | null
@@ -67,6 +68,7 @@ export type GoogleOAuthResult =
       message: string
       details?: string | null
       returnPath: string | null
+      state?: string | null
     }
 
 @Injectable()
@@ -99,7 +101,7 @@ export class StorefrontGoogleOAuthService {
     const codeVerifier = base64UrlEncode(randomBytes(64))
     const codeChallenge = base64UrlEncode(SHA256(codeVerifier))
     const nonce = base64UrlEncode(randomBytes(32))
-    const state = `${randomUUID()}:${base64UrlEncode(randomBytes(16))}`
+    const state = randomBytes(32).toString('hex')
     const scopes = this.defaultScopes
 
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS)
@@ -158,6 +160,7 @@ export class StorefrontGoogleOAuthService {
         errorCode: 'missing_state',
         message: 'We could not verify the Google sign-in request. Please start again.',
         returnPath: null,
+        state: null,
       }
     }
 
@@ -168,6 +171,7 @@ export class StorefrontGoogleOAuthService {
         errorCode: 'session_not_found',
         message: 'The Google sign-in session has expired. Please start again.',
         returnPath: null,
+        state,
       }
     }
 
@@ -178,6 +182,7 @@ export class StorefrontGoogleOAuthService {
         errorCode: 'session_expired',
         message: 'Your sign-in session expired. Please try again.',
         returnPath: session.returnPath ?? null,
+        state,
       }
     }
 
@@ -193,6 +198,7 @@ export class StorefrontGoogleOAuthService {
         message,
         details: query.error_description ?? null,
         returnPath: session.returnPath ?? null,
+        state,
       }
     }
 
@@ -204,6 +210,7 @@ export class StorefrontGoogleOAuthService {
         errorCode: 'missing_code',
         message: 'Google did not return a valid authorization code. Please retry.',
         returnPath: session.returnPath ?? null,
+        state,
       }
     }
 
@@ -237,6 +244,7 @@ export class StorefrontGoogleOAuthService {
         status: 'success',
         session: storefrontSession,
         returnPath: session.returnPath ?? null,
+        state,
         profile: {
           email: payload.email,
           name: payload.name ?? null,
@@ -253,6 +261,7 @@ export class StorefrontGoogleOAuthService {
         message: 'We could not sign you in with Google. Please try again.',
         details: message,
         returnPath: session.returnPath ?? null,
+        state,
       }
     }
   }
@@ -330,6 +339,41 @@ export class StorefrontGoogleOAuthService {
     </script>
   </body>
 </html>`
+  }
+
+  buildCompletionRedirect(result: GoogleOAuthResult): string | null {
+    if (!this.frontendOrigin) {
+      return null
+    }
+
+    try {
+      const target = new URL('/auth/complete', this.frontendOrigin)
+      target.searchParams.set('status', result.status)
+      if (result.state) {
+        target.searchParams.set('state', result.state)
+      }
+
+      if (result.status === 'success') {
+        if (result.returnPath && result.returnPath.startsWith('/')) {
+          target.searchParams.set('returnPath', result.returnPath)
+        }
+      } else {
+        if (result.errorCode) {
+          target.searchParams.set('error', result.errorCode)
+        }
+        if (result.message) {
+          target.searchParams.set('message', result.message)
+        }
+        if (result.returnPath && result.returnPath.startsWith('/')) {
+          target.searchParams.set('returnPath', result.returnPath)
+        }
+      }
+
+      return target.toString()
+    } catch (error) {
+      this.logger.warn(`Failed to build Google OAuth completion redirect: ${error}`)
+      return null
+    }
   }
 
   private getCredentials() {

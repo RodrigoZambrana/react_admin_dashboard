@@ -55,6 +55,7 @@ import { StorefrontCreateOrderDto } from './dto/order.dto'
 import { createHash } from 'crypto'
 import { StorefrontAddressDto } from './dto/address.dto'
 import { MercadoPagoService } from './payments/mercadopago.service'
+import type { FastifyRequest } from 'fastify'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
@@ -679,6 +680,88 @@ export class StorefrontService implements OnModuleInit {
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token')
     }
+  }
+
+  async getSessionFromRequest(
+    req: FastifyRequest,
+  ): Promise<{ session: StorefrontAuthSession; refreshed: boolean }> {
+    const accessToken = req.cookies?.storefront_access_token ?? null
+    const refreshTokenCookie = req.cookies?.storefront_refresh_token ?? null
+    let accessTokenFailed = false
+
+    if (accessToken) {
+      try {
+        const payload = (await this.jwt.verifyAsync(accessToken)) as Record<string, unknown>
+        if (payload.scope !== 'storefront' || payload.tokenType !== 'access') {
+          throw new UnauthorizedException('Invalid token')
+        }
+
+        const customerId =
+          typeof payload.sub === 'number'
+            ? payload.sub
+            : typeof payload.sub === 'string'
+              ? Number.parseInt(payload.sub, 10)
+              : Number.NaN
+
+        if (!Number.isFinite(customerId)) {
+          throw new UnauthorizedException('Invalid token subject')
+        }
+
+        const customer = await this.prisma.customer.findUnique({ where: { id: customerId } })
+        if (!customer) {
+          throw new UnauthorizedException('Customer not found')
+        }
+
+        const [addresses, wishlistSummary] = await Promise.all([
+          this.prisma.customerAddress.findMany({
+            where: { customerId: customer.id },
+            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+          }),
+          this.getWishlistSummary(customer.id),
+        ])
+
+        const expiresAt =
+          typeof payload.exp === 'number'
+            ? new Date(payload.exp * 1000).toISOString()
+            : new Date(Date.now() + 15 * 60 * 1000).toISOString()
+
+        return {
+          refreshed: false,
+          session: {
+            accessToken,
+            refreshToken: refreshTokenCookie ?? null,
+            expiresAt,
+            customer: {
+              id: customer.id,
+              email: customer.email ?? '',
+              firstName: customer.firstName,
+              lastName: customer.lastName,
+              phone: customer.phoneNumber ?? undefined,
+              wishlistCount: wishlistSummary.count,
+              wishlistProductIds: wishlistSummary.productIds,
+              addresses: addresses.map((address) => this.toCustomerAddress(address)),
+            },
+          },
+        }
+      } catch (error) {
+        accessTokenFailed = true
+      }
+    }
+
+    if (refreshTokenCookie) {
+      try {
+        const session = await this.refreshSession({ refreshToken: refreshTokenCookie })
+        return { session, refreshed: true }
+      } catch (error) {
+        throw new UnauthorizedException('Invalid session')
+      }
+    }
+
+    if (accessTokenFailed) {
+      throw new UnauthorizedException('Invalid session')
+    }
+
+    throw new UnauthorizedException('Not authenticated')
   }
 
   async createOrder(dto: StorefrontCreateOrderDto) {

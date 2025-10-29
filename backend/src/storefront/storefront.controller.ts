@@ -147,14 +147,31 @@ export class StorefrontController {
       error_description: errorDescription,
     })
 
+    const redirectUrl = this.googleAuth.buildCompletionRedirect(result)
+
     if (result.status === 'success') {
       this.sessionCookies.setSessionCookies(reply, result.session)
     } else {
       this.sessionCookies.clearSessionCookies(reply)
     }
 
+    if (redirectUrl) {
+      reply.status(302).redirect(redirectUrl)
+      return
+    }
+
+    reply.header('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
     reply.header('Content-Type', 'text/html; charset=utf-8')
     reply.status(200).send(this.googleAuth.renderCallbackPage(result))
+  }
+
+  @Get('auth/session')
+  async getAuthSession(@Req() req: FastifyRequest, @Res({ passthrough: true }) reply: FastifyReply) {
+    const result = await this.storefront.getSessionFromRequest(req)
+    if (result.refreshed) {
+      this.sessionCookies.setSessionCookies(reply, result.session)
+    }
+    return result.session
   }
 
   @Post('orders')

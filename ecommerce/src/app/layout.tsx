@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: PropsWithChildren) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <body className={publicSans.className}>
         <StyledComponentsRegistry>
           <I18nProvider>
