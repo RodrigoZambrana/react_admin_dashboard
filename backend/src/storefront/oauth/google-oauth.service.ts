@@ -299,7 +299,7 @@ export class StorefrontGoogleOAuthService {
       (function() {
         const payload = ${payload};
         const origin = ${JSON.stringify(targetOrigin)};
-        const fallbackOrigin = origin !== '*' ? origin : window.location.origin;
+        const fallbackOrigin = origin !== '*' ? origin : null;
         const returnPath = typeof payload.returnPath === 'string' ? payload.returnPath : null;
         const normalizeBase = function(url) {
           if (typeof url !== 'string') return url;
