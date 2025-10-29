@@ -154,6 +154,12 @@ export const StorefrontApi = {
     });
   },
 
+  async getCurrentSession(): Promise<AuthSession> {
+    return apiFetch<AuthSession>("auth/session", {
+      cache: "no-store"
+    });
+  },
+
   async refreshSession(refreshToken: string): Promise<AuthSession> {
     return apiFetch<AuthSession>("auth/refresh", {
       method: "POST",

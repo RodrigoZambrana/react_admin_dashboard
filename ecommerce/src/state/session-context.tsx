@@ -43,6 +43,7 @@ export interface RegisterPayload {
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
 
 const STORAGE_KEY = "storefront.session.v1";
+const GOOGLE_STATE_STORAGE_KEY = "storefront.google.oauth.state";
 
 const normalizeWishlistProductIds = (value: unknown): number[] => {
   if (!Array.isArray(value)) {
@@ -111,6 +112,7 @@ const persistSession = (session: AuthSession | null) => {
     } else {
       window.localStorage.removeItem(STORAGE_KEY);
     }
+    window.sessionStorage.removeItem(GOOGLE_STATE_STORAGE_KEY);
   } catch (error) {
     console.warn("[session] Failed to persist session", error);
   }
@@ -123,6 +125,7 @@ type GoogleAuthSuccessMessage = {
   status: "success";
   session: AuthSession;
   returnPath?: string | null;
+  state?: string | null;
 };
 
 type GoogleAuthErrorMessage = {
@@ -132,6 +135,7 @@ type GoogleAuthErrorMessage = {
   message?: string;
   details?: string | null;
   returnPath?: string | null;
+  state?: string | null;
 };
 
 type GoogleAuthMessage = GoogleAuthSuccessMessage | GoogleAuthErrorMessage;
@@ -253,9 +257,14 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       clearError();
       setStatus("loading");
 
+      const requestedReturnPath =
+        typeof options?.returnPath === "string" && options.returnPath.trim().startsWith("/")
+          ? options.returnPath.trim()
+          : null;
+
       let startResponse: { url: string; state: string; expiresAt: string };
       try {
-        startResponse = await StorefrontApi.startGoogleLogin(options?.returnPath);
+        startResponse = await StorefrontApi.startGoogleLogin(requestedReturnPath ?? undefined);
       } catch (cause) {
         handleAuthError(cause, "login");
         throw cause;
@@ -269,6 +278,12 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       const outerHeight = window.outerHeight ?? window.innerHeight ?? 720;
       const left = Math.max(0, screenX + (outerWidth - width) / 2);
       const top = Math.max(0, screenY + (outerHeight - height) / 2);
+
+      try {
+        window.sessionStorage.setItem(GOOGLE_STATE_STORAGE_KEY, startResponse.state);
+      } catch (error) {
+        console.warn("[session] Unable to persist Google OAuth state", error);
+      }
 
       const popup = window.open(
         startResponse.url,
@@ -288,13 +303,10 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         throw popupError;
       }
 
-      try {
-        popup.focus();
-      } catch (error) {
-        console.warn("[session] Unable to focus Google auth popup due to window policy", error);
-      }
-
       const trustedOrigins = new Set<string>();
+      if (typeof env.publicSiteOrigin === "string" && env.publicSiteOrigin.length > 0) {
+        trustedOrigins.add(env.publicSiteOrigin);
+      }
       try {
         trustedOrigins.add(new URL(env.publicApiBaseUrl).origin);
       } catch (error) {
@@ -304,9 +316,14 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
 
       return new Promise<{ session: AuthSession; returnPath: string | null }>((resolve, reject) => {
         let completed = false;
-        let detachPopupCloseListener: (() => void) | null = null;
         let fallbackTimer: number | undefined;
-        let popupClosePoll: number | undefined;
+        let detachPopupUnloadListener: (() => void) | null = null;
+        let completionInFlight = false;
+        let sessionPollTimer: number | undefined;
+        let sessionPollInFlight = false;
+        let sessionPollAttempts = 0;
+        const maxSessionPollAttempts = 20;
+        const sessionPollIntervalMs = 1500;
 
         const clearFallbackTimer = () => {
           if (fallbackTimer) {
@@ -315,20 +332,32 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           }
         };
 
-        const removePopupCloseListener = () => {
-          if (popupClosePoll !== undefined) {
-            window.clearInterval(popupClosePoll);
-            popupClosePoll = undefined;
+        const clearSessionPoll = () => {
+          if (sessionPollTimer) {
+            window.clearInterval(sessionPollTimer);
+            sessionPollTimer = undefined;
           }
-
-          detachPopupCloseListener = null;
+          sessionPollInFlight = false;
         };
 
         const cleanup = () => {
           completed = true;
           window.removeEventListener("message", handleMessage);
           clearFallbackTimer();
-          removePopupCloseListener();
+          clearSessionPoll();
+          if (detachPopupUnloadListener) {
+            try {
+              detachPopupUnloadListener();
+            } catch (error) {
+              console.warn("[session] Unable to detach Google auth popup listener", error);
+            }
+            detachPopupUnloadListener = null;
+          }
+          try {
+            window.sessionStorage.removeItem(GOOGLE_STATE_STORAGE_KEY);
+          } catch (error) {
+            console.warn("[session] Unable to clear Google OAuth state", error);
+          }
           try {
             popup.close();
           } catch (error) {
@@ -347,36 +376,36 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           reject(error);
         };
 
-        const handlePopupManualClose = () => {
-          if (completed) {
+        const finishWithSession = async (initialSession?: AuthSession | null, returnPath?: string | null) => {
+          if (completionInFlight) {
             return;
           }
-          fail(new Error("Se cerró la ventana de Google antes de finalizar el acceso."));
-        };
+          completionInFlight = true;
+          try {
+            const sessionPayload =
+              initialSession ??
+              (await StorefrontApi.getCurrentSession().catch((error) => {
+                throw error instanceof Error
+                  ? error
+                  : new Error("No pudimos recuperar tu sesión desde el servidor.");
+              }));
 
-        const attachPopupCloseListener = () => {
-          if (!popup) {
-            return;
+            cleanup();
+            const normalized = handleAuthSuccess(sessionPayload, "login");
+            const targetReturnPath =
+              typeof returnPath === "string" && returnPath.trim()
+                ? returnPath.trim()
+                : requestedReturnPath;
+
+            resolve({
+              session: normalized,
+              returnPath: targetReturnPath ?? null
+            });
+          } catch (error) {
+            fail(
+              error instanceof Error ? error : new Error("No pudimos completar el inicio de sesión con Google.")
+            );
           }
-
-          popupClosePoll = window.setInterval(() => {
-            if (!popup) {
-              removePopupCloseListener();
-              return;
-            }
-
-            try {
-              if (popup.closed) {
-                removePopupCloseListener();
-                handlePopupManualClose();
-              }
-            } catch (error) {
-              removePopupCloseListener();
-              console.warn("[session] Error while polling Google auth popup state", error);
-            }
-          }, 500);
-
-          detachPopupCloseListener = removePopupCloseListener;
         };
 
         const startFallbackTimer = () => {
@@ -394,29 +423,93 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           }, timeoutMs);
         };
 
+        const attachPopupUnloadListener = () => {
+          if (!popup || typeof popup.addEventListener !== "function") {
+            return;
+          }
+          const handlePopupUnload = () => {
+            if (completed) {
+              return;
+            }
+            fail(new Error("Se cerró la ventana de Google antes de finalizar el acceso."));
+          };
+          popup.addEventListener("beforeunload", handlePopupUnload);
+          detachPopupUnloadListener = () => {
+            popup.removeEventListener("beforeunload", handlePopupUnload);
+          };
+        };
+
+        const startSessionPoll = () => {
+          if (sessionPollTimer) {
+            return;
+          }
+          sessionPollTimer = window.setInterval(async () => {
+            if (completed || completionInFlight) {
+              clearSessionPoll();
+              return;
+            }
+            if (sessionPollInFlight) {
+              return;
+            }
+            sessionPollInFlight = true;
+            sessionPollAttempts += 1;
+            try {
+              const session = await StorefrontApi.getCurrentSession();
+              await finishWithSession(session, requestedReturnPath);
+            } catch (error) {
+              if (isApiError(error)) {
+                if (error.status !== 401) {
+                  console.warn("[session] Google auth session poll failed", {
+                    status: error.status,
+                    message: error.message
+                  });
+                }
+              } else {
+                console.warn("[session] Google auth session poll encountered error", error);
+              }
+            } finally {
+              sessionPollInFlight = false;
+              if (sessionPollAttempts >= maxSessionPollAttempts && !completionInFlight) {
+                clearSessionPoll();
+              }
+            }
+          }, sessionPollIntervalMs);
+        };
+
         const handleMessage = (event: MessageEvent) => {
-          if (!trustedOrigins.has(event.origin)) {
+          let receivedOrigin = event.origin;
+          if (!receivedOrigin || receivedOrigin === "null") {
+            receivedOrigin = window.location.origin;
+          }
+          if (trustedOrigins.size > 0 && receivedOrigin && !trustedOrigins.has(receivedOrigin)) {
+            console.warn("[session] Ignoring Google auth message from unexpected origin", {
+              receivedOrigin,
+              trustedOrigins: Array.from(trustedOrigins)
+            });
             return;
           }
           const data = event.data;
           if (!isGoogleAuthMessage(data)) {
             return;
           }
-          cleanup();
+          console.log("Google auth message received", data);
+          let expectedState: string | null = null;
+          try {
+            expectedState = window.sessionStorage.getItem(GOOGLE_STATE_STORAGE_KEY);
+          } catch (error) {
+            console.warn("[session] Unable to read Google OAuth state", error);
+          }
+          if (expectedState && data.state && data.state !== expectedState) {
+            console.warn("[session] Ignoring Google auth message due to state mismatch");
+            return;
+          }
 
           if (data.status === "success") {
-            try {
-              const normalized = handleAuthSuccess(data.session, "login");
-              resolve({
-                session: normalized,
-                returnPath:
-                  typeof data.returnPath === "string" && data.returnPath.trim()
-                    ? data.returnPath.trim()
-                    : null
-              });
-            } catch (cause) {
-              reject(cause as Error);
-            }
+            const initialSession =
+              data.session && typeof data.session === "object" ? (data.session as AuthSession) : null;
+            const messageReturnPath =
+              typeof data.returnPath === "string" && data.returnPath.trim() ? data.returnPath.trim() : null;
+            void finishWithSession(initialSession, messageReturnPath ?? requestedReturnPath);
           } else {
             const message =
               (typeof data.message === "string" && data.message.trim()) ||
@@ -426,7 +519,8 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         };
 
         window.addEventListener("message", handleMessage);
-        attachPopupCloseListener();
+        attachPopupUnloadListener();
+        startSessionPoll();
         startFallbackTimer();
       });
     },
