@@ -160,7 +160,6 @@ export class StorefrontController {
       return
     }
 
-    reply.header('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
     reply.header('Content-Type', 'text/html; charset=utf-8')
     reply.status(200).send(this.googleAuth.renderCallbackPage(result))
   }

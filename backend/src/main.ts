@@ -29,7 +29,7 @@ async function bootstrap() {
     helmetOptions.contentSecurityPolicy = false
   }
   await app.register(helmet as any, Object.keys(helmetOptions).length ? helmetOptions : undefined)
-  const defaultAllowedOrigins = (process.env.DEFAULT_ALLOWED_ORIGINS ?? 'http://localhost:5173')
+const defaultAllowedOrigins = (process.env.DEFAULT_ALLOWED_ORIGINS ?? 'http://localhost:3000')
     .split(',')
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0)
@@ -44,14 +44,25 @@ async function bootstrap() {
 
   await app.register(cors as any, {
     origin: (origin, cb) => {
-      if (!origin || allowedOrigins.includes('*')) {
+      if (!origin) {
         cb(null, true)
         return
       }
-      if (allowedOrigins.some((allowed) => origin === allowed || origin.endsWith(allowed))) {
+
+      if (allowedOrigins.includes('*')) {
         cb(null, true)
         return
       }
+
+      const match = allowedOrigins.find(
+        (allowed) => origin === allowed || origin.endsWith(allowed),
+      )
+
+      if (match) {
+        cb(null, true)
+        return
+      }
+
       cb(new Error('Origin not allowed'), false)
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

@@ -67,6 +67,7 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
    - `COOKIE_SECRET`: clave para firmar cookies de sesión.
    - `ALLOWED_ORIGINS`: lista separada por comas con orígenes permitidos para CORS.
    - `DEFAULT_ALLOWED_ORIGINS`: orígenes base admitidos incluso si `ALLOWED_ORIGINS` está vacío (útil para definir el host principal sin tocar la lista dinámica manejada por el UI).
+   - `NEXT_PUBLIC_SITE_URL`: URL pública del storefront utilizada para construir redirecciones durante flujos como Google OAuth.
    - `DEFAULT_USER_TEMP_PASSWORD`: contraseña provisional para usuarios creados desde la API.
    - `RECAPTCHA_SECRET_KEY`: clave secreta del backend para validar reCAPTCHA (opcional).
    - `RECAPTCHA_ENABLED`: activa/desactiva la validación de reCAPTCHA en el backend (`false` por defecto).

@@ -362,6 +362,11 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
             popup.close();
           } catch (error) {
             console.warn("[session] Unable to close Google auth popup", error);
+            try {
+              popup.opener?.postMessage({ type: "storefront:force-close-google" }, "*");
+            } catch (postMessageError) {
+              console.warn("[session] Fallback postMessage to close popup failed", postMessageError);
+            }
           }
         };
 
@@ -382,13 +387,21 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           }
           completionInFlight = true;
           try {
-            const sessionPayload =
+            let sessionPayload =
               initialSession ??
               (await StorefrontApi.getCurrentSession().catch((error) => {
                 throw error instanceof Error
                   ? error
                   : new Error("No pudimos recuperar tu sesión desde el servidor.");
               }));
+
+            if (sessionPayload?.refreshToken) {
+              try {
+                sessionPayload = await StorefrontApi.refreshSession(sessionPayload.refreshToken);
+              } catch (refreshError) {
+                console.warn("[session] Unable to refresh storefront session after Google login", refreshError);
+              }
+            }
 
             cleanup();
             const normalized = handleAuthSuccess(sessionPayload, "login");
