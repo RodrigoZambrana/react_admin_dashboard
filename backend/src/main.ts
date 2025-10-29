@@ -24,7 +24,11 @@ async function bootstrap() {
 
   const isDevelopment = process.env.NODE_ENV !== 'production'
 
-  await app.register(helmet as any, isDevelopment ? { contentSecurityPolicy: false } : undefined)
+  const helmetOptions: Record<string, unknown> = {}
+  if (isDevelopment) {
+    helmetOptions.contentSecurityPolicy = false
+  }
+  await app.register(helmet as any, Object.keys(helmetOptions).length ? helmetOptions : undefined)
   const defaultAllowedOrigins = ['http://localhost:5173']
   const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
     .split(',')
