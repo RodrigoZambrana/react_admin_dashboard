@@ -24,6 +24,7 @@ import { InboxModule } from './inbox/inbox.module'
 import { ProductionOrdersModule } from './production-orders/production-orders.module'
 import { StorefrontModule } from './storefront/storefront.module'
 import { EmailModule } from './email/email.module'
+import { SecureConfigModule } from './common/security/secure-config.module'
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { EmailModule } from './email/email.module'
     ProductionOrdersModule,
     StorefrontModule,
     EmailModule,
+    SecureConfigModule,
   ],
   providers: [
     {

@@ -66,6 +66,7 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
    - `SESSION_TTL_HOURS`: duración de la sesión autenticada (JWT + cookie) en horas. Por defecto 168h (7 días).
    - `COOKIE_SECRET`: clave para firmar cookies de sesión.
    - `ALLOWED_ORIGINS`: lista separada por comas con orígenes permitidos para CORS.
+   - `DEFAULT_ALLOWED_ORIGINS`: orígenes base admitidos incluso si `ALLOWED_ORIGINS` está vacío (útil para definir el host principal sin tocar la lista dinámica manejada por el UI).
    - `DEFAULT_USER_TEMP_PASSWORD`: contraseña provisional para usuarios creados desde la API.
    - `RECAPTCHA_SECRET_KEY`: clave secreta del backend para validar reCAPTCHA (opcional).
    - `RECAPTCHA_ENABLED`: activa/desactiva la validación de reCAPTCHA en el backend (`false` por defecto).
@@ -74,6 +75,13 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
    - `ENABLE_DEMO_SEED`: habilita datos de ejemplo en el seed (por defecto deshabilitado).
    - `SEED_SUPERADMIN_EMAIL` / `SEED_SUPERADMIN_PASSWORD`: credenciales para crear un superadmin la primera vez que corre el seed (no se almacenan en texto plano una vez creado).
    - `SEED_SUPERADMIN_NAME`: nombre para el superadmin creado automáticamente.
+   - `PAYMENTS_PROVIDER`: define el gateway activo; usar `mercadopago` para habilitar los pagos con tarjeta en la tienda.
+   - `MP_PUBLIC_KEY` / `MP_ACCESS_TOKEN`: credenciales de Mercado Pago (modo test o producción) que permiten inicializar pagos. También podés gestionarlas desde **Configuración → Mercado Pago** en el panel admin; si existen en la base de datos tienen prioridad por sobre las variables de entorno.
+   - `MP_COUNTRY`: código de país (por defecto `AR`) que se usa para regionalizar la experiencia del checkout.
+   - `CONFIG_ENCRYPTION_KEY`: clave base64/hex de 32 bytes utilizada para cifrar los secretos persistidos en la tabla `SecureConfig`. Es obligatoria.
+   - `GOOGLE_OAUTH_ENABLED`: habilita/deshabilita el flujo OAuth de Google en el backend (por defecto `true`).
+   - `ADMIN_RECAPTCHA_ENABLED` / `ADMIN_RECAPTCHA_SITE_KEY`: controlan el uso de reCAPTCHA en el panel administrativo; alternativamente podés gestionarlos desde **Configuración → Google & reCAPTCHA**.
+   - `STOREFRONT_RECAPTCHA_ENABLED` / `STOREFRONT_RECAPTCHA_SITE_KEY`: exponen la clave pública para el storefront cuando se requiera mostrar desafíos de reCAPTCHA.
 
 > El backend ejecuta `migrate deploy` y, si `RUN_PRISMA_SEED_ON_BOOT=true`, también `prisma db seed` durante `make dev-up`. Definí `SKIP_PRISMA_MIGRATIONS=true` para omitir las migraciones automáticas. El seed solo crea el superadmin cuando las credenciales anteriores están definidas y omite datos demo salvo que `ENABLE_DEMO_SEED=true`.
 

@@ -13,7 +13,8 @@ import type { CommonProps } from '@/@types/common'
 import appConfig from '@/configs/app.config'
 import { useTranslation } from 'react-i18next'
 import { executeRecaptchaAction, preloadRecaptcha } from '@/utils/security/recaptcha'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { apiGetAuthConfig } from '@/services/AuthService'
 
 interface SignInFormProps extends CommonProps {
     disableSubmit?: boolean
@@ -49,13 +50,47 @@ const SignInForm = (props: SignInFormProps) => {
 
     const [message, setMessage] = useTimeOutMessage()
 
-    const recaptchaSiteKey = appConfig.recaptchaSiteKey || ''
+    const [recaptchaConfig, setRecaptchaConfig] = useState(() => {
+        const siteKey = appConfig.recaptchaSiteKey || ''
+        return {
+            enabled: Boolean(siteKey),
+            siteKey,
+        }
+    })
 
-    const isRecaptchaEnabled = Boolean(recaptchaSiteKey)
+    const recaptchaSiteKey = recaptchaConfig.siteKey
+    const isRecaptchaEnabled = recaptchaConfig.enabled && Boolean(recaptchaSiteKey)
 
     const { signIn } = useAuth()
 
     const { t } = useTranslation()
+
+    useEffect(() => {
+        let cancelled = false
+
+        const loadConfig = async () => {
+            try {
+                const response = await apiGetAuthConfig()
+                if (cancelled) {
+                    return
+                }
+                const data = response.data
+                const siteKey = data.recaptcha.enabled && data.recaptcha.siteKey ? data.recaptcha.siteKey : ''
+                setRecaptchaConfig({
+                    enabled: Boolean(siteKey),
+                    siteKey,
+                })
+            } catch (error) {
+                // fall back to existing env config
+            }
+        }
+
+        void loadConfig()
+
+        return () => {
+            cancelled = true
+        }
+    }, [])
 
     useEffect(() => {
         if (!isRecaptchaEnabled) {

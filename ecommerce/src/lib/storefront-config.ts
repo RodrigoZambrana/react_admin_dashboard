@@ -84,6 +84,13 @@ const FALLBACK_CONFIG: StorefrontConfig = {
     level: "info",
     active: true,
     cta: { id: "announcement-learn-more", label: "See details", href: "/policies/shipping" }
+  },
+  payments: {
+    mercadopago: null
+  },
+  integrations: {
+    google: { enabled: false },
+    recaptcha: { enabled: false, siteKey: null }
   }
 };
 

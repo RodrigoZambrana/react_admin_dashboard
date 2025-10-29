@@ -98,6 +98,23 @@ export interface StorefrontConfig {
   policies: StorefrontPolicy[];
   announcement?: AnnouncementBanner | null;
   companyProfile?: CompanyProfile | null;
+  payments?: {
+    mercadopago?: {
+      enabled: boolean;
+      publicKey: string | null;
+      country: string | null;
+      updatedAt: string | null;
+    } | null;
+  };
+  integrations?: {
+    google?: {
+      enabled: boolean;
+    };
+    recaptcha?: {
+      enabled: boolean;
+      siteKey: string | null;
+    };
+  };
 }
 
 export type InventoryStatus = "in-stock" | "limited" | "back-order" | "out-of-stock";

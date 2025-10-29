@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt'
 import { JwtService } from '@nestjs/jwt'
 import type { Role } from './roles.decorator'
 import { SESSION_TTL_MILLISECONDS } from './auth.config'
+import { GoogleConfigService } from '../common/integrations/google-config.service'
 
 const RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
 
@@ -23,16 +24,17 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
+    private readonly googleConfig: GoogleConfigService,
   ) {}
 
   async verifyRecaptcha(token: string | undefined | null, remoteIp?: string) {
-    const isEnabled =
-      String(process.env.RECAPTCHA_ENABLED || '').toLowerCase() === 'true'
+    const config = await this.googleConfig.getEffectiveConfig()
+    const isEnabled = config.recaptcha.enabled && Boolean(config.recaptcha.secretKey)
     if (!isEnabled) {
       return
     }
 
-    const secretKey = process.env.RECAPTCHA_SECRET_KEY
+    const secretKey = config.recaptcha.secretKey
 
     if (!secretKey) {
       throw new UnauthorizedException('No se configuró la clave de reCAPTCHA.')
