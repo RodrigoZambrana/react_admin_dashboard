@@ -30,21 +30,31 @@ const destroyController = (
 };
 
 type SubmitPayload = {
-  token: string;
-  payment_method_id: string;
+  token?: string;
+  payment_method_id?: string;
   paymentMethodId?: string;
+  payment_type_id?: string;
+  paymentTypeId?: string;
   installments?: number | string;
   issuer_id?: string;
   issuerId?: string;
+  preference_id?: string;
+  preferenceId?: string;
+  metadata?: unknown;
+  additional_info?: unknown;
+  additionalInfo?: unknown;
   payer?: {
     email?: string;
     first_name?: string;
     last_name?: string;
+    firstName?: string;
+    lastName?: string;
     identification?: {
       type?: string;
       number?: string;
     };
   };
+  [key: string]: unknown;
 };
 
 type SubmitResponse = {
@@ -141,6 +151,21 @@ const PENDING_STATUSES = new Set([
   "pending_review_manual",
   "in_mediation",
 ]);
+
+const FULL_PAYMENT_METHOD_AVAILABILITY: Record<string, "all"> = {
+  bankTransfer: "all",
+  creditCard: "all",
+  debitCard: "all",
+  ticket: "all",
+  walletPurchase: "all",
+  wallet_purchase: "all",
+  onboardingCredits: "all",
+  onboarding_credits: "all",
+  consumerCredits: "all",
+  consumer_credits: "all",
+  prepaidCard: "all",
+  atm: "all",
+};
 
 type Props = {
   amount: number;
@@ -253,6 +278,23 @@ const sanitizeInstallments = (installments: SubmitPayload["installments"]) => {
   return 1;
 };
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const extractSelectedPaymentMethod = (event: SubmitEventArg): unknown => {
+  if (event && typeof event === "object" && "selectedPaymentMethod" in event) {
+    const selected = (event as { selectedPaymentMethod?: unknown }).selectedPaymentMethod;
+    return selected;
+  }
+  return undefined;
+};
+
+const normalizeText = (value: unknown) => {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
 export default function MercadoPagoCardBrick({
   amount,
   description,
@@ -273,6 +315,7 @@ export default function MercadoPagoCardBrick({
       ? successPathRaw
       : `/${successPathRaw}`
     : DEFAULT_SUCCESS_PATH;
+  const preferenceId = process.env.NEXT_PUBLIC_MERCADO_PAGO_PREFERENCE_ID?.trim();
   const loader = useMercadoPago(publicKey, locale);
 
   const showFeedback = useCallback(
@@ -311,19 +354,29 @@ export default function MercadoPagoCardBrick({
         destroyController(controllerRef.current);
         const bricksBuilder = sdk.bricks();
 
-        const brickSettings = {
-          initialization: {
-            amount,
-            currency,
-            payer: {
-              email: defaultEmail ?? "test_user_123456@example.com",
-            },
+        const initialization: Record<string, unknown> = {
+          amount,
+          currency,
+          payer: {
+            email: defaultEmail ?? "test_user_123456@example.com",
           },
+        };
+
+        if (preferenceId) {
+          initialization.preferenceId = preferenceId;
+        }
+
+        const brickSettings = {
+          initialization,
           customization: {
             visual: {
               style: {
                 theme: "default",
               },
+            },
+            paymentMethods: {
+              ...FULL_PAYMENT_METHOD_AVAILABILITY,
+              maxInstallments: 12,
             },
           },
           callbacks: {
@@ -369,29 +422,132 @@ export default function MercadoPagoCardBrick({
               const effectiveEmail = emailFromForm.trim();
 
               const sanitizedInstallments = sanitizeInstallments(formData.installments);
-              const issuerId = formData.issuer_id ?? null;
+              const paymentMethodId =
+                normalizeText(formData.payment_method_id) ?? normalizeText(formData.paymentMethodId) ?? null;
 
-              const payload = {
-                token: formData.token,
+              if (!paymentMethodId) {
+                const errorMessage =
+                  "Mercado Pago no devolvió el identificador del medio de pago. Intenta nuevamente.";
+                showFeedback("error", "Datos de pago incompletos", errorMessage);
+                if (actions?.reject) {
+                  actions.reject(new Error(errorMessage));
+                  actionsNotified = true;
+                }
+                throw new Error(errorMessage);
+              }
+
+              const paymentTypeId =
+                normalizeText(formData.payment_type_id) ?? normalizeText(formData.paymentTypeId) ?? undefined;
+              const issuerId = normalizeText(formData.issuer_id) ?? normalizeText(formData.issuerId) ?? undefined;
+              const selectedPaymentMethod = extractSelectedPaymentMethod(submitEvent);
+
+              const identificationType =
+                normalizeText(formData.payer?.identification?.type) ?? "DNI";
+              const identificationNumber =
+                normalizeText(formData.payer?.identification?.number) ?? "00000000";
+
+              const firstName =
+                normalizeText(formData.payer?.first_name) ?? normalizeText(formData.payer?.firstName);
+              const lastName =
+                normalizeText(formData.payer?.last_name) ?? normalizeText(formData.payer?.lastName);
+
+              const payerSnakeCase: Record<string, unknown> = {
+                email: effectiveEmail,
+                identification: {
+                  type: identificationType,
+                  number: identificationNumber,
+                },
+              };
+              if (firstName) {
+                payerSnakeCase.first_name = firstName;
+              }
+              if (lastName) {
+                payerSnakeCase.last_name = lastName;
+              }
+
+              const payerCamelCase: Record<string, unknown> = {
+                email: effectiveEmail,
+                identification: {
+                  type: identificationType,
+                  number: identificationNumber,
+                },
+              };
+              if (firstName) {
+                payerCamelCase.firstName = firstName;
+              }
+              if (lastName) {
+                payerCamelCase.lastName = lastName;
+              }
+
+              const metadata: Record<string, unknown> = isPlainObject(formData.metadata)
+                ? { ...(formData.metadata as Record<string, unknown>) }
+                : {};
+
+              if (selectedPaymentMethod !== undefined) {
+                metadata.selectedPaymentMethod = selectedPaymentMethod;
+              }
+
+              if (preferenceId) {
+                metadata.preferenceId = preferenceId;
+              }
+
+              const hasMetadata = Object.keys(metadata).length > 0;
+
+              const additionalInfoCandidate =
+                (formData.additional_info ?? formData.additionalInfo) as unknown;
+              const additionalInfo = isPlainObject(additionalInfoCandidate)
+                ? additionalInfoCandidate
+                : undefined;
+
+              const payload: Record<string, unknown> = {
                 // Snake_case keys used by the internal Next.js API route.
-                payment_method_id: formData.payment_method_id,
+                payment_method_id: paymentMethodId,
                 installments: sanitizedInstallments,
-                issuer_id: issuerId,
                 transaction_amount: amount,
                 description: description ?? "Sample Product",
-                payer: {
-                  email: effectiveEmail,
-                  identification: {
-                    type: formData.payer?.identification?.type ?? "DNI",
-                    number: formData.payer?.identification?.number ?? "00000000",
-                  },
-                },
+                payer: payerSnakeCase,
                 // CamelCase copies improve compatibility with the official
                 // Mercado Pago sample backends (e.g. `/process_payment`).
-                paymentMethodId: formData.payment_method_id,
-                issuerId,
+                paymentMethodId,
                 transactionAmount: amount,
+                rawFormData: formData,
               };
+
+              if (formData.token) {
+                payload.token = formData.token;
+              }
+
+              if (issuerId) {
+                payload.issuer_id = issuerId;
+                payload.issuerId = issuerId;
+              }
+
+              if (paymentTypeId) {
+                payload.payment_type_id = paymentTypeId;
+                payload.paymentTypeId = paymentTypeId;
+              }
+
+              if (hasMetadata) {
+                payload.metadata = metadata;
+              }
+
+              if (additionalInfo) {
+                payload.additional_info = additionalInfo;
+                payload.additionalInfo = additionalInfo;
+              }
+
+              if (preferenceId) {
+                payload.preference_id = preferenceId;
+                payload.preferenceId = preferenceId;
+              }
+
+              if (Object.keys(payerCamelCase).length > 0) {
+                payload.payerCamelCase = payerCamelCase;
+              }
+
+              if (selectedPaymentMethod !== undefined) {
+                payload.selectedPaymentMethod = selectedPaymentMethod;
+              }
 
               const targetPaymentUrl = resolvePaymentUrl(paymentEndpoint);
 
@@ -589,7 +745,18 @@ export default function MercadoPagoCardBrick({
       destroyController(controllerRef.current);
       controllerRef.current = null;
     };
-  }, [amount, currency, defaultEmail, description, loader, paymentEndpoint, router, showFeedback, successRedirectPath]);
+  }, [
+    amount,
+    currency,
+    defaultEmail,
+    description,
+    loader,
+    paymentEndpoint,
+    preferenceId,
+    router,
+    showFeedback,
+    successRedirectPath,
+  ]);
 
   const { status, title, detail } = feedback;
 

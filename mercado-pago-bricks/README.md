@@ -17,6 +17,8 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
 
   ```txt
   NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY=TEST-632ebe0d-6895-4755-b5f7-22a831e45d27
+  # Opcional: habilita flows adicionales (transferencias, cuenta MP, etc.).
+  NEXT_PUBLIC_MERCADO_PAGO_PREFERENCE_ID=TEST-PREFERENCE-ID
   MERCADO_PAGO_ACCESS_TOKEN=TEST-6249908203472499-102717-cf8020a9113d8f1574a5c8015683e0ba-670522668
   # Por defecto apunta a la API interna de Next.js. Cambia la URL si usas un backend externo.
   NEXT_PUBLIC_MERCADO_PAGO_PAYMENT_URL=/api/process-payment
@@ -53,10 +55,13 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
 
 - **Front-end (`src/components/MercadoPagoCardBrick.tsx`)**
   - Carga el SDK de Mercado Pago en tiempo de ejecución.
-  - Renderiza el Payment Brick (`cardPayment`) con un monto fijo de ejemplo.
+  - Renderiza el Payment Brick (`cardPayment`) con un monto fijo de ejemplo y soporta un `preferenceId` opcional
+    para habilitar la Cuenta Mercado Pago, transferencias bancarias y otros medios fuera de tarjeta.
   - Maneja el estado del pago (cargando, éxito, error) y muestra la respuesta en la interfaz.
   - Notifica al Brick el resultado del backend usando las acciones expuestas (`submitComplete`, `resolve`, `reject`) para
     que el flujo del iframe continúe correctamente y puedas enganchar callbacks adicionales en la app host.
+  - Habilita todas las categorías de pago disponibles en el Brick (tarjetas de crédito/débito, transferencias, tickets,
+    billetera, consumer/onboarding credits, etc.).
 - Carga automáticamente el script de seguridad de Mercado Pago (`https://www.mercadopago.com/v2/security.js`) para que la
   sesión genere los eventos de tracking (`/tracks`) requeridos por la plataforma.
 - Envía los datos al endpoint definido en `NEXT_PUBLIC_MERCADO_PAGO_PAYMENT_URL` (por defecto `/api/process-payment`). El
@@ -71,6 +76,8 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
 - **Back-end (`src/app/api/process-payment/route.ts`)**
   - Implementa un endpoint `POST /api/process-payment`.
   - Usa el SDK oficial (`mercadopago`) para crear un pago en modo test.
+  - Acepta pagos con token (tarjetas) y sin token (transferencias, efectivo, billetera), normalizando los campos
+    en `snake_case`/`camelCase`, propagando metadata adicional y limpiando la información del pagador antes de llamar al SDK.
   - Devuelve al cliente el `status`, `status_detail` e `id` del pago creado.
 
 ---

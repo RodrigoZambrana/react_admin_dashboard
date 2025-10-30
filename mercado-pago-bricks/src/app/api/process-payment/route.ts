@@ -8,19 +8,41 @@ type PaymentPayload = {
   token?: string;
   payment_method_id?: string;
   paymentMethodId?: string;
+  payment_type_id?: string;
+  paymentTypeId?: string;
   installments?: number | string | null;
   issuer_id?: string | null;
   issuerId?: string | null;
   transaction_amount?: number | string | null;
   transactionAmount?: number | string | null;
   description?: string | null;
+  preferenceId?: string | null;
+  preference_id?: string | null;
   payer?: {
     email?: string | null;
     identification?: {
       type?: string | null;
       number?: string | null;
     };
+    first_name?: string | null;
+    last_name?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
   };
+  payerCamelCase?: {
+    email?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    identification?: {
+      type?: string | null;
+      number?: string | null;
+    };
+  };
+  rawFormData?: Record<string, unknown> | null;
+  metadata?: unknown;
+  additional_info?: unknown;
+  additionalInfo?: unknown;
+  selectedPaymentMethod?: unknown;
 };
 
 const sanitizeInstallments = (value: PaymentPayload["installments"]): number => {
@@ -32,6 +54,98 @@ const sanitizeInstallments = (value: PaymentPayload["installments"]): number => 
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
   }
   return 1;
+};
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const normalizeString = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const normalizeEmail = (value: unknown): string | null => {
+  const normalized = normalizeString(value);
+  if (!normalized) return null;
+  return /\S+@\S+\.\S+/.test(normalized) ? normalized : null;
+};
+
+const normalizeNumber = (value: unknown): number | null => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const sanitizeIdentification = (value: unknown) => {
+  if (!isPlainObject(value)) {
+    return { type: "DNI", number: "00000000" };
+  }
+
+  const record = value as Record<string, unknown>;
+  const type = normalizeString(record["type"]) ?? "DNI";
+  const number = normalizeString(record["number"]) ?? "00000000";
+
+  return { type, number };
+};
+
+const resolvePayerCandidate = (body: PaymentPayload): Record<string, unknown> | null => {
+  const candidates: unknown[] = [];
+  if (body.payer) candidates.push(body.payer);
+  if (body.payerCamelCase) candidates.push(body.payerCamelCase);
+  if (body.rawFormData && isPlainObject(body.rawFormData["payer"])) {
+    candidates.push(body.rawFormData["payer"]);
+  }
+  for (const candidate of candidates) {
+    if (isPlainObject(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+};
+
+const sanitizePayer = (body: PaymentPayload) => {
+  const candidate = resolvePayerCandidate(body);
+  const emailCandidate =
+    normalizeEmail(candidate?.["email"]) ??
+    normalizeEmail(body.payer?.email) ??
+    normalizeEmail(body.payerCamelCase?.email);
+
+  if (!emailCandidate) {
+    return null;
+  }
+
+  const firstName =
+    normalizeString(candidate?.["first_name"] ?? candidate?.["firstName"]) ??
+    normalizeString(body.payer?.first_name ?? body.payer?.firstName) ??
+    normalizeString(body.payerCamelCase?.firstName);
+  const lastName =
+    normalizeString(candidate?.["last_name"] ?? candidate?.["lastName"]) ??
+    normalizeString(body.payer?.last_name ?? body.payer?.lastName) ??
+    normalizeString(body.payerCamelCase?.lastName);
+
+  const identificationCandidate =
+    candidate?.["identification"] ?? body.payer?.identification ?? body.payerCamelCase?.identification;
+  const identification = sanitizeIdentification(identificationCandidate);
+
+  const payer: Record<string, unknown> = {
+    email: emailCandidate,
+    identification,
+  };
+
+  if (firstName) {
+    payer.first_name = firstName;
+  }
+  if (lastName) {
+    payer.last_name = lastName;
+  }
+
+  return payer;
 };
 
 export async function POST(request: Request) {
@@ -51,21 +165,61 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
   }
 
-  const token = body?.token ?? null;
-  const paymentMethodId = body?.payment_method_id ?? body?.paymentMethodId ?? null;
-  const issuerId = body?.issuer_id ?? body?.issuerId ?? null;
-  const transactionAmount = body?.transaction_amount ?? body?.transactionAmount ?? null;
+  const token = normalizeString(body?.token);
+  const paymentMethodId = normalizeString(body?.payment_method_id ?? body?.paymentMethodId);
+  const paymentTypeId = normalizeString(body?.payment_type_id ?? body?.paymentTypeId);
+  const issuerId = normalizeString(body?.issuer_id ?? body?.issuerId);
+  const transactionAmountValue = normalizeNumber(
+    body?.transaction_amount ?? body?.transactionAmount,
+  );
 
-  if (!token || !paymentMethodId || !transactionAmount) {
+  if (!paymentMethodId || transactionAmountValue === null || transactionAmountValue <= 0) {
     return NextResponse.json(
-      { error: "Missing required payment fields (token, payment_method_id, transaction_amount)." },
+      { error: "Missing or invalid required payment fields (payment_method_id, transaction_amount)." },
       { status: 400 },
     );
   }
 
-  const payerEmail = body.payer?.email ?? null;
-  if (!payerEmail) {
-    return NextResponse.json({ error: "Payer email is required." }, { status: 400 });
+  const payer = sanitizePayer(body);
+  if (!payer) {
+    return NextResponse.json(
+      { error: "Payer email is required." },
+      { status: 400 },
+    );
+  }
+
+  const sanitizedInstallments = sanitizeInstallments(body.installments);
+  const hasInstallmentsInput = body.installments !== null && body.installments !== undefined;
+
+  const metadataSources = [body.metadata, body.rawFormData?.["metadata"]];
+  const metadata: Record<string, unknown> = {};
+  for (const source of metadataSources) {
+    if (isPlainObject(source)) {
+      Object.assign(metadata, source);
+    }
+  }
+
+  const normalizedPreferenceId = normalizeString(body.preferenceId ?? body.preference_id);
+  if (normalizedPreferenceId) {
+    metadata.preferenceId = normalizedPreferenceId;
+    metadata.preference_id = normalizedPreferenceId;
+  }
+
+  if (body.selectedPaymentMethod !== undefined) {
+    metadata.selectedPaymentMethod = body.selectedPaymentMethod;
+  }
+
+  const additionalInfoSources = [
+    body.additional_info,
+    body.additionalInfo,
+    body.rawFormData?.["additional_info"],
+  ];
+  let additionalInfo: Record<string, unknown> | undefined;
+  for (const source of additionalInfoSources) {
+    if (isPlainObject(source)) {
+      additionalInfo = { ...(source as Record<string, unknown>) };
+      break;
+    }
   }
 
   const client = new MercadoPagoConfig({ accessToken });
@@ -74,22 +228,18 @@ export async function POST(request: Request) {
   try {
     const result = await payment.create({
       body: {
-        transaction_amount: Number(transactionAmount),
-        token,
-        description: body.description ?? "Sample payment",
-        installments: sanitizeInstallments(body.installments),
+        transaction_amount: transactionAmountValue,
+        token: token ?? undefined,
+        description: normalizeString(body.description) ?? "Sample payment",
+        ...(hasInstallmentsInput || sanitizedInstallments > 1
+          ? { installments: sanitizedInstallments }
+          : {}),
         payment_method_id: paymentMethodId,
         issuer_id: issuerId ?? undefined,
-        payer: {
-          email: payerEmail,
-          identification:
-            body.payer?.identification?.type && body.payer.identification.number
-              ? {
-                  type: body.payer.identification.type,
-                  number: body.payer.identification.number,
-                }
-              : undefined,
-        },
+        payment_type_id: paymentTypeId ?? undefined,
+        payer: payer,
+        ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+        ...(additionalInfo ? { additional_info: additionalInfo } : {}),
       },
     });
 
