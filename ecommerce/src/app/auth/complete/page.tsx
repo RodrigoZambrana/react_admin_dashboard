@@ -30,6 +30,24 @@ export default function AuthCompletePage() {
   const [statusText, setStatusText] = useState(COMPLETING_MESSAGE);
 
   useEffect(() => {
+    const handleForceClose = (event: MessageEvent) => {
+      const payload = event.data;
+      if (!payload) {
+        return;
+      }
+      if (typeof payload === "object" && (payload as { type?: string }).type === "storefront:force-close-google") {
+        setTimeout(() => {
+          try {
+            window.close();
+          } catch (error) {
+            console.warn("[google-auth][bridge] Forced close request failed", error);
+          }
+        }, 0);
+      }
+    };
+
+    window.addEventListener("message", handleForceClose);
+
     const params = new URLSearchParams(window.location.search);
     const status = params.get("status") ?? "error";
     const state = params.get("state") ?? null;
@@ -141,6 +159,9 @@ export default function AuthCompletePage() {
     };
 
     void notifyOpener();
+    return () => {
+      window.removeEventListener("message", handleForceClose);
+    };
   }, []);
 
   return (

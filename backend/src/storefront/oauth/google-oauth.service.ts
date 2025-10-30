@@ -305,6 +305,31 @@ export class StorefrontGoogleOAuthService {
           if (typeof url !== 'string') return url;
           return url.endsWith('/') ? url.slice(0, -1) : url;
         };
+        const scheduleClose = function(delay) {
+          setTimeout(function() {
+            try {
+              window.close();
+            } catch (closeError) {
+              console.warn('[storefront] Google auth popup could not be closed immediately:', closeError);
+            }
+          }, delay);
+        };
+        const handleForceClose = function(event) {
+          if (!event) return;
+          var data = event.data;
+          if (!data) return;
+          if (typeof data === 'string') {
+            try {
+              data = JSON.parse(data);
+            } catch (parseError) {
+              data = null;
+            }
+          }
+          if (data && typeof data === 'object' && data.type === 'storefront:force-close-google') {
+            scheduleClose(0);
+          }
+        };
+        window.addEventListener('message', handleForceClose);
         let delivered = false;
 
         try {
@@ -323,16 +348,26 @@ export class StorefrontGoogleOAuthService {
           console.warn('[storefront] Failed to post Google auth result to opener:', error);
         } finally {
           if (delivered) {
-            setTimeout(function() { window.close(); }, 500);
+            scheduleClose(500);
           } else if (fallbackOrigin) {
-            var base = normalizeBase(fallbackOrigin);
-            var target = base;
-            if (returnPath && returnPath.charAt(0) === '/') {
-              target = base + returnPath;
-            }
-            setTimeout(function() { window.location.replace(target); }, 400);
+            scheduleClose(500);
+            setTimeout(function() {
+              if (window.closed) {
+                return;
+              }
+              try {
+                var base = normalizeBase(fallbackOrigin);
+                var target = base;
+                if (returnPath && returnPath.charAt(0) === '/') {
+                  target = base + returnPath;
+                }
+                window.location.replace(target);
+              } catch (redirectError) {
+                console.warn('[storefront] Unable to redirect Google auth popup in fallback:', redirectError);
+              }
+            }, 1200);
           } else {
-            setTimeout(function() { window.close(); }, 800);
+            scheduleClose(800);
           }
         }
       })();
