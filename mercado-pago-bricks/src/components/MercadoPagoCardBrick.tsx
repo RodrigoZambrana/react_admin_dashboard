@@ -157,14 +157,10 @@ const FULL_PAYMENT_METHOD_AVAILABILITY: Record<string, "all"> = {
   creditCard: "all",
   debitCard: "all",
   ticket: "all",
-  walletPurchase: "all",
   wallet_purchase: "all",
-  onboardingCredits: "all",
+  walletPurchase: "all",
   onboarding_credits: "all",
-  consumerCredits: "all",
-  consumer_credits: "all",
-  prepaidCard: "all",
-  atm: "all",
+  onboardingCredits: "all",
 };
 
 type Props = {
@@ -293,6 +289,18 @@ const normalizeText = (value: unknown) => {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const cloneSerializable = <T,>(value: T): T | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(value)) as T;
+  } catch {
+    return undefined;
+  }
 };
 
 export default function MercadoPagoCardBrick({
@@ -453,8 +461,6 @@ export default function MercadoPagoCardBrick({
         const bricksBuilder = sdk.bricks();
 
         const initialization: Record<string, unknown> = {
-          amount,
-          currency,
           payer: {
             email: defaultEmail ?? "test_user_123456@example.com",
           },
@@ -462,6 +468,9 @@ export default function MercadoPagoCardBrick({
 
         if (preferenceId) {
           initialization.preferenceId = preferenceId;
+        } else {
+          initialization.amount = amount;
+          initialization.currency = currency;
         }
 
         const brickSettings = {
@@ -539,10 +548,11 @@ export default function MercadoPagoCardBrick({
               const issuerId = normalizeText(formData.issuer_id) ?? normalizeText(formData.issuerId) ?? undefined;
               const selectedPaymentMethod = extractSelectedPaymentMethod(submitEvent);
 
-              const identificationType =
-                normalizeText(formData.payer?.identification?.type) ?? "DNI";
-              const identificationNumber =
-                normalizeText(formData.payer?.identification?.number) ?? "00000000";
+              const identificationType = normalizeText(formData.payer?.identification?.type);
+              const identificationNumber = normalizeText(
+                formData.payer?.identification?.number,
+              );
+              const hasIdentification = Boolean(identificationType && identificationNumber);
 
               const firstName =
                 normalizeText(formData.payer?.first_name) ?? normalizeText(formData.payer?.firstName);
@@ -551,11 +561,13 @@ export default function MercadoPagoCardBrick({
 
               const payerSnakeCase: Record<string, unknown> = {
                 email: effectiveEmail,
-                identification: {
+              };
+              if (hasIdentification && identificationType && identificationNumber) {
+                payerSnakeCase.identification = {
                   type: identificationType,
                   number: identificationNumber,
-                },
-              };
+                };
+              }
               if (firstName) {
                 payerSnakeCase.first_name = firstName;
               }
@@ -565,11 +577,13 @@ export default function MercadoPagoCardBrick({
 
               const payerCamelCase: Record<string, unknown> = {
                 email: effectiveEmail,
-                identification: {
+              };
+              if (hasIdentification && identificationType && identificationNumber) {
+                payerCamelCase.identification = {
                   type: identificationType,
                   number: identificationNumber,
-                },
-              };
+                };
+              }
               if (firstName) {
                 payerCamelCase.firstName = firstName;
               }
@@ -577,12 +591,17 @@ export default function MercadoPagoCardBrick({
                 payerCamelCase.lastName = lastName;
               }
 
-              const metadata: Record<string, unknown> = isPlainObject(formData.metadata)
-                ? { ...(formData.metadata as Record<string, unknown>) }
-                : {};
+              const metadata: Record<string, unknown> = {};
+              if (isPlainObject(formData.metadata)) {
+                const metadataClone = cloneSerializable(formData.metadata);
+                if (metadataClone && isPlainObject(metadataClone)) {
+                  Object.assign(metadata, metadataClone as Record<string, unknown>);
+                }
+              }
 
-              if (selectedPaymentMethod !== undefined) {
-                metadata.selectedPaymentMethod = selectedPaymentMethod;
+              const selectedPaymentMethodClone = cloneSerializable(selectedPaymentMethod);
+              if (selectedPaymentMethodClone !== undefined) {
+                metadata.selectedPaymentMethod = selectedPaymentMethodClone;
               }
 
               if (preferenceId) {
@@ -593,9 +612,13 @@ export default function MercadoPagoCardBrick({
 
               const additionalInfoCandidate =
                 (formData.additional_info ?? formData.additionalInfo) as unknown;
-              const additionalInfo = isPlainObject(additionalInfoCandidate)
-                ? additionalInfoCandidate
-                : undefined;
+              let additionalInfo: Record<string, unknown> | undefined;
+              if (isPlainObject(additionalInfoCandidate)) {
+                const additionalInfoClone = cloneSerializable(additionalInfoCandidate);
+                if (additionalInfoClone && isPlainObject(additionalInfoClone)) {
+                  additionalInfo = additionalInfoClone as Record<string, unknown>;
+                }
+              }
 
               const payload: Record<string, unknown> = {
                 // Snake_case keys used by the internal Next.js API route.
@@ -608,8 +631,12 @@ export default function MercadoPagoCardBrick({
                 // Mercado Pago sample backends (e.g. `/process_payment`).
                 paymentMethodId,
                 transactionAmount: amount,
-                rawFormData: formData,
               };
+
+              const rawFormDataClone = cloneSerializable(formData);
+              if (rawFormDataClone && isPlainObject(rawFormDataClone)) {
+                payload.rawFormData = rawFormDataClone as Record<string, unknown>;
+              }
 
               if (formData.token) {
                 payload.token = formData.token;
@@ -643,8 +670,8 @@ export default function MercadoPagoCardBrick({
                 payload.payerCamelCase = payerCamelCase;
               }
 
-              if (selectedPaymentMethod !== undefined) {
-                payload.selectedPaymentMethod = selectedPaymentMethod;
+              if (selectedPaymentMethodClone !== undefined) {
+                payload.selectedPaymentMethod = selectedPaymentMethodClone;
               }
 
               const targetPaymentUrl = resolvePaymentUrl(paymentEndpoint);

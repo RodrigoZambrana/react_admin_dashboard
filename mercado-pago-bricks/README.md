@@ -64,8 +64,8 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
   - Maneja el estado del pago (cargando, éxito, error) y muestra la respuesta en la interfaz.
   - Notifica al Brick el resultado del backend usando las acciones expuestas (`submitComplete`, `resolve`, `reject`) para
     que el flujo del iframe continúe correctamente y puedas enganchar callbacks adicionales en la app host.
-  - Habilita todas las categorías de pago disponibles en el Brick (tarjetas de crédito/débito, transferencias, tickets,
-    billetera, consumer/onboarding credits, etc.).
+  - Habilita las categorías de pago principales del Brick (tarjetas de crédito/débito, transferencias, tickets,
+    billetera y onboarding credits) sin excluir métodos adicionales configurados en tu cuenta.
 - Carga automáticamente el script de seguridad de Mercado Pago (`https://www.mercadopago.com/v2/security.js`) para que la
   sesión genere los eventos de tracking (`/tracks`) requeridos por la plataforma.
 - Envía los datos al endpoint definido en `NEXT_PUBLIC_MERCADO_PAGO_PAYMENT_URL` (por defecto `/api/process-payment`). El
@@ -82,6 +82,7 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
   - Usa el SDK oficial (`mercadopago`) para crear un pago en modo test.
   - Acepta pagos con token (tarjetas) y sin token (transferencias, efectivo, billetera), normalizando los campos
     en `snake_case`/`camelCase`, propagando metadata adicional y limpiando la información del pagador antes de llamar al SDK.
+    Solo adjunta la identificación cuando el formulario la proporciona para evitar valores ficticios en los métodos sin tarjeta.
 - Devuelve al cliente el `status`, `status_detail` e `id` del pago creado.
 
 - **Back-end (`src/app/api/preferences/route.ts`)**

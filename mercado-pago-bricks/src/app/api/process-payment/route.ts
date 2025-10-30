@@ -84,12 +84,16 @@ const normalizeNumber = (value: unknown): number | null => {
 
 const sanitizeIdentification = (value: unknown) => {
   if (!isPlainObject(value)) {
-    return { type: "DNI", number: "00000000" };
+    return null;
   }
 
   const record = value as Record<string, unknown>;
-  const type = normalizeString(record["type"]) ?? "DNI";
-  const number = normalizeString(record["number"]) ?? "00000000";
+  const type = normalizeString(record["type"]);
+  const number = normalizeString(record["number"]);
+
+  if (!type || !number) {
+    return null;
+  }
 
   return { type, number };
 };
@@ -135,8 +139,11 @@ const sanitizePayer = (body: PaymentPayload) => {
 
   const payer: Record<string, unknown> = {
     email: emailCandidate,
-    identification,
   };
+
+  if (identification) {
+    payer.identification = identification;
+  }
 
   if (firstName) {
     payer.first_name = firstName;
