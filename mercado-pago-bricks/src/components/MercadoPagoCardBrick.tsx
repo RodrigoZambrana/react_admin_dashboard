@@ -5,12 +5,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 const SDK_URL = "https://sdk.mercadopago.com/js/v2";
 const SCRIPT_ID = "mercado-pago-sdk";
 const BRICK_CONTAINER_ID = "payment-brick_container";
+const DEFAULT_PAYMENT_ENDPOINT = "/api/process-payment";
 
 type SubmitPayload = {
   token: string;
   payment_method_id: string;
+  paymentMethodId?: string;
   installments?: number | string;
   issuer_id?: string;
+  issuerId?: string;
   payer?: {
     email?: string;
     first_name?: string;
@@ -102,6 +105,8 @@ export default function MercadoPagoCardBrick({
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
 
   const publicKey = process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY;
+  const paymentEndpoint =
+    process.env.NEXT_PUBLIC_MERCADO_PAGO_PAYMENT_URL?.trim() || DEFAULT_PAYMENT_ENDPOINT;
   const loader = useMercadoPago(publicKey, locale);
 
   const resetState = useCallback(() => {
@@ -167,11 +172,17 @@ export default function MercadoPagoCardBrick({
 
               const effectiveEmail = emailFromForm.trim();
 
+              const sanitizedInstallments = sanitizeInstallments(formData.installments);
+              const issuerId = formData.issuer_id ?? null;
+
               const payload = {
                 token: formData.token,
+                // Snake_case keys used by the internal Next.js API route.
                 payment_method_id: formData.payment_method_id,
-                installments: sanitizeInstallments(formData.installments),
-                issuer_id: formData.issuer_id ?? null,
+                installments: sanitizedInstallments,
+                issuer_id: issuerId,
+                transaction_amount: amount,
+                description: description ?? "Sample Product",
                 payer: {
                   email: effectiveEmail,
                   identification: {
@@ -179,12 +190,15 @@ export default function MercadoPagoCardBrick({
                     number: formData.payer?.identification?.number ?? "00000000",
                   },
                 },
-                transaction_amount: amount,
-                description: description ?? "Sample Product",
+                // CamelCase copies improve compatibility with the official
+                // Mercado Pago sample backends (e.g. `/process_payment`).
+                paymentMethodId: formData.payment_method_id,
+                issuerId,
+                transactionAmount: amount,
               };
 
               try {
-                const response = await fetch("/api/process-payment", {
+                const response = await fetch(paymentEndpoint, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(payload),
@@ -260,7 +274,7 @@ export default function MercadoPagoCardBrick({
       controllerRef.current?.destroy();
       controllerRef.current = null;
     };
-  }, [amount, currency, defaultEmail, description, loader, resetState]);
+  }, [amount, currency, defaultEmail, description, loader, paymentEndpoint, resetState]);
 
   return (
     <div className="flex flex-col gap-3">

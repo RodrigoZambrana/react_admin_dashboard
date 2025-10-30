@@ -5,11 +5,14 @@ const resolveAccessToken = () =>
   process.env.MERCADO_PAGO_ACCESS_TOKEN ?? process.env.MERCADO_PAGO_SAMPLE_ACCESS_TOKEN ?? null;
 
 type PaymentPayload = {
-  token: string;
-  payment_method_id: string;
+  token?: string;
+  payment_method_id?: string;
+  paymentMethodId?: string;
   installments?: number | string | null;
   issuer_id?: string | null;
-  transaction_amount: number;
+  issuerId?: string | null;
+  transaction_amount?: number | string | null;
+  transactionAmount?: number | string | null;
   description?: string | null;
   payer?: {
     email?: string | null;
@@ -48,14 +51,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
   }
 
-  if (!body?.token || !body?.payment_method_id || !body?.transaction_amount) {
+  const token = body?.token ?? null;
+  const paymentMethodId = body?.payment_method_id ?? body?.paymentMethodId ?? null;
+  const issuerId = body?.issuer_id ?? body?.issuerId ?? null;
+  const transactionAmount = body?.transaction_amount ?? body?.transactionAmount ?? null;
+
+  if (!token || !paymentMethodId || !transactionAmount) {
     return NextResponse.json(
       { error: "Missing required payment fields (token, payment_method_id, transaction_amount)." },
       { status: 400 },
     );
   }
 
-  const payerEmail = body.payer?.email;
+  const payerEmail = body.payer?.email ?? null;
   if (!payerEmail) {
     return NextResponse.json({ error: "Payer email is required." }, { status: 400 });
   }
@@ -66,12 +74,12 @@ export async function POST(request: Request) {
   try {
     const result = await payment.create({
       body: {
-        transaction_amount: Number(body.transaction_amount),
-        token: body.token,
+        transaction_amount: Number(transactionAmount),
+        token,
         description: body.description ?? "Sample payment",
         installments: sanitizeInstallments(body.installments),
-        payment_method_id: body.payment_method_id,
-        issuer_id: body.issuer_id ?? undefined,
+        payment_method_id: paymentMethodId,
+        issuer_id: issuerId ?? undefined,
         payer: {
           email: payerEmail,
           identification:
