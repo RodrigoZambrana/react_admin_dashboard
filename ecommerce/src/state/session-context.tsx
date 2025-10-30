@@ -363,7 +363,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           } catch (error) {
             console.warn("[session] Unable to close Google auth popup", error);
             try {
-              popup.opener?.postMessage({ type: "storefront:force-close-google" }, "*");
+              popup.postMessage({ type: "storefront:force-close-google" }, "*");
             } catch (postMessageError) {
               console.warn("[session] Fallback postMessage to close popup failed", postMessageError);
             }
