@@ -40,9 +40,37 @@ type SubmitActions = {
   submitComplete?: (response: SubmitResponse) => void;
 };
 
-type SubmitEvent = {
-  formData: SubmitPayload;
-  actions?: SubmitActions;
+type SubmitEventArg =
+  | SubmitPayload
+  | {
+      formData: SubmitPayload;
+      actions?: SubmitActions;
+      selectedPaymentMethod?: unknown;
+    }
+  | {
+      formData: SubmitPayload;
+      selectedPaymentMethod?: unknown;
+    };
+
+const extractFormData = (event: SubmitEventArg): SubmitPayload | null => {
+  if (!event) return null;
+
+  if ("formData" in event) {
+    return event.formData ?? null;
+  }
+
+  return event;
+};
+
+const extractActions = (
+  event: SubmitEventArg,
+  fallback?: SubmitActions,
+): SubmitActions | undefined => {
+  if (event && typeof event === "object" && "actions" in event && event.actions) {
+    return event.actions;
+  }
+
+  return fallback;
 };
 
 type Props = {
@@ -228,10 +256,25 @@ export default function MercadoPagoCardBrick({
                 setStatusMessage(null);
               }
             },
-            onSubmit: async ({ formData, actions }: SubmitEvent): Promise<SubmitResponse> => {
+            onSubmit: async (
+              submitEvent: SubmitEventArg,
+              submitActions?: SubmitActions,
+            ): Promise<SubmitResponse> => {
               setStatusType("loading");
               setStatusMessage("Procesando pago...");
               setErrorDetails(null);
+
+              const formData = extractFormData(submitEvent);
+              const actions = extractActions(submitEvent, submitActions);
+
+              if (!formData) {
+                setStatusType("error");
+                const errorMessage =
+                  "No pudimos leer los datos del formulario de Mercado Pago.";
+                setStatusMessage("Datos de pago incompletos");
+                setErrorDetails(errorMessage);
+                throw new Error(errorMessage);
+              }
 
               const emailFromForm = formData.payer?.email ?? defaultEmail ?? null;
               if (!isValidEmail(emailFromForm)) {
