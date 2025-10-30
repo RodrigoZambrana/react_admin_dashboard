@@ -5,6 +5,8 @@ import { useCallback, useMemo } from "react";
 import { normalizeMoney } from "@/lib/utils/format";
 import type { Money } from "@/types/storefront";
 import { useCurrency, useOptionalCurrency } from "@/state/currency-context";
+import { resolveCurrencyLocale } from "@/lib/currency/locale";
+import { formatCurrencyAmount } from "@/lib/currency/utils";
 
 type FormatMoneyFn = (money: Money) => string;
 type FormatAmountFn = (amount: number, currency?: string) => string;
@@ -29,16 +31,7 @@ export function useMoneyFormatter(): MoneyFormatter {
       const normalized = normalizeMoney(money);
       if (!convertMoneyFn || !formatMoneyFn) {
         const currency = normalized.currency ?? baseCurrency;
-        try {
-          const formatter = new Intl.NumberFormat(undefined, {
-            style: "currency",
-            currency,
-            currencyDisplay: "symbol"
-          });
-          return formatter.format(normalized.amount);
-        } catch {
-          return `${currency} ${normalized.amount.toFixed(2)}`;
-        }
+        return formatCurrencyAmount(normalized.amount, currency, resolveCurrencyLocale());
       }
       return formatMoneyFn(convertMoneyFn(normalized));
     },
@@ -49,11 +42,11 @@ export function useMoneyFormatter(): MoneyFormatter {
     (amount, currency) => {
       const resolved = currency && currency.trim().length === 3 ? currency : baseCurrency;
       if (!convertMoneyFn || !formatMoneyFn) {
-        return cachedFormatMoney({ amount, currency: resolved });
+        return formatCurrencyAmount(amount, resolved, resolveCurrencyLocale());
       }
       return formatMoneyFn(convertMoneyFn({ amount, currency: resolved }));
     },
-    [baseCurrency, cachedFormatMoney, convertMoneyFn, formatMoneyFn]
+    [baseCurrency, convertMoneyFn, formatMoneyFn]
   );
 
   return useMemo(

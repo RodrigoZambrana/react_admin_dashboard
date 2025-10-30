@@ -1,23 +1,10 @@
 import type { InventoryStatus, Money } from "@/types/storefront";
-
-const currencyFormatters = new Map<string, Intl.NumberFormat>();
+import { formatCurrencyAmount } from "@/lib/currency/utils";
+import { resolveCurrencyLocale } from "@/lib/currency/locale";
 
 export const formatMoney = (money: Money, locale = "en-US"): string => {
-  const { amount, currency } = money;
-  const formatterKey = `${locale}:${currency}`;
-
-  if (!currencyFormatters.has(formatterKey)) {
-    currencyFormatters.set(
-      formatterKey,
-      new Intl.NumberFormat(locale, {
-        style: "currency",
-        currency,
-        currencyDisplay: "symbol"
-      })
-    );
-  }
-
-  return currencyFormatters.get(formatterKey)!.format(amount);
+  const resolvedLocale = resolveCurrencyLocale(locale);
+  return formatCurrencyAmount(money.amount, money.currency, resolvedLocale);
 };
 
 export const normalizeMoney = (value: Money, locale = "en-US"): Money => ({
@@ -38,4 +25,3 @@ export const formatInventoryStatus = (status: InventoryStatus): string => {
       return "Out of stock";
   }
 };
-

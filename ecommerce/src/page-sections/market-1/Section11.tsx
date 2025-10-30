@@ -21,6 +21,8 @@ export default async function Section11() {
               slug={item.slug}
               title={item.title}
               price={item.price}
+              basePrice={item.basePrice}
+              currencyCode={item.currency}
               off={item.discount}
               rating={item.rating}
               imgUrl={item.thumbnail}
