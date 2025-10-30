@@ -50,9 +50,12 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
   - Carga el SDK de Mercado Pago en tiempo de ejecución.
   - Renderiza el Payment Brick (`cardPayment`) con un monto fijo de ejemplo.
   - Maneja el estado del pago (cargando, éxito, error) y muestra la respuesta en la interfaz.
-  - Envía los datos al endpoint definido en `NEXT_PUBLIC_MERCADO_PAGO_PAYMENT_URL` (por defecto `/api/process-payment`). El
-    payload incluye tanto claves en `snake_case` como en `camelCase` para ser compatible con los ejemplos oficiales de Mercado
-    Pago (`/process_payment`).
+- Carga automáticamente el script de seguridad de Mercado Pago (`https://www.mercadopago.com/v2/security.js`) para que la
+  sesión genere los eventos de tracking (`/tracks`) requeridos por la plataforma.
+- Envía los datos al endpoint definido en `NEXT_PUBLIC_MERCADO_PAGO_PAYMENT_URL` (por defecto `/api/process-payment`). El
+  payload incluye tanto claves en `snake_case` como en `camelCase` para ser compatible con los ejemplos oficiales de Mercado
+  Pago (`/process_payment`). Si indicas una URL absoluta, la solicitud irá directo a ese servidor; si usas una ruta relativa,
+  el componente la normalizará automáticamente contra el origen actual.
 
 - **Back-end (`src/app/api/process-payment/route.ts`)**
   - Implementa un endpoint `POST /api/process-payment`.

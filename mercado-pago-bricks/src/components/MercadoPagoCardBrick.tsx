@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const SDK_URL = "https://sdk.mercadopago.com/js/v2";
+const SECURITY_SCRIPT_URL = "https://www.mercadopago.com/v2/security.js";
 const SCRIPT_ID = "mercado-pago-sdk";
+const SECURITY_SCRIPT_ID = "mercado-pago-security";
 const BRICK_CONTAINER_ID = "payment-brick_container";
 const DEFAULT_PAYMENT_ENDPOINT = "/api/process-payment";
 
@@ -64,6 +66,53 @@ const ensureScript = () =>
     script.onerror = () => reject(new Error("Failed to load Mercado Pago SDK."));
     document.head.appendChild(script);
   });
+
+const ensureSecurityScript = () =>
+  new Promise<void>((resolve, reject) => {
+    if (typeof window === "undefined") {
+      reject(new Error("Mercado Pago security script requires a browser environment."));
+      return;
+    }
+
+    if (document.getElementById(SECURITY_SCRIPT_ID)) {
+      resolve();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = SECURITY_SCRIPT_ID;
+    script.src = SECURITY_SCRIPT_URL;
+    script.async = true;
+    script.setAttribute("view", "checkout");
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Mercado Pago security script."));
+    document.body.appendChild(script);
+  });
+
+const resolvePaymentUrl = (endpoint: string) => {
+  const trimmed = endpoint.trim();
+
+  if (!trimmed) {
+    return DEFAULT_PAYMENT_ENDPOINT;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  const normalized = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+
+  if (typeof window === "undefined") {
+    return normalized;
+  }
+
+  try {
+    return new URL(normalized, window.location.origin).toString();
+  } catch (error) {
+    console.warn("Falling back to normalized payment endpoint due to URL resolution error", error);
+    return normalized;
+  }
+};
 
 const useMercadoPago = (publicKey: string | undefined, locale: string) =>
   useMemo(() => {
@@ -127,6 +176,12 @@ export default function MercadoPagoCardBrick({
       }
 
       try {
+        try {
+          await ensureSecurityScript();
+        } catch (error) {
+          console.warn(error instanceof Error ? error.message : error);
+        }
+
         const sdk = await loader();
         if (cancelled) {
           return;
@@ -197,8 +252,10 @@ export default function MercadoPagoCardBrick({
                 transactionAmount: amount,
               };
 
+              const targetPaymentUrl = resolvePaymentUrl(paymentEndpoint);
+
               try {
-                const response = await fetch(paymentEndpoint, {
+                const response = await fetch(targetPaymentUrl, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(payload),
@@ -226,7 +283,13 @@ export default function MercadoPagoCardBrick({
                 };
               } catch (error) {
                 if (error instanceof Error) {
-                  setErrorDetails(error.message);
+                  if (error.message === "Failed to fetch") {
+                    setErrorDetails(
+                      "No pudimos contactar al endpoint de pago. Verifica que la URL sea correcta, que el servidor acepte solicitudes desde el navegador y que no existan bloqueos de CORS.",
+                    );
+                  } else {
+                    setErrorDetails(error.message);
+                  }
                 }
                 setStatusType("error");
                 setStatusMessage("Algo salió mal");
