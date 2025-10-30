@@ -11,6 +11,24 @@ const BRICK_CONTAINER_ID = "payment-brick_container";
 const DEFAULT_PAYMENT_ENDPOINT = "/api/process-payment";
 const DEFAULT_SUCCESS_PATH = "/success";
 
+type MercadoPagoBrickController = {
+  destroy?: () => void;
+  unmount?: () => void;
+};
+
+const destroyController = (
+  controller: MercadoPagoBrickController | null | undefined,
+) => {
+  if (!controller) return;
+  if (typeof controller.destroy === "function") {
+    controller.destroy();
+    return;
+  }
+  if (typeof controller.unmount === "function") {
+    controller.unmount();
+  }
+};
+
 type SubmitPayload = {
   token: string;
   payment_method_id: string;
@@ -260,7 +278,7 @@ export default function MercadoPagoCardBrick({
           return;
         }
 
-        controllerRef.current?.destroy();
+        destroyController(controllerRef.current);
         const bricksBuilder = sdk.bricks();
 
         const brickSettings = {
@@ -472,9 +490,13 @@ export default function MercadoPagoCardBrick({
           },
         };
 
-        const controller = await bricksBuilder.create("cardPayment", BRICK_CONTAINER_ID, brickSettings);
+        const controller = (await bricksBuilder.create(
+          "cardPayment",
+          BRICK_CONTAINER_ID,
+          brickSettings,
+        )) as MercadoPagoBrickController;
         if (cancelled) {
-          controller.destroy();
+          destroyController(controller);
           return;
         }
         controllerRef.current = controller;
@@ -496,7 +518,7 @@ export default function MercadoPagoCardBrick({
 
     return () => {
       cancelled = true;
-      controllerRef.current?.destroy();
+      destroyController(controllerRef.current);
       controllerRef.current = null;
     };
   }, [amount, currency, defaultEmail, description, loader, paymentEndpoint, router, showFeedback, successRedirectPath]);

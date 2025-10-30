@@ -1,17 +1,20 @@
 import Link from "next/link";
 
-type SuccessPageProps = {
-  searchParams: {
-    paymentId?: string;
-    status?: string;
-    detail?: string;
-  };
+type SuccessPageSearchParams = {
+  paymentId?: string;
+  status?: string;
+  detail?: string;
 };
 
-export default function SuccessPage({ searchParams }: SuccessPageProps) {
-  const paymentId = searchParams.paymentId ?? "desconocido";
-  const status = searchParams.status ?? "approved";
-  const detail = searchParams.detail ?? null;
+type SuccessPageProps = {
+  searchParams: Promise<SuccessPageSearchParams> | SuccessPageSearchParams;
+};
+
+export default async function SuccessPage({ searchParams }: SuccessPageProps) {
+  const resolvedSearchParams = await searchParams;
+  const paymentId = resolvedSearchParams.paymentId ?? "desconocido";
+  const status = resolvedSearchParams.status ?? "approved";
+  const detail = resolvedSearchParams.detail ?? null;
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-slate-100 px-6 py-16 text-slate-900">
