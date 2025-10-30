@@ -315,7 +315,12 @@ export default function MercadoPagoCardBrick({
       ? successPathRaw
       : `/${successPathRaw}`
     : DEFAULT_SUCCESS_PATH;
-  const preferenceId = process.env.NEXT_PUBLIC_MERCADO_PAGO_PREFERENCE_ID?.trim();
+  const preferenceIdFromEnv = process.env.NEXT_PUBLIC_MERCADO_PAGO_PREFERENCE_ID?.trim();
+  const [preferenceId, setPreferenceId] = useState<string | null>(
+    preferenceIdFromEnv || null,
+  );
+  const [preferenceError, setPreferenceError] = useState<string | null>(null);
+  const [isFetchingPreference, setIsFetchingPreference] = useState(false);
   const loader = useMercadoPago(publicKey, locale);
 
   const showFeedback = useCallback(
@@ -328,6 +333,79 @@ export default function MercadoPagoCardBrick({
     },
     [],
   );
+
+  useEffect(() => {
+    if (preferenceIdFromEnv) {
+      return;
+    }
+
+    let cancelled = false;
+    const abortController = new AbortController();
+
+    const createPreference = async () => {
+      setPreferenceError(null);
+      setIsFetchingPreference(true);
+
+      try {
+        const response = await fetch("/api/preferences", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: description ?? "Orden Mercado Pago",
+            quantity: 1,
+            unit_price: amount,
+          }),
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as
+            | { error?: unknown }
+            | null;
+          const message =
+            typeof payload?.error === "string"
+              ? payload.error
+              : "No se pudo generar la preferencia de Mercado Pago.";
+          throw new Error(message);
+        }
+
+        const payload = (await response.json()) as { preferenceId?: unknown };
+        const idFromResponse =
+          typeof payload.preferenceId === "string" ? payload.preferenceId.trim() : null;
+
+        if (!idFromResponse) {
+          throw new Error("La respuesta de Mercado Pago no incluyó una preferencia válida.");
+        }
+
+        if (!cancelled) {
+          setPreferenceId(idFromResponse);
+          setPreferenceError(null);
+        }
+      } catch (error) {
+        if (abortController.signal.aborted || cancelled) {
+          return;
+        }
+
+        console.error("Failed to auto-create Mercado Pago preference.", error);
+        const message =
+          error instanceof Error
+            ? error.message
+            : "No se pudo generar la preferencia de Mercado Pago.";
+        setPreferenceError(message);
+      } finally {
+        if (!cancelled) {
+          setIsFetchingPreference(false);
+        }
+      }
+    };
+
+    void createPreference();
+
+    return () => {
+      cancelled = true;
+      abortController.abort();
+    };
+  }, [amount, description, preferenceIdFromEnv]);
 
   useEffect(() => {
     let cancelled = false;
@@ -344,6 +422,26 @@ export default function MercadoPagoCardBrick({
           await ensureSecurityScript();
         } catch (error) {
           console.warn(error instanceof Error ? error.message : error);
+        }
+
+        if (!preferenceId && !preferenceIdFromEnv) {
+          if (isFetchingPreference) {
+            showFeedback(
+              "loading",
+              "Preparando medios de pago...",
+              "Generando preferencia en Mercado Pago para habilitar todas las opciones.",
+            );
+            return;
+          }
+
+          if (preferenceError) {
+            showFeedback(
+              "error",
+              "No pudimos habilitar todos los medios de pago",
+              preferenceError,
+            );
+            return;
+          }
         }
 
         const sdk = await loader();
@@ -751,8 +849,11 @@ export default function MercadoPagoCardBrick({
     defaultEmail,
     description,
     loader,
+    isFetchingPreference,
     paymentEndpoint,
+    preferenceError,
     preferenceId,
+    preferenceIdFromEnv,
     router,
     showFeedback,
     successRedirectPath,

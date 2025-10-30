@@ -17,7 +17,9 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
 
   ```txt
   NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY=TEST-632ebe0d-6895-4755-b5f7-22a831e45d27
-  # Opcional: habilita flows adicionales (transferencias, cuenta MP, etc.).
+  # Opcional: reutiliza una preferencia existente para habilitar transferencias,
+  # Cuenta Mercado Pago, tickets, etc. Si lo omites, el frontend genera una en
+  # caliente llamando a /api/preferences.
   NEXT_PUBLIC_MERCADO_PAGO_PREFERENCE_ID=TEST-PREFERENCE-ID
   MERCADO_PAGO_ACCESS_TOKEN=TEST-6249908203472499-102717-cf8020a9113d8f1574a5c8015683e0ba-670522668
   # Por defecto apunta a la API interna de Next.js. Cambia la URL si usas un backend externo.
@@ -57,6 +59,8 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
   - Carga el SDK de Mercado Pago en tiempo de ejecución.
   - Renderiza el Payment Brick (`cardPayment`) con un monto fijo de ejemplo y soporta un `preferenceId` opcional
     para habilitar la Cuenta Mercado Pago, transferencias bancarias y otros medios fuera de tarjeta.
+  - Si no hay `NEXT_PUBLIC_MERCADO_PAGO_PREFERENCE_ID`, solicita una nueva preferencia al endpoint interno y espera a
+    que esté lista antes de montar el Brick, garantizando que aparezcan todas las categorías disponibles.
   - Maneja el estado del pago (cargando, éxito, error) y muestra la respuesta en la interfaz.
   - Notifica al Brick el resultado del backend usando las acciones expuestas (`submitComplete`, `resolve`, `reject`) para
     que el flujo del iframe continúe correctamente y puedas enganchar callbacks adicionales en la app host.
@@ -102,7 +106,7 @@ Mercado Pago expone todos los métodos disponibles de manera predeterminada. Par
      }'
    ```
 
-   La respuesta incluirá `{"preferenceId":"<ID_GENERADO>"}`. Copia ese valor en `NEXT_PUBLIC_MERCADO_PAGO_PREFERENCE_ID` para que el Brick habilite transferencias, billetera, tickets, etc.
+   La respuesta incluirá `{"preferenceId":"<ID_GENERADO>"}`. Copia ese valor en `NEXT_PUBLIC_MERCADO_PAGO_PREFERENCE_ID` para reutilizarlo entre sesiones (el frontend también puede generarlo automáticamente si no está configurado).
 
 2. Si necesitas personalizar URLs de retorno, `notification_url` o el tope de cuotas, envía los campos en el cuerpo. El backend sanea los valores y mantiene `excluded_payment_types` / `excluded_payment_methods` vacíos.
 
