@@ -25,7 +25,7 @@ import StyledSearchBox from "./styled";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import type { CategorySummary, ProductSummary } from "@/types/storefront";
-import { formatMoney } from "@/lib/utils/format";
+import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 
 const dropdownVariants = {
   hidden: {
@@ -63,6 +63,7 @@ export default function SearchInputWithCategory() {
   const [isSearching, setIsSearching] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([DEFAULT_CATEGORY]);
   const [selectedCategory, setSelectedCategory] = useState<CategoryOption>(DEFAULT_CATEGORY);
+  const { formatMoney: formatStorefrontMoney } = useMoneyFormatter();
 
   const latestRequestRef = useRef(0);
 
@@ -244,7 +245,7 @@ export default function SearchInputWithCategory() {
               ) : (
                 results.map((product) => {
                   const price = product.salePrice ?? product.price;
-                  const priceLabel = price.formatted ?? formatMoney(price);
+                  const priceLabel = formatStorefrontMoney(price);
                   return (
                     <Link href={`/product/${product.slug}`} key={product.slug}>
                       <MenuItem>

@@ -18,18 +18,7 @@ import { H3, H6, Paragraph, Small } from "@component/Typography";
 import ProductWishlistButton from "@/components/product-cards/ProductWishlistButton";
 import { useWishlist } from "@/state/wishlist-context";
 import { isMissingProductImage } from "@/lib/utils/image";
-
-const formatMoney = (money?: { amount: number; currency: string; formatted?: string | null }) => {
-  if (!money) {
-    return "";
-  }
-  if (money.formatted) {
-    return money.formatted;
-  }
-  const { amount, currency } = money;
-  const normalizedAmount = Number.isFinite(amount) ? amount : 0;
-  return `${currency ?? ""} ${normalizedAmount.toFixed(2)}`.trim();
-};
+import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 
 const formatAddedDate = (isoString: string) => {
   const date = new Date(isoString);
@@ -41,6 +30,7 @@ const formatAddedDate = (isoString: string) => {
 
 export function WishlistContent() {
   const { items, count, isLoading, error, clearError, remove, isPending, refresh } = useWishlist();
+  const { formatMoney } = useMoneyFormatter();
 
   const handleRemove = useCallback(
     async (productId: number) => {

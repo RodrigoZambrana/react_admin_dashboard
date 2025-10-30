@@ -4,6 +4,7 @@ import {
   getCurrencyDefinition,
   getCurrencySymbol
 } from "./definitions";
+import { resolveCurrencyLocale } from "./locale";
 
 const sanitizeKey = (value: string) => value.replace(/[^A-Z]/g, "");
 
@@ -120,4 +121,31 @@ export function formatCurrencyOptionLabel(code: string, label?: string, symbol?:
 
 export function getCurrencySymbolSafe(code?: string | null): string | undefined {
   return getCurrencySymbol(code);
+}
+
+export function formatCurrencyAmount(
+  amount: number,
+  currency: string | undefined,
+  locale?: string
+): string {
+  const resolvedCurrency = normalizeCurrencyCode(currency) ?? currency ?? "USD";
+  const resolvedLocale = resolveCurrencyLocale(locale);
+  const definition = getCurrencyDefinition(resolvedCurrency);
+  try {
+    const formatter = new Intl.NumberFormat(resolvedLocale, {
+      style: "currency",
+      currency: resolvedCurrency,
+      currencyDisplay: "symbol"
+    });
+    if (!definition?.symbol) {
+      return formatter.format(amount);
+    }
+    const parts = formatter.formatToParts(amount);
+    return parts
+      .map((part) => (part.type === "currency" ? definition.symbol : part.value))
+      .join("");
+  } catch {
+    const symbol = definition?.symbol ?? resolvedCurrency;
+    return `${symbol} ${Number.isFinite(amount) ? amount.toFixed(2) : amount}`;
+  }
 }

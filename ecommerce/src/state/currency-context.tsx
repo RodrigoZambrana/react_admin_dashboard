@@ -10,8 +10,13 @@ import {
 } from "react";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
-import { normalizeCurrencyCode } from "@/lib/currency/utils";
+import {
+  normalizeCurrencyCode,
+  STANDARD_FALLBACK_CURRENCIES,
+  formatCurrencyAmount
+} from "@/lib/currency/utils";
 import type { Money } from "@/types/storefront";
+import { resolveCurrencyLocale } from "@/lib/currency/locale";
 
 const STORAGE_KEY = "storefront.currency.preference";
 
@@ -105,7 +110,14 @@ export const StorefrontCurrencyProvider: React.FC<{ children: React.ReactNode }>
           .map((code) => normalizeCurrencyCode(code))
           .filter((code): code is string => Boolean(code));
         const normalizedRateCurrencies = Object.keys(normalizedRates);
-        const uniqueEnabled = Array.from(new Set([normalizedBase, ...enabled, ...normalizedRateCurrencies]));
+        const uniqueEnabled = Array.from(
+          new Set([
+            normalizedBase,
+            ...STANDARD_FALLBACK_CURRENCIES,
+            ...enabled,
+            ...normalizedRateCurrencies
+          ])
+        );
         setSettings({
           baseCurrency: normalizedBase,
           enabledCurrencies: uniqueEnabled,
@@ -117,7 +129,7 @@ export const StorefrontCurrencyProvider: React.FC<{ children: React.ReactNode }>
         console.warn("[currency] Failed to load currency settings", error);
         setSettings({
           baseCurrency: "UYU",
-          enabledCurrencies: ["UYU"],
+          enabledCurrencies: Array.from(new Set(["UYU", ...STANDARD_FALLBACK_CURRENCIES])),
           rates: { UYU: 1 },
           generatedAt: new Date().toISOString()
         });
@@ -172,12 +184,8 @@ export const StorefrontCurrencyProvider: React.FC<{ children: React.ReactNode }>
   const formatMoneyValue = useCallback(
     (money: Money, targetCurrency?: string, locale?: string) => {
       const converted = convertMoney(money, targetCurrency);
-      const formatter = new Intl.NumberFormat(locale, {
-        style: "currency",
-        currency: converted.currency,
-        currencyDisplay: "symbol"
-      });
-      return formatter.format(converted.amount);
+      const resolvedLocale = resolveCurrencyLocale(locale);
+      return formatCurrencyAmount(converted.amount, converted.currency, resolvedLocale);
     },
     [convertMoney]
   );

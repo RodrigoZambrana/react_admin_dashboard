@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
 import { IconChevronDown, IconMail, IconPhone } from "@tabler/icons-react";
+import { useCallback, useMemo } from "react";
 
 import Menu from "../menu";
 import Image from "../Image";
@@ -15,8 +15,14 @@ import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
 import { useI18n, useTranslation } from "@/state/i18n-context";
 import { useCurrency } from "@/state/currency-context";
 import Select from "@component/Select";
-import { formatCurrencyOptionLabel } from "@/lib/currency/utils";
+import { formatCurrencyOptionLabel, getCurrencySymbolSafe, normalizeCurrencyCode } from "@/lib/currency/utils";
 import type { SingleValue } from "react-select";
+
+type CurrencyOption = {
+  value: string;
+  label: string;
+  code: string;
+};
 
 export default function Topbar() {
   const storefrontConfig = useStorefrontConfig();
@@ -42,22 +48,33 @@ export default function Topbar() {
     [setLocale]
   );
 
-  const currencyOptions = useMemo(
-    () =>
-      availableCurrencies.map((code) => ({
-        value: code,
-        label: formatCurrencyOptionLabel(code)
-      })),
-    [availableCurrencies]
-  );
+  const currencyOptions = useMemo<CurrencyOption[]>(() => {
+    const normalized = availableCurrencies
+      .map((code) => normalizeCurrencyCode(code))
+      .filter((code): code is string => Boolean(code));
+    const unique = Array.from(new Set(normalized));
+    return unique.map((code) => ({
+      value: code,
+      label: getCurrencySymbolSafe(code) ?? code,
+      code
+    }));
+  }, [availableCurrencies]);
 
   const selectedCurrency = useMemo(
     () => currencyOptions.find((option) => option.value === currency) ?? null,
     [currency, currencyOptions]
   );
 
+  const renderCurrencyOption = useCallback(
+    (option: CurrencyOption, meta: { context: "menu" | "value" }) =>
+      meta.context === "value"
+        ? option.label
+        : `${option.label} · ${formatCurrencyOptionLabel(option.value)}`,
+    []
+  );
+
   const handleCurrencySelect = useCallback(
-    (option: SingleValue<{ value: string; label: string }>) => {
+    (option: SingleValue<CurrencyOption>) => {
       if (!option) return;
       setCurrency(option.value);
     },
@@ -123,6 +140,8 @@ export default function Topbar() {
                 isDisabled={currencyOptions.length <= 1}
                 placeholder="Select currency"
                 instanceId="topbar-currency-selector"
+                formatOptionLabel={(option: CurrencyOption, meta: { context: "menu" | "value" }) =>
+                  renderCurrencyOption(option, meta)}
               />
             </div>
           ) : null}

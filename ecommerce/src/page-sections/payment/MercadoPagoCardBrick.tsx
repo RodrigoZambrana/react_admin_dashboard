@@ -6,9 +6,14 @@ import Box from "@component/Box";
 import FlexBox from "@component/FlexBox";
 import Spinner from "@component/Spinner";
 import Typography from "@component/Typography";
+import { formatCurrencyAmount } from "@/lib/currency/utils";
+import { resolveCurrencyLocale } from "@/lib/currency/locale";
 
 const SDK_URL = "https://sdk.mercadopago.com/js/v2";
+const SECURITY_SCRIPT_URL = "https://www.mercadopago.com/v2/security.js";
 const SCRIPT_ID = "mercado-pago-sdk";
+const SECURITY_SCRIPT_ID = "mercado-pago-security";
+const BRICK_CONTAINER_ID = "mp-card-payment-brick";
 
 export type MercadoPagoCardSubmitPayload = {
   token: string;
@@ -27,6 +32,7 @@ type BrickSubmitResult = {
   status: "success" | "pending" | "error";
   paymentId?: string | null;
   statusDetail?: string | null;
+  errorMessage?: string | null;
 };
 
 interface MercadoPagoCardBrickProps {
@@ -63,62 +69,75 @@ type CardPaymentFormData = {
   };
 };
 
-type CardPaymentSubmitEvent = {
-  formData: CardPaymentFormData;
+type SubmitActions = {
+  submitComplete?: (result: BrickSubmitResult) => void;
+  resolve?: (payload?: unknown) => void;
+  reject?: (reason?: unknown) => void;
 };
 
-const initializeMercadoPago = (publicKey: string, locale: string) =>
-  new Promise<MercadoPagoSdk>((resolve, reject) => {
-    const instantiate = () => {
-      if (typeof window === "undefined" || typeof window.MercadoPago !== "function") {
-        reject(new Error("Mercado Pago SDK is not available"));
-        return;
-      }
-      try {
-        const instance = new window.MercadoPago(publicKey, { locale });
-        resolve(instance);
-      } catch (error) {
-        reject(error instanceof Error ? error : new Error("Failed to instantiate Mercado Pago"));
-      }
+type SubmitEventArg =
+  | CardPaymentFormData
+  | {
+      formData: CardPaymentFormData;
+      actions?: SubmitActions;
+      selectedPaymentMethod?: unknown;
+    }
+  | {
+      formData: CardPaymentFormData;
+      selectedPaymentMethod?: unknown;
     };
 
-    if (typeof window !== "undefined" && window.MercadoPago) {
-      instantiate();
-      return;
-    }
-
+const loadScript = (id: string, src: string, target: "head" | "body" = "body") =>
+  new Promise<void>((resolve, reject) => {
     if (typeof document === "undefined") {
-      reject(new Error("Mercado Pago SDK can only be loaded in the browser"));
+      reject(new Error("Mercado Pago scripts can only be loaded in the browser."));
       return;
     }
 
-    const existingScript = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
-    if (existingScript) {
-      existingScript.addEventListener("load", instantiate, { once: true });
-      existingScript.addEventListener("error", () => reject(new Error("Failed to load Mercado Pago SDK")), {
-        once: true
-      });
+    if (document.getElementById(id)) {
+      resolve();
       return;
     }
 
     const script = document.createElement("script");
-    script.id = SCRIPT_ID;
-    script.src = SDK_URL;
-    script.type = "text/javascript";
+    script.id = id;
+    script.src = src;
     script.async = true;
-    script.onload = instantiate;
-    script.onerror = () => reject(new Error("Failed to load Mercado Pago SDK"));
-    document.body.appendChild(script);
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load script ${src}.`));
+    (target === "head" ? document.head : document.body).appendChild(script);
   });
+
+const initializeMercadoPago = async (publicKey: string, locale: string) => {
+  if (typeof window === "undefined") {
+    throw new Error("Mercado Pago SDK requires a browser environment.");
+  }
+
+  await loadScript(SCRIPT_ID, SDK_URL, "head");
+
+  if (typeof window.MercadoPago !== "function") {
+    throw new Error("Mercado Pago SDK is not available on window.");
+  }
+
+  return new window.MercadoPago(publicKey, { locale });
+};
+
+const ensureSecurityScript = async () => {
+  await loadScript(SECURITY_SCRIPT_ID, SECURITY_SCRIPT_URL, "body");
+  if (typeof document !== "undefined") {
+    const script = document.getElementById(SECURITY_SCRIPT_ID);
+    script?.setAttribute("view", "checkout");
+  }
+};
 
 const ensureIdentification = (
   source: CardPaymentFormData["payer"],
   defaults: { firstName?: string; lastName?: string }
 ) => {
   const identification = source?.identification ?? {};
-  const type = identification.type && identification.type.length > 0 ? identification.type : "DNI";
+  const type = identification.type && identification.type.trim().length > 0 ? identification.type : "DNI";
   const number =
-    identification.number && identification.number.length > 0 ? identification.number : "00000000";
+    identification.number && identification.number.trim().length > 0 ? identification.number : "00000000";
   return {
     type,
     number,
@@ -138,7 +157,45 @@ const sanitizeInstallments = (value: number | string | undefined): number => {
   return 1;
 };
 
-const containerId = "mp-card-payment-brick";
+const isValidEmail = (value: string) => /\S+@\S+\.\S+/.test(value.trim());
+
+const destroyController = (controller: MercadoPagoBricksController | null) => {
+  if (!controller) return;
+  if (typeof controller.destroy === "function") {
+    controller.destroy();
+    return;
+  }
+  if (typeof controller.unmount === "function") {
+    controller.unmount();
+  }
+};
+
+const extractFormData = (event: SubmitEventArg): CardPaymentFormData | null => {
+  if (!event) return null;
+
+  if ("formData" in event) {
+    return event.formData ?? null;
+  }
+
+  return event;
+};
+
+const extractActions = (event: SubmitEventArg): SubmitActions | undefined => {
+  if (event && typeof event === "object" && "actions" in event && event.actions) {
+    return event.actions;
+  }
+  return undefined;
+};
+
+const notifyActions = (result: BrickSubmitResult, actions?: SubmitActions, error?: unknown) => {
+  if (!actions) return;
+  actions.submitComplete?.(result);
+  if (result.status === "success" || result.status === "pending") {
+    actions.resolve?.(result);
+  } else {
+    actions.reject?.(error ?? result);
+  }
+};
 
 export default function MercadoPagoCardBrick({
   publicKey,
@@ -162,11 +219,19 @@ export default function MercadoPagoCardBrick({
 
     const mountBrick = async () => {
       try {
+        if (amount <= 0) {
+          setLoading(false);
+          onError?.("Payment amount must be greater than zero to initialize Mercado Pago.");
+          return;
+        }
+
         setLoading(true);
         const sdk = await initializeMercadoPago(publicKey, locale);
+        await ensureSecurityScript();
         if (cancelled) return;
 
-        controllerRef.current?.destroy();
+        destroyController(controllerRef.current);
+        controllerRef.current = null;
 
         const bricksBuilder = sdk.bricks();
         const settings = {
@@ -176,7 +241,8 @@ export default function MercadoPagoCardBrick({
               email: payer.email,
               firstName: payer.firstName,
               lastName: payer.lastName
-            }
+            },
+            description
           },
           customization: {
             visual: {
@@ -190,16 +256,48 @@ export default function MercadoPagoCardBrick({
           },
           callbacks: {
             onReady: () => {
-              if (!cancelled) {
-                setLoading(false);
-                onReady?.();
+              if (cancelled) {
+                return;
               }
+              setLoading(false);
+              onReady?.();
             },
-            onSubmit: async ({ formData }: CardPaymentSubmitEvent) => {
-              const idData = ensureIdentification(formData.payer, {
+            onSubmit: async (event: SubmitEventArg) => {
+              const formData = extractFormData(event);
+              const actions = extractActions(event);
+
+              if (!formData) {
+                const message =
+                  "Mercado Pago did not provide the form data required to process the payment.";
+                onError?.(message);
+                const fallback: BrickSubmitResult = {
+                  status: "error",
+                  paymentId: null,
+                  statusDetail: null,
+                  errorMessage: message
+                };
+                notifyActions(fallback, actions, new Error(message));
+                throw new Error(message);
+              }
+
+              const identification = ensureIdentification(formData.payer, {
                 firstName: payer.firstName,
                 lastName: payer.lastName
               });
+              const email = (formData.payer?.email ?? payer.email).trim();
+
+              if (!email || !isValidEmail(email)) {
+                const message = "Enter a valid email address to continue with Mercado Pago.";
+                onError?.(message);
+                const fallback: BrickSubmitResult = {
+                  status: "error",
+                  paymentId: null,
+                  statusDetail: null,
+                  errorMessage: message
+                };
+                notifyActions(fallback, actions, new Error(message));
+                throw new Error(message);
+              }
 
               const payload: MercadoPagoCardSubmitPayload = {
                 token: formData.token,
@@ -207,84 +305,115 @@ export default function MercadoPagoCardBrick({
                 installments: sanitizeInstallments(formData.installments),
                 issuerId: formData.issuer_id ?? undefined,
                 payer: {
-                  email: formData.payer?.email ?? payer.email,
+                  email,
                   identification: {
-                    type: idData.type,
-                    number: idData.number
+                    type: identification.type,
+                    number: identification.number
                   },
-                  firstName: idData.firstName,
-                  lastName: idData.lastName
+                  firstName: identification.firstName,
+                  lastName: identification.lastName
                 }
               };
 
+              let notified = false;
+              const notify = (result: BrickSubmitResult, err?: unknown) => {
+                if (notified) return;
+                notified = true;
+                notifyActions(result, actions, err);
+              };
+
+              onProcessingChange?.(true);
+
               try {
-                onProcessingChange?.(true);
                 const result = await onSubmit(payload);
-                return result;
-              } catch (error) {
-                if (onError) {
-                  const message =
-                    error instanceof Error
-                      ? error.message
-                      : typeof error === "string"
-                        ? error
-                        : "No pudimos procesar tu pago.";
-                  onError(message);
+                const normalized: BrickSubmitResult = {
+                  status: result.status,
+                  paymentId: result.paymentId ?? null,
+                  statusDetail: result.statusDetail ?? null,
+                  errorMessage: result.errorMessage ?? null
+                };
+
+                if (normalized.status === "error" && normalized.errorMessage) {
+                  onError?.(normalized.errorMessage);
                 }
+
+                notify(normalized);
+                return normalized;
+              } catch (error) {
+                const message =
+                  error instanceof Error
+                    ? error.message
+                    : "We couldn't process your payment with Mercado Pago. Please try again.";
+                onError?.(message);
+
+                const fallback: BrickSubmitResult = {
+                  status: "error",
+                  paymentId: null,
+                  statusDetail: null,
+                  errorMessage: message
+                };
+
+                notify(fallback, error);
                 throw error;
               } finally {
                 onProcessingChange?.(false);
               }
             },
             onError: (error: unknown) => {
-              onProcessingChange?.(false);
-              if (onError) {
-                const message =
-                  error instanceof Error
-                    ? error.message
-                    : typeof error === "string"
-                      ? error
-                      : "Ocurrió un error inesperado con Mercado Pago.";
-                onError(message);
+              if (cancelled) {
+                return;
               }
+              setLoading(false);
+              const message =
+                error instanceof Error
+                  ? error.message
+                  : "An unexpected error occurred while loading Mercado Pago.";
+              onError?.(message);
             }
           }
         };
 
-        const controller = await bricksBuilder.create("cardPayment", containerId, settings);
+        const controller = await bricksBuilder.create("cardPayment", BRICK_CONTAINER_ID, settings);
         if (cancelled) {
-          controller.destroy();
+          destroyController(controller);
           return;
         }
         controllerRef.current = controller;
       } catch (error) {
         if (cancelled) return;
         setLoading(false);
-        if (onError) {
-          const message =
-            error instanceof Error ? error.message : "No pudimos inicializar Mercado Pago.";
-          onError(message);
-        }
+        const message =
+          error instanceof Error ? error.message : "We were unable to initialize the Mercado Pago brick.";
+        onError?.(message);
       }
     };
 
-    if (amount > 0) {
-      mountBrick();
-    } else {
-      setLoading(false);
-    }
+    void mountBrick();
 
     return () => {
       cancelled = true;
-      controllerRef.current?.destroy();
+      destroyController(controllerRef.current);
       controllerRef.current = null;
     };
-  }, [amount, locale, maxInstallments, onError, onProcessingChange, onReady, onSubmit, payer, publicKey]);
+  }, [
+    amount,
+    description,
+    locale,
+    maxInstallments,
+    onError,
+    onProcessingChange,
+    onReady,
+    onSubmit,
+    payer.email,
+    payer.firstName,
+    payer.lastName,
+    publicKey
+  ]);
 
   return (
     <Box>
       <Box
-        id={containerId}
+        id={BRICK_CONTAINER_ID}
         ref={containerRef}
         border="1px solid"
         borderColor="gray.200"
@@ -300,7 +429,9 @@ export default function MercadoPagoCardBrick({
       <Typography color="text.muted" fontSize="12px" mt="0.75rem">
         Pago seguro procesado por Mercado Pago.
         {description ? ` ${description}` : ""}
-        {currency ? ` · Total estimado ${amount.toFixed(2)} ${currency}` : ""}
+        {currency
+          ? ` · Total estimado ${formatCurrencyAmount(amount, currency, resolveCurrencyLocale())}`
+          : ""}
       </Typography>
       <Typography color="text.muted" fontSize="12px" mt="0.25rem">
         Modo prueba activo: utiliza tarjetas de prueba de Mercado Pago.

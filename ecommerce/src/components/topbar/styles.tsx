@@ -54,6 +54,8 @@ export const StyledTopbar = styled.div`
       align-items: center;
       height: 40px;
       cursor: pointer;
+      position: relative;
+      z-index: 1201;
       img {
         height: 14px;
         border-radius: 4px;

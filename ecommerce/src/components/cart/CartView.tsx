@@ -168,7 +168,7 @@ export function CartView() {
           <Paragraph mt="1rem" color="text.muted" textAlign="center" maxWidth="260px">
             Your shopping bag is empty. Start shopping
           </Paragraph>
-          <Button mt="1.5rem" variant="contained" color="primary" href="/shop">
+          <Button as={Link} href="/shop" mt="1.5rem" variant="contained" color="primary">
             Continue Shopping
           </Button>
         </FlexBox>

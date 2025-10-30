@@ -26,6 +26,9 @@ import {
   MERCADO_PAGO_STATUS_DETAIL_MESSAGES,
   normalizeMercadoPagoStatus
 } from "@/utils/mercadopago";
+import { useCurrency } from "@/state/currency-context";
+
+const MERCADO_PAGO_CURRENCY = "UYU";
 
 const COUNTRY_LOCALE_MAP: Record<string, string> = {
   AR: "es-AR",
@@ -53,9 +56,57 @@ const generateIdempotencyKey = () => {
 
 type PaymentMethod = "mercadopago" | "cod";
 
+const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
+
+const resolveSuccessFallback = () => "/payment/success";
+const resolveFailureFallback = () => "/payment/error";
+
+const normalizeRedirectTarget = (raw: string | null | undefined, fallback: string) => {
+  if (raw === null || raw === undefined) return fallback;
+  const trimmed = raw.trim();
+  if (!trimmed) return fallback;
+  if (isAbsoluteUrl(trimmed) || trimmed.startsWith("/")) {
+    return trimmed;
+  }
+  return `/${trimmed}`;
+};
+
+const appendQueryParams = (target: string, params: Record<string, string | null | undefined>) => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === null || value === undefined) {
+      return;
+    }
+    const stringValue = String(value).trim();
+    if (stringValue.length > 0) {
+      query.set(key, stringValue);
+    }
+  });
+  const queryString = query.toString();
+  if (!queryString) {
+    return target;
+  }
+  const separator = target.includes("?") ? "&" : "?";
+  return `${target}${separator}${queryString}`;
+};
+
+const redirectWithParams = (
+  target: string,
+  params: Record<string, string | null | undefined>,
+  router: ReturnType<typeof useRouter>
+) => {
+  const url = appendQueryParams(target, params);
+  if (isAbsoluteUrl(target)) {
+    window.location.assign(url);
+    return;
+  }
+  router.push(url);
+};
+
 export default function PaymentForm() {
   const router = useRouter();
   const toast = useToast();
+  const { convertMoney } = useCurrency();
   const { state: cartState } = useStorefrontCart();
   const { totals } = useCheckoutTotals();
   const storefrontConfig = useStorefrontConfig();
@@ -128,9 +179,25 @@ export default function PaymentForm() {
     [contact.firstName, contact.lastName]
   );
 
+  const payerInfo = useMemo(
+    () => ({
+      email: contact.email,
+      firstName: contact.firstName,
+      lastName: contact.lastName
+    }),
+    [contact.email, contact.firstName, contact.lastName]
+  );
+
   const cartId = useMemo(() => `cart-${cartState.updatedAt}`, [cartState.updatedAt]);
-  const amount = totals.total.amount;
-  const currency = totals.total.currency;
+  const { amount, currency } = useMemo(() => {
+    const converted = convertMoney(totals.total, MERCADO_PAGO_CURRENCY);
+    const roundedAmount = Math.round(converted.amount * 100) / 100;
+    const resolvedCurrency = converted.currency ?? MERCADO_PAGO_CURRENCY;
+    return {
+      amount: roundedAmount,
+      currency: resolvedCurrency
+    };
+  }, [convertMoney, totals.total.amount, totals.total.currency]);
 
   const hasPublicKey = publicKey.trim().length > 0;
   const canRenderBrick = isMercadoPagoEnabled && hasPublicKey && amount > 0;
@@ -145,6 +212,16 @@ export default function PaymentForm() {
     },
     []
   );
+
+  const successRedirectTarget = useMemo(() => {
+    const fallback = resolveSuccessFallback();
+    return normalizeRedirectTarget(process.env.NEXT_PUBLIC_MP_SUCCESS_URL ?? null, fallback);
+  }, []);
+
+  const failureRedirectTarget = useMemo(() => {
+    const fallback = resolveFailureFallback();
+    return normalizeRedirectTarget(process.env.NEXT_PUBLIC_MP_FAILURE_URL ?? null, fallback);
+  }, []);
 
   const handleMercadoPagoSubmit = useCallback(
     async (
@@ -198,17 +275,25 @@ export default function PaymentForm() {
         setStatusMessage(statusText);
         setErrorMessage(null);
 
+        const redirectParams = {
+          paymentId: checkoutPayment.paymentId ?? checkoutPayment.paymentIntentId ?? null,
+          status: normalizedStatus,
+          detail: checkoutPayment.statusDetail ?? null
+        };
+
         if (normalizedStatus === "approved" || normalizedStatus === "authorized") {
           toast.success({
             title: "Payment approved",
             description: "Mercado Pago accepted your card."
           });
+          redirectWithParams(successRedirectTarget, redirectParams, router);
         } else if (normalizedStatus === "in_process" || normalizedStatus === "pending") {
           toast.info({
             title: "Payment under review",
             description: "Mercado Pago is reviewing your payment. You can continue with your order."
           });
         } else if (normalizedStatus === "rejected") {
+          clearPayment();
           toast.error({
             title: "Payment rejected",
             description:
@@ -216,6 +301,7 @@ export default function PaymentForm() {
                 ? MERCADO_PAGO_STATUS_DETAIL_MESSAGES[checkoutPayment.statusDetail]
                 : "Your bank declined the transaction. Please review the details and try again."
           });
+          redirectWithParams(failureRedirectTarget, redirectParams, router);
         }
 
         const brickStatus =
@@ -243,10 +329,32 @@ export default function PaymentForm() {
           title: "We couldn't process the payment",
           description: message
         });
+        redirectWithParams(
+          failureRedirectTarget,
+          {
+            paymentId: null,
+            status: "error",
+            detail: message
+          },
+          router
+        );
         throw cause;
       }
     },
-    [amount, cartId, clearPayment, currency, description, payerName, setPayment, statementDescriptor, toast]
+    [
+      amount,
+      cartId,
+      clearPayment,
+      currency,
+      description,
+      failureRedirectTarget,
+      payerName,
+      router,
+      setPayment,
+      statementDescriptor,
+      successRedirectTarget,
+      toast
+    ]
   );
 
   const handleMethodChange = useCallback(
@@ -351,11 +459,7 @@ export default function PaymentForm() {
                 locale={locale}
                 amount={amount}
                 currency={currency}
-                payer={{
-                  email: contact.email,
-                  firstName: contact.firstName,
-                  lastName: contact.lastName
-                }}
+                payer={payerInfo}
                 description={description}
                 onSubmit={handleMercadoPagoSubmit}
                 onProcessingChange={handleProcessingChange}

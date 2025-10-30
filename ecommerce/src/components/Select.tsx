@@ -28,6 +28,14 @@ const styles = (errorText: string) =>
       color: "inherit",
       cursor: "pointer",
       backgroundColor: state.isFocused ? "rgba(0,0,0, 0.015)" : "inherit"
+    }),
+    menuPortal: (base) => ({
+      ...base,
+      zIndex: 1600
+    }),
+    menu: (base) => ({
+      ...base,
+      zIndex: 1600
     })
   } as Props["styles"]);
 
@@ -107,6 +115,8 @@ const Select = memo(
       ? (baseSelectProps as Props).placeholder
       : "";
 
+  const menuPortalTarget = isMounted ? document.body : undefined;
+
   return (
     <Box {...(spacingProps as SpaceProps)}>
       {label && (
@@ -123,6 +133,8 @@ const Select = memo(
           styles={styles(errorText)}
           instanceId={computedIds.instance}
           inputId={computedIds.input}
+          menuPortalTarget={menuPortalTarget}
+          menuPosition="fixed"
           {...(selectProps as Props)}
         />
       ) : (

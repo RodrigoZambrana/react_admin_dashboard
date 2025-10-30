@@ -9,7 +9,7 @@ import FlexBox from "@component/FlexBox";
 import { Button } from "@component/buttons";
 import Typography, { H5, Paragraph, Tiny } from "@component/Typography";
 import useCart from "@hook/useCart";
-import { currency } from "@utils/utils";
+import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 // STYLED COMPONENT
 import { StyledMiniCart } from "./styles";
 
@@ -19,6 +19,7 @@ type MiniCartProps = { toggleSidenav?: () => void };
 
 export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
   const { state, dispatch, itemCount, subtotal } = useCart();
+  const { formatMoney, formatAmount, baseCurrency } = useMoneyFormatter();
 
   const handleCartAmountChange = (amount: number, product: any) => () => {
     dispatch({
@@ -27,7 +28,7 @@ export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
     });
   };
 
-  const totalFormatted = subtotal.formatted ?? currency(subtotal.amount);
+  const totalFormatted = formatMoney(subtotal);
 
   return (
     <StyledMiniCart>
@@ -103,11 +104,13 @@ export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
                 </Link>
 
                 <Tiny color="text.muted">
-                  {currency(item.price, 0)} x {item.qty}
+                  {formatAmount(item.price, item.currency ?? baseCurrency)}
+                  {" x "}
+                  {item.qty}
                 </Tiny>
 
                 <Typography fontWeight={600} fontSize="14px" color="primary.main" mt="4px">
-                  {currency(item.qty * item.price)}
+                  {formatAmount(item.qty * item.price, item.currency ?? baseCurrency)}
                 </Typography>
               </div>
 

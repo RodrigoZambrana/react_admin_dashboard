@@ -25,6 +25,8 @@ export default function ProductGridView({ products }: Props) {
               id={item.id}
               slug={item.slug}
               price={item.price}
+              basePrice={item.basePrice}
+              currencyCode={item.currency}
               title={item.title}
               off={item.discount}
               images={item.images}

@@ -127,6 +127,8 @@ export default function Section7({ shops, brands, title, productList }: Props) {
                   slug={item.slug}
                   title={item.title}
                   price={item.price}
+                  basePrice={item.basePrice}
+                  currencyCode={item.currency}
                   off={item.discount}
                   rating={item.rating}
                   images={item.images}
