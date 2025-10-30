@@ -78,7 +78,37 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
   - Usa el SDK oficial (`mercadopago`) para crear un pago en modo test.
   - Acepta pagos con token (tarjetas) y sin token (transferencias, efectivo, billetera), normalizando los campos
     en `snake_case`/`camelCase`, propagando metadata adicional y limpiando la información del pagador antes de llamar al SDK.
-  - Devuelve al cliente el `status`, `status_detail` e `id` del pago creado.
+- Devuelve al cliente el `status`, `status_detail` e `id` del pago creado.
+
+- **Back-end (`src/app/api/preferences/route.ts`)**
+  - Permite crear preferencias desde el entorno local sin excluir métodos de pago.
+  - Expone `POST /api/preferences` y devuelve el `preferenceId` listo para reutilizar.
+  - No incluye `purpose: "wallet_purchase"` ni listas de exclusión, por lo que Mercado Pago habilita todos los medios soportados por tu cuenta/país.
+
+### Cómo generar un `preferenceId` habilitado para todos los medios
+
+Mercado Pago expone todos los métodos disponibles de manera predeterminada. Para garantizarlo:
+
+1. Crea una preferencia sin exclusiones:
+
+   ```bash
+   curl -X POST http://localhost:3000/api/preferences \
+     -H "Content-Type: application/json" \
+     -d '{
+       "id": "sku-123",
+       "title": "Producto de ejemplo",
+       "quantity": 1,
+       "unit_price": 1234
+     }'
+   ```
+
+   La respuesta incluirá `{"preferenceId":"<ID_GENERADO>"}`. Copia ese valor en `NEXT_PUBLIC_MERCADO_PAGO_PREFERENCE_ID` para que el Brick habilite transferencias, billetera, tickets, etc.
+
+2. Si necesitas personalizar URLs de retorno, `notification_url` o el tope de cuotas, envía los campos en el cuerpo. El backend sanea los valores y mantiene `excluded_payment_types` / `excluded_payment_methods` vacíos.
+
+3. Evita enviar `purpose: "wallet_purchase"`. Según la documentación, esa bandera restringe el checkout exclusivamente a usuarios registrados con saldo y tarjetas de Mercado Pago.
+
+> ⚠️ **Uruguay:** confirma que tus credenciales están habilitadas para tarjetas de débito, crédito y transferencias, y que trabajas en la moneda correcta (UYU). Mercado Pago habilitará únicamente los medios soportados por tu cuenta.
 
 ---
 
