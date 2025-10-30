@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const SDK_URL = "https://sdk.mercadopago.com/js/v2";
 const SECURITY_SCRIPT_URL = "https://www.mercadopago.com/v2/security.js";
@@ -8,6 +9,7 @@ const SCRIPT_ID = "mercado-pago-sdk";
 const SECURITY_SCRIPT_ID = "mercado-pago-security";
 const BRICK_CONTAINER_ID = "payment-brick_container";
 const DEFAULT_PAYMENT_ENDPOINT = "/api/process-payment";
+const DEFAULT_SUCCESS_PATH = "/success";
 
 type SubmitPayload = {
   token: string;
@@ -32,6 +34,18 @@ type SubmitResponse = {
   paymentId?: string | number | null;
   statusDetail?: string | null;
   errorMessage?: string | null;
+};
+
+type FeedbackState = {
+  status: "idle" | "loading" | "success" | "error";
+  title: string | null;
+  detail: string | null;
+};
+
+const IDLE_FEEDBACK: FeedbackState = {
+  status: "idle",
+  title: null,
+  detail: null,
 };
 
 type SubmitActions = {
@@ -71,6 +85,13 @@ const extractActions = (
   }
 
   return fallback;
+};
+
+const appendQueryParams = (path: string, params: URLSearchParams) => {
+  const query = params.toString();
+  if (!query) return path;
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}${query}`;
 };
 
 type Props = {
@@ -191,31 +212,39 @@ export default function MercadoPagoCardBrick({
   currency = "UYU",
   defaultEmail,
 }: Props) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const controllerRef = useRef<MercadoPagoBrickController | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [statusType, setStatusType] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [errorDetails, setErrorDetails] = useState<string | null>(null);
+  const router = useRouter();
+  const [feedback, setFeedback] = useState<FeedbackState>(IDLE_FEEDBACK);
 
   const publicKey = process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY;
   const paymentEndpoint =
     process.env.NEXT_PUBLIC_MERCADO_PAGO_PAYMENT_URL?.trim() || DEFAULT_PAYMENT_ENDPOINT;
+  const successPathRaw = process.env.NEXT_PUBLIC_MERCADO_PAGO_SUCCESS_URL?.trim();
+  const successRedirectPath = successPathRaw
+    ? successPathRaw.startsWith("/")
+      ? successPathRaw
+      : `/${successPathRaw}`
+    : DEFAULT_SUCCESS_PATH;
   const loader = useMercadoPago(publicKey, locale);
 
-  const resetState = useCallback(() => {
-    setStatusType("idle");
-    setStatusMessage(null);
-    setErrorDetails(null);
-  }, []);
+  const showFeedback = useCallback(
+    (status: FeedbackState["status"], title?: string | null, detail?: string | null) => {
+      setFeedback({
+        status,
+        title: title ?? null,
+        detail: detail ?? null,
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
 
     const mount = async () => {
-      resetState();
+      setFeedback(IDLE_FEEDBACK);
       if (!loader) {
-        setStatusType("error");
-        setStatusMessage("La clave pública de Mercado Pago no está configurada.");
+        showFeedback("error", "Error de configuración", "La clave pública de Mercado Pago no está configurada.");
         return;
       }
 
@@ -252,35 +281,40 @@ export default function MercadoPagoCardBrick({
           callbacks: {
             onReady: () => {
               if (!cancelled) {
-                setStatusType("idle");
-                setStatusMessage(null);
+                setFeedback(IDLE_FEEDBACK);
               }
             },
             onSubmit: async (
               submitEvent: SubmitEventArg,
               submitActions?: SubmitActions,
             ): Promise<SubmitResponse> => {
-              setStatusType("loading");
-              setStatusMessage("Procesando pago...");
-              setErrorDetails(null);
+              showFeedback("loading", "Procesando pago...", null);
 
               const formData = extractFormData(submitEvent);
               const actions = extractActions(submitEvent, submitActions);
+              let actionsNotified = false;
 
               if (!formData) {
-                setStatusType("error");
-                const errorMessage =
-                  "No pudimos leer los datos del formulario de Mercado Pago.";
-                setStatusMessage("Datos de pago incompletos");
-                setErrorDetails(errorMessage);
+                const errorMessage = "No pudimos leer los datos del formulario de Mercado Pago.";
+                showFeedback("error", "Datos de pago incompletos", errorMessage);
+                if (actions?.reject) {
+                  actions.reject(new Error(errorMessage));
+                  actionsNotified = true;
+                }
                 throw new Error(errorMessage);
               }
 
               const emailFromForm = formData.payer?.email ?? defaultEmail ?? null;
               if (!isValidEmail(emailFromForm)) {
-                setStatusType("error");
-                setStatusMessage("Debes ingresar un correo electrónico válido.");
-                setErrorDetails("Mercado Pago requiere un email de contacto para el pagador.");
+                showFeedback(
+                  "error",
+                  "Debes ingresar un correo electrónico válido.",
+                  "Mercado Pago requiere un email de contacto para el pagador.",
+                );
+                if (actions?.reject) {
+                  actions.reject(new Error("El email del pagador es obligatorio."));
+                  actionsNotified = true;
+                }
                 throw new Error("El email del pagador es obligatorio.");
               }
 
@@ -317,7 +351,8 @@ export default function MercadoPagoCardBrick({
                 console.info("Mercado Pago · enviando pago a:", targetPaymentUrl, payload);
               }
 
-              const finalizeSuccess = (response: SubmitResponse) => {
+              const notifySuccess = (response: SubmitResponse) => {
+                actionsNotified = true;
                 if (actions?.submitComplete) {
                   actions.submitComplete(response);
                 } else {
@@ -325,7 +360,8 @@ export default function MercadoPagoCardBrick({
                 }
               };
 
-              const finalizeError = (response: SubmitResponse, reason?: unknown) => {
+              const notifyError = (response: SubmitResponse, reason?: unknown) => {
+                actionsNotified = true;
                 if (actions?.submitComplete) {
                   actions.submitComplete(response);
                 }
@@ -357,23 +393,17 @@ export default function MercadoPagoCardBrick({
                 if (!response.ok) {
                   const fallbackMessage =
                     data?.error ?? data?.message ?? "No pudimos procesar el pago, intenta nuevamente.";
-                  setStatusType("error");
-                  setStatusMessage("Pago rechazado");
-                  setErrorDetails(fallbackMessage);
+                  showFeedback("error", "Pago rechazado", String(fallbackMessage));
 
+                  const error = new Error(String(fallbackMessage));
                   const errorResponse: SubmitResponse = {
                     status: "error",
                     paymentId,
                     statusDetail,
                     errorMessage: String(fallbackMessage),
                   };
-
-                  const rejection = new Error(String(fallbackMessage)) as Error & {
-                    mpSubmitResponse?: SubmitResponse;
-                  };
-                  rejection.mpSubmitResponse = errorResponse;
-
-                  throw rejection;
+                  notifyError(errorResponse, error);
+                  throw error;
                 }
 
                 const successResponse: SubmitResponse = {
@@ -382,65 +412,62 @@ export default function MercadoPagoCardBrick({
                   statusDetail,
                 };
 
-                setStatusType("success");
-                setStatusMessage(status ? `Pago ${status}` : "Pago aprobado");
-                setErrorDetails(
+                showFeedback(
+                  "success",
+                  status ? `Pago ${status}` : "Pago aprobado",
                   paymentId || statusDetail
                     ? `ID: ${paymentId ?? "desconocido"} · Detalle: ${statusDetail ?? "sin detalle"}`
                     : null,
                 );
 
-                finalizeSuccess(successResponse);
+                notifySuccess(successResponse);
+
+                const params = new URLSearchParams();
+                if (paymentId) params.set("paymentId", String(paymentId));
+                if (status) params.set("status", status);
+                if (statusDetail) params.set("detail", statusDetail);
+
+                const redirectTarget = appendQueryParams(successRedirectPath, params);
+                router.push(redirectTarget);
 
                 return successResponse;
               } catch (error) {
-                const submitResponseFromError =
-                  error && typeof error === "object" && "mpSubmitResponse" in error
-                    ? (error as { mpSubmitResponse?: SubmitResponse }).mpSubmitResponse ?? null
-                    : null;
+                const fallbackMessage =
+                  error instanceof Error ? error.message : "Error desconocido durante el pago.";
 
-                const alreadyHandledByBrick = Boolean(submitResponseFromError);
-
-                if (error instanceof Error) {
-                  if (!alreadyHandledByBrick && error.message === "Failed to fetch") {
-                    setErrorDetails(
-                      "No pudimos contactar al endpoint de pago. Verifica que la URL sea correcta, que el servidor acepte solicitudes desde el navegador y que no existan bloqueos de CORS.",
-                    );
-                  } else if (!alreadyHandledByBrick) {
-                    setErrorDetails(error.message);
+                setFeedback((prev) => {
+                  if (prev.status === "error" && prev.detail) {
+                    return prev;
                   }
-                } else if (!alreadyHandledByBrick) {
-                  setErrorDetails("Error desconocido durante el pago.");
-                }
-
-                if (!alreadyHandledByBrick) {
-                  setStatusType("error");
-                  setStatusMessage("Algo salió mal");
-                }
-
-                const errorResponse: SubmitResponse =
-                  submitResponseFromError ?? {
+                  return {
                     status: "error",
-                    errorMessage: error instanceof Error ? error.message : "Error desconocido durante el pago.",
-                    paymentId: null,
-                    statusDetail: null,
+                    title: "Algo salió mal",
+                    detail:
+                      error instanceof Error && error.message === "Failed to fetch"
+                        ? "No pudimos contactar al endpoint de pago. Verifica la URL, el servidor y los permisos de CORS."
+                        : fallbackMessage,
                   };
+                });
 
-                if (alreadyHandledByBrick && errorResponse.errorMessage) {
-                  setErrorDetails(errorResponse.errorMessage);
+                if (!actionsNotified) {
+                  notifyError(
+                    {
+                      status: "error",
+                      paymentId: null,
+                      statusDetail: null,
+                      errorMessage: fallbackMessage,
+                    },
+                    error,
+                  );
                 }
-
-                finalizeError(errorResponse, error);
                 throw error;
               }
             },
             onError: (error: unknown) => {
               if (cancelled) return;
-              setStatusType("error");
               const message =
                 error instanceof Error ? error.message : "Ocurrió un error inesperado con Mercado Pago.";
-              setStatusMessage("Error en la carga del brick");
-              setErrorDetails(message);
+              showFeedback("error", "Error en la carga del brick", message);
             },
           },
         };
@@ -455,19 +482,16 @@ export default function MercadoPagoCardBrick({
         if (cancelled) {
           return;
         }
-        setStatusType("error");
         const message =
           error instanceof Error ? error.message : "No pudimos inicializar el brick de pago.";
-        setStatusMessage("Error al inicializar Mercado Pago");
-        setErrorDetails(message);
+        showFeedback("error", "Error al inicializar Mercado Pago", message);
       }
     };
 
     if (amount > 0) {
       void mount();
     } else {
-      setStatusType("error");
-      setStatusMessage("El monto debe ser mayor a 0.");
+      showFeedback("error", "Monto inválido", "El monto debe ser mayor a 0.");
     }
 
     return () => {
@@ -475,26 +499,28 @@ export default function MercadoPagoCardBrick({
       controllerRef.current?.destroy();
       controllerRef.current = null;
     };
-  }, [amount, currency, defaultEmail, description, loader, paymentEndpoint, resetState]);
+  }, [amount, currency, defaultEmail, description, loader, paymentEndpoint, router, showFeedback, successRedirectPath]);
+
+  const { status, title, detail } = feedback;
 
   return (
     <div className="flex flex-col gap-3">
-      <div id={BRICK_CONTAINER_ID} ref={containerRef} className="min-h-[320px] rounded-lg border p-4" />
-      {statusType === "loading" && (
+      <div id={BRICK_CONTAINER_ID} className="min-h-[320px] rounded-lg border p-4" />
+      {status === "loading" && (
         <p className="text-sm text-blue-600" role="status">
-          {statusMessage}
+          {title}
         </p>
       )}
-      {statusType === "success" && statusMessage && (
+      {status === "success" && title && (
         <div className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-          <p className="font-medium">{statusMessage}</p>
-          {errorDetails ? <p>{errorDetails}</p> : null}
+          <p className="font-medium">{title}</p>
+          {detail ? <p>{detail}</p> : null}
         </div>
       )}
-      {statusType === "error" && statusMessage && (
+      {status === "error" && title && (
         <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          <p className="font-medium">{statusMessage}</p>
-          {errorDetails ? <p>{errorDetails}</p> : null}
+          <p className="font-medium">{title}</p>
+          {detail ? <p>{detail}</p> : null}
         </div>
       )}
     </div>

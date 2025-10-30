@@ -20,6 +20,8 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
   MERCADO_PAGO_ACCESS_TOKEN=TEST-6249908203472499-102717-cf8020a9113d8f1574a5c8015683e0ba-670522668
   # Por defecto apunta a la API interna de Next.js. Cambia la URL si usas un backend externo.
   NEXT_PUBLIC_MERCADO_PAGO_PAYMENT_URL=/api/process-payment
+  # Ruta interna a la que se redirige tras un pago exitoso.
+  NEXT_PUBLIC_MERCADO_PAGO_SUCCESS_URL=/success
   ```
 
   > Si necesitas usar otras credenciales, reemplázalas en ese archivo.
@@ -62,6 +64,9 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
   Pago (`/process_payment`). Si indicas una URL absoluta, la solicitud irá directo a ese servidor; si usas una ruta relativa,
   el componente la normalizará automáticamente contra el origen actual. Para hosts con puerto sin esquema (`localhost:8080/...`)
   se asumirá `http://`.
+- Una vez que el backend confirma el pago, el componente notifica al Brick y redirige a la ruta definida en
+  `NEXT_PUBLIC_MERCADO_PAGO_SUCCESS_URL` (por defecto `/success`), pasando el ID y el estado del pago como parámetros para que
+  puedas mostrar el resumen.
 
 - **Back-end (`src/app/api/process-payment/route.ts`)**
   - Implementa un endpoint `POST /api/process-payment`.
