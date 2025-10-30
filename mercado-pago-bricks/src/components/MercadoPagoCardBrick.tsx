@@ -1,0 +1,287 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+const SDK_URL = "https://sdk.mercadopago.com/js/v2";
+const SCRIPT_ID = "mercado-pago-sdk";
+const BRICK_CONTAINER_ID = "payment-brick_container";
+
+type SubmitPayload = {
+  token: string;
+  payment_method_id: string;
+  installments?: number | string;
+  issuer_id?: string;
+  payer?: {
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+    identification?: {
+      type?: string;
+      number?: string;
+    };
+  };
+};
+
+type SubmitEvent = {
+  formData: SubmitPayload;
+};
+
+type SubmitResponse = {
+  status: "success" | "pending" | "error";
+  paymentId?: string | number | null;
+  statusDetail?: string | null;
+};
+
+type Props = {
+  amount: number;
+  description?: string;
+  locale?: string;
+  currency?: string;
+  defaultEmail?: string;
+};
+
+const ensureScript = () =>
+  new Promise<void>((resolve, reject) => {
+    if (typeof window === "undefined") {
+      reject(new Error("Mercado Pago SDK requires a browser environment."));
+      return;
+    }
+
+    if (document.getElementById(SCRIPT_ID)) {
+      resolve();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = SCRIPT_ID;
+    script.src = SDK_URL;
+    script.type = "text/javascript";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Mercado Pago SDK."));
+    document.head.appendChild(script);
+  });
+
+const useMercadoPago = (publicKey: string | undefined, locale: string) =>
+  useMemo(() => {
+    if (!publicKey) return null;
+    return async () => {
+      await ensureScript();
+      if (typeof window === "undefined" || !window.MercadoPago) {
+        throw new Error("Mercado Pago SDK is unavailable.");
+      }
+      return new window.MercadoPago(publicKey, { locale });
+    };
+  }, [locale, publicKey]);
+
+const isValidEmail = (value: string | undefined | null) =>
+  typeof value === "string" && /\S+@\S+\.\S+/.test(value.trim());
+
+const sanitizeInstallments = (installments: SubmitPayload["installments"]) => {
+  if (typeof installments === "number") {
+    return Number.isFinite(installments) && installments > 0 ? installments : 1;
+  }
+  if (typeof installments === "string") {
+    const parsed = Number.parseInt(installments, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  }
+  return 1;
+};
+
+export default function MercadoPagoCardBrick({
+  amount,
+  description,
+  locale = "es-AR",
+  currency = "UYU",
+  defaultEmail,
+}: Props) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const controllerRef = useRef<MercadoPagoBrickController | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusType, setStatusType] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
+
+  const publicKey = process.env.NEXT_PUBLIC_MERCADO_PAGO_PUBLIC_KEY;
+  const loader = useMercadoPago(publicKey, locale);
+
+  const resetState = useCallback(() => {
+    setStatusType("idle");
+    setStatusMessage(null);
+    setErrorDetails(null);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const mount = async () => {
+      resetState();
+      if (!loader) {
+        setStatusType("error");
+        setStatusMessage("La clave pública de Mercado Pago no está configurada.");
+        return;
+      }
+
+      try {
+        const sdk = await loader();
+        if (cancelled) {
+          return;
+        }
+
+        controllerRef.current?.destroy();
+        const bricksBuilder = sdk.bricks();
+
+        const brickSettings = {
+          initialization: {
+            amount,
+            currency,
+            payer: {
+              email: defaultEmail ?? "test_user_123456@example.com",
+            },
+          },
+          customization: {
+            visual: {
+              style: {
+                theme: "default",
+              },
+            },
+          },
+          callbacks: {
+            onReady: () => {
+              if (!cancelled) {
+                setStatusType("idle");
+                setStatusMessage(null);
+              }
+            },
+            onSubmit: async ({ formData }: SubmitEvent): Promise<SubmitResponse> => {
+              setStatusType("loading");
+              setStatusMessage("Procesando pago...");
+              setErrorDetails(null);
+
+              const emailFromForm = formData.payer?.email ?? defaultEmail ?? null;
+              if (!isValidEmail(emailFromForm)) {
+                setStatusType("error");
+                setStatusMessage("Debes ingresar un correo electrónico válido.");
+                setErrorDetails("Mercado Pago requiere un email de contacto para el pagador.");
+                throw new Error("El email del pagador es obligatorio.");
+              }
+
+              const effectiveEmail = emailFromForm.trim();
+
+              const payload = {
+                token: formData.token,
+                payment_method_id: formData.payment_method_id,
+                installments: sanitizeInstallments(formData.installments),
+                issuer_id: formData.issuer_id ?? null,
+                payer: {
+                  email: effectiveEmail,
+                  identification: {
+                    type: formData.payer?.identification?.type ?? "DNI",
+                    number: formData.payer?.identification?.number ?? "00000000",
+                  },
+                },
+                transaction_amount: amount,
+                description: description ?? "Sample Product",
+              };
+
+              try {
+                const response = await fetch("/api/process-payment", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(payload),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                  const fallbackMessage =
+                    data?.error ?? data?.message ?? "No pudimos procesar el pago, intenta nuevamente.";
+                  setStatusType("error");
+                  setStatusMessage("Pago rechazado");
+                  setErrorDetails(fallbackMessage);
+                  throw new Error(fallbackMessage);
+                }
+
+                setStatusType("success");
+                setStatusMessage(`Pago ${data.status}`);
+                setErrorDetails(`ID: ${data.id} · Detalle: ${data.status_detail}`);
+
+                return {
+                  status: "success",
+                  paymentId: data.id,
+                  statusDetail: data.status_detail,
+                };
+              } catch (error) {
+                if (error instanceof Error) {
+                  setErrorDetails(error.message);
+                }
+                setStatusType("error");
+                setStatusMessage("Algo salió mal");
+                throw error;
+              }
+            },
+            onError: (error: unknown) => {
+              if (cancelled) return;
+              setStatusType("error");
+              const message =
+                error instanceof Error ? error.message : "Ocurrió un error inesperado con Mercado Pago.";
+              setStatusMessage("Error en la carga del brick");
+              setErrorDetails(message);
+            },
+          },
+        };
+
+        const controller = await bricksBuilder.create("cardPayment", BRICK_CONTAINER_ID, brickSettings);
+        if (cancelled) {
+          controller.destroy();
+          return;
+        }
+        controllerRef.current = controller;
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setStatusType("error");
+        const message =
+          error instanceof Error ? error.message : "No pudimos inicializar el brick de pago.";
+        setStatusMessage("Error al inicializar Mercado Pago");
+        setErrorDetails(message);
+      }
+    };
+
+    if (amount > 0) {
+      void mount();
+    } else {
+      setStatusType("error");
+      setStatusMessage("El monto debe ser mayor a 0.");
+    }
+
+    return () => {
+      cancelled = true;
+      controllerRef.current?.destroy();
+      controllerRef.current = null;
+    };
+  }, [amount, currency, defaultEmail, description, loader, resetState]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div id={BRICK_CONTAINER_ID} ref={containerRef} className="min-h-[320px] rounded-lg border p-4" />
+      {statusType === "loading" && (
+        <p className="text-sm text-blue-600" role="status">
+          {statusMessage}
+        </p>
+      )}
+      {statusType === "success" && statusMessage && (
+        <div className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          <p className="font-medium">{statusMessage}</p>
+          {errorDetails ? <p>{errorDetails}</p> : null}
+        </div>
+      )}
+      {statusType === "error" && statusMessage && (
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <p className="font-medium">{statusMessage}</p>
+          {errorDetails ? <p>{errorDetails}</p> : null}
+        </div>
+      )}
+    </div>
+  );
+}

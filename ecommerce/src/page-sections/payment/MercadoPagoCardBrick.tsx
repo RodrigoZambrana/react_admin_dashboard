@@ -140,6 +140,8 @@ const sanitizeInstallments = (value: number | string | undefined): number => {
 
 const containerId = "mp-card-payment-brick";
 
+const isValidEmail = (value: string) => /\S+@\S+\.\S+/.test(value.trim());
+
 export default function MercadoPagoCardBrick({
   publicKey,
   locale,
@@ -201,13 +203,21 @@ export default function MercadoPagoCardBrick({
                 lastName: payer.lastName
               });
 
+              const email = formData.payer?.email?.trim() || payer.email.trim();
+
+              if (!email || !isValidEmail(email)) {
+                const message = "Ingresa un correo electrónico válido para continuar.";
+                onError?.(message);
+                throw new Error(message);
+              }
+
               const payload: MercadoPagoCardSubmitPayload = {
                 token: formData.token,
                 paymentMethodId: formData.payment_method_id,
                 installments: sanitizeInstallments(formData.installments),
                 issuerId: formData.issuer_id ?? undefined,
                 payer: {
-                  email: formData.payer?.email ?? payer.email,
+                  email,
                   identification: {
                     type: idData.type,
                     number: idData.number
