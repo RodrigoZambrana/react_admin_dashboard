@@ -96,8 +96,13 @@ const resolvePaymentUrl = (endpoint: string) => {
     return DEFAULT_PAYMENT_ENDPOINT;
   }
 
-  if (/^https?:\/\//i.test(trimmed)) {
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
     return trimmed;
+  }
+
+  const looksLikeHostWithPort = /^[\w.-]+:\d+(?:\/|$)/.test(trimmed);
+  if (looksLikeHostWithPort) {
+    return `http://${trimmed}`;
   }
 
   const normalized = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
@@ -109,7 +114,10 @@ const resolvePaymentUrl = (endpoint: string) => {
   try {
     return new URL(normalized, window.location.origin).toString();
   } catch (error) {
-    console.warn("Falling back to normalized payment endpoint due to URL resolution error", error);
+    console.warn(
+      "Falling back to normalized payment endpoint due to URL resolution error",
+      error,
+    );
     return normalized;
   }
 };
@@ -253,6 +261,10 @@ export default function MercadoPagoCardBrick({
               };
 
               const targetPaymentUrl = resolvePaymentUrl(paymentEndpoint);
+
+              if (process.env.NODE_ENV !== "production") {
+                console.info("Mercado Pago · enviando pago a:", targetPaymentUrl, payload);
+              }
 
               try {
                 const response = await fetch(targetPaymentUrl, {

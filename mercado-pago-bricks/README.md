@@ -23,6 +23,9 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
   ```
 
   > Si necesitas usar otras credenciales, reemplázalas en ese archivo.
+  > Si apuntas a otro servidor, especifica la URL completa (por ejemplo `http://localhost:8080/process_payment`). El componente
+  > también aceptará valores sin esquema cuando incluyan host y puerto (`localhost:8080/process_payment` se interpretará como
+  > `http://localhost:8080/process_payment`).
 
 ---
 
@@ -55,7 +58,8 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
 - Envía los datos al endpoint definido en `NEXT_PUBLIC_MERCADO_PAGO_PAYMENT_URL` (por defecto `/api/process-payment`). El
   payload incluye tanto claves en `snake_case` como en `camelCase` para ser compatible con los ejemplos oficiales de Mercado
   Pago (`/process_payment`). Si indicas una URL absoluta, la solicitud irá directo a ese servidor; si usas una ruta relativa,
-  el componente la normalizará automáticamente contra el origen actual.
+  el componente la normalizará automáticamente contra el origen actual. Para hosts con puerto sin esquema (`localhost:8080/...`)
+  se asumirá `http://`.
 
 - **Back-end (`src/app/api/process-payment/route.ts`)**
   - Implementa un endpoint `POST /api/process-payment`.
