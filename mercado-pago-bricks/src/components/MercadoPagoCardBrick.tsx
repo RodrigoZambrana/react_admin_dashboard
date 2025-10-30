@@ -55,7 +55,7 @@ type SubmitResponse = {
 };
 
 type FeedbackState = {
-  status: "idle" | "loading" | "success" | "error";
+  status: "idle" | "loading" | "success" | "pending" | "error";
   title: string | null;
   detail: string | null;
 };
@@ -111,6 +111,36 @@ const appendQueryParams = (path: string, params: URLSearchParams) => {
   const separator = path.includes("?") ? "&" : "?";
   return `${path}${separator}${query}`;
 };
+
+const STATUS_DETAIL_MESSAGES: Record<string, string> = {
+  cc_rejected_other_reason:
+    "Mercado Pago rechazó el pago por un error general. Intenta nuevamente más tarde o usa otro medio de pago.",
+  cc_rejected_general_error:
+    "Ocurrió un error general al procesar el pago. Revisa los datos e intenta otra vez.",
+  cc_rejected_call_for_authorize:
+    "Debes comunicarte con la entidad emisora para autorizar esta transacción.",
+  cc_rejected_insufficient_amount:
+    "La tarjeta no tiene fondos suficientes para completar el pago.",
+  cc_rejected_bad_filled_security_code:
+    "El código de seguridad es incorrecto. Revísalo e inténtalo de nuevo.",
+  cc_rejected_bad_filled_date:
+    "La fecha de vencimiento es inválida. Verifica el mes y año de la tarjeta.",
+  cc_rejected_bad_filled_other:
+    "Revisa los datos ingresados en el formulario antes de volver a intentar.",
+  pending_contingency:
+    "Mercado Pago está revisando la operación. Te avisaremos cuando se acredite.",
+  pending_review_manual:
+    "Estamos verificando la información para aprobar el pago. El resultado se confirmará en breve.",
+};
+
+const PENDING_STATUSES = new Set([
+  "in_process",
+  "pending",
+  "pending_waiting_payment",
+  "pending_contingency",
+  "pending_review_manual",
+  "in_mediation",
+]);
 
 type Props = {
   amount: number;
@@ -369,22 +399,21 @@ export default function MercadoPagoCardBrick({
                 console.info("Mercado Pago · enviando pago a:", targetPaymentUrl, payload);
               }
 
-              const notifySuccess = (response: SubmitResponse) => {
+              const notifyCompletion = (response: SubmitResponse, reason?: unknown) => {
                 actionsNotified = true;
                 if (actions?.submitComplete) {
                   actions.submitComplete(response);
-                } else {
-                  actions?.resolve?.(response);
                 }
-              };
 
-              const notifyError = (response: SubmitResponse, reason?: unknown) => {
-                actionsNotified = true;
-                if (actions?.submitComplete) {
-                  actions.submitComplete(response);
+                if (response.status === "error") {
+                  if (actions?.reject) {
+                    actions.reject(reason ?? response);
+                  }
+                  return;
                 }
-                if (actions?.reject) {
-                  actions.reject(reason ?? response);
+
+                if (!actions?.submitComplete) {
+                  actions?.resolve?.(response);
                 }
               };
 
@@ -407,6 +436,11 @@ export default function MercadoPagoCardBrick({
                 const paymentId = (data?.id as string | number | null) ?? null;
                 const status = (data?.status as string | null) ?? null;
                 const statusDetail = (data?.status_detail as string | null) ?? null;
+                const normalizedStatus = status?.toLowerCase() ?? null;
+                const normalizedStatusDetail = statusDetail?.toLowerCase() ?? null;
+                const friendlyStatusDetail = normalizedStatusDetail
+                  ? STATUS_DETAIL_MESSAGES[normalizedStatusDetail] ?? null
+                  : null;
 
                 if (!response.ok) {
                   const fallbackMessage =
@@ -420,9 +454,49 @@ export default function MercadoPagoCardBrick({
                     statusDetail,
                     errorMessage: String(fallbackMessage),
                   };
-                  notifyError(errorResponse, error);
+                  notifyCompletion(errorResponse, error);
                   throw error;
                 }
+
+                if (normalizedStatus && PENDING_STATUSES.has(normalizedStatus)) {
+                  const pendingDetail =
+                    friendlyStatusDetail ??
+                    statusDetail ??
+                    "Mercado Pago está procesando tu pago. Te avisaremos cuando se confirme.";
+                  const pendingResponse: SubmitResponse = {
+                    status: "pending",
+                    paymentId,
+                    statusDetail,
+                  };
+
+                  showFeedback("pending", "Pago en revisión", pendingDetail);
+                  notifyCompletion(pendingResponse);
+                  return pendingResponse;
+                }
+
+                if (normalizedStatus && normalizedStatus !== "approved") {
+                  const rejectionDetail =
+                    friendlyStatusDetail ??
+                    statusDetail ??
+                    "No pudimos procesar el pago, intenta nuevamente con otro medio.";
+                  const rejectionError = new Error(rejectionDetail);
+                  const rejectionResponse: SubmitResponse = {
+                    status: "error",
+                    paymentId,
+                    statusDetail,
+                    errorMessage: rejectionDetail,
+                  };
+
+                  showFeedback("error", "Pago rechazado", rejectionDetail);
+                  notifyCompletion(rejectionResponse, rejectionError);
+                  throw rejectionError;
+                }
+
+                const detailForSuccess =
+                  friendlyStatusDetail ??
+                  (paymentId || statusDetail
+                    ? `ID: ${paymentId ?? "desconocido"} · Detalle: ${statusDetail ?? "sin detalle"}`
+                    : null);
 
                 const successResponse: SubmitResponse = {
                   status: "success",
@@ -430,15 +504,9 @@ export default function MercadoPagoCardBrick({
                   statusDetail,
                 };
 
-                showFeedback(
-                  "success",
-                  status ? `Pago ${status}` : "Pago aprobado",
-                  paymentId || statusDetail
-                    ? `ID: ${paymentId ?? "desconocido"} · Detalle: ${statusDetail ?? "sin detalle"}`
-                    : null,
-                );
+                showFeedback("success", "Pago aprobado", detailForSuccess);
 
-                notifySuccess(successResponse);
+                notifyCompletion(successResponse);
 
                 const params = new URLSearchParams();
                 if (paymentId) params.set("paymentId", String(paymentId));
@@ -468,7 +536,7 @@ export default function MercadoPagoCardBrick({
                 });
 
                 if (!actionsNotified) {
-                  notifyError(
+                  notifyCompletion(
                     {
                       status: "error",
                       paymentId: null,
@@ -535,6 +603,12 @@ export default function MercadoPagoCardBrick({
       )}
       {status === "success" && title && (
         <div className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          <p className="font-medium">{title}</p>
+          {detail ? <p>{detail}</p> : null}
+        </div>
+      )}
+      {status === "pending" && title && (
+        <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           <p className="font-medium">{title}</p>
           {detail ? <p>{detail}</p> : null}
         </div>

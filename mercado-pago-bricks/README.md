@@ -77,9 +77,23 @@ Pequeño proyecto pensado para pruebas locales de la integración con Mercado Pa
 
 ## Datos de prueba recomendados
 
-- **Visa**: 4509 9535 6623 3704 · Vencimiento 11/30 · CVV 123  
-- **Mastercard**: 5031 7557 3453 0604 · Vencimiento 11/30 · CVV 123  
+- **Visa**: 4509 9535 6623 3704 · Vencimiento 11/30 · CVV 123
+- **Mastercard**: 5031 7557 3453 0604 · Vencimiento 11/30 · CVV 123
 - **Documento**: DNI 12345678 · Nombre libre
+
+Para simular distintos estados de pago en modo sandbox, completa el nombre del titular con alguno de los códigos sugeridos por
+Mercado Pago. El backend devolverá el `status` y el componente mostrará un mensaje acorde:
+
+| Nombre del titular | Resultado esperado                               | Observaciones |
+| ------------------ | ------------------------------------------------- | ------------- |
+| `APRO`             | Pago aprobado                                    | Redirige a `/success` con el detalle del pago. |
+| `OTHE`             | Rechazado por error general                       | Muestra la leyenda “Mercado Pago rechazó el pago por un error general…”. |
+| `CONT`             | Pago pendiente/in_process                         | Deja el formulario visible e informa que el pago está en revisión. |
+| `CALL`             | Rechazado con validación para autorizar           | Sugiere contactar al emisor antes de reintentar. |
+| `FUND`             | Rechazado por fondos insuficientes                | Pide utilizar otro medio de pago. |
+| `SECU`             | Rechazado por código de seguridad inválido        | Invita a revisar el CVV. |
+| `EXPI`             | Rechazado por fecha de vencimiento inválida       | Solicita verificar la fecha de la tarjeta. |
+| `FORM`             | Rechazado por error en el formulario              | Indica revisar los datos cargados. |
 
 Mercado Pago provee más tarjetas de prueba en su [documentación oficial](https://www.mercadopago.com/developers/es/docs/checkout-pro/additional-content/test-cards).
 
