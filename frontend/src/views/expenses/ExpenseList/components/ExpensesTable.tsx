@@ -100,7 +100,7 @@ const ExpenseIdColumn = ({ row }: { row: Expense }) => {
     const navigate = useNavigate()
 
     const onView = useCallback(() => {
-        navigate(`/app/expenses/expense-detail/${row.id}`)
+        navigate(`/app/accounting/expenses/detail/${row.id}`)
     }, [navigate, row])
 
     return (
@@ -125,10 +125,10 @@ const ActionColumn = ({ row }: { row: Expense }) => {
     }
 
     const onView = useCallback(() => {
-        navigate(`/app/expenses/expense-detail/${row.id}`)
+        navigate(`/app/accounting/expenses/detail/${row.id}`)
     }, [navigate, row])
     const onEdit = useCallback(() => {
-        navigate(`/app/expenses/expense-edit/${row.id}`)
+        navigate(`/app/accounting/expenses/edit/${row.id}`)
     }, [navigate, row])
 
     return (
@@ -201,11 +201,11 @@ const ExpensesTable = () => {
             if (normalized.length) setExpenseStatuses(normalized as any)
         }
         const fetchMethods = async () => {
-            const mRes = await apiGetPaymentMethods<{ id: string; name: string }[]>()
+            const mRes = await apiGetPaymentMethods<{ id: number | string; label?: string }[]>()
             setPaymentMethods(
-                (mRes.data as any[]).map((m) => ({
+                (mRes.data || []).map((m) => ({
                     value: String(m.id),
-                    label: m.name,
+                    label: m.label || String(m.id),
                 })),
             )
         }

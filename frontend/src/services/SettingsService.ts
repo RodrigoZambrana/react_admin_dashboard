@@ -1,39 +1,10 @@
 import ApiService from './ApiService'
 
-export async function apiGetOrderStatuses<T>() {
+export async function apiGetOrderStatuses<T>(params?: Record<string, unknown>) {
     return ApiService.fetchData<T>({
-        url: '/settings/order-statuses',
+        url: '/order-statuses',
         method: 'get',
-    })
-}
-
-export async function apiCreateOrderStatus<T, U extends Record<string, unknown>>(
-    data: U,
-) {
-    return ApiService.fetchData<T>({
-        url: '/settings/order-statuses/create',
-        method: 'post',
-        data,
-    })
-}
-
-export async function apiUpdateOrderStatus<T, U extends Record<string, unknown>>(
-    data: U,
-) {
-    return ApiService.fetchData<T>({
-        url: '/settings/order-statuses/update',
-        method: 'put',
-        data,
-    })
-}
-
-export async function apiDeleteOrderStatus<T, U extends Record<string, unknown>>(
-    data: U,
-) {
-    return ApiService.fetchData<T>({
-        url: '/settings/order-statuses/delete',
-        method: 'delete',
-        data,
+        params,
     })
 }
 
@@ -41,36 +12,6 @@ export async function apiGetCustomerStatuses<T>() {
     return ApiService.fetchData<T>({
         url: '/settings/customer-statuses',
         method: 'get',
-    })
-}
-
-export async function apiCreateCustomerStatus<T, U extends Record<string, unknown>>(
-    data: U,
-) {
-    return ApiService.fetchData<T>({
-        url: '/settings/customer-statuses/create',
-        method: 'post',
-        data,
-    })
-}
-
-export async function apiUpdateCustomerStatus<T, U extends Record<string, unknown>>(
-    data: U,
-) {
-    return ApiService.fetchData<T>({
-        url: '/settings/customer-statuses/update',
-        method: 'put',
-        data,
-    })
-}
-
-export async function apiDeleteCustomerStatus<T, U extends Record<string, unknown>>(
-    data: U,
-) {
-    return ApiService.fetchData<T>({
-        url: '/settings/customer-statuses/delete',
-        method: 'delete',
-        data,
     })
 }
 
@@ -291,22 +232,49 @@ export async function apiListEmailTemplates<T>() {
     })
 }
 
-// Payment methods
-export async function apiGetPaymentMethods<T>() {
+export async function apiGetEmailTemplate<T>(id: number) {
     return ApiService.fetchData<T>({
-        url: '/settings/payment-methods',
+        url: `/settings/email/templates/${id}`,
         method: 'get',
     })
 }
 
-export async function apiCreatePaymentMethod<
-    T,
-    U extends Record<string, unknown>,
->(data: U) {
+export async function apiUpdateEmailTemplate<T, U extends Record<string, unknown>>(id: number, data: U) {
     return ApiService.fetchData<T>({
-        url: '/settings/payment-methods/create',
+        url: `/settings/email/templates/${id}`,
+        method: 'put',
+        data,
+    })
+}
+
+export async function apiPreviewEmailTemplate<T, U extends Record<string, unknown>>(id: number, data: U) {
+    return ApiService.fetchData<T>({
+        url: `/settings/email/templates/${id}/preview`,
         method: 'post',
         data,
+    })
+}
+
+export async function apiGetEmailTemplateSamples<T>(id: number, params?: Record<string, unknown>) {
+    return ApiService.fetchData<T>({
+        url: `/settings/email/templates/${id}/samples`,
+        method: 'get',
+        params,
+    })
+}
+
+export async function apiGetEmailMetrics<T>() {
+    return ApiService.fetchData<T>({
+        url: '/settings/email/metrics',
+        method: 'get',
+    })
+}
+
+// Payment methods
+export async function apiGetPaymentMethods<T>() {
+    return ApiService.fetchData<T>({
+        url: '/payment-methods',
+        method: 'get',
     })
 }
 
@@ -466,28 +434,6 @@ export async function apiDeleteCalendarEventType<T>(id: string | number) {
     return ApiService.fetchData<T>({
         url: `/settings/calendar-event-types/${id}`,
         method: 'delete',
-    })
-}
-
-export async function apiUpdatePaymentMethod<
-    T,
-    U extends Record<string, unknown>,
->(data: U) {
-    return ApiService.fetchData<T>({
-        url: '/settings/payment-methods/update',
-        method: 'put',
-        data,
-    })
-}
-
-export async function apiDeletePaymentMethod<
-    T,
-    U extends Record<string, unknown>,
->(data: U) {
-    return ApiService.fetchData<T>({
-        url: '/settings/payment-methods/delete',
-        method: 'delete',
-        data,
     })
 }
 

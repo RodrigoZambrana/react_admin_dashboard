@@ -114,12 +114,12 @@ const ExpenseDetail = () => {
 
     const handleEdit = () => {
         if (data) {
-            navigate(`/app/expenses/expense-edit/${data.id}`)
+            navigate(`/app/accounting/expenses/edit/${data.id}`)
         }
     }
 
     const handleBack = () => {
-        navigate('/app/expenses/expense-list')
+        navigate('/app/accounting/expenses/list')
     }
 
     const detailItems = useMemo(

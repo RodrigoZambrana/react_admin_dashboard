@@ -5,6 +5,7 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import Switcher from '@/components/ui/Switcher'
+import Upload from '@/components/ui/Upload'
 import { useTranslation } from 'react-i18next'
 import {
     apiGetProductCategories,
@@ -17,6 +18,7 @@ import {
 import toast from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
 import { downloadCsvFile, parseCsvFile } from '@/utils/csv'
+import useConfirmation from '@/hooks/useConfirmation'
 
 type CategoryService = {
     id: number
@@ -211,11 +213,13 @@ const flattenCategoryTree = (nodes: CategoryTreeNode[], depth = 0): FlatCategory
 
 const ProductCategories = () => {
     const { t } = useTranslation()
+    const { confirm, ConfirmationDialog } = useConfirmation()
     const [categories, setCategories] = useState<RawCategory[]>([])
     const [form, setForm] = useState<FormState>({
         ...DEFAULT_FORM,
         service: { ...DEFAULT_SERVICE_FORM },
     })
+    const [imageFiles, setImageFiles] = useState<File[]>([])
     const [fetching, setFetching] = useState(false)
     const [saving, setSaving] = useState(false)
     const [exporting, setExporting] = useState(false)
@@ -293,11 +297,47 @@ const ProductCategories = () => {
         }))
     }
 
+    const fileToDataUrl = (file: File) =>
+        new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result as string)
+            reader.onerror = reject
+            reader.readAsDataURL(file)
+        })
+
+    const handleImageUpload = async (files: File[]) => {
+        const latest = files[files.length - 1]
+        if (!latest) {
+            setImageFiles([])
+            handleFormChange('image', '')
+            return
+        }
+        try {
+            const dataUrl = await fileToDataUrl(latest)
+            setImageFiles([latest])
+            handleFormChange('image', dataUrl)
+        } catch {
+            toast.push(
+                <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                    {t('settings.productCategories.validation.imageUploadFailed', {
+                        defaultValue: 'We could not process the selected image.',
+                    })}
+                </Notification>,
+            )
+        }
+    }
+
+    const handleImageRemove = () => {
+        setImageFiles([])
+        handleFormChange('image', '')
+    }
+
     const resetForm = () => {
         setForm({
             ...DEFAULT_FORM,
             service: { ...DEFAULT_SERVICE_FORM },
         })
+        setImageFiles([])
     }
 
     const handleSubmit = async () => {
@@ -461,17 +501,33 @@ const ProductCategories = () => {
                   }
                 : { ...DEFAULT_SERVICE_FORM },
         })
+        setImageFiles([])
     }
 
-    const handleDelete = async (id: number) => {
+    const handleDelete = async (category: RawCategory) => {
+        const confirmed = await confirm({
+            title: t('settings.productCategories.delete.title', {
+                defaultValue: 'Delete product category',
+            }),
+            message: t('settings.productCategories.delete.confirm', {
+                defaultValue:
+                    'Are you sure you want to delete the category "{{name}}"? This action cannot be undone.',
+                name: category.name,
+            }),
+            confirmText: t('text.actions.delete'),
+            cancelText: t('text.actions.cancel'),
+        })
+        if (!confirmed) {
+            return
+        }
         try {
-            await apiDeleteProductCategory<boolean, { id: number }>({ id })
+            await apiDeleteProductCategory<boolean, { id: number }>({ id: category.id })
             toast.push(
                 <Notification title={t('settings.productCategories.deleted.title')} type="success">
                     {t('settings.productCategories.deleted.desc')}
                 </Notification>,
             )
-            if (form.id === id) {
+            if (form.id === category.id) {
                 resetForm()
             }
             fetchCategories()
@@ -597,7 +653,8 @@ const ProductCategories = () => {
     }
 
     return (
-        <Card className="card-shadow">
+        <>
+            <Card className="card-shadow">
             <div className="flex flex-col gap-2 mb-4 md:flex-row md:items-center md:justify-between">
                 <h4>{t('settings.productCategories.title')}</h4>
                 <div className="flex flex-wrap gap-2">
@@ -660,15 +717,67 @@ const ProductCategories = () => {
                     onChange={(e) => handleFormChange('description', e.target.value)}
                     disabled={saving}
                 />
-                <Input
-                    value={form.image}
-                    placeholder={
-                        t('settings.productCategories.placeholders.image') ||
-                        'Image URL (optional)'
-                    }
-                    onChange={(e) => handleFormChange('image', e.target.value)}
-                    disabled={saving}
-                />
+                <div className="flex flex-col gap-2">
+                    <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">
+                        {t('settings.productCategories.fields.image', {
+                            defaultValue: 'Image',
+                        })}
+                    </span>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <Upload
+                            accept="image/*"
+                            multiple={false}
+                            uploadLimit={1}
+                            showList={false}
+                            fileList={imageFiles}
+                            onChange={handleImageUpload}
+                            onFileRemove={() => handleImageRemove()}
+                            disabled={saving}
+                        >
+                            <Button size="sm" variant="solid" disabled={saving}>
+                                {t('settings.productCategories.actions.uploadImage', {
+                                    defaultValue: 'Upload image',
+                                })}
+                            </Button>
+                        </Upload>
+                        {form.image ? (
+                            <div className="flex items-center gap-2">
+                                <img
+                                    src={form.image}
+                                    alt={form.name || 'category'}
+                                    className="h-12 w-12 rounded border border-gray-200 dark:border-gray-600 object-cover"
+                                />
+                                <Button
+                                    size="sm"
+                                    variant="plain"
+                                    onClick={handleImageRemove}
+                                    disabled={saving}
+                                >
+                                    {t('settings.productCategories.actions.removeImage', {
+                                        defaultValue: 'Remove image',
+                                    })}
+                                </Button>
+                            </div>
+                        ) : (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {t('settings.productCategories.placeholders.image') ||
+                                    'Image (optional)'}
+                            </span>
+                        )}
+                    </div>
+                    <Input
+                        value={form.image}
+                        placeholder={
+                            t('settings.productCategories.placeholders.image') ||
+                            'Image URL (optional)'
+                        }
+                        onChange={(e) => {
+                            setImageFiles([])
+                            handleFormChange('image', e.target.value)
+                        }}
+                        disabled={saving}
+                    />
+                </div>
                 <div className="col-span-full flex items-center gap-3">
                     <Switcher
                         checked={form.installable}
@@ -882,7 +991,7 @@ const ProductCategories = () => {
                                         <Button
                                             size="sm"
                                             color="red-600"
-                                            onClick={() => handleDelete(category.id)}
+                                            onClick={() => handleDelete(category)}
                                         >
                                             {t('text.actions.delete')}
                                         </Button>
@@ -900,7 +1009,9 @@ const ProductCategories = () => {
                     )}
                 </TBody>
             </Table>
-        </Card>
+            </Card>
+            {ConfirmationDialog}
+        </>
     )
 }
 

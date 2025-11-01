@@ -141,15 +141,17 @@ const OrdersTable = () => {
     const defaultOrderStatuses = useMemo(() => {
         if (currentResource === 'budgets') {
             return [
-                { id: 1000, name: 'Borrador', color: 'slate-400' },
-                { id: 1010, name: 'Enviado', color: 'sky-500' },
-                { id: 1020, name: 'Aceptado', color: 'emerald-500' },
+                { id: 1000, name: 'Quote - Draft', color: '#9ca3af' },
+                { id: 1010, name: 'Quote - Sent', color: '#3b82f6' },
+                { id: 1020, name: 'Quote - Accepted', color: '#10b981' },
+                { id: 1050, name: 'Quote - Expired', color: '#f97316' },
             ]
         }
         return [
-            { id: 0, name: 'Pagado', color: 'emerald-500' },
-            { id: 1, name: 'Pendiente', color: 'amber-500' },
-            { id: 2, name: 'Cancelado', color: 'red-500' },
+            { id: 100, name: 'Pending', color: 'orange' },
+            { id: 200, name: 'Paid', color: 'green' },
+            { id: 300, name: 'Cancelled', color: 'red' },
+            { id: 400, name: 'Delivered', color: 'green' },
         ]
     }, [currentResource])
     const [statuses, setStatuses] = useState<{ id: number; name: string; color: string }[]>(defaultOrderStatuses)
@@ -175,17 +177,30 @@ const OrdersTable = () => {
 
     useEffect(() => {
         const fetchStatuses = async () => {
-            const res = await apiGetOrderStatuses<{ id: number | string; name: string; color: string }[]>()
-            const normalized = (res.data as any[]).map((s) => ({ ...s, id: Number(s.id) }))
-            if (normalized.length) setStatuses(normalized)
+            const res = await apiGetOrderStatuses<
+                { id: number | string; label?: string; color?: string; documentTypes?: string[] }[]
+            >({ documentType: currentResource === 'budgets' ? 'BUDGET' : 'ORDER' })
+            const normalized = (res.data || []).map((status) => ({
+                id: Number(status.id),
+                name: status.label || String(status.id),
+                color: status.color || 'gray-500',
+            }))
+            if (normalized.length) {
+                setStatuses(normalized)
+            }
         }
         fetchStatuses()
-    }, [])
+    }, [currentResource])
 
     useEffect(() => {
         const fetchPaymentMethods = async () => {
-            const res = await apiGetPaymentMethods<{ id: number | string; name: string }[]>()
-            const opts = (res.data as any[]).map((m) => ({ value: m.name, label: m.name }))
+            const res = await apiGetPaymentMethods<
+                { id: number | string; label?: string; code?: string }[]
+            >()
+            const opts = (res.data || []).map((method) => ({
+                value: method.label || String(method.id),
+                label: method.label || String(method.id),
+            }))
             setPaymentMethods(opts)
         }
         fetchPaymentMethods()

@@ -119,6 +119,51 @@ export interface StorefrontConfig {
 
 export type InventoryStatus = "in-stock" | "limited" | "back-order" | "out-of-stock";
 
+export type ProductMode = "simple" | "variable";
+export type ProductAttributeType = "COLOR" | "SIZE" | "MATERIAL";
+
+export interface ProductAttributeValue {
+  id: number;
+  key: string;
+  label: string;
+  value?: string | null;
+  colorHex?: string | null;
+  imageUrl?: string | null;
+  imageAlt?: string | null;
+  sortOrder?: number | null;
+}
+
+export interface ProductAttributeDefinition {
+  id: number;
+  type: ProductAttributeType;
+  name: string;
+  values: ProductAttributeValue[];
+}
+
+export interface ProductVariantAttribute {
+  attribute: ProductAttributeType;
+  valueKey: string;
+  label?: string | null;
+  value?: string | null;
+  colorHex?: string | null;
+  imageUrl?: string | null;
+  imageAlt?: string | null;
+}
+
+export interface ProductVariant {
+  id: number;
+  key: string;
+  sku?: string | null;
+  barcode?: string | null;
+  label?: string | null;
+  price: Money;
+  stock?: number | null;
+  inventoryStatus: InventoryStatus;
+  isActive: boolean;
+  attributes: ProductVariantAttribute[];
+  images: ProductImage[];
+}
+
 export interface ProductImage extends ImageAsset {
   sortOrder?: number;
   isPrimary?: boolean;
@@ -139,6 +184,7 @@ export interface ProductSummary {
   thumbnail?: ProductImage | null;
   categories?: CategorySummary[];
   tags?: string[];
+  mode?: ProductMode;
 }
 
 export interface ProductDetail extends ProductSummary {
@@ -152,6 +198,8 @@ export interface ProductDetail extends ProductSummary {
     dimensions?: string;
     materials?: string;
   };
+  attributes?: ProductAttributeDefinition[];
+  variants?: ProductVariant[];
 }
 
 export interface CategorySummary {
@@ -471,7 +519,7 @@ export interface CreateOrderPayload {
     zip?: string;
     country: string;
   };
-  items: Array<{ productId: number; quantity: number }>;
+  items: Array<{ productId: number; quantity: number; variantId?: number }>;
   notes?: string;
   paymentIntentId?: string;
 }

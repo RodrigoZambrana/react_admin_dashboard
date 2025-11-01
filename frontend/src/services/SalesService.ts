@@ -88,6 +88,32 @@ export async function apiCreateSalesProduct<
     })
 }
 
+export async function apiGetParametricConfig<T>(productId: number) {
+    return ApiService.fetchData<T>({
+        url: `/pricing/products/${productId}/config`,
+        method: 'get',
+    })
+}
+
+export async function apiImportParametricReferences<T>(productId: number, data: FormData) {
+    return ApiService.fetchData<T>({
+        url: `/pricing/products/${productId}/import`,
+        method: 'post',
+        data,
+    })
+}
+
+export async function apiQuoteParametricProduct<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/pricing/quote',
+        method: 'post',
+        data,
+    })
+}
+
 export async function apiGetSalesOrders<T, U extends Record<string, unknown>>(
     params: U,
     resource: SalesDocumentResource = 'orders',

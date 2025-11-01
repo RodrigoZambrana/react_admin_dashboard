@@ -59,10 +59,12 @@ export class SmtpEmailProvider implements EmailProvider {
       subject,
       html,
       text,
+      replyTo: message.replyTo ?? undefined,
       headers: {
         'X-Email-Category': message.category,
         'X-Email-Variant': message.variant,
         'X-Email-Locale': message.locale,
+        ...(message.headers ?? {}),
       },
     })
     return { messageId: info.messageId }

@@ -32,6 +32,7 @@ import { apiGetCalendarEventTypes } from '@/services/SettingsService'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
 import { apiFetchCalendarAttachment } from '@/services/CalendarService'
+import useConfirmation from '@/hooks/useConfirmation'
 
 const { useUniqueId } = hooks
 
@@ -206,6 +207,7 @@ const createBlobUrl = (blob: Blob) => {
 const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
+    const { confirm, ConfirmationDialog } = useConfirmation()
 
     const open = useAppSelector((state) => state.crmCalendar.data.dialogOpen)
     const selected = useAppSelector((state) => state.crmCalendar.data.selected)
@@ -640,7 +642,8 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
     }
 
     return (
-        <Dialog
+        <>
+            <Dialog
             isOpen={open}
             onClose={handleDialogClose}
             onRequestClose={handleDialogClose}
@@ -919,10 +922,12 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                             defaultValue:
                                 '¿Eliminar este evento? Esta acción no se puede deshacer.',
                         })
-                        const confirmed =
-                            typeof window === 'undefined'
-                                ? true
-                                : window.confirm(message)
+                        const confirmed = await confirm({
+                            title: t('text.actions.delete'),
+                            message,
+                            confirmText: t('text.actions.delete'),
+                            cancelText: t('text.actions.cancel'),
+                        })
                         if (!confirmed) {
                             return
                         }
@@ -1391,7 +1396,9 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                     )
                 }}
             </Formik>
-        </Dialog>
+            </Dialog>
+            {ConfirmationDialog}
+        </>
     )
 }
 

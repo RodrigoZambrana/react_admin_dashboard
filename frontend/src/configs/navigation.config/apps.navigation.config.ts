@@ -10,6 +10,9 @@ import type { NavigationTree } from '@/@types/navigation'
 import { clientConfig } from '@/configs/clientConfig'
 
 const hasBudgetsFeature = Boolean(clientConfig.featureFlags?.BUDGETS)
+const hasParametricProducts = Boolean(
+    clientConfig.featureFlags?.PARAMETRIC_PRODUCTS,
+)
 const isUrucortinas = clientConfig.slug === 'urucortinas'
 
 const salesSubMenu: NavigationTree[] = [
@@ -143,6 +146,56 @@ if (isUrucortinas && hasBudgetsFeature) {
     }
 }
 
+salesSubMenu.push({
+    key: 'appsSales.shippingOptions',
+    path: `${APP_PREFIX_PATH}/sales/shipping-options`,
+    title: 'Shipping Options',
+    translateKey: 'nav.appsSales.shippingOptions',
+    icon: '',
+    type: NAV_ITEM_TYPE_ITEM,
+    authority: getRolesForFeature(FEATURES.SALES),
+    subMenu: [],
+})
+
+const productsSubMenu: NavigationTree[] = [
+    {
+        key: 'appsProducts.productList',
+        path: `${APP_PREFIX_PATH}/products/list`,
+        title: 'Product List',
+        translateKey: 'nav.appsProducts.list',
+        icon: '',
+        type: NAV_ITEM_TYPE_ITEM,
+        authority: getRolesForFeature(FEATURES.PRODUCTS),
+        subMenu: [],
+    },
+]
+
+if (hasParametricProducts) {
+    productsSubMenu.push({
+        key: 'appsProducts.parametric',
+        path: `${APP_PREFIX_PATH}/products/parametric`,
+        title: isUrucortinas ? 'Aberturas' : 'Parametric Products',
+        translateKey: isUrucortinas
+            ? 'nav.appsProducts.aberturas'
+            : 'nav.appsProducts.parametric',
+        icon: '',
+        type: NAV_ITEM_TYPE_ITEM,
+        authority: getRolesForFeature(FEATURES.PRODUCTS),
+        subMenu: [],
+    })
+}
+
+productsSubMenu.push({
+    key: 'appsProducts.config',
+    path: `${APP_PREFIX_PATH}/products/config`,
+    title: 'Configuration',
+    translateKey: 'nav.appsProducts.config',
+    icon: '',
+    type: NAV_ITEM_TYPE_ITEM,
+    authority: getRolesForFeature(FEATURES.PRODUCTS),
+    subMenu: [],
+})
+
 const appsNavigationConfig: NavigationTree[] = [
     {
         key: 'apps',
@@ -198,14 +251,14 @@ const appsNavigationConfig: NavigationTree[] = [
             },
             // Productos (nuevo menú)
             {
-                key: 'appsProducts.productList',
-                path: `${APP_PREFIX_PATH}/products/list`,
+                key: 'apps.products',
+                path: '',
                 title: 'Products',
                 translateKey: 'nav.appsProducts.products',
                 icon: 'products',
-                type: NAV_ITEM_TYPE_ITEM,
+                type: NAV_ITEM_TYPE_COLLAPSE,
                 authority: getRolesForFeature(FEATURES.PRODUCTS),
-                subMenu: [],
+                subMenu: productsSubMenu,
             },
             // Agenda
             {
@@ -239,53 +292,11 @@ const appsNavigationConfig: NavigationTree[] = [
                     },
                 ],
             },
-            // Gastos
-            {
-                key: 'apps.expenses',
-                path: '',
-                title: 'Expenses',
-                translateKey: 'nav.appsExpenses.expenses',
-                icon: 'expenses',
-                type: NAV_ITEM_TYPE_COLLAPSE,
-                authority: getRolesForFeature(FEATURES.EXPENSES),
-                subMenu: [
-                    {
-                        key: 'appsExpenses.dashboard',
-                        path: `${APP_PREFIX_PATH}/expenses/dashboard`,
-                        title: 'Dashboard',
-                        translateKey: 'nav.appsExpenses.dashboard',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.EXPENSES),
-                        subMenu: [],
-                    },
-                    {
-                        key: 'appsExpenses.expenseList',
-                        path: `${APP_PREFIX_PATH}/expenses/expense-list`,
-                        title: 'Expense List',
-                        translateKey: 'nav.appsExpenses.expenseList',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.EXPENSES),
-                        subMenu: [],
-                    },
-                    {
-                        key: 'appsExpenses.expenseNew',
-                        path: `${APP_PREFIX_PATH}/expenses/expense-new`,
-                        title: 'New Expense',
-                        translateKey: 'nav.appsExpenses.expenseNew',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.EXPENSES),
-                        subMenu: [],
-                    },
-                ],
-            },
             // Contabilidad
             {
                 key: 'apps.accounting',
                 path: '',
-                title: 'Contabilidad',
+                title: 'Accounting',
                 translateKey: 'nav.appsAccounting.accounting',
                 icon: 'accounting',
                 type: NAV_ITEM_TYPE_COLLAPSE,
@@ -299,6 +310,57 @@ const appsNavigationConfig: NavigationTree[] = [
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
                         authority: getRolesForFeature(FEATURES.ACCOUNTING),
+                        subMenu: [],
+                    },
+                    {
+                        key: 'appsAccounting.expenses',
+                        path: `${APP_PREFIX_PATH}/accounting/expenses`,
+                        title: 'Expenses',
+                        translateKey: 'nav.appsAccounting.expenses',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_COLLAPSE,
+                        authority: getRolesForFeature(FEATURES.EXPENSES),
+                        subMenu: [
+                            {
+                                key: 'appsAccounting.expensesList',
+                                path: `${APP_PREFIX_PATH}/accounting/expenses/list`,
+                                title: 'List',
+                                translateKey: 'nav.appsAccounting.expensesList',
+                                icon: '',
+                                type: NAV_ITEM_TYPE_ITEM,
+                                authority: getRolesForFeature(FEATURES.EXPENSES),
+                                subMenu: [],
+                            },
+                            {
+                                key: 'appsAccounting.expensesNew',
+                                path: `${APP_PREFIX_PATH}/accounting/expenses/new`,
+                                title: 'New',
+                                translateKey: 'nav.appsAccounting.expensesNew',
+                                icon: '',
+                                type: NAV_ITEM_TYPE_ITEM,
+                                authority: getRolesForFeature(FEATURES.EXPENSES),
+                                subMenu: [],
+                            },
+                            {
+                                key: 'appsAccounting.expensesCategories',
+                                path: `${APP_PREFIX_PATH}/accounting/expenses/categories`,
+                                title: 'Categories',
+                                translateKey: 'nav.appsAccounting.expensesCategories',
+                                icon: '',
+                                type: NAV_ITEM_TYPE_ITEM,
+                                authority: getRolesForFeature(FEATURES.EXPENSES),
+                                subMenu: [],
+                            },
+                        ],
+                    },
+                    {
+                        key: 'appsAccounting.expensesConfig',
+                        path: `${APP_PREFIX_PATH}/accounting/expenses/config`,
+                        title: 'Expenses Configuration',
+                        translateKey: 'nav.appsAccounting.expensesConfig',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: getRolesForFeature(FEATURES.EXPENSES),
                         subMenu: [],
                     },
                     {
@@ -356,56 +418,6 @@ const appsNavigationConfig: NavigationTree[] = [
                         subMenu: [],
                     },
                     {
-                        key: 'appsSettings.orderStatuses',
-                        path: `${APP_PREFIX_PATH}/settings/order-statuses`,
-                        title: 'Order Statuses',
-                        translateKey: 'nav.appsSettings.orderStatuses',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.SETTINGS),
-                        subMenu: [],
-                    },
-                    {
-                        key: 'appsSettings.products',
-                        path: `${APP_PREFIX_PATH}/settings/products`,
-                        title: 'Products',
-                        translateKey: 'nav.appsSettings.products',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.SETTINGS),
-                        subMenu: [],
-                    },
-                    {
-                        key: 'appsSettings.customerStatuses',
-                        path: `${APP_PREFIX_PATH}/settings/customer-statuses`,
-                        title: 'Customer Statuses',
-                        translateKey: 'nav.appsSettings.customerStatuses',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.SETTINGS),
-                        subMenu: [],
-                    },
-                    {
-                        key: 'appsSettings.expenses',
-                        path: `${APP_PREFIX_PATH}/settings/expenses`,
-                        title: 'Expenses',
-                        translateKey: 'nav.appsSettings.expenses',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.SETTINGS),
-                        subMenu: [],
-                    },
-                    {
-                        key: 'appsSettings.paymentMethods',
-                        path: `${APP_PREFIX_PATH}/settings/payment-methods`,
-                        title: 'Payment Methods',
-                        translateKey: 'nav.appsSettings.paymentMethods',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.SETTINGS),
-                        subMenu: [],
-                    },
-                    {
                         key: 'appsSettings.mercadoPago',
                         path: `${APP_PREFIX_PATH}/settings/mercado-pago`,
                         title: 'Mercado Pago',
@@ -420,16 +432,6 @@ const appsNavigationConfig: NavigationTree[] = [
                         path: `${APP_PREFIX_PATH}/settings/google`,
                         title: 'Google & reCAPTCHA',
                         translateKey: 'nav.appsSettings.google',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.SETTINGS),
-                        subMenu: [],
-                    },
-                    {
-                        key: 'appsSettings.shippingOptions',
-                        path: `${APP_PREFIX_PATH}/settings/shipping-options`,
-                        title: 'Shipping Options',
-                        translateKey: 'nav.appsSettings.shippingOptions',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,
                         authority: getRolesForFeature(FEATURES.SETTINGS),

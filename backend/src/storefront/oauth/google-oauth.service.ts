@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import { StorefrontService } from '../storefront.service'
+import { StorefrontSecurityService } from '../security/storefront-security.service'
 import { GoogleConfigService } from '../../common/integrations/google-config.service'
 import type { StorefrontAuthSession } from '../types'
 import type { FastifyRequest } from 'fastify'
@@ -45,23 +46,29 @@ type GoogleTokenError = {
   error_description?: string
 }
 
+export type GoogleOAuthPurpose = 'login' | 'recover' | 'reauth'
+
 export type GoogleOAuthStartResult = {
   url: string
   state: string
   expiresAt: string
+  purpose: GoogleOAuthPurpose
 }
 
 export type GoogleOAuthResult =
   | {
       status: 'success'
-      session: StorefrontAuthSession
+      session: StorefrontAuthSession | null
       returnPath: string | null
       state?: string | null
+      purpose: GoogleOAuthPurpose
       profile: {
         email: string
         name?: string | null
         picture?: string | null
       }
+      reauthToken?: { token: string; expiresAt: string }
+      nextAction?: 'none' | 'set_password' | 'reset_password'
     }
   | {
       status: 'error'
@@ -70,6 +77,7 @@ export type GoogleOAuthResult =
       details?: string | null
       returnPath: string | null
       state?: string | null
+      purpose?: GoogleOAuthPurpose
     }
 
 @Injectable()
@@ -83,11 +91,17 @@ export class StorefrontGoogleOAuthService {
     private readonly prisma: PrismaService,
     private readonly storefront: StorefrontService,
     private readonly googleConfig: GoogleConfigService,
+    private readonly security: StorefrontSecurityService,
   ) {
     this.frontendOrigin = this.resolveFrontendOrigin()
   }
 
-  async start(returnPath: string | undefined, req: FastifyRequest): Promise<GoogleOAuthStartResult> {
+  async start(
+    returnPath: string | undefined,
+    req: FastifyRequest,
+    purpose: GoogleOAuthPurpose = 'login',
+    expectedCustomerId?: number | null,
+  ): Promise<GoogleOAuthStartResult> {
     const { clientId, clientSecret, redirectUri } = await this.requireCredentials(true)
 
     await this.prisma.storefrontOAuthSession.deleteMany({
@@ -102,6 +116,9 @@ export class StorefrontGoogleOAuthService {
     const nonce = base64UrlEncode(randomBytes(32))
     const state = randomBytes(32).toString('hex')
     const scopes = this.defaultScopes
+    const normalizedPurpose: GoogleOAuthPurpose = ['login', 'recover', 'reauth'].includes(purpose)
+      ? purpose
+      : 'login'
 
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS)
     await this.prisma.storefrontOAuthSession.create({
@@ -113,10 +130,12 @@ export class StorefrontGoogleOAuthService {
         nonce,
         redirectUri,
         returnPath: returnPath ?? null,
+        purpose: normalizedPurpose,
         scopes,
         ipAddress: req.ip ?? null,
         userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
         expiresAt,
+        expectedCustomerId: normalizedPurpose === 'reauth' ? expectedCustomerId ?? null : null,
       },
     })
 
@@ -129,12 +148,14 @@ export class StorefrontGoogleOAuthService {
     url.searchParams.set('code_challenge', codeChallenge)
     url.searchParams.set('code_challenge_method', 'S256')
     url.searchParams.set('nonce', nonce)
-    url.searchParams.set('prompt', 'select_account')
+    const prompt = normalizedPurpose === 'login' ? 'select_account' : 'consent'
+    url.searchParams.set('prompt', prompt)
 
     return {
       url: url.toString(),
       state,
       expiresAt: expiresAt.toISOString(),
+      purpose: normalizedPurpose,
     }
   }
 
@@ -202,6 +223,21 @@ export class StorefrontGoogleOAuthService {
       }
     }
 
+    const purpose = (session.purpose as GoogleOAuthPurpose | null) ?? 'login'
+
+    if (purpose === 'reauth' && !session.expectedCustomerId) {
+      await this.markSessionError(state, 'invalid_session', 'Missing expected customer context for reauthentication.')
+      return {
+        status: 'error',
+        errorCode: 'invalid_session',
+        message: 'We could not verify the Google reauthentication request. Please try again.',
+        details: null,
+        returnPath: session.returnPath ?? null,
+        state,
+        purpose,
+      }
+    }
+
     const code = (query.code ?? '').trim()
     if (!code) {
       await this.markSessionError(state, 'missing_code', 'Authorization code was not returned by Google.')
@@ -228,8 +264,43 @@ export class StorefrontGoogleOAuthService {
         nonce: session.nonce,
       })
 
-      const customer = await this.linkCustomerAccount(payload, tokenResponse.scope ?? this.defaultScopes)
-      const storefrontSession = await this.storefront.createSessionForCustomer(customer)
+      const customer = await this.linkCustomerAccount(
+        payload,
+        tokenResponse.scope ?? this.defaultScopes,
+        purpose,
+        session.expectedCustomerId ?? null,
+      )
+      const storefrontSession =
+        purpose === 'reauth' ? null : await this.storefront.createSessionForCustomer(customer)
+
+      let reauthToken: { token: string; expiresAt: string } | undefined
+      if (purpose === 'recover' || purpose === 'reauth') {
+        const context = await this.security.reauthenticateWithGoogle(
+          customer.id,
+          {
+            sub: payload.sub,
+            email: payload.email,
+            scope: tokenResponse.scope ?? this.defaultScopes,
+          },
+          {
+            ipAddress: session.ipAddress ?? null,
+            userAgent: session.userAgent ?? null,
+          },
+        )
+        reauthToken = {
+          token: context.token,
+          expiresAt: context.expiresAt.toISOString(),
+        }
+      }
+
+      const nextAction: 'none' | 'set_password' | 'reset_password' =
+        purpose === 'recover'
+          ? customer.passwordHash
+            ? 'reset_password'
+            : 'set_password'
+          : purpose === 'reauth'
+            ? 'reset_password'
+            : 'none'
 
       await this.prisma.storefrontOAuthSession.update({
         where: { state },
@@ -245,11 +316,14 @@ export class StorefrontGoogleOAuthService {
         session: storefrontSession,
         returnPath: session.returnPath ?? null,
         state,
+        purpose,
         profile: {
           email: payload.email,
           name: payload.name ?? null,
           picture: payload.picture ?? null,
         },
+        reauthToken,
+        nextAction,
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -262,6 +336,7 @@ export class StorefrontGoogleOAuthService {
         details: message,
         returnPath: session.returnPath ?? null,
         state,
+        purpose,
       }
     }
   }
@@ -565,6 +640,8 @@ export class StorefrontGoogleOAuthService {
   private async linkCustomerAccount(
     payload: Awaited<ReturnType<typeof this.verifyIdToken>>,
     scope: string,
+    purpose: GoogleOAuthPurpose,
+    expectedCustomerId?: number | null,
   ): Promise<Customer> {
     const now = new Date()
 
@@ -578,15 +655,23 @@ export class StorefrontGoogleOAuthService {
         where: { provider_providerAccountId: compositeKey },
       })
 
-      let customerId: number
+      let customer: Customer | null = null
       if (account) {
-        customerId = account.customerId
-      } else {
-        let customer = await tx.customer.findUnique({
-          where: { email: payload.email },
-        })
+        customer = await tx.customer.findUnique({ where: { id: account.customerId } })
+      }
+
+      if (!customer) {
+        if (purpose === 'reauth') {
+          throw new UnauthorizedException('Google account is not linked to this profile.')
+        }
+
+        customer = await tx.customer.findUnique({ where: { email: payload.email } })
 
         if (!customer) {
+          if (purpose !== 'login') {
+            throw new UnauthorizedException('No customer account matches this Google email.')
+          }
+
           const firstName = payload.given_name ?? (payload.name ? payload.name.split(' ')[0] ?? null : null)
           const lastName =
             payload.family_name ??
@@ -629,8 +714,35 @@ export class StorefrontGoogleOAuthService {
             })
           }
         }
+      } else {
+        if (purpose !== 'reauth') {
+          const updateData: Record<string, unknown> = { updatedAt: now }
+          updateData.storefrontDefaultPasswordHash = null
+          if (!customer.firstName && payload.given_name) updateData.firstName = payload.given_name
+          if (!customer.lastName && payload.family_name) updateData.lastName = payload.family_name
+          if (!customer.name) {
+            const displayName = payload.name ?? [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim()
+            if (displayName) updateData.name = displayName
+          }
+          if (payload.picture && !customer.img) {
+            updateData.img = payload.picture
+          }
 
-        customerId = customer.id
+          if (Object.keys(updateData).length > 1) {
+            customer = await tx.customer.update({
+              where: { id: customer.id },
+              data: updateData,
+            })
+          }
+        }
+      }
+
+      if (!customer) {
+        throw new UnauthorizedException('Unable to resolve customer account for Google login.')
+      }
+
+      if (expectedCustomerId && customer.id !== expectedCustomerId) {
+        throw new UnauthorizedException('Google account does not match the active session.')
       }
 
       account = await tx.customerOAuthAccount.upsert({
@@ -638,7 +750,7 @@ export class StorefrontGoogleOAuthService {
         create: {
           provider: OAUTH_PROVIDER,
           providerAccountId: payload.sub,
-          customer: { connect: { id: customerId } },
+          customer: { connect: { id: customer.id } },
           email: payload.email,
           name: payload.name ?? null,
           givenName: payload.given_name ?? null,

@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from "react";
 
 import { normalizeMoney } from "@/lib/utils/format";
-import { useStorefrontCart, type CartProductSnapshot } from "@/state/cart-context";
+import { useStorefrontCart, type CartProductSnapshot, type CartLineItem } from "@/state/cart-context";
 import type { Money } from "@/types/storefront";
 import { useCurrency } from "@/state/currency-context";
 
@@ -37,6 +37,7 @@ type UseCartReturn = {
   clearCart: ReturnType<typeof useStorefrontCart>["clearCart"];
   subtotal: Money;
   itemCount: number;
+  items: CartLineItem[];
 };
 
 export default function useCart(): UseCartReturn {
@@ -56,9 +57,12 @@ export default function useCart(): UseCartReturn {
   const legacyCart = useMemo<LegacyCartItem[]>(() => {
     return items.map((item) => {
       const unit = item.product.salePrice ?? item.product.price;
+      const displayName = item.product.variantLabel
+        ? `${item.product.name} · ${item.product.variantLabel}`
+        : item.product.name;
       return {
         id: item.product.id,
-        name: item.product.name,
+        name: displayName,
         slug: item.product.slug,
         imgUrl: item.product.thumbnail?.url,
         price: unit.amount,
@@ -84,7 +88,7 @@ export default function useCart(): UseCartReturn {
       if (action.type !== "CHANGE_CART_AMOUNT") return;
 
       const { id, qty, price, slug, name, imgUrl, currency } = action.payload;
-      const normalizedId = id;
+      const normalizedId = typeof id === "number" ? String(id) : id;
       const nextQuantity = Math.max(0, qty);
 
       if (nextQuantity === 0) {
@@ -101,7 +105,8 @@ export default function useCart(): UseCartReturn {
       const resolvedCurrency = currency ?? items[0]?.product.price.currency ?? baseCurrency;
 
       const snapshot: CartProductSnapshot = {
-        id: normalizedId,
+        id: String(normalizedId),
+        productId: normalizedId,
         slug: slug ?? String(normalizedId),
         name,
         price: normalizeMoney({ amount: price, currency: resolvedCurrency }),
@@ -112,7 +117,11 @@ export default function useCart(): UseCartReturn {
               url: imgUrl
             }
           : undefined,
-        inventoryStatus: "in-stock"
+        inventoryStatus: "in-stock",
+        variantId: undefined,
+        variantKey: undefined,
+        variantLabel: null,
+        attributes: undefined
       };
 
       addItemSnapshot(snapshot, nextQuantity);
@@ -129,6 +138,7 @@ export default function useCart(): UseCartReturn {
     updateQuantity,
     clearCart,
     subtotal,
-    itemCount
+    itemCount,
+    items
   };
 }

@@ -247,6 +247,8 @@ const OrderNew = ({
         showPaymentMethodSelect,
     } = useSalesDocumentI18n()
     const itemsOnlyMode = layoutMode === 'itemsOnly'
+    const shouldShowPaymentMethodSelect =
+        showPaymentMethodSelect && !(mode === 'budget' && itemsOnlyMode)
     const docMessage = useCallback(
         (key: string, fallbackKey: string, defaultValue: string) =>
             tDoc(key, {
@@ -327,7 +329,7 @@ const OrderNew = ({
             specifications?: string
         }[]
     >([])
-    const [methods, setMethods] = useState<{ value: string; label: string }[]>([])
+    const [methods, setMethods] = useState<{ value: string; label: string; code?: string }[]>([])
     const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([])
     const [customerDetail, setCustomerDetail] = useState<any | null>(
         initialCustomerDetail,
@@ -946,15 +948,21 @@ const OrderNew = ({
                     })) || []
                 setProducts(pOpts)
 
-                if (showPaymentMethodSelect) {
+                if (shouldShowPaymentMethodSelect) {
                     const mRes = await apiGetPaymentMethods<{
                         id: number | string
-                        name: string
+                        label?: string
+                        code?: string
                     }[]>()
-                    const mOpts = (mRes.data as any[]).map((m) => ({
-                        value: String(m.name || m.id),
-                        label: m.name,
-                    }))
+                    const mOpts = (mRes.data || []).map((m) => {
+                        const value = String((m as any).id ?? (m as any).code ?? '')
+                        const label = (m as any).label ?? (m as any).name ?? value
+                        return {
+                            value: value || label,
+                            label,
+                            code: (m as any).code,
+                        }
+                    })
                     setMethods(mOpts)
                     const formik = formikRef.current
                     if (formik) {
@@ -964,11 +972,13 @@ const OrderNew = ({
                             const cashOption = mOpts.find((opt) => {
                                 const label = (opt.label ?? '').toString().toLowerCase()
                                 const value = (opt.value ?? '').toString().toLowerCase()
+                                const code = (opt.code ?? '').toString().toLowerCase()
                                 return (
                                     label === 'efectivo' ||
                                     label === 'cash' ||
                                     value === 'efectivo' ||
-                                    value === 'cash'
+                                    value === 'cash' ||
+                                    code === 'cash'
                                 )
                             })
                             const fallback = cashOption ?? mOpts[0]
@@ -1095,7 +1105,7 @@ const OrderNew = ({
         normalizeItems,
         refreshExchangeRates,
         roundCurrencyValue,
-        showPaymentMethodSelect,
+        shouldShowPaymentMethodSelect,
         t,
     ])
 
@@ -1283,7 +1293,7 @@ const OrderNew = ({
                     validUntil: Yup.date()
                         .nullable()
                         .typeError(t('text.validation.invalidDate')),
-                    paymentMehod: showPaymentMethodSelect
+                    paymentMehod: shouldShowPaymentMethodSelect
                         ? Yup.string().required('Payment method is required')
                         : Yup.string().nullable(),
                     orderCurrency: Yup.string()
@@ -2489,7 +2499,7 @@ const OrderNew = ({
                                                         }}
                                                     />
                                                 </FormItem>
-                                                {showPaymentMethodSelect && (
+                                                {shouldShowPaymentMethodSelect && (
                                                     <FormItem
                                                         label={t('text.columns.paymentMethod')}
                                                         invalid={Boolean(
@@ -3170,7 +3180,7 @@ const OrderNew = ({
                                                                 orderCurrencySelected?.label ||
                                                                 getCurrencyLabel(orderCurrencyValue),
                                                         },
-                                                        ...(showPaymentMethodSelect
+                                                        ...(shouldShowPaymentMethodSelect
                                                             ? [
                                                                   {
                                                                       label: t(
@@ -3344,7 +3354,7 @@ const OrderNew = ({
                                                     (currentStep === 0 &&
                                                         (!customerStepSatisfied ||
                                                             !values.orderCurrency ||
-                                                            (showPaymentMethodSelect &&
+                                                            (shouldShowPaymentMethodSelect &&
                                                                 !values.paymentMehod) ||
                                                             (customerRequired && addressesIncomplete))) ||
                                                     (currentStep === 1 && (values.items || []).length === 0)

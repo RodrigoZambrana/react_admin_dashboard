@@ -1,6 +1,12 @@
 import type Product from "@models/product.model";
 import type Category from "@models/category.model";
-import type { ProductSummary, CategorySummary, ProductDetail } from "@/types/storefront";
+import type {
+  ProductSummary,
+  CategorySummary,
+  ProductDetail,
+  ProductAttributeType,
+  ProductVariantAttribute
+} from "@/types/storefront";
 
 export const FALLBACK_CATEGORY_IMAGE = "/assets/images/banners/banner-8.png";
 
@@ -38,6 +44,7 @@ export const mapProductSummaryToProduct = (product: ProductSummary): Product => 
     salePrice,
     ratingCount: product.ratingCount ?? undefined,
     status: product.inventoryStatus,
+    mode: product.mode ?? "simple",
     categories:
       product.categories?.map((category) => ({
         id: category.id,
@@ -46,6 +53,14 @@ export const mapProductSummaryToProduct = (product: ProductSummary): Product => 
       })) ?? []
   };
 };
+
+const attributeOrder = (type: ProductAttributeType) => {
+  const index = ["COLOR", "SIZE", "MATERIAL"].indexOf(type);
+  return index === -1 ? 99 : index;
+};
+
+const sortVariantAttributes = (attributes: ProductVariantAttribute[]): ProductVariantAttribute[] =>
+  [...attributes].sort((a, b) => attributeOrder(a.attribute) - attributeOrder(b.attribute));
 
 export const mapProductDetailToProduct = (product: ProductDetail): Product => {
   const basePrice = product.price.amount;
@@ -59,6 +74,32 @@ export const mapProductDetailToProduct = (product: ProductDetail): Product => {
   const thumbnail = product.thumbnail?.url ?? galleryImages[0] ?? FALLBACK_CATEGORY_IMAGE;
 
   const currencyCode = product.salePrice?.currency ?? product.price.currency;
+
+  const attributeDefinitions = (product.attributes ?? []).map((attribute) => ({
+    ...attribute,
+    values: [...attribute.values].sort(
+      (a, b) => (a.sortOrder ?? a.id ?? 0) - (b.sortOrder ?? b.id ?? 0)
+    )
+  }));
+
+  attributeDefinitions.sort((a, b) => attributeOrder(a.type) - attributeOrder(b.type));
+
+  const variantEntries = (product.variants ?? []).map((variant) => {
+    const variantPrice = variant.price ?? product.price;
+    const variantImages = variant.images?.map((image) => image.url).filter(Boolean) ?? [];
+    return {
+      id: variant.id,
+      key: variant.key,
+      label: variant.label ?? undefined,
+      sku: variant.sku ?? null,
+      price: variantPrice.amount,
+      currency: variantPrice.currency,
+      inventoryStatus: variant.inventoryStatus ?? product.inventoryStatus ?? "in-stock",
+      attributes: sortVariantAttributes(variant.attributes ?? []),
+      images: variantImages,
+      isActive: variant.isActive !== false,
+    };
+  });
 
   return {
     id: String(product.id),
@@ -85,7 +126,10 @@ export const mapProductDetailToProduct = (product: ProductDetail): Product => {
     currency: currencyCode,
     basePrice,
     salePrice,
-    ratingCount: product.ratingCount ?? undefined
+    ratingCount: product.ratingCount ?? undefined,
+    mode: product.mode ?? "simple",
+    variantAttributes: attributeDefinitions,
+    variants: variantEntries,
   };
 };
 

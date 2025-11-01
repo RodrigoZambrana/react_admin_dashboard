@@ -16,6 +16,7 @@ import {
   roundDecimal,
   subtractDecimals,
 } from '../common/currency/money.util'
+import { findOrderStatusById, ORDER_STATUS_CODES } from '../common/constants/order-statuses'
 
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient
 
@@ -39,30 +40,6 @@ export type OrderPaymentSummary = {
 @Injectable()
 export class OrderFinanceService {
   constructor(private readonly prisma: PrismaService, private readonly config: ConfigService) {}
-
-  private readonly STATUS_CODES = {
-    PENDING: 100,
-    CONFIRMED: 200,
-    WORK_ORDER: 300,
-    READY: 400,
-    DELIVERED: 500,
-    CLOSED: 600,
-  } as const
-
-  private readonly statusCache = new Map<number, number | null>()
-
-  private async getStatusId(
-    code: number,
-    client: PrismaClientOrTx,
-  ): Promise<number | null> {
-    if (this.statusCache.has(code)) {
-      return this.statusCache.get(code) ?? null
-    }
-    const status = await client.orderStatus.findUnique({ where: { code } })
-    const statusId = status?.id ?? null
-    this.statusCache.set(code, statusId)
-    return statusId
-  }
 
   private async getDefaultDepositRequirement(
     client: PrismaClientOrTx,
@@ -198,7 +175,6 @@ export class OrderFinanceService {
       where: { id: orderId },
       include: {
         payments: true,
-        status: true,
         workOrders: true,
       },
     })
@@ -246,8 +222,8 @@ export class OrderFinanceService {
       updateData.depositSatisfiedAt = null
     }
 
-    const pendingStatusId = await this.getStatusId(this.STATUS_CODES.PENDING, client)
-    const confirmedStatusId = await this.getStatusId(this.STATUS_CODES.CONFIRMED, client)
+    const pendingStatusId = ORDER_STATUS_CODES.PENDING
+    const paidStatusId = ORDER_STATUS_CODES.PAID
 
     const slug = this.config.get<string>('CLIENT_SLUG') || this.config.get<string>('CLIENT') || ''
     const enableWorkOrders = slug.toLowerCase() === 'urucortinas'
@@ -257,11 +233,8 @@ export class OrderFinanceService {
       if (!order.confirmedAt) {
         updateData.confirmedAt = now
       }
-      if (
-        confirmedStatusId &&
-        ((pendingStatusId && order.statusId === pendingStatusId) || order.statusId === null)
-      ) {
-        updateData.status = { connect: { id: confirmedStatusId } }
+      if ((order.statusId === pendingStatusId || order.statusId === null) && paidStatusId) {
+        updateData.statusId = paidStatusId
       }
       if (enableWorkOrders && !targetWorkOrderId) {
         const workOrder = await client.workOrder.create({
@@ -273,7 +246,7 @@ export class OrderFinanceService {
         })
         targetWorkOrderId = workOrder.id
       }
-    } else if (order.confirmedAt && confirmedStatusId && order.statusId === confirmedStatusId) {
+    } else if (order.confirmedAt && order.statusId === paidStatusId) {
       updateData.confirmedAt = null
     }
 
@@ -328,27 +301,21 @@ export class OrderFinanceService {
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const summary = await this.recalculateOrderFinancials(orderId, tx)
-      const targetStatus = await tx.orderStatus.findUnique({
-        where: { id: targetStatusId },
-      })
+      const targetStatus = findOrderStatusById(targetStatusId)
       if (!targetStatus) {
         throw new BadRequestException('sales.orders.validation.statusInvalid')
       }
 
-      const targetCode = targetStatus.code
+      const targetCode = targetStatus.id
       if (
-        (targetCode === this.STATUS_CODES.CONFIRMED ||
-          targetCode === this.STATUS_CODES.WORK_ORDER ||
-          targetCode === this.STATUS_CODES.READY ||
-          targetCode === this.STATUS_CODES.DELIVERED ||
-          targetCode === this.STATUS_CODES.CLOSED) &&
+        (targetCode === ORDER_STATUS_CODES.PAID || targetCode === ORDER_STATUS_CODES.DELIVERED) &&
         !summary.depositMet
       ) {
         throw new BadRequestException('sales.orders.validation.depositRequired')
       }
 
       if (
-        (targetCode === this.STATUS_CODES.DELIVERED || targetCode === this.STATUS_CODES.CLOSED) &&
+        targetCode === ORDER_STATUS_CODES.DELIVERED &&
         summary.outstanding.greaterThan(0) &&
         !force
       ) {

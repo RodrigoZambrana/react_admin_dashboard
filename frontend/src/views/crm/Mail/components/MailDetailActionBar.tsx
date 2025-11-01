@@ -30,6 +30,7 @@ import {
     moveInboxMessage,
     type Mail,
 } from '../store'
+import { initialState as initialMailState } from '../store/mailSlice'
 import { groupList, labelList } from '../constants'
 import {
     resolveLabelBadge,
@@ -77,11 +78,12 @@ const MailDetailActionBar = (props: MailDetailActionBarProps) => {
 
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
-    const mails = useAppSelector((state) => state.crmMail.data.mailList)
-    const selectedCategory = useAppSelector(
-        (state) => state.crmMail.data.selectedCategory,
+    const mailState = useAppSelector(
+        (state) => state.crmMail?.data ?? initialMailState,
     )
-    const inboxState = useAppSelector((state) => state.crmMail.data.inbox)
+    const mails = mailState.mailList
+    const selectedCategory = mailState.selectedCategory
+    const inboxState = mailState.inbox
     const selectedAccountId = inboxState.selectedAccountId
     const selectedMailboxId = inboxState.selectedMailboxId
 

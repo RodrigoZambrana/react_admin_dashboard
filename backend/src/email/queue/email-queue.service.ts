@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { EmailLogStatus, Prisma } from '@prisma/client'
+import { EmailLogStatus, Prisma, EmailLog } from '@prisma/client'
 import { Queue, Worker, JobsOptions } from 'bullmq'
 import Redis from 'ioredis'
 import { randomUUID, createHash } from 'crypto'
@@ -13,6 +13,12 @@ type EmailJobData = {
   message: EmailMessage
 }
 
+type MetricsCounters = {
+  attempts: number
+  sent: number
+  failed: number
+}
+
 @Injectable()
 export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(EmailQueueService.name)
@@ -22,6 +28,12 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
   private inlineMode = false
   private jobOptions: JobsOptions
   private redisConnection: Redis | null = null
+  private readonly dedupeWindowMs: number
+  private readonly metrics = {
+    totals: { attempts: 0, sent: 0, failed: 0 },
+    perCategory: new Map<string, MetricsCounters>(),
+    perTemplate: new Map<string, MetricsCounters>(),
+  }
 
   constructor(
     private readonly config: ConfigService,
@@ -39,6 +51,7 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         delay: backoffDelay,
       },
     }
+    this.dedupeWindowMs = Number(this.config.get<string>('EMAIL_DEDUPE_WINDOW_MS') ?? '300000')
   }
 
   async onModuleInit() {
@@ -126,13 +139,26 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
     return JSON.parse(serialized) as Prisma.InputJsonValue
   }
 
-  private async createLog(message: EmailMessage) {
+  private async createLog(message: EmailMessage): Promise<{ log: EmailLog; skipped: boolean }> {
     if (!message.recipients.length) {
       throw new Error('Email message requires at least one recipient')
     }
     const payload = this.sanitizePayload(message.payload)
+    const payloadHash = this.hashPayload(payload)
     const primaryRecipient = message.recipients[0]
-    return this.prisma.emailLog.create({
+    const duplicate = await this.findDuplicateLog(
+      message.category,
+      message.recipientType,
+      primaryRecipient.email,
+      payloadHash,
+    )
+    if (duplicate) {
+      this.logger.debug(
+        `Duplicate email suppressed for ${primaryRecipient.email} [${message.category}/${message.variant}]`,
+      )
+      return { log: duplicate, skipped: true }
+    }
+    const log = await this.prisma.emailLog.create({
       data: {
         category: message.category,
         templateId: message.templateId ?? null,
@@ -143,15 +169,39 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         bccAddresses: message.bcc ?? [],
         subject: message.subject,
         payload,
-        payloadHash: this.hashPayload(payload),
+        payloadHash,
         status: EmailLogStatus.QUEUED,
         attempts: 0,
       },
     })
+    return { log, skipped: false }
+  }
+
+  private async findDuplicateLog(
+    category: EmailMessage['category'],
+    recipientType: EmailMessage['recipientType'],
+    email: string,
+    payloadHash: string,
+  ) {
+    const since = new Date(Date.now() - this.dedupeWindowMs)
+    return this.prisma.emailLog.findFirst({
+      where: {
+        category,
+        recipientType,
+        toAddress: email,
+        payloadHash,
+        status: { in: [EmailLogStatus.QUEUED, EmailLogStatus.SENT, EmailLogStatus.RETRYING] },
+        createdAt: { gte: since },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
   }
 
   async enqueue(message: EmailMessage) {
-    const log = await this.createLog(message)
+    const { log, skipped } = await this.createLog(message)
+    if (skipped) {
+      return log
+    }
     if (this.inlineMode || !this.queue) {
       await this.sendInline(log.id, message)
       return log
@@ -163,23 +213,23 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
 
   private async sendInline(logId: number, message: EmailMessage) {
     try {
-      await this.updateLogAttempt(logId, 1, EmailLogStatus.RETRYING)
+      await this.updateLogAttempt(logId, 1, EmailLogStatus.RETRYING, message)
       const result = await this.dispatch(message)
-      await this.markSuccess(logId, result)
+      await this.markSuccess(logId, result, message)
     } catch (error) {
-      await this.markFailure(logId, error as Error, 1, 1)
+      await this.markFailure(logId, error as Error, 1, 1, message)
       throw error
     }
   }
 
   private async handleJob(logId: number, message: EmailMessage, attemptsMade: number, maxAttempts: number) {
     try {
-      await this.updateLogAttempt(logId, attemptsMade + 1, EmailLogStatus.RETRYING)
+      await this.updateLogAttempt(logId, attemptsMade + 1, EmailLogStatus.RETRYING, message)
       const result = await this.dispatch(message)
-      await this.markSuccess(logId, result)
+      await this.markSuccess(logId, result, message)
     } catch (error) {
       const attempt = attemptsMade + 1
-      await this.markFailure(logId, error as Error, attempt, maxAttempts)
+      await this.markFailure(logId, error as Error, attempt, maxAttempts, message)
       if (attempt >= maxAttempts) {
         throw error
       }
@@ -187,7 +237,12 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async updateLogAttempt(logId: number, attempt: number, status: EmailLogStatus) {
+  private async updateLogAttempt(
+    logId: number,
+    attempt: number,
+    status: EmailLogStatus,
+    message: EmailMessage,
+  ) {
     await this.prisma.emailLog.update({
       where: { id: logId },
       data: {
@@ -196,9 +251,10 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         lastAttemptAt: new Date(),
       },
     })
+    this.recordAttempt(message)
   }
 
-  private async markSuccess(logId: number, result: EmailProviderSendResult) {
+  private async markSuccess(logId: number, result: EmailProviderSendResult, message: EmailMessage) {
     await this.prisma.emailLog.update({
       where: { id: logId },
       data: {
@@ -207,9 +263,16 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         lastAttemptAt: new Date(),
       },
     })
+    this.recordMetric('sent', message)
   }
 
-  private async markFailure(logId: number, error: Error, attempt: number, maxAttempts: number) {
+  private async markFailure(
+    logId: number,
+    error: Error,
+    attempt: number,
+    maxAttempts: number,
+    message: EmailMessage,
+  ) {
     const status = attempt >= maxAttempts ? EmailLogStatus.FAILED : EmailLogStatus.RETRYING
     await this.prisma.emailLog.update({
       where: { id: logId },
@@ -220,6 +283,48 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
         lastAttemptAt: new Date(),
       },
     })
+    if (status === EmailLogStatus.FAILED) {
+      this.recordMetric('failed', message)
+    }
+  }
+
+  getMetricsSnapshot() {
+    const perCategory: Record<string, MetricsCounters> = {}
+    const perTemplate: Record<string, MetricsCounters> = {}
+    for (const [key, value] of this.metrics.perCategory.entries()) {
+      perCategory[key] = { ...value }
+    }
+    for (const [key, value] of this.metrics.perTemplate.entries()) {
+      perTemplate[key] = { ...value }
+    }
+    return {
+      totals: { ...this.metrics.totals },
+      perCategory,
+      perTemplate,
+    }
+  }
+
+  private recordAttempt(message: EmailMessage) {
+    this.metrics.totals.attempts += 1
+    this.incrementMetricBucket(this.metrics.perCategory, message.category, 'attempts')
+    this.incrementMetricBucket(this.metrics.perTemplate, this.buildTemplateKey(message), 'attempts')
+  }
+
+  private recordMetric(outcome: 'sent' | 'failed', message: EmailMessage) {
+    this.metrics.totals[outcome] += 1
+    this.incrementMetricBucket(this.metrics.perCategory, message.category, outcome)
+    this.incrementMetricBucket(this.metrics.perTemplate, this.buildTemplateKey(message), outcome)
+  }
+
+  private incrementMetricBucket(map: Map<string, MetricsCounters>, key: string, field: keyof MetricsCounters) {
+    const entry = map.get(key) ?? { attempts: 0, sent: 0, failed: 0 }
+    entry[field] += 1
+    map.set(key, entry)
+  }
+
+  private buildTemplateKey(message: EmailMessage) {
+    const templateId = message.templateId ?? 'custom'
+    return `${message.category}:${message.variant}:${templateId}`
   }
 
   private async dispatch(message: EmailMessage): Promise<EmailProviderSendResult> {

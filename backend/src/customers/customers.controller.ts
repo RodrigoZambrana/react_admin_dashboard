@@ -19,6 +19,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { TableQueryDto } from './dto/table-query.dto'
 import { UpdateCustomerDto } from './dto/update-customer.dto'
 import { decimalToNumber } from '../common/currency/money.util'
+import { findOrderStatusById } from '../common/constants/order-statuses'
 
 @UseGuards(JwtAuthGuard)
 @Controller('customers')
@@ -1007,7 +1008,6 @@ export class CustomersController {
           where: { documentType: DocumentType.ORDER },
           include: {
             items: true,
-            status: true,
           },
           orderBy: { date: 'desc' },
         },
@@ -1015,14 +1015,15 @@ export class CustomersController {
     })
     if (!customer) return null
     const orders = (customer.orders || []).map((o) => {
+      const status = findOrderStatusById(o.statusId ?? null)
       const amount = decimalToNumber(o.grandTotal, 2)
       const currencyRaw =
         typeof o.orderCurrency === 'string' ? o.orderCurrency.trim() : ''
       const currency = currencyRaw.length ? currencyRaw : undefined
       return {
         id: String(o.id),
-        status: o.status?.name || '',
-        statusCode: o.status?.code,
+        status: status?.label || '',
+        statusCode: status?.id ?? null,
         amount,
         currency,
         date: Math.floor(new Date(o.date).getTime() / 1000),
@@ -1031,18 +1032,19 @@ export class CustomersController {
     })
     const budgetsRaw = await this.prisma.order.findMany({
       where: { customerId: id, documentType: DocumentType.BUDGET },
-      include: { items: true, status: true },
+      include: { items: true },
       orderBy: { date: 'desc' },
     })
     const budgets = budgetsRaw.map((o) => {
+      const status = findOrderStatusById(o.statusId ?? null)
       const amount = decimalToNumber(o.grandTotal, 2)
       const currencyRaw =
         typeof o.orderCurrency === 'string' ? o.orderCurrency.trim() : ''
       const currency = currencyRaw.length ? currencyRaw : undefined
       return {
         id: String(o.id),
-        status: o.status?.name || '',
-        statusCode: o.status?.code,
+        status: status?.label || '',
+        statusCode: status?.id ?? null,
         amount,
         currency,
         date: Math.floor(new Date(o.date).getTime() / 1000),

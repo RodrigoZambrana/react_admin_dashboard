@@ -17,6 +17,7 @@ import { useSelector } from 'react-redux'
 import type { RootState } from '@/store'
 import UserAvatar from '@/components/shared/UserAvatar'
 import { resolveAvatarSrc } from '@/utils/avatar'
+import useConfirmation from '@/hooks/useConfirmation'
 
 type ActivityCommentsProps = {
     activityId: string
@@ -24,6 +25,7 @@ type ActivityCommentsProps = {
 
 const ActivityComments = ({ activityId }: ActivityCommentsProps) => {
     const { t } = useTranslation()
+    const { confirm, ConfirmationDialog } = useConfirmation()
     const dispatch = useAppDispatch()
     const comments = useAppSelector(
         (state) => state.calendarActivityDetails.data.profileData.comments,
@@ -137,14 +139,14 @@ const ActivityComments = ({ activityId }: ActivityCommentsProps) => {
     }
 
     const handleDeleteComment = async (commentId: string) => {
-        const confirmed =
-            typeof window === 'undefined'
-                ? true
-                : window.confirm(
-                      t('calendar.comments.deleteConfirm', {
-                          defaultValue: '¿Eliminar este comentario?',
-                      }),
-                  )
+        const confirmed = await confirm({
+            title: t('text.actions.delete'),
+            message: t('calendar.comments.deleteConfirm', {
+                defaultValue: '¿Eliminar este comentario?',
+            }),
+            confirmText: t('text.actions.delete'),
+            cancelText: t('text.actions.cancel'),
+        })
         if (!confirmed) {
             return
         }
@@ -168,7 +170,8 @@ const ActivityComments = ({ activityId }: ActivityCommentsProps) => {
     }
 
     return (
-        <Card>
+        <>
+            <Card>
             <div className="flex gap-4">
                 <div className="mt-1 text-2xl text-gray-500 dark:text-gray-300">
                     <HiOutlineChatAlt2 />
@@ -331,7 +334,9 @@ const ActivityComments = ({ activityId }: ActivityCommentsProps) => {
                     </div>
                 </div>
             </div>
-        </Card>
+            </Card>
+            {ConfirmationDialog}
+        </>
     )
 }
 

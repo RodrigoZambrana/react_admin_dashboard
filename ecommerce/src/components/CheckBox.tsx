@@ -1,8 +1,11 @@
+"use client";
+
 import { InputHTMLAttributes, useId } from "react";
 import styled from "styled-components";
 import { color, compose, space, SpaceProps } from "styled-system";
 import { colorOptions } from "../interfaces";
 import { isValidProp } from "@utils/utils";
+import { useTranslatedNode } from "@/state/i18n-context";
 
 // ==============================================================
 interface CheckBoxProps
@@ -86,6 +89,7 @@ const CheckBox = ({
 }: CheckBoxProps) => {
   const id = useId();
   const checkboxId = externalId || id;
+  const translatedLabel = useTranslatedNode(label ?? null);
 
   const spacingProps = Object.entries(props).reduce((acc, [key, value]) => {
     if (key.startsWith("m") || key.startsWith("p")) {
@@ -110,7 +114,7 @@ const CheckBox = ({
         size={size}
         {...props}
       />
-      {label && <label htmlFor={checkboxId}>{label}</label>}
+      {label && <label htmlFor={checkboxId}>{translatedLabel}</label>}
     </Wrapper>
   );
 };

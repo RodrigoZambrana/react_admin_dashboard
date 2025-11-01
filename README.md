@@ -10,6 +10,9 @@ root/
 │   ├── Dockerfile            # Build multi-stage (Node -> Nginx)
 │   └── nginx/default.conf.template
 ├── ecommerce/              # Storefront (Next.js + styled-components) consumiendo la API /storefront
+│   ├── Dockerfile          # Build multi-stage (Node -> standalone)
+│   ├── .env.example        # Variables de entorno requeridas por Next.js
+│   └── src/app/api/health  # Endpoint de healthcheck para orquestadores
 ├── backend/                  # API NestJS + Fastify
 │   ├── Dockerfile            # Build multi-stage
 │   ├── prisma/schema.prisma  # Modelo de datos (incluye User)
@@ -24,6 +27,87 @@ root/
 ├── SECURITY.md               # Buenas prácticas y manejo de secretos
 └── README.md
 ```
+
+## Frontend – Funcionalidades y casos de prueba
+
+### Funcionalidades principales
+
+- Autenticación pública (registro, inicio/cierre de sesión, recuperación) con guardas de ruta y sesión persistida.
+- Gestión de ventas: dashboards, listado, alta/edición/detalle de pedidos, presupuestos, órdenes de producción y tablas reutilizables.
+- Catálogo de productos con edición detallada, creación rápida y soporte condicional para productos paramétricos.
+- CRM de clientes con listado filtrable, ficha detallada, bandeja de correo vinculada y alta mediante drawer.
+- Agenda y actividades con calendario, cronograma, tablero tipo scrum y detalle de actividades.
+- Módulo de gastos: dashboard, ABM, detalle, categorías y flujos de aprobación.
+- Contabilidad: dashboard, listado de pagos con filtros por estado/tipo, edición in-place y confirmaciones.
+- Ajustes globales (perfil de empresa, productos, estados, costos de envío, integraciones, email) más administración de usuarios y cuenta personal.
+
+### Casos de prueba sugeridos
+
+#### Autenticación
+- `TC-AUTH-01` Inicio de sesión válido redirige al dashboard. Datos: `email=admin@demo.com`, `password=Demo123!`.
+- `TC-AUTH-02` Error al iniciar con contraseña incorrecta. Datos: `email=admin@demo.com`, `password=Demo123?`.
+- `TC-AUTH-03` Registro exitoso crea usuario estándar. Datos: `firstName=Lucía`, `lastName=Pérez`, `email=lucia@test.com`, `password=AltaSegura#1`.
+- `TC-AUTH-04` Flujo de “Olvidé contraseña” envía correo y permite resetear. Datos: `email=soporte@test.com`, `newPassword=Reinicio#2024`.
+- `TC-AUTH-05` Rol sin permisos ve AccessDenied en ruta protegida. Datos: `role=OPS`, `ruta=/app/settings/company-profile`.
+
+#### Ventas
+- `TC-SALES-01` Alta de pedido estándar con dirección diferenciada. Datos: `customerId=CUST-001`, `items=[{productId=PR-100, qty=2, unitPrice=1200, currency=USD}]`, `paymentMethod=CASH`, `shippingCity=Montevideo`.
+- `TC-SALES-02` Validación cuando falta método de pago. Datos: mismos que `TC-SALES-01` con `paymentMethod=""`.
+- `TC-SALES-03` Edición de pedido actualiza cantidad y totales. Datos: `orderId=ORD-540`, `qty=5`, `unitPrice=850`, `currency=UYU`.
+- `TC-SALES-04` Cambio de estado desde lista muestra badge correcto. Datos: `orderId=ORD-540`, `nuevoStatus=200`.
+- `TC-SALES-05` Búsqueda por cliente devuelve pedidos paginados. Datos: `query="García"`, `pageSize=25`, `pageIndex=1`.
+- `TC-SALES-06` Rutas de producción visibles con slug urucortinas y flag activo. Datos: `clientSlug=urucortinas`, `featureFlags.PARAMETRIC_PRODUCTS=true`.
+
+#### Productos
+- `TC-PROD-01` Listado permite filtrar por categoría y moneda. Datos: `categoryId=CAT-01`, `currency=USD`.
+- `TC-PROD-02` Alta rápida crea producto con atributos personalizados. Datos: `name="Panel Blackout"`, `basePrice=1299.99`, `currency=UYU`, `attributes={color:"gris", medida:"2x3"}`.
+- `TC-PROD-03` Validación bloquea precios negativos. Datos: `basePrice=-10`, `currency=USD`.
+- `TC-PROD-04` Vista de productos paramétricos solo con flag habilitado. Datos: `clientSlug=urucortinas`, `featureFlags.PARAMETRIC_PRODUCTS=true`.
+
+#### CRM Clientes
+- `TC-CRM-01` Búsqueda por email retorna coincidencias. Datos: `query="ana@clientes.com"`, `pageIndex=1`, `pageSize=20`.
+- `TC-CRM-02` Alta de cliente desde drawer con múltiples teléfonos. Datos: `firstName=Ana`, `lastName=Suárez`, `phoneNumbers=["+59891234567","+59892345678"]`, `address.street="Soriano"`.
+- `TC-CRM-03` Números vacíos no bloquean envío. Datos: `phoneNumbers=["", "+59894561234"]`.
+- `TC-CRM-04` Ficha de cliente muestra pedidos relacionados. Datos: `customerId=CUST-050`, `expectedOrders>=1`.
+- `TC-CRM-05` Inbox cambia categoría y persiste query param. Datos: `categoria="sent"`, `filtroFecha=2024-05-01`.
+
+#### Agenda y actividades
+- `TC-CAL-01` Calendar Activities carga eventos paginados. Datos: `rangeStart=2024-06-01`, `rangeEnd=2024-06-30`, `pageSize=50`.
+- `TC-CAL-02` Creación de actividad con recordatorio. Datos: `title="Instalación showroom"`, `start=2024-06-12T09:00`, `reminder=30min`, `attendees=["ventas@demo.com"]`.
+- `TC-CAL-03` Detalle de actividad muestra especificación y archivos. Datos: `activityId=ACT-210`.
+- `TC-CAL-04` Tablero scrum permite drag & drop y persiste columna. Datos: `cardId=SCRUM-15`, `destColumn="Done"`.
+
+#### Gastos
+- `TC-EXP-01` Alta de gasto con recibo adjunto. Datos: `categoryId=CAT-G-01`, `amount=4500`, `currency=UYU`, `receiptFile=test-receipt.pdf`.
+- `TC-EXP-02` Validación de monto cero. Datos: `amount=0`, `currency=USD`.
+- `TC-EXP-03` Filtro por rango de fechas en listados. Datos: `dateFrom=2024-05-01`, `dateTo=2024-05-31`, `status="APPROVED"`.
+- `TC-EXP-04` Edición actualiza total y registra historial. Datos: `expenseId=EXP-330`, `newAmount=6200`, `reason="Cambio cotización"`.
+
+#### Contabilidad y pagos
+- `TC-ACC-01` Listado filtra por estado confirmado. Datos: `status=CONFIRMED`, `pageIndex=1`.
+- `TC-ACC-02` Alta manual de pago de balance. Datos: `orderId=ORD-540`, `type=BALANCE`, `amount=350`, `currency=USD`, `method="Transferencia"`.
+- `TC-ACC-03` Validación requiere moneda antes de guardar. Datos: `amount=150`, `currency=""`.
+- `TC-ACC-04` Eliminación de pago muestra confirmación. Datos: `paymentId=PAY-1200`.
+
+#### Configuración
+- `TC-SET-01` Guardar perfil de empresa con logo. Datos: `companyName="Cortinas SA"`, `taxId="B12345678"`, `logoFile=logo.png`.
+- `TC-SET-02` Añadir nuevo estado de cliente con color. Datos: `name="Inactivo"`, `color="#FFAA00"`.
+- `TC-SET-03` Configurar costos de envío por zona. Datos: `zone="Montevideo"`, `deliveryFees=250`, `etaMin=2`, `etaMax=4`.
+- `TC-SET-04` Activar integraciones Google y reCAPTCHA. Datos: `recaptchaKey="6LcTestKey"`, `recaptchaSecret="6LcSecret"`.
+- `TC-SET-05` Actualizar plantilla de correo de bienvenida. Datos: `templateId="welcome"`, `subject="Bienvenido a la plataforma"`, `body="<p>Hola {{name}}</p>"`.
+
+#### Usuarios y cuenta
+- `TC-USR-01` Listado de usuarios filtra por rol. Datos: `role=OPS`, `query=""`.
+- `TC-USR-02` Alta de usuario administrador asigna features extendidas. Datos: `email=management@demo.com`, `roles=["ADMIN"]`, `password=Adm1#Seguro`.
+- `TC-USR-03` Cambio de contraseña inválido desde cuenta personal. Datos: `currentPassword=Demo123!`, `newPassword="abc"`, `confirmPassword="abc"`.
+- `TC-USR-04` KYC exige completar campos obligatorios. Datos: `documentNumber="47223344"`, `country="UY"`, `proofFile=kyc.pdf`.
+- `TC-USR-05` Activity log lista últimas acciones paginadas. Datos: `pageIndex=1`, `pageSize=20`.
+
+#### Globales
+- `TC-GLOBAL-01` Cambio de idioma actualiza textos de la navegación. Datos: `locale="es-UY"`.
+- `TC-GLOBAL-02` Dark mode persiste preferencia del usuario. Datos: `theme="dark"`, `localStorageKey="theme"`.
+- `TC-GLOBAL-03` Guardas de autoridad bloquean rutas sin permisos. Datos: `role=SALES`, `ruta=/app/settings/system-config`.
+- `TC-GLOBAL-04` Mock API activa en entorno de desarrollo. Datos: `NODE_ENV=development`, `appConfig.enableMock=true`.
 
 ## Ramas y ambientes
 
@@ -98,7 +182,9 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
    make dev-up
    ```
 
-   La aplicación quedará disponible a través de `http://localhost:8080` (frontend) y la API responderá en `http://localhost:4000/api`. Como los servicios corren con la build compilada, cualquier cambio en el código requiere volver a construir las imágenes (`docker compose -f deploy/docker-compose.dev.yml build frontend backend`) antes de reiniciar los contenedores.
+   La aplicación quedará disponible a través de `http://localhost:8080` (frontend admin), `http://localhost:3000` (storefront) y la API responderá en `http://localhost:4000/api`. Como los servicios corren con la build compilada, cualquier cambio en el código requiere volver a construir las imágenes (`docker compose -f deploy/docker-compose.dev.yml build frontend storefront backend`) antes de reiniciar los contenedores.
+
+   > Los `docker-compose.*` incluyen variables para integrarse con proxies inversos. Podés apuntar un Nginx al puerto `3000` del servicio `storefront` o, si usás Traefik, habilitar las etiquetas seteando `TRAEFIK_ENABLE_STOREFRONT=true` y definiendo `TRAEFIK_STOREFRONT_HOST`.
 
    #### Levantar la base sin seed y crear un superadmin temporal
    1. Edita `deploy/env/backend.dev.env` y asegúrate de que `RUN_PRISMA_SEED_ON_BOOT=false` para que el contenedor del backend no ejecute el seed automáticamente.

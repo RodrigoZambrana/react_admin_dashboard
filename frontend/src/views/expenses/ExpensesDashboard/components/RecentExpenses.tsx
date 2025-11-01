@@ -43,7 +43,7 @@ const ExpenseColumn = ({ row }: ExpenseColumnPros) => {
     const navigate = useNavigate()
 
     const onView = useCallback(() => {
-        navigate(`/app/expenses/expense-edit/${row.id}`)
+        navigate(`/app/accounting/expenses/edit/${row.id}`)
     }, [navigate, row])
 
     return (
@@ -113,7 +113,10 @@ const RecentExpenses = ({ data = [], className }: RecentExpensesProps) => {
         <Card className={className}>
             <div className="flex items-center justify-between mb-6">
                 <h4>{t('expenses.dashboard.latestExpenses.title')}</h4>
-                <Button size="sm" onClick={() => navigate('/app/expenses/expense-list')}>
+                <Button
+                    size="sm"
+                    onClick={() => navigate('/app/accounting/expenses/list')}
+                >
                     {t('expenses.dashboard.latestExpenses.viewExpenses')}
                 </Button>
             </div>

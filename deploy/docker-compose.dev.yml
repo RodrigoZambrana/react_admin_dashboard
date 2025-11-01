@@ -15,6 +15,12 @@ x-frontend-common: &frontend-common
   env_file:
     - ./env/frontend.dev.env
 
+x-storefront-common: &storefront-common
+  env_file:
+    - ./env/storefront.dev.env
+  environment:
+    PORT: ${STOREFRONT_PORT:-3000}
+
 services:
   db:
     image: postgres:16-alpine
@@ -89,6 +95,20 @@ services:
       - "8080:80"
     depends_on:
       - backend
+
+  storefront:
+    <<: *storefront-common
+    build:
+      context: ../ecommerce
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: dashboard-storefront-dev
+    ports:
+      - "${STOREFRONT_HOST_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/api/health || exit 1"]
 
 volumes:
   postgres_data_dev:

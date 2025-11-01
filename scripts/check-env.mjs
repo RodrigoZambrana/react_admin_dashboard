@@ -28,6 +28,15 @@ const envGroups = {
     'deploy/env/frontend.testing.env.example',
     'deploy/env/frontend.prod.env.example',
   ],
+  storefront: [
+    'ecommerce/.env',
+    'ecommerce/.env.example',
+    'ecommerce/.env.local',
+    'deploy/env/storefront.dev.env',
+    'deploy/env/storefront.dev.env.example',
+    'deploy/env/storefront.testing.env.example',
+    'deploy/env/storefront.prod.env.example',
+  ],
 }
 
 const parseEnvKeys = (content) => {

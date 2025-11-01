@@ -190,9 +190,13 @@ const OrderDetails = () => {
 
     useEffect(() => {
         // Load order statuses for colored tag mapping
-        apiGetOrderStatuses<{ id: number | string; name: string; color: string }[]>()
+        apiGetOrderStatuses<{ id: number | string; label?: string; color?: string }[]>({ documentType: resource === 'budgets' ? 'BUDGET' : 'ORDER' })
             .then((res) => {
-                const arr = (res.data as any[]).map((s) => ({ id: Number(s.id), name: s.name, color: s.color || 'gray-500' }))
+                const arr = (res.data || []).map((status) => ({
+                    id: Number(status.id),
+                    name: status.label || String(status.id),
+                    color: status.color || 'gray-500',
+                }))
                 setOrderStatuses(arr)
             })
             .catch(() => setOrderStatuses([]))
@@ -202,7 +206,7 @@ const OrderDetails = () => {
                 if (!Number.isNaN(rate)) setTaxRate(rate)
             })
             .catch(() => setTaxRate(undefined))
-    }, [])
+    }, [resource])
     const docMessage = useCallback(
         (key: string, fallbackKey: string, defaultValue: string) =>
             tDoc(key, {

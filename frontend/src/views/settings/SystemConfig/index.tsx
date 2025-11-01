@@ -27,6 +27,7 @@ import { useAppDispatch } from '@/store'
 import { setAvailableCurrencies } from '@/store/slices/currency/currencySlice'
 import { formatCurrencyOptionLabel, getCurrencyDefinition } from '@/utils/currency'
 import { sanitizeRichText } from '@/utils/security/inputGuards'
+import useConfirmation from '@/hooks/useConfirmation'
 
 const { Tr, Td, THead, Th, TBody } = Table
 
@@ -44,6 +45,7 @@ const FALLBACK_CURRENCY_OPTIONS: { value: string; label: string; description?: s
 
 const SystemConfig = () => {
     const { t } = useTranslation()
+    const { confirm, ConfirmationDialog } = useConfirmation()
     const dispatch = useAppDispatch()
     const [initial, setInitial] = useState<{ taxRate: number; currencyBase: string }>({
         taxRate: 22,
@@ -533,6 +535,21 @@ const SystemConfig = () => {
             )
             return
         }
+        const confirmed = await confirm({
+            title: t('settings.systemConfig.currency.deleteTitle', {
+                defaultValue: 'Delete currency',
+            }),
+            message: t('settings.systemConfig.currency.deleteConfirm', {
+                defaultValue:
+                    'Are you sure you want to delete the currency "{{code}}"? This can affect price calculations.',
+                code,
+            }),
+            confirmText: t('text.actions.delete'),
+            cancelText: t('text.actions.cancel'),
+        })
+        if (!confirmed) {
+            return
+        }
         setCurrencyAction({ type: 'delete', code })
         try {
             const res = await apiDeleteSystemCurrency<string[], { code: string }>({ code })
@@ -585,8 +602,9 @@ const SystemConfig = () => {
     }
 
     return (
-        <Loading loading={loading}>
-            <div className="flex flex-col gap-6">
+        <>
+            <Loading loading={loading}>
+                <div className="flex flex-col gap-6">
                 <Card>
                     <h3 className="mb-2">{t('settings.systemConfig.title')}</h3>
                     <p className="mb-6 text-sm opacity-70">
@@ -1003,8 +1021,10 @@ const SystemConfig = () => {
                         </Loading>
                     </div>
                 </Card>
-            </div>
-        </Loading>
+                </div>
+            </Loading>
+            {ConfirmationDialog}
+        </>
     )
 }
 

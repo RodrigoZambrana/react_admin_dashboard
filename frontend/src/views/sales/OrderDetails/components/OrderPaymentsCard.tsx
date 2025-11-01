@@ -7,6 +7,7 @@ import { useAppSelector } from '@/store'
 import dayjs from 'dayjs'
 import { HiOutlineDocumentText, HiOutlineTrash } from 'react-icons/hi'
 import Tooltip from '@/components/ui/Tooltip'
+import useConfirmation from '@/hooks/useConfirmation'
 
 type PaymentRecord = {
     id: number
@@ -57,6 +58,7 @@ const OrderPaymentsCard = ({
     onDeleteAttachment,
 }: OrderPaymentsCardProps) => {
     const { t, i18n } = useTranslation()
+    const { confirm, ConfirmationDialog } = useConfirmation()
     const storeCurrency = useAppSelector((state) => state.currency.code)
     const defaultCurrency =
         normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
@@ -70,11 +72,26 @@ const OrderPaymentsCard = ({
         [currencyForFormat, i18n.language, defaultCurrency],
     )
 
-    const handleDeleteAttachment = async (attachmentId: number) => {
+    const handleDeleteAttachment = async (attachment: PaymentRecord['attachments'][number]) => {
         if (!onDeleteAttachment) {
             return
         }
-        await onDeleteAttachment(attachmentId)
+        const confirmed = await confirm({
+            title: t('sales.orders.payments.deleteAttachmentTitle', {
+                defaultValue: 'Delete attachment',
+            }),
+            message: t('sales.orders.payments.deleteAttachmentConfirm', {
+                defaultValue:
+                    'Are you sure you want to delete the attachment "{{name}}"? This action cannot be undone.',
+                name: attachment.name,
+            }),
+            confirmText: t('text.actions.delete'),
+            cancelText: t('text.actions.cancel'),
+        })
+        if (!confirmed) {
+            return
+        }
+        await onDeleteAttachment(attachment.id)
     }
 
     const attachmentLabel = (attachment: PaymentRecord['attachments'][number]) => {
@@ -87,7 +104,8 @@ const OrderPaymentsCard = ({
     }
 
     return (
-        <Card className="mb-4">
+        <>
+            <Card className="mb-4">
             <div className="flex items-center justify-between mb-4">
                 <div>
                     <h5 className="mb-1">
@@ -208,7 +226,7 @@ const OrderPaymentsCard = ({
                                                             type="button"
                                                             className="text-red-500 hover:text-red-600"
                                                             onClick={() =>
-                                                                handleDeleteAttachment(attachment.id)
+                                                                handleDeleteAttachment(attachment)
                                                             }
                                                         >
                                                             <HiOutlineTrash />
@@ -231,7 +249,9 @@ const OrderPaymentsCard = ({
                     })}
                 </div>
             )}
-        </Card>
+            </Card>
+            {ConfirmationDialog}
+        </>
     )
 }
 

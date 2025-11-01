@@ -18,9 +18,10 @@ const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
     const { t } = useTranslation()
     const defaultOrderStatuses = useMemo(
         () => [
-            { id: 0, name: 'Pagado', color: 'emerald-500' },
-            { id: 1, name: 'Pendiente', color: 'amber-500' },
-            { id: 2, name: 'Cancelado', color: 'red-500' },
+            { id: 100, name: 'Pending', color: 'orange' },
+            { id: 200, name: 'Paid', color: 'green' },
+            { id: 300, name: 'Cancelled', color: 'red' },
+            { id: 400, name: 'Delivered', color: 'green' },
         ],
         [],
     )
@@ -32,8 +33,14 @@ const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
 
     useEffect(() => {
         const fetch = async () => {
-            const res = await apiGetOrderStatuses<{ id: number | string; name: string; color: string }[]>()
-            const normalized = (res.data as any[]).map((s) => ({ ...s, id: Number(s.id) }))
+            const res = await apiGetOrderStatuses<
+                { id: number | string; label?: string; color?: string }[]
+            >({ documentType: 'ORDER' })
+            const normalized = (res.data || []).map((status) => ({
+                id: Number(status.id),
+                name: status.label || String(status.id),
+                color: status.color || 'gray-500',
+            }))
             if (normalized.length) setStatuses(normalized)
         }
         fetch()

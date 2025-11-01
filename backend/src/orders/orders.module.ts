@@ -5,9 +5,10 @@ import { SalesDocumentsService } from './sales-documents.service'
 import { BudgetsFeatureGuard } from './guards/budgets-feature.guard'
 import { OrderFinanceService } from './order-finance.service'
 import { NotificationsModule } from '../notifications/notifications.module'
+import { EmailModule } from '../email/email.module'
 
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, EmailModule],
   controllers: [OrdersController, BudgetsController],
   providers: [SalesDocumentsService, BudgetsFeatureGuard, OrderFinanceService],
   exports: [SalesDocumentsService, OrderFinanceService],

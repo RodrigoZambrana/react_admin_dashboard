@@ -43,10 +43,11 @@ import {
 import { signInUserData } from './data/authData'
 import {
     orderStatusesData,
-    customerStatusesData,
     expenseStatusesData,
     productCategoriesData,
     paymentMethodsData,
+    emailTemplatesData,
+    emailMetricsData,
 } from './data/settingsData'
 
 import {
@@ -101,10 +102,11 @@ export function mockServer({ environment = 'test' }) {
                 expensesDashboardData,
                 expenseCategoriesData,
                 orderStatusesData,
-                customerStatusesData,
                 expenseStatusesData,
                 productCategoriesData,
                 paymentMethodsData,
+                emailTemplatesData,
+                emailMetricsData,
                 crmDashboardData,
                 projectDashboardData,
                 cryptoDashboardData,

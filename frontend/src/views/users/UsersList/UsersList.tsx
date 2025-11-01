@@ -33,6 +33,7 @@ import {
     isSuspiciousString,
     UnsafeInputError,
 } from '@/utils/security/inputGuards'
+import useConfirmation from '@/hooks/useConfirmation'
 
 type User = {
     id: string | number
@@ -95,6 +96,7 @@ const UsersList = () => {
     const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
     const avatarPreviewRef = useRef<string | null>(null)
     const { t } = useTranslation()
+    const { confirm, ConfirmationDialog } = useConfirmation()
     const location = useLocation()
     const navigate = useNavigate()
 
@@ -189,12 +191,15 @@ const UsersList = () => {
     }
 
     const handleDeleteUser = async (user: User) => {
-        const confirmMessage = t('text.messages.deleteUserConfirm', {
-            defaultValue:
-                'Are you sure you want to delete this user? This action cannot be undone.',
+        const confirmed = await confirm({
+            title: t('text.actions.delete'),
+            message: t('text.messages.deleteUserConfirm', {
+                defaultValue:
+                    'Are you sure you want to delete this user? This action cannot be undone.',
+            }),
+            confirmText: t('text.actions.delete'),
+            cancelText: t('text.actions.cancel'),
         })
-        const confirmed =
-            typeof window !== 'undefined' ? window.confirm(confirmMessage) : true
         if (!confirmed) {
             return
         }
@@ -428,7 +433,8 @@ const UsersList = () => {
     }
 
     return (
-        <Container>
+        <>
+            <Container>
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <h3>{t('nav.appsUsers.userList')}</h3>
                 <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto md:justify-end">
@@ -758,7 +764,9 @@ const UsersList = () => {
                     </Tabs>
                 )}
             </Drawer>
-        </Container>
+            </Container>
+            {ConfirmationDialog}
+        </>
     )
 }
 

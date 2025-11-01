@@ -16,6 +16,7 @@ import type { ReactNode } from "react";
 
 import {
   DEFAULT_LOCALE,
+  INITIAL_LOCALE,
   SUPPORTED_LOCALES,
   TRANSLATIONS,
   type SupportedLocale
@@ -100,7 +101,7 @@ export const translateNode = (
 };
 
 export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [locale, setLocaleState] = useState<SupportedLocale>(DEFAULT_LOCALE);
+  const [locale, setLocaleState] = useState<SupportedLocale>(INITIAL_LOCALE);
   const hasBootstrapped = useRef(false);
 
   const persistLocale = useCallback((value: SupportedLocale) => {

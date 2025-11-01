@@ -7,58 +7,256 @@ import Category from "@models/category.model";
 import MainCarouselItem from "@models/market-1.model";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
-import { mapCategorySummaryToCategory, mapProductSummaryToProduct, FALLBACK_CATEGORY_IMAGE, flattenCategorySummaries } from "@/lib/storefront/adapters";
+import {
+  mapCategorySummaryToCategory,
+  mapProductSummaryToProduct,
+  FALLBACK_CATEGORY_IMAGE,
+  flattenCategorySummaries,
+} from "@/lib/storefront/adapters";
+
+const ALLOW_MOCK_FALLBACKS =
+  process.env.NEXT_PUBLIC_ENABLE_STOREFRONT_FALLBACKS === "true" ||
+  process.env.ENABLE_STOREFRONT_FALLBACKS === "true";
+
+type Market1DataModule = typeof import("@/__server__/__db__/market-1/data");
+
+const PRODUCT_FALLBACK_ENDPOINT_MAP: Record<string, string> = {
+  "/api/market-1/toprated-product": "top-ratings",
+  "/api/market-1/new-arrivals": "new-arrivals",
+  "/api/market-1/get-more-items": "more-products",
+  "/api/market-1/big-discounts": "big-discounts",
+  "/api/market-1/flash-deals": "flash-deals",
+};
+
+const CATEGORY_FALLBACK_ENDPOINT_MAP: Record<string, string> = {
+  "/api/market-1/bottom-categories": "categories",
+  "/api/market-1/top-categories": "top-categories",
+};
+
+let market1DataPromise: Promise<Market1DataModule> | null = null;
+let shopDataPromise: Promise<typeof import("@/__server__/__db__/shop/data")> | null = null;
+
+const loadMarket1Data = async () => {
+  if (!market1DataPromise) {
+    market1DataPromise = import("@/__server__/__db__/market-1/data");
+  }
+  return market1DataPromise;
+};
+
+const loadMarket1Shops = async () => {
+  if (!shopDataPromise) {
+    shopDataPromise = import("@/__server__/__db__/shop/data");
+  }
+  const module = await shopDataPromise;
+  return module.default;
+};
+
+const toError = (error: unknown, fallbackMessage: string) =>
+  error instanceof Error ? error : new Error(fallbackMessage);
+
+const logFallbackWarning = (context: string, error: unknown) => {
+  if (ALLOW_MOCK_FALLBACKS) {
+    if (isApiError(error)) {
+      console.warn(`[storefront] ${context} (status ${error.status}): ${error.message}`);
+      return;
+    }
+    if (error instanceof Error) {
+      console.warn(`[storefront] ${context}: ${error.message}`);
+      return;
+    }
+    if (error !== null && error !== undefined) {
+      console.warn(`[storefront] ${context}:`, error);
+    }
+  }
+};
+
+const normalizeProductId = (item: any) => {
+  const slug = typeof item.slug === "string" && item.slug.length ? item.slug : undefined;
+  return String(item.id ?? slug ?? item.name ?? Math.random().toString(36).slice(2));
+};
+
+const mapMockProducts = (items: any[]): Product[] => {
+  return items.map((item) => {
+    const id = normalizeProductId(item);
+    const slug = typeof item.slug === "string" && item.slug.length ? item.slug : id;
+    const thumbnail =
+      item.thumbnail ??
+      (Array.isArray(item.images) && item.images.length ? item.images[0] : undefined) ??
+      FALLBACK_CATEGORY_IMAGE;
+    const images =
+      Array.isArray(item.images) && item.images.length
+        ? item.images
+        : thumbnail
+        ? [thumbnail]
+        : [];
+
+    return {
+      ...item,
+      id,
+      slug,
+      title: item.title ?? item.name ?? "Product",
+      price: Number(item.price ?? item.salePrice ?? item.basePrice ?? 0),
+      basePrice: typeof item.basePrice === "number" ? item.basePrice : undefined,
+      salePrice: typeof item.salePrice === "number" ? item.salePrice : undefined,
+      currency: item.currency ?? "USD",
+      discount: typeof item.discount === "number" ? item.discount : Number(item.discount ?? 0),
+      thumbnail,
+      images,
+      categories: Array.isArray(item.categories) ? item.categories : [],
+      rating: typeof item.rating === "number" ? item.rating : 4,
+      ratingCount: typeof item.ratingCount === "number" ? item.ratingCount : undefined,
+      reviews: Array.isArray(item.reviews) ? item.reviews : [],
+    } as Product;
+  });
+};
+
+const mapMockCategories = (items: any[]): Category[] =>
+  items.map((item) => {
+    const id = String(item.id ?? item.slug ?? Math.random().toString(36).slice(2));
+    const slug = typeof item.slug === "string" && item.slug.length ? item.slug : id;
+
+    return {
+      id,
+      name: item.name ?? "Category",
+      slug,
+      icon: item.icon ?? undefined,
+      image:
+        typeof item.image === "string" && item.image.length ? item.image : FALLBACK_CATEGORY_IMAGE,
+      parent: Array.isArray(item.parent) ? item.parent.map(String) : [],
+      description: item.description ?? undefined,
+    };
+  });
+
+const mapMockBrands = (items: any[]): Brand[] =>
+  items.map((item) => {
+    const id = String(item.id ?? item.slug ?? Math.random().toString(36).slice(2));
+    const slug = typeof item.slug === "string" && item.slug.length ? item.slug : id;
+
+    return {
+      id,
+      slug,
+      name: item.name ?? "Brand",
+      type: item.type ?? "",
+      image: item.image ?? "",
+    };
+  });
+
+const loadMockProductsFromEndpoint = async (endpoint: string): Promise<Product[]> => {
+  const { products } = await loadMarket1Data();
+  const type = PRODUCT_FALLBACK_ENDPOINT_MAP[endpoint];
+  const source = type ? products.filter((item) => item?.for?.type === type) : products;
+  return mapMockProducts(source);
+};
+
+const loadMockProductsByType = async (type: string): Promise<Product[]> => {
+  const { products } = await loadMarket1Data();
+  const filtered = products.filter((item) => item?.for?.type === type);
+  return mapMockProducts(filtered);
+};
+
+const loadMockCategoriesFromEndpoint = async (endpoint: string): Promise<Category[]> => {
+  const { categories } = await loadMarket1Data();
+  const type = CATEGORY_FALLBACK_ENDPOINT_MAP[endpoint];
+  const source = type ? categories.filter((item) => item?.for?.type === type) : categories;
+  return mapMockCategories(source);
+};
+
+const loadMockBrandsByType = async (type: string): Promise<Brand[]> => {
+  const { brands } = await loadMarket1Data();
+  const filtered = brands.filter((item) => item?.for?.type === type);
+  return mapMockBrands(filtered);
+};
+
+const loadMockShopsSlice = async (
+  start: number,
+  end: number,
+  thumbnails: string[]
+): Promise<Shop[]> => {
+  const shops = await loadMarket1Shops();
+  return shops.slice(start, end).map((item, index) => ({
+    ...item,
+    thumbnail: thumbnails[index] ?? item.thumbnail,
+  })) as unknown as Shop[];
+};
 
 const fetchProductsWithFallback = async (
   params: Parameters<typeof StorefrontApi.listProducts>[0],
   fallbackEndpoint: string,
   useLive = true
 ): Promise<Product[]> => {
+  let liveProducts: Product[] = [];
+
   if (useLive) {
     try {
       const response = await StorefrontApi.listProducts(params);
-      if (response.data.length > 0) {
-        return response.data.map(mapProductSummaryToProduct);
+      liveProducts = response.data.map(mapProductSummaryToProduct);
+      if (liveProducts.length > 0 || !ALLOW_MOCK_FALLBACKS) {
+        return liveProducts;
       }
     } catch (error) {
-      if (isApiError(error)) {
-        console.warn(
-          `[storefront] Falling back to mock products (status ${error.status}): ${error.message}`
-        );
-      } else {
-        console.warn("[storefront] Falling back to mock products:", error);
+      if (!ALLOW_MOCK_FALLBACKS) {
+        throw toError(error, "Failed to load storefront products");
       }
+      logFallbackWarning("Falling back to mock products", error);
     }
+  } else if (!ALLOW_MOCK_FALLBACKS) {
+    return [];
   }
 
-  const response = await axios.get(fallbackEndpoint);
-  return response.data;
+  if (!ALLOW_MOCK_FALLBACKS) {
+    return liveProducts;
+  }
+
+  try {
+    const response = await axios.get(fallbackEndpoint);
+    if (Array.isArray(response.data) && response.data.length > 0) {
+      return mapMockProducts(response.data);
+    }
+  } catch (error) {
+    logFallbackWarning(`Local product fallback for ${fallbackEndpoint}`, error);
+  }
+
+  return loadMockProductsFromEndpoint(fallbackEndpoint);
 };
 
 const fetchCategoriesWithFallback = async (
   fallbackEndpoint: string,
   useLive = true
 ): Promise<Category[]> => {
+  let liveCategories: Category[] = [];
+
   if (useLive) {
     try {
       const categories = await StorefrontApi.listCategories();
       const flattened = flattenCategorySummaries(categories);
-      if (flattened.length > 0) {
-        return flattened.map(mapCategorySummaryToCategory);
+      liveCategories = flattened.map(mapCategorySummaryToCategory);
+      if (liveCategories.length > 0 || !ALLOW_MOCK_FALLBACKS) {
+        return liveCategories;
       }
     } catch (error) {
-      if (isApiError(error)) {
-        console.warn(
-          `[storefront] Falling back to mock categories (status ${error.status}): ${error.message}`
-        );
-      } else {
-        console.warn("[storefront] Falling back to mock categories:", error);
+      if (!ALLOW_MOCK_FALLBACKS) {
+        throw toError(error, "Failed to load storefront categories");
       }
+      logFallbackWarning("Falling back to mock categories", error);
     }
+  } else if (!ALLOW_MOCK_FALLBACKS) {
+    return [];
   }
 
-  const response = await axios.get(fallbackEndpoint);
-  return response.data;
+  if (!ALLOW_MOCK_FALLBACKS) {
+    return liveCategories;
+  }
+
+  try {
+    const response = await axios.get(fallbackEndpoint);
+    if (Array.isArray(response.data) && response.data.length > 0) {
+      return mapMockCategories(response.data);
+    }
+  } catch (error) {
+    logFallbackWarning(`Local category fallback for ${fallbackEndpoint}`, error);
+  }
+
+  return loadMockCategoriesFromEndpoint(fallbackEndpoint);
 };
 
 const getTopRatedProduct = async (): Promise<Product[]> => {
@@ -68,53 +266,218 @@ const getTopRatedProduct = async (): Promise<Product[]> => {
   );
 };
 
-const getTopRatedBrand = async () => {
-  const response = await axios.get("/api/market-1/toprated-brand");
-  return response.data;
+const getTopRatedBrand = async (): Promise<Brand[]> => {
+  try {
+    const response = await axios.get("/api/market-1/toprated-brand");
+    if (Array.isArray(response.data)) {
+      const brands = response.data as Brand[];
+      if (brands.length > 0 || !ALLOW_MOCK_FALLBACKS) {
+        return brands;
+      }
+    }
+  } catch (error) {
+    if (!ALLOW_MOCK_FALLBACKS) {
+      throw toError(error, "Failed to load top rated brands");
+    }
+    logFallbackWarning("Falling back to mock featured brands", error);
+  }
+
+  if (!ALLOW_MOCK_FALLBACKS) {
+    return [];
+  }
+
+  return loadMockBrandsByType("featured-brands");
 };
 
 const getNewArrivalList = async (): Promise<Product[]> => {
-  return fetchProductsWithFallback({ sort: "newest", pageSize: 12 }, "/api/market-1/new-arrivals");
+  return fetchProductsWithFallback(
+    { sort: "newest", pageSize: 12 },
+    "/api/market-1/new-arrivals"
+  );
 };
 
 const getCarBrands = async (): Promise<Brand[]> => {
-  const response = await axios.get("/api/market-1/car-brand-list");
-  return response.data;
+  try {
+    const response = await axios.get("/api/market-1/car-brand-list");
+    if (Array.isArray(response.data)) {
+      const brands = response.data as Brand[];
+      if (brands.length > 0 || !ALLOW_MOCK_FALLBACKS) {
+        return brands;
+      }
+    }
+  } catch (error) {
+    if (!ALLOW_MOCK_FALLBACKS) {
+      throw toError(error, "Failed to load car brands");
+    }
+    logFallbackWarning("Falling back to mock car brands", error);
+  }
+
+  if (!ALLOW_MOCK_FALLBACKS) {
+    return [];
+  }
+
+  return loadMockBrandsByType("car-brands");
 };
 
 const getCarList = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/market-1/car-list");
-  return response.data;
+  try {
+    const response = await axios.get("/api/market-1/car-list");
+    if (Array.isArray(response.data)) {
+      const products = mapMockProducts(response.data);
+      if (products.length > 0 || !ALLOW_MOCK_FALLBACKS) {
+        return products;
+      }
+    }
+  } catch (error) {
+    if (!ALLOW_MOCK_FALLBACKS) {
+      throw toError(error, "Failed to load car products");
+    }
+    logFallbackWarning("Falling back to mock car products", error);
+  }
+
+  if (!ALLOW_MOCK_FALLBACKS) {
+    return [];
+  }
+
+  return loadMockProductsByType("cars");
 };
 
 const getMobileBrands = async (): Promise<Brand[]> => {
-  const response = await axios.get("/api/market-1/mobile-brand-list");
-  return response.data;
+  try {
+    const response = await axios.get("/api/market-1/mobile-brand-list");
+    if (Array.isArray(response.data)) {
+      const brands = response.data as Brand[];
+      if (brands.length > 0 || !ALLOW_MOCK_FALLBACKS) {
+        return brands;
+      }
+    }
+  } catch (error) {
+    if (!ALLOW_MOCK_FALLBACKS) {
+      throw toError(error, "Failed to load mobile brands");
+    }
+    logFallbackWarning("Falling back to mock mobile brands", error);
+  }
+
+  if (!ALLOW_MOCK_FALLBACKS) {
+    return [];
+  }
+
+  return loadMockBrandsByType("mobile-brands");
 };
 
 const getMobileShops = async (): Promise<Shop[]> => {
-  const response = await axios.get("/api/market-1/mobile-shop-list");
-  return response.data;
+  try {
+    const response = await axios.get("/api/market-1/mobile-shop-list");
+    if (Array.isArray(response.data)) {
+      const shops = response.data as Shop[];
+      if (shops.length > 0 || !ALLOW_MOCK_FALLBACKS) {
+        return shops;
+      }
+    }
+  } catch (error) {
+    if (!ALLOW_MOCK_FALLBACKS) {
+      throw toError(error, "Failed to load mobile shops");
+    }
+    logFallbackWarning("Falling back to mock mobile shops", error);
+  }
+
+  if (!ALLOW_MOCK_FALLBACKS) {
+    return [];
+  }
+
+  return loadMockShopsSlice(4, 8, ["herman miller", "otobi", "hatil", "steelcase"]);
 };
 
 const getMobileList = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/market-1/mobile-list");
-  return response.data;
+  try {
+    const response = await axios.get("/api/market-1/mobile-list");
+    if (Array.isArray(response.data)) {
+      const products = mapMockProducts(response.data);
+      if (products.length > 0 || !ALLOW_MOCK_FALLBACKS) {
+        return products;
+      }
+    }
+  } catch (error) {
+    if (!ALLOW_MOCK_FALLBACKS) {
+      throw toError(error, "Failed to load mobile products");
+    }
+    logFallbackWarning("Falling back to mock mobile products", error);
+  }
+
+  if (!ALLOW_MOCK_FALLBACKS) {
+    return [];
+  }
+
+  return loadMockProductsByType("mobile-phones");
 };
 
 const getOpticsBrands = async (): Promise<Brand[]> => {
-  const response = await axios.get("/api/market-1/optics/watch-brands");
-  return response.data;
+  try {
+    const response = await axios.get("/api/market-1/optics/watch-brands");
+    if (Array.isArray(response.data)) {
+      const brands = response.data as Brand[];
+      if (brands.length > 0 || !ALLOW_MOCK_FALLBACKS) {
+        return brands;
+      }
+    }
+  } catch (error) {
+    if (!ALLOW_MOCK_FALLBACKS) {
+      throw toError(error, "Failed to load optics brands");
+    }
+    logFallbackWarning("Falling back to mock optics brands", error);
+  }
+
+  if (!ALLOW_MOCK_FALLBACKS) {
+    return [];
+  }
+
+  return loadMockBrandsByType("optics-brands");
 };
 
 const getOpticsShops = async (): Promise<Shop[]> => {
-  const response = await axios.get("/api/market-1/optics/watch-shops");
-  return response.data;
+  try {
+    const response = await axios.get("/api/market-1/optics/watch-shops");
+    if (Array.isArray(response.data)) {
+      const shops = response.data as Shop[];
+      if (shops.length > 0 || !ALLOW_MOCK_FALLBACKS) {
+        return shops;
+      }
+    }
+  } catch (error) {
+    if (!ALLOW_MOCK_FALLBACKS) {
+      throw toError(error, "Failed to load optics shops");
+    }
+    logFallbackWarning("Falling back to mock optics shops", error);
+  }
+
+  if (!ALLOW_MOCK_FALLBACKS) {
+    return [];
+  }
+
+  return loadMockShopsSlice(0, 4, ["herman miller", "zeiss", "hatil", "steelcase"]);
 };
 
 const getOpticsList = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/market-1/optics-list");
-  return response.data;
+  try {
+    const response = await axios.get("/api/market-1/optics-list");
+    if (Array.isArray(response.data)) {
+      const products = mapMockProducts(response.data);
+      if (products.length > 0 || !ALLOW_MOCK_FALLBACKS) {
+        return products;
+      }
+    }
+  } catch (error) {
+    if (!ALLOW_MOCK_FALLBACKS) {
+      throw toError(error, "Failed to load optics products");
+    }
+    logFallbackWarning("Falling back to mock optics products", error);
+  }
+
+  if (!ALLOW_MOCK_FALLBACKS) {
+    return [];
+  }
+
+  return loadMockProductsByType("optics");
 };
 
 const getCategories = async (): Promise<Category[]> => {
@@ -127,7 +490,7 @@ const getMoreItems = async (): Promise<Product[]> => {
 };
 
 const loadMockServiceList = async (): Promise<Service[]> => {
-  const { serviceList } = await import("@/__server__/__db__/market-1/data");
+  const { serviceList } = await loadMarket1Data();
   return serviceList as Service[];
 };
 
@@ -136,26 +499,28 @@ const getServiceList = async (): Promise<Service[]> => {
     const response = await axios.get("/api/market-1/get-service-list");
     const services = response.data;
 
-    if (Array.isArray(services) && services.length > 0) {
-      return services;
+    if (Array.isArray(services)) {
+      if (services.length > 0 || !ALLOW_MOCK_FALLBACKS) {
+        return services;
+      }
     }
-
-    console.warn("[storefront] Received empty service list response, using mock data instead.");
-    return loadMockServiceList();
   } catch (error) {
-    if (isApiError(error)) {
-      console.warn(
-        `[storefront] Falling back to mock service list (status ${error.status}): ${error.message}`
-      );
-    } else {
-      console.warn("[storefront] Falling back to mock service list due to error:", error);
+    if (!ALLOW_MOCK_FALLBACKS) {
+      throw toError(error, "Failed to load service list");
     }
-    return loadMockServiceList();
+    logFallbackWarning("Falling back to mock service list", error);
   }
+
+  if (!ALLOW_MOCK_FALLBACKS) {
+    return [];
+  }
+
+  console.warn("[storefront] Received empty service list response, using mock data instead.");
+  return loadMockServiceList();
 };
 
 const loadMockMainCarousel = async (): Promise<MainCarouselItem[]> => {
-  const { mainCarouselData } = await import("@/__server__/__db__/market-1/data");
+  const { mainCarouselData } = await loadMarket1Data();
   return mainCarouselData as MainCarouselItem[];
 };
 
@@ -164,22 +529,24 @@ const getMainCarousel = async (): Promise<MainCarouselItem[]> => {
     const response = await axios.get("/api/market-1/main-carousel");
     const items = response.data;
 
-    if (Array.isArray(items) && items.length > 0) {
-      return items;
+    if (Array.isArray(items)) {
+      if (items.length > 0 || !ALLOW_MOCK_FALLBACKS) {
+        return items;
+      }
     }
-
-    console.warn("[storefront] Received empty main carousel response, using mock data instead.");
-    return loadMockMainCarousel();
   } catch (error) {
-    if (isApiError(error)) {
-      console.warn(
-        `[storefront] Falling back to mock main carousel data (status ${error.status}): ${error.message}`
-      );
-    } else {
-      console.warn("[storefront] Falling back to mock main carousel data due to error:", error);
+    if (!ALLOW_MOCK_FALLBACKS) {
+      throw toError(error, "Failed to load main carousel");
     }
-    return loadMockMainCarousel();
+    logFallbackWarning("Falling back to mock main carousel data", error);
   }
+
+  if (!ALLOW_MOCK_FALLBACKS) {
+    return [];
+  }
+
+  console.warn("[storefront] Received empty main carousel response, using mock data instead.");
+  return loadMockMainCarousel();
 };
 
 const getTopCategories = async (): Promise<Category[]> => {
@@ -205,7 +572,7 @@ const normalizeProductPricing = (product: Product): Product => {
     return {
       ...product,
       price: basePrice,
-      discount
+      discount,
     };
   }
 
@@ -218,7 +585,7 @@ const collectProductsWithMinimum = async (
   minimum: number
 ): Promise<Product[]> => {
   const liveProducts = await fetchProductsWithFallback(params, fallbackEndpoint);
-  if (liveProducts.length >= minimum) {
+  if (liveProducts.length >= minimum || !ALLOW_MOCK_FALLBACKS) {
     return liveProducts;
   }
 
@@ -275,5 +642,5 @@ export default {
   getTopRatedBrand,
   getNewArrivalList,
   getBigDiscountList,
-  getTopRatedProduct
+  getTopRatedProduct,
 };

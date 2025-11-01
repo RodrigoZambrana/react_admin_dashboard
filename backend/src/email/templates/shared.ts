@@ -11,6 +11,7 @@ export const wrapWithLayout = (content: string) => `
       .pill { border-radius: 9999px; padding: 4px 10px; background-color: #EEF2FF; color: #4338CA; font-weight: 600; font-size: 12px; text-transform: uppercase;}
       .table-header { text-transform: uppercase; color: #6B7280; font-size: 12px; letter-spacing: 0.1em; }
       .table-row { border-bottom: 1px solid #E5E7EB; padding: 8px 0; }
+      .item-note { margin-top: 4px; font-size: 12px; color: #6B7280; }
     </mj-style>
   </mj-head>
   <mj-body background-color="#F3F4F6">

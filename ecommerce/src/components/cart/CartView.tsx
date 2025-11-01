@@ -68,13 +68,7 @@ const CartLineItemWrapper = styled.div.withConfig({
   ${space}
 `;
 
-function CartLineItemCard({
-  item,
-  onIncrease,
-  onDecrease,
-  onRemove,
-  ...rest
-}: CartLineItemCardProps) {
+function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: CartLineItemCardProps) {
   const unitPrice = normalizeMoney(item.product.salePrice ?? item.product.price);
   const lineTotal = normalizeMoney({
     amount: unitPrice.amount * item.quantity,
@@ -84,6 +78,12 @@ function CartLineItemCard({
 
   const thumbnailSrc = item.product.thumbnail?.url;
   const hasImage = thumbnailSrc && !isMissingProductImage(thumbnailSrc);
+  const displayName = item.product.variantLabel
+    ? `${item.product.name} · ${item.product.variantLabel}`
+    : item.product.name;
+  const attributeSummary = item.product.attributes
+    ?.map((attribute) => attribute.label ?? attribute.value ?? attribute.valueKey)
+    .join(" • ");
 
   return (
     <CartLineItemWrapper {...rest}>
@@ -101,9 +101,14 @@ function CartLineItemCard({
         justifyContent="space-between">
         <Link href={`/product/${item.product.slug}`}>
           <Typography className="title" fontWeight="500" fontSize="18px" mb="0.5rem">
-            {item.product.name}
+            {displayName}
           </Typography>
         </Link>
+        {attributeSummary ? (
+          <Typography variant="body2" color="text.muted" mb="0.5rem">
+            {attributeSummary}
+          </Typography>
+        ) : null}
 
         <Box position="absolute" right="1rem" top="1rem">
           <IconButton color="gray.600" padding="4px" ml="12px" onClick={onRemove}>

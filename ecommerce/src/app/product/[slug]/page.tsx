@@ -128,6 +128,7 @@ export default async function ProductDetails({ params, searchParams }: Props) {
     <Fragment>
       <ProductIntro
         id={product.id}
+        slug={product.slug}
         price={product.price}
         currency={product.currency}
         basePrice={product.basePrice}
@@ -139,6 +140,9 @@ export default async function ProductDetails({ params, searchParams }: Props) {
         shortDescription={product.shortDescription}
         title={product.title}
         images={product.images && product.images.length > 0 ? product.images : [product.thumbnail]}
+        mode={product.mode}
+        variantAttributes={product.variantAttributes}
+        variants={product.variants}
       />
 
       <ProductView

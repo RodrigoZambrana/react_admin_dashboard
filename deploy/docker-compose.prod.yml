@@ -12,6 +12,14 @@ x-frontend-common: &frontend-common
   env_file:
     - ./env/frontend.prod.env
 
+x-storefront-common: &storefront-common
+  restart: unless-stopped
+  env_file:
+    - ./env/storefront.prod.env
+  environment:
+    NODE_ENV: production
+    PORT: 3000
+
 services:
   frontend:
     <<: *frontend-common
@@ -27,7 +35,6 @@ services:
       SERVER_NAME: ${APP_DOMAIN_PROD:-localhost}
       BACKEND_HOST: backend
       BACKEND_PORT: 3000
-
   backend:
     <<: *backend-common
     build:
@@ -38,6 +45,26 @@ services:
         CLIENT_SLUG: ${CLIENT_SLUG:-core}
     ports:
       - "4000:3000"
+  storefront:
+    <<: *storefront-common
+    build:
+      context: ../ecommerce
+      dockerfile: Dockerfile
+      target: runtime
+    ports:
+      - "${STOREFRONT_HTTP_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    labels:
+      - "traefik.enable=${TRAEFIK_ENABLE_STOREFRONT:-false}"
+      - "traefik.http.routers.storefront.rule=Host(`${TRAEFIK_STOREFRONT_HOST:-storefront.local}`)"
+      - "traefik.http.routers.storefront.entrypoints=${TRAEFIK_ENTRYPOINT:-web}"
+      - "traefik.http.services.storefront.loadbalancer.server.port=3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   db:
     image: postgres:16-alpine

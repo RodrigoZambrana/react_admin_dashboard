@@ -13,6 +13,7 @@ import {
     sendInboxMessage,
     Mail,
 } from '../store'
+import { initialState as initialMailState } from '../store/mailSlice'
 import * as Yup from 'yup'
 import { useTranslation } from 'react-i18next'
 import type { RichTextEditorRef } from '@/components/shared/RichTextEditor'
@@ -88,7 +89,9 @@ const MailEditor = forwardRef<MailEditorRef, MailEditorProps>((props, ref) => {
     const [showBcc, setShowBcc] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
 
-    const inboxState = useAppSelector((state) => state.crmMail.data.inbox)
+    const inboxState = useAppSelector(
+        (state) => state.crmMail?.data?.inbox ?? initialMailState.inbox,
+    )
     const selectedAccountId = inboxState.selectedAccountId
     const selectedAccount = selectedAccountId
         ? inboxState.accounts.find((account) => account.id === selectedAccountId)

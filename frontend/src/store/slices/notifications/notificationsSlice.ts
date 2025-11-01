@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { createAsyncThunk, createSlice, PayloadAction, createSelector } from '@reduxjs/toolkit'
 import NotificationService, {
     NotificationItem,
     NotificationListResponse,
@@ -209,15 +209,18 @@ export const { notificationReceived, setStreaming, clearNotifications } =
     notificationsSlice.actions
 
 export const selectNotifications = (state: RootState) => state.notifications.items
-export const selectNotificationsMeta = (state: RootState) => ({
-    loading: state.notifications.loading,
-    error: state.notifications.error,
-    unreadCount: state.notifications.unreadCount,
-    total: state.notifications.total,
-    page: state.notifications.page,
-    pageSize: state.notifications.pageSize,
-    streaming: state.notifications.streaming,
-})
+export const selectNotificationsMeta = createSelector(
+    (state: RootState) => state.notifications,
+    (notifications) => ({
+        loading: notifications.loading,
+        error: notifications.error,
+        unreadCount: notifications.unreadCount,
+        total: notifications.total,
+        page: notifications.page,
+        pageSize: notifications.pageSize,
+        streaming: notifications.streaming,
+    }),
+)
 export const selectNotificationSettings = (state: RootState) => ({
     records: state.notifications.settings,
     loading: state.notifications.settingsLoading,

@@ -9,6 +9,7 @@ import {
   NotificationDeliveryStatus,
 } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
+import { listPaymentMethods } from '../src/common/constants/payment-methods'
 
 const prisma = new PrismaClient()
 
@@ -21,21 +22,6 @@ const SUPERADMIN_NAME =
 const SUPERADMIN_LAST_NAME = process.env.SEED_SUPERADMIN_LAST_NAME || ''
 const ENABLE_DEMO_SEED = process.env.ENABLE_DEMO_SEED === 'true'
 const DEMO_PASSWORD = process.env.SEED_USER_PASSWORD || 'User@123!'
-
-const DEFAULT_ORDER_STATUSES: Prisma.OrderStatusCreateInput[] = [
-  { code: 100, name: 'Pendiente', color: 'amber-500' },
-  { code: 200, name: 'Confirmado', color: 'emerald-500' },
-  { code: 300, name: 'Orden de Trabajo', color: 'blue-500' },
-  { code: 400, name: 'Listo', color: 'cyan-500' },
-  { code: 500, name: 'Entregado', color: 'indigo-500' },
-  { code: 600, name: 'Cerrado', color: 'slate-600' },
-  { code: 1000, name: 'Presupuesto - Borrador', color: '#9ca3af' },
-  { code: 1010, name: 'Presupuesto - Enviado', color: '#3b82f6' },
-  { code: 1020, name: 'Presupuesto - Aceptado', color: '#10b981' },
-  { code: 1030, name: 'Presupuesto - Convertido', color: '#22c55e' },
-  { code: 1040, name: 'Presupuesto - Cancelado', color: '#ef4444' },
-  { code: 1050, name: 'Presupuesto - Expirado', color: '#f97316' },
-]
 
 function maskSecret(value: string) {
   if (!value) return '(empty)'
@@ -102,39 +88,6 @@ async function seedDemoData(superAdminEmail?: string) {
       where: { email: u.email },
       update: {},
       create: { ...u, role: 'USER', passwordHash: await bcrypt.hash(DEMO_PASSWORD, 10) },
-    })
-  }
-
-  // Order statuses
-  const oStatuses = [
-    { code: 100, name: 'Pending', color: '#f59e0b' },
-    { code: 200, name: 'Confirmed', color: '#10b981' },
-    { code: 300, name: 'Work Order', color: '#3b82f6' },
-    { code: 400, name: 'Ready', color: '#06b6d4' },
-    { code: 500, name: 'Delivered', color: '#8b5cf6' },
-    { code: 600, name: 'Closed', color: '#64748b' },
-    { code: 1000, name: 'Presupuesto - Borrador', color: '#9ca3af' },
-    { code: 1010, name: 'Presupuesto - Enviado', color: '#3b82f6' },
-    { code: 1020, name: 'Presupuesto - Aceptado', color: '#10b981' },
-    { code: 1030, name: 'Presupuesto - Convertido', color: '#22c55e' },
-    { code: 1040, name: 'Presupuesto - Cancelado', color: '#ef4444' },
-    { code: 1050, name: 'Presupuesto - Expirado', color: '#f97316' },
-  ]
-  for (const s of oStatuses) {
-    await prisma.orderStatus.upsert({
-      where: { code: s.code },
-      update: { name: s.name, color: s.color },
-      create: s,
-    })
-  }
-
-  // Payment methods
-  const methods = ['Cash', 'Credit Card', 'Wire']
-  for (const m of methods) {
-    await prisma.paymentMethod.upsert({
-      where: { name: m },
-      update: {},
-      create: { name: m },
     })
   }
 
@@ -237,9 +190,8 @@ async function seedDemoData(superAdminEmail?: string) {
 
   const customerStatuses = [
     { name: 'Active', color: '#10b981' },
-    { name: 'Onboarding', color: '#2563eb' },
-    { name: 'Churn Risk', color: '#f59e0b' },
-    { name: 'Inactive', color: '#6b7280' },
+    { name: 'Suspended', color: '#f59e0b' },
+    { name: 'Blocked', color: '#ef4444' },
   ]
   const customerStatusMap = new Map<string, number>()
   for (const status of customerStatuses) {
@@ -595,19 +547,25 @@ async function seedDemoData(superAdminEmail?: string) {
     })
   }
 
-  // Backfill payment methods randomly for orders without one
-  const methodsAll = await prisma.paymentMethod.findMany()
-  if (methodsAll.length === 0) {
-    const defaults = ['Cash', 'Credit Card', 'Wire']
-    for (const m of defaults) {
-      await prisma.paymentMethod.upsert({ where: { name: m }, update: {}, create: { name: m } })
+  // Backfill payment methods for orders without one using static catalog
+  const paymentMethods = listPaymentMethods()
+  const paymentMethodIds = paymentMethods.map((method) => method.id)
+  const fallbackPaymentMethodId = paymentMethodIds[0] ?? null
+  if (fallbackPaymentMethodId !== null) {
+    const ordersNoPm = await prisma.order.findMany({
+      where: { paymentMethodId: null },
+      select: { id: true },
+    })
+    for (const o of ordersNoPm) {
+      const randomId =
+        paymentMethodIds.length > 0
+          ? paymentMethodIds[Math.floor(Math.random() * paymentMethodIds.length)]
+          : fallbackPaymentMethodId
+      await prisma.order.update({
+        where: { id: o.id },
+        data: { paymentMethodId: randomId },
+      })
     }
-  }
-  const pms = await prisma.paymentMethod.findMany()
-  const ordersNoPm = await prisma.order.findMany({ where: { paymentMethodId: null }, select: { id: true } })
-  for (const o of ordersNoPm) {
-    const pm = pms[Math.floor(Math.random() * pms.length)]
-    await prisma.order.update({ where: { id: o.id }, data: { paymentMethodId: pm.id } })
   }
 
   // Expenses
@@ -621,7 +579,8 @@ async function seedDemoData(superAdminEmail?: string) {
       expenseStatusIds.length > 0
         ? expenseStatusIds[i % expenseStatusIds.length]
         : null
-    const paymentMethod = pms.length > 0 ? pms[i % pms.length] : null
+    const paymentMethodId =
+      paymentMethodIds.length > 0 ? paymentMethodIds[i % paymentMethodIds.length] : null
     await prisma.expense.create({
       data: {
         title: `Expense ${i + 1}`,
@@ -631,7 +590,7 @@ async function seedDemoData(superAdminEmail?: string) {
         currency,
         categoryId: eCats[i % eCats.length]?.id,
         statusId: expenseStatusId ?? undefined,
-        paymentMethodId: paymentMethod?.id,
+        paymentMethodId,
         taxCreditEligible: i % 4 !== 0,
       },
     })
@@ -668,24 +627,7 @@ async function seedDemoData(superAdminEmail?: string) {
 }
 
 async function seedDefaultOrderStatuses() {
-  if (ENABLE_DEMO_SEED) {
-    return
-  }
-  const count = await prisma.orderStatus.count()
-  if (count > 0) {
-    return
-  }
-  console.log('[seed] Seeding default order statuses...')
-  for (const status of DEFAULT_ORDER_STATUSES) {
-    await prisma.orderStatus.upsert({
-      where: { code: status.code },
-      update: {
-        name: status.name,
-        color: status.color ?? null,
-      },
-      create: status,
-    })
-  }
+  console.log('[seed] Order statuses are defined statically; skipping database seeding.')
 }
 
 async function seedEmailSettings() {

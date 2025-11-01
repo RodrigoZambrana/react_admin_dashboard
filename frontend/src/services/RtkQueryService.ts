@@ -1,7 +1,7 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
-import BaseService from './BaseService'
 import type { BaseQueryFn } from '@reduxjs/toolkit/query'
-import type { AxiosRequestConfig, AxiosError } from 'axios'
+import type { AxiosRequestConfig } from 'axios'
+import httpClient, { isApiError, ApiError } from '@/lib/httpClient'
 
 const axiosBaseQuery =
     (): BaseQueryFn<
@@ -16,16 +16,24 @@ const axiosBaseQuery =
     > =>
     async (request) => {
         try {
-            const response = BaseService(request)
+            const response = await httpClient.request(request)
             return response
-        } catch (axiosError) {
-            const err = axiosError as AxiosError
-            return {
-                error: {
-                    status: err.response?.status,
-                    data: err.response?.data || err.message,
-                },
+        } catch (error) {
+            if (isApiError(error)) {
+                const apiError = error as ApiError
+                return {
+                    error: {
+                        status: apiError.status,
+                        data: {
+                            message: apiError.message,
+                            code: apiError.code,
+                            correlationId: apiError.correlationId,
+                            details: apiError.details,
+                        },
+                    },
+                }
             }
+            throw error
         }
     }
 

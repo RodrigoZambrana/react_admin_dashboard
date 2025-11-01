@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Post,
   Put,
@@ -19,6 +20,10 @@ import { UpdateEmailSettingsDto } from './dto/update-email-settings.dto'
 import { EmailLogService } from './email-log.service'
 import { UpsertRoleRuleDto } from './dto/upsert-role-rule.dto'
 import { EmailTemplateService } from './email-template.service'
+import { EmailService } from './email.service'
+import { EmailQueueService } from './queue/email-queue.service'
+import { UpdateEmailTemplateDto } from './dto/update-email-template.dto'
+import { PreviewEmailTemplateDto } from './dto/preview-email-template.dto'
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
@@ -28,6 +33,8 @@ export class EmailAdminController {
     private readonly settings: EmailSettingsService,
     private readonly logs: EmailLogService,
     private readonly templates: EmailTemplateService,
+    private readonly emailService: EmailService,
+    private readonly queue: EmailQueueService,
   ) {}
 
   @Get('categories')
@@ -109,6 +116,68 @@ export class EmailAdminController {
   @Get('templates')
   async listTemplates() {
     return this.templates.listActiveTemplates()
+  }
+
+  @Get('templates/:id')
+  async getTemplate(@Param('id') idParam: string) {
+    const id = Number(idParam)
+    if (!Number.isInteger(id)) {
+      throw new BadRequestException('Invalid template id')
+    }
+    const template = await this.templates.getTemplateById(id)
+    if (!template) {
+      throw new NotFoundException('Template not found')
+    }
+    return template
+  }
+
+  @Put('templates/:id')
+  async updateTemplate(@Param('id') idParam: string, @Body() body: UpdateEmailTemplateDto) {
+    const id = Number(idParam)
+    if (!Number.isInteger(id)) {
+      throw new BadRequestException('Invalid template id')
+    }
+    await this.templates.updateTemplate(id, body)
+    const template = await this.templates.getTemplateById(id)
+    if (!template) {
+      throw new NotFoundException('Template not found')
+    }
+    return template
+  }
+
+  @Post('templates/:id/preview')
+  async previewTemplate(@Param('id') idParam: string, @Body() body: PreviewEmailTemplateDto) {
+    const id = Number(idParam)
+    if (!Number.isInteger(id)) {
+      throw new BadRequestException('Invalid template id')
+    }
+    const template = await this.templates.getTemplateById(id)
+    if (!template) {
+      throw new NotFoundException('Template not found')
+    }
+    const locale = body.locale?.trim() || template.locale
+    const sample = await this.emailService.buildPreviewPayload(template.category, template.variant, locale, body.scenarioKey)
+    return this.templates.renderTemplateById(id, sample.payload as any, sample.extras)
+  }
+
+  @Get('templates/:id/samples')
+  async listTemplateSamples(@Param('id') idParam: string, @Query('locale') localeParam?: string) {
+    const id = Number(idParam)
+    if (!Number.isInteger(id)) {
+      throw new BadRequestException('Invalid template id')
+    }
+    const template = await this.templates.getTemplateById(id)
+    if (!template) {
+      throw new NotFoundException('Template not found')
+    }
+    const locale = localeParam?.trim() || template.locale
+    const options = this.emailService.getSampleScenarioOptions(template.category, template.variant, locale)
+    return { options }
+  }
+
+  @Get('metrics')
+  async getMetrics() {
+    return this.queue.getMetricsSnapshot()
   }
 
   private parseCategory(value: string): EmailCategory {

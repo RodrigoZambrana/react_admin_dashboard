@@ -19,6 +19,8 @@ const parseTaxRate = (value: unknown): number | undefined => {
   return undefined;
 };
 
+const DEFAULT_TAX_RATE = 22;
+
 const toMoney = (amount: number, currency: string): Money =>
   normalizeMoney({ amount, currency } as Money);
 
@@ -75,6 +77,7 @@ export function useCheckoutTotals() {
 
   const totals = useMemo<CheckoutTotals>(() => {
     const currency = subtotal.currency ?? "USD";
+    const grossAmount = roundCurrency(subtotal.amount);
     const configRecord = config as Record<string, any>;
     const profileRecord = (config.companyProfile ?? {}) as Record<string, any>;
 
@@ -85,23 +88,36 @@ export function useCheckoutTotals() {
       parseTaxRate(configRecord?.checkout?.taxRate) ??
       parseTaxRate(configRecord?.pricing?.taxRate);
 
-    const taxRate = taxRateCandidate ?? 0;
-    const taxAmount = subtotal.amount > 0 ? roundCurrency(subtotal.amount * (taxRate / 100)) : 0;
+    const taxRateRaw = taxRateCandidate ?? DEFAULT_TAX_RATE;
+    const taxRate = taxRateRaw > 0 ? taxRateRaw : 0;
+
+    const subtotalAmount =
+      taxRate > 0 ? roundCurrency(grossAmount / (1 + taxRate / 100)) : grossAmount;
+    let taxAmount = taxRate > 0 ? roundCurrency(grossAmount - subtotalAmount) : 0;
+    if (taxAmount < 0) {
+      taxAmount = 0;
+    }
+
+    const totalAmount = roundCurrency(subtotalAmount + taxAmount);
+    const correctedTotal = roundCurrency(grossAmount);
+    if (Math.abs(correctedTotal - totalAmount) >= 0.01) {
+      taxAmount = Math.max(0, roundCurrency(correctedTotal - subtotalAmount));
+    }
 
     const shippingAmount = 0;
     const discountAmount = 0;
-    const totalAmount = roundCurrency(subtotal.amount + taxAmount + shippingAmount - discountAmount);
+    const finalTotalAmount = roundCurrency(correctedTotal + shippingAmount - discountAmount);
 
     return {
       taxRate,
       taxId:
         remoteTax?.taxId ??
         (typeof profileRecord?.taxId === "string" ? profileRecord.taxId : undefined),
-      subtotal,
+      subtotal: toMoney(subtotalAmount, currency),
       shipping: toMoney(shippingAmount, currency),
       tax: toMoney(taxAmount, currency),
       discount: toMoney(discountAmount, currency),
-      total: toMoney(totalAmount, currency),
+      total: toMoney(finalTotalAmount, currency),
       currency
     };
   }, [config, subtotal, remoteTax]);

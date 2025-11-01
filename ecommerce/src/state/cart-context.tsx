@@ -10,18 +10,24 @@ import {
   useRef
 } from "react";
 
-import type { Money, ProductSummary } from "@/types/storefront";
+import type { Money, ProductSummary, ProductVariantAttribute } from "@/types/storefront";
 import { normalizeMoney } from "@/lib/utils/format";
 import { useToast } from "@/contexts/ToastContext";
 
 export interface CartProductSnapshot {
-  id: number | string;
+  id: string;
+  productId: number | string;
+  variantId?: number;
+  variantKey?: string;
+  variantLabel?: string | null;
   slug: string;
   name: string;
   thumbnail?: ProductSummary["thumbnail"];
   price: Money;
   salePrice?: Money | null;
   inventoryStatus: ProductSummary["inventoryStatus"];
+  attributes?: ProductVariantAttribute[];
+  configuration?: Record<string, unknown>;
 }
 
 export interface CartLineItem {
@@ -47,6 +53,52 @@ const initialState: CartState = {
 };
 
 const STORAGE_KEY = "storefront.cart.v1";
+
+const upgradeCartState = (state: CartState | null | undefined): CartState => {
+  if (!state || !Array.isArray(state.items)) {
+    return { items: [], updatedAt: Date.now() };
+  }
+
+  const upgradedItems: CartLineItem[] = state.items.map((item) => {
+    const product = item.product ?? ({} as CartProductSnapshot);
+    const legacyId = product.id ?? product.productId ?? "";
+    let normalizedLineId = String(legacyId);
+    if (!normalizedLineId || normalizedLineId.trim().length === 0) {
+      normalizedLineId = `line-${Math.random().toString(36).slice(2)}`;
+    }
+    const normalizedProductId =
+      product.productId ?? legacyId ?? normalizedLineId;
+    const variantIdValue =
+      product.variantId !== undefined && product.variantId !== null
+        ? Number(product.variantId)
+        : undefined;
+    const variantId =
+      typeof variantIdValue === "number" && Number.isFinite(variantIdValue)
+        ? variantIdValue
+        : undefined;
+
+    return {
+      ...item,
+      product: {
+        ...product,
+        id: normalizedLineId,
+        productId: normalizedProductId,
+        variantId,
+        variantLabel: product.variantLabel ?? null,
+        attributes: Array.isArray(product.attributes) ? product.attributes : undefined,
+        configuration:
+          product.configuration && typeof product.configuration === "object"
+            ? (product.configuration as Record<string, unknown>)
+            : undefined
+      }
+    };
+  });
+
+  return {
+    items: upgradedItems,
+    updatedAt: typeof state.updatedAt === "number" ? state.updatedAt : Date.now()
+  };
+};
 
 const cartReducer = (state: CartState, action: CartAction): CartState => {
   switch (action.type) {
@@ -107,15 +159,23 @@ const CartContext = createContext<{
   }
 );
 
-const snapshotProduct = (product: ProductSummary): CartProductSnapshot => ({
-  id: product.id,
-  slug: product.slug,
-  name: product.name,
-  price: normalizeMoney(product.price),
-  salePrice: product.salePrice ? normalizeMoney(product.salePrice) : null,
-  thumbnail: product.thumbnail,
-  inventoryStatus: product.inventoryStatus
-});
+const snapshotProduct = (product: ProductSummary): CartProductSnapshot => {
+  const productId = product.id;
+  return {
+    id: String(productId),
+    productId,
+    variantId: undefined,
+    variantKey: undefined,
+    variantLabel: null,
+    slug: product.slug,
+    name: product.name,
+    price: normalizeMoney(product.price),
+    salePrice: product.salePrice ? normalizeMoney(product.salePrice) : null,
+    thumbnail: product.thumbnail,
+    inventoryStatus: product.inventoryStatus,
+    attributes: undefined
+  };
+};
 
 export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(cartReducer, initialState);
@@ -130,7 +190,7 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
       if (raw) {
         const parsed = JSON.parse(raw) as CartState;
         if (Array.isArray(parsed.items)) {
-          dispatch({ type: "LOADED", payload: parsed });
+          dispatch({ type: "LOADED", payload: upgradeCartState(parsed) });
         }
       }
     } catch (error) {
@@ -153,6 +213,13 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
     stateRef.current = state;
   }, [state]);
 
+  const formatProductName = useCallback((product: CartProductSnapshot) => {
+    if (!product) return "Producto";
+    return product.variantLabel
+      ? `${product.name} · ${product.variantLabel}`
+      : product.name;
+  }, []);
+
   const addItem = useCallback(
     (product: ProductSummary, quantity = 1) => {
       dispatch({ type: "ADD_ITEM", payload: { product: snapshotProduct(product), quantity } });
@@ -169,10 +236,10 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
       dispatch({ type: "ADD_ITEM", payload: { product, quantity } });
       toast.success({
         title: "Producto agregado",
-        description: `${product.name} se añadió al carrito.`
+        description: `${formatProductName(product)} se añadió al carrito.`
       });
     },
-    [toast]
+    [formatProductName, toast]
   );
 
   const removeItem = useCallback(
@@ -181,10 +248,12 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
       dispatch({ type: "REMOVE_ITEM", payload: { productId } });
       toast.info({
         title: "Producto eliminado",
-        description: product ? `${product.name} fue quitado del carrito.` : "Producto quitado del carrito."
+        description: product
+          ? `${formatProductName(product)} fue quitado del carrito.`
+          : "Producto quitado del carrito."
       });
     },
-    [toast]
+    [formatProductName, toast]
   );
 
   const updateQuantity = useCallback(
@@ -196,19 +265,21 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
         toast.info({
           title: "Producto eliminado",
           description: lineItem
-            ? `${lineItem.product.name} se retiró del carrito.`
+            ? `${formatProductName(lineItem.product)} se retiró del carrito.`
             : "Producto retirado del carrito."
         });
       } else if (quantity !== previousQuantity) {
         toast.success({
           title: "Cantidad actualizada",
           description: lineItem
-            ? `Ahora tienes ${quantity} unidad${quantity === 1 ? "" : "es"} de ${lineItem.product.name}.`
+            ? `Ahora tienes ${quantity} unidad${quantity === 1 ? "" : "es"} de ${formatProductName(
+                lineItem.product
+              )}.`
             : "Actualizaste la cantidad en el carrito."
         });
       }
     },
-    [toast]
+    [formatProductName, toast]
   );
 
   const clearCart = useCallback(() => {

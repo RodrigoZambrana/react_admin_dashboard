@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { PrismaService } from '../prisma/prisma.service'
 import { FastifyReply } from 'fastify'
 import { DashboardFilterDto } from './dto/dashboard.dto'
+import { findPaymentMethodById, listPaymentMethods, matchPaymentMethod } from '../common/constants/payment-methods'
 
 type ExpenseSortKey =
   | 'id'
@@ -32,6 +33,57 @@ type ExpenseSortKey =
 @Controller('expenses')
 export class ExpensesController {
   constructor(private prisma: PrismaService) {}
+
+  private getPaymentMethodInfo(id?: number | null) {
+    if (id === null || id === undefined) {
+      return { id: null, name: '' }
+    }
+    const definition = findPaymentMethodById(id)
+    if (!definition) {
+      return { id, name: '' }
+    }
+    return { id: definition.id, name: definition.label }
+  }
+
+  private findPaymentMethodIdsByTerm(term: string) {
+    const normalized = term.trim().toLowerCase()
+    if (!normalized) {
+      return []
+    }
+    return listPaymentMethods()
+      .filter((method) => {
+        if (method.label.toLowerCase().includes(normalized)) {
+          return true
+        }
+        return Object.values(method.translations ?? {}).some((value) =>
+          value?.toLowerCase().includes(normalized),
+        )
+      })
+      .map((method) => method.id)
+  }
+
+  private resolvePaymentMethodInput(input: unknown) {
+    if (input === null || input === undefined) {
+      return null
+    }
+    if (typeof input === 'number' && Number.isFinite(input)) {
+      const definition = findPaymentMethodById(input)
+      return definition?.id ?? null
+    }
+    const value = String(input).trim()
+    if (!value) {
+      return null
+    }
+    const numeric = Number(value)
+    if (Number.isFinite(numeric) && numeric > 0) {
+      const definition = findPaymentMethodById(numeric)
+      if (definition) {
+        return definition.id
+      }
+    }
+    const definition = matchPaymentMethod(value)
+    return definition?.id ?? null
+  }
 
   private decodeAttachmentContent(content: unknown): Buffer | null {
     if (typeof content !== 'string') {
@@ -354,7 +406,7 @@ export class ExpensesController {
           orderBy.push({ status: { name: sort.order } })
           break
         case 'paymentMethod':
-          orderBy.push({ paymentMethod: { name: sort.order } })
+          orderBy.push({ paymentMethodId: sort.order })
           break
         case 'amount':
           orderBy.push({ amount: sort.order })
@@ -522,26 +574,28 @@ export class ExpensesController {
       take: 8,
       include: {
         status: true,
-        paymentMethod: true,
         attachments: true,
       },
     })
-    const latestExpensesData = latest.map((e) => ({
-      id: String(e.id),
-      date: Math.floor(new Date(e.date).getTime() / 1000),
-      name: e.name || e.title,
-      vendor: e.title,
-      statusId: e.statusId ?? null,
-      statusName: e.status?.name || '',
-      statusColor: e.status?.color || null,
-      paymentMethodId: e.paymentMethodId ?? null,
-      paymentMethodName: e.paymentMethod?.name || '',
-      paymentReference: e.paymentReference || '',
-      amount: e.amount,
-      currency: e.currency || null,
-      taxCreditEligible: Boolean(e.taxCreditEligible),
-      attachments: this.serializeAttachments(e.attachments ?? [], { includeContent: false }),
-    }))
+    const latestExpensesData = latest.map((e) => {
+      const paymentMethod = this.getPaymentMethodInfo(e.paymentMethodId)
+      return {
+        id: String(e.id),
+        date: Math.floor(new Date(e.date).getTime() / 1000),
+        name: e.name || e.title,
+        vendor: e.title,
+        statusId: e.statusId ?? null,
+        statusName: e.status?.name || '',
+        statusColor: e.status?.color || null,
+        paymentMethodId: paymentMethod.id,
+        paymentMethodName: paymentMethod.name,
+        paymentReference: e.paymentReference || '',
+        amount: e.amount,
+        currency: e.currency || null,
+        taxCreditEligible: Boolean(e.taxCreditEligible),
+        attachments: this.serializeAttachments(e.attachments ?? [], { includeContent: false }),
+      }
+    })
 
     const expenseCategories = await this.prisma.expenseCategory.findMany({
       orderBy: { name: 'asc' },
@@ -600,6 +654,7 @@ export class ExpensesController {
     const queryValue = this.resolveScalarParam(q?.query).trim()
     let where: Prisma.ExpenseWhereInput = {}
     if (queryValue) {
+      const paymentMethodMatches = this.findPaymentMethodIdsByTerm(queryValue)
       where = {
         OR: [
           { name: { contains: queryValue, mode: 'insensitive' } },
@@ -608,7 +663,9 @@ export class ExpensesController {
           { description: { contains: queryValue, mode: 'insensitive' } },
           { category: { name: { contains: queryValue, mode: 'insensitive' } } },
           { status: { name: { contains: queryValue, mode: 'insensitive' } } },
-          { paymentMethod: { name: { contains: queryValue, mode: 'insensitive' } } },
+          ...(paymentMethodMatches.length
+            ? [{ paymentMethodId: { in: paymentMethodMatches } } as Prisma.ExpenseWhereInput]
+            : []),
         ],
       }
     }
@@ -624,29 +681,31 @@ export class ExpensesController {
       include: {
         category: true,
         status: true,
-        paymentMethod: true,
         attachments: true,
       },
     })
-    const data = rows.map((e) => ({
-      id: String(e.id),
-      date: Math.floor(new Date(e.date).getTime() / 1000),
-      name: e.name || e.title,
-      vendor: e.title,
-      categoryId: e.categoryId ?? null,
-      categoryName: e.category?.name || '',
-      statusId: e.statusId ?? null,
-      statusName: e.status?.name || '',
-      statusColor: e.status?.color || null,
-      paymentMethodId: e.paymentMethodId ?? null,
-      paymentMethodName: e.paymentMethod?.name || '',
-      paymentReference: e.paymentReference || '',
-      amount: e.amount,
-      note: e.description || '',
-      currency: e.currency || null,
-      taxCreditEligible: Boolean(e.taxCreditEligible),
-      attachments: this.serializeAttachments(e.attachments ?? [], { includeContent: false }),
-    }))
+    const data = rows.map((e) => {
+      const paymentMethod = this.getPaymentMethodInfo(e.paymentMethodId)
+      return {
+        id: String(e.id),
+        date: Math.floor(new Date(e.date).getTime() / 1000),
+        name: e.name || e.title,
+        vendor: e.title,
+        categoryId: e.categoryId ?? null,
+        categoryName: e.category?.name || '',
+        statusId: e.statusId ?? null,
+        statusName: e.status?.name || '',
+        statusColor: e.status?.color || null,
+        paymentMethodId: paymentMethod.id,
+        paymentMethodName: paymentMethod.name,
+        paymentReference: e.paymentReference || '',
+        amount: e.amount,
+        note: e.description || '',
+        currency: e.currency || null,
+        taxCreditEligible: Boolean(e.taxCreditEligible),
+        attachments: this.serializeAttachments(e.attachments ?? [], { includeContent: false }),
+      }
+    })
     return { data, total }
   }
 
@@ -669,13 +728,13 @@ export class ExpensesController {
       include: {
         category: true,
         status: true,
-        paymentMethod: true,
         attachments: true,
       },
     })
     if (!expense) {
       return null
     }
+    const paymentMethod = this.getPaymentMethodInfo(expense.paymentMethodId)
     return {
       id: String(expense.id),
       name: expense.name || expense.title,
@@ -688,8 +747,8 @@ export class ExpensesController {
       statusId: expense.statusId ?? null,
       statusName: expense.status?.name || '',
       statusColor: expense.status?.color || null,
-      paymentMethodId: expense.paymentMethodId ?? null,
-      paymentMethodName: expense.paymentMethod?.name || '',
+      paymentMethodId: paymentMethod.id,
+      paymentMethodName: paymentMethod.name,
       paymentReference: expense.paymentReference || '',
       description: expense.description || '',
       note: expense.description || '',
@@ -734,9 +793,7 @@ export class ExpensesController {
     const date = this.resolveExpenseDate(body.date)
     const categoryId = this.toNullableNumber(body.categoryId ?? body.category)
     const statusId = this.toNullableNumber(body.statusId ?? body.status)
-    const paymentMethodId = this.toNullableNumber(
-      body.paymentMethodId ?? body.paymentMehod ?? body.paymentMethod,
-    )
+    const paymentMethodInput = body.paymentMethodId ?? body.paymentMehod ?? body.paymentMethod
     const descriptionRaw = body?.description ?? body?.note
     const description =
       typeof descriptionRaw === 'string'
@@ -776,15 +833,12 @@ export class ExpensesController {
       data.currency = currencyInput
     }
 
-    const [categoryRecord, statusRecord, paymentMethodRecord] = await Promise.all([
+    const [categoryRecord, statusRecord] = await Promise.all([
       typeof categoryId === 'number'
         ? this.prisma.expenseCategory.findUnique({ where: { id: categoryId } })
         : Promise.resolve(null),
       typeof statusId === 'number'
         ? this.prisma.expenseStatus.findUnique({ where: { id: statusId } })
-        : Promise.resolve(null),
-      typeof paymentMethodId === 'number'
-        ? this.prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } })
         : Promise.resolve(null),
     ])
 
@@ -794,8 +848,12 @@ export class ExpensesController {
     if (statusRecord) {
       data.status = { connect: { id: statusRecord.id } }
     }
-    if (paymentMethodRecord) {
-      data.paymentMethod = { connect: { id: paymentMethodRecord.id } }
+
+    const resolvedPaymentMethodId = this.resolvePaymentMethodInput(paymentMethodInput)
+    if (resolvedPaymentMethodId !== null) {
+      data.paymentMethodId = resolvedPaymentMethodId
+    } else if (paymentMethodInput !== undefined && paymentMethodInput !== null) {
+      data.paymentMethodId = null
     }
 
     const attachmentPayload = this.extractAttachmentPayload(body.attachments)
@@ -833,9 +891,7 @@ export class ExpensesController {
     const dateRaw = body.date
     const categoryId = this.toNullableNumber(body.categoryId ?? body.category)
     const statusId = this.toNullableNumber(body.statusId ?? body.status)
-    const paymentMethodId = this.toNullableNumber(
-      body.paymentMethodId ?? body.paymentMehod ?? body.paymentMethod,
-    )
+    const paymentMethodInput = body.paymentMethodId ?? body.paymentMehod ?? body.paymentMethod
     const paymentReferenceInput =
       body.paymentReference ?? body.paymentIdendifier ?? body.reference
     const currencyInput = this.normalizeCurrency(body.currency ?? body.currencyCode)
@@ -892,11 +948,9 @@ export class ExpensesController {
           : { connect: { id: statusId } }
     }
 
-    if (paymentMethodId !== undefined) {
-      data.paymentMethod =
-        paymentMethodId === null
-          ? { disconnect: true }
-          : { connect: { id: paymentMethodId } }
+    if (paymentMethodInput !== undefined) {
+      const resolvedPaymentMethodId = this.resolvePaymentMethodInput(paymentMethodInput)
+      data.paymentMethodId = resolvedPaymentMethodId ?? null
     }
 
     const attachmentPayload = this.extractAttachmentPayload(body.attachments)

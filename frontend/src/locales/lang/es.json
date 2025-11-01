@@ -33,7 +33,8 @@
             "budgetList": "Presupuestos",
             "budgetQuick": "Presupuesto rápido",
             "budgetNew": "Agregar presupuesto",
-            "productionOrders": "Ordenes de Producción"
+            "productionOrders": "Ordenes de Producción",
+            "shippingOptions": "Opciones de envío"
         },
         "appsBudgets": {
             "budgets": "Presupuestos",
@@ -44,17 +45,19 @@
         "appsAccounting": {
             "accounting": "Contabilidad",
             "dashboard": "Resumen",
+            "expenses": "Gastos",
+            "expensesList": "Listado",
+            "expensesNew": "Nuevo",
+            "expensesCategories": "Categorías",
+            "expensesConfig": "Configuración de gastos",
             "payments": "Pagos"
         },
         "appsProducts": {
-            "products": "Productos"
-        },
-        "appsExpenses": {
-            "expenses": "Gastos",
-            "dashboard": "Resumen",
-            "expenseList": "Lista de gastos",
-            "expenseNew": "Nuevo gasto",
-            "categories": "Categorías"
+            "products": "Productos",
+            "list": "Listado de productos",
+            "config": "Configuración",
+            "parametric": "Productos paramétricos",
+            "aberturas": "Aberturas"
         },
         "appsCrypto": {
             "crypto": "Cripto",
@@ -85,14 +88,8 @@
         "appsSettings": {
             "settings": "Configuración",
             "companyProfile": "Datos de la empresa",
-            "orderStatuses": "Estados de pedidos",
-            "products": "Productos",
-            "customerStatuses": "Estados de clientes",
-            "expenses": "Gastos",
-            "paymentMethods": "Formas de pago",
             "mercadoPago": "Mercado Pago",
             "google": "Google y reCAPTCHA",
-            "shippingOptions": "Opciones de envío",
             "systemConfig": "Configuración del sistema",
             "email": "Correo electrónico",
             "calendarEventTypes": "Tipos de evento"
@@ -295,6 +292,22 @@
             "messageRequired": "El comentario no puede estar vacío."
         }
     },
+    "menu": {
+        "products": {
+            "list": "Listado de productos",
+            "config": "Configuración"
+        },
+        "accounting": {
+            "title": "Contabilidad",
+            "expenses": {
+                "title": "Gastos",
+                "list": "Listado",
+                "new": "Nuevo",
+                "categories": "Categorías"
+            },
+            "payments": "Pagos"
+        }
+    },
     "user": {
         "menu": {
             "profile": "Perfil",
@@ -400,7 +413,6 @@
     },
     "text": {
         "titles": {
-            "products": "Productos",
             "shipping": "Envío",
             "paymentSummary": "Resumen de pago",
             "paymentHistory": "Historial de pagos",
@@ -1156,6 +1168,8 @@
                 "attachmentDeletedDesc": "El adjunto se eliminó correctamente.",
                 "attachmentDeleteFailedTitle": "No se pudo eliminar el adjunto",
                 "attachmentDeleteFailedDesc": "Inténtalo nuevamente en unos instantes.",
+                "deleteAttachmentTitle": "Eliminar adjunto",
+                "deleteAttachmentConfirm": "¿Eliminar el archivo adjunto \"{{name}}\"? Esta acción no se puede deshacer.",
                 "type": "Tipo",
                 "status": "Estado",
                 "date": "Fecha",
@@ -1200,6 +1214,106 @@
                 "invalidSize": "La imagen no puede superar los 500kb",
                 "cover": "Portada",
                 "setCover": "Usar como portada"
+            },
+            "variants": {
+                "title": "Variantes del producto",
+                "description": "Configurá productos variables combinando color, talle y material.",
+                "mode": {
+                    "simple": "Producto simple",
+                    "variable": "Producto variable",
+                    "parametric": "Producto paramétrico"
+                },
+                "attributes": {
+                    "title": "Atributos disponibles",
+                    "addValue": "Agregar valor",
+                    "types": {
+                        "color": "Color",
+                        "size": "Talle",
+                        "material": "Material"
+                    },
+                    "placeholder": {
+                        "color": "Rojo, Azul, Verde...",
+                        "size": "S, M, L, 38, 39...",
+                        "material": "Algodón, Cuero..."
+                    },
+                    "colorValuePlaceholder": "Descripción o código opcional",
+                    "addSwatch": "Agregar muestra",
+                    "replaceSwatch": "Reemplazar muestra",
+                    "clearSwatch": "Quitar muestra",
+                    "addMaterialImage": "Agregar imagen",
+                    "replaceMaterialImage": "Reemplazar imagen",
+                    "clearMaterialImage": "Quitar imagen",
+                    "imageAltPlaceholder": "Describí la imagen para accesibilidad",
+                    "noImage": "Todavía no se cargó una imagen para este valor."
+                },
+                "actions": {
+                    "inheritPrice": "Heredar precio",
+                    "applyBasePrice": "Aplicar precio base",
+                    "inheritStock": "Heredar stock",
+                    "applyBaseStock": "Aplicar stock base",
+                    "activateAll": "Activar todas",
+                    "deactivateAll": "Desactivar todas"
+                },
+                "table": {
+                    "title": "Variantes generadas",
+                    "description": "Editá precio, stock, SKU e imágenes por variante o heredá los valores del producto.",
+                    "empty": "Seleccioná atributos y valores para generar la tabla de variantes.",
+                    "price": "Precio",
+                    "stock": "Stock",
+                    "images": "Imágenes",
+                    "active": "Activa",
+                    "inheritPrice": "Usar precio del producto",
+                    "inheritStock": "Usar stock del producto",
+                    "permanentStock": "Stock ilimitado",
+                    "inheritSku": "Usar SKU del producto"
+                },
+                "images": {
+                    "title": "Imágenes de la variante",
+                    "inherit": "Usar imágenes del producto",
+                    "upload": "Subir imágenes",
+                    "empty": "No se cargaron imágenes para esta variante.",
+                    "inheritLabel": "Hereda imágenes",
+                    "count": "{{count}} imágenes",
+                    "none": "Sin imágenes propias"
+                },
+                "error": {
+                    "noAttributes": "Seleccioná al menos un atributo para generar variantes.",
+                    "emptyValues": "Cada atributo debe tener al menos un valor.",
+                    "noVariants": "Configurá al menos una variante antes de guardar."
+                }
+            },
+            "parametric": {
+                "requiresProduct": "Guardá el producto para configurar precios paramétricos.",
+                "requiresProductDetail": "Creá el producto primero y luego podrás importar referencias y ajustar el motor de precios.",
+                "title": "Precio paramétrico",
+                "subtitle": "Importá el historial de cotizaciones y probá el motor de precios en tiempo real.",
+                "testTitle": "Probar cálculo",
+                "width": "Ancho (m)",
+                "height": "Alto (m)",
+                "color": "Color",
+                "glass": "Vidrio",
+                "mosquitoNet": "Mosquitero",
+                "monoblock": "Monoblock",
+                "calculate": "Calcular precio",
+                "lastQuote": "Última cotización: {{total}} {{currency}} ({{date}})",
+                "breakdown": "Detalle",
+                "base": "Base",
+                "colorModifier": "Color",
+                "glassModifier": "Vidrio",
+                "monoblockModifier": "Monoblock",
+                "mosquitoModifier": "Mosquitero",
+                "importTitle": "Importación masiva",
+                "importDescription": "Subí un archivo Excel o CSV con las columnas requeridas (FECHA COTIZACION, PRODUCTO, MOSQUITERO, ANCHO, ALTO, SERIE, COLOR, VIDRIO, PRECIO, DETALLE).",
+                "importing": "Importando…",
+                "importCta": "Soltá el archivo aquí o hacé clic para buscarlo",
+                "loadingConfig": "Cargando configuración…",
+                "configSummary": "Series configuradas: {{series}}. Colores: {{colors}}.",
+                "importSuccess": "Importación completa",
+                "importSummary": "Se procesaron {{rows}} filas. Se generaron {{references}} referencias y {{modifiers}} modificadores.",
+                "importError": "Error al importar",
+                "importErrorDescription": "Verificá el formato del archivo y volvé a intentarlo.",
+                "quoteError": "No se pudo generar la cotización",
+                "quoteErrorDescription": "Verificá los parámetros e intentá nuevamente."
             }
         },
         "productList": {
@@ -1700,6 +1814,9 @@
                 "serviceUnitOfMeasure": "Unidad de medida",
                 "serviceDescription": "Descripción del servicio (opcional)"
             },
+            "fields": {
+                "image": "Imagen"
+            },
             "form": {
                 "parent": "Categoría padre",
                 "noParent": "Sin padre"
@@ -1708,12 +1825,17 @@
                 "selfParent": "Una categoría no puede ser su propia categoría padre.",
                 "invalidServicePrice": "Ingrese un precio de instalación válido.",
                 "invalidServiceCost": "Ingrese un costo de instalación válido.",
-                "invalidServiceTax": "Ingrese una tasa de impuesto válida."
+                "invalidServiceTax": "Ingrese una tasa de impuesto válida.",
+                "imageUploadFailed": "No pudimos procesar la imagen seleccionada."
             },
             "labels": {
                 "installable": "Esta categoría incluye un servicio de instalación opcional",
                 "serviceHeading": "Servicio de instalación",
                 "serviceSubtitle": "Define el producto de instalación que se creará automáticamente para esta categoría."
+            },
+            "actions": {
+                "uploadImage": "Subir imagen",
+                "removeImage": "Quitar imagen"
             },
             "created": {
                 "title": "Creado correctamente",
@@ -1726,27 +1848,10 @@
             "deleted": {
                 "title": "Eliminado correctamente",
                 "desc": "Categoría eliminada correctamente"
-            }
-        },
-        "orderStatuses": {
-            "title": "Estados de pedidos",
-            "columns": {
-                "name": "Nombre"
             },
-            "placeholders": {
-                "name": "Nombre del estado"
-            },
-            "created": {
-                "title": "Creado correctamente",
-                "desc": "Estado creado correctamente"
-            },
-            "updated": {
-                "title": "Actualizado correctamente",
-                "desc": "Estado actualizado correctamente"
-            },
-            "deleted": {
-                "title": "Eliminado correctamente",
-                "desc": "Estado eliminado correctamente"
+            "delete": {
+                "title": "Eliminar categoría",
+                "confirm": "¿Eliminar la categoría \"{{name}}\"? Esta acción no se puede deshacer."
             }
         },
         "productStatuses": {
@@ -1755,30 +1860,6 @@
                 "name": "Nombre"
             },
             "placeholders": {
-                "name": "Nombre del estado"
-            },
-            "created": {
-                "title": "Creado correctamente",
-                "desc": "Estado creado correctamente"
-            },
-            "updated": {
-                "title": "Actualizado correctamente",
-                "desc": "Estado actualizado correctamente"
-            },
-            "deleted": {
-                "title": "Eliminado correctamente",
-                "desc": "Estado eliminado correctamente"
-            }
-        },
-        "customerStatuses": {
-            "title": "Estados de clientes",
-            "columns": {
-                "id": "ID",
-                "name": "Nombre",
-                "color": "Color"
-            },
-            "placeholders": {
-                "id": "ID de estado (ej. active)",
                 "name": "Nombre del estado"
             },
             "created": {
@@ -1813,29 +1894,6 @@
             "deleted": {
                 "title": "Eliminado correctamente",
                 "desc": "Estado eliminado correctamente"
-            }
-        },
-        "paymentMethods": {
-            "title": "Formas de pago",
-            "columns": {
-                "id": "ID",
-                "name": "Nombre"
-            },
-            "placeholders": {
-                "id": "ID de método (ej. cash)",
-                "name": "Nombre del método"
-            },
-            "created": {
-                "title": "Creado correctamente",
-                "desc": "Forma de pago creada correctamente"
-            },
-            "updated": {
-                "title": "Actualizado correctamente",
-                "desc": "Forma de pago actualizada correctamente"
-            },
-            "deleted": {
-                "title": "Eliminado correctamente",
-                "desc": "Forma de pago eliminada correctamente"
             }
         },
         "shippingOptions": {
@@ -1895,6 +1953,7 @@
             "actions": {
                 "add": "Agregar",
                 "save": "Guardar cambios",
+                "saveTemplate": "Guardar plantilla",
                 "sendTest": "Enviar correo de prueba",
                 "refresh": "Actualizar",
                 "addRule": "Agregar regla",
@@ -1928,7 +1987,9 @@
                     "role": "Selecciona un rol"
                 },
                 "list": "Reglas existentes",
-                "empty": "Aún no se definieron reglas por rol."
+                "empty": "Aún no se definieron reglas por rol.",
+                "deleteTitle": "Eliminar regla",
+                "deleteConfirm": "¿Eliminar las notificaciones configuradas para el rol \"{{role}}\"?"
             },
             "logs": {
                 "title": "Registro de envíos",
@@ -1963,7 +2024,35 @@
             },
             "templates": {
                 "title": "Plantillas activas",
-                "description": "Resumen de las plantillas MJML activas por categoría, idioma y variante."
+                "description": "Resumen de las plantillas MJML activas por categoría, idioma y variante.",
+                "saveSuccess": "La plantilla se guardó correctamente.",
+                "editorTitle": "Editor de plantillas",
+                "editorDescription": "Revisa y ajusta el asunto y el cuerpo MJML. Los cambios se aplican a futuros correos una vez guardados.",
+                "fields": {
+                    "subject": "Asunto",
+                    "body": "Cuerpo (MJML)"
+                },
+                "unsaved": "Cambios sin guardar",
+                "previewSettings": "Configuración de vista previa",
+                "scenarioPlaceholder": "Escenario",
+                "previewTitle": "Vista previa en vivo",
+                "previewText": "Versión en texto plano",
+                "previewEmpty": "No hay vista previa disponible."
+            },
+            "metrics": {
+                "title": "Métricas de envío",
+                "description": "Controla los intentos, éxitos y errores por categoría y plantilla.",
+                "attempts": "Intentos",
+                "sent": "Enviados",
+                "failed": "Fallidos",
+                "byCategory": "Por categoría",
+                "category": "Categoría",
+                "attemptsShort": "Int.",
+                "sentShort": "Env.",
+                "failedShort": "Err.",
+                "byTemplate": "Por plantilla",
+                "template": "Plantilla",
+                "empty": "Aún no hay métricas disponibles."
             }
         },
         "companyProfile": {
@@ -2043,7 +2132,9 @@
                 "deleted": {
                     "title": "Moneda eliminada",
                     "desc": "La moneda se eliminó correctamente."
-                }
+                },
+                "deleteTitle": "Eliminar moneda",
+                "deleteConfirm": "¿Eliminar la moneda \"{{code}}\"? Esto puede impactar en precios y tipos de cambio."
             },
             "disclaimer": {
                 "title": "Condiciones del documento",
@@ -2077,6 +2168,8 @@
             "updated": "Tipo de evento actualizado correctamente.",
             "created": "Tipo de evento creado correctamente.",
             "deleted": "Tipo de evento eliminado correctamente.",
+            "deleteTitle": "Eliminar tipo de evento",
+            "confirmDelete": "¿Eliminar el tipo de evento \"{{name}}\"? Esta acción no se puede deshacer.",
             "empty": "Aún no hay tipos de evento configurados."
         }
     },
@@ -2119,5 +2212,23 @@
                 "assigneeNotFound": "No pudimos encontrar al responsable seleccionado."
             }
         }
+    },
+    "errors": {
+        "timeout": "La solicitud tardó demasiado. Intentá nuevamente.",
+        "dbConnection": "No podemos conectar con la base de datos en este momento.",
+        "conflict": "Ya existe un registro con estos datos.",
+        "dbPanic": "El servicio de datos tuvo un error inesperado.",
+        "dbTimeout": "La base de datos no respondió a tiempo.",
+        "unauthorized": "Necesitás iniciar sesión para continuar.",
+        "forbidden": "No tenés permisos para realizar esta acción.",
+        "validation": "Revisá los datos ingresados.",
+        "rateLimited": "Realizaste demasiadas solicitudes. Esperá un momento.",
+        "notFound": "No encontramos el recurso solicitado.",
+        "unknown": "Ocurrió un error inesperado. Intentá nuevamente.",
+        "circuitOpen": "Servicio con intermitencias. Mostrando datos anteriores.",
+        "networkOffline": "No pudimos conectarnos. Verificá tu conexión.",
+        "invalidResponse": "El servidor respondió en un formato desconocido.",
+        "requestFailed": "No pudimos completar la solicitud.",
+        "requestCancelled": "La solicitud fue cancelada."
     }
 }
