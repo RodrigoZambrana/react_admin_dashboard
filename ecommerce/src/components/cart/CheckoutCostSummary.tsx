@@ -24,16 +24,19 @@ export default function CheckoutCostSummary({
   const { totals } = useCheckoutTotals();
   const { formatMoney, convertMoney } = useCurrency();
 
-  const taxLabel = totals.taxRate > 0 ? `Tax (${totals.taxRate.toFixed(2)}%)` : "Tax";
+  const hasTax = totals.taxRate > 0;
+  const subtotalLabel = hasTax ? "Subtotal (sin impuestos)" : "Subtotal";
+  const taxLabel = hasTax ? `Impuestos (${totals.taxRate.toFixed(2)}%)` : "Impuestos";
+  const totalLabel = hasTax ? "Total (con impuestos)" : "Total";
 
   const rows = useMemo(
     () => [
-      { label: "Subtotal", value: totals.subtotal },
+      { label: subtotalLabel, value: totals.subtotal },
       { label: "Shipping", value: totals.shipping },
       { label: taxLabel, value: totals.tax },
       { label: "Discount", value: totals.discount }
     ],
-    [taxLabel, totals]
+    [subtotalLabel, taxLabel, totals]
   );
 
   const hasAction = Boolean(actionHref);
@@ -52,20 +55,20 @@ export default function CheckoutCostSummary({
       <Divider mb="1rem" />
 
       <FlexBox justifyContent="space-between" alignItems="center" mb="0.5rem">
-        <Typography fontWeight="600">Total</Typography>
+        <Typography fontWeight="600">{totalLabel}</Typography>
         <Typography fontSize="24px" fontWeight="700" lineHeight="1">
           {formatMoney(convertMoney(totals.total))}
         </Typography>
       </FlexBox>
 
-      {totals.taxRate > 0 && (
+      {hasTax && (
         <Typography color="text.muted" fontSize="12px" textAlign="right" mb={hasAction ? "1rem" : undefined}>
-          Tax rate applied: {totals.taxRate.toFixed(2)}%
+          Impuesto aplicado: {totals.taxRate.toFixed(2)}%
           {totals.taxId ? ` · Tax ID ${totals.taxId}` : ""}
         </Typography>
       )}
 
-      {!totals.taxRate && totals.taxId && (
+      {!hasTax && totals.taxId && (
         <Typography color="text.muted" fontSize="12px" textAlign="right" mb={hasAction ? "1rem" : undefined}>
           Tax ID {totals.taxId}
         </Typography>

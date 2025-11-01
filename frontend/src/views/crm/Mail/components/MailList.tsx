@@ -25,6 +25,7 @@ import {
     useAppDispatch,
     useAppSelector,
 } from '../store'
+import { initialState as initialMailState } from '../store/mailSlice'
 import useResponsive from '@/utils/hooks/useResponsive'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -125,22 +126,17 @@ const MailList = () => {
     const dispatch = useAppDispatch()
     const { t } = useTranslation()
     const colorByName = useTwColorByName()
-    const mails = useAppSelector((state) => state.crmMail.data.mailList)
-    const mailId = useAppSelector((state) => state.crmMail.data.selectedMailId)
-    const loading = useAppSelector(
-        (state) => state.crmMail.data.mailListLoading,
+    const mailState = useAppSelector(
+        (state) => state.crmMail?.data ?? initialMailState,
     )
-    const sideBarExpand = useAppSelector(
-        (state) => state.crmMail.data.sideBarExpand,
-    )
-    const mobileSidebarExpand = useAppSelector(
-        (state) => state.crmMail.data.mobileSideBarExpand,
-    )
-    const selectedCategory = useAppSelector(
-        (state) => state.crmMail.data.selectedCategory,
-    )
+    const mails = mailState.mailList
+    const mailId = mailState.selectedMailId
+    const loading = mailState.mailListLoading
+    const sideBarExpand = mailState.sideBarExpand
+    const mobileSidebarExpand = mailState.mobileSideBarExpand
+    const selectedCategory = mailState.selectedCategory
 
-    const inboxState = useAppSelector((state) => state.crmMail.data.inbox)
+    const inboxState = mailState.inbox
     const selectedInboxAccountId = inboxState.selectedAccountId
     const selectedInboxMailboxId = inboxState.selectedMailboxId
     const inboxMessagesKey =

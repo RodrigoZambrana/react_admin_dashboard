@@ -24,15 +24,21 @@ import {
 } from '../common/currency/money.util'
 import { OrderFinanceService } from './order-finance.service'
 import { NotificationOrchestratorService } from '../notifications/notification-orchestrator.service'
-
-const BUDGET_STATUS = {
-  DRAFT: { code: 1000, name: 'Presupuesto - Borrador', color: '#9ca3af' },
-  SENT: { code: 1010, name: 'Presupuesto - Enviado', color: '#3b82f6' },
-  ACCEPTED: { code: 1020, name: 'Presupuesto - Aceptado', color: '#10b981' },
-  CONVERTED: { code: 1030, name: 'Presupuesto - Convertido', color: '#22c55e' },
-  CANCELED: { code: 1040, name: 'Presupuesto - Cancelado', color: '#ef4444' },
-  EXPIRED: { code: 1050, name: 'Presupuesto - Expirado', color: '#f97316' },
-} as const
+import { EmailService } from '../email/email.service'
+import {
+  findOrderStatusByCode,
+  findOrderStatusById,
+  getDefaultStatusForDocument,
+  listOrderStatuses,
+  matchOrderStatus,
+  ORDER_STATUS_CODES,
+} from '../common/constants/order-statuses'
+import {
+  DEFAULT_PAYMENT_METHOD_ID,
+  findPaymentMethodById,
+  matchPaymentMethod,
+  listPaymentMethods,
+} from '../common/constants/payment-methods'
 
 const SALES_UNIT_KEYWORDS: Record<SalesUnit, string[]> = {
   [SalesUnit.UNIT]: ['unit', 'units', 'unidad', 'unidades', 'u'],
@@ -56,23 +62,10 @@ const SALES_UNIT_KEYWORDS: Record<SalesUnit, string[]> = {
   ],
 }
 
-const ORDER_STATUS_CODES = {
-  PENDING: 100,
-  CONFIRMED: 200,
-  WORK_ORDER: 300,
-  READY: 400,
-  DELIVERED: 500,
-  CLOSED: 600,
-} as const
-
-const ORDER_LIST_INCLUDE = {
-  customer: true,
-  paymentMethod: true,
-  status: true,
-} satisfies Prisma.OrderInclude
-
 type OrderWithRelations = Prisma.OrderGetPayload<{
-  include: typeof ORDER_LIST_INCLUDE
+  include: {
+    customer: true
+  }
 }>
 
 type OrderSortKey =
@@ -85,6 +78,20 @@ type OrderSortKey =
   | 'totalAmount'
   | 'validUntilDate'
 
+type BudgetStatusKey = 'DRAFT' | 'SENT' | 'ACCEPTED' | 'CONVERTED' | 'CANCELED' | 'EXPIRED'
+
+type StaticOrderStatusRecord = {
+  id: number
+  code: number
+  name: string
+  color: string | null
+}
+
+type StaticPaymentMethodRecord = {
+  id: number
+  name: string
+}
+
 @Injectable()
 export class SalesDocumentsService {
   constructor(
@@ -92,11 +99,10 @@ export class SalesDocumentsService {
     private readonly currencyConversion: CurrencyConversionService,
     private readonly orderFinance: OrderFinanceService,
     private readonly notifications: NotificationOrchestratorService,
+    private readonly email: EmailService,
   ) {}
 
   private readonly logger = new Logger(SalesDocumentsService.name)
-
-  private readonly budgetStatusCache = new Map<keyof typeof BUDGET_STATUS, number>()
 
   private readonly disclaimerConfigKey = 'documentDisclaimerHtml'
 
@@ -109,19 +115,17 @@ export class SalesDocumentsService {
     }
   }
 
-  private async getBudgetStatusId(key: keyof typeof BUDGET_STATUS) {
-    if (this.budgetStatusCache.has(key)) {
-      return this.budgetStatusCache.get(key) as number
+  private async getBudgetStatusId(key: BudgetStatusKey) {
+    const codeMap: Record<BudgetStatusKey, string> = {
+      DRAFT: 'budget_draft',
+      SENT: 'budget_sent',
+      ACCEPTED: 'budget_accepted',
+      CONVERTED: 'budget_converted',
+      CANCELED: 'budget_cancelled',
+      EXPIRED: 'budget_expired',
     }
-
-    const statusDef = BUDGET_STATUS[key]
-    const status = await this.prisma.orderStatus.upsert({
-      where: { code: statusDef.code },
-      update: { name: statusDef.name, color: statusDef.color },
-      create: { code: statusDef.code, name: statusDef.name, color: statusDef.color },
-    })
-    this.budgetStatusCache.set(key, status.id)
-    return status.id
+    const definition = findOrderStatusByCode(codeMap[key])
+    return definition?.id ?? null
   }
 
   private decimalToString(
@@ -338,6 +342,96 @@ export class SalesDocumentsService {
     return Number.isNaN(val) ? 22 : val
   }
 
+  private toOrderStatusRecord(definition: ReturnType<typeof findOrderStatusById>) {
+    if (!definition) {
+      return null
+    }
+    return {
+      id: definition.id,
+      code: definition.id,
+      name: definition.label,
+      color: definition.color ?? null,
+    }
+  }
+
+  private getStatusRecordById(statusId: number | null, documentType: DocumentType) {
+    if (statusId === null || statusId === undefined) {
+      return null
+    }
+    const definition = findOrderStatusById(statusId)
+    if (definition && definition.documentTypes.includes(documentType)) {
+      return this.toOrderStatusRecord(definition)
+    }
+    return null
+  }
+
+  private getDefaultStatusRecord(documentType: DocumentType, preferredCode?: number | null) {
+    if (preferredCode !== undefined && preferredCode !== null) {
+      const preferred = this.getStatusRecordById(preferredCode, documentType)
+      if (preferred) {
+        return preferred
+      }
+    }
+    const definition = getDefaultStatusForDocument(documentType)
+    return definition ? this.toOrderStatusRecord(definition) : null
+  }
+
+  private toPaymentMethodRecord(definition: ReturnType<typeof findPaymentMethodById>) {
+    if (!definition) {
+      return null
+    }
+    return {
+      id: definition.id,
+      name: definition.label,
+    }
+  }
+
+  private getPaymentMethodRecordById(id: number | null) {
+    if (id === null || id === undefined) {
+      return null
+    }
+    return this.toPaymentMethodRecord(findPaymentMethodById(id))
+  }
+
+  private getPaymentMethodRecordByName(name: string) {
+    if (!name) {
+      return null
+    }
+    return this.toPaymentMethodRecord(matchPaymentMethod(name))
+  }
+
+  private findPaymentMethodIdsByTerm(term: string) {
+    const normalized = term.trim().toLowerCase()
+    if (!normalized) {
+      return []
+    }
+    const matches = listPaymentMethods().filter((method) => {
+      if (method.label.toLowerCase().includes(normalized)) {
+        return true
+      }
+      return Object.values(method.translations ?? {}).some((value) =>
+        value?.toLowerCase().includes(normalized),
+      )
+    })
+    return matches.map((method) => method.id)
+  }
+
+  private findStatusIdsByTerm(term: string, documentType: DocumentType) {
+    const normalized = term.trim().toLowerCase()
+    if (!normalized) {
+      return []
+    }
+    const matches = listOrderStatuses(documentType).filter((status) => {
+      if (status.label.toLowerCase().includes(normalized)) {
+        return true
+      }
+      return Object.values(status.translations ?? {}).some((value) =>
+        value?.toLowerCase().includes(normalized),
+      )
+    })
+    return matches.map((status) => status.id)
+  }
+
   private serializeFxSnapshot(snapshot: CurrencyRatesSnapshot) {
     const rates: Record<string, string> = {}
     for (const [currency, rate] of Object.entries(snapshot.rates)) {
@@ -351,11 +445,7 @@ export class SalesDocumentsService {
   }
 
   private async getDefaultOrderStatus(preferredCode = ORDER_STATUS_CODES.PENDING) {
-    const preferred = await this.prisma.orderStatus.findUnique({ where: { code: preferredCode } })
-    if (preferred) {
-      return preferred
-    }
-    return this.prisma.orderStatus.findFirst({ orderBy: { code: 'asc' } })
+    return this.getDefaultStatusRecord(DocumentType.ORDER, preferredCode)
   }
 
   private async prepareOrderMonetaryData(
@@ -718,13 +808,13 @@ export class SalesDocumentsService {
           orderBy.push({ customer: { name: sort.order } })
           break
         case 'status':
-          orderBy.push({ status: { name: sort.order } })
+          orderBy.push({ statusId: sort.order })
           break
         case 'statusId':
           orderBy.push({ statusId: sort.order })
           break
         case 'paymentMehod':
-          orderBy.push({ paymentMethod: { name: sort.order } })
+          orderBy.push({ paymentMethodId: sort.order })
           break
         case 'totalAmount':
           orderBy.push({ grandTotal: sort.order })
@@ -739,7 +829,7 @@ export class SalesDocumentsService {
     return orderBy
   }
 
-  private buildOrderSearchWhere(raw: unknown): Prisma.OrderWhereInput | undefined {
+  private buildOrderSearchWhere(raw: unknown, documentType: DocumentType): Prisma.OrderWhereInput | undefined {
     const queryValue = this.resolveScalarParam(raw).trim()
     if (!queryValue) return undefined
     const terms = queryValue.split(/\s+/).map((term) => term.trim()).filter(Boolean)
@@ -749,17 +839,23 @@ export class SalesDocumentsService {
       const sanitizedTerm = term.replace(/^#/, '')
       const digitsOnly = sanitizedTerm.replace(/[^\d]/g, '')
       const numericId = digitsOnly ? Number(digitsOnly) : undefined
+      const paymentMethodIds = this.findPaymentMethodIdsByTerm(term)
+      const statusIds = this.findStatusIdsByTerm(term, documentType)
       const orConditions: Prisma.OrderWhereInput[] = [
         { customer: { name: { contains: term, mode: 'insensitive' } } },
         { customer: { email: { contains: term, mode: 'insensitive' } } },
         { customer: { phoneNumber: { contains: term, mode: 'insensitive' } } },
-        { paymentMethod: { name: { contains: term, mode: 'insensitive' } } },
-        { status: { name: { contains: term, mode: 'insensitive' } } },
         { shippingAddress1: { contains: term, mode: 'insensitive' } },
         { shippingAddress2: { contains: term, mode: 'insensitive' } },
         { shippingCity: { contains: term, mode: 'insensitive' } },
         { shippingState: { contains: term, mode: 'insensitive' } },
       ]
+      if (paymentMethodIds.length) {
+        orConditions.push({ paymentMethodId: { in: paymentMethodIds } })
+      }
+      if (statusIds.length) {
+        orConditions.push({ statusId: { in: statusIds } })
+      }
       if (numericId && Number.isFinite(numericId)) {
         orConditions.push({ id: numericId })
       }
@@ -897,25 +993,42 @@ export class SalesDocumentsService {
     name: string,
     cache: Map<string, number>,
   ) {
-    const normalized = name.trim().toLowerCase()
+    const trimmed = name.trim()
+    if (!trimmed) {
+      return null
+    }
+    const normalized = trimmed.toLowerCase()
     if (cache.has(normalized)) {
       return cache.get(normalized) as number
     }
-    const existing = await this.prisma.paymentMethod.findFirst({
-      where: { name: { equals: name, mode: 'insensitive' } },
-    })
-    if (existing) {
-      cache.set(normalized, existing.id)
-      return existing.id
+
+    const definition = matchPaymentMethod(trimmed) ?? matchPaymentMethod(normalized)
+    if (definition) {
+      cache.set(normalized, definition.id)
+      return definition.id
     }
-    const created = await this.prisma.paymentMethod.create({ data: { name } })
-    cache.set(normalized, created.id)
-    return created.id
+
+    const numeric = Number(trimmed)
+    if (Number.isFinite(numeric) && numeric > 0) {
+      const byId = findPaymentMethodById(numeric)
+      if (byId) {
+        cache.set(normalized, byId.id)
+        return byId.id
+      }
+    }
+
+    if (DEFAULT_PAYMENT_METHOD_ID) {
+      cache.set(normalized, DEFAULT_PAYMENT_METHOD_ID)
+      return DEFAULT_PAYMENT_METHOD_ID
+    }
+
+    return null
   }
 
   private async resolveStatus(
     row: string[],
     columnIndex: Map<string, number>,
+    documentType: DocumentType,
     statusById: Map<number, number>,
     statusByName: Map<string, number>,
     defaultStatusId?: number,
@@ -928,11 +1041,11 @@ export class SalesDocumentsService {
         return statusById.get(numericStatus) as number
       }
       if (numericStatus) {
-        const existing = await this.prisma.orderStatus.findUnique({ where: { code: numericStatus } })
-        if (existing) {
-          statusById.set(numericStatus, existing.id)
-          statusByName.set(existing.name.toLowerCase(), existing.id)
-          return existing.id
+        const definition = findOrderStatusById(numericStatus)
+        if (definition && definition.documentTypes.includes(documentType)) {
+          statusById.set(numericStatus, definition.id)
+          statusByName.set(definition.label.toLowerCase(), definition.id)
+          return definition.id
         }
       }
     }
@@ -941,13 +1054,11 @@ export class SalesDocumentsService {
       if (statusByName.has(nameKey)) {
         return statusByName.get(nameKey) as number
       }
-      const existing = await this.prisma.orderStatus.findFirst({
-        where: { name: { equals: rawStatusName, mode: 'insensitive' } },
-      })
-      if (existing) {
-        statusByName.set(nameKey, existing.id)
-        statusById.set(existing.code, existing.id)
-        return existing.id
+      const matched = matchOrderStatus(rawStatusName, documentType)
+      if (matched) {
+        statusByName.set(nameKey, matched.id)
+        statusById.set(matched.id, matched.id)
+        return matched.id
       }
     }
     return defaultStatusId ?? null
@@ -959,7 +1070,7 @@ export class SalesDocumentsService {
     const pageIndex = Number.isFinite(pageIndexRaw) && pageIndexRaw > 0 ? Math.floor(pageIndexRaw) : 1
     const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? Math.floor(pageSizeRaw) : 50
 
-    const where = this.withDocumentType(documentType, this.buildOrderSearchWhere(q.query) ?? {})
+    const where = this.withDocumentType(documentType, this.buildOrderSearchWhere(q.query, documentType) ?? {})
     const total = await this.prisma.order.count({ where })
     const sort = this.extractOrderSort(q)
     const orderBy = this.buildOrderOrderBy(sort)
@@ -969,23 +1080,27 @@ export class SalesDocumentsService {
       orderBy,
       skip: (pageIndex - 1) * pageSize,
       take: pageSize,
-      include: ORDER_LIST_INCLUDE,
+      include: {
+        customer: true,
+      },
     })
 
     const defaultStatus = documentType === DocumentType.BUDGET
-      ? await this.prisma.orderStatus.findUnique({ where: { code: BUDGET_STATUS.DRAFT.code } })
+      ? this.getDefaultStatusRecord(DocumentType.BUDGET, ORDER_STATUS_CODES.BUDGET_DRAFT)
       : await this.getDefaultOrderStatus()
 
     const data = orders.map((o: OrderWithRelations) => {
       const validity = o.validUntil ? new Date(o.validUntil).toISOString() : null
+      const statusRecord = this.getStatusRecordById(o.statusId ?? null, documentType) ?? defaultStatus
+      const paymentMethodRecord = this.getPaymentMethodRecordById(o.paymentMethodId ?? null)
       return {
         id: String(o.id),
         date: Math.floor(new Date(o.date).getTime() / 1000),
         validUntilDate: validity,
         validityDate: validity,
         customer: o.customer?.name || '',
-        status: (o.statusId ?? defaultStatus?.id) || 0,
-        paymentMehod: o.paymentMethod?.name || '',
+        status: statusRecord?.id ?? 0,
+        paymentMehod: paymentMethodRecord?.name ?? '',
         paymentIdendifier: '',
         totalAmount: Number(o.grandTotal?.toString?.() ?? o.grandTotal ?? 0),
         orderCurrency: o.orderCurrency,
@@ -995,17 +1110,19 @@ export class SalesDocumentsService {
   }
 
   async exportDocuments(documentType: DocumentType, q: any): Promise<StreamableFile> {
-    const where = this.withDocumentType(documentType, this.buildOrderSearchWhere(q.query) ?? {})
+    const where = this.withDocumentType(documentType, this.buildOrderSearchWhere(q.query, documentType) ?? {})
     const sort = this.extractOrderSort(q)
     const orderBy = this.buildOrderOrderBy(sort)
 
     const orders = await this.prisma.order.findMany({
       where,
       orderBy,
-      include: ORDER_LIST_INCLUDE,
+      include: {
+        customer: true,
+      },
     })
     const defaultStatus = documentType === DocumentType.BUDGET
-      ? await this.prisma.orderStatus.findUnique({ where: { code: BUDGET_STATUS.DRAFT.code } })
+      ? this.getDefaultStatusRecord(DocumentType.BUDGET, ORDER_STATUS_CODES.BUDGET_DRAFT)
       : await this.getDefaultOrderStatus()
 
     const header: unknown[] = [
@@ -1035,8 +1152,10 @@ export class SalesDocumentsService {
     ]
 
     const dataRows: unknown[][] = orders.map((order: OrderWithRelations) => {
-      const statusId = (order.statusId ?? defaultStatus?.id) ?? ''
-      const statusName = order.status?.name ?? defaultStatus?.name ?? ''
+      const statusRecord = this.getStatusRecordById(order.statusId ?? null, documentType) ?? defaultStatus
+      const paymentMethodRecord = this.getPaymentMethodRecordById(order.paymentMethodId ?? null)
+      const statusId = statusRecord?.id ?? ''
+      const statusName = statusRecord?.name ?? ''
       return [
         order.id,
         order.date instanceof Date ? order.date.toISOString() : new Date(order.date).toISOString(),
@@ -1045,7 +1164,7 @@ export class SalesDocumentsService {
         order.customer?.phoneNumber ?? '',
         statusId,
         statusName,
-        order.paymentMethod?.name ?? '',
+        paymentMethodRecord?.name ?? '',
         order.grandTotal !== null && order.grandTotal !== undefined ? order.grandTotal.toFixed(2) : '',
         order.orderCurrency ?? '',
         order.fxBase ?? '',
@@ -1155,7 +1274,14 @@ export class SalesDocumentsService {
         const paymentName = this.getCell(row, columnIndex, 'paymentMethod', ['paymentMehod'])
         const paymentMethodId = await this.resolvePaymentMethod(paymentName || 'Cash', paymentCache)
 
-        const statusId = await this.resolveStatus(row, columnIndex, statusById, statusByName, defaultStatus?.id)
+        const statusId = await this.resolveStatus(
+          row,
+          columnIndex,
+          documentType,
+          statusById,
+          statusByName,
+          defaultStatus?.id,
+        )
 
         const date = this.parseDate(this.getCell(row, columnIndex, 'date')) || new Date()
         const createdAt = this.parseDate(this.getCell(row, columnIndex, 'createdAt'))
@@ -1259,11 +1385,8 @@ export class SalesDocumentsService {
           },
         },
         items: { include: { product: true } },
-        paymentMethod: true,
-        status: true,
         payments: {
           include: {
-            paymentMethod: true,
             attachments: {
               select: {
                 id: true,
@@ -1279,6 +1402,8 @@ export class SalesDocumentsService {
       },
     })
     if (!order) return null
+    const paymentMethodRecord = this.getPaymentMethodRecordById(order.paymentMethodId ?? null)
+    const statusRecord = this.getStatusRecordById(order.statusId ?? null, documentType)
     const customerAddresses = order.customer?.addresses ?? []
     const primaryAddress =
       customerAddresses.find((addr) => addr.isPrimary) ?? customerAddresses[0] ?? null
@@ -1403,8 +1528,8 @@ export class SalesDocumentsService {
         unitCostCurrency: item.unitCostCurrency ?? null,
         comments: item.comments ?? null,
       })),
-      paymentMethod: order.paymentMethod,
-      status: order.status,
+      paymentMethod: paymentMethodRecord,
+      status: statusRecord,
       subTotal: Number(order.subTotal?.toString?.() ?? order.subTotal ?? 0),
       tax: Number(order.tax?.toString?.() ?? order.tax ?? 0),
       deliveryFees: order.deliveryFees === null ? null : Number(order.deliveryFees.toString()),
@@ -1459,29 +1584,32 @@ export class SalesDocumentsService {
               depositMet: paymentSummary.depositMet,
             }
           : null,
-        records: order.payments.map((payment) => ({
-          id: payment.id,
-          orderId: payment.orderId,
-          amount: Number(payment.amount.toString()),
-          currency: payment.currency,
-          type: payment.type,
-          status: payment.status,
-          reference: payment.reference ?? null,
-          method: payment.method ?? payment.paymentMethod?.name ?? null,
-          paymentMethodId: payment.paymentMethodId ?? null,
-          date: payment.date.toISOString(),
-          notes: payment.notes ?? null,
-          createdAt: payment.createdAt.toISOString(),
-          updatedAt: payment.updatedAt.toISOString(),
-          attachments: payment.attachments.map((attachment) => ({
-            id: attachment.id,
-            name: attachment.name,
-            type: attachment.mimeType ?? null,
-            size: attachment.size ?? null,
-            createdAt: attachment.createdAt.toISOString(),
-            url: `/accounting/payments/${payment.id}/attachments/${attachment.id}`,
-          })),
-        })),
+        records: order.payments.map((payment) => {
+          const paymentMethodDef = this.getPaymentMethodRecordById(payment.paymentMethodId ?? null)
+          return {
+            id: payment.id,
+            orderId: payment.orderId,
+            amount: Number(payment.amount.toString()),
+            currency: payment.currency,
+            type: payment.type,
+            status: payment.status,
+            reference: payment.reference ?? null,
+            method: payment.method ?? paymentMethodDef?.name ?? null,
+            paymentMethodId: paymentMethodDef?.id ?? payment.paymentMethodId ?? null,
+            date: payment.date.toISOString(),
+            notes: payment.notes ?? null,
+            createdAt: payment.createdAt.toISOString(),
+            updatedAt: payment.updatedAt.toISOString(),
+            attachments: payment.attachments.map((attachment) => ({
+              id: attachment.id,
+              name: attachment.name,
+              type: attachment.mimeType ?? null,
+              size: attachment.size ?? null,
+              createdAt: attachment.createdAt.toISOString(),
+              url: `/accounting/payments/${payment.id}/attachments/${attachment.id}`,
+            })),
+          }
+        }),
       },
     }
   }
@@ -1562,26 +1690,13 @@ export class SalesDocumentsService {
         : undefined
     }
 
+    const paymentCache = new Map<string, number>()
     let paymentMethodId: number | null = null
-    if (dto.paymentMehod) {
-      const maybeId = Number(dto.paymentMehod)
-      if (!Number.isNaN(maybeId) && maybeId > 0) {
-        const pm = await this.prisma.paymentMethod.findUnique({ where: { id: maybeId } })
-        if (pm) {
-          paymentMethodId = pm.id
-        }
-      }
-      if (paymentMethodId === null) {
-        const name = String(dto.paymentMehod).trim()
-        if (name) {
-          const pm = await this.prisma.paymentMethod.upsert({
-            where: { name },
-            update: {},
-            create: { name },
-          })
-          paymentMethodId = pm.id
-        }
-      }
+    if (dto.paymentMehod !== undefined && dto.paymentMehod !== null) {
+      paymentMethodId = await this.resolvePaymentMethod(String(dto.paymentMehod), paymentCache)
+    }
+    if (paymentMethodId === null) {
+      paymentMethodId = DEFAULT_PAYMENT_METHOD_ID
     }
 
     let shippingAddress = composeAddress(dto.shippingAddress)
@@ -1654,6 +1769,10 @@ export class SalesDocumentsService {
       this.notifications
         .notifyOrderReceived(created.id)
         .catch((error) => this.logger.error(`Failed to dispatch notifications for order ${created.id}: ${(error as Error).message}`))
+    } else if (documentType === DocumentType.BUDGET) {
+      this.email
+        .sendBudgetCreated({ budgetId: created.id })
+        .catch((error) => this.logger.error(`Failed to dispatch budget created email for ${created.id}: ${(error as Error).message}`))
     }
     return true
   }
@@ -1687,26 +1806,13 @@ export class SalesDocumentsService {
         : undefined
     }
 
+    const replacePaymentCache = new Map<string, number>()
     let paymentMethodId: number | null = null
-    if (dto.paymentMehod) {
-      const maybeId = Number(dto.paymentMehod)
-      if (!Number.isNaN(maybeId) && maybeId > 0) {
-        const pm = await this.prisma.paymentMethod.findUnique({ where: { id: maybeId } })
-        if (pm) {
-          paymentMethodId = pm.id
-        }
-      }
-      if (paymentMethodId === null) {
-        const name = String(dto.paymentMehod).trim()
-        if (name) {
-          const pm = await this.prisma.paymentMethod.upsert({
-            where: { name },
-            update: {},
-            create: { name },
-          })
-          paymentMethodId = pm.id
-        }
-      }
+    if (dto.paymentMehod !== undefined && dto.paymentMehod !== null) {
+      paymentMethodId = await this.resolvePaymentMethod(String(dto.paymentMehod), replacePaymentCache)
+    }
+    if (paymentMethodId === null) {
+      paymentMethodId = existing.paymentMethodId ?? DEFAULT_PAYMENT_METHOD_ID
     }
 
     let shippingAddress = composeAddress(dto.shippingAddress)
@@ -1812,15 +1918,15 @@ export class SalesDocumentsService {
     let previousStatusId: number | null = null
     if (documentType === DocumentType.ORDER) {
       await this.orderFinance.ensureStatusCanTransition(id, body.status, Boolean(body.force))
-      const existing = await this.prisma.order.findFirst({
-        where: { id, documentType },
-        select: { statusId: true },
-      })
-      if (!existing) {
-        throw new BadRequestException('sales.orders.validation.notFound')
-      }
-      previousStatusId = existing.statusId ?? null
     }
+    const existing = await this.prisma.order.findFirst({
+      where: { id, documentType },
+      select: { statusId: true },
+    })
+    if (!existing) {
+      throw new BadRequestException('sales.orders.validation.notFound')
+    }
+    previousStatusId = existing.statusId ?? null
     const result = await this.prisma.order.updateMany({
       where: { id: id, documentType },
       data: { statusId: body.status },
@@ -1832,6 +1938,10 @@ export class SalesDocumentsService {
       this.notifications
         .notifyOrderStatusChanged(id, previousStatusId, body.status)
         .catch((error) => this.logger.error(`Failed to dispatch status change notifications for order ${id}: ${(error as Error).message}`))
+    } else if (documentType === DocumentType.BUDGET) {
+      this.email
+        .sendBudgetStatusChanged({ orderId: id, previousStatusId, nextStatusId: body.status })
+        .catch((error) => this.logger.error(`Failed to dispatch budget status email for ${id}: ${(error as Error).message}`))
     }
     return true
   }
@@ -1852,20 +1962,14 @@ export class SalesDocumentsService {
       }
       return true
     }
-    let pmId: number | null = null
-    let pm: { id: number } | null = null
-    const maybeNum = Number(raw)
-    if (!Number.isNaN(maybeNum) && String(raw).trim() === String(maybeNum)) {
-      pmId = maybeNum
-      pm = await this.prisma.paymentMethod.findUnique({ where: { id: pmId } })
-    }
-    if (!pm) {
-      const name = String(raw).trim()
-      pm = await this.prisma.paymentMethod.upsert({ where: { name }, update: {}, create: { name } })
+    const paymentCache = new Map<string, number>()
+    let pmId = await this.resolvePaymentMethod(String(raw), paymentCache)
+    if (pmId === null) {
+      pmId = DEFAULT_PAYMENT_METHOD_ID
     }
     const updated = await this.prisma.order.updateMany({
       where: { id: id, documentType },
-      data: { paymentMethodId: pm.id },
+      data: { paymentMethodId: pmId },
     })
     if (updated.count === 0) {
       throw new BadRequestException('sales.orders.validation.notFound')
@@ -1927,8 +2031,8 @@ export class SalesDocumentsService {
   }
 
   async sendBudget(id: number, userId: number | null) {
-    const sentStatusId = await this.getBudgetStatusId('SENT')
-    return this.prisma.$transaction(async (tx) => {
+    const sentStatusId = (await this.getBudgetStatusId('SENT')) ?? ORDER_STATUS_CODES.BUDGET_DRAFT
+    const result = await this.prisma.$transaction(async (tx) => {
       const budget = await tx.order.findFirst({
         where: { id: id, documentType: DocumentType.BUDGET },
       })
@@ -1951,14 +2055,24 @@ export class SalesDocumentsService {
         validUntilDate: validity,
         validityDate: validity,
         updatedBy: userId ?? null,
+        previousStatusId: budget.statusId ?? null,
       }
     })
+    const { previousStatusId, ...response } = result
+    this.email
+      .sendBudgetStatusChanged({
+        orderId: response.budgetId,
+        previousStatusId,
+        nextStatusId: response.statusId,
+      })
+      .catch((error) => this.logger.error(`Failed to dispatch budget sent email for ${response.budgetId}: ${(error as Error).message}`))
+    return response
   }
 
   async confirmBudget(id: number, userId: number | null) {
-    const convertedStatusId = await this.getBudgetStatusId('CONVERTED')
+    const convertedStatusId = (await this.getBudgetStatusId('CONVERTED')) ?? ORDER_STATUS_CODES.BUDGET_DRAFT
     const defaultOrderStatus = await this.getDefaultOrderStatus()
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const budget = await tx.order.findFirst({
         where: { id, documentType: DocumentType.BUDGET },
         include: { items: true },
@@ -1967,7 +2081,12 @@ export class SalesDocumentsService {
         throw new BadRequestException('sales.budgets.notFound')
       }
       if (budget.convertedOrderId) {
-        return { budgetId: budget.id, orderId: budget.convertedOrderId }
+        return {
+          budgetId: budget.id,
+          orderId: budget.convertedOrderId,
+          previousStatusId: budget.statusId ?? null,
+          statusUpdated: false,
+        }
       }
 
       const fxRatesJson = budget.fxRates as Prisma.InputJsonValue | undefined
@@ -2056,7 +2175,28 @@ export class SalesDocumentsService {
         },
       })
 
-      return { budgetId: budget.id, orderId: newOrder.id }
+      return {
+        budgetId: budget.id,
+        orderId: newOrder.id,
+        previousStatusId: budget.statusId ?? null,
+        statusUpdated: true,
+      }
     })
+    if (result.orderId) {
+      this.notifications
+        .notifyOrderReceived(result.orderId)
+        .catch((error) => this.logger.error(`Failed to dispatch notifications for converted order ${result.orderId}: ${(error as Error).message}`))
+    }
+    if (result.statusUpdated !== false) {
+      this.email
+        .sendBudgetStatusChanged({
+          orderId: result.budgetId,
+          previousStatusId: result.previousStatusId ?? null,
+          nextStatusId: convertedStatusId,
+        })
+        .catch((error) => this.logger.error(`Failed to dispatch budget converted email for ${result.budgetId}: ${(error as Error).message}`))
+    }
+    const { statusUpdated, previousStatusId: _previousStatusId, ...payload } = result
+    return payload
   }
 }

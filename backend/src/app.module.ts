@@ -1,7 +1,7 @@
-import { Module } from '@nestjs/common'
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'
-import { APP_GUARD } from '@nestjs/core'
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { PrismaModule } from './prisma/prisma.module'
 import { AuthModule } from './auth/auth.module'
 import { UsersModule } from './users/users.module'
@@ -25,6 +25,12 @@ import { ProductionOrdersModule } from './production-orders/production-orders.mo
 import { StorefrontModule } from './storefront/storefront.module'
 import { EmailModule } from './email/email.module'
 import { SecureConfigModule } from './common/security/secure-config.module'
+import { CatalogModule } from './catalog/catalog.module'
+import { PricingModule } from './pricing/pricing.module'
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware'
+import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor'
+import { ObservabilityService } from './common/observability/observability.service'
 
 @Module({
   imports: [
@@ -61,12 +67,27 @@ import { SecureConfigModule } from './common/security/secure-config.module'
     StorefrontModule,
     EmailModule,
     SecureConfigModule,
+    CatalogModule,
+    PricingModule,
   ],
   providers: [
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TimeoutInterceptor,
+    },
+    ObservabilityService,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*')
+  }
+}

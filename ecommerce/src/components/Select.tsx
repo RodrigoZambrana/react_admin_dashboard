@@ -6,6 +6,7 @@ import { SpaceProps } from "styled-system";
 import ReactSelect, { Props, Theme } from "react-select";
 import Box from "@component/Box";
 import Typography from "@component/Typography";
+import { useTranslation } from "@/state/i18n-context";
 
 interface SelectProps extends Omit<Props, "theme">, SpaceProps {
   label?: string;
@@ -52,6 +53,7 @@ const Select = memo(
   }: SelectProps) => {
   const { colors } = useTheme();
   const autoId = useId();
+  const t = useTranslation();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -93,8 +95,33 @@ const Select = memo(
         delete result[key];
       }
     });
+    if (typeof result.placeholder === "string") {
+      result.placeholder = t(result.placeholder);
+    }
+
+    const translateMessage = <T extends unknown>(
+      message: unknown
+    ): typeof message => {
+      if (typeof message === "function") {
+        return ((arg: T) => {
+          const value = (message as (input: T) => unknown)(arg);
+          return typeof value === "string" ? t(value) : value;
+        }) as typeof message;
+      }
+      if (typeof message === "string") {
+        return t(message) as typeof message;
+      }
+      return message;
+    };
+
+    if ("noOptionsMessage" in result && result.noOptionsMessage != null) {
+      result.noOptionsMessage = translateMessage(result.noOptionsMessage);
+    }
+    if ("loadingMessage" in result && result.loadingMessage != null) {
+      result.loadingMessage = translateMessage(result.loadingMessage);
+    }
     return result;
-  }, [restProps]);
+  }, [restProps, t]);
 
   const selectProps = useMemo(() => {
     if (!computedIds.label) {

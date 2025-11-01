@@ -1,4 +1,3 @@
-import axios from "@lib/axios";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { mapProductSummaryToProduct } from "@/lib/storefront/adapters";
 
@@ -17,6 +16,9 @@ import type { CategorySummary, ProductListQuery } from "@/types/storefront";
 import type { ActiveFilters, PriceFilter } from "./components/ShopFilterPanel";
 
 const PAGE_SIZE = 28;
+const ALLOW_MOCK_PRODUCTS =
+  process.env.NEXT_PUBLIC_ENABLE_STOREFRONT_FALLBACKS === "true" ||
+  process.env.ENABLE_STOREFRONT_FALLBACKS === "true";
 
 type SaleCategoryDefinition = {
   icon: string;
@@ -147,20 +149,24 @@ const fetchStorefrontProducts = async (
   };
 };
 
+const loadMockProducts = async (): Promise<Product[]> => {
+  const module = await import("@/__server__/__db__/products/data");
+  const dataset = module?.uniqueProudcts ?? [];
+  return Array.isArray(dataset) ? (dataset as Product[]) : [];
+};
+
 const fetchMockProducts = async (pageSize: number): Promise<Product[]> => {
-  const { data: firstResponse } = await axios.get("/api/products", {
-    params: { page: 1, pageSize }
-  });
+  if (!ALLOW_MOCK_PRODUCTS) {
+    return [];
+  }
 
-  const firstMeta = firstResponse.meta as Meta | undefined;
-  const total = firstMeta?.total ?? firstResponse.result?.length ?? pageSize;
-  const effectivePageSize = Math.max(total, pageSize);
+  const dataset = await loadMockProducts();
+  if (dataset.length === 0) {
+    return [];
+  }
 
-  const { data } = await axios.get("/api/products", {
-    params: { page: 1, pageSize: effectivePageSize }
-  });
-
-  return (data.result ?? []) as Product[];
+  const required = Math.max(pageSize, dataset.length);
+  return dataset.slice(0, required);
 };
 
 export default async function ShopPage({ searchParams }: SearchParams) {
@@ -194,17 +200,17 @@ export default async function ShopPage({ searchParams }: SearchParams) {
 
     allProducts = storefrontProducts;
 
-    if (allProducts.length === 0) {
+    if (ALLOW_MOCK_PRODUCTS && allProducts.length === 0) {
       shouldFallbackToMockProducts = true;
     }
   } catch (error) {
     if (!isApiError(error)) {
       console.warn("[sale-page] Falling back to template products:", error);
     }
-    shouldFallbackToMockProducts = true;
+    shouldFallbackToMockProducts = ALLOW_MOCK_PRODUCTS;
   }
 
-  if (shouldFallbackToMockProducts) {
+  if (shouldFallbackToMockProducts && ALLOW_MOCK_PRODUCTS) {
     allProducts = await fetchMockProducts(PAGE_SIZE);
   }
 

@@ -8,6 +8,7 @@ import {
   IsPositive,
   IsString,
   ValidateNested,
+  IsObject,
 } from 'class-validator'
 
 class StorefrontOrderCustomerDto {
@@ -55,6 +56,15 @@ class StorefrontOrderItemDto {
   @IsInt()
   @IsPositive()
   quantity!: number
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  variantId?: number
+
+  @IsOptional()
+  @IsObject()
+  configuration?: Record<string, unknown>
 }
 
 export class StorefrontCreateOrderDto {

@@ -1,4 +1,12 @@
-import { forwardRef, useEffect, useMemo, useState } from 'react'
+import {
+    forwardRef,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type MutableRefObject,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { FormContainer } from '@/components/ui/Form'
 import Button from '@/components/ui/Button'
@@ -25,6 +33,10 @@ import {
 } from '@/constants/product.constant'
 import { sanitizeString } from '@/utils/security/inputGuards'
 import { formatCurrencyOptionLabel } from '@/utils/currency'
+import { toast } from '@/components/ui/toast'
+import Notification from '@/components/ui/Notification'
+import VariantConfigurator from './VariantConfigurator'
+import type { ProductMode, ProductAttribute, ProductVariant } from './types'
 
 const sanitizeCurrencyCode = (value?: string | null): CurrencyCode | undefined => {
     if (typeof value !== 'string') {
@@ -76,12 +88,18 @@ type InitialData = {
     permanentStock?: boolean
     currency?: CurrencyCode
     unitOfMeasure?: SalesUnit
+    mode?: ProductMode
+    attributes?: ProductAttribute[]
+    variants?: ProductVariant[]
 }
 
 export type FormModel = Omit<InitialData, 'tags' | 'permanentStock'> & {
     tags: string[]
     permanentStock: boolean
     unitOfMeasure: SalesUnit
+    mode: ProductMode
+    attributes: ProductAttribute[]
+    variants: ProductVariant[]
 }
 
 export type SetSubmitting = (isSubmitting: boolean) => void
@@ -120,6 +138,9 @@ const validationSchema = (t: (k: string) => string) =>
         unitOfMeasure: Yup.mixed<SalesUnit>()
             .oneOf(SALES_UNIT_VALUES)
             .required(t('text.validation.unitOfMeasureRequired')),
+        mode: Yup.mixed<ProductMode>()
+            .oneOf(['simple', 'variable', 'parametric'])
+            .required(),
     })
 
 const DeleteProductButton = ({ onDelete }: { onDelete: OnDelete }) => {
@@ -190,6 +211,9 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
             permanentStock: false,
             currency: 'UYU',
             unitOfMeasure: DEFAULT_SALES_UNIT,
+            mode: 'simple',
+            attributes: [],
+            variants: [],
         },
         onFormSubmit,
         onDiscard,
@@ -221,6 +245,13 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
     const [configCurrencyOptions, setConfigCurrencyOptions] = useState<
         { value: CurrencyCode; label: string }[]
     >([])
+
+    const [mode, setMode] = useState<ProductMode>(initialData.mode ?? 'simple')
+    const [attributeDefinitions, setAttributeDefinitions] = useState<ProductAttribute[]>
+        (initialData.attributes ?? [])
+    const [variantRows, setVariantRows] = useState<ProductVariant[]>(initialData.variants ?? [])
+
+    const formRef = useRef<FormikRef | null>(null)
 
     useEffect(() => {
         if (!currencyState?.loaded) {
@@ -317,10 +348,56 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
         [allowedCurrencyCodes, configCurrencyOptions, storeCurrencyInfo.base],
     )
 
+    useEffect(() => {
+        setMode(initialData.mode ?? 'simple')
+        setAttributeDefinitions(initialData.attributes ?? [])
+        setVariantRows(initialData.variants ?? [])
+    }, [initialData.mode, initialData.attributes, initialData.variants])
+
+    useEffect(() => {
+        if (formRef.current) {
+            formRef.current.setFieldValue('mode', mode, false)
+        }
+    }, [mode])
+
+    useEffect(() => {
+        if (formRef.current) {
+            formRef.current.setFieldValue('attributes', attributeDefinitions, false)
+        }
+    }, [attributeDefinitions])
+
+    useEffect(() => {
+        if (formRef.current) {
+            formRef.current.setFieldValue('variants', variantRows, false)
+        }
+    }, [variantRows])
+
+    const handleModeChange = useCallback((nextMode: ProductMode) => {
+        setMode(nextMode)
+    }, [])
+
+    const handleAttributesUpdate = useCallback((nextAttributes: ProductAttribute[]) => {
+        setAttributeDefinitions(nextAttributes)
+    }, [])
+
+    const handleVariantsUpdate = useCallback((nextVariants: ProductVariant[]) => {
+        setVariantRows(nextVariants)
+    }, [])
+
     return (
         <>
             <Formik
-                innerRef={ref}
+                innerRef={(instance) => {
+                    formRef.current = instance
+                    if (ref) {
+                        if (typeof ref === 'function') {
+                            ref(instance)
+                        } else {
+                            ;(ref as MutableRefObject<FormikRef | null>).current = instance
+                        }
+                    }
+                }}
+                enableReinitialize
                 initialValues={{
                     ...initialData,
                     id: Number(initialData.id ?? 0),
@@ -344,45 +421,159 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                     unitOfMeasure:
                         (initialData.unitOfMeasure ??
                             DEFAULT_SALES_UNIT) as SalesUnit,
+                    mode,
+                    attributes: attributeDefinitions,
+                    variants: variantRows,
                 }}
                 validationSchema={validationSchema(t)}
                 onSubmit={(values: FormModel, { setSubmitting }) => {
-                    const formData = cloneDeep(values)
-                    formData.tags = (formData.tags || []).map((tag) => {
-                        if (typeof tag !== 'string') {
-                            return tag.value
-                        }
-                        return tag
-                    })
-                    formData.currency = ((formData.currency || 'UYU') as string).toUpperCase()
-                    if (typeof formData.description === 'string') {
-                        formData.description = sanitizeString(formData.description)
+                    const baseData = cloneDeep(values)
+                    baseData.tags = (baseData.tags || []).map((tag) =>
+                        typeof tag === 'string' ? tag : tag.value,
+                    )
+                    baseData.currency = ((baseData.currency || 'UYU') as string).toUpperCase()
+                    if (typeof baseData.description === 'string') {
+                        baseData.description = sanitizeString(baseData.description)
                     }
-                    if (typeof formData.specifications === 'string') {
-                        formData.specifications = sanitizeString(formData.specifications)
+                    if (typeof baseData.specifications === 'string') {
+                        baseData.specifications = sanitizeString(baseData.specifications)
                     }
-                    // Normalize numeric fields to numbers
-                    ;(['salePrice', 'costPrice', 'stock', 'status', 'bulkDiscountPrice', 'categoryId'] as const).forEach((k) => {
-                        const v: any = (formData as any)[k]
-                        if (v !== undefined && v !== null && v !== '') {
-                            ;(formData as any)[k] = Number(v)
-                        }
-                    })
-                    formData.id = Number(formData.id ?? 0)
+
+                    ;(['salePrice', 'costPrice', 'stock', 'status', 'bulkDiscountPrice', 'categoryId'] as const).forEach(
+                        (key) => {
+                            const value = (baseData as Record<string, unknown>)[key]
+                            if (value !== undefined && value !== null && value !== '') {
+                                ;(baseData as Record<string, unknown>)[key] = Number(value)
+                            }
+                        },
+                    )
+
+                    baseData.id = Number(baseData.id ?? 0)
                     if (type === 'new') {
-                        formData.id = 0
-                        if (formData.imgList && formData.imgList.length > 0) {
-                            formData.img = formData.imgList[0].img
+                        baseData.id = 0
+                        if (baseData.imgList && baseData.imgList.length > 0) {
+                            baseData.img = baseData.imgList[0].img
                         }
                     }
-                    const numericStock = Number(formData.stock ?? 0)
-                    const isPermanent = Boolean(formData.permanentStock)
-                    formData.status = deriveInventoryStatus(
+
+                    const numericStock = Number(baseData.stock ?? 0)
+                    const isPermanent = Boolean(baseData.permanentStock)
+                    baseData.status = deriveInventoryStatus(
                         Number.isNaN(numericStock) ? 0 : numericStock,
                         isPermanent,
                     )
-                    const submitData = { ...formData }
-                    delete (submitData as any).status
+
+                    if (mode === 'variable') {
+                        if (!attributeDefinitions.length) {
+                            toast.push(
+                                <Notification
+                                    title={t('sales.productForm.variants.error.noAttributes', {
+                                        defaultValue:
+                                            'Seleccioná al menos un atributo para generar variantes.',
+                                    })}
+                                    type="danger"
+                                />,
+                                { placement: 'top-center' },
+                            )
+                            setSubmitting(false)
+                            return
+                        }
+                        const hasValues = attributeDefinitions.every(
+                            (attribute) => attribute.values.length > 0,
+                        )
+                        if (!hasValues) {
+                            toast.push(
+                                <Notification
+                                    title={t('sales.productForm.variants.error.emptyValues', {
+                                        defaultValue: 'Cada atributo debe tener al menos un valor.',
+                                    })}
+                                    type="danger"
+                                />,
+                                { placement: 'top-center' },
+                            )
+                            setSubmitting(false)
+                            return
+                        }
+                        if (!variantRows.length) {
+                            toast.push(
+                                <Notification
+                                    title={t('sales.productForm.variants.error.noVariants', {
+                                        defaultValue: 'Configurá al menos una variante antes de guardar.',
+                                    })}
+                                    type="danger"
+                                />,
+                                { placement: 'top-center' },
+                            )
+                            setSubmitting(false)
+                            return
+                        }
+                    }
+
+                    const attributePayload =
+                        mode === 'variable'
+                            ? attributeDefinitions.map((attribute, attributeIndex) => ({
+                                  id: attribute.id,
+                                  type: attribute.type,
+                                  name: attribute.name,
+                                  sortOrder: attribute.sortOrder ?? attributeIndex,
+                                  values: attribute.values.map((value, valueIndex) => ({
+                                      id: value.id,
+                                      key: value.key,
+                                      label: value.label,
+                                      value: value.value,
+                                      colorHex: value.colorHex,
+                                      imageUrl: value.imageUrl,
+                                      imageAlt: value.imageAlt,
+                                      sortOrder: value.sortOrder ?? valueIndex,
+                                  })),
+                              }))
+                            : []
+
+                    const variantPayload =
+                        mode === 'variable'
+                            ? variantRows.map((variant) => ({
+                                  id: variant.id,
+                                  key: variant.key,
+                                  attributes: variant.attributes.map((attribute) => ({
+                                      attribute: attribute.attribute,
+                                      valueKey: attribute.valueKey,
+                                      optionValueId: attribute.optionValueId,
+                                  })),
+                                  sku: variant.inheritSku ? undefined : variant.sku || undefined,
+                                  barcode: variant.barcode || undefined,
+                                  label: variant.label || undefined,
+                                  salePrice:
+                                      variant.inheritSalePrice || variant.salePrice === null
+                                          ? undefined
+                                          : Number(variant.salePrice),
+                                  costPrice:
+                                      variant.inheritCostPrice || variant.costPrice === null
+                                          ? undefined
+                                          : Number(variant.costPrice),
+                                  stock:
+                                      variant.inheritStock || variant.stock === null
+                                          ? undefined
+                                          : Number(variant.stock),
+                                  permanentStock: variant.inheritStock
+                                      ? undefined
+                                      : variant.permanentStock ?? undefined,
+                                  isActive: variant.isActive,
+                                  inheritSalePrice: variant.inheritSalePrice,
+                                  inheritCostPrice: variant.inheritCostPrice,
+                                  inheritStock: variant.inheritStock,
+                                  inheritSku: variant.inheritSku,
+                                  inheritImages: variant.inheritImages,
+                                  images: variant.images,
+                              }))
+                            : []
+
+                    const submitData: FormModel = {
+                        ...baseData,
+                        mode,
+                        attributes: attributePayload,
+                        variants: variantPayload,
+                    }
+                    delete (submitData as Record<string, unknown>).status
                     onFormSubmit?.(submitData, setSubmitting)
                 }}
             >
@@ -412,6 +603,18 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                             currency={values.currency as CurrencyCode}
                                             currencyOptions={currencyOptionsForSelect}
                                             onCurrencyChange={(code) => setFieldValue('currency', code)}
+                                        />
+                                        <VariantConfigurator
+                                            mode={mode}
+                                            attributes={attributeDefinitions}
+                                            variants={variantRows}
+                                            basePrice={Number(values.salePrice ?? 0)}
+                                            baseStock={Number(values.stock ?? 0)}
+                                            currency={currentCurrencyCode}
+                                            productId={Number(values.id ?? 0)}
+                                            onModeChange={handleModeChange}
+                                            onAttributesChange={handleAttributesUpdate}
+                                            onVariantsChange={handleVariantsUpdate}
                                         />
                                         <PublicationFields
                                             touched={touched as any}

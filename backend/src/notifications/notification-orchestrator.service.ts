@@ -9,6 +9,8 @@ import { NotificationsService } from './notifications.service'
 import { NotificationSettingsService } from './notification-settings.service'
 import { EmailService } from '../email/email.service'
 import { CreateNotificationInput } from './notifications.types'
+import { findOrderStatusById } from '../common/constants/order-statuses'
+import { findPaymentMethodById } from '../common/constants/payment-methods'
 
 @Injectable()
 export class NotificationOrchestratorService {
@@ -26,7 +28,6 @@ export class NotificationOrchestratorService {
       where: { id: orderId },
       include: {
         customer: true,
-        status: true,
         payments: {
           select: {
             amount: true,
@@ -52,10 +53,8 @@ export class NotificationOrchestratorService {
         order: {
           include: {
             customer: true,
-            status: true,
           },
         },
-        paymentMethod: true,
       },
     })
     if (!payment || !payment.order) {
@@ -72,24 +71,22 @@ export class NotificationOrchestratorService {
       where: { id: orderId },
       include: {
         customer: true,
-        status: true,
       },
     })
     if (!order) {
       this.logger.warn(`Order ${orderId} not found for status change notification`)
       return
     }
-    const previousStatus = previousStatusId
-      ? await this.prisma.orderStatus.findUnique({ where: { id: previousStatusId } })
-      : null
-    const nextStatus = await this.prisma.orderStatus.findUnique({ where: { id: nextStatusId } })
+    const previousStatus = previousStatusId ? findOrderStatusById(previousStatusId) : null
+    const nextStatus = findOrderStatusById(nextStatusId)
+    const currentStatus = findOrderStatusById(order.statusId ?? null)
 
     const metadata = {
       ...this.buildOrderMetadata(order),
-      previousStatusCode: previousStatus?.code ?? null,
-      previousStatus: previousStatus?.name ?? null,
-      statusCode: nextStatus?.code ?? order.status?.code ?? null,
-      status: nextStatus?.name ?? order.status?.name ?? null,
+      previousStatusCode: previousStatus?.id ?? null,
+      previousStatus: previousStatus?.label ?? null,
+      statusCode: nextStatus?.id ?? currentStatus?.id ?? null,
+      status: nextStatus?.label ?? currentStatus?.label ?? null,
     }
     await this.dispatchCustomerOrderStatusChange(order, metadata)
     await this.dispatchAdminOrderStatusChange(order, metadata)
@@ -232,24 +229,33 @@ export class NotificationOrchestratorService {
       NotificationEventType.ORDER_STATUS_CHANGED,
       NotificationAudience.CUSTOMER,
     )
-    if (!channels[NotificationChannel.IN_APP]?.enabled || !order.customerId) {
-      return
+    if (channels[NotificationChannel.IN_APP]?.enabled && order.customerId) {
+      const title = metadata.status
+        ? `Your order #${metadata.orderNumber} is now ${metadata.status}`
+        : `Your order #${metadata.orderNumber} was updated`
+      await this.notifications.createNotifications([
+        {
+          eventType: NotificationEventType.ORDER_STATUS_CHANGED,
+          audience: NotificationAudience.CUSTOMER,
+          channel: NotificationChannel.IN_APP,
+          customerId: order.customerId,
+          orderId: order.id,
+          title,
+          body: metadata.status ? `Status changed to ${metadata.status}.` : 'Order status updated.',
+          metadata,
+        },
+      ])
     }
-    const title = metadata.status
-      ? `Your order #${metadata.orderNumber} is now ${metadata.status}`
-      : `Your order #${metadata.orderNumber} was updated`
-    await this.notifications.createNotifications([
-      {
-        eventType: NotificationEventType.ORDER_STATUS_CHANGED,
-        audience: NotificationAudience.CUSTOMER,
-        channel: NotificationChannel.IN_APP,
-        customerId: order.customerId,
+
+    const emailSetting = channels[NotificationChannel.EMAIL]
+    if (emailSetting?.enabled) {
+      await this.email.sendOrderStatusChanged({
         orderId: order.id,
-        title,
-        body: metadata.status ? `Status changed to ${metadata.status}.` : 'Order status updated.',
-        metadata,
-      },
-    ])
+        previousStatusId: (metadata.previousStatusCode as number | null) ?? null,
+        nextStatusId: (metadata.statusCode as number | null) ?? null,
+        sendToAdmin: false,
+      })
+    }
   }
 
   private async dispatchAdminOrderStatusChange(order: any, metadata: Record<string, unknown>) {
@@ -258,28 +264,39 @@ export class NotificationOrchestratorService {
       NotificationAudience.ADMIN,
     )
     const recipients = await this.settings.resolveAdminRecipients(NotificationEventType.ORDER_STATUS_CHANGED)
-    if (!channels[NotificationChannel.IN_APP]?.enabled || !recipients.length) {
-      return
+    if (channels[NotificationChannel.IN_APP]?.enabled && recipients.length) {
+      const title = metadata.status
+        ? `Order #${metadata.orderNumber} ${metadata.status}`
+        : `Order #${metadata.orderNumber} status updated`
+      const notifications: CreateNotificationInput[] = recipients.map((recipient) => ({
+        eventType: NotificationEventType.ORDER_STATUS_CHANGED,
+        audience: NotificationAudience.ADMIN,
+        channel: NotificationChannel.IN_APP,
+        recipientId: recipient.id,
+        orderId: order.id,
+        title,
+        body: metadata.status ? `Status changed to ${metadata.status}.` : 'Order status updated.',
+        metadata,
+      }))
+      await this.notifications.createNotifications(notifications)
     }
-    const title = metadata.status
-      ? `Order #${metadata.orderNumber} ${metadata.status}`
-      : `Order #${metadata.orderNumber} status updated`
-    const notifications: CreateNotificationInput[] = recipients.map((recipient) => ({
-      eventType: NotificationEventType.ORDER_STATUS_CHANGED,
-      audience: NotificationAudience.ADMIN,
-      channel: NotificationChannel.IN_APP,
-      recipientId: recipient.id,
-      orderId: order.id,
-      title,
-      body: metadata.status ? `Status changed to ${metadata.status}.` : 'Order status updated.',
-      metadata,
-    }))
-    await this.notifications.createNotifications(notifications)
+
+    const emailSetting = channels[NotificationChannel.EMAIL]
+    if (emailSetting?.enabled) {
+      await this.email.sendOrderStatusChanged({
+        orderId: order.id,
+        previousStatusId: (metadata.previousStatusCode as number | null) ?? null,
+        nextStatusId: (metadata.statusCode as number | null) ?? null,
+        sendToCustomer: false,
+        sendToAdmin: true,
+      })
+    }
   }
 
   private buildOrderMetadata(order: any) {
     const orderNumber = order.uuid ?? order.id
     const amount = order.grandTotal ? Number(order.grandTotal) : null
+    const statusDefinition = findOrderStatusById(order.statusId ?? null)
     return {
       orderId: order.id,
       orderNumber,
@@ -290,8 +307,8 @@ export class NotificationOrchestratorService {
         order.customer?.name ??
         [order.customer?.firstName, order.customer?.lastName].filter(Boolean).join(' ').trim() ??
         null,
-      status: order.status?.name ?? null,
-      statusCode: order.status?.code ?? null,
+      status: statusDefinition?.label ?? null,
+      statusCode: statusDefinition?.id ?? null,
     }
   }
 
@@ -299,6 +316,7 @@ export class NotificationOrchestratorService {
     const orderNumber = payment.order?.uuid ?? payment.orderId
     const amount = payment.amount ? Number(payment.amount) : null
     const currency = payment.currency ?? payment.order?.orderCurrency ?? null
+    const paymentMethod = findPaymentMethodById(payment.paymentMethodId ?? null)
     return {
       paymentId: payment.id,
       orderId: payment.orderId,
@@ -306,7 +324,7 @@ export class NotificationOrchestratorService {
       amount,
       currency,
       amountFormatted: amount !== null && currency ? `${amount.toFixed(2)} ${currency}` : amount,
-      method: payment.method ?? payment.paymentMethod?.name ?? null,
+      method: payment.method ?? paymentMethod?.label ?? null,
       customerId: payment.order?.customerId ?? null,
       customerName:
         payment.order?.customer?.name ??

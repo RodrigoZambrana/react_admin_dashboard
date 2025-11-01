@@ -17,6 +17,7 @@ import { Field, Form, Formik, FormikProps, FieldProps } from 'formik'
 import { useTranslation } from 'react-i18next'
 import { STANDARD_FALLBACK_CURRENCIES } from '@/utils/currency'
 import type { MouseEvent } from 'react'
+import type { ProductMode } from '@/views/sales/ProductForm/types'
 
 type FormModel = {
     name: string
@@ -24,6 +25,7 @@ type FormModel = {
     status: number[]
     productStatus: number
     currency: string[]
+    mode?: ProductMode | 'all'
 }
 
 type FilterFormProps = {
@@ -86,6 +88,7 @@ const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
                     ? filterData.productStatus
                     : 0,
             currency: sanitizeCurrencySelection(filterData?.currency),
+            mode: filterData?.mode,
         }
 
         const handleSubmit = (values: FormModel) => {
@@ -93,6 +96,7 @@ const FilterForm = forwardRef<FormikProps<FormModel>, FilterFormProps>(
             const nextFilterData: FormModel = {
                 ...values,
                 currency: sanitizeCurrencySelection(values.currency),
+                mode: values.mode ?? filterData?.mode,
             }
             dispatch(setFilterData(nextFilterData))
             const nextTableData = {

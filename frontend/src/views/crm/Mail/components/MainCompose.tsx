@@ -3,11 +3,8 @@ import Button from '@/components/ui/Button'
 import Dialog from '@/components/ui/Dialog'
 import { HiOutlinePencilAlt } from 'react-icons/hi'
 import MailEditor, { MailEditorRef } from './MailEditor'
-import {
-    toggleNewMessageDialog,
-    useAppDispatch,
-    useAppSelector,
-} from '../store'
+import { toggleNewMessageDialog, useAppDispatch, useAppSelector } from '../store'
+import { initialState as initialMailState } from '../store/mailSlice'
 import { useTranslation } from 'react-i18next'
 
 const MainCompose = () => {
@@ -17,7 +14,9 @@ const MainCompose = () => {
     const mailEditorRef = useRef<MailEditorRef>(null)
 
     const isOpen = useAppSelector(
-        (state) => state.crmMail.data.newMessageDialog,
+        (state) =>
+            state.crmMail?.data?.newMessageDialog ??
+            initialMailState.newMessageDialog,
     )
 
     const onDialogOpen = () => {

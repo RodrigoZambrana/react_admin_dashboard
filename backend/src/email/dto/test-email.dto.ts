@@ -15,4 +15,8 @@ export class TestEmailDto {
   @IsOptional()
   @IsString()
   locale?: string
+
+  @IsOptional()
+  @IsString()
+  scenarioKey?: string
 }

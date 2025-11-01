@@ -14,43 +14,13 @@ const pickRandomColor = () => {
     return colors[Math.floor(Math.random() * colors.length)]
 }
 
+const defaultCustomerStatuses = [
+    { id: 1, name: 'Active', color: '#10b981' },
+    { id: 2, name: 'Suspended', color: '#f59e0b' },
+    { id: 3, name: 'Blocked', color: '#ef4444' },
+]
+
 export default function settingsFakeApi(server: Server, apiPrefix: string) {
-    // Order statuses
-    server.get(`${apiPrefix}/settings/order-statuses`, (schema) => {
-        return schema.db.orderStatusesData
-    })
-
-    server.post(
-        `${apiPrefix}/settings/order-statuses/create`,
-        (schema, { requestBody }) => {
-            const data = JSON.parse(requestBody)
-            if (!data.color) data.color = pickRandomColor()
-            schema.db.orderStatusesData.insert(data)
-            return true
-        },
-    )
-
-    server.put(
-        `${apiPrefix}/settings/order-statuses/update`,
-        (schema, { requestBody }) => {
-            const data = JSON.parse(requestBody)
-            const { id } = data
-            schema.db.orderStatusesData.update({ id }, data)
-            return true
-        },
-    )
-
-    server.del(
-        `${apiPrefix}/settings/order-statuses/delete`,
-        (schema, { requestBody }) => {
-            const { id } = JSON.parse(requestBody)
-            const ids: number[] = Array.isArray(id) ? id : [id]
-            ids.forEach((elm: number) => {
-                schema.db.orderStatusesData.remove({ id: elm })
-            })
-            return true
-        },
-    )
 
     // Product categories
     server.get(`${apiPrefix}/settings/product-categories`, (schema) => {
@@ -89,41 +59,9 @@ export default function settingsFakeApi(server: Server, apiPrefix: string) {
     )
 
     // Customer statuses
-    server.get(`${apiPrefix}/settings/customer-statuses`, (schema) => {
-        return schema.db.customerStatusesData
+    server.get(`${apiPrefix}/settings/customer-statuses`, () => {
+        return defaultCustomerStatuses
     })
-
-    server.post(
-        `${apiPrefix}/settings/customer-statuses/create`,
-        (schema, { requestBody }) => {
-            const data = JSON.parse(requestBody)
-            if (!data.color) data.color = pickRandomColor()
-            schema.db.customerStatusesData.insert(data)
-            return true
-        },
-    )
-
-    server.put(
-        `${apiPrefix}/settings/customer-statuses/update`,
-        (schema, { requestBody }) => {
-            const data = JSON.parse(requestBody)
-            const { id } = data
-            schema.db.customerStatusesData.update({ id }, data)
-            return true
-        },
-    )
-
-    server.del(
-        `${apiPrefix}/settings/customer-statuses/delete`,
-        (schema, { requestBody }) => {
-            const { id } = JSON.parse(requestBody)
-            const ids: (string | number)[] = Array.isArray(id) ? id : [id]
-            ids.forEach((elm) => {
-                schema.db.customerStatusesData.remove({ id: elm })
-            })
-            return true
-        },
-    )
 
     // Expense statuses
     server.get(`${apiPrefix}/settings/expense-statuses`, (schema) => {
@@ -162,39 +100,92 @@ export default function settingsFakeApi(server: Server, apiPrefix: string) {
         },
     )
 
-    // Payment methods
-    server.get(`${apiPrefix}/settings/payment-methods`, (schema) => {
+    // Payment methods (read-only)
+    server.get(`${apiPrefix}/payment-methods`, (schema) => {
         return (schema.db as any).paymentMethodsData || []
     })
 
-    server.post(
-        `${apiPrefix}/settings/payment-methods/create`,
-        (schema, { requestBody }) => {
-            const data = JSON.parse(requestBody)
-            ;(schema.db as any).paymentMethodsData.insert(data)
-            return true
-        },
-    )
+    // Order statuses (read-only)
+    server.get(`${apiPrefix}/order-statuses`, (schema, request) => {
+        const data: any[] = (schema.db as any).orderStatusesData || []
+        const documentType = request.queryParams['documentType']
+        if (documentType) {
+            return data.filter((status) =>
+                Array.isArray(status.documentTypes)
+                    ? status.documentTypes.includes(documentType.toUpperCase())
+                    : true,
+            )
+        }
+        return data
+    })
 
-    server.put(
-        `${apiPrefix}/settings/payment-methods/update`,
-        (schema, { requestBody }) => {
-            const data = JSON.parse(requestBody)
-            const { id } = data
-            ;(schema.db as any).paymentMethodsData.update({ id }, data)
-            return true
-        },
-    )
+    // Email templates
+    server.get(`${apiPrefix}/settings/email/templates`, (schema) => {
+        return (schema.db as any).emailTemplatesData || []
+    })
 
-    server.del(
-        `${apiPrefix}/settings/payment-methods/delete`,
-        (schema, { requestBody }) => {
-            const { id } = JSON.parse(requestBody)
-            const ids: (string | number)[] = Array.isArray(id) ? id : [id]
-            ids.forEach((elm) => {
-                ;(schema.db as any).paymentMethodsData.remove({ id: elm })
-            })
-            return true
-        },
-    )
+    server.get(`${apiPrefix}/settings/email/templates/:id`, (schema, request) => {
+        const id = Number(request.params.id)
+        return (schema.db as any).emailTemplatesData.findBy({ id }) || null
+    })
+
+    server.put(`${apiPrefix}/settings/email/templates/:id`, (schema, request) => {
+        const id = Number(request.params.id)
+        const data = JSON.parse(request.requestBody || '{}')
+        const existing = (schema.db as any).emailTemplatesData.findBy({ id })
+        if (!existing) {
+            return null
+        }
+        const payload = {
+            ...existing,
+            subject: data.subject ?? existing.subject,
+            body: data.body ?? existing.body,
+            active: data.active ?? existing.active,
+            updatedAt: new Date().toISOString(),
+        }
+        return (schema.db as any).emailTemplatesData.update({ id }, payload)
+    })
+
+    server.post(`${apiPrefix}/settings/email/templates/:id/preview`, (schema, request) => {
+        const id = Number(request.params.id)
+        const template = (schema.db as any).emailTemplatesData.findBy({ id })
+        const body = JSON.parse(request.requestBody || '{}')
+        const scenarioLabel = body.scenarioKey || 'default'
+        const baseSubject = template?.subject?.replace(/\{\{.*?\}\}/g, 'MOCK') ?? 'Preview message'
+        return {
+            subject: `[Preview] ${baseSubject}`,
+            html: `<div style="padding:16px;font-family:Arial,sans-serif;"><h2>Mock preview for template ${id}</h2><p>Scenario: ${scenarioLabel}</p><p>This content is generated by the Mirage mock API.</p></div>`,
+            text: `Mock preview for template ${id} (scenario: ${scenarioLabel})`,
+        }
+    })
+
+    server.get(`${apiPrefix}/settings/email/templates/:id/samples`, (schema, request) => {
+        const locale = (request.queryParams['locale'] || 'en').toLowerCase()
+        const isSpanish = locale.startsWith('es')
+        const translate = (en: string, es: string) => (isSpanish ? es : en)
+        return {
+            options: [
+                { key: 'order.received', label: translate('Order received (basic)', 'Pedido recibido (básico)') },
+                { key: 'order.paid', label: translate('Order paid', 'Pedido pagado') },
+                { key: 'order.delivered', label: translate('Order delivered', 'Pedido entregado') },
+                { key: 'order.cancelled', label: translate('Order cancelled', 'Pedido cancelado') },
+                { key: 'order.cash', label: translate('Cash on delivery', 'Pago en efectivo') },
+                { key: 'order.large', label: translate('Large order with services', 'Pedido grande con servicios') },
+                { key: 'budget.created', label: translate('Budget draft', 'Presupuesto borrador') },
+                { key: 'budget.sent', label: translate('Budget sent to customer', 'Presupuesto enviado al cliente') },
+                { key: 'budget.accepted', label: translate('Budget accepted', 'Presupuesto aceptado') },
+                { key: 'budget.converted', label: translate('Budget converted to order', 'Presupuesto convertido en pedido') },
+                { key: 'budget.expired', label: translate('Budget expired', 'Presupuesto expirado') },
+                { key: 'budget.cancelled', label: translate('Budget cancelled', 'Presupuesto cancelado') },
+            ],
+        }
+    })
+
+    server.get(`${apiPrefix}/settings/email/metrics`, (schema) => {
+        return (schema.db as any).emailMetricsData || {
+            totals: { attempts: 0, sent: 0, failed: 0 },
+            perCategory: {},
+            perTemplate: {},
+        }
+    })
 }

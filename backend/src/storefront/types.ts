@@ -111,6 +111,50 @@ export interface ImageAssetDto {
 
 export type InventoryStatus = 'in-stock' | 'limited' | 'back-order' | 'out-of-stock'
 
+export type ProductModeDto = 'simple' | 'variable' | 'parametric'
+export type ProductAttributeTypeDto = 'COLOR' | 'SIZE' | 'MATERIAL'
+
+export interface ProductAttributeValueDto {
+  id: number
+  key: string
+  label: string
+  value?: string | null
+  colorHex?: string | null
+  imageUrl?: string | null
+  imageAlt?: string | null
+  sortOrder?: number | null
+}
+
+export interface ProductAttributeDefinitionDto {
+  id: number
+  type: ProductAttributeTypeDto
+  name: string
+  values: ProductAttributeValueDto[]
+}
+
+export interface ProductVariantSelectionDto {
+  attribute: ProductAttributeTypeDto
+  valueKey: string
+  label?: string | null
+  value?: string | null
+  colorHex?: string | null
+  imageUrl?: string | null
+  imageAlt?: string | null
+}
+
+export interface ProductVariantDto {
+  id: number
+  key: string
+  sku?: string | null
+  barcode?: string | null
+  isActive: boolean
+  price: MoneyDto
+  stock?: number | null
+  inventoryStatus: InventoryStatus
+  attributes: ProductVariantSelectionDto[]
+  images: ImageAssetDto[]
+}
+
 export interface ProductSummaryDto {
   id: number
   slug: string
@@ -126,6 +170,7 @@ export interface ProductSummaryDto {
   thumbnail?: ImageAssetDto | null
   categories?: Array<{ id: number; slug: string; name: string }>
   tags?: string[]
+  mode: ProductModeDto
 }
 
 export interface ProductDetailDto extends ProductSummaryDto {
@@ -135,6 +180,8 @@ export interface ProductDetailDto extends ProductSummaryDto {
   gallery: ImageAssetDto[]
   relatedProducts: ProductSummaryDto[]
   meta?: Record<string, unknown>
+  attributes?: ProductAttributeDefinitionDto[]
+  variants?: ProductVariantDto[]
 }
 
 export interface ProductListFilters {

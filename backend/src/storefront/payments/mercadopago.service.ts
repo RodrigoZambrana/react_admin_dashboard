@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { MercadoPagoChargeDto } from '../dto/mercadopago-charge.dto'
 import { decimal, decimalToNumber } from '../../common/currency/money.util'
 import { SecureConfigService } from '../../common/security/secure-config.service'
+import { findPaymentMethodByCode } from '../../common/constants/payment-methods'
 
 type CreateChargeOptions = {
   idempotencyKey?: string | null
@@ -336,7 +337,7 @@ export class MercadoPagoService {
     const status = intent.status ?? 'pending'
     const mappedStatus = this.mapPaymentStatus(status)
 
-    const paymentMethodId = await this.ensurePaymentMethod()
+    const paymentMethodId = this.ensurePaymentMethod()
     const amount = intent.amount
     const currency = intent.currency ?? 'USD'
     const reference = intent.externalPaymentId ?? undefined
@@ -384,17 +385,16 @@ export class MercadoPagoService {
     })
   }
 
-  private async ensurePaymentMethod(): Promise<number> {
+  private ensurePaymentMethod(): number {
     if (this.paymentMethodIdCache) {
       return this.paymentMethodIdCache
     }
-    const record = await this.prisma.paymentMethod.upsert({
-      where: { name: 'Mercado Pago' },
-      update: {},
-      create: { name: 'Mercado Pago' },
-    })
-    this.paymentMethodIdCache = record.id
-    return record.id
+    const method = findPaymentMethodByCode('mercado_pago')
+    if (!method) {
+      throw new Error('Mercado Pago payment method is not configured')
+    }
+    this.paymentMethodIdCache = method.id
+    return method.id
   }
 
   private mapPaymentStatus(status: string): PaymentStatus {

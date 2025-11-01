@@ -38,6 +38,14 @@ import { Throttle } from '@nestjs/throttler'
 import { StorefrontGoogleOAuthService } from './oauth/google-oauth.service'
 import { StorefrontSessionCookieService } from './storefront-session-cookie.service'
 import { StorefrontGoogleStartDto } from './dto/google-auth.dto'
+import {
+  StorefrontPasswordForgotDto,
+  StorefrontPasswordVerifyOtpDto,
+  StorefrontPasswordResetDto,
+  StorefrontPasswordChangeDto,
+  StorefrontReauthPasswordDto,
+} from './dto/password.dto'
+import { StorefrontSecurityService } from './security/storefront-security.service'
 
 @Controller('storefront')
 export class StorefrontController {
@@ -48,6 +56,7 @@ export class StorefrontController {
     private readonly mercadoPago: MercadoPagoService,
     private readonly googleAuth: StorefrontGoogleOAuthService,
     private readonly sessionCookies: StorefrontSessionCookieService,
+    private readonly security: StorefrontSecurityService,
   ) {}
 
   @Get('config')
@@ -84,6 +93,22 @@ export class StorefrontController {
   getRecommendations(@Param('id', ParseIntPipe) id: number, @Query('limit') limit?: string) {
     const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined
     return this.storefront.getRecommendations(id, Number.isNaN(parsedLimit) ? 8 : parsedLimit)
+  }
+
+  @Get('products/:id/parametric-config')
+  getParametricConfig(@Param('id', ParseIntPipe) id: number) {
+    return this.storefront.getParametricProductConfig(id)
+  }
+
+  @Post('products/:id/parametric-quote')
+  quoteParametric(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { width: number | string; height: number | string; series: string; color?: string; glass?: string; mosquitoNet?: boolean; monoblock?: { enabled: boolean; material?: string; color?: string }; currency?: string },
+  ) {
+    return this.storefront.quoteParametricProduct({
+      productId: id,
+      ...body,
+    })
   }
 
   @Post('auth/register')
@@ -123,13 +148,89 @@ export class StorefrontController {
     return { ok: true }
   }
 
+  @Post('auth/password/forgot')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  async requestPasswordRecovery(@Body() dto: StorefrontPasswordForgotDto, @Req() req: FastifyRequest) {
+    if (dto.channel === 'phone') {
+      await this.security.requestPhoneRecovery(dto.phone ?? '', req)
+    } else {
+      await this.security.requestEmailRecovery(dto.email ?? '', req)
+    }
+    return { ok: true }
+  }
+
+  @Post('auth/password/verify-otp')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async verifyPasswordOtp(@Body() dto: StorefrontPasswordVerifyOtpDto, @Req() req: FastifyRequest) {
+    const result = await this.security.verifyPhoneOtp(dto.phone, dto.otp, req)
+    return { ok: true, resetSessionToken: result.token, expiresAt: result.expiresAt.toISOString() }
+  }
+
+  @Post('auth/password/reset')
+  async resetPassword(@Body() dto: StorefrontPasswordResetDto, @Req() req: FastifyRequest) {
+    if (dto.channel === 'phone') {
+      await this.security.resetPasswordWithSessionToken(dto.resetSessionToken ?? '', dto.newPassword, req)
+    } else {
+      await this.security.resetPasswordWithEmailToken(dto.token ?? '', dto.newPassword, req)
+    }
+    return { ok: true }
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Post('auth/security/reauth/password')
+  async reauthenticatePassword(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Body() dto: StorefrontReauthPasswordDto,
+  ) {
+    const token = await this.security.reauthenticateWithPassword(req.user.sub, dto.currentPassword, req)
+    return { token: token.token, expiresAt: token.expiresAt.toISOString() }
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Post('auth/password/change')
+  async changePassword(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Body() dto: StorefrontPasswordChangeDto,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const customer = await this.security.changePassword(
+      req.user.sub,
+      dto.newPassword,
+      { reauthToken: dto.reauthToken, keepSession: dto.keepSession ?? false },
+      req,
+    )
+    const session = await this.storefront.createSessionForCustomer(customer)
+    this.sessionCookies.setSessionCookies(reply, session)
+    return session
+  }
+
   @Post('auth/google/start')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async startGoogle(
     @Body() dto: StorefrontGoogleStartDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.googleAuth.start(dto.returnPath, req)
+    const purpose = dto.purpose ?? 'login'
+    return this.googleAuth.start(dto.returnPath, req, purpose)
+  }
+
+  @Post('auth/google/recover/start')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async startGoogleRecovery(
+    @Body() dto: StorefrontGoogleStartDto,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.googleAuth.start(dto.returnPath, req, 'recover')
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Post('auth/google/reauth/start')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async startGoogleReauth(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Body() dto: StorefrontGoogleStartDto,
+  ) {
+    return this.googleAuth.start(dto.returnPath, req, 'reauth', req.user.sub)
   }
 
   @Get('auth/google/callback')
@@ -150,7 +251,9 @@ export class StorefrontController {
     const redirectUrl = this.googleAuth.buildCompletionRedirect(result)
 
     if (result.status === 'success') {
-      this.sessionCookies.setSessionCookies(reply, result.session)
+      if (result.session) {
+        this.sessionCookies.setSessionCookies(reply, result.session)
+      }
     } else {
       this.sessionCookies.clearSessionCookies(reply)
     }

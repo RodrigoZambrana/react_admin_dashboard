@@ -1,19 +1,11 @@
-import BaseService from './BaseService'
-import type { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios'
+import type { AxiosRequestConfig, AxiosResponse } from 'axios'
+import httpClient from '@/lib/httpClient'
 
 const ApiService = {
     fetchData<Response = unknown, Request = Record<string, unknown>>(
         param: AxiosRequestConfig<Request>,
     ) {
-        return new Promise<AxiosResponse<Response>>((resolve, reject) => {
-            BaseService(param)
-                .then((response: AxiosResponse<Response>) => {
-                    resolve(response)
-                })
-                .catch((errors: AxiosError) => {
-                    reject(errors)
-                })
-        })
+        return httpClient.request<Response, Request>(param)
     },
 }
 

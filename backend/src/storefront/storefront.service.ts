@@ -14,6 +14,8 @@ import {
   CustomerAddress,
   OrderItem,
   ProductType,
+  ProductMode,
+  ProductAttributeType,
   CompanyProfile,
   PaymentStatus,
   StorefrontPaymentIntent,
@@ -37,6 +39,9 @@ import type {
   OrderSummary,
   ProductDetailDto,
   ProductSummaryDto,
+  ProductAttributeTypeDto,
+  ProductVariantDto,
+  ProductVariantSelectionDto,
   StorefrontConfig,
   CheckoutLineItem,
   CustomerProfile,
@@ -57,6 +62,10 @@ import { StorefrontAddressDto } from './dto/address.dto'
 import { MercadoPagoService } from './payments/mercadopago.service'
 import { GoogleConfigService } from '../common/integrations/google-config.service'
 import type { FastifyRequest } from 'fastify'
+import { findOrderStatusById } from '../common/constants/order-statuses'
+import { findPaymentMethodById, findPaymentMethodByCode } from '../common/constants/payment-methods'
+import { ParametricPricingService } from '../pricing/parametric-pricing.service'
+import type { ParametricQuoteInput } from '../pricing/types'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
@@ -164,8 +173,6 @@ const money = (amount: number, currency = 'USD'): MoneyDto => ({ amount, currenc
 type OrderWithRelations = Prisma.OrderGetPayload<{
   include: {
     items: true
-    status: true
-    paymentMethod: true
     payments: true
     storefrontPayments: true
   }
@@ -189,6 +196,32 @@ type WishlistWithItems = Prisma.WishlistGetPayload<{
   }
 }>
 
+type ProductWithVariants = Prisma.ProductGetPayload<{
+  include: {
+    images: true
+    category: true
+    options: {
+      include: {
+        values: true
+      }
+    }
+    variants: {
+      include: {
+        images: true
+        selections: {
+          include: {
+            optionValue: {
+              include: {
+                option: true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}>
+
 @Injectable()
 export class StorefrontService implements OnModuleInit {
   private readonly logger = new Logger(StorefrontService.name)
@@ -201,6 +234,7 @@ export class StorefrontService implements OnModuleInit {
     private readonly notifications: NotificationOrchestratorService,
     private readonly mercadoPago: MercadoPagoService,
     private readonly googleConfig: GoogleConfigService,
+    private readonly parametricPricing: ParametricPricingService,
   ) {}
 
   private defaultCustomerPassword!: string
@@ -489,7 +523,10 @@ export class StorefrontService implements OnModuleInit {
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
-          images: { orderBy: { sortOrder: 'asc' } },
+          images: {
+            where: { variantId: null },
+            orderBy: { sortOrder: 'asc' },
+          },
           category: true,
         },
       }),
@@ -509,24 +546,84 @@ export class StorefrontService implements OnModuleInit {
 
   async getProduct(identifier: string): Promise<ProductDetailDto> {
     const byId = parsePositiveInt(identifier, -1)
-    const product = await this.prisma.product.findFirst({
-      where: {
-        AND: [
-          { published: true },
-          { productType: ProductType.PHYSICAL },
-          {
-            OR: [
-              byId > 0 ? { id: byId } : undefined,
-              { productCode: { equals: identifier, mode: 'insensitive' } },
-            ].filter(Boolean) as Prisma.ProductWhereInput[],
+    const where: Prisma.ProductWhereInput = {
+      AND: [
+        { published: true },
+        { productType: ProductType.PHYSICAL },
+        {
+          OR: [
+            byId > 0 ? { id: byId } : undefined,
+            { productCode: { equals: identifier, mode: 'insensitive' } },
+          ].filter(Boolean) as Prisma.ProductWhereInput[],
+        },
+      ],
+    }
+
+    let product: ProductWithVariants | null = null
+
+    try {
+      product = (await this.prisma.product.findFirst({
+        where,
+        include: {
+          images: {
+            where: { variantId: null },
+            orderBy: { sortOrder: 'asc' },
           },
-        ],
-      },
-      include: {
-        images: { orderBy: { sortOrder: 'asc' } },
-        category: true,
-      },
-    })
+          category: true,
+          options: {
+            include: {
+              values: {
+                orderBy: { sortOrder: 'asc' },
+              },
+            },
+            orderBy: { sortOrder: 'asc' },
+          },
+          variants: {
+            include: {
+              images: {
+                orderBy: { sortOrder: 'asc' },
+              },
+              selections: {
+                include: {
+                  optionValue: {
+                    include: {
+                      option: true,
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          },
+        },
+      })) as ProductWithVariants | null
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2021') {
+        const minimal = await this.prisma.product.findFirst({
+          where,
+          include: {
+            images: {
+              where: { variantId: null },
+              orderBy: { sortOrder: 'asc' },
+            },
+            category: true,
+          },
+        })
+
+        if (minimal) {
+          this.logger.warn(
+            `[storefront] Product option/variant tables missing; returning simplified product for identifier "${identifier}".`,
+          )
+          product = {
+            ...minimal,
+            options: [] as ProductWithVariants['options'],
+            variants: [] as ProductWithVariants['variants'],
+          } as ProductWithVariants
+        }
+      } else {
+        throw error
+      }
+    }
 
     if (!product) {
       throw new NotFoundException('Product not found')
@@ -544,7 +641,10 @@ export class StorefrontService implements OnModuleInit {
       orderBy: { createdAt: 'desc' },
       take: 8,
       include: {
-        images: { orderBy: { sortOrder: 'asc' } },
+        images: {
+          where: { variantId: null },
+          orderBy: { sortOrder: 'asc' },
+        },
         category: true,
       },
     })
@@ -573,11 +673,22 @@ export class StorefrontService implements OnModuleInit {
       },
       take: limit,
       include: {
-        images: { orderBy: { sortOrder: 'asc' } },
+        images: {
+          where: { variantId: null },
+          orderBy: { sortOrder: 'asc' },
+        },
         category: true,
       },
     })
     return items.map((item) => this.toProductSummary(item))
+  }
+
+  async getParametricProductConfig(productId: number) {
+    return this.parametricPricing.getProductConfig(productId)
+  }
+
+  async quoteParametricProduct(payload: Parameters<ParametricPricingService['quote']>[0]) {
+    return this.parametricPricing.quote(payload)
   }
 
   private async ensureDefaultPasswordHash() {
@@ -659,6 +770,9 @@ export class StorefrontService implements OnModuleInit {
             name: `${dto.firstName} ${dto.lastName}`.trim(),
             passwordHash,
             storefrontDefaultPasswordHash: null,
+            passwordAlgorithm: 'bcrypt',
+            passwordAlgVersion: 12,
+            passwordUpdatedAt: new Date(),
             ...(phone ? { phoneNumber: phone } : {}),
           },
         })
@@ -670,6 +784,9 @@ export class StorefrontService implements OnModuleInit {
             name: `${dto.firstName} ${dto.lastName}`.trim(),
             passwordHash,
             storefrontDefaultPasswordHash: null,
+            passwordAlgorithm: 'bcrypt',
+            passwordAlgVersion: 12,
+            passwordUpdatedAt: new Date(),
             ...(phone ? { phoneNumber: phone } : {}),
           },
         })
@@ -716,6 +833,10 @@ export class StorefrontService implements OnModuleInit {
       if (!customer) {
         throw new UnauthorizedException('Customer not found')
       }
+      const tokenVersion = typeof payload.ver === 'number' ? payload.ver : null
+      if (tokenVersion !== null && tokenVersion !== customer.storefrontSessionVersion) {
+        throw new UnauthorizedException('Session expired')
+      }
       return this.createSessionForCustomer(customer)
     } catch (error) {
       throw new UnauthorizedException('Invalid refresh token')
@@ -750,6 +871,11 @@ export class StorefrontService implements OnModuleInit {
         const customer = await this.prisma.customer.findUnique({ where: { id: customerId } })
         if (!customer) {
           throw new UnauthorizedException('Customer not found')
+        }
+
+        const tokenVersion = typeof payload.ver === 'number' ? payload.ver : null
+        if (tokenVersion !== null && tokenVersion !== customer.storefrontSessionVersion) {
+          throw new UnauthorizedException('Session expired')
         }
 
         const [addresses, wishlistSummary] = await Promise.all([
@@ -845,28 +971,192 @@ export class StorefrontService implements OnModuleInit {
     const productIds = dto.items.map((item) => item.productId)
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds }, published: true },
+      include: {
+        images: {
+          where: { variantId: null },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
     })
     if (products.length !== dto.items.length) {
       throw new BadRequestException('One or more products are unavailable')
     }
+    const productById = new Map(products.map((product) => [product.id, product]))
 
-    const items = dto.items.map((item) => {
-      const product = products.find((p) => p.id === item.productId)!
-      const unitPrice = decimal(product.salePrice)
+    const variantIds = dto.items
+      .map((item) => (item.variantId ? Number(item.variantId) : null))
+      .filter((id): id is number => Number.isFinite(id) && id! > 0)
+
+    const variants = variantIds.length
+      ? await this.prisma.productVariant.findMany({
+          where: { id: { in: variantIds } },
+          include: {
+            product: true,
+            images: { orderBy: { sortOrder: 'asc' } },
+            selections: {
+              include: {
+                optionValue: {
+                  include: {
+                    option: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+      : []
+    const variantById = new Map(variants.map((variant) => [variant.id, variant]))
+
+    const lineItems = await Promise.all(
+      dto.items.map(async (item) => {
+        const product = productById.get(item.productId)
+        if (!product) {
+          throw new BadRequestException('One or more products are unavailable')
+        }
+
+      const variantId =
+        item.variantId !== undefined && item.variantId !== null ? Number(item.variantId) : null
+      const variant = variantId ? variantById.get(variantId) ?? null : null
+
+      if (variantId && !variant) {
+        throw new BadRequestException('Selected product variant is invalid or unavailable.')
+      }
+
+      if (product.mode === ProductMode.VARIABLE && !variant) {
+        throw new BadRequestException('A product variant must be selected for this item.')
+      }
+
+      if (variant) {
+        if (variant.productId !== product.id) {
+          throw new BadRequestException('Invalid product variant selected for this product.')
+        }
+        if (!variant.isActive) {
+          throw new BadRequestException('Selected variant is not currently available.')
+        }
+      }
+
+      const quantity = Math.max(1, Number(item.quantity ?? 1))
+      const baseSalePrice = decimalToNumber(product.salePrice)
+      const baseCostPrice = decimalToNumber(product.costPrice)
+
+      let unitPrice = decimal(baseSalePrice)
+      let unitCost = decimal(baseCostPrice)
+      let salePriceAmount = baseSalePrice
+      let costPriceAmount = baseCostPrice
+      let specEntries: { label: string; value: string }[] = []
+      let specSummary = ''
+      let primaryImage = product.images?.[0]?.img ?? null
+      let displayName = product.name
+      let skuSnapshot = product.productCode ?? undefined
+      let parametricSnapshot: Awaited<ReturnType<ParametricPricingService['quote']>> | null = null
+      let parametricConfig: Record<string, unknown> | undefined
+
+      if (product.mode === ProductMode.PARAMETRIC) {
+        if (!item.configuration || typeof item.configuration !== 'object') {
+          throw new BadRequestException('Parametric configuration is required for this product.')
+        }
+        parametricConfig = item.configuration as Record<string, unknown>
+        const quoteInput = {
+          ...parametricConfig,
+          productId: product.id,
+          currency: product.currency ?? 'USD',
+        } as ParametricQuoteInput
+        const quote = await this.parametricPricing.quote(quoteInput)
+        parametricSnapshot = quote
+        salePriceAmount = quote.total
+        unitPrice = decimal(quote.total)
+        unitCost = decimal(baseCostPrice)
+        const width = quote.width
+        const height = quote.height
+        specEntries = [
+          { label: 'Ancho', value: `${width} m` },
+          { label: 'Alto', value: `${height} m` },
+          { label: 'Serie', value: String((parametricConfig.series as string) ?? 'N/A') },
+          { label: 'Color', value: String((parametricConfig.color as string) ?? 'NATURAL') },
+          { label: 'Vidrio', value: String((parametricConfig.glass as string) ?? '4MM') },
+          {
+            label: 'Mosquitero',
+            value: parametricConfig.mosquitoNet ? 'Sí' : 'No',
+          },
+        ]
+        if ((parametricConfig.monoblock as any)?.enabled) {
+          specEntries.push({
+            label: 'Monoblock',
+            value: `${(parametricConfig.monoblock as any)?.material ?? 'PVC'} ${(parametricConfig.monoblock as any)?.color ?? ''}`.trim(),
+          })
+        }
+        specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
+        displayName = `${product.name} (${width}x${height})`
+        const skuBase = (product.productCode ?? slugify(product.name)).toUpperCase().replace(/[^A-Z0-9]/g, '')
+        const widthKey = Math.round(width * 1000)
+        const heightKey = Math.round(height * 1000)
+        skuSnapshot = `PAR-${skuBase}-${widthKey}x${heightKey}`
+      } else {
+        salePriceAmount =
+          variant && variant.salePrice !== null && variant.salePrice !== undefined
+            ? decimalToNumber(variant.salePrice)
+            : baseSalePrice
+        costPriceAmount =
+          variant && variant.costPrice !== null && variant.costPrice !== undefined
+            ? decimalToNumber(variant.costPrice)
+            : baseCostPrice
+        unitPrice = decimal(salePriceAmount)
+        unitCost = decimal(costPriceAmount)
+        const variantStock =
+          variant && variant.stock !== null && variant.stock !== undefined
+            ? variant.stock
+            : product.stock ?? 0
+        const variantPermanent =
+          variant && variant.permanentStock !== null && variant.permanentStock !== undefined
+            ? variant.permanentStock
+            : product.permanentStock ?? false
+        if (variant && !variantPermanent && Number(variantStock ?? 0) <= 0) {
+          throw new BadRequestException('Selected variant is out of stock.')
+        }
+
+        specEntries =
+          variant?.selections.map((selection) => ({
+            label: selection.optionValue.option.name,
+            value: selection.optionValue.label,
+          })) ?? []
+        specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
+        primaryImage = variant?.images[0]?.img ?? product.images?.[0]?.img ?? null
+        displayName = variant?.label ? `${product.name} - ${variant.label}` : product.name
+        skuSnapshot = variant?.sku ?? product.productCode ?? undefined
+      }
+
       return {
         product,
-        quantity: item.quantity,
+        variant,
+        quantity,
         unitPrice,
+        unitCost,
+        salePriceAmount,
+        costPriceAmount,
+        specEntries,
+        specSummary,
+        image: primaryImage,
+        nameSnapshot: displayName,
+        skuSnapshot,
+        parametricSnapshot,
+        parametricConfig,
       }
-    })
+      }),
+    )
 
     const currency = products[0]?.currency ?? 'USD'
-    const subtotalDecimal = items.reduce((sum, item) => sum.plus(item.unitPrice.times(item.quantity)), decimal(0))
+    const selectedPaymentMethod = dto.paymentIntentId
+      ? findPaymentMethodByCode('mercado_pago')
+      : findPaymentMethodByCode('cash')
+    const subtotalDecimal = lineItems.reduce(
+      (sum, item) => sum.plus(item.unitPrice.times(item.quantity)),
+      decimal(0),
+    )
     const taxRate = decimal(products[0]?.taxRate ?? 22).dividedBy(100)
     const taxDecimal = subtotalDecimal.times(taxRate)
     const grandTotalDecimal = subtotalDecimal.plus(taxDecimal)
 
-    let order = await this.prisma.order.create({
+    let order: OrderWithRelations = await this.prisma.order.create({
       data: {
         documentType: DocumentType.ORDER,
         customer: { connect: { id: customer.id } },
@@ -886,24 +1176,44 @@ export class StorefrontService implements OnModuleInit {
         grandTotal: grandTotalDecimal,
         orderCurrency: currency,
         comment: dto.notes,
+        paymentMethodId: selectedPaymentMethod?.id ?? null,
         items: {
-          create: items.map((item) => ({
+          create: lineItems.map((item) => ({
             product: { connect: { id: item.product.id } },
-            name: item.product.name,
+            ...(item.variant ? { variant: { connect: { id: item.variant.id } } } : {}),
+            name: item.nameSnapshot,
             qty: item.quantity,
             price: item.unitPrice,
             unitCurrency: currency,
             unitAmount: item.unitPrice,
             unitPriceSnapshot: item.unitPrice,
-            skuSnapshot: item.product.productCode ?? undefined,
-            nameSnapshot: item.product.name,
+            unitCostAmount: item.unitCost,
+            unitCostCurrency: currency,
+            skuSnapshot: item.skuSnapshot,
+            nameSnapshot: item.nameSnapshot,
+            img: item.image ?? undefined,
+            specSummary: item.specSummary || null,
+            specJson: item.specEntries.length ? item.specEntries : undefined,
+            parametricConfig: item.parametricConfig
+              ? (item.parametricConfig as Prisma.InputJsonValue)
+              : undefined,
+            parametricBreakdown: item.parametricSnapshot
+              ? {
+                  total: item.parametricSnapshot.total,
+                  breakdown: item.parametricSnapshot.breakdown,
+                  modifiers: item.parametricSnapshot.modifiers,
+                }
+              : undefined,
+            parametricReferenceDate: item.parametricSnapshot?.referenceDate
+              ? new Date(item.parametricSnapshot.referenceDate)
+              : undefined,
+            parametricSource: item.parametricSnapshot?.source,
+            parametricVersion: item.parametricSnapshot?.dataVersion,
           })),
         },
       },
       include: {
         items: true,
-        status: true,
-        paymentMethod: true,
         payments: true,
         storefrontPayments: true,
       },
@@ -920,8 +1230,6 @@ export class StorefrontService implements OnModuleInit {
           where: { id: order.id },
           include: {
             items: true,
-            status: true,
-            paymentMethod: true,
             payments: true,
             storefrontPayments: true,
           },
@@ -1078,8 +1386,6 @@ export class StorefrontService implements OnModuleInit {
       orderBy: { createdAt: 'desc' },
       include: {
         items: true,
-        status: true,
-        paymentMethod: true,
         payments: true,
         storefrontPayments: true,
       },
@@ -1098,8 +1404,6 @@ export class StorefrontService implements OnModuleInit {
       },
       include: {
         items: true,
-        status: true,
-        paymentMethod: true,
         payments: true,
         storefrontPayments: true,
       },
@@ -1121,7 +1425,10 @@ export class StorefrontService implements OnModuleInit {
           include: {
             product: {
               include: {
-                images: { orderBy: { sortOrder: 'asc' } },
+                images: {
+                  where: { variantId: null },
+                  orderBy: { sortOrder: 'asc' },
+                },
                 category: true,
               },
             },
@@ -1240,12 +1547,121 @@ export class StorefrontService implements OnModuleInit {
             alt: thumbnail.name,
           }
         : undefined,
+      mode:
+        product.mode === ProductMode.VARIABLE
+          ? 'variable'
+          : product.mode === ProductMode.PARAMETRIC
+          ? 'parametric'
+          : 'simple',
     }
     return summary
   }
 
-  private toProductDetail(product: Prisma.ProductGetPayload<{ include: { images: true; category: true } }>): ProductDetailDto {
+  private computeInventoryStatus(stock: number, permanentStock: boolean): InventoryStatus {
+    if (permanentStock) {
+      return 'in-stock'
+    }
+    if (stock <= 0) {
+      return 'out-of-stock'
+    }
+    if (stock < 5) {
+      return 'limited'
+    }
+    return 'in-stock'
+  }
+
+  private toProductDetail(product: ProductWithVariants): ProductDetailDto {
     const summary = this.toProductSummary(product)
+    const attributes = product.options.map((option) => ({
+      id: option.id,
+      type: option.type as ProductAttributeType,
+      name: option.name,
+      values: option.values
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((value) => ({
+          id: value.id,
+          key: value.code,
+          label: value.label,
+          value: value.value ?? null,
+          colorHex: value.colorHex ?? null,
+          imageUrl: value.imageUrl ?? null,
+          imageAlt: value.imageAlt ?? null,
+          sortOrder: value.sortOrder,
+        })),
+    }))
+    const attributeOrder = new Map<ProductAttributeType, number>()
+    attributes.forEach((attribute, index) => {
+      attributeOrder.set(attribute.type, index)
+    })
+
+    const baseSalePrice = decimalToNumber(product.salePrice)
+    const baseCostPrice = decimalToNumber(product.costPrice)
+    const baseStock = Number(product.stock ?? 0)
+    const basePermanent = Boolean(product.permanentStock)
+
+    const variants: ProductVariantDto[] = product.variants.map((variant) => {
+      const variantSalePrice =
+        variant.salePrice !== null && variant.salePrice !== undefined
+          ? decimalToNumber(variant.salePrice)
+          : baseSalePrice
+      const variantStock =
+        variant.stock !== null && variant.stock !== undefined ? variant.stock : baseStock
+      const variantPermanent =
+        variant.permanentStock !== null && variant.permanentStock !== undefined
+          ? variant.permanentStock
+          : basePermanent
+      const attributePayload = Array.isArray(variant.attributes)
+        ? (variant.attributes as Array<Record<string, unknown>>)
+        : []
+      const selections: ProductVariantSelectionDto[] = []
+      attributePayload.forEach((entry) => {
+        const attribute = entry?.attribute as ProductAttributeType | undefined
+        const key = typeof entry?.key === 'string' ? entry.key : undefined
+        if (!attribute || !key) {
+          return
+        }
+        const label = typeof entry?.label === 'string' ? entry.label : null
+        const value = typeof entry?.value === 'string' ? entry.value : null
+        const colorHex = typeof entry?.colorHex === 'string' ? entry.colorHex : null
+        const imageUrl = typeof entry?.imageUrl === 'string' ? entry.imageUrl : null
+        const imageAlt = typeof entry?.imageAlt === 'string' ? entry.imageAlt : null
+        selections.push({
+          attribute: attribute as ProductAttributeTypeDto,
+          valueKey: key,
+          label,
+          value,
+          colorHex,
+          imageUrl,
+          imageAlt,
+        })
+      })
+      selections.sort(
+        (a, b) =>
+          (attributeOrder.get(a.attribute as ProductAttributeType) ?? 0) -
+          (attributeOrder.get(b.attribute as ProductAttributeType) ?? 0),
+      )
+
+      return {
+        id: variant.id,
+        key: variant.key,
+        sku: variant.sku ?? null,
+        barcode: variant.barcode ?? null,
+        isActive: variant.isActive,
+        price: money(variantSalePrice, product.currency ?? 'USD'),
+        stock: variantStock,
+        inventoryStatus: variant.isActive
+          ? this.computeInventoryStatus(variantStock, variantPermanent)
+          : ('out-of-stock' as InventoryStatus),
+        attributes: selections,
+        images: variant.images.map((image) => ({
+          id: image.id,
+          url: image.img,
+          alt: image.name ?? null,
+        })),
+      }
+    })
+
     return {
       ...summary,
       description: product.description,
@@ -1262,6 +1678,8 @@ export class StorefrontService implements OnModuleInit {
         alt: image.name,
       })),
       relatedProducts: [],
+      attributes: attributes.length ? attributes : undefined,
+      variants: variants.length ? variants : undefined,
     }
   }
 
@@ -1286,6 +1704,7 @@ export class StorefrontService implements OnModuleInit {
     return {
       productId: item.productId ?? 0,
       quantity: item.qty,
+      variantId: item.variantId ?? undefined,
       price: money(unitAmount, currency),
       total: money(totalAmount, currency),
       name: item.nameSnapshot ?? item.name,
@@ -1374,7 +1793,8 @@ export class StorefrontService implements OnModuleInit {
         country: shippingAddress.country,
       }
 
-    const status = order.status?.name ?? 'pending'
+    const statusDefinition = findOrderStatusById(order.statusId ?? null)
+    const status = statusDefinition?.label ?? 'pending'
 
     const intents = (order.storefrontPayments ?? [])
       .slice()
@@ -1485,8 +1905,9 @@ export class StorefrontService implements OnModuleInit {
 
     if (payment) {
       const currency = payment.currency ?? fallbackCurrency
+      const paymentMethod = findPaymentMethodById(order.paymentMethodId ?? null)
       return {
-        provider: order.paymentMethod?.name ?? payment.method ?? 'manual',
+        provider: paymentMethod?.label ?? payment.method ?? 'manual',
         status: this.mapInternalPaymentStatus(payment.status),
         statusDetail: undefined,
         paymentId: payment.reference ?? undefined,
@@ -1644,12 +2065,14 @@ export class StorefrontService implements OnModuleInit {
       lastName: customer.lastName ?? '',
       scope: 'storefront' as const,
       tokenType: 'access' as const,
+      ver: customer.storefrontSessionVersion,
     }
 
     const refreshPayload = {
       sub: customer.id,
       scope: 'storefront' as const,
       tokenType: 'refresh' as const,
+      ver: customer.storefrontSessionVersion,
     }
 
     const [accessToken, refreshToken, addresses, wishlistSummary] = await Promise.all([

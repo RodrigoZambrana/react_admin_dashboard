@@ -200,16 +200,24 @@ export default function ReviewClient() {
 
     const orderItems = cartState.items
       .map((item) => {
-        const productId = Number(item.product.id);
+        const productIdValue = item.product.productId ?? item.product.id;
+        const productId = Number(productIdValue);
         if (!Number.isFinite(productId)) {
           return null;
         }
+        const rawVariantId = item.product.variantId;
+        const variantId =
+          typeof rawVariantId === "number" && Number.isFinite(rawVariantId)
+            ? rawVariantId
+            : undefined;
         return {
           productId,
-          quantity: Math.max(1, item.quantity)
+          quantity: Math.max(1, item.quantity),
+          variantId,
+          configuration: item.product.configuration ?? undefined
         };
       })
-      .filter(Boolean) as Array<{ productId: number; quantity: number }>;
+      .filter(Boolean) as Array<{ productId: number; quantity: number; variantId?: number; configuration?: Record<string, unknown> }>;
 
     if (orderItems.length === 0) {
       setErrorMessage("Your cart is empty.");

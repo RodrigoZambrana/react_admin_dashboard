@@ -622,7 +622,7 @@ export const markInboxMessageSpam = createAsyncThunk(
     },
 )
 
-const initialState: MailState = {
+export const initialState: MailState = {
     mailListLoading: false,
     mailLoading: false,
     mailList: [],

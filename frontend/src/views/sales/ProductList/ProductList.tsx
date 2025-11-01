@@ -1,8 +1,10 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import reducer, {
     getProducts,
     useAppDispatch,
     useAppSelector,
+    setFilterData,
+    setTableData,
 } from './store'
 import { injectReducer } from '@/store'
 import AdaptableCard from '@/components/shared/AdaptableCard'
@@ -17,6 +19,8 @@ import ProductForm, {
 import { apiCreateSalesProduct } from '@/services/SalesService'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
+import { useLocation } from 'react-router-dom'
+import type { ProductMode } from '@/views/sales/ProductForm/types'
 
 injectReducer('salesProductList', reducer)
 
@@ -24,6 +28,7 @@ const ProductList = () => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const [newProductOpen, setNewProductOpen] = useState(false)
+    const location = useLocation()
 
     const tableData = useAppSelector(
         (state) => state.salesProductList.data.tableData,
@@ -54,6 +59,32 @@ const ProductList = () => {
     const handleCloseDrawer = useCallback(() => {
         setNewProductOpen(false)
     }, [])
+
+    useEffect(() => {
+        const pathname = location.pathname
+        const isParametricView = pathname.includes('/products/parametric')
+        const targetMode: ProductMode | 'all' | undefined = isParametricView
+            ? 'parametric'
+            : undefined
+
+        if (targetMode !== filterData?.mode) {
+            const nextFilter = {
+                ...filterData,
+                mode: targetMode,
+            }
+            dispatch(
+                setFilterData(nextFilter),
+            )
+            if ((tableData?.pageIndex ?? 1) !== 1) {
+                dispatch(
+                    setTableData({
+                        ...tableData,
+                        pageIndex: 1,
+                    }),
+                )
+            }
+        }
+    }, [dispatch, filterData, location.pathname, tableData])
 
     const handleCreateProduct = useCallback(
         async (formData: FormModel, setSubmitting: SetSubmitting) => {

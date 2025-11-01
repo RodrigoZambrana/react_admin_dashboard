@@ -13,10 +13,11 @@ const config: ClientVariantConfig = {
         ACTIVITIES: true,
         EXPENSES: true,
         ACCOUNTING: true,
-        ACCOUNT: true,
-        USERS: true,
-        SETTINGS: true,
-    },
+    ACCOUNT: true,
+    USERS: true,
+    SETTINGS: true,
+    PARAMETRIC_PRODUCTS: false,
+  },
     frontend: {
         app: {
             locale: 'en',

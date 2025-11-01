@@ -97,7 +97,7 @@ export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
               </Link>
 
               <div className="product-details">
-                <Link href={`/product/${item.id}`}>
+                <Link href={`/product/${item.slug}`}>
                   <H5 className="title" fontSize="14px">
                     {item.name}
                   </H5>

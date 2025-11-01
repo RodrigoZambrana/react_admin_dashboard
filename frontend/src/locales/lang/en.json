@@ -33,7 +33,8 @@
             "budgetList": "Budgets",
             "budgetQuick": "Quick Budget",
             "budgetNew": "Add Budget",
-            "productionOrders": "Production Orders"
+            "productionOrders": "Production Orders",
+            "shippingOptions": "Shipping Options"
         },
         "appsBudgets": {
             "budgets": "Budgets",
@@ -44,17 +45,19 @@
         "appsAccounting": {
             "accounting": "Accounting",
             "dashboard": "Dashboard",
+            "expenses": "Expenses",
+            "expensesList": "List",
+            "expensesNew": "New",
+            "expensesCategories": "Categories",
+            "expensesConfig": "Expenses Configuration",
             "payments": "Payments"
         },
         "appsProducts": {
-            "products": "Products"
-        },
-        "appsExpenses": {
-            "expenses": "Expenses",
-            "dashboard": "Dashboard",
-            "expenseList": "Expense List",
-            "expenseNew": "New Expense",
-            "categories": "Categories"
+            "products": "Products",
+            "list": "Product List",
+            "config": "Configuration",
+            "parametric": "Parametric Products",
+            "aberturas": "Aberturas"
         },
         "appsCrypto": {
             "crypto": "Crypto",
@@ -86,14 +89,8 @@
         "appsSettings": {
             "settings": "Settings",
             "companyProfile": "Company Profile",
-            "orderStatuses": "Order Statuses",
-            "products": "Products",
-            "customerStatuses": "Customer Statuses",
-            "expenses": "Expenses",
-            "paymentMethods": "Payment Methods",
             "mercadoPago": "Mercado Pago",
             "google": "Google & reCAPTCHA",
-            "shippingOptions": "Shipping Options",
             "systemConfig": "System Config",
             "email": "Email",
             "calendarEventTypes": "Calendar Event Types"
@@ -294,6 +291,22 @@
             "deleteConfirm": "Delete this comment?",
             "updateFailed": "We couldn't update the comment.",
             "messageRequired": "Comment message cannot be empty."
+        }
+    },
+    "menu": {
+        "products": {
+            "list": "Product List",
+            "config": "Configuration"
+        },
+        "accounting": {
+            "title": "Accounting",
+            "expenses": {
+                "title": "Expenses",
+                "list": "List",
+                "new": "New",
+                "categories": "Categories"
+            },
+            "payments": "Payments"
         }
     },
     "user": {
@@ -1154,6 +1167,8 @@
                 "attachmentDeletedDesc": "The attachment was removed successfully.",
                 "attachmentDeleteFailedTitle": "Could not remove attachment",
                 "attachmentDeleteFailedDesc": "Please try again in a moment.",
+                "deleteAttachmentTitle": "Delete attachment",
+                "deleteAttachmentConfirm": "Are you sure you want to delete the attachment \"{{name}}\"? This action cannot be undone.",
                 "type": "Type",
                 "status": "Status",
                 "date": "Date",
@@ -1230,6 +1245,106 @@
                 "invalidSize": "Upload image cannot be more than 500kb!",
                 "cover": "Cover",
                 "setCover": "Set as cover"
+            },
+            "variants": {
+                "title": "Product variants",
+                "description": "Configure variable products by combining color, size, and material options.",
+                "mode": {
+                    "simple": "Simple product",
+                    "variable": "Variable product",
+                    "parametric": "Parametric product"
+                },
+                "attributes": {
+                    "title": "Available attributes",
+                    "addValue": "Add value",
+                    "types": {
+                        "color": "Color",
+                        "size": "Size",
+                        "material": "Material"
+                    },
+                    "placeholder": {
+                        "color": "Red, Blue, Green...",
+                        "size": "S, M, L, 38, 39...",
+                        "material": "Cotton, Leather..."
+                    },
+                    "colorValuePlaceholder": "Optional description or code",
+                    "addSwatch": "Add swatch",
+                    "replaceSwatch": "Replace swatch",
+                    "clearSwatch": "Remove swatch",
+                    "addMaterialImage": "Add image",
+                    "replaceMaterialImage": "Replace image",
+                    "clearMaterialImage": "Remove image",
+                    "imageAltPlaceholder": "Describe the image for accessibility",
+                    "noImage": "No image uploaded for this value yet."
+                },
+                "actions": {
+                    "inheritPrice": "Inherit price",
+                    "applyBasePrice": "Apply base price",
+                    "inheritStock": "Inherit stock",
+                    "applyBaseStock": "Apply base stock",
+                    "activateAll": "Activate all",
+                    "deactivateAll": "Deactivate all"
+                },
+                "table": {
+                    "title": "Generated variants",
+                    "description": "Edit price, stock, SKU, and images for each variant or inherit the product values.",
+                    "empty": "Select attributes and values to generate the variant table.",
+                    "price": "Price",
+                    "stock": "Stock",
+                    "images": "Images",
+                    "active": "Active",
+                    "inheritPrice": "Use product price",
+                    "inheritStock": "Use product stock",
+                    "permanentStock": "Unlimited stock",
+                    "inheritSku": "Use product SKU"
+                },
+                "images": {
+                    "title": "Variant images",
+                    "inherit": "Use product images",
+                    "upload": "Upload images",
+                    "empty": "No images uploaded for this variant.",
+                    "inheritLabel": "Inherits images",
+                    "count": "{{count}} images",
+                    "none": "No custom images"
+                },
+                "error": {
+                    "noAttributes": "Select at least one attribute to generate variants.",
+                    "emptyValues": "Each attribute must define at least one value.",
+                    "noVariants": "Configure at least one variant before saving."
+                }
+            },
+            "parametric": {
+                "requiresProduct": "Save the product to configure parametric pricing.",
+                "requiresProductDetail": "Create the product first, then you will be able to import reference prices and configure the pricing engine.",
+                "title": "Parametric pricing",
+                "subtitle": "Import quotation history and test the price engine with real-time parameters.",
+                "testTitle": "Try calculation",
+                "width": "Width (m)",
+                "height": "Height (m)",
+                "color": "Color",
+                "glass": "Glass",
+                "mosquitoNet": "Mosquito net",
+                "monoblock": "Monoblock",
+                "calculate": "Calculate price",
+                "lastQuote": "Last quote: {{total}} {{currency}} ({{date}})",
+                "breakdown": "Breakdown",
+                "base": "Base",
+                "colorModifier": "Color",
+                "glassModifier": "Glass",
+                "monoblockModifier": "Monoblock",
+                "mosquitoModifier": "Mosquito net",
+                "importTitle": "Bulk import",
+                "importDescription": "Upload an Excel or CSV file with the required columns (FECHA COTIZACION, PRODUCTO, MOSQUITERO, ANCHO, ALTO, SERIE, COLOR, VIDRIO, PRECIO, DETALLE).",
+                "importing": "Importing…",
+                "importCta": "Drop file here or click to browse",
+                "loadingConfig": "Loading configuration…",
+                "configSummary": "Configured series: {{series}}. Colors: {{colors}}.",
+                "importSuccess": "Import completed",
+                "importSummary": "Processed {{rows}} rows. Created {{references}} references and {{modifiers}} modifiers.",
+                "importError": "Import failed",
+                "importErrorDescription": "Please check the file format and try again.",
+                "quoteError": "Unable to generate quote",
+                "quoteErrorDescription": "Verify the parameters and try again."
             }
         },
         "productList": {
@@ -1698,6 +1813,9 @@
                 "serviceUnitOfMeasure": "Unit of measure",
                 "serviceDescription": "Service description (optional)"
             },
+            "fields": {
+                "image": "Image"
+            },
             "form": {
                 "parent": "Parent category",
                 "noParent": "No parent"
@@ -1706,12 +1824,17 @@
                 "selfParent": "A category cannot be its own parent.",
                 "invalidServicePrice": "Please provide a valid installation price.",
                 "invalidServiceCost": "Please provide a valid installation cost.",
-                "invalidServiceTax": "Please provide a valid tax rate."
+                "invalidServiceTax": "Please provide a valid tax rate.",
+                "imageUploadFailed": "We could not process the selected image."
             },
             "labels": {
                 "installable": "This category includes an optional installation service",
                 "serviceHeading": "Installation Service",
                 "serviceSubtitle": "Define the installation product created automatically for this category."
+            },
+            "actions": {
+                "uploadImage": "Upload image",
+                "removeImage": "Remove image"
             },
             "created": {
                 "title": "Successfully created",
@@ -1724,27 +1847,10 @@
             "deleted": {
                 "title": "Successfully deleted",
                 "desc": "Category deleted successfully"
-            }
-        },
-        "orderStatuses": {
-            "title": "Order Statuses",
-            "columns": {
-                "name": "Name"
             },
-            "placeholders": {
-                "name": "Status name"
-            },
-            "created": {
-                "title": "Successfully created",
-                "desc": "Status created successfully"
-            },
-            "updated": {
-                "title": "Updated successfully",
-                "desc": "Status updated successfully"
-            },
-            "deleted": {
-                "title": "Successfully deleted",
-                "desc": "Status deleted successfully"
+            "delete": {
+                "title": "Delete category",
+                "confirm": "Are you sure you want to delete the category \"{{name}}\"? This action cannot be undone."
             }
         },
         "productStatuses": {
@@ -1753,30 +1859,6 @@
                 "name": "Name"
             },
             "placeholders": {
-                "name": "Status name"
-            },
-            "created": {
-                "title": "Successfully created",
-                "desc": "Status created successfully"
-            },
-            "updated": {
-                "title": "Updated successfully",
-                "desc": "Status updated successfully"
-            },
-            "deleted": {
-                "title": "Successfully deleted",
-                "desc": "Status deleted successfully"
-            }
-        },
-        "customerStatuses": {
-            "title": "Customer Statuses",
-            "columns": {
-                "id": "ID",
-                "name": "Name",
-                "color": "Color"
-            },
-            "placeholders": {
-                "id": "Status ID (e.g. active)",
                 "name": "Status name"
             },
             "created": {
@@ -1811,29 +1893,6 @@
             "deleted": {
                 "title": "Successfully deleted",
                 "desc": "Status deleted successfully"
-            }
-        },
-        "paymentMethods": {
-            "title": "Payment Methods",
-            "columns": {
-                "id": "ID",
-                "name": "Name"
-            },
-            "placeholders": {
-                "id": "Method ID (e.g. cash)",
-                "name": "Method name"
-            },
-            "created": {
-                "title": "Successfully created",
-                "desc": "Payment method created successfully"
-            },
-            "updated": {
-                "title": "Updated successfully",
-                "desc": "Payment method updated successfully"
-            },
-            "deleted": {
-                "title": "Successfully deleted",
-                "desc": "Payment method deleted successfully"
             }
         },
         "shippingOptions": {
@@ -1893,6 +1952,7 @@
             "actions": {
                 "add": "Add",
                 "save": "Save changes",
+                "saveTemplate": "Save template",
                 "sendTest": "Send test email",
                 "refresh": "Refresh",
                 "addRule": "Add rule",
@@ -1926,7 +1986,9 @@
                     "role": "Select role"
                 },
                 "list": "Existing rules",
-                "empty": "No role-based rules defined yet."
+                "empty": "No role-based rules defined yet.",
+                "deleteTitle": "Delete rule",
+                "deleteConfirm": "Are you sure you want to delete notifications for the role \"{{role}}\"?"
             },
             "logs": {
                 "title": "Delivery logs",
@@ -1961,7 +2023,35 @@
             },
             "templates": {
                 "title": "Active templates",
-                "description": "Overview of active MJML templates per category, locale, and variant."
+                "description": "Overview of active MJML templates per category, locale, and variant.",
+                "saveSuccess": "Template saved successfully.",
+                "editorTitle": "Template editor",
+                "editorDescription": "Review and adjust the subject and MJML body. Changes apply to future emails once saved.",
+                "fields": {
+                    "subject": "Subject",
+                    "body": "Body (MJML)"
+                },
+                "unsaved": "Unsaved changes",
+                "previewSettings": "Preview settings",
+                "scenarioPlaceholder": "Scenario",
+                "previewTitle": "Live preview",
+                "previewText": "Plain text version",
+                "previewEmpty": "No preview available."
+            },
+            "metrics": {
+                "title": "Delivery metrics",
+                "description": "Track send attempts, successes, and failures per category and template.",
+                "attempts": "Attempts",
+                "sent": "Sent",
+                "failed": "Failed",
+                "byCategory": "By category",
+                "category": "Category",
+                "attemptsShort": "Att.",
+                "sentShort": "Sent",
+                "failedShort": "Fail",
+                "byTemplate": "By template",
+                "template": "Template",
+                "empty": "No metrics available yet."
             }
         },
         "companyProfile": {
@@ -2041,7 +2131,9 @@
                 "deleted": {
                     "title": "Currency removed",
                     "desc": "The currency was deleted successfully."
-                }
+                },
+                "deleteTitle": "Delete currency",
+                "deleteConfirm": "Are you sure you want to delete the currency \"{{code}}\"? This may impact pricing and exchange rates."
             },
             "disclaimer": {
                 "title": "Document disclaimer",
@@ -2075,6 +2167,8 @@
             "updated": "Event type updated successfully.",
             "created": "Event type created successfully.",
             "deleted": "Event type removed successfully.",
+            "deleteTitle": "Delete event type",
+            "confirmDelete": "Are you sure you want to delete the event type \"{{name}}\"? This action cannot be undone.",
             "empty": "No event types configured yet."
         }
     },
@@ -2117,5 +2211,23 @@
                 "assigneeNotFound": "Selected assignee could not be found."
             }
         }
+    },
+    "errors": {
+        "timeout": "The request took too long. Please try again.",
+        "dbConnection": "We could not reach the database right now.",
+        "conflict": "There is already a record with this information.",
+        "dbPanic": "The data service encountered an unexpected error.",
+        "dbTimeout": "The database did not respond in time.",
+        "unauthorized": "You need to sign in to continue.",
+        "forbidden": "You don't have permission to perform this action.",
+        "validation": "Review the provided information.",
+        "rateLimited": "Too many requests. Please wait a moment.",
+        "notFound": "We couldn't find what you were looking for.",
+        "unknown": "Something went wrong. Please try again.",
+        "circuitOpen": "Service is intermittent. Showing previous data.",
+        "networkOffline": "We couldn't connect. Check your connection.",
+        "invalidResponse": "The server responded in an unexpected format.",
+        "requestFailed": "We couldn't complete the request.",
+        "requestCancelled": "The request was cancelled."
     }
 }

@@ -16,6 +16,7 @@ import {
     useAppDispatch,
     useAppSelector,
 } from '../store'
+import { initialState as initialMailState } from '../store/mailSlice'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -41,11 +42,12 @@ const MailSideBarContent = () => {
 
     const dispatch = useAppDispatch()
 
-    const selectedCategory = useAppSelector(
-        (state) => state.crmMail.data.selectedCategory,
+    const mailState = useAppSelector(
+        (state) => state.crmMail?.data ?? initialMailState,
     )
+    const selectedCategory = mailState.selectedCategory
 
-    const inboxState = useAppSelector((state) => state.crmMail.data.inbox)
+    const inboxState = mailState.inbox
     const inboxAccounts = inboxState.accounts
     const inboxAccountsLoading = inboxState.accountsLoading
     const selectedInboxAccountId = inboxState.selectedAccountId
@@ -360,12 +362,8 @@ const MailSideBarContent = () => {
 }
 
 const MailSidebar = () => {
-    const sideBarExpand = useAppSelector(
-        (state) => state.crmMail.data.sideBarExpand,
-    )
-
-    const mobileSideBarExpand = useAppSelector(
-        (state) => state.crmMail.data.mobileSideBarExpand,
+    const { sideBarExpand, mobileSideBarExpand } = useAppSelector(
+        (state) => state.crmMail?.data ?? initialMailState,
     )
 
     const dispatch = useAppDispatch()

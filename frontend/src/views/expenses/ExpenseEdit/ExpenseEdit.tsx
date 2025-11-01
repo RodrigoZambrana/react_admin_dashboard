@@ -92,7 +92,7 @@ const ExpenseEdit = () => {
             const [catRes, statusRes, methodRes] = await Promise.all([
                 apiGetExpenseCategories<{ id: number; name: string }[]>(),
                 apiGetExpenseStatuses<{ id: number; name: string; color?: string }[]>(),
-                apiGetPaymentMethods<{ id: number; name: string }[]>(),
+            apiGetPaymentMethods<{ id: number | string; label?: string }[]>(),
             ])
 
             const categoryOptions = (catRes.data as any[]).map((category) => ({
@@ -111,10 +111,10 @@ const ExpenseEdit = () => {
                 setStatuses(statusOptions)
             }
 
-            const methodOptions = (methodRes.data as any[]).map((method) => ({
-                value: String(method.id),
-                label: method.name,
-            }))
+        const methodOptions = (methodRes.data || []).map((method) => ({
+            value: String(method.id),
+            label: method.label || String(method.id),
+        }))
             if (methodOptions.length) {
                 setMethods(methodOptions)
             }
@@ -152,7 +152,7 @@ const ExpenseEdit = () => {
                     {t('expenses.edit.updated.desc')}
                 </Notification>,
             )
-            navigate('/app/expenses/expense-list')
+            navigate('/app/accounting/expenses/list')
         }
     }
 
@@ -194,7 +194,7 @@ const ExpenseEdit = () => {
                                             )
                                         }
                                     />
-                                    <Link to="/app/expenses/categories">
+                                    <Link to="/app/accounting/expenses/categories">
                                         <Button size="sm" variant="twoTone" icon={<HiOutlineAdjustments />}>
                                             {t('expenses.categories.actions.manage')}
                                         </Button>

@@ -5,6 +5,11 @@ import {
     apiDeleteSalesProducts,
 } from '@/services/SalesService'
 import type { SalesUnit } from '@/constants/product.constant'
+import type {
+    ProductAttribute,
+    ProductVariant,
+    ProductMode,
+} from '@/views/sales/ProductForm/types'
 
 type ProductData = {
     id?: number
@@ -31,6 +36,9 @@ type ProductData = {
     permanentStock?: boolean
     currency?: string
     unitOfMeasure?: SalesUnit
+    mode?: ProductMode
+    attributes?: ProductAttribute[]
+    variants?: ProductVariant[]
 }
 
 export type SalesProductEditState = {
@@ -41,6 +49,155 @@ export type SalesProductEditState = {
 type GetSalesProductResponse = ProductData
 
 export const SLICE_NAME = 'salesProductEdit'
+
+const fallbackMode = (value: unknown): ProductMode => {
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase()
+        if (normalized === 'variable') {
+            return 'variable'
+        }
+        if (normalized === 'parametric') {
+            return 'parametric'
+        }
+    }
+    return 'simple'
+}
+
+const mapApiProductToState = (payload: Record<string, unknown>): ProductData => {
+    const mode = fallbackMode(payload.mode)
+    const attributes = Array.isArray(payload.attributes)
+        ? (payload.attributes as Record<string, unknown>[]).map((attr) => {
+              const type = (attr.type as ProductAttribute['type']) ?? 'COLOR'
+              const name = typeof attr.name === 'string' ? attr.name : type === 'COLOR' ? 'Color' : type === 'SIZE' ? 'Talle' : 'Material'
+              const values = Array.isArray(attr.values)
+                  ? (attr.values as Record<string, unknown>[]).map((value, index) => ({
+                        id: typeof value.id === 'number' ? value.id : undefined,
+                        key: typeof value.key === 'string' ? value.key : `${type.toLowerCase()}-${index + 1}`,
+                        label:
+                            typeof value.label === 'string'
+                                ? value.label
+                                : typeof value.value === 'string'
+                                ? value.value
+                                : `Opción ${index + 1}`,
+                        value: typeof value.value === 'string' ? value.value : undefined,
+                        colorHex: typeof value.colorHex === 'string' ? value.colorHex : undefined,
+                        imageUrl: typeof value.imageUrl === 'string' ? value.imageUrl : undefined,
+                        imageAlt: typeof value.imageAlt === 'string' ? value.imageAlt : undefined,
+                        sortOrder: typeof value.sortOrder === 'number' ? value.sortOrder : index,
+                    }))
+                  : []
+              values.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+              return {
+                  id: typeof attr.id === 'number' ? attr.id : undefined,
+                  type,
+                  name,
+                  sortOrder: typeof attr.sortOrder === 'number' ? attr.sortOrder : undefined,
+                  values,
+              }
+          })
+        : []
+
+    attributes.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+
+    const variants = Array.isArray(payload.variants)
+        ? (payload.variants as Record<string, unknown>[]).map((variant, idx) => {
+              const attributesPayload = Array.isArray(variant.attributes)
+                  ? (variant.attributes as Record<string, unknown>[]).map((entry) => ({
+                        attribute: (entry.attribute as ProductAttribute['type']) ?? 'COLOR',
+                        valueKey: typeof entry.valueKey === 'string' ? entry.valueKey : '',
+                        label: typeof entry.label === 'string' ? entry.label : undefined,
+                        value: typeof entry.value === 'string' ? entry.value : undefined,
+                        colorHex: typeof entry.colorHex === 'string' ? entry.colorHex : undefined,
+                        imageUrl: typeof entry.imageUrl === 'string' ? entry.imageUrl : undefined,
+                        imageAlt: typeof entry.imageAlt === 'string' ? entry.imageAlt : undefined,
+                        optionValueId: typeof entry.optionValueId === 'number' ? entry.optionValueId : undefined,
+                    }))
+                  : []
+
+              const images = Array.isArray(variant.images)
+                  ? (variant.images as Record<string, unknown>[]).map((image, imageIndex) => ({
+                        id: String(image.id ?? `${variant.id ?? 'new'}-${imageIndex}`),
+                        name: typeof image.name === 'string' ? image.name : undefined,
+                        img: typeof image.img === 'string' ? image.img : '',
+                    }))
+                  : []
+
+              return {
+                  id: typeof variant.id === 'number' ? variant.id : undefined,
+                  key: typeof variant.key === 'string' ? variant.key : `variant-${idx + 1}`,
+                  sku: typeof variant.sku === 'string' ? variant.sku : undefined,
+                  barcode: typeof variant.barcode === 'string' ? variant.barcode : undefined,
+                  label: typeof variant.label === 'string' ? variant.label : undefined,
+                  salePrice:
+                      variant.salePrice === null || variant.salePrice === undefined
+                          ? null
+                          : Number(variant.salePrice),
+                  costPrice:
+                      variant.costPrice === null || variant.costPrice === undefined
+                          ? null
+                          : Number(variant.costPrice),
+                  stock:
+                      variant.stock === null || variant.stock === undefined
+                          ? null
+                          : Number(variant.stock),
+                  permanentStock:
+                      variant.permanentStock === null || variant.permanentStock === undefined
+                          ? null
+                          : Boolean(variant.permanentStock),
+                  isActive: variant.isActive === undefined ? true : Boolean(variant.isActive),
+                  inheritSalePrice: variant.inheritSalePrice === undefined ? true : Boolean(variant.inheritSalePrice),
+                  inheritCostPrice:
+                      variant.inheritCostPrice === undefined ? true : Boolean(variant.inheritCostPrice),
+                  inheritStock: variant.inheritStock === undefined ? true : Boolean(variant.inheritStock),
+                  inheritSku: variant.inheritSku === undefined ? true : Boolean(variant.inheritSku),
+                  inheritImages: variant.inheritImages === undefined ? true : Boolean(variant.inheritImages),
+                  attributes: attributesPayload,
+                  images,
+              }
+          })
+        : []
+
+    const imgList = Array.isArray(payload.imgList)
+        ? (payload.imgList as Record<string, unknown>[]).map((img, index) => ({
+              id: String(img.id ?? index),
+              name: typeof img.name === 'string' ? img.name : undefined,
+              img: typeof img.img === 'string' ? img.img : '',
+          }))
+        : []
+
+    return {
+        id: typeof payload.id === 'number' ? payload.id : undefined,
+        name: typeof payload.name === 'string' ? payload.name : undefined,
+        productCode: typeof payload.productCode === 'string' ? payload.productCode : undefined,
+        img: typeof payload.img === 'string' ? payload.img : undefined,
+        imgList,
+        category: typeof payload.category === 'string' ? payload.category : undefined,
+        categoryId: typeof payload.categoryId === 'number' ? payload.categoryId : undefined,
+        salePrice: Number((payload as any).salePrice ?? (payload as any).price ?? 0),
+        costPrice: Number((payload as any).costPrice ?? (payload as any).costPerItem ?? 0),
+        stock: typeof payload.stock === 'number' ? payload.stock : undefined,
+        status: typeof payload.status === 'number' ? payload.status : undefined,
+        bulkDiscountPrice: typeof payload.bulkDiscountPrice === 'number' ? payload.bulkDiscountPrice : undefined,
+        description: typeof payload.description === 'string' ? payload.description : undefined,
+        specifications: typeof payload.specifications === 'string' ? payload.specifications : undefined,
+        tags: Array.isArray(payload.tags) ? (payload.tags as string[]) : undefined,
+        brand: typeof payload.brand === 'string' ? payload.brand : undefined,
+        vendor: typeof payload.vendor === 'string' ? payload.vendor : undefined,
+        permanentStock:
+            payload.permanentStock === undefined || payload.permanentStock === null
+                ? undefined
+                : Boolean(payload.permanentStock),
+        currency: typeof payload.currency === 'string' ? payload.currency : undefined,
+        unitOfMeasure: payload.unitOfMeasure as SalesUnit | undefined,
+        published:
+            payload.published === undefined || payload.published === null
+                ? undefined
+                : Boolean(payload.published),
+        mode,
+        attributes,
+        variants,
+    }
+}
 
 export const getProduct = createAsyncThunk(
     SLICE_NAME + '/getProducts',
@@ -98,12 +255,8 @@ const productEditSlice = createSlice({
     extraReducers: (builder) => {
         builder
             .addCase(getProduct.fulfilled, (state, action) => {
-                const payload = action.payload as ProductData
-                state.productData = {
-                    ...payload,
-                    salePrice: Number((payload as any).salePrice ?? (payload as any).price ?? 0),
-                    costPrice: Number((payload as any).costPrice ?? (payload as any).costPerItem ?? 0),
-                }
+                const payload = action.payload as Record<string, unknown>
+                state.productData = mapApiProductToState(payload)
                 state.loading = false
             })
             .addCase(getProduct.pending, (state) => {

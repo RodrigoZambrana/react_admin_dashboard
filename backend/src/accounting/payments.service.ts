@@ -14,6 +14,8 @@ import {
 } from './dto/payment.dto'
 import { roundDecimal } from '../common/currency/money.util'
 import { NotificationOrchestratorService } from '../notifications/notification-orchestrator.service'
+import { findPaymentMethodById, matchPaymentMethod } from '../common/constants/payment-methods'
+import { findOrderStatusById } from '../common/constants/order-statuses'
 
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient
 
@@ -27,26 +29,23 @@ export class PaymentsService {
 
   private readonly logger = new Logger(PaymentsService.name)
 
-  private async resolvePaymentMethod(
-    client: PrismaClientOrTx,
+  private resolvePaymentMethod(
     paymentMethodId?: number | null,
     methodName?: string | null,
-  ): Promise<{ id: number; name: string } | null> {
+  ): { id: number; name: string } | null {
     if (paymentMethodId) {
-      const pm = await client.paymentMethod.findUnique({ where: { id: paymentMethodId } })
-      if (pm) {
-        return pm
+      const method = findPaymentMethodById(paymentMethodId)
+      if (method) {
+        return { id: method.id, name: method.label }
       }
     }
     if (methodName) {
       const normalized = methodName.trim()
       if (normalized.length) {
-        const pm = await client.paymentMethod.upsert({
-          where: { name: normalized },
-          update: {},
-          create: { name: normalized },
-        })
-        return pm
+        const method = matchPaymentMethod(normalized)
+        if (method) {
+          return { id: method.id, name: method.label }
+        }
       }
     }
     return null
@@ -57,10 +56,8 @@ export class PaymentsService {
       order: {
         include: {
           customer: true
-          status: true
         }
       }
-      paymentMethod: true
       attachments: {
         select: {
           id: true
@@ -82,6 +79,9 @@ export class PaymentsService {
         url: `/accounting/payments/${payment.id}/attachments/${attachment.id}`,
       })) ?? []
 
+    const paymentMethod = findPaymentMethodById(payment.paymentMethodId ?? null)
+    const orderStatus = this.serializeOrderStatus(payment.order?.statusId ?? null)
+
     return {
       id: payment.id,
       orderId: payment.orderId,
@@ -90,7 +90,7 @@ export class PaymentsService {
       type: payment.type,
       status: payment.status,
       reference: payment.reference ?? null,
-      method: payment.method ?? payment.paymentMethod?.name ?? null,
+      method: payment.method ?? paymentMethod?.label ?? null,
       paymentMethodId: payment.paymentMethodId ?? null,
       date: payment.date.toISOString(),
       notes: payment.notes ?? null,
@@ -104,15 +104,22 @@ export class PaymentsService {
             customerName: payment.order.customer?.name ?? null,
             grandTotal: Number(payment.order.grandTotal?.toString?.() ?? payment.order.grandTotal ?? 0),
             currency: payment.order.orderCurrency,
-            status: payment.order.status
-              ? {
-                  id: payment.order.status.id,
-                  code: payment.order.status.code,
-                  name: payment.order.status.name,
-                }
-              : null,
+            status: orderStatus,
           }
         : null,
+    }
+  }
+
+  private serializeOrderStatus(statusId?: number | null) {
+    const definition = findOrderStatusById(statusId ?? null)
+    if (!definition) {
+      return null
+    }
+    return {
+      id: definition.id,
+      code: definition.code,
+      name: definition.label,
+      color: definition.color,
     }
   }
 
@@ -250,10 +257,8 @@ export class PaymentsService {
           order: {
             include: {
               customer: true,
-              status: true,
             },
           },
-          paymentMethod: true,
           attachments: {
             select: {
               id: true,
@@ -283,10 +288,8 @@ export class PaymentsService {
         order: {
           include: {
             customer: true,
-            status: true,
           },
         },
-        paymentMethod: true,
         attachments: {
           select: {
             id: true,
@@ -330,8 +333,7 @@ export class PaymentsService {
       }
 
       const currency = (dto.currency ?? order.orderCurrency ?? 'UYU').toUpperCase()
-      const paymentMethod = await this.resolvePaymentMethod(
-        tx,
+      const paymentMethod = this.resolvePaymentMethod(
         dto.paymentMethodId ?? null,
         dto.method ?? null,
       )
@@ -402,14 +404,11 @@ export class PaymentsService {
         data.date = new Date(dto.date)
       }
       if (dto.paymentMethodId !== undefined || dto.method !== undefined) {
-        const paymentMethod = await this.resolvePaymentMethod(
-          tx,
+        const paymentMethod = this.resolvePaymentMethod(
           dto.paymentMethodId ?? null,
           dto.method ?? null,
         )
-        data.paymentMethod = paymentMethod
-          ? { connect: { id: paymentMethod.id } }
-          : { disconnect: true }
+        data.paymentMethodId = paymentMethod?.id ?? null
         data.method = paymentMethod?.name ?? dto.method?.trim() ?? null
       }
 

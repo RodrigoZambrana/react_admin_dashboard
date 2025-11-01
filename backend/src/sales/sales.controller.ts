@@ -11,13 +11,20 @@ import {
   StreamableFile,
   UseGuards,
 } from '@nestjs/common'
-import { DocumentType, Prisma, SalesUnit } from '@prisma/client'
+import { DocumentType, Prisma, ProductAttributeType, ProductMode, SalesUnit } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { UpsertProductDto, UpdateProductDto, TableQueryDto as ProductQuery } from './dto/product.dto'
 import { calculateOrderLineTotals, costPriceFromSale, decimalToNumber, roundCurrency, salePriceFromCost } from './utils/pricing'
 import { DashboardFilterDto } from './dto/dashboard.dto'
 import type { FastifyRequest } from 'fastify'
+import { ParametricPricingService } from '../pricing/parametric-pricing.service'
+import {
+  DEFAULT_PAYMENT_METHOD_ID,
+  findPaymentMethodById,
+  matchPaymentMethod,
+} from '../common/constants/payment-methods'
+import { findOrderStatusById, matchOrderStatus } from '../common/constants/order-statuses'
 
 type ProductSortKey =
   | 'id'
@@ -32,6 +39,63 @@ type ProductSortKey =
   | 'published'
   | 'category'
 
+type ProductImageInput = {
+  id: string
+  name?: string
+  img: string
+}
+
+type NormalizedAttributeValue = {
+  key: string
+  canonicalKey: string
+  label: string
+  value: string
+  colorHex?: string
+  imageUrl?: string
+  imageAlt?: string
+  sortOrder: number
+}
+
+type NormalizedAttribute = {
+  type: ProductAttributeType
+  name: string
+  sortOrder: number
+  values: NormalizedAttributeValue[]
+}
+
+type NormalizedVariantAttribute = {
+  attribute: ProductAttributeType
+  value: NormalizedAttributeValue
+}
+
+type NormalizedVariant = {
+  key: string
+  sku?: string
+  barcode?: string
+  label?: string
+  salePrice?: number
+  costPrice?: number
+  stock?: number
+  permanentStock?: boolean
+  isActive: boolean
+  inheritSalePrice: boolean
+  inheritCostPrice: boolean
+  inheritStock: boolean
+  inheritSku: boolean
+  inheritImages: boolean
+  attributes: NormalizedVariantAttribute[]
+  images: ProductImageInput[]
+}
+
+const ATTRIBUTE_DEFAULT_LABELS: Record<ProductAttributeType, string> = {
+  [ProductAttributeType.COLOR]: 'Color',
+  [ProductAttributeType.SIZE]: 'Talle',
+  [ProductAttributeType.MATERIAL]: 'Material',
+}
+
+type AttributeInput = NonNullable<UpsertProductDto['attributes']>[number]
+type VariantInput = NonNullable<UpsertProductDto['variants']>[number]
+
 const SALES_UNIT_KEYWORDS: Record<SalesUnit, string[]> = {
   [SalesUnit.UNIT]: ['unit', 'units', 'unidad', 'unidades', 'u'],
   [SalesUnit.SQUARE_METER]: ['squaremeter', 'squaremeters', 'metroscuadrados', 'metrocuadrado', 'metroscuadrado', 'm2', 'sqm', 'mt2'],
@@ -41,7 +105,10 @@ const SALES_UNIT_KEYWORDS: Record<SalesUnit, string[]> = {
 @UseGuards(JwtAuthGuard)
 @Controller('sales')
 export class SalesController {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly parametricPricing: ParametricPricingService,
+  ) {}
 
   private async getTaxRate() {
     const cfg = await this.prisma.systemConfig.findUnique({ where: { key: 'taxRate' } })
@@ -63,6 +130,515 @@ export class SalesController {
       return 1
     }
     return 0
+  }
+
+  private safeTrim(value?: string | null): string {
+    if (typeof value !== 'string') return ''
+    return value.trim()
+  }
+
+  private toCanonicalKey(raw: string | undefined, fallback: string): string {
+    const base = this.safeTrim(raw) || fallback
+    const canonical = base
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+    return canonical || fallback.toLowerCase()
+  }
+
+  private normalizeProductMode(mode?: ProductMode | string): ProductMode {
+    if (!mode) {
+      return ProductMode.SIMPLE
+    }
+    if (typeof mode === 'string') {
+      const normalized = mode.trim().toUpperCase()
+      if (normalized === 'VARIABLE') {
+        return ProductMode.VARIABLE
+      }
+      if (normalized === 'SIMPLE') {
+        return ProductMode.SIMPLE
+      }
+      if (normalized === 'PARAMETRIC') {
+        return ProductMode.PARAMETRIC
+      }
+      return ProductMode.SIMPLE
+    }
+    return mode
+  }
+
+  private buildAttributeValueKey(attributeType: ProductAttributeType, canonicalKey: string): string {
+    return `${attributeType}:${canonicalKey}`
+  }
+
+  private normalizeAttributesInput(input?: AttributeInput[] | null): NormalizedAttribute[] {
+    if (!input || !input.length) {
+      return []
+    }
+
+    const seenTypes = new Set<ProductAttributeType>()
+    const normalized = input.map((attribute, attributeIndex) => {
+      if (!attribute) {
+        throw new BadRequestException('Invalid attribute definition.')
+      }
+      const { type } = attribute
+      if (!type) {
+        throw new BadRequestException('Attribute type is required.')
+      }
+      if (seenTypes.has(type)) {
+        throw new BadRequestException(`Duplicate attribute definition for ${type}.`)
+      }
+      seenTypes.add(type)
+
+      const name = this.safeTrim(attribute.name) || ATTRIBUTE_DEFAULT_LABELS[type] || type
+      const valuesInput = Array.isArray(attribute.values) ? attribute.values : []
+      if (!valuesInput.length) {
+        throw new BadRequestException(`Attribute "${name}" must define at least one value.`)
+      }
+      const seenKeys = new Set<string>()
+      const normalizedValues = valuesInput.map((value, valueIndex) => {
+        if (!value) {
+          throw new BadRequestException(`Attribute "${name}" has an invalid value definition.`)
+        }
+        const fallbackKey = `value-${attributeIndex + 1}-${valueIndex + 1}`
+        const canonicalKey = this.toCanonicalKey(value.key, fallbackKey)
+        if (seenKeys.has(canonicalKey)) {
+          throw new BadRequestException(`Attribute "${name}" has duplicated value key "${canonicalKey}".`)
+        }
+        seenKeys.add(canonicalKey)
+
+        const labelCandidate = this.safeTrim(value.label) || this.safeTrim(value.value)
+        const label = labelCandidate || `Opción ${valueIndex + 1}`
+        const storedValue = this.safeTrim(value.value) || label
+        const colorHex = this.safeTrim(value.colorHex)
+        const imageUrl = this.safeTrim(value.imageUrl)
+        const imageAlt = this.safeTrim(value.imageAlt)
+        const sortOrder =
+          value.sortOrder !== undefined && value.sortOrder !== null ? Number(value.sortOrder) || 0 : valueIndex
+
+        return {
+          key: canonicalKey,
+          canonicalKey,
+          label,
+          value: storedValue,
+          colorHex: colorHex || undefined,
+          imageUrl: imageUrl || undefined,
+          imageAlt: imageAlt || undefined,
+          sortOrder,
+        }
+      })
+
+      normalizedValues.sort((a, b) => a.sortOrder - b.sortOrder)
+
+      return {
+        type,
+        name,
+        sortOrder:
+          attribute.sortOrder !== undefined && attribute.sortOrder !== null
+            ? Number(attribute.sortOrder) || attributeIndex
+            : attributeIndex,
+        values: normalizedValues,
+      }
+    })
+
+    normalized.sort((a, b) => a.sortOrder - b.sortOrder)
+    return normalized
+  }
+
+  private normalizeVariantsInput(variants: VariantInput[] | undefined, attributes: NormalizedAttribute[]): NormalizedVariant[] {
+    if (!variants || !variants.length) {
+      return []
+    }
+
+    const attributeOrder = new Map<ProductAttributeType, number>()
+    const attributeValueLookup = new Map<ProductAttributeType, Map<string, NormalizedAttributeValue>>()
+    attributes.forEach((attribute, index) => {
+      attributeOrder.set(attribute.type, index)
+      const valueMap = new Map<string, NormalizedAttributeValue>()
+      attribute.values.forEach((value) => {
+        valueMap.set(value.canonicalKey, value)
+      })
+      attributeValueLookup.set(attribute.type, valueMap)
+    })
+
+    const seenVariantKeys = new Set<string>()
+
+    return variants.map((variant, variantIndex) => {
+      if (!variant) {
+        throw new BadRequestException('Invalid variant definition.')
+      }
+
+      const variantKey = this.toCanonicalKey(variant.key, `variant-${variantIndex + 1}`)
+      if (seenVariantKeys.has(variantKey)) {
+        throw new BadRequestException(`Duplicate variant key "${variantKey}".`)
+      }
+      seenVariantKeys.add(variantKey)
+
+      const selectionsInput = Array.isArray(variant.attributes) ? variant.attributes : []
+      if (selectionsInput.length !== attributes.length) {
+        throw new BadRequestException('Each variant must include exactly one value for every attribute.')
+      }
+
+      const usedAttributes = new Set<ProductAttributeType>()
+      const resolvedSelections = selectionsInput.map((selection, selectionIndex) => {
+        if (!selection) {
+          throw new BadRequestException(`Variant "${variantKey}" contains an invalid attribute selection.`)
+        }
+        const attributeType = selection.attribute
+        if (!attributeOrder.has(attributeType)) {
+          throw new BadRequestException(`Variant "${variantKey}" references an unknown attribute.`)
+        }
+        if (usedAttributes.has(attributeType)) {
+          throw new BadRequestException(`Variant "${variantKey}" sets the attribute "${attributeType}" multiple times.`)
+        }
+        usedAttributes.add(attributeType)
+
+        const canonicalKey = this.toCanonicalKey(selection.valueKey, `value-${variantIndex + 1}-${selectionIndex + 1}`)
+        const valuesMap = attributeValueLookup.get(attributeType)
+        const resolvedValue = valuesMap?.get(canonicalKey)
+        if (!resolvedValue) {
+          throw new BadRequestException(
+            `Variant "${variantKey}" references an unknown value for attribute "${attributeType}".`,
+          )
+        }
+        return { attribute: attributeType, value: resolvedValue }
+      })
+
+      resolvedSelections.sort(
+        (a, b) => (attributeOrder.get(a.attribute) ?? 0) - (attributeOrder.get(b.attribute) ?? 0),
+      )
+
+      const sku = this.safeTrim(variant.sku)
+      const barcode = this.safeTrim(variant.barcode)
+      const label = this.safeTrim(variant.label)
+
+      const hasSaleOverride = variant.salePrice !== undefined && variant.salePrice !== null
+      const inheritSalePrice =
+        variant.inheritSalePrice !== undefined ? Boolean(variant.inheritSalePrice) : !hasSaleOverride
+      const salePriceValue = hasSaleOverride ? Number(variant.salePrice) : undefined
+
+      const hasCostOverride = variant.costPrice !== undefined && variant.costPrice !== null
+      const inheritCostPrice =
+        variant.inheritCostPrice !== undefined ? Boolean(variant.inheritCostPrice) : !hasCostOverride
+      const costPriceValue = hasCostOverride ? Number(variant.costPrice) : undefined
+
+      const hasStockOverride = variant.stock !== undefined && variant.stock !== null
+      const inheritStock = variant.inheritStock !== undefined ? Boolean(variant.inheritStock) : !hasStockOverride
+      const stockValue = hasStockOverride ? Math.max(0, Math.round(Number(variant.stock) || 0)) : undefined
+      const permanentStockValue =
+        variant.permanentStock === undefined || variant.permanentStock === null
+          ? false
+          : Boolean(variant.permanentStock)
+
+      const hasSkuOverride = Boolean(sku)
+      const inheritSku = variant.inheritSku !== undefined ? Boolean(variant.inheritSku) : !hasSkuOverride
+
+      const hasImageOverride = Array.isArray(variant.images) && variant.images.length > 0
+      const inheritImages =
+        variant.inheritImages !== undefined ? Boolean(variant.inheritImages) : !hasImageOverride
+      const images: ProductImageInput[] = hasImageOverride
+        ? variant.images!.map((image, imageIndex) => ({
+            id: image.id ?? `variant-img-${variantIndex + 1}-${imageIndex + 1}`,
+            name: this.safeTrim(image.name) || undefined,
+            img: image.img,
+          }))
+        : []
+
+      return {
+        key: variantKey,
+        sku: inheritSku ? undefined : sku || undefined,
+        barcode: barcode || undefined,
+        label: label || undefined,
+        salePrice: inheritSalePrice ? undefined : salePriceValue,
+        costPrice: inheritCostPrice ? undefined : costPriceValue,
+        stock: inheritStock ? undefined : stockValue,
+        permanentStock: inheritStock ? undefined : permanentStockValue,
+        isActive: variant.isActive === undefined || variant.isActive === null ? true : Boolean(variant.isActive),
+        inheritSalePrice,
+        inheritCostPrice,
+        inheritStock,
+        inheritSku,
+        inheritImages,
+        attributes: resolvedSelections,
+        images,
+      }
+    })
+  }
+
+  private buildVariantCombinationKey(valueIds: number[]): string {
+    return valueIds
+      .slice()
+      .sort((a, b) => a - b)
+      .join('-')
+  }
+
+  private async replaceProductImages(
+    tx: Prisma.TransactionClient,
+    productId: number,
+    images?: ProductImageInput[] | null,
+  ) {
+    await tx.productImage.deleteMany({
+      where: {
+        productId,
+        OR: [{ variantId: null }, { variantId: { equals: null } }],
+      },
+    })
+
+    if (!images || !images.length) {
+      return
+    }
+
+    for (let index = 0; index < images.length; index += 1) {
+      const image = images[index]
+      if (!image || !image.img) {
+        // Skip invalid entries but keep indexes consistent
+        // eslint-disable-next-line no-continue
+        continue
+      }
+      await tx.productImage.create({
+        data: {
+          productId,
+          variantId: null,
+          name: this.safeTrim(image.name) || null,
+          img: image.img,
+          sortOrder: index,
+        },
+      })
+    }
+  }
+
+  private async replaceVariantImages(
+    tx: Prisma.TransactionClient,
+    productId: number,
+    variantId: number,
+    images?: ProductImageInput[] | null,
+  ) {
+    await tx.productImage.deleteMany({
+      where: {
+        productId,
+        variantId,
+      },
+    })
+
+    if (!images || !images.length) {
+      return
+    }
+
+    for (let index = 0; index < images.length; index += 1) {
+      const image = images[index]
+      if (!image || !image.img) {
+        // eslint-disable-next-line no-continue
+        continue
+      }
+      await tx.productImage.create({
+        data: {
+          productId,
+          variantId,
+          name: this.safeTrim(image.name) || null,
+          img: image.img,
+          sortOrder: index,
+        },
+      })
+    }
+  }
+
+  private async clearVariableStructure(tx: Prisma.TransactionClient, productId: number) {
+    await tx.productVariant.deleteMany({ where: { productId } })
+    await tx.productOption.deleteMany({ where: { productId } })
+  }
+
+  private async applyVariableStructure(
+    tx: Prisma.TransactionClient,
+    product: {
+      id: number
+      salePrice: Prisma.Decimal | number
+      costPrice: Prisma.Decimal | number
+      stock: number
+      permanentStock: boolean
+      currency: string
+    },
+    attributes: NormalizedAttribute[],
+    variants: NormalizedVariant[],
+  ): Promise<{ stock: number; permanentStock: boolean; status: 0 | 1 | 2 }> {
+    await this.clearVariableStructure(tx, product.id)
+
+    if (!attributes.length || !variants.length) {
+      const baseStock = Number(product.stock ?? 0)
+      const basePermanent = Boolean(product.permanentStock)
+      return {
+        stock: baseStock,
+        permanentStock: basePermanent,
+        status: this.deriveInventoryStatus(baseStock, basePermanent),
+      }
+    }
+
+    const baseSalePrice = decimalToNumber(product.salePrice)
+    const baseCostPrice = decimalToNumber(product.costPrice)
+    const baseStock = Number(product.stock ?? 0)
+    const basePermanent = Boolean(product.permanentStock)
+
+    const valueByKey = new Map<
+      string,
+      { id: number; attribute: ProductAttributeType; value: NormalizedAttributeValue }
+    >()
+    const combinationKeys = new Set<string>()
+
+    for (const attribute of attributes) {
+      const createdOption = await tx.productOption.create({
+        data: {
+          productId: product.id,
+          type: attribute.type,
+          name: attribute.name,
+          sortOrder: attribute.sortOrder,
+          values: {
+            create: attribute.values.map((value, valueIndex) => ({
+              code: value.canonicalKey,
+              label: value.label,
+              value: value.value,
+              colorHex: value.colorHex,
+              imageUrl: value.imageUrl,
+              imageAlt: value.imageAlt,
+              sortOrder: value.sortOrder ?? valueIndex,
+            })),
+          },
+        },
+        include: { values: true },
+      })
+
+      createdOption.values.forEach((createdValue, index) => {
+        const normalizedValue = attribute.values[index]
+        if (!normalizedValue) return
+        const mapKey = this.buildAttributeValueKey(attribute.type, normalizedValue.canonicalKey)
+        valueByKey.set(mapKey, {
+          id: createdValue.id,
+          attribute: attribute.type,
+          value: normalizedValue,
+        })
+      })
+    }
+
+    let hasActiveVariant = false
+    let aggregateStatus: 0 | 1 | 2 = 2
+    let totalStockOverrides = 0
+    let hasVariantStockOverride = false
+    let hasVariantPermanentOverride = false
+
+    for (const variant of variants) {
+      const selectionEntries = variant.attributes.map((selection) => {
+        const key = this.buildAttributeValueKey(selection.attribute, selection.value.canonicalKey)
+        const record = valueByKey.get(key)
+        if (!record) {
+          throw new BadRequestException(
+            `Variant "${variant.key}" references an unknown attribute value for "${selection.attribute}".`,
+          )
+        }
+        return record
+      })
+
+      const combinationKey = this.buildVariantCombinationKey(selectionEntries.map((entry) => entry.id))
+      if (combinationKeys.has(combinationKey)) {
+        throw new BadRequestException(`Duplicate variant combination detected for key "${combinationKey}".`)
+      }
+      combinationKeys.add(combinationKey)
+
+      const fallbackLabel = variant.attributes.map((selection) => selection.value.label).join(' / ')
+      const resolvedLabel = this.safeTrim(variant.label) || fallbackLabel || 'Variante'
+
+      const salePriceOverride =
+        variant.inheritSalePrice || variant.salePrice === undefined || variant.salePrice === null
+          ? null
+          : roundCurrency(Number.isFinite(variant.salePrice) ? variant.salePrice! : baseSalePrice)
+      const costPriceOverride =
+        variant.inheritCostPrice || variant.costPrice === undefined || variant.costPrice === null
+          ? null
+          : roundCurrency(Number.isFinite(variant.costPrice) ? variant.costPrice! : baseCostPrice)
+
+      const normalizedStock =
+        variant.stock === undefined || variant.stock === null
+          ? 0
+          : Math.max(0, Math.round(Number(variant.stock) || 0))
+      const stockOverride = variant.inheritStock ? null : normalizedStock
+
+      const permanentOverride =
+        variant.inheritStock || variant.permanentStock === undefined || variant.permanentStock === null
+          ? null
+          : Boolean(variant.permanentStock)
+
+      const skuOverride = variant.inheritSku ? null : this.safeTrim(variant.sku) || null
+      const barcode = this.safeTrim(variant.barcode) || null
+
+      const attributesJson = variant.attributes.map((selection) => ({
+        attribute: selection.attribute,
+        key: selection.value.key,
+        label: selection.value.label,
+        value: selection.value.value,
+        colorHex: selection.value.colorHex ?? null,
+        imageUrl: selection.value.imageUrl ?? null,
+        imageAlt: selection.value.imageAlt ?? null,
+      }))
+
+      const createdVariant = await tx.productVariant.create({
+        data: {
+          productId: product.id,
+          key: variant.key,
+          sku: skuOverride,
+          barcode,
+          label: resolvedLabel,
+          salePrice: salePriceOverride,
+          costPrice: costPriceOverride,
+          stock: stockOverride,
+          permanentStock: permanentOverride,
+          isActive: variant.isActive,
+          inheritSalePrice: variant.inheritSalePrice,
+          inheritCostPrice: variant.inheritCostPrice,
+          inheritStock: variant.inheritStock,
+          inheritSku: variant.inheritSku,
+          inheritImages: variant.inheritImages,
+          attributes: attributesJson,
+          combinationKey,
+          selections: {
+            create: selectionEntries.map((entry) => ({
+              optionValueId: entry.id,
+            })),
+          },
+        },
+      })
+
+      if (!variant.inheritImages || (variant.images && variant.images.length > 0)) {
+        await this.replaceVariantImages(tx, product.id, createdVariant.id, variant.images)
+      }
+
+      if (variant.isActive) {
+        hasActiveVariant = true
+        const effectiveStock = variant.inheritStock ? baseStock : stockOverride ?? 0
+        const effectivePermanent = variant.inheritStock ? basePermanent : Boolean(permanentOverride)
+        const status = this.deriveInventoryStatus(effectiveStock, effectivePermanent)
+        const nextStatus = Math.min(aggregateStatus, status as 0 | 1 | 2) as 0 | 1 | 2
+        aggregateStatus = nextStatus
+        if (!variant.inheritStock) {
+          hasVariantStockOverride = true
+          totalStockOverrides += stockOverride ?? 0
+          if (permanentOverride) {
+            hasVariantPermanentOverride = true
+          }
+        }
+      }
+    }
+
+    if (!hasActiveVariant) {
+      aggregateStatus = this.deriveInventoryStatus(baseStock, basePermanent)
+    } else if (!hasVariantStockOverride) {
+      const fallbackStatus = this.deriveInventoryStatus(baseStock, basePermanent) as 0 | 1 | 2
+      aggregateStatus = Math.min(aggregateStatus, fallbackStatus) as 0 | 1 | 2
+    }
+
+    const finalStock = hasVariantStockOverride ? totalStockOverrides : baseStock
+    const finalPermanent = hasVariantStockOverride ? hasVariantPermanentOverride : basePermanent
+
+    return {
+      stock: finalStock,
+      permanentStock: finalPermanent,
+      status: aggregateStatus,
+    }
   }
 
   private startOfDay(date: Date) {
@@ -242,6 +818,44 @@ export class SalesController {
       andConditions.push({
         currency: { in: currencyList },
       })
+    }
+
+    const modeSelection = filterData?.mode
+    const modeList: ProductMode[] = []
+    const pushMode = (value: unknown) => {
+      if (typeof value !== 'string') return
+      const normalized = value.trim().toUpperCase()
+      switch (normalized) {
+        case 'SIMPLE':
+          if (!modeList.includes(ProductMode.SIMPLE)) {
+            modeList.push(ProductMode.SIMPLE)
+          }
+          break
+        case 'VARIABLE':
+          if (!modeList.includes(ProductMode.VARIABLE)) {
+            modeList.push(ProductMode.VARIABLE)
+          }
+          break
+        case 'PARAMETRIC':
+          if (!modeList.includes(ProductMode.PARAMETRIC)) {
+            modeList.push(ProductMode.PARAMETRIC)
+          }
+          break
+        default:
+          break
+      }
+    }
+    if (Array.isArray(modeSelection)) {
+      for (const item of modeSelection) {
+        pushMode(item)
+      }
+    } else if (modeSelection !== undefined && modeSelection !== null) {
+      pushMode(modeSelection)
+    }
+    if (modeList.length === 1) {
+      andConditions.push({ mode: modeList[0] })
+    } else if (modeList.length > 1) {
+      andConditions.push({ mode: { in: modeList } })
     }
 
     if (!andConditions.length) return {}
@@ -451,18 +1065,30 @@ export class SalesController {
     methodName: string,
     cache: Map<string, number>,
   ): Promise<number | undefined> {
-    const normalizedName = (methodName || 'Cash').trim()
-    if (!normalizedName) return undefined
-    const key = normalizedName.toLowerCase()
+    const normalizedName = (methodName || '').trim()
+    const key = normalizedName.toLowerCase() || 'default'
     if (cache.has(key)) return cache.get(key)
-    let method = await this.prisma.paymentMethod.findFirst({
-      where: { name: { equals: normalizedName, mode: 'insensitive' } },
-    })
-    if (!method) {
-      method = await this.prisma.paymentMethod.create({ data: { name: normalizedName } })
+
+    const definition =
+      matchPaymentMethod(normalizedName) ??
+      matchPaymentMethod(key)
+
+    if (definition) {
+      cache.set(key, definition.id)
+      return definition.id
     }
-    cache.set(key, method.id)
-    return method.id
+
+    const numeric = Number(normalizedName)
+    if (normalizedName && Number.isFinite(numeric) && numeric > 0) {
+      const byId = findPaymentMethodById(numeric)
+      if (byId) {
+        cache.set(key, byId.id)
+        return byId.id
+      }
+    }
+
+    cache.set(key, DEFAULT_PAYMENT_METHOD_ID)
+    return DEFAULT_PAYMENT_METHOD_ID
   }
 
   private async resolveStatus(
@@ -476,11 +1102,11 @@ export class SalesController {
     const numericStatus = rawStatusId ? Math.round(this.parseNumber(rawStatusId)) : 0
     if (numericStatus > 0) {
       if (byId.has(numericStatus)) return byId.get(numericStatus)
-      const status = await this.prisma.orderStatus.findUnique({ where: { id: numericStatus } })
-      if (status) {
-        byId.set(status.id, status.id)
-        if (status.name) byName.set(status.name.toLowerCase(), status.id)
-        return status.id
+      const definition = findOrderStatusById(numericStatus)
+      if (definition && definition.documentTypes.includes(DocumentType.ORDER)) {
+        byId.set(definition.id, definition.id)
+        if (definition.label) byName.set(definition.label.toLowerCase(), definition.id)
+        return definition.id
       }
     }
     const rawStatusName = this.getCell(row, columnIndex, 'statusName')
@@ -489,13 +1115,11 @@ export class SalesController {
       if (normalizedName && byName.has(normalizedName)) {
         return byName.get(normalizedName)
       }
-      const status = await this.prisma.orderStatus.findFirst({
-        where: { name: { equals: rawStatusName, mode: 'insensitive' } },
-      })
-      if (status) {
-        byId.set(status.id, status.id)
-        if (status.name) byName.set(status.name.toLowerCase(), status.id)
-        return status.id
+      const matched = matchOrderStatus(rawStatusName, DocumentType.ORDER)
+      if (matched) {
+        byId.set(matched.id, matched.id)
+        byName.set(normalizedName, matched.id)
+        return matched.id
       }
     }
     return fallbackId
@@ -680,18 +1304,21 @@ export class SalesController {
     const latest = await this.prisma.order.findMany({
       where,
       orderBy: { date: 'desc' },
-      include: { customer: true, paymentMethod: true },
+      include: { customer: true },
       take: 8,
     })
-    const latestOrderData = latest.map((o) => ({
-      id: String(o.id),
-      date: Math.floor(new Date(o.date).getTime() / 1000),
-      customer: o.customer?.name || '',
-      status: o.statusId || 0,
-      paymentMehod: o.paymentMethod?.name || '',
-      paymentIdendifier: '',
-      totalAmount: o.grandTotal,
-    }))
+    const latestOrderData = latest.map((o) => {
+      const paymentMethod = findPaymentMethodById(o.paymentMethodId ?? null)
+      return {
+        id: String(o.id),
+        date: Math.floor(new Date(o.date).getTime() / 1000),
+        customer: o.customer?.name || '',
+        status: o.statusId || 0,
+        paymentMehod: paymentMethod?.label || '',
+        paymentIdendifier: '',
+        totalAmount: o.grandTotal,
+      }
+    })
 
     // Sales by categories
     const cats = await this.prisma.productCategory.findMany({ include: { products: true } })
@@ -762,6 +1389,7 @@ export class SalesController {
         tags: true,
         brand: true,
         vendor: true,
+        mode: true,
         category: { select: { name: true } },
         specifications: true,
       },
@@ -784,6 +1412,7 @@ export class SalesController {
       brand: p.brand || '',
       vendor: p.vendor || '',
       specifications: p.specifications ?? '',
+      mode: p.mode,
     }))
     return { data, total }
   }
@@ -823,6 +1452,7 @@ export class SalesController {
       'statusLabel',
       'permanentStock',
       'published',
+      'mode',
       'tags',
       'specifications',
       'createdAt',
@@ -861,6 +1491,7 @@ export class SalesController {
         statusLabel[statusValue] ?? '',
         product.permanentStock ? 'true' : 'false',
         product.published ? 'true' : 'false',
+        product.mode ?? ProductMode.SIMPLE,
         tags,
         product.specifications ?? '',
         Number.isNaN(created.getTime()) ? '' : created.toISOString(),
@@ -1071,48 +1702,237 @@ export class SalesController {
     const nId = Number(id)
     const data = await this.prisma.product.findUnique({
       where: { id: nId },
-      include: { images: true, category: true },
+      include: {
+        images: {
+          where: { variantId: null },
+          orderBy: { sortOrder: 'asc' },
+        },
+        category: true,
+        options: {
+          include: {
+            values: {
+              orderBy: { sortOrder: 'asc' },
+            },
+          },
+          orderBy: { sortOrder: 'asc' },
+        },
+        variants: {
+          include: {
+            images: {
+              orderBy: { sortOrder: 'asc' },
+            },
+            selections: {
+              include: {
+                optionValue: {
+                  include: {
+                    option: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        },
+      },
     })
     if (!data) return null
+    const {
+      options = [],
+      variants: variantEntities = [],
+      images = [],
+      ...rest
+    } = data as typeof data & {
+      options: Array<
+        Prisma.ProductOptionGetPayload<{
+          include: { values: true }
+        }>
+      >
+      variants: Array<
+        Prisma.ProductVariantGetPayload<{
+          include: {
+            images: true
+            selections: {
+              include: { optionValue: { include: { option: true } } }
+            }
+          }
+        }>
+      >
+      images: Array<Prisma.ProductImageGetPayload<{}>>
+    }
+
+    const attributes = options.map((option) => ({
+      id: option.id,
+      type: option.type,
+      name: option.name,
+      sortOrder: option.sortOrder,
+      values: option.values
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((value) => ({
+          id: value.id,
+          key: value.code,
+          label: value.label,
+          value: value.value ?? '',
+          colorHex: value.colorHex ?? undefined,
+          imageUrl: value.imageUrl ?? undefined,
+          imageAlt: value.imageAlt ?? undefined,
+          sortOrder: value.sortOrder,
+        })),
+    }))
+
+    const variants = variantEntities.map((variant) => {
+      const attributesPayload = Array.isArray(variant.attributes)
+        ? (variant.attributes as Array<Record<string, unknown>>)
+        : []
+      const selectionsByAttribute = new Map<ProductAttributeType, number>()
+      variant.selections.forEach((selection) => {
+        const attributeType = selection.optionValue.option.type
+        selectionsByAttribute.set(attributeType, selection.optionValueId)
+      })
+
+      const attributeSelections = attributesPayload
+        .map((entry) => {
+          const attribute = entry?.attribute as ProductAttributeType | undefined
+          const key = typeof entry?.key === 'string' ? entry.key : undefined
+          if (!attribute || !key) {
+            return null
+          }
+          const label = typeof entry?.label === 'string' ? entry.label : undefined
+          const value = typeof entry?.value === 'string' ? entry.value : undefined
+          const colorHex = typeof entry?.colorHex === 'string' ? entry.colorHex : undefined
+          const imageUrl = typeof entry?.imageUrl === 'string' ? entry.imageUrl : undefined
+          const imageAlt = typeof entry?.imageAlt === 'string' ? entry.imageAlt : undefined
+          const optionValueId = selectionsByAttribute.get(attribute)
+          return {
+            attribute,
+            valueKey: key,
+            label,
+            value,
+            colorHex,
+            imageUrl,
+            imageAlt,
+            optionValueId,
+          }
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+
+      return {
+        id: variant.id,
+        key: variant.key,
+        sku: variant.sku ?? undefined,
+        barcode: variant.barcode ?? undefined,
+        label: variant.label ?? undefined,
+        salePrice: variant.salePrice ? decimalToNumber(variant.salePrice) : undefined,
+        costPrice: variant.costPrice ? decimalToNumber(variant.costPrice) : undefined,
+        stock: variant.stock ?? undefined,
+        permanentStock: variant.permanentStock ?? undefined,
+        isActive: variant.isActive,
+        inheritSalePrice: variant.inheritSalePrice,
+        inheritCostPrice: variant.inheritCostPrice,
+        inheritStock: variant.inheritStock,
+        inheritSku: variant.inheritSku,
+        inheritImages: variant.inheritImages,
+        attributes: attributeSelections,
+        images: variant.images.map((image, index) => ({
+          id: String(image.id ?? `${variant.id}-${index}`),
+          name: image.name ?? undefined,
+          img: image.img,
+          sortOrder: image.sortOrder,
+        })),
+      }
+    })
+
+    const imgList = images.map((image) => ({
+      id: String(image.id),
+      name: image.name ?? undefined,
+      img: image.img,
+    }))
+
     return {
-      ...data,
+      ...rest,
       salePrice: decimalToNumber(data.salePrice),
       costPrice: decimalToNumber(data.costPrice),
+      mode: data.mode,
+      imgList,
+      attributes,
+      variants,
     }
   }
 
   @Post('products/create')
   async createProduct(@Body() dto: UpsertProductDto) {
+    const mode = this.normalizeProductMode(dto.mode)
+    const normalizedAttributes = mode === ProductMode.VARIABLE ? this.normalizeAttributesInput(dto.attributes) : []
+    const normalizedVariants =
+      mode === ProductMode.VARIABLE ? this.normalizeVariantsInput(dto.variants, normalizedAttributes) : []
+
+    if (mode === ProductMode.VARIABLE) {
+      if (!normalizedAttributes.length) {
+        throw new BadRequestException('Variable products require at least one attribute.')
+      }
+      if (!normalizedVariants.length) {
+        throw new BadRequestException('Variable products require at least one variant.')
+      }
+    }
+
     const tags = (dto.tags || []).map((t: any) => (typeof t === 'string' ? t : t.value))
     const taxRate = await this.getTaxRate()
     const permanentStock = dto.permanentStock ?? false
     const status = this.deriveInventoryStatus(dto.stock, permanentStock)
-    await this.prisma.product.create({
-      data: {
-        name: dto.name,
-        productCode: dto.productCode,
-        img: dto.img,
-        description: dto.description,
-        specifications: dto.specifications?.trim?.() ? dto.specifications.trim() : null,
-        categoryId: dto.categoryId,
-        salePrice: roundCurrency(dto.salePrice),
-        costPrice: roundCurrency(dto.costPrice),
-        currency: (dto.currency || 'UYU').toUpperCase(),
-        unitOfMeasure: dto.unitOfMeasure ?? SalesUnit.UNIT,
-        stock: dto.stock,
-        permanentStock,
-        status,
-        costPerItem: dto.costPerItem ?? roundCurrency(dto.costPrice),
-        bulkDiscountPrice: dto.bulkDiscountPrice,
-        taxRate,
-        tags,
-        brand: dto.brand,
-        vendor: dto.vendor,
-        published: dto.published ?? false,
-        images: dto.imgList && dto.imgList.length ? {
-          create: dto.imgList.map((im, idx) => ({ name: im.name, img: im.img, sortOrder: idx }))
-        } : undefined,
-      },
+    const currency = this.safeTrim(dto.currency) || 'UYU'
+    const normalizedSalePrice = roundCurrency(dto.salePrice)
+    const normalizedCostPrice = roundCurrency(dto.costPrice)
+    const coverImage = dto.img || dto.imgList?.[0]?.img || null
+
+    await this.prisma.$transaction(async (tx) => {
+      const product = await tx.product.create({
+        data: {
+          name: dto.name,
+          productCode: dto.productCode,
+          img: coverImage,
+          description: dto.description,
+          specifications: dto.specifications?.trim?.() ? dto.specifications.trim() : null,
+          categoryId: dto.categoryId,
+          salePrice: normalizedSalePrice,
+          costPrice: normalizedCostPrice,
+          currency: currency.toUpperCase(),
+          unitOfMeasure: dto.unitOfMeasure ?? SalesUnit.UNIT,
+          stock: dto.stock,
+          permanentStock,
+          status,
+          mode,
+          costPerItem: dto.costPerItem ?? normalizedCostPrice,
+          bulkDiscountPrice: dto.bulkDiscountPrice,
+          taxRate,
+          tags,
+          brand: dto.brand,
+          vendor: dto.vendor,
+          published: dto.published ?? false,
+        },
+      })
+
+      if (dto.imgList && dto.imgList.length) {
+        await this.replaceProductImages(tx, product.id, dto.imgList)
+      }
+
+      if (mode === ProductMode.VARIABLE) {
+        const result = await this.applyVariableStructure(tx, product, normalizedAttributes, normalizedVariants)
+        await tx.product.update({
+          where: { id: product.id },
+          data: {
+            stock: result.stock,
+            permanentStock: result.permanentStock,
+            status: result.status,
+          },
+        })
+      } else if (mode === ProductMode.PARAMETRIC) {
+        await this.parametricPricing.ensureProductConfig(product.id, tx)
+      } else if (!product.img && dto.imgList && dto.imgList.length) {
+        await tx.product.update({
+          where: { id: product.id },
+          data: { img: dto.imgList[0].img },
+        })
+      }
     })
     return true
   }
@@ -1120,15 +1940,48 @@ export class SalesController {
   @Put('products/update')
   async updateProduct(@Body() dto: UpdateProductDto) {
     if (!dto.id) return false
+    const existingProduct = await this.prisma.product.findUnique({
+      where: { id: dto.id },
+      select: {
+        id: true,
+        salePrice: true,
+        costPrice: true,
+        stock: true,
+        permanentStock: true,
+        currency: true,
+        mode: true,
+      },
+    })
+    if (!existingProduct) {
+      throw new BadRequestException('Product not found')
+    }
+
+    const nextMode = dto.mode ? this.normalizeProductMode(dto.mode) : existingProduct.mode
+    let normalizedAttributes: NormalizedAttribute[] = []
+    let normalizedVariants: NormalizedVariant[] = []
+    if (nextMode === ProductMode.VARIABLE) {
+      normalizedAttributes = this.normalizeAttributesInput(dto.attributes)
+      normalizedVariants = this.normalizeVariantsInput(dto.variants, normalizedAttributes)
+      if (!normalizedAttributes.length) {
+        throw new BadRequestException('Variable products require at least one attribute.')
+      }
+      if (!normalizedVariants.length) {
+        throw new BadRequestException('Variable products require at least one variant.')
+      }
+    }
+
     const tags =
-      // only update tags if provided, otherwise leave unchanged
       (dto as any).tags === undefined
         ? undefined
-        : ((dto.tags || []).map((t: any) => (typeof t === 'string' ? t : t.value)))
+        : (dto.tags || []).map((t: any) => (typeof t === 'string' ? t : t.value))
+
     const taxRate = await this.getTaxRate()
     const normalizedSalePrice = dto.salePrice === undefined ? undefined : roundCurrency(dto.salePrice)
     const normalizedCostPrice = dto.costPrice === undefined ? undefined : roundCurrency(dto.costPrice)
-    const updateData: any = {
+    const normalizedCurrency =
+      dto.currency === undefined ? undefined : (this.safeTrim(dto.currency) || 'UYU').toUpperCase()
+
+    const updateData: Prisma.ProductUpdateInput = {
       name: dto.name,
       productCode: dto.productCode,
       img: dto.img,
@@ -1143,48 +1996,86 @@ export class SalesController {
       costPrice: normalizedCostPrice,
       stock: dto.stock,
       costPerItem:
-        dto.costPerItem === undefined ? normalizedCostPrice : roundCurrency(dto.costPerItem),
+        dto.costPerItem === undefined ? normalizedCostPrice ?? undefined : roundCurrency(dto.costPerItem),
       bulkDiscountPrice: dto.bulkDiscountPrice,
       taxRate,
       tags,
       brand: dto.brand,
       vendor: dto.vendor,
       permanentStock: dto.permanentStock === undefined ? undefined : dto.permanentStock,
-      currency:
-        dto.currency === undefined
-          ? undefined
-          : (dto.currency || 'UYU').toUpperCase(),
-      unitOfMeasure:
-        dto.unitOfMeasure === undefined ? undefined : dto.unitOfMeasure,
-      // only update published if provided
+      currency: normalizedCurrency,
+      unitOfMeasure: dto.unitOfMeasure === undefined ? undefined : dto.unitOfMeasure,
       published: dto.published === undefined ? undefined : dto.published,
+      category:
+        dto.categoryId === undefined
+          ? undefined
+          : {
+              connect: { id: dto.categoryId },
+            },
+      mode: nextMode,
     }
-    const existing = await this.prisma.product.findUnique({
-      where: { id: dto.id },
-      select: { stock: true, permanentStock: true },
-    })
-    if (!existing) {
-      throw new BadRequestException('Product not found')
-    }
-    const nextStock = dto.stock !== undefined ? dto.stock : existing.stock
-    const nextPermanent =
-      dto.permanentStock !== undefined ? dto.permanentStock : existing.permanentStock
-    updateData.status = this.deriveInventoryStatus(nextStock, nextPermanent)
-    if (dto.categoryId !== undefined) {
-      updateData.categoryId = dto.categoryId
-    }
-    if (dto.imgList) {
-      updateData.images = {
-        deleteMany: {},
-        create: dto.imgList.map((im: any, idx: number) => ({ name: im.name, img: im.img, sortOrder: idx })),
+
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.product.update({
+        where: { id: dto.id },
+        data: updateData,
+      })
+
+      if (dto.imgList) {
+        await this.replaceProductImages(tx, updated.id, dto.imgList)
+        if (!dto.img && dto.imgList.length > 0) {
+          await tx.product.update({
+            where: { id: updated.id },
+            data: { img: dto.imgList[0].img },
+          })
+        }
       }
-      if (!dto.img && dto.imgList.length > 0) {
-        updateData.img = dto.imgList[0].img
+
+      const context = {
+        id: updated.id,
+        salePrice: normalizedSalePrice ?? updated.salePrice ?? existingProduct.salePrice,
+        costPrice: normalizedCostPrice ?? updated.costPrice ?? existingProduct.costPrice,
+        stock:
+          dto.stock !== undefined && dto.stock !== null
+            ? Number(dto.stock)
+            : updated.stock ?? existingProduct.stock ?? 0,
+        permanentStock:
+          dto.permanentStock !== undefined && dto.permanentStock !== null
+            ? Boolean(dto.permanentStock)
+            : updated.permanentStock ?? existingProduct.permanentStock ?? false,
+        currency: normalizedCurrency ?? updated.currency ?? existingProduct.currency ?? 'UYU',
       }
-    }
-    await this.prisma.product.update({
-      where: { id: dto.id },
-      data: updateData,
+
+      let finalStock = Number(context.stock ?? 0)
+      let finalPermanent = Boolean(context.permanentStock)
+      let finalStatus: 0 | 1 | 2 = this.deriveInventoryStatus(finalStock, finalPermanent)
+
+      if (nextMode === ProductMode.VARIABLE) {
+        const result = await this.applyVariableStructure(tx, context, normalizedAttributes, normalizedVariants)
+        finalStock = result.stock
+        finalPermanent = result.permanentStock
+        finalStatus = result.status
+      } else {
+        await this.clearVariableStructure(tx, updated.id)
+        finalStatus = this.deriveInventoryStatus(finalStock, finalPermanent)
+        if (nextMode === ProductMode.PARAMETRIC) {
+          await this.parametricPricing.ensureProductConfig(updated.id, tx)
+        }
+      }
+
+      const coverImageUpdate =
+        !dto.img && dto.imgList && dto.imgList.length > 0 ? { img: dto.imgList[0].img } : {}
+
+      await tx.product.update({
+        where: { id: updated.id },
+        data: {
+          stock: finalStock,
+          permanentStock: finalPermanent,
+          status: finalStatus,
+          mode: nextMode,
+          ...coverImageUpdate,
+        },
+      })
     })
     return true
   }

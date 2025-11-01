@@ -4,6 +4,7 @@ import { PersistGate } from 'redux-persist/integration/react'
 import store, { persistor } from './store'
 import Theme from '@/components/template/Theme'
 import Layout from '@/components/layouts'
+import NetworkStatusBanner from '@/components/shared/status/NetworkStatusBanner'
 import mockServer from './mock'
 import appConfig from '@/configs/app.config'
 import './locales'
@@ -21,6 +22,7 @@ function App() {
                 <BrowserRouter>
                     <Theme>
                         <Layout />
+                        <NetworkStatusBanner />
                     </Theme>
                 </BrowserRouter>
             </PersistGate>

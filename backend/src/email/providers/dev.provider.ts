@@ -29,6 +29,7 @@ export class DevEmailProvider implements EmailProvider {
       .join(', ')
     const headers = [
       `From: ${message.from.name ? `"${message.from.name}" <${message.from.email}>` : message.from.email}`,
+      message.replyTo ? `Reply-To: ${message.replyTo}` : null,
       `To: ${toHeader}`,
       message.cc && message.cc.length ? `Cc: ${message.cc.join(', ')}` : null,
       message.bcc && message.bcc.length ? `Bcc: ${message.bcc.join(', ')}` : null,
@@ -40,7 +41,14 @@ export class DevEmailProvider implements EmailProvider {
     ]
       .filter(Boolean)
       .join('\n')
-    const emlContent = `${headers}\n${message.html}`
+    const extraHeaders: string[] = []
+    if (message.headers) {
+      for (const [key, value] of Object.entries(message.headers)) {
+        extraHeaders.push(`${key}: ${value}`)
+      }
+    }
+    const headerBlock = [headers, ...extraHeaders].filter(Boolean).join('\n')
+    const emlContent = `${headerBlock}\n${message.html}`
     const filePath = join(this.outputDir, fileName)
     await writeFile(filePath, emlContent, 'utf8')
     return { messageId: filePath }

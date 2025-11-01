@@ -26,6 +26,8 @@ import {
   detectImageMimeType,
   ensureNodeBuffer,
 } from '../common/images/image.utils'
+import { listPaymentMethods } from '../common/constants/payment-methods'
+import { listOrderStatuses } from '../common/constants/order-statuses'
 
 type ThemeConfigPayload = {
   themeColor: string
@@ -95,7 +97,7 @@ type SettingsExportPayload = {
   systemConfig: SystemConfigExport
   companyProfile: CompanyProfileResponse
 }
-type SettingsImportPayload = Partial<Omit<SettingsExportPayload, 'meta'>> & {
+type SettingsImportPayload = Partial<Omit<SettingsExportPayload, 'meta' | 'customerStatuses'>> & {
   meta?: Partial<SettingsExportPayload['meta']>
 }
 type CompanyProfileResponse = {
@@ -173,12 +175,6 @@ export class SettingsController {
     { name: 'Tarea', color: '#059669' },
     { name: 'Taller', color: '#7c3aed' },
     { name: 'Otro', color: '#6b7280' },
-  ]
-
-  private readonly defaultOrderStatuses: OrderStatusConfig[] = [
-    { code: 0, name: 'Pagado', color: 'emerald-500' },
-    { code: 1, name: 'Pendiente', color: 'amber-500' },
-    { code: 2, name: 'Cancelado', color: 'red-500' },
   ]
 
   private readonly defaultThemeConfig: ThemeConfigPayload = {
@@ -651,26 +647,6 @@ export class SettingsController {
     }
   }
 
-  private async ensureOrderStatusesSeeded() {
-    await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.orderStatus.count()
-      if (existing > 0) {
-        return
-      }
-      await tx.orderStatus.createMany({
-        data: this.defaultOrderStatuses.map((status, index) => ({
-          name: status.name,
-          color: this.normalizeOptionalColor(status.color),
-          code:
-            status.code !== undefined && status.code !== null
-              ? this.parseInteger(status.code, index)
-              : index,
-        })),
-        skipDuplicates: true,
-      })
-    })
-  }
-
   @Get('company-profile')
   @UseGuards(JwtAuthGuard)
   async getCompanyProfile() {
@@ -707,80 +683,11 @@ export class SettingsController {
     return this.mapCompanyProfile(updated)
   }
 
-  // Order Statuses
-  @Get('order-statuses')
-  @UseGuards(JwtAuthGuard)
-  async getOrderStatuses() {
-    await this.ensureOrderStatusesSeeded()
-    return this.prisma.orderStatus.findMany({ orderBy: { id: 'asc' } })
-  }
-  @Post('order-statuses/create')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async createOrderStatus(@Body() body: { id?: number; name: string; color?: string }) {
-    const nextCode = (await this.prisma.orderStatus.count())
-    await this.prisma.orderStatus.create({ data: { name: body.name, code: nextCode, color: body.color } })
-    return true
-  }
-  @Put('order-statuses/update')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async updateOrderStatus(@Body() body: { id: number; name?: string; color?: string }) {
-    await this.prisma.orderStatus.update({ where: { id: body.id }, data: { name: body.name, color: body.color } })
-    return true
-  }
-  @Delete('order-statuses/delete')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async deleteOrderStatus(@Body() body: { id: number }) {
-    await this.prisma.orderStatus.delete({ where: { id: body.id } })
-    return true
-  }
-
   // Customer Statuses
   @Get('customer-statuses')
   @UseGuards(JwtAuthGuard)
   getCustomerStatuses() {
     return this.prisma.customerStatus.findMany({ orderBy: { id: 'asc' } })
-  }
-  @Post('customer-statuses/create')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async createCustomerStatus(@Body() body: { id?: number; name: string; color?: string }) {
-    await this.prisma.customerStatus.create({ data: { name: body.name, color: body.color } })
-    return true
-  }
-  @Put('customer-statuses/update')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async updateCustomerStatus(@Body() body: { id: number | string; name?: string; color?: string }) {
-    const id = Number(body.id)
-    if (!Number.isFinite(id)) {
-      throw new BadRequestException('Invalid status id')
-    }
-    const data: Record<string, unknown> = {}
-    if (body.name !== undefined) {
-      data.name = body.name
-    }
-    if (body.color !== undefined) {
-      data.color = body.color
-    }
-    try {
-      await this.prisma.customerStatus.update({ where: { id }, data })
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new BadRequestException('Customer status not found')
-      }
-      throw error
-    }
-    return true
-  }
-  @Delete('customer-statuses/delete')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async deleteCustomerStatus(@Body() body: { id: number }) {
-    await this.prisma.customerStatus.delete({ where: { id: body.id } })
-    return true
   }
 
   // Expense Statuses
@@ -1036,34 +943,6 @@ export class SettingsController {
     return true
   }
 
-  // Payment Methods
-  @Get('payment-methods')
-  @UseGuards(JwtAuthGuard)
-  getPaymentMethods() {
-    return this.prisma.paymentMethod.findMany({ orderBy: { id: 'asc' } })
-  }
-  @Post('payment-methods/create')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async createPaymentMethod(@Body() body: { name: string }) {
-    await this.prisma.paymentMethod.create({ data: { name: body.name } })
-    return true
-  }
-  @Put('payment-methods/update')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async updatePaymentMethod(@Body() body: { id: number; name?: string }) {
-    await this.prisma.paymentMethod.update({ where: { id: body.id }, data: { name: body.name } })
-    return true
-  }
-  @Delete('payment-methods/delete')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async deletePaymentMethod(@Body() body: { id: number }) {
-    await this.prisma.paymentMethod.delete({ where: { id: body.id } })
-    return true
-  }
-
   // Shipping Options
   @Get('shipping-options')
   @UseGuards(JwtAuthGuard)
@@ -1187,23 +1066,19 @@ export class SettingsController {
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async exportConfigurations(): Promise<SettingsExportPayload> {
     const [
-      orderStatuses,
       customerStatuses,
       expenseStatuses,
       expenseCategories,
       productCategories,
-      paymentMethods,
       shippingOptions,
       calendarEventTypes,
       systemConfigs,
       companyProfile,
     ] = await Promise.all([
-      this.prisma.orderStatus.findMany({ orderBy: { code: 'asc' } }),
       this.prisma.customerStatus.findMany({ orderBy: { id: 'asc' } }),
       this.prisma.expenseStatus.findMany({ orderBy: { id: 'asc' } }),
       this.prisma.expenseCategory.findMany({ orderBy: { id: 'asc' } }),
       this.prisma.productCategory.findMany({ orderBy: { id: 'asc' }, include: { installServiceProduct: true } }),
-      this.prisma.paymentMethod.findMany({ orderBy: { id: 'asc' } }),
       this.prisma.shippingOption.findMany({ orderBy: { id: 'asc' } }),
       this.prisma.calendarEventType.findMany({ orderBy: { id: 'asc' } }),
       this.prisma.systemConfig.findMany(),
@@ -1211,6 +1086,9 @@ export class SettingsController {
         where: { singleton: this.companySingletonKey },
       }),
     ])
+
+    const orderStatuses = listOrderStatuses(null)
+    const paymentMethods = listPaymentMethods()
 
     const systemConfigMap = new Map(systemConfigs.map((cfg) => [cfg.key, cfg.value]))
 
@@ -1260,10 +1138,10 @@ export class SettingsController {
 
     return {
       meta: { exportedAt: new Date().toISOString(), version: 1 },
-      orderStatuses: orderStatuses.map(({ name, color, code }) => ({
-        name,
+      orderStatuses: orderStatuses.map(({ label, color, id }) => ({
+        name: label,
         color,
-        code,
+        code: id,
       })),
       customerStatuses: customerStatuses.map(({ name, color }) => ({
         name,
@@ -1296,7 +1174,7 @@ export class SettingsController {
             : null,
         }
       }),
-      paymentMethods: paymentMethods.map(({ name }) => ({ name })),
+      paymentMethods: paymentMethods.map(({ label }) => ({ name: label })),
       shippingOptions: shippingOptions.map(
         ({ name, deliveryFees, estimatedMin, estimatedMax, img }) => ({
           name,
@@ -1362,12 +1240,14 @@ export class SettingsController {
       return Array.from(map.values())
     }
 
+    if (Object.prototype.hasOwnProperty.call(payload, 'customerStatuses')) {
+      throw new BadRequestException('customerStatuses are managed internally and cannot be imported')
+    }
+
     const hasOrderStatuses = Object.prototype.hasOwnProperty.call(payload, 'orderStatuses')
-    const hasCustomerStatuses = Object.prototype.hasOwnProperty.call(payload, 'customerStatuses')
     const hasExpenseStatuses = Object.prototype.hasOwnProperty.call(payload, 'expenseStatuses')
     const hasExpenseCategories = Object.prototype.hasOwnProperty.call(payload, 'expenseCategories')
     const hasProductCategories = Object.prototype.hasOwnProperty.call(payload, 'productCategories')
-    const hasPaymentMethods = Object.prototype.hasOwnProperty.call(payload, 'paymentMethods')
     const hasShippingOptions = Object.prototype.hasOwnProperty.call(payload, 'shippingOptions')
     const hasCalendarEventTypes = Object.prototype.hasOwnProperty.call(
       payload,
@@ -1384,55 +1264,6 @@ export class SettingsController {
     ) {
       throw new BadRequestException('orderStatuses must be an array')
     }
-
-    const sanitizedOrderStatuses: { name: string; code: number; color: string | null }[] = []
-    if (hasOrderStatuses) {
-      const items = Array.isArray(payload.orderStatuses) ? payload.orderStatuses : []
-      const usedCodes = new Set<number>()
-      let nextCode = 0
-      for (const entry of items) {
-        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-          continue
-        }
-        const raw = entry as Record<string, unknown>
-        const name = this.sanitizeName(raw['name'])
-        if (!name) {
-          continue
-        }
-        let code = this.parseOptionalInteger(raw['code'])
-        if (code !== null && code < 0) {
-          code = null
-        }
-        if (code === null) {
-          while (usedCodes.has(nextCode)) {
-            nextCode += 1
-          }
-          code = nextCode
-          nextCode += 1
-        } else {
-          while (usedCodes.has(code)) {
-            code += 1
-          }
-          nextCode = code + 1
-        }
-        usedCodes.add(code)
-        sanitizedOrderStatuses.push({
-          name,
-          code,
-          color: this.normalizeOptionalColor(raw['color']),
-        })
-      }
-    }
-
-    const sanitizedCustomerStatuses = hasCustomerStatuses
-      ? collectNamedItems(
-          readArray(payload.customerStatuses as unknown, 'customerStatuses'),
-          (raw, name) => ({
-            name,
-            color: this.normalizeOptionalColor(raw['color']),
-          }),
-        )
-      : []
 
     const sanitizedExpenseStatuses = hasExpenseStatuses
       ? collectNamedItems(
@@ -1504,13 +1335,6 @@ export class SettingsController {
           }
           return Array.from(map.values())
         })()
-      : []
-
-    const sanitizedPaymentMethods = hasPaymentMethods
-      ? collectNamedItems(
-          readArray(payload.paymentMethods as unknown, 'paymentMethods'),
-          (_, name) => ({ name }),
-        )
       : []
 
     const sanitizedShippingOptions = hasShippingOptions
@@ -1690,33 +1514,6 @@ export class SettingsController {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      if (hasOrderStatuses) {
-        await tx.orderStatus.deleteMany({})
-        if (sanitizedOrderStatuses.length) {
-          await tx.orderStatus.createMany({
-            data: sanitizedOrderStatuses.map(({ name, color, code }) => ({
-              name,
-              color: color ?? null,
-              code,
-            })),
-          })
-        }
-        summary.orderStatuses = sanitizedOrderStatuses.length
-      }
-
-      if (hasCustomerStatuses) {
-        await tx.customerStatus.deleteMany({})
-        if (sanitizedCustomerStatuses.length) {
-          await tx.customerStatus.createMany({
-            data: sanitizedCustomerStatuses.map(({ name, color }) => ({
-              name,
-              color: color ?? null,
-            })),
-          })
-        }
-        summary.customerStatuses = sanitizedCustomerStatuses.length
-      }
-
       if (hasExpenseStatuses) {
         await tx.expenseStatus.deleteMany({})
         if (sanitizedExpenseStatuses.length) {
@@ -1804,16 +1601,6 @@ export class SettingsController {
           }
         }
         summary.productCategories = sanitizedProductCategories.length
-      }
-
-      if (hasPaymentMethods) {
-        await tx.paymentMethod.deleteMany({})
-        if (sanitizedPaymentMethods.length) {
-          await tx.paymentMethod.createMany({
-            data: sanitizedPaymentMethods.map(({ name }) => ({ name })),
-          })
-        }
-        summary.paymentMethods = sanitizedPaymentMethods.length
       }
 
       if (hasShippingOptions) {

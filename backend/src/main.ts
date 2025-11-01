@@ -104,7 +104,7 @@ const defaultAllowedOrigins = (process.env.DEFAULT_ALLOWED_ORIGINS ?? 'http://lo
       }
     }
     walk(errors)
-    return new BadRequestException({ message: 'validation.failed', errors: flat })
+    return new BadRequestException({ message: 'errors.validation', errors: flat })
   }
 
   app.useGlobalPipes(

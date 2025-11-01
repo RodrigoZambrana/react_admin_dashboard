@@ -18,6 +18,8 @@ import {
   PaymentEmailContext,
   PasswordResetEmailContext,
 } from './email.types'
+import { findOrderStatusById } from '../common/constants/order-statuses'
+import { findPaymentMethodById } from '../common/constants/payment-methods'
 
 type OrderEmailOptions = {
   orderId: number
@@ -33,15 +35,28 @@ type PaymentEmailOptions = {
   localeOverride?: string | null
 }
 
+type SalesDocumentStatusEmailOptions = {
+  documentType: 'ORDER' | 'BUDGET'
+  orderId: number
+  previousStatusId?: number | null
+  nextStatusId?: number | null
+  sendToCustomer?: boolean
+  sendToAdmin?: boolean
+  localeOverride?: string | null
+  eventOverride?: string
+}
+
 type PasswordResetEmailOptions = {
   userId?: number | null
   customerId?: number | null
   email: string
-  resetUrl: string
-  expiresAt: Date
+  resetUrl?: string | null
+  supportUrl?: string | null
+  expiresAt?: Date | null
   locale?: string | null
   displayName?: string | null
   isAdmin?: boolean
+  event?: 'reset_link' | 'password_changed' | 'recovery_notice'
 }
 
 type TestEmailOptions = {
@@ -49,6 +64,7 @@ type TestEmailOptions = {
   variant?: EmailTemplateVariant
   locale?: string
   to: string
+  scenarioKey?: string
 }
 
 @Injectable()
@@ -74,7 +90,6 @@ export class EmailService {
       include: {
         customer: true,
         items: true,
-        status: true,
       },
     })
     if (!order) {
@@ -88,7 +103,7 @@ export class EmailService {
 
     const locale = this.resolveLocale(options.localeOverride)
     const company = await this.getCompanyContext()
-    const orderPayload = this.buildOrderPayload(order, locale)
+    const orderPayload = this.buildOrderPayload(order, locale, { event: 'order.received' })
     const extras = { ...company }
 
     if (options.sendToCustomer !== false && customer?.email) {
@@ -144,10 +159,8 @@ export class EmailService {
         order: {
           include: {
             customer: true,
-            status: true,
           },
         },
-        paymentMethod: true,
       },
     })
     if (!payment) {
@@ -207,6 +220,114 @@ export class EmailService {
     }
   }
 
+  async sendOrderStatusChanged(options: Omit<SalesDocumentStatusEmailOptions, 'documentType'>) {
+    await this.sendSalesDocumentStatusEmail({ ...options, documentType: 'ORDER' })
+  }
+
+  async sendBudgetStatusChanged(options: Omit<SalesDocumentStatusEmailOptions, 'documentType'>) {
+    await this.sendSalesDocumentStatusEmail({ ...options, documentType: 'BUDGET' })
+  }
+
+  async sendBudgetCreated(options: { budgetId: number; sendToCustomer?: boolean; sendToAdmin?: boolean; localeOverride?: string | null }) {
+    await this.sendSalesDocumentStatusEmail({
+      documentType: 'BUDGET',
+      orderId: options.budgetId,
+      previousStatusId: null,
+      nextStatusId: null,
+      sendToCustomer: options.sendToCustomer,
+      sendToAdmin: options.sendToAdmin,
+      localeOverride: options.localeOverride,
+      eventOverride: 'budget.created',
+    })
+  }
+
+  private async sendSalesDocumentStatusEmail(options: SalesDocumentStatusEmailOptions) {
+    if (!(await this.settings.isEnabled(EmailCategory.ORDERS))) {
+      this.logger.debug('Order emails disabled; skipping status change send.')
+      return
+    }
+    const order = await this.prisma.order.findUnique({
+      where: { id: options.orderId },
+      include: {
+        customer: true,
+        items: true,
+      },
+    })
+    if (!order) {
+      this.logger.warn(`Sales document ${options.orderId} not found; cannot send status email.`)
+      return
+    }
+    const documentType = (order.documentType ?? 'ORDER') as OrderEmailContext['documentType']
+    if (documentType !== options.documentType) {
+      this.logger.debug(
+        `Skipping status email for document ${order.id} because expected ${options.documentType} but was ${documentType}.`,
+      )
+      return
+    }
+    const locale = this.resolveLocale(options.localeOverride)
+    const company = await this.getCompanyContext()
+    const nextStatusId = options.nextStatusId ?? order.statusId ?? null
+    const previousStatusId = options.previousStatusId ?? null
+    const nextStatus = nextStatusId ? findOrderStatusById(nextStatusId) : null
+    const previousStatus = previousStatusId ? findOrderStatusById(previousStatusId) : null
+    const eventKey = options.eventOverride ?? this.resolveStatusEventKey(documentType, nextStatus?.code ?? null)
+    const overrides: Partial<OrderEmailContext> = {
+      event: eventKey,
+      status: this.resolveStatusLabel(nextStatus, locale),
+      statusCode: nextStatus?.code ?? null,
+      previousStatus: this.resolveStatusLabel(previousStatus, locale),
+      previousStatusCode: previousStatus?.code ?? null,
+    }
+    const payload = this.buildOrderPayload(order, locale, overrides)
+    const extras = { ...company }
+
+    if (options.sendToCustomer !== false) {
+      const customerEmail = payload.customer.email
+      if (customerEmail) {
+        const recipients: EmailRecipient[] = [
+          {
+            email: customerEmail,
+            name: payload.customer.name,
+            locale,
+          },
+        ]
+        const message = await this.buildMessage<OrderEmailContext>({
+          category: EmailCategory.ORDERS,
+          variant: EmailTemplateVariant.CUSTOMER,
+          locale,
+          recipientType: EmailRecipientType.CUSTOMER,
+          recipients,
+          payload,
+          extras,
+        })
+        await this.queue.enqueue(message)
+      } else {
+        this.logger.debug(`Sales document ${order.id} has no customer email; skipping customer status email.`)
+      }
+    }
+
+    if (options.sendToAdmin !== false) {
+      const recipientsConfig = await this.settings.resolveAdminRecipients(EmailCategory.ORDERS)
+      if (recipientsConfig.to.length) {
+        const recipients: EmailRecipient[] = recipientsConfig.to.map((email) => ({ email, name: null, locale }))
+        const message = await this.buildMessage<OrderEmailContext>({
+          category: EmailCategory.ORDERS,
+          variant: EmailTemplateVariant.ADMIN,
+          locale,
+          recipientType: EmailRecipientType.ADMIN,
+          recipients,
+          payload,
+          extras,
+          cc: recipientsConfig.cc,
+          bcc: recipientsConfig.bcc,
+        })
+        await this.queue.enqueue(message)
+      } else {
+        this.logger.debug(`No admin recipients configured for ${documentType.toLowerCase()} status emails.`)
+      }
+    }
+  }
+
   async sendPasswordReset(options: PasswordResetEmailOptions) {
     if (!(await this.settings.isEnabled(EmailCategory.AUTH))) {
       this.logger.debug('Auth emails disabled; skipping password reset email.')
@@ -220,9 +341,18 @@ export class EmailService {
     const locale = this.resolveLocale(options.locale)
     const company = await this.getCompanyContext()
     const displayName = this.sanitizeName(options.displayName) || email
+    const event = options.event ?? 'reset_link'
+    if (event === 'reset_link' && (!options.resetUrl || !options.expiresAt)) {
+      this.logger.warn('Password reset email skipped because required reset link parameters are missing.')
+      return
+    }
+    const expiresAt = options.expiresAt ? this.formatDate(options.expiresAt, locale) : null
+    const resetUrl = options.resetUrl ?? options.supportUrl ?? null
     const payload: PasswordResetEmailContext = {
-      resetUrl: options.resetUrl,
-      expiresAt: this.formatDate(options.expiresAt, locale),
+      event,
+      resetUrl,
+      supportUrl: options.supportUrl ?? null,
+      expiresAt,
       displayName,
       locale,
       isAdmin: Boolean(options.isAdmin),
@@ -248,7 +378,7 @@ export class EmailService {
       throw new Error('Valid test recipient email is required')
     }
     const company = await this.getCompanyContext()
-    const samplePayload = this.buildSamplePayload(options.category, locale)
+    const samplePayload = this.buildSamplePayload(options.category, locale, options.scenarioKey)
     const variant = options.variant ?? EmailTemplateVariant.CUSTOMER
     const recipientType = variant === EmailTemplateVariant.ADMIN ? EmailRecipientType.ADMIN : EmailRecipientType.CUSTOMER
     const message = await this.buildMessage<any>({
@@ -316,7 +446,16 @@ export class EmailService {
     }
   }
 
-  private buildOrderPayload(order: Prisma.OrderGetPayload<{ include: { customer: true; items: true; status: true } }>, locale: string): OrderEmailContext {
+  private buildOrderPayload(
+    order: Prisma.OrderGetPayload<{
+      include: {
+        customer: true
+        items: true
+      }
+    }>,
+    locale: string,
+    overrides: Partial<OrderEmailContext> = {},
+  ): OrderEmailContext {
     const items = order.items.map((item) => {
       const qty = Number(item.qty ?? 0)
       const price = new Prisma.Decimal(item.price ?? 0)
@@ -325,21 +464,39 @@ export class EmailService {
         name: item.name,
         quantity: qty,
         unitPrice: this.formatAmount(item.price ?? 0, locale),
+        unitPriceRaw: Number(price.toFixed(2)),
         subtotal: this.formatAmount(subtotal, locale),
+        subtotalRaw: Number(subtotal.toFixed(2)),
+        description: item.description ?? null,
       }
     })
+    const subtotalDecimal = new Prisma.Decimal(order.subTotal ?? 0)
+    const taxDecimal = order.tax ? new Prisma.Decimal(order.tax) : null
+    const grandTotalDecimal = new Prisma.Decimal(order.grandTotal ?? 0)
     const totals = {
       subtotal: this.formatAmount(order.subTotal ?? 0, locale),
+      subtotalRaw: Number(subtotalDecimal.toFixed(2)),
       tax: order.tax ? this.formatAmount(order.tax, locale) : null,
+      taxRaw: taxDecimal ? Number(taxDecimal.toFixed(2)) : null,
       grandTotal: this.formatAmount(order.grandTotal ?? 0, locale),
+      grandTotalRaw: Number(grandTotalDecimal.toFixed(2)),
       currency: order.orderCurrency ?? 'USD',
     }
     const customer = order.customer
-    return {
+    const statusDefinition = findOrderStatusById(order.statusId ?? null)
+    const documentType = (order.documentType ?? 'ORDER') as OrderEmailContext['documentType']
+    const paymentMethod = order.paymentMethodId
+      ? findPaymentMethodById(order.paymentMethodId)?.label ?? null
+      : null
+    const links = this.buildDocumentLinks(order, documentType)
+    const payload: OrderEmailContext = {
       orderId: order.id,
       orderNumber: order.uuid || String(order.id),
+      documentType: documentType,
+      event: 'order.update',
       orderDate: this.formatDate(order.date, locale),
-      status: order.status?.name ?? null,
+      status: this.resolveStatusLabel(statusDefinition, locale),
+      statusCode: statusDefinition?.code ?? null,
       customer: {
         id: customer?.id ?? 0,
         name: this.sanitizeName(customer?.name) ?? null,
@@ -350,28 +507,49 @@ export class EmailService {
       totals,
       paymentUrl: null,
       portalUrl: this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null,
+      adminUrl: this.config.get<string>('ADMIN_PORTAL_URL') ?? null,
+      links,
+      validUntil: order.validUntil ? this.formatDate(order.validUntil, locale) : null,
+      paymentMethod,
+      deliveryEstimate:
+        order.estimatedMin || order.estimatedMax
+          ? {
+              minHours: order.estimatedMin ?? null,
+              maxHours: order.estimatedMax ?? null,
+            }
+          : null,
+      notes: order.comment ?? null,
       locale,
+    }
+    let mergedLinks: OrderEmailContext['links'] = payload.links ?? null
+    if (overrides.links !== undefined) {
+      mergedLinks = overrides.links === null ? null : { ...(payload.links ?? {}), ...overrides.links }
+    }
+    return {
+      ...payload,
+      ...overrides,
+      links: mergedLinks,
     }
   }
 
   private buildPaymentPayload(
     payment: Prisma.PaymentGetPayload<{
       include: {
-        order: { include: { customer: true; status: true } }
-        paymentMethod: true
+        order: { include: { customer: true } }
       }
     }>,
     locale: string,
   ): PaymentEmailContext {
     const order = payment.order
     const customer = order.customer
+    const paymentMethod = findPaymentMethodById(payment.paymentMethodId ?? null)
     return {
       paymentId: payment.id,
       orderId: order.id,
       orderNumber: order.uuid || String(order.id),
       amount: this.formatAmount(payment.amount, locale),
       currency: payment.currency,
-      method: payment.paymentMethod?.name || payment.method || null,
+      method: payment.method || paymentMethod?.label || null,
       status: payment.status,
       processedAt: this.formatDate(payment.date, locale),
       customer: {
@@ -405,6 +583,11 @@ export class EmailService {
       params.extras,
     )
     const fromSettings = await this.settings.getCategorySettings(params.category)
+    const replyToOverride = this.config.get<string>('EMAIL_REPLY_TO') ?? null
+    const listUnsubscribeHeader = this.config.get<string>('EMAIL_LIST_UNSUBSCRIBE') ?? null
+    const headers: Record<string, string> | undefined = listUnsubscribeHeader
+      ? { 'List-Unsubscribe': listUnsubscribeHeader }
+      : undefined
     return {
       category: params.category,
       variant: params.variant,
@@ -420,6 +603,8 @@ export class EmailService {
         email: fromSettings.fromAddress,
         name: fromSettings.fromName ?? undefined,
       },
+      replyTo: replyToOverride ?? fromSettings.fromAddress,
+      headers,
       payload: params.payload as unknown as Record<string, unknown>,
       templateId: render.templateId ?? null,
     }
@@ -444,60 +629,445 @@ export class EmailService {
     return this.companyCache.data
   }
 
-  private buildSamplePayload(category: EmailCategory, locale: string) {
+  private buildSamplePayload(category: EmailCategory, locale: string, scenarioKey?: string) {
     switch (category) {
-      case EmailCategory.ORDERS: {
-        const payload: OrderEmailContext = {
-          orderId: 1001,
-          orderNumber: 'ORD-1001',
-          orderDate: this.formatDate(new Date(), locale),
-          status: 'Pending',
-          customer: { id: 1, name: 'Sample Customer', email: 'customer@example.com', locale },
-          items: [
-            { name: 'Sample Item A', quantity: 2, unitPrice: this.formatAmount(59.9, locale), subtotal: this.formatAmount(119.8, locale) },
-            { name: 'Sample Item B', quantity: 1, unitPrice: this.formatAmount(39.5, locale), subtotal: this.formatAmount(39.5, locale) },
-          ],
+      case EmailCategory.ORDERS:
+        if (scenarioKey && scenarioKey.startsWith('budget.')) {
+          return this.buildBudgetSample(locale, scenarioKey)
+        }
+        return this.buildOrderSample(locale, scenarioKey)
+      case EmailCategory.PAYMENTS:
+        return this.buildPaymentSample(locale)
+      case EmailCategory.AUTH:
+      default:
+        return this.buildPasswordSample(locale, scenarioKey)
+    }
+  }
+
+  private buildOrderSample(locale: string, scenarioKey?: string): OrderEmailContext {
+    const isSpanish = locale.toLowerCase().startsWith('es')
+    const format = (value: number) => this.formatAmount(value, locale)
+    const baseDate = new Date()
+    const base: OrderEmailContext = {
+      orderId: 1001,
+      orderNumber: 'ORD-1001',
+      documentType: 'ORDER',
+      event: 'order.received',
+      orderDate: this.formatDate(baseDate, locale),
+      status: isSpanish ? 'Pendiente' : 'Pending',
+      statusCode: 'pending',
+      previousStatus: null,
+      previousStatusCode: null,
+      customer: { id: 1, name: 'Sample Customer', email: 'customer@example.com', locale },
+      items: [
+        {
+          name: isSpanish ? 'Caja de regalo premium' : 'Premium Gift Box',
+          quantity: 2,
+          unitPrice: format(59.9),
+          unitPriceRaw: 59.9,
+          subtotal: format(119.8),
+          subtotalRaw: 119.8,
+          description: isSpanish ? 'Incluye tarjeta personalizada.' : 'Includes custom card.',
+        },
+        {
+          name: isSpanish ? 'Tarjeta de felicitación' : 'Greeting Card',
+          quantity: 1,
+          unitPrice: format(39.5),
+          unitPriceRaw: 39.5,
+          subtotal: format(39.5),
+          subtotalRaw: 39.5,
+          description: null,
+        },
+      ],
+      totals: {
+        subtotal: format(159.3),
+        subtotalRaw: 159.3,
+        tax: format(28.68),
+        taxRaw: 28.68,
+        grandTotal: format(187.98),
+        grandTotalRaw: 187.98,
+        currency: 'USD',
+      },
+      paymentUrl: null,
+      portalUrl: this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null,
+      links: {
+        customer: 'https://example.com/orders/ORD-1001',
+        admin: 'https://admin.example.com/orders/1001',
+        payment: null,
+      },
+      adminUrl: this.config.get<string>('ADMIN_PORTAL_URL') ?? 'https://admin.example.com/orders/1001',
+      validUntil: this.formatDate(new Date(baseDate.getTime() + 7 * 24 * 60 * 60 * 1000), locale),
+      paymentMethod: 'Mercado Pago',
+      deliveryEstimate: { minHours: 24, maxHours: 72 },
+      notes: isSpanish ? 'El cliente solicitó envoltura para regalo.' : 'Customer requested gift wrap.',
+      locale,
+    }
+
+    switch (scenarioKey) {
+      case 'order.paid':
+        return {
+          ...base,
+          event: 'order.status.paid',
+          status: isSpanish ? 'Pagado' : 'Paid',
+          statusCode: 'paid',
+          previousStatus: isSpanish ? 'Pendiente' : 'Pending',
+          previousStatusCode: 'pending',
+          paymentMethod: 'Mercado Pago',
+          deliveryEstimate: { minHours: 12, maxHours: 48 },
+        }
+      case 'order.delivered':
+        return {
+          ...base,
+          event: 'order.status.delivered',
+          status: isSpanish ? 'Entregado' : 'Delivered',
+          statusCode: 'delivered',
+          deliveryEstimate: null,
+          notes: isSpanish ? 'Pedido entregado y firmado por el cliente.' : 'Order delivered and signed by customer.',
+        }
+      case 'order.cancelled':
+        return {
+          ...base,
+          event: 'order.status.cancelled',
+          status: isSpanish ? 'Cancelado' : 'Cancelled',
+          statusCode: 'cancelled',
+          previousStatus: isSpanish ? 'Pendiente' : 'Pending',
+          previousStatusCode: 'pending',
+          paymentMethod: null,
+          notes: isSpanish
+            ? 'El cliente canceló por pedido duplicado.'
+            : 'Customer cancelled due to duplicate order.',
+        }
+      case 'order.cash':
+        return {
+          ...base,
+          paymentMethod: isSpanish ? 'Efectivo' : 'Cash',
+          notes: isSpanish
+            ? 'Pago en efectivo contra entrega.'
+            : 'Cash on delivery requested by the customer.',
+        }
+      case 'order.large': {
+        const largeItems = [
+          {
+            name: isSpanish ? 'Estación de trabajo profesional' : 'Professional Workstation',
+            quantity: 1,
+            unitPriceRaw: 1299.99,
+            unitPrice: format(1299.99),
+            subtotalRaw: 1299.99,
+            subtotal: format(1299.99),
+            description: '32GB RAM · 1TB SSD',
+          },
+          {
+            name: isSpanish ? 'Servicio de calibración' : 'Calibration Service',
+            quantity: 1,
+            unitPriceRaw: 120,
+            unitPrice: format(120),
+            subtotalRaw: 120,
+            subtotal: format(120),
+            description: null,
+          },
+          {
+            name: isSpanish ? 'Instalación en sitio' : 'On-site Installation',
+            quantity: 1,
+            unitPriceRaw: 180,
+            unitPrice: format(180),
+            subtotalRaw: 180,
+            subtotal: format(180),
+            description: null,
+          },
+        ]
+        const subtotalRaw = 1299.99 + 120 + 180
+        const taxRaw = subtotalRaw * 0.22
+        const grandTotalRaw = subtotalRaw + taxRaw
+        return {
+          ...base,
+          items: largeItems,
           totals: {
-            subtotal: this.formatAmount(159.3, locale),
-            tax: this.formatAmount(28.68, locale),
-            grandTotal: this.formatAmount(187.98, locale),
+            subtotal: format(subtotalRaw),
+            subtotalRaw,
+            tax: format(taxRaw),
+            taxRaw,
+            grandTotal: format(grandTotalRaw),
+            grandTotalRaw,
             currency: 'USD',
           },
-          paymentUrl: null,
-          portalUrl: this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null,
-          locale,
+          deliveryEstimate: { minHours: 72, maxHours: 168 },
+          notes: isSpanish
+            ? 'Incluye configuración profesional y visita técnica.'
+            : 'Includes professional setup and on-site technician visit.',
         }
-        return payload
       }
-      case EmailCategory.PAYMENTS: {
-        const payload: PaymentEmailContext = {
-          paymentId: 501,
-          orderId: 1001,
-          orderNumber: 'ORD-1001',
-          amount: this.formatAmount(120, locale),
-          currency: 'USD',
-          method: 'Credit Card',
-          status: PaymentStatus.CONFIRMED,
-          processedAt: this.formatDate(new Date(), locale),
-          customer: { id: 1, name: 'Sample Customer', email: 'customer@example.com', locale },
-          portalUrl: this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null,
-          locale,
+      default:
+        return base
+    }
+  }
+
+  private buildBudgetSample(locale: string, scenarioKey?: string): OrderEmailContext {
+    const isSpanish = locale.toLowerCase().startsWith('es')
+    const format = (value: number) => this.formatAmount(value, locale)
+    const now = new Date()
+    const validUntil = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+    const base: OrderEmailContext = {
+      orderId: 5001,
+      orderNumber: 'BUD-2024-001',
+      documentType: 'BUDGET',
+      event: 'budget.status.sent',
+      orderDate: this.formatDate(now, locale),
+      status: isSpanish ? 'Presupuesto - Enviado' : 'Quote - Sent',
+      statusCode: 'budget_sent',
+      previousStatus: null,
+      previousStatusCode: null,
+      customer: { id: 2, name: 'Acme Industries', email: 'purchasing@acme.test', locale },
+      items: [
+        {
+          name: isSpanish ? 'Plan de servicio anual' : 'Annual Service Plan',
+          quantity: 1,
+          unitPriceRaw: 450,
+          unitPrice: format(450),
+          subtotalRaw: 450,
+          subtotal: format(450),
+          description: isSpanish ? 'Cobertura 24/7 y visitas trimestrales.' : '24/7 coverage with quarterly visits.',
+        },
+        {
+          name: isSpanish ? 'Capacitación inicial' : 'Onboarding Training',
+          quantity: 1,
+          unitPriceRaw: 120,
+          unitPrice: format(120),
+          subtotalRaw: 120,
+          subtotal: format(120),
+          description: null,
+        },
+      ],
+      totals: {
+        subtotal: format(570),
+        subtotalRaw: 570,
+        tax: format(119.7),
+        taxRaw: 119.7,
+        grandTotal: format(689.7),
+        grandTotalRaw: 689.7,
+        currency: 'USD',
+      },
+      paymentUrl: null,
+      portalUrl: this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null,
+      links: {
+        customer: 'https://example.com/budgets/BUD-2024-001',
+        admin: 'https://admin.example.com/budgets/5001',
+        payment: null,
+      },
+      adminUrl: this.config.get<string>('ADMIN_PORTAL_URL') ?? 'https://admin.example.com/budgets/5001',
+      validUntil: this.formatDate(validUntil, locale),
+      paymentMethod: null,
+      deliveryEstimate: null,
+      notes: isSpanish ? 'Incluye instalación opcional sin costo.' : 'Includes optional installation at no additional cost.',
+      locale,
+    }
+
+    switch (scenarioKey) {
+      case 'budget.created':
+        return {
+          ...base,
+          event: 'budget.created',
+          status: isSpanish ? 'Presupuesto - Borrador' : 'Quote - Draft',
+          statusCode: 'budget_draft',
         }
-        return payload
-      }
-      case EmailCategory.AUTH:
-      default: {
-        const expires = new Date()
-        expires.setHours(expires.getHours() + 2)
-        const payload: PasswordResetEmailContext = {
-          resetUrl: 'https://example.com/reset?token=demo',
-          expiresAt: this.formatDate(expires, locale),
-          displayName: 'Sample User',
-          locale,
-          isAdmin: false,
+      case 'budget.accepted':
+        return {
+          ...base,
+          event: 'budget.status.accepted',
+          status: isSpanish ? 'Presupuesto - Aceptado' : 'Quote - Accepted',
+          statusCode: 'budget_accepted',
+          previousStatus: isSpanish ? 'Presupuesto - Enviado' : 'Quote - Sent',
+          previousStatusCode: 'budget_sent',
+          notes: isSpanish ? 'Aprobado por el cliente. Pendiente de firma.' : 'Approved by customer. Awaiting signature.',
         }
-        return payload
+      case 'budget.converted':
+        return {
+          ...base,
+          event: 'budget.status.converted',
+          status: isSpanish ? 'Presupuesto - Convertido' : 'Quote - Converted',
+          statusCode: 'budget_converted',
+          previousStatus: isSpanish ? 'Presupuesto - Aceptado' : 'Quote - Accepted',
+          previousStatusCode: 'budget_accepted',
+        }
+      case 'budget.expired': {
+        const pastDate = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000)
+        return {
+          ...base,
+          event: 'budget.status.expired',
+          status: isSpanish ? 'Presupuesto - Expirado' : 'Quote - Expired',
+          statusCode: 'budget_expired',
+          validUntil: this.formatDate(pastDate, locale),
+          notes: isSpanish ? 'El presupuesto venció y requiere actualización.' : 'Quote expired and needs review.',
+        }
       }
+      case 'budget.cancelled':
+        return {
+          ...base,
+          event: 'budget.status.cancelled',
+          status: isSpanish ? 'Presupuesto - Cancelado' : 'Quote - Cancelled',
+          statusCode: 'budget_cancelled',
+          previousStatus: isSpanish ? 'Presupuesto - Enviado' : 'Quote - Sent',
+          previousStatusCode: 'budget_sent',
+          notes: isSpanish ? 'Cancelado por solicitud del cliente.' : 'Cancelled at customer request.',
+        }
+      case 'budget.sent':
+      default:
+        return base
+    }
+  }
+
+  private buildPaymentSample(locale: string): PaymentEmailContext {
+    return {
+      paymentId: 501,
+      orderId: 1001,
+      orderNumber: 'ORD-1001',
+      amount: this.formatAmount(120, locale),
+      currency: 'USD',
+      method: 'Credit Card',
+      status: PaymentStatus.CONFIRMED,
+      processedAt: this.formatDate(new Date(), locale),
+      customer: { id: 1, name: 'Sample Customer', email: 'customer@example.com', locale },
+      portalUrl: this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null,
+      locale,
+    }
+  }
+
+  private buildPasswordSample(locale: string, scenarioKey?: string): PasswordResetEmailContext {
+    const expires = new Date()
+    expires.setHours(expires.getHours() + 2)
+    const base: PasswordResetEmailContext = {
+      event: 'reset_link',
+      resetUrl: 'https://example.com/reset?token=demo',
+      expiresAt: this.formatDate(expires, locale),
+      displayName: locale.toLowerCase().startsWith('es') ? 'Usuario de ejemplo' : 'Sample User',
+      locale,
+      isAdmin: false,
+    }
+
+    switch (scenarioKey) {
+      case 'auth.changed':
+        return {
+          ...base,
+          event: 'password_changed',
+          resetUrl: 'https://example.com/account/security',
+          expiresAt: null,
+        }
+      case 'auth.recovery':
+        return {
+          ...base,
+          event: 'recovery_notice',
+          resetUrl: 'https://example.com/account/security',
+          expiresAt: null,
+        }
+      default:
+        return base
+    }
+  }
+
+  async buildPreviewPayload(
+    category: EmailCategory,
+    variant: EmailTemplateVariant,
+    locale: string,
+    scenarioKey?: string,
+  ) {
+    const payload = this.buildSamplePayload(category, locale, scenarioKey)
+    const extras = await this.getCompanyContext()
+    return { payload, extras, variant }
+  }
+
+  getSampleScenarioOptions(category: EmailCategory, variant: EmailTemplateVariant, locale: string) {
+    const isSpanish = locale.toLowerCase().startsWith('es')
+    const t = (en: string, es: string) => (isSpanish ? es : en)
+    if (category === EmailCategory.ORDERS) {
+      const scenarios = [
+        { key: 'order.received', label: t('Order received (basic)', 'Pedido recibido (básico)') },
+        { key: 'order.paid', label: t('Order paid', 'Pedido pagado') },
+        { key: 'order.delivered', label: t('Order delivered', 'Pedido entregado') },
+        { key: 'order.cancelled', label: t('Order cancelled', 'Pedido cancelado') },
+        { key: 'order.cash', label: t('Cash on delivery', 'Pago en efectivo') },
+        { key: 'order.large', label: t('Large order with services', 'Pedido grande con servicios') },
+        { key: 'budget.created', label: t('Budget draft', 'Presupuesto borrador') },
+        { key: 'budget.sent', label: t('Budget sent to customer', 'Presupuesto enviado al cliente') },
+        { key: 'budget.accepted', label: t('Budget accepted', 'Presupuesto aceptado') },
+        { key: 'budget.converted', label: t('Budget converted to order', 'Presupuesto convertido en pedido') },
+        { key: 'budget.expired', label: t('Budget expired', 'Presupuesto expirado') },
+        { key: 'budget.cancelled', label: t('Budget cancelled', 'Presupuesto cancelado') },
+      ]
+      return scenarios
+    }
+    if (category === EmailCategory.PAYMENTS) {
+      return [{ key: 'payment.default', label: t('Payment confirmed', 'Pago confirmado') }]
+    }
+    return [
+      { key: 'auth.reset', label: t('Password reset', 'Restablecer contraseña') },
+      { key: 'auth.changed', label: t('Password changed', 'Contraseña actualizada') },
+      { key: 'auth.recovery', label: t('Recovery alert', 'Aviso de recuperación') },
+    ]
+  }
+
+  private resolveStatusLabel(definition: ReturnType<typeof findOrderStatusById>, locale: string) {
+    if (!definition) {
+      return null
+    }
+    const normalized = (locale || '').split(/[-_]/)[0]?.toLowerCase() || 'en'
+    if (definition.translations && definition.translations[normalized]) {
+      return definition.translations[normalized]
+    }
+    return definition.label
+  }
+
+  private buildDocumentLinks(
+    order: Prisma.OrderGetPayload<{ include: { customer: true; items: true } }>,
+    documentType: OrderEmailContext['documentType'],
+  ): OrderEmailContext['links'] {
+    const customerBase = this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null
+    const adminBase = this.config.get<string>('ADMIN_PORTAL_URL') ?? null
+    const identifier = order.uuid || String(order.id)
+    const customerPath = documentType === 'BUDGET' ? `/budgets/${identifier}` : `/orders/${identifier}`
+    const adminPath = documentType === 'BUDGET' ? `/admin/budgets/${order.id}` : `/admin/orders/${order.id}`
+    return {
+      customer: this.joinUrl(customerBase, customerPath),
+      admin: this.joinUrl(adminBase, adminPath),
+      payment: null,
+    }
+  }
+
+  private joinUrl(base: string | null, path: string) {
+    if (!base) {
+      return null
+    }
+    const trimmedBase = base.endsWith('/') ? base.slice(0, -1) : base
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`
+    return `${trimmedBase}${normalizedPath}`
+  }
+
+  private resolveStatusEventKey(documentType: OrderEmailContext['documentType'], statusCode: string | null) {
+    if (documentType === 'BUDGET') {
+      switch (statusCode) {
+        case 'budget_sent':
+          return 'budget.status.sent'
+        case 'budget_accepted':
+          return 'budget.status.accepted'
+        case 'budget_converted':
+          return 'budget.status.converted'
+        case 'budget_expired':
+          return 'budget.status.expired'
+        case 'budget_cancelled':
+          return 'budget.status.cancelled'
+        default:
+          return 'budget.status.updated'
+      }
+    }
+    switch (statusCode) {
+      case 'paid':
+        return 'order.status.paid'
+      case 'delivered':
+        return 'order.status.delivered'
+      case 'cancelled':
+        return 'order.status.cancelled'
+      case 'pending':
+        return 'order.status.pending'
+      default:
+        return 'order.status.updated'
     }
   }
 }

@@ -5,8 +5,13 @@ export type EmailLocale = string
 export type OrderEmailContext = {
   orderId: number
   orderNumber?: string | null
+  documentType: 'ORDER' | 'BUDGET'
+  event: string
   orderDate: string
   status?: string | null
+  statusCode?: string | null
+  previousStatus?: string | null
+  previousStatusCode?: string | null
   customer: {
     id: number
     name: string | null
@@ -17,16 +22,35 @@ export type OrderEmailContext = {
     name: string
     quantity: number
     unitPrice: string
+    unitPriceRaw: number
     subtotal: string
+    subtotalRaw: number
+    description?: string | null
   }>
   totals: {
     subtotal: string
+    subtotalRaw: number
     tax?: string | null
+    taxRaw?: number | null
     grandTotal: string
+    grandTotalRaw: number
     currency: string
   }
   paymentUrl?: string | null
   portalUrl?: string | null
+  adminUrl?: string | null
+  links?: {
+    customer?: string | null
+    admin?: string | null
+    payment?: string | null
+  } | null
+  validUntil?: string | null
+  paymentMethod?: string | null
+  deliveryEstimate?: {
+    minHours?: number | null
+    maxHours?: number | null
+  } | null
+  notes?: string | null
   locale: EmailLocale
 }
 
@@ -50,8 +74,10 @@ export type PaymentEmailContext = {
 }
 
 export type PasswordResetEmailContext = {
-  resetUrl: string
-  expiresAt: string
+  event: 'reset_link' | 'password_changed' | 'recovery_notice'
+  resetUrl?: string | null
+  supportUrl?: string | null
+  expiresAt?: string | null
   displayName: string
   locale: EmailLocale
   isAdmin: boolean
@@ -83,6 +109,8 @@ export type EmailMessage = {
     email: string
     name?: string | null
   }
+  replyTo?: string | null
+  headers?: Record<string, string>
   payload: Record<string, unknown>
   templateId?: number | null
 }

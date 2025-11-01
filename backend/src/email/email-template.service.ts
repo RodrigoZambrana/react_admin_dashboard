@@ -26,6 +26,39 @@ type RenderResult = {
   templateId?: number
 }
 
+const EVENT_LABELS: Record<string, Record<string, string>> = {
+  en: {
+    'order.received': 'We received your order',
+    'order.status.pending': 'Order pending',
+    'order.status.paid': 'Payment confirmed',
+    'order.status.delivered': 'Order delivered',
+    'order.status.cancelled': 'Order cancelled',
+    'order.status.updated': 'Order update',
+    'budget.created': 'Your quote is ready',
+    'budget.status.sent': 'Quote sent',
+    'budget.status.accepted': 'Quote approved',
+    'budget.status.converted': 'Quote converted to order',
+    'budget.status.expired': 'Quote expired',
+    'budget.status.cancelled': 'Quote cancelled',
+    'budget.status.updated': 'Quote update',
+  },
+  es: {
+    'order.received': 'Recibimos tu pedido',
+    'order.status.pending': 'Pedido pendiente',
+    'order.status.paid': 'Pago confirmado',
+    'order.status.delivered': 'Pedido entregado',
+    'order.status.cancelled': 'Pedido cancelado',
+    'order.status.updated': 'Actualización de pedido',
+    'budget.created': 'Tu presupuesto está listo',
+    'budget.status.sent': 'Presupuesto enviado',
+    'budget.status.accepted': 'Presupuesto aprobado',
+    'budget.status.converted': 'Presupuesto convertido en pedido',
+    'budget.status.expired': 'Presupuesto vencido',
+    'budget.status.cancelled': 'Presupuesto cancelado',
+    'budget.status.updated': 'Actualización de presupuesto',
+  },
+}
+
 @Injectable()
 export class EmailTemplateService implements OnModuleInit {
   private readonly logger = new Logger(EmailTemplateService.name)
@@ -50,20 +83,142 @@ export class EmailTemplateService implements OnModuleInit {
     this.hbs.registerHelper('default', (value: unknown, fallback: unknown) =>
       value === undefined || value === null || value === '' ? fallback : value,
     )
+    this.hbs.registerHelper('eq', (a: unknown, b: unknown) => a === b)
+    this.hbs.registerHelper('neq', (a: unknown, b: unknown) => a !== b)
+    this.hbs.registerHelper('and', (...args: unknown[]) => args.slice(0, -1).every((entry) => Boolean(entry)))
+    this.hbs.registerHelper('or', (...args: unknown[]) => args.slice(0, -1).some((entry) => Boolean(entry)))
+    this.hbs.registerHelper('currencySymbol', (currency?: string | null) => this.resolveCurrencySymbol(currency))
+    this.hbs.registerHelper(
+      'formatCurrency',
+      (value: unknown, currency?: string | null, options?: Handlebars.HelperOptions) =>
+        this.formatCurrencyValue(value, currency, options),
+    )
+    this.hbs.registerHelper('formatDateTime', (value: unknown, options?: Handlebars.HelperOptions) =>
+      this.formatDateValue(value, options, { includeTime: true }),
+    )
+    this.hbs.registerHelper('formatDate', (value: unknown, options?: Handlebars.HelperOptions) =>
+      this.formatDateValue(value, options, { includeTime: false }),
+    )
+    this.hbs.registerHelper('eventLabel', (event: string, options?: Handlebars.HelperOptions) =>
+      this.resolveEventLabel(event, options),
+    )
+  }
+
+  private resolveCurrencySymbol(raw?: string | null) {
+    const currency = (raw ?? '').toUpperCase()
+    if (!currency) {
+      return '$'
+    }
+    switch (currency) {
+      case 'USD':
+        return 'US$'
+      case 'UYU':
+        return '$'
+      case 'EUR':
+        return '€'
+      case 'GBP':
+        return '£'
+      default:
+        return currency
+    }
+  }
+
+  private formatCurrencyValue(
+    value: unknown,
+    currency: string | null | undefined,
+    options?: Handlebars.HelperOptions,
+  ) {
+    if (value === null || value === undefined || value === '') {
+      return ''
+    }
+    const numeric = typeof value === 'number' ? value : Number(value)
+    if (!Number.isFinite(numeric)) {
+      return String(value)
+    }
+    const locale = this.resolveLocale(options)
+    const symbol = this.resolveCurrencySymbol(currency)
+    const formatted = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numeric)
+    return `${symbol} ${formatted}`.trim()
+  }
+
+  private formatDateValue(
+    value: unknown,
+    options: Handlebars.HelperOptions | undefined,
+    config: { includeTime: boolean },
+  ) {
+    if (value === null || value === undefined || value === '') {
+      return ''
+    }
+    const date = value instanceof Date ? value : new Date(String(value))
+    if (Number.isNaN(date.getTime())) {
+      return ''
+    }
+    const locale = this.resolveLocale(options)
+    const timeZone = options?.hash?.timeZone || this.config.get<string>('EMAIL_DEFAULT_TIMEZONE') || undefined
+    const formatOptions: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }
+    if (config.includeTime) {
+      formatOptions.hour = '2-digit'
+      formatOptions.minute = '2-digit'
+    }
+    return new Intl.DateTimeFormat(locale, { ...formatOptions, timeZone: timeZone || undefined }).format(date)
+  }
+
+  private resolveLocale(options?: Handlebars.HelperOptions) {
+    const fallback = this.config.get<string>('DEFAULT_EMAIL_LOCALE') || 'en'
+    if (!options?.data) {
+      return fallback
+    }
+    const root = options.data.root as { payload?: { locale?: string }; locale?: string } | undefined
+    return root?.payload?.locale || root?.locale || fallback
+  }
+
+  private resolveEventLabel(event: string, options?: Handlebars.HelperOptions) {
+    if (!event) {
+      return 'Update'
+    }
+    const locale = this.resolveLocale(options)
+    const language = locale.split(/[-_]/)[0]?.toLowerCase() || 'en'
+    const labels = EVENT_LABELS[language] ?? EVENT_LABELS.en
+    return labels[event] ?? labels['order.status.updated'] ?? event
   }
 
   private async synchronizeStaticTemplates() {
     const existing = await this.prisma.emailTemplate.findMany()
     const existingMap = new Map<string, EmailTemplate>()
     for (const template of existing) {
-      existingMap.set(this.makeTemplateKey(template.category, template.variant, template.locale, template.version), template)
+      existingMap.set(
+        this.makeTemplateKey(template.category, template.variant, template.locale, template.version),
+        template,
+      )
     }
+
+    const latestTarget = new Map<
+      string,
+      { category: EmailCategory; variant: EmailTemplateVariant; locale: string; version: number }
+    >()
 
     for (const def of TEMPLATE_DEFINITIONS) {
       const key = this.makeTemplateKey(def.category, def.variant, def.locale, def.version)
-      const existingTemplate = existingMap.get(key)
-      if (!existingTemplate) {
-        await this.prisma.emailTemplate.create({
+      const familyKey = this.makeTemplateFamilyKey(def.category, def.variant, def.locale)
+      const tracked = latestTarget.get(familyKey)
+      if (!tracked || def.version > tracked.version) {
+        latestTarget.set(familyKey, {
+          category: def.category,
+          variant: def.variant,
+          locale: def.locale,
+          version: def.version,
+        })
+      }
+
+      if (!existingMap.has(key)) {
+        const created = await this.prisma.emailTemplate.create({
           data: {
             category: def.category,
             variant: def.variant,
@@ -74,27 +229,17 @@ export class EmailTemplateService implements OnModuleInit {
             active: true,
           },
         })
-      } else if (
-        existingTemplate.subject !== def.subject ||
-        existingTemplate.body !== def.body ||
-        existingTemplate.active === false
-      ) {
-        await this.prisma.emailTemplate.update({
-          where: { id: existingTemplate.id },
-          data: {
-            subject: def.subject,
-            body: def.body,
-            active: true,
-          },
-        })
+        existingMap.set(key, created)
       }
+    }
 
+    for (const { category, variant, locale, version } of latestTarget.values()) {
       await this.prisma.emailTemplate.updateMany({
         where: {
-          category: def.category,
-          variant: def.variant,
-          locale: def.locale,
-          version: { not: def.version },
+          category,
+          variant,
+          locale,
+          version: { lt: version },
           active: true,
         },
         data: { active: false },
@@ -107,6 +252,10 @@ export class EmailTemplateService implements OnModuleInit {
   }
 
   private makeCacheKey(category: EmailCategory, variant: EmailTemplateVariant, locale: string) {
+    return `${category}:${variant}:${locale}`
+  }
+
+  private makeTemplateFamilyKey(category: EmailCategory, variant: EmailTemplateVariant, locale: string) {
     return `${category}:${variant}:${locale}`
   }
 
@@ -160,9 +309,16 @@ export class EmailTemplateService implements OnModuleInit {
     if (!template) {
       throw new Error(`No email template found for category=${context.category} variant=${context.variant}`)
     }
+    return this.renderUsingCompiled(template, context.payload, extras)
+  }
 
+  private async renderUsingCompiled(
+    template: CompiledTemplate,
+    payload: EmailRenderContext['payload'],
+    extras?: Record<string, unknown>,
+  ): Promise<RenderResult> {
     const baseContext = {
-      payload: context.payload,
+      payload,
       companyName: extras?.companyName ?? this.config.get<string>('COMPANY_NAME') ?? 'Sistema Administrativo',
       companyFooter:
         extras?.companyFooter ??
@@ -226,5 +382,38 @@ export class EmailTemplateService implements OnModuleInit {
         { locale: 'asc' },
       ],
     })
+  }
+
+  async getTemplateById(id: number) {
+    return this.prisma.emailTemplate.findUnique({ where: { id } })
+  }
+
+  async updateTemplate(
+    id: number,
+    data: { subject?: string; body?: string; active?: boolean },
+  ) {
+    const updated = await this.prisma.emailTemplate.update({
+      where: { id },
+      data: {
+        subject: data.subject,
+        body: data.body,
+        active: data.active,
+      },
+    })
+    await this.reloadActiveTemplates()
+    return updated
+  }
+
+  async renderTemplateById(
+    id: number,
+    payload: EmailRenderContext['payload'],
+    extras?: Record<string, unknown>,
+  ) {
+    const template = await this.prisma.emailTemplate.findUnique({ where: { id } })
+    if (!template) {
+      throw new Error(`Email template ${id} not found`)
+    }
+    const compiled = this.compileTemplate(template)
+    return this.renderUsingCompiled(compiled, payload, extras)
   }
 }

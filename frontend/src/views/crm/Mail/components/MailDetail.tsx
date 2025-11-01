@@ -14,6 +14,7 @@ import {
     useAppDispatch,
     useAppSelector,
 } from '../store'
+import { initialState as initialMailState } from '../store/mailSlice'
 import MailDetailActionBar from './MailDetailActionBar'
 import MailDetailContent from './MailDetailContent'
 import MailEditor, { MailEditorRef } from './MailEditor'
@@ -43,13 +44,14 @@ const MailDetail = () => {
     const skipQuerySyncRef = useRef(false)
     const readHistoryRef = useRef<Set<string>>(new Set())
 
-    const mail = useAppSelector((state) => state.crmMail.data.mail)
-    const mailLoading = useAppSelector(
-        (state) => state.crmMail.data.mailLoading,
+    const mailState = useAppSelector(
+        (state) => state.crmMail?.data ?? initialMailState,
     )
-    const mailId = useAppSelector((state) => state.crmMail.data.selectedMailId)
-    const isReply = useAppSelector((state) => state.crmMail.data.reply)
-    const mailList = useAppSelector((state) => state.crmMail.data.mailList)
+    const mail = mailState.mail
+    const mailLoading = mailState.mailLoading
+    const mailId = mailState.selectedMailId
+    const isReply = mailState.reply
+    const mailList = mailState.mailList
 
     const formSubmit = () => {
         mailEditorRef.current?.formikRef?.submitForm()

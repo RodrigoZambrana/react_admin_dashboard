@@ -70,7 +70,7 @@ const ExpenseNew = () => {
             const [categoryRes, statusRes, methodRes] = await Promise.all([
                 apiGetExpenseCategories<{ id: number; name: string }[]>(),
                 apiGetExpenseStatuses<{ id: number; name: string }[]>(),
-                apiGetPaymentMethods<{ id: number; name: string }[]>(),
+                apiGetPaymentMethods<{ id: number | string; label?: string }[]>(),
             ])
             const categoryOptions = (categoryRes.data as any[]).map((category) => ({
                 value: String(category.id),
@@ -86,9 +86,9 @@ const ExpenseNew = () => {
             if (statusOptions.length) {
                 setStatuses(statusOptions)
             }
-            const methodOptions = (methodRes.data as any[]).map((method) => ({
+            const methodOptions = (methodRes.data || []).map((method) => ({
                 value: String(method.id),
-                label: method.name,
+                label: method.label || String(method.id),
             }))
             if (methodOptions.length) {
                 setMethods(methodOptions)
@@ -137,7 +137,7 @@ const ExpenseNew = () => {
                     {t('expenses.new.created.desc')}
                 </Notification>,
             )
-            navigate('/app/expenses/expense-list')
+            navigate('/app/accounting/expenses/list')
         }
     }
 
@@ -224,7 +224,7 @@ const ExpenseNew = () => {
                                             }
                                             isClearable
                                         />
-                                        <Link to="/app/expenses/categories">
+                                        <Link to="/app/accounting/expenses/categories">
                                             <Button size="sm" variant="twoTone" icon={<HiOutlineAdjustments />}>
                                                 {t('expenses.categories.actions.manage')}
                                             </Button>

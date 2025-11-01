@@ -31,6 +31,30 @@ const createMockStorefrontService = (session: StorefrontAuthSession) => ({
   createSessionForCustomer: vi.fn().mockResolvedValue(session),
 })
 
+const createMockSecurityService = () => ({
+  reauthenticateWithGoogle: vi.fn().mockResolvedValue({
+    token: 'reauth-token',
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+  }),
+  reauthenticateWithPassword: vi.fn(),
+})
+
+const createMockGoogleConfig = () => ({
+  getEffectiveConfig: vi.fn().mockResolvedValue({
+    google: {
+      enabled: true,
+      storefrontEnabled: true,
+      clientId: 'test-client-id',
+      clientSecret: 'test-client-secret',
+      redirectUri: 'https://example.com/api/storefront/auth/google/callback',
+    },
+    recaptcha: {
+      admin: { enabled: false, siteKey: null, secretKey: null },
+      storefront: { enabled: false, siteKey: null, secretKey: null },
+    },
+  }),
+})
+
 describe('StorefrontGoogleOAuthService', () => {
   const session: StorefrontAuthSession = {
     accessToken: 'access',
@@ -53,16 +77,22 @@ describe('StorefrontGoogleOAuthService', () => {
   let config: ReturnType<typeof mockConfig>
   let prisma: ReturnType<typeof createMockPrisma>
   let storefront: ReturnType<typeof createMockStorefrontService>
+  let security: ReturnType<typeof createMockSecurityService>
+  let googleConfig: ReturnType<typeof createMockGoogleConfig>
   let service: StorefrontGoogleOAuthService
 
   beforeEach(() => {
     config = mockConfig()
     prisma = createMockPrisma()
     storefront = createMockStorefrontService(session)
+    security = createMockSecurityService()
+    googleConfig = createMockGoogleConfig()
     service = new StorefrontGoogleOAuthService(
       config as any,
       prisma as any,
       storefront as any,
+      googleConfig as any,
+      security as any,
     )
   })
 
@@ -106,6 +136,10 @@ describe('StorefrontGoogleOAuthService', () => {
       returnPath: '/account',
       scopes: 'openid email profile',
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      purpose: 'login',
+      expectedCustomerId: null,
+      ipAddress: '127.0.0.1',
+      userAgent: 'vitest',
     })
 
     const tokenResponse = {
@@ -132,7 +166,10 @@ describe('StorefrontGoogleOAuthService', () => {
 
     expect(result.status).toBe('success')
     if (result.status === 'success') {
-      expect(result.session.accessToken).toBe('access')
+      expect(result.session).not.toBeNull()
+      if (result.session) {
+        expect(result.session.accessToken).toBe('access')
+      }
       expect(result.returnPath).toBe('/account')
       expect(storefront.createSessionForCustomer).toHaveBeenCalled()
     }

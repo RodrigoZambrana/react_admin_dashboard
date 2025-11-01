@@ -34,7 +34,7 @@ const ExpensesTableTools = () => {
     )
     return (
         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-            <Link to="/app/expenses/expense-new">
+            <Link to="/app/accounting/expenses/new">
                 <Button variant="solid" size="sm" icon={<HiOutlinePlusCircle />}> 
                     {t('expenses.new.title')}
                 </Button>

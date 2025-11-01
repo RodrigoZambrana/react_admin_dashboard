@@ -8,9 +8,12 @@ import { MercadoPagoService } from './payments/mercadopago.service'
 import { StorefrontGoogleOAuthService } from './oauth/google-oauth.service'
 import { StorefrontSessionCookieService } from './storefront-session-cookie.service'
 import { NotificationsModule } from '../notifications/notifications.module'
+import { PricingModule } from '../pricing/pricing.module'
+import { EmailModule } from '../email/email.module'
+import { StorefrontSecurityService } from './security/storefront-security.service'
 
 @Module({
-  imports: [CurrencyModule, NotificationsModule],
+  imports: [CurrencyModule, NotificationsModule, PricingModule, EmailModule],
   controllers: [StorefrontController],
   providers: [
     StorefrontService,
@@ -19,6 +22,7 @@ import { NotificationsModule } from '../notifications/notifications.module'
     MercadoPagoService,
     StorefrontGoogleOAuthService,
     StorefrontSessionCookieService,
+    StorefrontSecurityService,
   ],
   exports: [MercadoPagoService],
 })

@@ -81,6 +81,31 @@ enum ProductType {
   SERVICE
 }
 
+enum ProductMode {
+  SIMPLE
+  VARIABLE
+  PARAMETRIC
+}
+
+enum ParametricModifierType {
+  COLOR
+  MONOBLOCK
+  MOSQUITO_NET
+  GLASS
+  CUSTOM
+}
+
+enum ParametricAdjustmentMode {
+  MULTIPLIER
+  SURCHARGE
+}
+
+enum ProductAttributeType {
+  COLOR
+  SIZE
+  MATERIAL
+}
+
 enum InboxChannelType {
   EMAIL
   WHATSAPP
@@ -152,6 +177,33 @@ enum NotificationDeliveryStatus {
   FAILED
 }
 
+enum CustomerSecurityEventType {
+  PASSWORD_RESET_REQUEST
+  PASSWORD_RESET_COMPLETED
+  PASSWORD_RESET_FAILED
+  PASSWORD_CHANGE
+  PASSWORD_CHANGE_FAILED
+  OTP_SENT
+  OTP_VERIFIED
+  OTP_FAILED
+  REAUTH_STARTED
+  REAUTH_COMPLETED
+  REAUTH_FAILED
+  SESSION_REVOKED
+}
+
+enum CustomerReauthMethod {
+  PASSWORD
+  GOOGLE
+  OTP
+}
+
+enum PasswordResetChannel {
+  EMAIL
+  PHONE
+  GOOGLE
+}
+
 // Notifications
 model Notification {
   id                  Int                        @id @default(autoincrement())
@@ -206,19 +258,19 @@ model NotificationSetting {
 
 // Users and Auth
 model User {
-  id                       Int                    @id @default(autoincrement())
+  id                       Int                     @id @default(autoincrement())
   name                     String?
   lastName                 String?
-  email                    String                 @unique
+  email                    String                  @unique
   img                      String?
-  role                     Role                   @default(USER)
-  lang                     String                 @default("en")
+  role                     Role                    @default(USER)
+  lang                     String                  @default("en")
   country                  String?
   countryCode              String?
   city                     String?
   passwordHash             String
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
   // relations
   createdTasks             Task[]
   taskAssignees            TaskAssignee[]
@@ -228,9 +280,10 @@ model User {
   calendarComments         CalendarEventComment[]
   activities               UserActivity[]
   devices                  UserDevice[]
-  convertedOrders          Order[]                @relation("OrderConvertedBy")
-  assignedProductionOrders ProductionOrder[]      @relation("ProductionOrderAssignedTo")
+  convertedOrders          Order[]                 @relation("OrderConvertedBy")
+  assignedProductionOrders ProductionOrder[]       @relation("ProductionOrderAssignedTo")
   passwordResetTokens      PasswordResetToken[]
+  parametricImports        ParametricImportBatch[]
 }
 
 model UserDevice {
@@ -276,6 +329,10 @@ model Customer {
   phoneNumber                   String?                @unique
   passwordHash                  String?
   storefrontDefaultPasswordHash String?
+  passwordAlgorithm             String?                @default("bcrypt")
+  passwordAlgVersion            Int?                   @default(12)
+  passwordUpdatedAt             DateTime?
+  storefrontSessionVersion      Int                    @default(1)
   birthday                      DateTime?
   facebook                      String?
   twitter                       String?
@@ -287,6 +344,9 @@ model Customer {
   orders                        Order[]
   notifications                 Notification[]
   passwordResetTokens           PasswordResetToken[]
+  securityEvents                CustomerSecurityEvent[]
+  otpChallenges                 CustomerOtpChallenge[]
+  reauthTokens                  CustomerReauthToken[]
   addresses                     CustomerAddress[]
   statusId                      Int?
   status                        CustomerStatus?        @relation(fields: [statusId], references: [id], onDelete: SetNull)
@@ -324,6 +384,63 @@ model CustomerPhone {
   createdAt  DateTime @default(now())
 }
 
+model CustomerSecurityEvent {
+  id         Int                        @id @default(autoincrement())
+  customerId Int?
+  customer   Customer?                  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  eventType  CustomerSecurityEventType
+  channel    String?
+  ipAddress  String?
+  userAgent  String?
+  deviceId   String?
+  metadata   Json?
+  createdAt  DateTime                   @default(now())
+
+  @@index([customerId])
+  @@index([createdAt])
+}
+
+model CustomerOtpChallenge {
+  id             Int       @id @default(autoincrement())
+  customerId     Int
+  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  phone          String
+  otpHash        String
+  otpLength      Int       @default(6)
+  attemptCount   Int       @default(0)
+  maxAttempts    Int       @default(5)
+  channel        String?
+  ipAddress      String?
+  userAgent      String?
+  expiresAt      DateTime
+  lastAttemptAt  DateTime?
+  consumedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([customerId])
+  @@index([phone])
+  @@index([expiresAt])
+  @@index([createdAt])
+}
+
+model CustomerReauthToken {
+  id         Int                 @id @default(autoincrement())
+  customerId Int
+  customer   Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tokenHash  String              @unique
+  method     CustomerReauthMethod
+  factors    Json?
+  ipAddress  String?
+  userAgent  String?
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime            @default(now())
+
+  @@index([customerId])
+  @@index([expiresAt])
+}
+
 model Wishlist {
   id         Int            @id @default(autoincrement())
   customerId Int            @unique
@@ -346,44 +463,210 @@ model WishlistItem {
 
 // Sales Product
 model Product {
-  id                        Int              @id @default(autoincrement())
+  id                        Int                        @id @default(autoincrement())
   name                      String
   productCode               String?
   img                       String?
   description               String?
   specifications            String?
   categoryId                Int?
-  category                  ProductCategory? @relation(fields: [categoryId], references: [id])
-  productType               ProductType      @default(PHYSICAL)
-  salePrice                 Decimal          @default(0) @map("precio_venta") @db.Decimal(12, 2)
-  costPrice                 Decimal          @default(0) @map("precio_costo") @db.Decimal(12, 2)
-  currency                  String           @default("UYU")
-  unitOfMeasure             SalesUnit        @default(UNIT)
-  stock                     Int              @default(0)
-  permanentStock            Boolean          @default(false)
-  status                    Int              @default(0) // 0=inStock,1=limited,2=outOfStock
+  category                  ProductCategory?           @relation(fields: [categoryId], references: [id])
+  productType               ProductType                @default(PHYSICAL)
+  mode                      ProductMode                @default(SIMPLE)
+  salePrice                 Decimal                    @default(0) @map("precio_venta") @db.Decimal(12, 2)
+  costPrice                 Decimal                    @default(0) @map("precio_costo") @db.Decimal(12, 2)
+  currency                  String                     @default("UYU")
+  unitOfMeasure             SalesUnit                  @default(UNIT)
+  stock                     Int                        @default(0)
+  permanentStock            Boolean                    @default(false)
+  status                    Int                        @default(0) // 0=inStock,1=limited,2=outOfStock
   costPerItem               Float?
   bulkDiscountPrice         Float?
-  taxRate                   Float?           @default(22)
+  taxRate                   Float?                     @default(22)
   tags                      String[]
   brand                     String?
   vendor                    String?
-  published                 Boolean          @default(true)
+  published                 Boolean                    @default(true)
   images                    ProductImage[]
+  options                   ProductOption[]
+  variants                  ProductVariant[]
   wishlistItems             WishlistItem[]
-  createdAt                 DateTime         @default(now())
-  updatedAt                 DateTime         @updatedAt
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
   orderItems                OrderItem[]
-  installServiceForCategory ProductCategory? @relation("CategoryInstallService")
+  installServiceForCategory ProductCategory?           @relation("CategoryInstallService")
+  parametricConfig          ParametricProductConfig?
+  parametricReferencePrices ParametricReferencePrice[]
+  parametricModifiers       ParametricModifier[]
+  parametricImportBatches   ParametricImportBatch[]
 }
 
 model ProductImage {
-  id        Int     @id @default(autoincrement())
+  id        Int             @id @default(autoincrement())
   productId Int
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId Int?
+  variant   ProductVariant? @relation("ProductVariantImages", fields: [variantId], references: [id], onDelete: Cascade)
   name      String?
   img       String
-  sortOrder Int     @default(0)
+  sortOrder Int             @default(0)
+
+  @@index([productId, variantId])
+}
+
+model ProductOption {
+  id        Int                  @id @default(autoincrement())
+  productId Int
+  product   Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type      ProductAttributeType
+  name      String
+  sortOrder Int                  @default(0)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  values    ProductOptionValue[]
+
+  @@unique([productId, type])
+  @@index([productId])
+}
+
+model ProductOptionValue {
+  id         Int                       @id @default(autoincrement())
+  optionId   Int
+  option     ProductOption             @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  code       String
+  label      String
+  value      String?
+  colorHex   String?
+  imageUrl   String?
+  imageAlt   String?
+  sortOrder  Int                       @default(0)
+  createdAt  DateTime                  @default(now())
+  updatedAt  DateTime                  @updatedAt
+  selections ProductVariantSelection[]
+
+  @@unique([optionId, code])
+  @@index([optionId])
+}
+
+model ProductVariant {
+  id               Int                       @id @default(autoincrement())
+  productId        Int
+  product          Product                   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  key              String
+  sku              String?
+  barcode          String?
+  label            String?
+  salePrice        Decimal?                  @db.Decimal(12, 2)
+  costPrice        Decimal?                  @db.Decimal(12, 2)
+  stock            Int?
+  permanentStock   Boolean?
+  isActive         Boolean                   @default(true)
+  inheritSalePrice Boolean                   @default(true)
+  inheritCostPrice Boolean                   @default(true)
+  inheritStock     Boolean                   @default(true)
+  inheritSku       Boolean                   @default(true)
+  inheritImages    Boolean                   @default(true)
+  attributes       Json                      @default("{}")
+  combinationKey   String
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  images           ProductImage[]            @relation("ProductVariantImages")
+  selections       ProductVariantSelection[]
+  orderItems       OrderItem[]
+
+  @@unique([productId, combinationKey])
+  @@unique([productId, key])
+  @@index([productId])
+  @@index([productId, isActive])
+}
+
+model ParametricProductConfig {
+  id        Int      @id @default(autoincrement())
+  productId Int      @unique
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  schema    Json
+  defaults  Json?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ParametricImportBatch {
+  id              Int                        @id @default(autoincrement())
+  productId       Int
+  product         Product                    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  rowsProcessed   Int                        @default(0)
+  rowsInserted    Int                        @default(0)
+  rowsFailed      Int                        @default(0)
+  sourceType      String                     @default("manual")
+  sourceFile      String?
+  createdAt       DateTime                   @default(now())
+  importedById    Int?
+  importedBy      User?                      @relation(fields: [importedById], references: [id], onDelete: SetNull)
+  summary         Json?
+  referencePrices ParametricReferencePrice[]
+  modifiers       ParametricModifier[]
+
+  @@index([productId, createdAt])
+}
+
+model ParametricReferencePrice {
+  id            Int                    @id @default(autoincrement())
+  productId     Int
+  product       Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  series        String
+  glass         String
+  color         String?
+  width         Decimal?               @db.Decimal(12, 4)
+  height        Decimal?               @db.Decimal(12, 4)
+  area          Decimal                @db.Decimal(14, 4)
+  price         Decimal                @db.Decimal(14, 4)
+  currency      String                 @default("UYU")
+  quotationDate DateTime
+  confidence    Float                  @default(1)
+  source        String?
+  detail        String?
+  metadata      Json?
+  createdAt     DateTime               @default(now())
+  importBatchId Int?
+  importBatch   ParametricImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  @@index([productId, series, glass])
+  @@index([productId, quotationDate])
+}
+
+model ParametricModifier {
+  id             Int                      @id @default(autoincrement())
+  productId      Int
+  product        Product                  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type           ParametricModifierType
+  code           String
+  label          String?
+  adjustmentMode ParametricAdjustmentMode @default(MULTIPLIER)
+  value          Decimal                  @db.Decimal(12, 6)
+  surcharge      Decimal?                 @db.Decimal(14, 4)
+  currency       String?                  @default("UYU")
+  quotationDate  DateTime?
+  confidence     Float?
+  metadata       Json?
+  createdAt      DateTime                 @default(now())
+  validFrom      DateTime?
+  validTo        DateTime?
+  importBatchId  Int?
+  importBatch    ParametricImportBatch?   @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  @@index([productId, type, code])
+  @@index([productId, quotationDate])
+}
+
+model ProductVariantSelection {
+  variantId     Int
+  optionValueId Int
+  variant       ProductVariant     @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  optionValue   ProductOptionValue @relation(fields: [optionValueId], references: [id], onDelete: Cascade)
+
+  @@id([variantId, optionValueId])
+  @@index([optionValueId])
 }
 
 model ProductCategory {
@@ -423,7 +706,6 @@ model Order {
   customer              Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
   date                  DateTime                  @default(now())
   paymentMethodId       Int?
-  paymentMethod         PaymentMethod?            @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
   shippingAddress1      String?
   shippingAddress2      String?
   shippingCity          String?
@@ -442,7 +724,6 @@ model Order {
   comment               String?
   disclaimer            String?
   statusId              Int?
-  status                OrderStatus?              @relation(fields: [statusId], references: [id], onDelete: SetNull)
   subTotal              Decimal                   @default(0) @db.Decimal(18, 2)
   tax                   Decimal                   @default(0) @db.Decimal(18, 2)
   grandTotal            Decimal                   @default(0) @db.Decimal(18, 2)
@@ -493,39 +774,38 @@ model Order {
 }
 
 model OrderItem {
-  id                      Int        @id @default(autoincrement())
+  id                      Int             @id @default(autoincrement())
   orderId                 Int
-  order                   Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order                   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId               Int?
-  product                 Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+  product                 Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variantId               Int?
+  variant                 ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
   name                    String
-  price                   Decimal    @default(0) @db.Decimal(18, 2)
-  qty                     Int        @default(1)
+  price                   Decimal         @default(0) @db.Decimal(18, 2)
+  qty                     Int             @default(1)
   img                     String?
   description             String?
   comments                String?
-  unitAmount              Decimal?   @db.Decimal(18, 4)
+  unitAmount              Decimal?        @db.Decimal(18, 4)
   unitCurrency            String?
-  unitAmountOrderCurrency Decimal?   @db.Decimal(18, 4)
-  conversionRate          Decimal?   @db.Decimal(18, 8)
-  unitCostAmount          Decimal?   @db.Decimal(18, 4)
+  unitAmountOrderCurrency Decimal?        @db.Decimal(18, 4)
+  conversionRate          Decimal?        @db.Decimal(18, 8)
+  unitCostAmount          Decimal?        @db.Decimal(18, 4)
   unitCostCurrency        String?
-  unitCostOrderCurrency   Decimal?   @db.Decimal(18, 4)
-  customAttributes        Json?      @default("{}")
+  unitCostOrderCurrency   Decimal?        @db.Decimal(18, 4)
+  customAttributes        Json?           @default("{}")
   pricingMethodSnapshot   SalesUnit?
-  unitPriceSnapshot       Decimal?   @db.Decimal(18, 4)
+  unitPriceSnapshot       Decimal?        @db.Decimal(18, 4)
   skuSnapshot             String?
   nameSnapshot            String?
   specSummary             String?
-  specJson                Json?      @default("{}")
-}
-
-model PaymentMethod {
-  id       Int       @id @default(autoincrement())
-  name     String    @unique
-  orders   Order[]
-  expenses Expense[]
-  payments Payment[]
+  specJson                Json?           @default("{}")
+  parametricConfig        Json?
+  parametricBreakdown     Json?
+  parametricReferenceDate DateTime?
+  parametricSource        String?
+  parametricVersion       String?
 }
 
 model Payment {
@@ -533,7 +813,6 @@ model Payment {
   orderId         Int
   order           Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
   paymentMethodId Int?
-  paymentMethod   PaymentMethod?      @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
   method          String?
   amount          Decimal             @db.Decimal(18, 2)
   currency        String
@@ -702,6 +981,8 @@ model StorefrontOAuthSession {
   nonce        String
   redirectUri  String
   returnPath   String?
+  purpose      String?   @default("login")
+  expectedCustomerId Int?
   scopes       String
   ipAddress    String?
   userAgent    String?
@@ -725,14 +1006,6 @@ model ShippingOption {
   updatedAt    DateTime @updatedAt
 }
 
-model OrderStatus {
-  id     Int     @id @default(autoincrement())
-  code   Int     @unique
-  name   String
-  color  String?
-  orders Order[]
-}
-
 // Expenses
 model Expense {
   id                Int                 @id @default(autoincrement())
@@ -747,7 +1020,6 @@ model Expense {
   statusId          Int?
   status            ExpenseStatus?      @relation(fields: [statusId], references: [id], onDelete: SetNull)
   paymentMethodId   Int?
-  paymentMethod     PaymentMethod?      @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
   paymentReference  String?
   taxCreditEligible Boolean             @default(true)
   attachments       ExpenseAttachment[]
@@ -1122,18 +1394,25 @@ model EmailLog {
 }
 
 model PasswordResetToken {
-  id         Int       @id @default(autoincrement())
-  tokenHash  String    @unique
-  userId     Int?
-  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  customerId Int?
-  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  expiresAt  DateTime
-  usedAt     DateTime?
-  ipAddress  String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id                   Int                 @id @default(autoincrement())
+  tokenHash            String              @unique
+  userId               Int?
+  user                 User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId           Int?
+  customer             Customer?           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  channel              PasswordResetChannel @default(EMAIL)
+  targetIdentifierHash String?
+  signingKid           String?
+  metadata             Json?
+  expiresAt            DateTime
+  usedAt               DateTime?
+  ipAddress            String?
+  userAgent            String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
   @@index([userId])
   @@index([customerId])
+  @@index([expiresAt])
+  @@index([channel])
 }

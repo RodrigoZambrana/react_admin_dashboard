@@ -13,6 +13,7 @@ import { ThemeProvider } from "theme";
 import NProgressBar from "@component/NProgress";
 import { I18nProvider } from "@/state/i18n-context";
 import ToastProvider from "@context/ToastContext";
+import NetworkStatusBanner from "@/components/status/NetworkStatusBanner";
 
 const publicSans = Public_Sans({ subsets: ["latin"] });
 
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
               <ToastProvider>
                 <CartProvider>
                   {children}
+                  <NetworkStatusBanner />
                   <NProgressBar />
                 </CartProvider>
               </ToastProvider>

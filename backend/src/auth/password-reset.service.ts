@@ -2,11 +2,12 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { ConfigService } from '@nestjs/config'
 import { EmailService } from '../email/email.service'
-import { createHash, randomBytes } from 'crypto'
+import { createHash, randomBytes, randomInt } from 'crypto'
 import * as bcrypt from 'bcrypt'
 import type { FastifyRequest } from 'fastify'
 import { UserActivityService } from '../user-activity/user-activity.service'
 import { ThrottlerException } from '@nestjs/throttler'
+import { PasswordResetChannel } from '@prisma/client'
 
 const PASSWORD_MIN_LENGTH = 8
 
@@ -92,14 +93,19 @@ export class PasswordResetService {
     const token = randomBytes(32).toString('hex')
     const tokenHash = createHash('sha256').update(token).digest('hex')
     const expiresAt = new Date(now + this.tokenTtlMs)
+    const userAgent = (req?.headers['user-agent'] as string | undefined) ?? null
+    const identifierHash = createHash('sha256').update(email).digest('hex')
 
     await this.prisma.passwordResetToken.create({
       data: {
         tokenHash,
         userId: user?.id ?? null,
         customerId: customer?.id ?? null,
+        channel: PasswordResetChannel.EMAIL,
+        targetIdentifierHash: identifierHash,
         expiresAt,
         ipAddress,
+        userAgent,
       },
     })
 
@@ -139,6 +145,7 @@ export class PasswordResetService {
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 12)
+    const newSessionVersion = randomInt(1, 2_147_483_646)
 
     await this.prisma.$transaction(async (tx) => {
       if (record.userId) {
@@ -154,6 +161,10 @@ export class PasswordResetService {
           data: {
             passwordHash: hashedPassword,
             storefrontDefaultPasswordHash: null,
+            passwordAlgorithm: 'bcrypt',
+            passwordAlgVersion: 12,
+            passwordUpdatedAt: new Date(),
+            storefrontSessionVersion: newSessionVersion,
           },
         })
       }

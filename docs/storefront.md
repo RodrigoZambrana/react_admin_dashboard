@@ -44,6 +44,12 @@ Returns a product detail payload. `:identifier` accepts the numeric id, product 
 ### `GET /storefront/products/:id/recommendations`
 Top-N recommendations for the same category (default limit 8, optional `?limit=` query param).
 
+### `GET /storefront/products/:id/parametric-config`
+Returns the parametric configuration schema for products marked with `mode = PARAMETRIC`. The response mirrors the `parametric_product_config.schema` JSON so the frontend can render dynamic inputs (width, height, series, color, glass, monoblock, mosquito net).
+
+### `POST /storefront/products/:id/parametric-quote`
+Calculates a price snapshot for a parametric configuration. The payload accepts `{ width, height, series, color, glass, mosquitoNet, monoblock }` and responds with `{ total, currency, referenceDate, dataVersion, breakdown }`. Use the `breakdown` object to display adjustments (color, glass, monoblock, mosquito net) and persist the returned `dataVersion` alongside the quote or order for traceability.
+
 ### `POST /storefront/auth/register`
 Creates or updates a `Customer` record with a hashed password.
 
@@ -67,13 +73,16 @@ Validates credentials and issues a fresh token pair.
 Exchanges a refresh token for a new access token pair. Invalid or expired tokens raise `401`.
 
 ### `POST /storefront/orders`
-Creates a lightweight order snapshot linked to the customer. Products must be published. The service normalises totals, tax, and line items.
+Creates a lightweight order snapshot linked to the customer. Products must be published. The service normalises totals, tax, and line items. When ordering variable products, include the specific `variantId` alongside the parent `productId` in each `items` entry.
 
 ```json
 {
   "customer": { "email": "jane@example.com", "firstName": "Jane", "lastName": "Doe" },
   "shippingAddress": { "line1": "123 Main St", "city": "Montevideo", "zip": "11000", "country": "UY" },
-  "items": [ { "productId": 1, "quantity": 2 } ],
+  "items": [
+    { "productId": 1, "variantId": 42, "quantity": 2 },
+    { "productId": 5, "quantity": 1 }
+  ],
   "notes": "Optional instructions"
 }
 ```
@@ -91,4 +100,3 @@ Response returns order metadata along with computed totals to display a confirma
 - Persist layout overrides by storing JSON in `systemConfig` and exposing edit forms via the dashboard.
 - Integrate payment providers by augmenting `createOrder` to create payment intents and persisting gateway metadata.
 - Introduce authenticated customer endpoints (order history, address book) by adding a dedicated guard that validates `scope === 'storefront'` access tokens.
-

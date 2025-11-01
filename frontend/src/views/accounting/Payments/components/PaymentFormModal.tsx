@@ -134,10 +134,10 @@ const PaymentFormModal = () => {
 
     useEffect(() => {
         const loadMethods = async () => {
-            const res = await apiGetPaymentMethods<{ id: number; name: string }[]>()
-            const options = (res.data as Array<{ id: number; name: string }>).map((item) => ({
+            const res = await apiGetPaymentMethods<{ id: number | string; label?: string }[]>()
+            const options = (res.data || []).map((item) => ({
                 value: String(item.id),
-                label: item.name,
+                label: item.label || String(item.id),
             }))
             setMethods(options)
         }

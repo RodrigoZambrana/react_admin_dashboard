@@ -26,6 +26,7 @@ import StyledSearchBox from "./styled";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import type { CategorySummary, ProductSummary } from "@/types/storefront";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
+import { useTranslation } from "@/state/i18n-context";
 
 const dropdownVariants = {
   hidden: {
@@ -64,6 +65,7 @@ export default function SearchInputWithCategory() {
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([DEFAULT_CATEGORY]);
   const [selectedCategory, setSelectedCategory] = useState<CategoryOption>(DEFAULT_CATEGORY);
   const { formatMoney: formatStorefrontMoney } = useMoneyFormatter();
+  const t = useTranslation();
 
   const latestRequestRef = useRef(0);
 
@@ -207,7 +209,7 @@ export default function SearchInputWithCategory() {
           className="category-dropdown"
           handler={(openMenu) => (
             <FlexBox className="dropdown-handler" alignItems="center" onClick={openMenu}>
-              <span>{selectedCategory.label}</span>
+              <span>{t(selectedCategory.label)}</span>
               <IconChevronDown size={18} stroke={1.5} />
             </FlexBox>
           )}>
@@ -217,7 +219,7 @@ export default function SearchInputWithCategory() {
                 fontSize="14px"
                 fontWeight={option.slug === selectedCategory.slug ? 600 : 400}
                 color={option.slug === selectedCategory.slug ? "primary.main" : "inherit"}>
-                {option.label}
+                {t(option.label)}
               </Span>
             </MenuItem>
           ))}
@@ -240,7 +242,7 @@ export default function SearchInputWithCategory() {
             <Card py="0.5rem" mt="0.25rem" boxShadow="large" borderRadius=".5rem">
               {isSearching ? (
                 <MenuItem>
-                  <Span fontSize="14px">Searching…</Span>
+                  <Span fontSize="14px">{t("Searching…")}</Span>
                 </MenuItem>
               ) : (
                 results.map((product) => {
@@ -266,7 +268,7 @@ export default function SearchInputWithCategory() {
               )}
               {!isSearching && results.length === 0 && query.trim() ? (
                 <MenuItem>
-                  <Span fontSize="14px">No products found.</Span>
+                  <Span fontSize="14px">{t("No products found.")}</Span>
                 </MenuItem>
               ) : null}
             </Card>

@@ -38,10 +38,12 @@ export class SendGridEmailProvider implements EmailProvider {
         { type: 'text/html', value: html },
       ],
       mail_settings: this.options.mailSettings ?? undefined,
+      reply_to: message.replyTo ? { email: message.replyTo } : undefined,
       headers: {
         'X-Email-Category': message.category,
         'X-Email-Variant': message.variant,
         'X-Email-Locale': message.locale,
+        ...(message.headers ?? {}),
       },
     }
     const res = await fetch('https://api.sendgrid.com/v3/mail/send', {

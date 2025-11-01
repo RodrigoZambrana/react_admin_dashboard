@@ -5,6 +5,7 @@ import {
 } from '@/services/SalesService'
 import type { TableQueries } from '@/@types/common'
 import type { SalesUnit } from '@/constants/product.constant'
+import type { ProductMode } from '@/views/sales/ProductForm/types'
 
 type Product = {
     id: string
@@ -37,6 +38,7 @@ type FilterQueries = {
     status: number[]
     productStatus: number
     currency: string[]
+    mode?: ProductMode | 'all'
 }
 
 export type SalesProductListState = {
@@ -94,6 +96,7 @@ const initialState: SalesProductListState = {
         status: [0, 1, 2],
         productStatus: 0,
         currency: [],
+        mode: undefined,
     },
 }
 

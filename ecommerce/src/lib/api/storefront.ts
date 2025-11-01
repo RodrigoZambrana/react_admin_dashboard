@@ -14,7 +14,7 @@ import type {
   StorefrontConfig
 } from "@/types/storefront";
 
-import { apiFetch, ApiError } from "../http";
+import { apiFetch } from "../http";
 
 export interface StorefrontAddressInput {
   street: string;
@@ -98,6 +98,26 @@ export const StorefrontApi = {
 
   async getProduct(slugOrId: string): Promise<ProductDetail> {
     return apiFetch<ProductDetail>(`products/${encodeURIComponent(slugOrId)}`, {
+      cache: "no-store"
+    });
+  },
+
+  async getProductParametricConfig(productId: number): Promise<Record<string, any>> {
+    return apiFetch<Record<string, any>>(`products/${productId}/parametric-config`, {
+      cache: "no-store"
+    });
+  },
+
+  async quoteParametricProduct(
+    productId: number,
+    payload: Record<string, unknown>
+  ): Promise<any> {
+    return apiFetch(`products/${productId}/parametric-quote`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json"
+      },
       cache: "no-store"
     });
   },
@@ -371,4 +391,4 @@ export const StorefrontApi = {
   }
 };
 
-export const isApiError = (error: unknown): error is ApiError => error instanceof ApiError;
+export { isApiError } from "@/lib/http";

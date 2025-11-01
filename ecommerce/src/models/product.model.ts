@@ -1,5 +1,12 @@
 import Shop from "./shop.model";
 import Review from "./Review.model";
+import type {
+  InventoryStatus,
+  ProductMode,
+  ProductVariant,
+  ProductAttributeDefinition,
+  ProductVariantAttribute
+} from "@/types/storefront";
 
 interface Product {
   unit?: any;
@@ -27,6 +34,20 @@ interface Product {
   reviews?: Review[];
   published?: boolean;
   specifications?: Array<{ label: string; value: string }>;
+  mode?: ProductMode;
+  variantAttributes?: ProductAttributeDefinition[];
+  variants?: Array<{
+    id: number;
+    key: string;
+    label?: string;
+    sku?: string | null;
+    price: number;
+    currency: string;
+    inventoryStatus: InventoryStatus;
+    attributes: ProductVariantAttribute[];
+    images: string[];
+    isActive: boolean;
+  }>;
 }
 
 export default Product;

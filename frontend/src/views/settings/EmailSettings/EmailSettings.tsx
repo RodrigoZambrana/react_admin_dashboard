@@ -9,6 +9,7 @@ import Table from '@/components/ui/Table'
 import Spinner from '@/components/ui/Spinner'
 import Badge from '@/components/ui/Badge'
 import Notification from '@/components/ui/Notification'
+import Textarea from '@/components/ui/Textarea'
 import toast from '@/components/ui/toast'
 import dayjs from 'dayjs'
 import { HiOutlineTrash, HiX } from 'react-icons/hi'
@@ -24,8 +25,14 @@ import {
     apiSendEmailTest,
     apiUpdateEmailRoleRule,
     apiUpdateEmailSettings,
+    apiGetEmailTemplate,
+    apiUpdateEmailTemplate,
+    apiPreviewEmailTemplate,
+    apiGetEmailTemplateSamples,
+    apiGetEmailMetrics,
 } from '@/services/SettingsService'
 import classNames from 'classnames'
+import useConfirmation from '@/hooks/useConfirmation'
 
 type EmailCategory = 'ORDERS' | 'PAYMENTS' | 'AUTH'
 
@@ -82,6 +89,35 @@ type EmailTemplateSummary = {
     locale: string
     version: number
     updatedAt: string
+}
+
+type EmailTemplateDetail = EmailTemplateSummary & {
+    subject: string
+    body: string
+    active: boolean
+}
+
+type TemplateScenarioOption = {
+    key: string
+    label: string
+}
+
+type EmailTemplatePreview = {
+    subject: string
+    html: string
+    text: string
+}
+
+type MetricsCounters = {
+    attempts: number
+    sent: number
+    failed: number
+}
+
+type EmailMetrics = {
+    totals: MetricsCounters
+    perCategory: Record<string, MetricsCounters>
+    perTemplate: Record<string, MetricsCounters>
 }
 
 type CategoryDraft = {
@@ -151,6 +187,7 @@ const EmailListEditor = ({
 }: EmailListEditorProps) => {
     const [draft, setDraft] = useState('')
     const { t } = useTranslation()
+    const { confirm, ConfirmationDialog } = useConfirmation()
 
     const addEmail = useCallback(() => {
         const normalized = draft.trim().toLowerCase()
@@ -824,7 +861,15 @@ const LogsPanel = ({
     )
 }
 
-const TemplatesPanel = ({ templates }: { templates: EmailTemplateSummary[] }) => {
+const TemplatesPanel = ({
+    templates,
+    selectedTemplateId,
+    onSelect,
+}: {
+    templates: EmailTemplateSummary[]
+    selectedTemplateId: number | null
+    onSelect: (id: number) => void
+}) => {
     const { t } = useTranslation()
     const categoryLabels = buildCategoryLabel(t)
 
@@ -846,9 +891,16 @@ const TemplatesPanel = ({ templates }: { templates: EmailTemplateSummary[] }) =>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
                 {templates.map((template) => (
-                    <div
+                    <button
                         key={template.id}
-                        className="rounded border border-gray-200 px-3 py-2"
+                        type="button"
+                        onClick={() => onSelect(template.id)}
+                        className={classNames(
+                            'rounded border px-3 py-2 text-left transition-colors',
+                            template.id === selectedTemplateId
+                                ? 'border-indigo-500 bg-indigo-50'
+                                : 'border-gray-200 hover:border-indigo-200',
+                        )}
                     >
                         <div className="flex items-center justify-between text-sm font-semibold text-gray-700">
                             <span>{categoryLabels[template.category]}</span>
@@ -860,7 +912,7 @@ const TemplatesPanel = ({ templates }: { templates: EmailTemplateSummary[] }) =>
                                 v{template.version} · {dayjs(template.updatedAt).format('YYYY-MM-DD')}
                             </span>
                         </div>
-                    </div>
+                    </button>
                 ))}
             </div>
         </Card>
@@ -906,9 +958,20 @@ const EmailSettings = () => {
         },
     })
     const [roleRules, setRoleRules] = useState<RoleRuleResponse[]>([])
-    const [roleOptions, setRoleOptions] = useState<RoleOption[]>([])
-    const [loadingRules, setLoadingRules] = useState(false)
-    const [templates, setTemplates] = useState<EmailTemplateSummary[]>([])
+   const [roleOptions, setRoleOptions] = useState<RoleOption[]>([])
+   const [loadingRules, setLoadingRules] = useState(false)
+   const [templates, setTemplates] = useState<EmailTemplateSummary[]>([])
+    const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
+    const [templateDetail, setTemplateDetail] = useState<EmailTemplateDetail | null>(null)
+    const [templateDirty, setTemplateDirty] = useState(false)
+    const [templateSaving, setTemplateSaving] = useState(false)
+    const [previewLocale, setPreviewLocale] = useState('en')
+    const [scenarioOptions, setScenarioOptions] = useState<TemplateScenarioOption[]>([])
+    const [scenarioKey, setScenarioKey] = useState<string | undefined>(undefined)
+    const [preview, setPreview] = useState<EmailTemplatePreview | null>(null)
+    const [previewLoading, setPreviewLoading] = useState(false)
+    const [metrics, setMetrics] = useState<EmailMetrics | null>(null)
+    const [metricsLoading, setMetricsLoading] = useState(false)
 
     const categoryLabels = useMemo(() => buildCategoryLabel(t), [t])
     const statusLabels = useMemo(() => buildStatusLabel(t), [t])
@@ -949,7 +1012,9 @@ const EmailSettings = () => {
                     label: role,
                 })),
             )
-            setTemplates(templateRes.data ?? [])
+            const templateList = templateRes.data ?? []
+            setTemplates(templateList)
+            setSelectedTemplateId((prev) => (prev !== null ? prev : templateList[0]?.id ?? null))
         } catch (error: any) {
             toast.push(
                 <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
@@ -1060,6 +1125,21 @@ const EmailSettings = () => {
     }
 
     const handleDeleteRule = async (rule: RoleRuleResponse) => {
+        const confirmed = await confirm({
+            title: t('settings.email.roles.deleteTitle', {
+                defaultValue: 'Delete rule',
+            }),
+            message: t('settings.email.roles.deleteConfirm', {
+                defaultValue:
+                    'Are you sure you want to delete notifications for the role "{{role}}"?',
+                role: rule.role,
+            }),
+            confirmText: t('text.actions.delete'),
+            cancelText: t('text.actions.cancel'),
+        })
+        if (!confirmed) {
+            return
+        }
         try {
             await apiDeleteEmailRoleRule<boolean>(rule.id)
             setRoleRules((prev) => prev.filter((item) => item.id !== rule.id))
@@ -1089,6 +1169,197 @@ const EmailSettings = () => {
         }
     }
 
+    const handleTemplateFieldChange = (field: 'subject' | 'body', value: string) => {
+        setTemplateDetail((prev) => (prev ? { ...prev, [field]: value } : prev))
+        setTemplateDirty(true)
+    }
+
+    const handlePreviewRefresh = async () => {
+        if (!selectedTemplateId || !templateDetail) return
+        setPreviewLoading(true)
+        try {
+            const response = await apiPreviewEmailTemplate<EmailTemplatePreview>(selectedTemplateId, {
+                locale: previewLocale,
+                scenarioKey,
+            })
+            setPreview(response.data ?? null)
+        } catch (error: any) {
+            toast.push(
+                <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                    {error?.response?.data?.message || error?.message || String(error)}
+                </Notification>,
+            )
+        } finally {
+            setPreviewLoading(false)
+        }
+    }
+
+    const handleTemplateSave = async () => {
+        if (!selectedTemplateId || !templateDetail) return
+        setTemplateSaving(true)
+        try {
+            const response = await apiUpdateEmailTemplate<EmailTemplateDetail, Partial<EmailTemplateDetail>>(selectedTemplateId, {
+                subject: templateDetail.subject,
+                body: templateDetail.body,
+            })
+            const updated = response.data
+            setTemplateDetail(updated)
+            setTemplateDirty(false)
+            setTemplates((prev) =>
+                prev.map((item) =>
+                    item.id === updated.id
+                        ? {
+                              ...item,
+                              locale: updated.locale,
+                              version: updated.version,
+                              updatedAt: updated.updatedAt,
+                          }
+                        : item,
+                ),
+            )
+            toast.push(
+                <Notification type="success" title={t('common.success', { defaultValue: 'Success' })}>
+                    {t('settings.email.templates.saveSuccess', {
+                        defaultValue: 'Template updated successfully.',
+                    })}
+                </Notification>,
+            )
+        } catch (error: any) {
+            toast.push(
+                <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                    {error?.response?.data?.message || error?.message || String(error)}
+                </Notification>,
+            )
+        } finally {
+            setTemplateSaving(false)
+        }
+    }
+
+    useEffect(() => {
+        if (!selectedTemplateId) {
+            setTemplateDetail(null)
+            setTemplateDirty(false)
+            setScenarioOptions([])
+            setScenarioKey(undefined)
+            setPreview(null)
+            return
+        }
+        let mounted = true
+        const loadDetail = async () => {
+            try {
+                const response = await apiGetEmailTemplate<EmailTemplateDetail>(selectedTemplateId)
+                if (!mounted) return
+                const detail = response.data
+                setTemplateDetail(detail)
+                setTemplateDirty(false)
+                const localeValue = detail?.locale ?? 'en'
+                setPreviewLocale(localeValue)
+            } catch (error: any) {
+                if (!mounted) return
+                toast.push(
+                    <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                        {error?.response?.data?.message || error?.message || String(error)}
+                    </Notification>,
+                )
+            }
+        }
+        loadDetail()
+        return () => {
+            mounted = false
+        }
+    }, [selectedTemplateId, t])
+
+    useEffect(() => {
+        if (!selectedTemplateId) {
+            setScenarioOptions([])
+            setScenarioKey(undefined)
+            return
+        }
+        let mounted = true
+        const loadScenarios = async () => {
+            try {
+                const response = await apiGetEmailTemplateSamples<{ options: TemplateScenarioOption[] }>(
+                    selectedTemplateId,
+                    { locale: previewLocale },
+                )
+                if (!mounted) return
+                const options = response.data?.options ?? []
+                setScenarioOptions(options)
+                setScenarioKey((prev) => {
+                    if (prev && options.some((option) => option.key === prev)) {
+                        return prev
+                    }
+                    return options[0]?.key
+                })
+            } catch (error: any) {
+                if (!mounted) return
+                toast.push(
+                    <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                        {error?.response?.data?.message || error?.message || String(error)}
+                    </Notification>,
+                )
+            }
+        }
+        loadScenarios()
+        return () => {
+            mounted = false
+        }
+    }, [selectedTemplateId, previewLocale, t])
+
+    useEffect(() => {
+        if (!selectedTemplateId || !templateDetail) {
+            setPreview(null)
+            return
+        }
+        let mounted = true
+        const loadPreview = async () => {
+            setPreviewLoading(true)
+            try {
+                const response = await apiPreviewEmailTemplate<EmailTemplatePreview>(selectedTemplateId, {
+                    locale: previewLocale,
+                    scenarioKey,
+                })
+                if (!mounted) return
+                setPreview(response.data ?? null)
+            } catch (error: any) {
+                if (!mounted) return
+                toast.push(
+                    <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                        {error?.response?.data?.message || error?.message || String(error)}
+                    </Notification>,
+                )
+            } finally {
+                if (mounted) {
+                    setPreviewLoading(false)
+                }
+            }
+        }
+        loadPreview()
+        return () => {
+            mounted = false
+        }
+    }, [selectedTemplateId, templateDetail, previewLocale, scenarioKey, t])
+
+    const loadMetrics = useCallback(async () => {
+        setMetricsLoading(true)
+        try {
+            const response = await apiGetEmailMetrics<EmailMetrics>()
+            setMetrics(response.data ?? null)
+        } catch (error: any) {
+            toast.push(
+                <Notification type="danger" title={t('validation.failed', { defaultValue: 'Error' })}>
+                    {error?.response?.data?.message || error?.message || String(error)}
+                </Notification>,
+            )
+        } finally {
+            setMetricsLoading(false)
+        }
+    }, [t])
+
+    useEffect(() => {
+        loadMetrics()
+    }, [loadMetrics])
+
     if (loading) {
         return (
             <div className="flex items-center justify-center py-20">
@@ -1098,7 +1369,8 @@ const EmailSettings = () => {
     }
 
     return (
-        <div className="flex flex-col gap-6">
+        <>
+            <div className="flex flex-col gap-6">
             <Tabs value={activeTab} onChange={(value) => setActiveTab(value as EmailCategory)}>
                 <TabList>
                     {CATEGORY_ORDER.map((category) => (
@@ -1136,8 +1408,248 @@ const EmailSettings = () => {
                 recipientLabels={recipientLabels}
             />
 
-            <TemplatesPanel templates={templates} />
-        </div>
+            <TemplatesPanel
+                templates={templates}
+                selectedTemplateId={selectedTemplateId}
+                onSelect={setSelectedTemplateId}
+            />
+
+            {templateDetail && (
+                <Card className="space-y-6">
+                    <div>
+                        <h5 className="text-lg font-semibold">
+                            {t('settings.email.templates.editorTitle', { defaultValue: 'Template editor' })}
+                        </h5>
+                        <p className="text-sm text-gray-500">
+                            {t('settings.email.templates.editorDescription', {
+                                defaultValue: 'Adjust subject and MJML body, then preview with sample data before saving.',
+                            })}
+                        </p>
+                    </div>
+                    <div className="grid gap-6 lg:grid-cols-2">
+                        <div className="space-y-4">
+                            <div className="flex flex-col gap-2">
+                                <span className="text-sm font-semibold text-gray-600">
+                                    {t('settings.email.templates.fields.subject', { defaultValue: 'Subject' })}
+                                </span>
+                                <Input
+                                    value={templateDetail.subject}
+                                    onChange={(event) => handleTemplateFieldChange('subject', event.target.value)}
+                                />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <span className="text-sm font-semibold text-gray-600">
+                                    {t('settings.email.templates.fields.body', { defaultValue: 'Body (MJML)' })}
+                                </span>
+                                <Textarea
+                                    className="min-h-[280px]"
+                                    value={templateDetail.body}
+                                    onChange={(event) => handleTemplateFieldChange('body', event.target.value)}
+                                />
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    variant="solid"
+                                    type="button"
+                                    disabled={!templateDirty || templateSaving}
+                                    loading={templateSaving}
+                                    onClick={handleTemplateSave}
+                                >
+                                    {t('settings.email.actions.saveTemplate', { defaultValue: 'Save template' })}
+                                </Button>
+                                {templateDirty && (
+                                    <Badge className="bg-yellow-100 text-yellow-700">
+                                        {t('settings.email.templates.unsaved', { defaultValue: 'Unsaved changes' })}
+                                    </Badge>
+                                )}
+                            </div>
+                        </div>
+                        <div className="space-y-4">
+                            <div className="flex flex-col gap-2">
+                                <span className="text-sm font-semibold text-gray-600">
+                                    {t('settings.email.templates.previewSettings', { defaultValue: 'Preview settings' })}
+                                </span>
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    <Select
+                                        value={LOCALE_OPTIONS.find((option) => option.value === previewLocale) || LOCALE_OPTIONS[0]}
+                                        options={LOCALE_OPTIONS}
+                                        onChange={(option) => setPreviewLocale((option?.value as string) || 'en')}
+                                    />
+                                    <Select
+                                        value={scenarioKey ?? ''}
+                                        options={scenarioOptions.map((option) => ({ value: option.key, label: option.label }))}
+                                        placeholder={t('settings.email.templates.scenarioPlaceholder', { defaultValue: 'Scenario' })}
+                                        onChange={(option) => setScenarioKey((option?.value as string) || undefined)}
+                                        isClearable
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <h6 className="font-semibold text-sm text-gray-600">
+                                    {t('settings.email.templates.previewTitle', { defaultValue: 'Live preview' })}
+                                </h6>
+                                <Button
+                                    size="sm"
+                                    type="button"
+                                    variant="plain"
+                                    onClick={handlePreviewRefresh}
+                                    disabled={previewLoading}
+                                >
+                                    {t('common.refresh', { defaultValue: 'Refresh' })}
+                                </Button>
+                            </div>
+                            <div className="border border-gray-200 rounded overflow-hidden">
+                                {previewLoading && (
+                                    <div className="flex items-center justify-center py-10">
+                                        <Spinner size={24} />
+                                    </div>
+                                )}
+                                {!previewLoading && preview && (
+                                    <div className="space-y-4">
+                                        <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+                                            <span className="text-sm font-semibold text-gray-700">{preview.subject}</span>
+                                        </div>
+                                        <div className="px-4 py-3">
+                                            <div
+                                                className="border border-gray-200 rounded shadow-inner overflow-auto max-h-[420px] bg-white px-4 py-3"
+                                                dangerouslySetInnerHTML={{ __html: preview.html }}
+                                            />
+                                        </div>
+                                        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+                                            <span className="text-xs font-semibold text-gray-600">
+                                                {t('settings.email.templates.previewText', { defaultValue: 'Plain text version' })}
+                                            </span>
+                                            <pre className="mt-2 text-xs text-gray-700 whitespace-pre-wrap bg-white border border-gray-200 rounded px-3 py-2">
+                                                {preview.text}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                )}
+                                {!previewLoading && !preview && (
+                                    <div className="px-4 py-6 text-sm text-gray-500">
+                                        {t('settings.email.templates.previewEmpty', { defaultValue: 'No preview available.' })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+            )}
+
+            <Card className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h5 className="text-lg font-semibold">
+                            {t('settings.email.metrics.title', { defaultValue: 'Delivery metrics' })}
+                        </h5>
+                        <p className="text-sm text-gray-500">
+                            {t('settings.email.metrics.description', {
+                                defaultValue: 'Stats from recent email attempts grouped by category and template.',
+                            })}
+                        </p>
+                    </div>
+                    <Button size="sm" type="button" variant="outline" loading={metricsLoading} onClick={loadMetrics}>
+                        {t('common.refresh', { defaultValue: 'Refresh' })}
+                    </Button>
+                </div>
+                {metrics ? (
+                    <div className="space-y-4">
+                        <div className="grid gap-3 md:grid-cols-3">
+                            <div className="rounded border border-gray-200 px-3 py-2">
+                                <span className="text-xs text-gray-500">
+                                    {t('settings.email.metrics.attempts', { defaultValue: 'Attempts' })}
+                                </span>
+                                <div className="text-lg font-semibold text-gray-700">{metrics.totals.attempts}</div>
+                            </div>
+                            <div className="rounded border border-gray-200 px-3 py-2">
+                                <span className="text-xs text-gray-500">
+                                    {t('settings.email.metrics.sent', { defaultValue: 'Sent' })}
+                                </span>
+                                <div className="text-lg font-semibold text-emerald-600">{metrics.totals.sent}</div>
+                            </div>
+                            <div className="rounded border border-gray-200 px-3 py-2">
+                                <span className="text-xs text-gray-500">
+                                    {t('settings.email.metrics.failed', { defaultValue: 'Failed' })}
+                                </span>
+                                <div className="text-lg font-semibold text-rose-600">{metrics.totals.failed}</div>
+                            </div>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2">
+                                <h6 className="text-sm font-semibold text-gray-600">
+                                    {t('settings.email.metrics.byCategory', { defaultValue: 'By category' })}
+                                </h6>
+                                <Table compact>
+                                    <THead>
+                                        <Tr>
+                                            <Th>{t('settings.email.metrics.category', { defaultValue: 'Category' })}</Th>
+                                            <Th className="text-right">{t('settings.email.metrics.attemptsShort', { defaultValue: 'Att.' })}</Th>
+                                            <Th className="text-right">{t('settings.email.metrics.sentShort', { defaultValue: 'Sent' })}</Th>
+                                            <Th className="text-right">{t('settings.email.metrics.failedShort', { defaultValue: 'Fail' })}</Th>
+                                        </Tr>
+                                    </THead>
+                                    <TBody>
+                                        {Object.entries(metrics.perCategory).map(([key, value]) => (
+                                            <Tr key={key}>
+                                                <Td>{categoryLabels[key as EmailCategory] ?? key}</Td>
+                                                <Td className="text-right">{value.attempts}</Td>
+                                                <Td className="text-right">{value.sent}</Td>
+                                                <Td className="text-right">{value.failed}</Td>
+                                            </Tr>
+                                        ))}
+                                    </TBody>
+                                </Table>
+                            </div>
+                            <div className="space-y-2">
+                                <h6 className="text-sm font-semibold text-gray-600">
+                                    {t('settings.email.metrics.byTemplate', { defaultValue: 'By template' })}
+                                </h6>
+                                <Table compact>
+                                    <THead>
+                                        <Tr>
+                                            <Th>{t('settings.email.metrics.template', { defaultValue: 'Template' })}</Th>
+                                            <Th className="text-right">{t('settings.email.metrics.attemptsShort', { defaultValue: 'Att.' })}</Th>
+                                            <Th className="text-right">{t('settings.email.metrics.sentShort', { defaultValue: 'Sent' })}</Th>
+                                            <Th className="text-right">{t('settings.email.metrics.failedShort', { defaultValue: 'Fail' })}</Th>
+                                        </Tr>
+                                    </THead>
+                                    <TBody>
+                                        {Object.entries(metrics.perTemplate).map(([key, value]) => {
+                                            const [category, variant, templateId] = key.split(':')
+                                            return (
+                                                <Tr key={key}>
+                                                    <Td>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-semibold text-gray-700">
+                                                                {categoryLabels[category as EmailCategory] ?? category}
+                                                            </span>
+                                                            <span className="text-xs text-gray-500">
+                                                                {variant} · #{templateId}
+                                                            </span>
+                                                        </div>
+                                                    </Td>
+                                                    <Td className="text-right">{value.attempts}</Td>
+                                                    <Td className="text-right">{value.sent}</Td>
+                                                    <Td className="text-right">{value.failed}</Td>
+                                                </Tr>
+                                            )
+                                        })}
+                                    </TBody>
+                                </Table>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-sm text-gray-500">
+                        {metricsLoading
+                            ? t('common.loading', { defaultValue: 'Loading…' })
+                            : t('settings.email.metrics.empty', { defaultValue: 'No metrics available yet.' })}
+                    </div>
+                )}
+            </Card>
+            </div>
+            {ConfirmationDialog}
+        </>
     )
 }
 

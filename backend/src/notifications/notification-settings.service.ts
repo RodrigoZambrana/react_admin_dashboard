@@ -52,6 +52,15 @@ const ROLE_VALUES: Role[] = [
   Role.USER,
 ]
 
+const LEGACY_ADMIN_ROLE_PRESETS: Record<string, Role[]> = {
+  'ORDER_RECEIVED:ADMIN:IN_APP': [Role.ADMIN, Role.OPS, Role.SALES],
+  'ORDER_RECEIVED:ADMIN:EMAIL': [Role.ADMIN, Role.OPS, Role.SALES],
+  'PAYMENT_RECEIVED:ADMIN:IN_APP': [Role.ADMIN, Role.FINANCE],
+  'PAYMENT_RECEIVED:ADMIN:EMAIL': [Role.ADMIN, Role.FINANCE],
+  'ORDER_STATUS_CHANGED:ADMIN:IN_APP': [Role.ADMIN, Role.OPS, Role.SALES],
+  'ORDER_STATUS_CHANGED:ADMIN:EMAIL': [Role.ADMIN, Role.OPS, Role.SALES],
+}
+
 const DEFAULT_SETTINGS: DefaultSetting[] = [
   {
     eventType: NotificationEventType.ORDER_RECEIVED,
@@ -71,14 +80,14 @@ const DEFAULT_SETTINGS: DefaultSetting[] = [
     audience: NotificationAudience.ADMIN,
     channel: NotificationChannel.IN_APP,
     enabled: true,
-    roles: [Role.ADMIN, Role.OPS, Role.SALES],
+    roles: [Role.SUPERADMIN, Role.ADMIN, Role.OPS, Role.SALES],
   },
   {
     eventType: NotificationEventType.ORDER_RECEIVED,
     audience: NotificationAudience.ADMIN,
     channel: NotificationChannel.EMAIL,
     enabled: true,
-    roles: [Role.ADMIN, Role.OPS, Role.SALES],
+    roles: [Role.SUPERADMIN, Role.ADMIN, Role.OPS, Role.SALES],
     emailSubject: 'New order received',
   },
   {
@@ -99,14 +108,14 @@ const DEFAULT_SETTINGS: DefaultSetting[] = [
     audience: NotificationAudience.ADMIN,
     channel: NotificationChannel.IN_APP,
     enabled: true,
-    roles: [Role.ADMIN, Role.FINANCE],
+    roles: [Role.SUPERADMIN, Role.ADMIN, Role.FINANCE],
   },
   {
     eventType: NotificationEventType.PAYMENT_RECEIVED,
     audience: NotificationAudience.ADMIN,
     channel: NotificationChannel.EMAIL,
     enabled: true,
-    roles: [Role.ADMIN, Role.FINANCE],
+    roles: [Role.SUPERADMIN, Role.ADMIN, Role.FINANCE],
     emailSubject: 'Payment confirmed',
   },
   {
@@ -126,14 +135,14 @@ const DEFAULT_SETTINGS: DefaultSetting[] = [
     audience: NotificationAudience.ADMIN,
     channel: NotificationChannel.IN_APP,
     enabled: true,
-    roles: [Role.ADMIN, Role.OPS, Role.SALES],
+    roles: [Role.SUPERADMIN, Role.ADMIN, Role.OPS, Role.SALES],
   },
   {
     eventType: NotificationEventType.ORDER_STATUS_CHANGED,
     audience: NotificationAudience.ADMIN,
     channel: NotificationChannel.EMAIL,
     enabled: false,
-    roles: [Role.ADMIN, Role.OPS, Role.SALES],
+    roles: [Role.SUPERADMIN, Role.ADMIN, Role.OPS, Role.SALES],
   },
 ]
 
@@ -296,14 +305,11 @@ export class NotificationSettingsService {
   }
 
   private async ensureDefaults() {
-    const existing = await this.prisma.notificationSetting.findMany({
-      select: {
-        eventType: true,
-        audience: true,
-        channel: true,
-      },
-    })
-    const existingSet = new Set(existing.map((record) => `${record.eventType}:${record.audience}:${record.channel}`))
+    let records = await this.prisma.notificationSetting.findMany()
+    const buildKey = (record: { eventType: NotificationEventType; audience: NotificationAudience; channel: NotificationChannel }) =>
+      `${record.eventType}:${record.audience}:${record.channel}`
+    const existingMap = new Map(records.map((record) => [buildKey(record), record]))
+    const existingSet = new Set(existingMap.keys())
     const creations: Prisma.NotificationSettingCreateManyInput[] = []
     for (const def of DEFAULT_SETTINGS) {
       const key = `${def.eventType}:${def.audience}:${def.channel}`
@@ -321,6 +327,56 @@ export class NotificationSettingsService {
     }
     if (creations.length) {
       await this.prisma.notificationSetting.createMany({ data: creations })
+      records = await this.prisma.notificationSetting.findMany()
+    }
+
+    const updatedRecords = new Map(records.map((record) => [buildKey(record), record]))
+    const updates: Array<{ id: number; roles: Role[] }> = []
+    const normalizeRoles = (roles?: (Role | string)[] | null): Role[] => {
+      if (!roles) return []
+      const seen = new Set<Role>()
+      for (const role of roles) {
+        const candidate = role as Role
+        if (ROLE_VALUES.includes(candidate)) {
+          seen.add(candidate)
+        }
+      }
+      return Array.from(seen)
+    }
+
+    const arraysEqual = (a: Role[], b: Role[]) => {
+      if (a.length !== b.length) return false
+      const setA = new Set(a)
+      return b.every((value) => setA.has(value))
+    }
+
+    for (const def of DEFAULT_SETTINGS) {
+      if (!def.roles || def.roles.length === 0) continue
+      const key = `${def.eventType}:${def.audience}:${def.channel}`
+      const record = updatedRecords.get(key)
+      if (!record) continue
+      const currentRoles = normalizeRoles(record.roles)
+      const missingRoles = def.roles.filter((role) => !currentRoles.includes(role))
+      if (!missingRoles.length) {
+        continue
+      }
+      const legacy = LEGACY_ADMIN_ROLE_PRESETS[key]
+      const shouldPatch =
+        legacy !== undefined &&
+        arraysEqual(currentRoles, legacy) &&
+        record.createdAt.getTime() === record.updatedAt.getTime()
+      if (!shouldPatch) {
+        continue
+      }
+      const nextRoles = normalizeRoles([...(record.roles ?? []), ...missingRoles])
+      updates.push({ id: record.id, roles: nextRoles })
+    }
+
+    for (const update of updates) {
+      await this.prisma.notificationSetting.update({
+        where: { id: update.id },
+        data: { roles: update.roles },
+      })
     }
   }
 

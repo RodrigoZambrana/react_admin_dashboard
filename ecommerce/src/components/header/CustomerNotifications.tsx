@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { IconBell, IconCheck } from "@tabler/icons-react";
 import Box from "@component/Box";
 import FlexBox from "@component/FlexBox";
@@ -11,9 +11,10 @@ import Scrollbar from "@component/Scrollbar";
 import Typography, { H6, Small, Tiny } from "@component/Typography";
 import Spinner from "@component/Spinner";
 import { useSession } from "@/state/session-context";
-import { StorefrontApi } from "@/lib/api/storefront";
+import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import type { CustomerNotification } from "@/types/storefront";
 import { env } from "@/lib/env";
+import { useToast } from "@/contexts/ToastContext";
 
 const PANEL_HEIGHT = 320;
 
@@ -32,42 +33,72 @@ const formatSummary = (notification: CustomerNotification): string | null => {
 };
 
 export default function CustomerNotifications() {
-  const { session, isAuthenticated } = useSession();
+  const { session, isAuthenticated, logout } = useSession();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<CustomerNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const unauthorizedRef = useRef(false);
+  const toast = useToast();
+  const token = session?.accessToken ?? null;
+
+  const handleUnauthorized = useCallback(() => {
+    if (unauthorizedRef.current) {
+      return;
+    }
+    unauthorizedRef.current = true;
+    setNotifications([]);
+    setUnreadCount(0);
+    setLoading(false);
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    toast.error({
+      title: "Sesión expirada",
+      description: "Tu sesión caducó. Vuelve a iniciar sesión para ver tus notificaciones."
+    });
+    void logout();
+  }, [logout, toast]);
 
   const fetchUnreadCount = useCallback(async () => {
-    if (!isAuthenticated || !session) return;
+    if (!isAuthenticated || !token) return;
     try {
-      const result = await StorefrontApi.getNotificationUnreadCount(session.accessToken);
+      const result = await StorefrontApi.getNotificationUnreadCount(token);
       setUnreadCount(result.count);
     } catch (error) {
+      if (isApiError(error) && error.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       console.error("Failed to load notification count", error);
     }
-  }, [isAuthenticated, session]);
+  }, [isAuthenticated, token, handleUnauthorized]);
 
   const fetchNotifications = useCallback(async () => {
-    if (!isAuthenticated || !session) return;
+    if (!isAuthenticated || !token) return;
     setLoading(true);
     try {
-      const result = await StorefrontApi.listNotifications(session.accessToken, {
+      const result = await StorefrontApi.listNotifications(token, {
         page: 1,
         pageSize: 20
       });
       setNotifications(result.items);
       setUnreadCount(result.meta.unread);
     } catch (error) {
+      if (isApiError(error) && error.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       console.error("Failed to load notifications", error);
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, session]);
+  }, [isAuthenticated, token, handleUnauthorized]);
 
   const connectStream = useCallback(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !token) {
       return;
     }
     if (eventSourceRef.current) {
@@ -91,9 +122,12 @@ export default function CustomerNotifications() {
       source.close();
       eventSourceRef.current = null;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, token]);
 
   useEffect(() => {
+    if (isAuthenticated) {
+      unauthorizedRef.current = false;
+    }
     if (isAuthenticated) {
       void fetchUnreadCount();
       connectStream();
@@ -114,11 +148,11 @@ export default function CustomerNotifications() {
   }, [isAuthenticated, fetchUnreadCount, connectStream]);
 
   const handleToggle = useCallback(
-    (toggle: () => void) => () => {
+    (toggle: (event: MouseEvent<HTMLElement>) => void) => (event: MouseEvent<HTMLElement>) => {
       if (!open) {
         void fetchNotifications();
       }
-      toggle();
+      toggle(event);
       setOpen((value) => !value);
     },
     [open, fetchNotifications]
@@ -126,9 +160,9 @@ export default function CustomerNotifications() {
 
   const handleMarkAsRead = useCallback(
     async (id: number) => {
-      if (!session) return;
+      if (!token) return;
       try {
-        await StorefrontApi.markNotificationsRead(session.accessToken, { ids: [id] });
+        await StorefrontApi.markNotificationsRead(token, { ids: [id] });
         setNotifications((prev) =>
           prev.map((item) =>
             item.id === id ? { ...item, readAt: item.readAt ?? new Date().toISOString() } : item
@@ -136,24 +170,32 @@ export default function CustomerNotifications() {
         );
         setUnreadCount((count) => Math.max(0, count - 1));
       } catch (error) {
+        if (isApiError(error) && error.status === 401) {
+          handleUnauthorized();
+          return;
+        }
         console.error("Failed to mark notification as read", error);
       }
     },
-    [session]
+    [token, handleUnauthorized]
   );
 
   const handleMarkAll = useCallback(async () => {
-    if (!session || unreadCount === 0) return;
+    if (!token || unreadCount === 0) return;
     try {
-      await StorefrontApi.markNotificationsRead(session.accessToken, { markAll: true });
+      await StorefrontApi.markNotificationsRead(token, { markAll: true });
       setNotifications((prev) =>
         prev.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() }))
       );
       setUnreadCount(0);
     } catch (error) {
+      if (isApiError(error) && error.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       console.error("Failed to mark notifications", error);
     }
-  }, [session, unreadCount]);
+  }, [token, unreadCount, handleUnauthorized]);
 
   const entries = useMemo(() => notifications, [notifications]);
 

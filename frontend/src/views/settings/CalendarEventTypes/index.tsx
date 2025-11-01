@@ -16,6 +16,7 @@ import {
 } from '@/services/SettingsService'
 import { useTranslation } from 'react-i18next'
 import { downloadCsvFile, parseCsvFile } from '@/utils/csv'
+import useConfirmation from '@/hooks/useConfirmation'
 
 const { Tr, Td, TBody, THead, Th } = Table
 
@@ -47,6 +48,7 @@ const normalizeColor = (value: string) => {
 
 const CalendarEventTypes = () => {
     const { t } = useTranslation()
+    const { confirm, ConfirmationDialog } = useConfirmation()
     const [items, setItems] = useState<CalendarEventType[]>([])
     const [loading, setLoading] = useState(true)
     const [creating, setCreating] = useState(false)
@@ -254,10 +256,25 @@ const CalendarEventTypes = () => {
         }
     }
 
-    const handleDelete = async (id: number) => {
+    const handleDelete = async (item: CalendarEventType) => {
+        const confirmed = await confirm({
+            title: t('settings.calendarEventTypes.deleteTitle', {
+                defaultValue: 'Delete event type',
+            }),
+            message: t('settings.calendarEventTypes.confirmDelete', {
+                defaultValue:
+                    'Are you sure you want to delete the event type "{{name}}"? This action cannot be undone.',
+                name: item.name,
+            }),
+            confirmText: t('text.actions.delete'),
+            cancelText: t('text.actions.cancel'),
+        })
+        if (!confirmed) {
+            return
+        }
         try {
-            setDeletingId(id)
-            await apiDeleteCalendarEventType<boolean>(id)
+            setDeletingId(item.id)
+            await apiDeleteCalendarEventType<boolean>(item.id)
             toast.push(
                 <Notification type="success" title={t('common.success', { defaultValue: 'Éxito' })}>
                     {t('settings.calendarEventTypes.deleted', {
@@ -291,8 +308,9 @@ const CalendarEventTypes = () => {
     }
 
     return (
-        <Loading loading={loading}>
-            <Card>
+        <>
+            <Loading loading={loading}>
+                <Card>
                 <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
                         <h3 className="mb-1">
@@ -472,7 +490,7 @@ const CalendarEventTypes = () => {
                                                     size="sm"
                                                     color="red-600"
                                                     loading={deletingId === item.id}
-                                                    onClick={() => handleDelete(item.id)}
+                                                    onClick={() => handleDelete(item)}
                                                     disabled={deletingId === item.id}
                                                 >
                                                     {t('text.actions.delete', {
@@ -494,8 +512,10 @@ const CalendarEventTypes = () => {
                         })}
                     </div>
                 )}
-            </Card>
-        </Loading>
+                </Card>
+            </Loading>
+            {ConfirmationDialog}
+        </>
     )
 }
 
