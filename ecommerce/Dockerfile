@@ -3,7 +3,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 RUN apk add --no-cache libc6-compat curl
-COPY package*.json ./
+COPY ecommerce/package*.json ./
 RUN npm ci --legacy-peer-deps
 
 FROM deps AS build
@@ -33,7 +33,9 @@ ENV NEXT_PUBLIC_MP_SUCCESS_URL=${NEXT_PUBLIC_MP_SUCCESS_URL}
 ENV NEXT_PUBLIC_MP_FAILURE_URL=${NEXT_PUBLIC_MP_FAILURE_URL}
 ENV NEXT_PUBLIC_ENABLE_STOREFRONT_MOCKS=${NEXT_PUBLIC_ENABLE_STOREFRONT_MOCKS}
 ENV ENABLE_STOREFRONT_MOCKS=${ENABLE_STOREFRONT_MOCKS}
-COPY . .
+# Bring storefront sources and shared modules used by path aliases
+COPY ecommerce/. ./
+COPY src /src
 RUN npm run build
 
 FROM node:20-alpine AS runtime

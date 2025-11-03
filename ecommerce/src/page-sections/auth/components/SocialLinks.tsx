@@ -17,6 +17,7 @@ export default function SocialLinks({
   googleEnabled = true
 }: SocialLinksProps) {
   const isGoogleDisabled = googleDisabled || googleLoading || !googleEnabled;
+  const facebookEnabled = false;
 
   const handleGoogleClick = () => {
     if (isGoogleDisabled) {
@@ -27,21 +28,23 @@ export default function SocialLinks({
 
   return (
     <Fragment>
-      <FlexBox
-        mb="0.75rem"
-        height="40px"
-        color="white"
-        bg="#3B5998"
-        borderRadius={8}
-        alignItems="center"
-        justifyContent="center"
-        style={{ cursor: "pointer" }}>
-        <IconBrandFacebookFilled size={16} stroke={1.5} />
+      {facebookEnabled ? (
+        <FlexBox
+          mb="0.75rem"
+          height="40px"
+          color="white"
+          bg="#3B5998"
+          borderRadius={8}
+          alignItems="center"
+          justifyContent="center"
+          style={{ cursor: "pointer" }}>
+          <IconBrandFacebookFilled size={16} stroke={1.5} />
 
-        <Small fontWeight="600" ml="0.5rem">
-          Continue with Facebook
-        </Small>
-      </FlexBox>
+          <Small fontWeight="600" ml="0.5rem">
+            Continue with Facebook
+          </Small>
+        </FlexBox>
+      ) : null}
 
       {googleEnabled ? (
         <FlexBox

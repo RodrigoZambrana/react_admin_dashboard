@@ -9,9 +9,10 @@ import { EmailProviderFactory } from './email-provider.factory'
 import { EmailLogService } from './email-log.service'
 import { EmailAdminController } from './email-admin.controller'
 import { EmailController } from './email.controller'
+import { SecureConfigModule } from '../common/security/secure-config.module'
 
 @Module({
-  imports: [ConfigModule, PrismaModule],
+  imports: [ConfigModule, PrismaModule, SecureConfigModule],
   controllers: [EmailAdminController, EmailController],
   providers: [
     EmailService,

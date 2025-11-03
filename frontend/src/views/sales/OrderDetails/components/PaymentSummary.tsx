@@ -27,6 +27,7 @@ type PaymentSummaryProps = {
         outstanding: number
         currency: string
     } | null
+    isCancelled?: boolean
 }
 
 const PaymentInfo = ({ label, value, isLast, format }: PaymentInfoProps) => {
@@ -44,7 +45,7 @@ const PaymentInfo = ({ label, value, isLast, format }: PaymentInfoProps) => {
     )
 }
 
-const PaymentSummary = ({ data, taxRate, currency, paymentsSummary }: PaymentSummaryProps) => {
+const PaymentSummary = ({ data, taxRate, currency, paymentsSummary, isCancelled }: PaymentSummaryProps) => {
     const { t, i18n } = useTranslation()
     const resolvedOrderCurrency =
         normalizeCurrencyCode(currency ?? data?.currency) ??
@@ -64,10 +65,15 @@ const PaymentSummary = ({ data, taxRate, currency, paymentsSummary }: PaymentSum
     const totalLabel = t('sales.orders.summary.totalDue', {
         defaultValue: 'Total due',
     })
-    const paidAmount = paymentsSummary?.totalPaidConfirmed ?? 0
-    const outstanding = paymentsSummary?.outstanding ?? (Number(data?.total ?? 0) - paidAmount)
-    const remainingClass =
-        outstanding > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+    const rawPaidAmount = paymentsSummary?.totalPaidConfirmed ?? 0
+    const rawOutstanding = paymentsSummary?.outstanding ?? (Number(data?.total ?? 0) - rawPaidAmount)
+    const paidAmount = isCancelled ? 0 : rawPaidAmount
+    const outstanding = isCancelled ? 0 : rawOutstanding
+    const remainingClass = outstanding > 0
+        ? 'text-red-600 dark:text-red-400'
+        : isCancelled
+          ? 'text-gray-600 dark:text-gray-300'
+          : 'text-emerald-600 dark:text-emerald-400'
     const totalPaidLabel = t('sales.orders.payments.totalPaid', {
         defaultValue: 'Total paid',
     })

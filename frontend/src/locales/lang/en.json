@@ -93,6 +93,8 @@
       "google": "Google & reCAPTCHA",
       "systemConfig": "System Config",
       "email": "Email",
+      "emailTemplates": "Email Templates",
+      "emailConfig": "Email Configuration",
       "calendarEventTypes": "Calendar Event Types"
     },
     "uiComponents": "UI Components",
@@ -1425,9 +1427,13 @@
           "in_transit": "In transit",
           "out_for_delivery": "Out for delivery",
           "delivered": "Delivered",
+          "cancelled": "Order cancelled",
           "status_changed": "Status changed",
           "note": "Note added",
           "other": "Activity"
+        },
+        "status": {
+          "cancelledShort": "Cancelled"
         }
       },
       "delivery": {
@@ -2123,6 +2129,28 @@
         "byTemplate": "By template",
         "template": "Template",
         "empty": "No metrics available yet."
+      },
+      "tabs": {
+        "templates": "Templates",
+        "config": "Configuration"
+      },
+      "config": {
+        "title": "Email provider configuration",
+        "description": "Manage SMTP credentials, sender details, and test connectivity to ensure transactional emails are delivered.",
+        "sendTest": "Send test",
+        "provider": "Provider",
+        "fromAddress": "From address",
+        "fromName": "From name",
+        "smtpHost": "SMTP host",
+        "smtpPort": "SMTP port",
+        "smtpUser": "SMTP user",
+        "smtpPassword": "SMTP password",
+        "smtpPasswordPlaceholder": "Leave blank to keep current password",
+        "smtpSecure": "Use TLS/SSL",
+        "allowInvalidCerts": "Allow invalid certificates",
+        "testRecipient": "Test recipient email",
+        "saveSuccess": "Configuration saved successfully.",
+        "testSuccess": "Test email queued successfully."
       }
     },
     "companyProfile": {

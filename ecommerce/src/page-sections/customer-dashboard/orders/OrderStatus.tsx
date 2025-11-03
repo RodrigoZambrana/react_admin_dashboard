@@ -929,17 +929,24 @@ export default function OrderStatus({ timeline, paymentInfo = null, loading = fa
     [summary.events],
   );
 
-  const paymentBadgePalette = summary.payment ? getBadgePalette(summary.payment.color) : null;
-  const deliveryBadgePalette = summary.delivery ? getBadgePalette(summary.delivery.color) : null;
+  const hasCancelledEvent = useMemo(
+    () => summary.events.some((event) => event.type === "CANCELLED"),
+    [summary.events],
+  );
+
+  const paymentBadgePalette =
+    !summary.payment || hasCancelledEvent ? null : getBadgePalette(summary.payment.color);
+  const deliveryBadgePalette =
+    !summary.delivery || hasCancelledEvent ? null : getBadgePalette(summary.delivery.color);
 
   return (
     <Card p="2rem 1.5rem" mb="30px" borderRadius={12}>
       <FlexBox justifyContent="space-between" alignItems="center" flexWrap="wrap" gridGap="0.75rem" mb="1.5rem">
         <Typography fontWeight={600} fontSize="18px">
-          Order timeline
+          {t("Order timeline")}
         </Typography>
         <FlexBox gridGap="0.75rem" flexWrap="wrap">
-          {summary.payment && paymentBadgePalette && (
+          {paymentBadgePalette && summary.payment && (
             <Typography
               fontSize="13px"
               px="12px"
@@ -968,11 +975,11 @@ export default function OrderStatus({ timeline, paymentInfo = null, loading = fa
         </FlexBox>
       </FlexBox>
       {loading ? (
-        <Typography color="text.muted">Loading timeline…</Typography>
+        <Typography color="text.muted">{t("Loading timeline…")}</Typography>
       ) : error ? (
         <Typography color="error.main">{error}</Typography>
       ) : orderedEvents.length === 0 ? (
-        <Typography color="text.muted">No timeline events yet.</Typography>
+        <Typography color="text.muted">{t("No timeline events yet.")}</Typography>
       ) : (
         <Box position="relative">
           {orderedEvents.length > 1 && (

@@ -92,6 +92,8 @@
       "google": "Google y reCAPTCHA",
       "systemConfig": "Configuración del sistema",
       "email": "Correo electrónico",
+      "emailTemplates": "Plantillas de correo",
+      "emailConfig": "Configuración de correo",
       "calendarEventTypes": "Tipos de evento"
     },
     "uiComponents": "Componentes de la UI",
@@ -1394,9 +1396,13 @@
           "in_transit": "En tránsito",
           "out_for_delivery": "En reparto",
           "delivered": "Entregado",
+          "cancelled": "Pedido cancelado",
           "status_changed": "Estado actualizado",
           "note": "Nota agregada",
           "other": "Actividad"
+        },
+        "status": {
+          "cancelledShort": "Cancelado"
         }
       },
       "delivery": {
@@ -2124,6 +2130,28 @@
         "byTemplate": "Por plantilla",
         "template": "Plantilla",
         "empty": "Aún no hay métricas disponibles."
+      },
+      "tabs": {
+        "templates": "Plantillas",
+        "config": "Configuración"
+      },
+      "config": {
+        "title": "Configuración del proveedor de correo",
+        "description": "Gestioná las credenciales SMTP, los datos del remitente y probá la conexión para asegurar la entrega de los correos transaccionales.",
+        "sendTest": "Enviar prueba",
+        "provider": "Proveedor",
+        "fromAddress": "Dirección del remitente",
+        "fromName": "Nombre del remitente",
+        "smtpHost": "Host SMTP",
+        "smtpPort": "Puerto SMTP",
+        "smtpUser": "Usuario SMTP",
+        "smtpPassword": "Contraseña SMTP",
+        "smtpPasswordPlaceholder": "Dejar en blanco para mantener la contraseña actual",
+        "smtpSecure": "Usar TLS/SSL",
+        "allowInvalidCerts": "Permitir certificados no válidos",
+        "testRecipient": "Correo del destinatario de prueba",
+        "saveSuccess": "Configuración guardada correctamente.",
+        "testSuccess": "Correo de prueba encolado correctamente."
       }
     },
     "companyProfile": {

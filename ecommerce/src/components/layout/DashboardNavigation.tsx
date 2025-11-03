@@ -16,11 +16,13 @@ import { DashboardNavigationWrapper, StyledDashboardNav } from "./styles";
 
 import { useAccountOrders } from "@/hooks/useAccountOrders";
 import { useAccountProfile } from "@/hooks/useAccountProfile";
+import { useTranslation } from "@/state/i18n-context";
 
 export default function DashboardNavigation() {
   const pathname = usePathname();
   const { orders } = useAccountOrders();
   const { profile } = useAccountProfile();
+  const t = useTranslation();
 
   const dynamicNavigation = useMemo(() => {
     const totalOrders = orders.length;
@@ -74,7 +76,7 @@ export default function DashboardNavigation() {
       {dynamicNavigation.map((navGroup) => (
         <Fragment key={navGroup.title}>
           <Typography p="26px 30px 1rem" color="text.muted" fontSize="12px">
-            {navGroup.title}
+            {t(navGroup.title)}
           </Typography>
 
           {navGroup.links.map(({ Icon, count, href, title }) => {
@@ -85,7 +87,7 @@ export default function DashboardNavigation() {
                 <FlexBox alignItems="center" style={{ gap: 8 }}>
                   <Icon size={20} className="icon" />
 
-                  <span>{title}</span>
+                  <span>{t(title)}</span>
                 </FlexBox>
 
                 {count !== undefined && <span>{count}</span>}

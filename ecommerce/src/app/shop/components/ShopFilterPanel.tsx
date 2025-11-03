@@ -15,6 +15,7 @@ import { Button } from "@component/buttons";
 import { H5, H6, Paragraph, SemiSpan, Span } from "@component/Typography";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useTranslation } from "@/state/i18n-context";
 
 type SaleCategoryDefinition = {
   icon: string;
@@ -98,6 +99,7 @@ export default function ShopFilterPanel({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const t = useTranslation();
 
   const [minValue, setMinValue] = useState<string>("");
   const [maxValue, setMaxValue] = useState<string>("");
@@ -203,16 +205,16 @@ export default function ShopFilterPanel({
       <FilterHeader>
         <FlexBox alignItems="center" gridGap="0.75rem">
           <IconAdjustmentsHorizontal size={20} />
-          <H5 mb="0px">Filters</H5>
+          <H5 mb="0px">{t("Filters")}</H5>
         </FlexBox>
 
         <ClearButton variant="text" color="primary" onClick={handleClearFilters}>
-          Clear all
+          {t("Clear all")}
         </ClearButton>
       </FilterHeader>
 
       <Box mb="1.5rem">
-        <H6 mb="0.75rem">Categories</H6>
+        <H6 mb="0.75rem">{t("Categories")}</H6>
         <FlexBox flexDirection="column" gridGap="0.5rem">
           {categories.map((category, index) => {
             const isActive =
@@ -232,7 +234,7 @@ export default function ShopFilterPanel({
                 <Icon size="20px" color={isActive ? "primary" : "secondary"}>
                   {iconName}
                 </Icon>
-                <Span fontWeight={isActive ? 600 : 500}>{label}</Span>
+                <Span fontWeight={isActive ? 600 : 500}>{t(label)}</Span>
               </CategoryButton>
             );
           })}
@@ -243,7 +245,7 @@ export default function ShopFilterPanel({
 
       <Box mb="1.5rem">
         <FlexBox alignItems="center" justifyContent="space-between" mb="0.75rem">
-          <H6 mb="0px">Price Range</H6>
+          <H6 mb="0px">{t("Price Range")}</H6>
           {formattedPriceRange ? (
             <Paragraph fontSize="12px" color="text.muted">
               {formattedPriceRange}
@@ -256,16 +258,16 @@ export default function ShopFilterPanel({
             fullWidth
             value={minValue}
             onChange={(event) => setMinValue(event.target.value)}
-            placeholder={priceBounds.min !== undefined ? String(priceBounds.min) : "Min"}
+            placeholder={priceBounds.min !== undefined ? String(priceBounds.min) : t("Min")}
             min={priceBounds.min ?? undefined}
           />
-          <SemiSpan color="text.muted">to</SemiSpan>
+          <SemiSpan color="text.muted">{t("to")}</SemiSpan>
           <TextField
             type="number"
             fullWidth
             value={maxValue}
             onChange={(event) => setMaxValue(event.target.value)}
-            placeholder={priceBounds.max !== undefined ? String(priceBounds.max) : "Max"}
+            placeholder={priceBounds.max !== undefined ? String(priceBounds.max) : t("Max")}
             min={priceBounds.min ?? undefined}
           />
         </FlexBox>
@@ -276,21 +278,23 @@ export default function ShopFilterPanel({
           variant="contained"
           onClick={handleApplyPrice}
           disabled={priceBounds.min === undefined || priceBounds.max === undefined}>
-          Apply price
+          {t("Apply price")}
         </Button>
       </Box>
 
       <Divider my="1.5rem" />
 
       <Box>
-        <H6 mb="0.75rem">Customer Rating</H6>
+        <H6 mb="0.75rem">{t("Customer Rating")}</H6>
         <FlexBox flexDirection="column" gridGap="0.5rem">
           {ratingOptions.map((option) => {
             const isActive = activeFilters.rating === option;
             return (
               <RatingOption key={option} $active={isActive} gridGap="0.5rem" onClick={handleRatingToggle(option)}>
                 <Rating value={option} color="warn" outof={5} />
-                <SemiSpan color="text.muted">{option} & up</SemiSpan>
+                <SemiSpan color="text.muted">
+                  {t("{count} & up", { values: { count: option } })}
+                </SemiSpan>
               </RatingOption>
             );
           })}

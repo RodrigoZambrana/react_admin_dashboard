@@ -200,13 +200,28 @@ const EditDeliveryDialog = ({
         const normalizedMax =
             nextMax !== null && Number.isFinite(nextMax) ? Math.max(0, nextMax) : null
 
-        if (normalizedMin !== initialContext.estimatedMin) {
-            payload.estimatedMinDays = normalizedMin
+        const removedMin = normalizedMin === null && initialContext.estimatedMin !== null
+        const removedMax = normalizedMax === null && initialContext.estimatedMax !== null
+        const clearingEstimate = removedMin || removedMax
+
+        if (clearingEstimate) {
+            payload.clearEstimate = true
             hasChanges = true
-        }
-        if (normalizedMax !== initialContext.estimatedMax) {
-            payload.estimatedMaxDays = normalizedMax
-            hasChanges = true
+        } else {
+            if (
+                normalizedMin !== null &&
+                normalizedMin !== initialContext.estimatedMin
+            ) {
+                payload.estimatedMinDays = normalizedMin
+                hasChanges = true
+            }
+            if (
+                normalizedMax !== null &&
+                normalizedMax !== initialContext.estimatedMax
+            ) {
+                payload.estimatedMaxDays = normalizedMax
+                hasChanges = true
+            }
         }
 
         if (values.estimatedDate) {
@@ -215,10 +230,8 @@ const EditDeliveryDialog = ({
                 payload.estimatedDate = iso
                 hasChanges = true
             }
-        } else if (initialContext.estimatedDateIso) {
-            // Allow clearing the date when it was previously set
-            payload.estimatedDate = undefined
-            hasChanges = true
+        } else if (initialContext.estimatedDateIso && clearingEstimate) {
+            payload.estimatedDate = null
         }
 
         if (!hasChanges) {

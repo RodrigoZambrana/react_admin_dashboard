@@ -14,9 +14,11 @@ import Typography, { Paragraph } from "@component/Typography";
 // CUSTOM DATA
 import { iconList } from "./data";
 import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
+import { useTranslation } from "@/state/i18n-context";
 
 export default function Footer1() {
   const storefrontConfig = useStorefrontConfig();
+  const t = useTranslation();
   const companyProfile = storefrontConfig.companyProfile;
   const logoSrc = companyProfile?.logo ?? "/assets/images/logo.svg";
   const brandName =
@@ -43,9 +45,9 @@ export default function Footer1() {
                 </Link>
 
                 <Paragraph mb="1.25rem" color="gray.500" maxWidth="320px">
-                  Lorem ipsum dolor sit amet, consectetur adipiscing elit. Auctor libero id et, in
-                  gravida. Sit diam duis mauris nulla cursus. Erat et lectus vel ut sollicitudin
-                  elit at amet.
+                  {t(
+                    "Soluciones en cortinas roller, toldos, persianas y aberturas en aluminio con fabricación a medida en Uruguay."
+                  )}
                 </Paragraph>
 
                 {/* <AppStore /> */}
@@ -53,7 +55,7 @@ export default function Footer1() {
 
               <Grid item lg={6} md={6} sm={6} xs={12}>
                 <Typography mb="1.25rem" lineHeight="1" fontSize={20} fontWeight="600">
-                  Contact Us
+                  {t("Contact Us")}
                 </Typography>
 
                 {addressLines.length > 0 &&

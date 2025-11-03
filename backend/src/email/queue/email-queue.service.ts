@@ -328,7 +328,7 @@ export class EmailQueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async dispatch(message: EmailMessage): Promise<EmailProviderSendResult> {
-    const provider = this.providerFactory.getProvider()
+    const provider = await this.providerFactory.getProvider()
     return provider.send(message)
   }
 }

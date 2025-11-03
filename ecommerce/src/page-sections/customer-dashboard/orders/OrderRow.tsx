@@ -26,6 +26,10 @@ export default function OrderRow({ order }: OrderRowProps) {
   const badgeDescriptor = resolveOrderBadgeDescriptor(order);
   const statusLabel = formatOrderBadgeLabel(badgeDescriptor, translate);
   const badgePalette = getBadgePalette(badgeDescriptor.variant);
+  const chipBackground =
+    badgeDescriptor.variant === "danger" ? "error.light" : badgePalette.background;
+  const chipColor =
+    badgeDescriptor.variant === "danger" ? "error.main" : badgePalette.color;
   const placedDate = format(new Date(order.placedAt), "MMM dd, yyyy");
   const total = order.summary.grandTotal;
   const formattedTotal = useMemo(
@@ -49,8 +53,8 @@ export default function OrderRow({ order }: OrderRowProps) {
         </H5>
 
         <Box m="6px">
-          <Chip p="0.25rem 1rem" bg={badgePalette.background}>
-            <Small color={badgePalette.color}>{statusLabel}</Small>
+          <Chip p="0.25rem 1rem" bg={chipBackground}>
+            <Small color={chipColor}>{statusLabel}</Small>
           </Chip>
         </Box>
 

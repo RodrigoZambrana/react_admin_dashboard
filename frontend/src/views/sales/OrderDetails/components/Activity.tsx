@@ -23,6 +23,7 @@ type DisplayEvent = {
     timestampLabel: string
     isEnd: boolean
     completed?: boolean
+    type: string
 }
 
 type PaymentSummary = {
@@ -43,6 +44,7 @@ type ComputedTimeline = {
     events: DisplayEvent[]
     payment?: PaymentSummary
     delivery?: DeliverySummary
+    cancelled?: { label: string; tagClassName: string }
 }
 
 const DEFAULT_EVENT_LABELS: Record<string, string> = {
@@ -57,6 +59,7 @@ const DEFAULT_EVENT_LABELS: Record<string, string> = {
     IN_TRANSIT: 'In transit',
     OUT_FOR_DELIVERY: 'Out for delivery',
     DELIVERED: 'Delivered',
+    CANCELED: 'Order cancelled',
     CANCELLED: 'Order cancelled',
     STATUS_CHANGED: 'Status changed',
     NOTE: 'Note added',
@@ -74,6 +77,7 @@ const EVENT_BADGE_COLORS: Record<string, string> = {
     IN_TRANSIT: 'bg-blue-500',
     OUT_FOR_DELIVERY: 'bg-blue-500',
     DELIVERED: 'bg-emerald-600',
+    CANCELED: 'bg-red-500',
     CANCELLED: 'bg-red-500',
     STATUS_CHANGED: 'bg-slate-500',
     NOTE: 'bg-slate-400',
@@ -120,6 +124,12 @@ const DELIVERY_STATE_META: Record<
         defaultLabel: 'No delivery estimate',
         tagClassName: 'bg-slate-100 text-slate-600 border border-slate-200',
     },
+}
+
+const CANCELLED_TAG_META = {
+    labelKey: 'sales.orderDetails.timeline.status.cancelledShort',
+    defaultLabel: 'Cancelled',
+    tagClassName: 'bg-rose-100 text-rose-700 border border-rose-200',
 }
 
 const formatDateTime = (value?: string | null) => {
@@ -274,10 +284,13 @@ const buildDeliverySummary = (
     deliveredEvent: OrderTimelineEvent | null,
     estimateEvent: OrderTimelineEvent | null,
     translate: (key: string, options: { defaultValue: string; [key: string]: unknown }) => string,
+    options?: { suppressFallback?: boolean },
 ): DeliverySummary | undefined => {
     if (!order) {
         return undefined
     }
+
+    const suppressFallback = Boolean(options?.suppressFallback)
 
     let state: DeliverySummary['state'] = 'unknown'
     let dateLabel: string | null = null
@@ -290,12 +303,16 @@ const buildDeliverySummary = (
         const dateSource = estimateEvent.estimateDate ?? estimateEvent.timestamp ?? null
         dateLabel = formatDateOnly(dateSource)
         state = dateLabel ? 'estimated' : 'unknown'
-    } else {
+    } else if (!suppressFallback) {
         const computed = computeOrderEstimate(order)
         if (computed) {
             dateLabel = computed.estimateDate.format('DD MMM YYYY')
             state = 'estimated'
         }
+    }
+
+    if (state === 'unknown' && (!dateLabel || suppressFallback)) {
+        return undefined
     }
 
     const meta = DELIVERY_STATE_META[state]
@@ -560,9 +577,10 @@ const buildTimelineSummary = (
     }
 
     let normalizedEvents = dedupeByEventId(sorted).sort(compareTimelineEvents)
-    const hasCancelledEvent = normalizedEvents.some(
-        (event) => (event.type || '').toUpperCase() === 'CANCELLED',
-    )
+    const hasCancelledEvent = normalizedEvents.some((event) => {
+        const type = (event.type || '').toUpperCase()
+        return type === 'CANCELLED' || type === 'CANCELED'
+    })
     if (!hasCancelledEvent) {
         const statusChangeToCancelled = normalizedEvents.find((event) => {
             const normalizedType = (event.type || '').toUpperCase()
@@ -590,16 +608,26 @@ const buildTimelineSummary = (
 
     const endEvent = cancelledEvent ?? deliveredEvent ?? estimateEventForSummary ?? startEvent
 
-    const payment = buildPaymentSummary(order, normalizedEvents, translate)
+    const payment = buildPaymentSummary(
+        order,
+        hasCancelledEvent
+            ? normalizedEvents.filter(
+                  (event) => (event.type || '').toUpperCase() !== 'PAYMENT_WAITING',
+              )
+            : normalizedEvents,
+        translate,
+    )
     const delivery = buildDeliverySummary(
         order,
-        deliveredEvent,
-        estimateEventForSummary,
+        hasCancelledEvent ? null : deliveredEvent,
+        hasCancelledEvent ? null : estimateEventForSummary,
         translate,
+        { suppressFallback: hasCancelledEvent },
     )
 
     const displayEvents: DisplayEvent[] = cleanedEvents.map((event) => {
-        const normalizedType = (event.type || '').toUpperCase()
+        const rawType = (event.type || '').toUpperCase()
+        const normalizedType = rawType === 'CANCELED' ? 'CANCELLED' : rawType
         const fallbackLabel =
             DEFAULT_EVENT_LABELS[normalizedType] ??
             normalizedType
@@ -617,7 +645,7 @@ const buildTimelineSummary = (
         const isCompleted = isEstimateEvent && metadata.completed === true
         const badgeClassName = isCompleted
             ? 'bg-emerald-600'
-            : EVENT_BADGE_COLORS[(event.type || '').toUpperCase()] ?? 'bg-slate-400'
+            : EVENT_BADGE_COLORS[normalizedType] ?? 'bg-slate-400'
         const timestampSource = event.estimateDate ?? event.timestamp
         return {
             id: event.eventId,
@@ -628,13 +656,33 @@ const buildTimelineSummary = (
             timestampLabel: formatDateTime(timestampSource),
             isEnd: event.eventId === endEvent?.eventId,
             completed: isCompleted,
+            type: normalizedType,
         }
     })
 
+    const hasCancelled = displayEvents.some(
+        (event) => event.type === 'CANCELLED' || event.type === 'CANCELED',
+    )
+
+    const cancelledTagLabel = hasCancelled
+        ? displayEvents.find((event) =>
+              event.type === 'CANCELLED' || event.type === 'CANCELED',
+          )?.label ??
+          translate(CANCELLED_TAG_META.labelKey, {
+              defaultValue: CANCELLED_TAG_META.defaultLabel,
+          })
+        : undefined
+
     return {
         events: displayEvents,
-        payment,
-        delivery,
+        payment: hasCancelled ? undefined : payment,
+        delivery: hasCancelled ? undefined : delivery,
+        cancelled: hasCancelled
+            ? {
+                  label: cancelledTagLabel ?? CANCELLED_TAG_META.defaultLabel,
+                  tagClassName: CANCELLED_TAG_META.tagClassName,
+              }
+            : undefined,
     }
 }
 
@@ -678,27 +726,40 @@ const Activity = ({ timeline, loading = false, error = null }: ActivityProps) =>
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <h5 className="mb-0">{t('text.titles.activity')}</h5>
                 <div className="flex flex-wrap gap-2">
-                    {summary.payment && (
+                    {summary.cancelled ? (
                         <Tag
                             className={classNames(
                                 'px-3 py-1 text-sm font-medium rounded-full border',
-                                summary.payment.tagClassName,
+                                summary.cancelled.tagClassName,
                             )}
-                            title={summary.payment.detail}
                         >
-                            {summary.payment.label}
+                            {summary.cancelled.label}
                         </Tag>
-                    )}
-                    {summary.delivery && (
-                        <Tag
-                            className={classNames(
-                                'px-3 py-1 text-sm font-medium rounded-full border',
-                                summary.delivery.tagClassName,
+                    ) : (
+                        <>
+                            {summary.payment && (
+                                <Tag
+                                    className={classNames(
+                                        'px-3 py-1 text-sm font-medium rounded-full border',
+                                        summary.payment.tagClassName,
+                                    )}
+                                    title={summary.payment.detail}
+                                >
+                                    {summary.payment.label}
+                                </Tag>
                             )}
-                            title={summary.delivery.detail}
-                        >
-                            {summary.delivery.label}
-                        </Tag>
+                            {summary.delivery && (
+                                <Tag
+                                    className={classNames(
+                                        'px-3 py-1 text-sm font-medium rounded-full border',
+                                        summary.delivery.tagClassName,
+                                    )}
+                                    title={summary.delivery.detail}
+                                >
+                                    {summary.delivery.label}
+                                </Tag>
+                            )}
+                        </>
                     )}
                 </div>
             </div>

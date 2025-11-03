@@ -307,6 +307,13 @@ const OrderDetails = () => {
         return orderStatuses.find((x) => x.id === normalizedStatusId)
     }, [normalizedStatusId, orderStatuses])
 
+    const isCancelledOrder = useMemo(() => {
+        if (resource !== 'orders') {
+            return false
+        }
+        return Number.isFinite(normalizedStatusId) && normalizedStatusId === ORDER_STATUS_IDS.CANCELLED
+    }, [normalizedStatusId, resource])
+
     const productStatusClasses = useMemo(() => {
         const colorToken = currentOrderStatus?.color || 'gray-500'
         const [baseColor] = String(colorToken).split('-')
@@ -589,6 +596,7 @@ const OrderDetails = () => {
                                     taxRate={taxRate}
                                     currency={data.paymentSummary?.currency}
                                     paymentsSummary={data.payments?.summary ?? null}
+                                    isCancelled={isCancelledOrder}
                                 />
                                 <OrderPaymentsCard
                                     orderId={data.id ? Number(data.id) : undefined}

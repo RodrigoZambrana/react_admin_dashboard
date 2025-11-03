@@ -2065,31 +2065,42 @@ export class SalesDocumentsService {
       updateData.deliveryFees = decimal(dto.deliveryFees ?? 0).toFixed(2)
     }
 
+    const shouldClearEstimate = dto.clearEstimate === true
     let nextEstimatedMin = order.estimatedMin ?? null
     let nextEstimatedMax = order.estimatedMax ?? null
 
-    if (dto.estimatedDate) {
-      const parsed = new Date(dto.estimatedDate)
-      if (Number.isNaN(parsed.getTime())) {
-        throw new BadRequestException('orders.delivery.validation.invalidEstimateDate')
+    if (shouldClearEstimate) {
+      nextEstimatedMin = null
+      nextEstimatedMax = null
+    } else {
+      if (dto.estimatedDate) {
+        const parsed = new Date(dto.estimatedDate)
+        if (Number.isNaN(parsed.getTime())) {
+          throw new BadRequestException('orders.delivery.validation.invalidEstimateDate')
+        }
+        const diffDays = Math.max(
+          0,
+          Math.round((parsed.getTime() - baselineDate.getTime()) / (24 * 60 * 60 * 1000)),
+        )
+        nextEstimatedMin = diffDays
+        nextEstimatedMax = diffDays
       }
-      const diffDays = Math.max(
-        0,
-        Math.round((parsed.getTime() - baselineDate.getTime()) / (24 * 60 * 60 * 1000)),
-      )
-      nextEstimatedMin = diffDays
-      nextEstimatedMax = diffDays
+
+      if (dto.estimatedMinDays !== undefined) {
+        nextEstimatedMin = Math.max(0, Math.round(Number(dto.estimatedMinDays)))
+      }
+      if (dto.estimatedMaxDays !== undefined) {
+        const raw = Math.max(0, Math.round(Number(dto.estimatedMaxDays)))
+        nextEstimatedMax = nextEstimatedMin !== null ? Math.max(nextEstimatedMin, raw) : raw
+      }
     }
 
-    if (dto.estimatedMinDays !== undefined) {
-      nextEstimatedMin = Math.max(0, Math.round(Number(dto.estimatedMinDays)))
-    }
-    if (dto.estimatedMaxDays !== undefined) {
-      const raw = Math.max(0, Math.round(Number(dto.estimatedMaxDays)))
-      nextEstimatedMax = nextEstimatedMin !== null ? Math.max(nextEstimatedMin, raw) : raw
-    }
-
-    if (nextEstimatedMin !== null || nextEstimatedMax !== null) {
+    if (shouldClearEstimate) {
+      if (order.estimatedMin !== null || order.estimatedMax !== null) {
+        updateData.estimatedMin = null
+        updateData.estimatedMax = null
+      }
+    } else if (nextEstimatedMin !== null || nextEstimatedMax !== null) {
       if (nextEstimatedMax === null && nextEstimatedMin !== null) {
         nextEstimatedMax = nextEstimatedMin
       }

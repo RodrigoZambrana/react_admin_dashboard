@@ -23,14 +23,6 @@ import { getBadgePalette, resolveOrderBadgeDescriptor } from "@/lib/utils/order-
 import { useTranslation } from "@/state/i18n-context";
 import { formatOrderMoney } from "@common/currency/orderMoney";
 
-const BACK_BUTTON = (
-  <Link href="/account/orders">
-    <Button px="2rem" color="primary">
-      Order List
-    </Button>
-  </Link>
-);
-
 const formatAddress = (address: {
   line1: string;
   line2?: string;
@@ -129,10 +121,26 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
         })
       : badgeDescriptor.fallbackLabel;
   const statusPalette = getBadgePalette(badgeDescriptor.variant);
+  const chipBackground =
+    badgeDescriptor.variant === "danger" ? "error.light" : statusPalette.background;
+  const chipColor =
+    badgeDescriptor.variant === "danger" ? "error.main" : statusPalette.color;
+
+  const backButton = (
+    <Link href="/account/orders">
+      <Button px="2rem" color="primary">
+        {translate("account.orderDetails.back", { defaultMessage: "Order List" })}
+      </Button>
+    </Link>
+  );
 
   return (
     <>
-      <DashboardPageHeader button={BACK_BUTTON} title="Order Details" Icon={<IconShoppingBagCheck size={27} />} />
+      <DashboardPageHeader
+        button={backButton}
+        title={translate("account.orderDetails.title", { defaultMessage: "Order Details" })}
+        Icon={<IconShoppingBagCheck size={27} />}
+      />
 
       <OrderStatus
         timeline={timeline}
@@ -145,7 +153,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
         <TableRow bg="gray.200" p="12px" boxShadow="none" borderRadius={0}>
           <FlexBox className="pre" m="6px" alignItems="center">
             <Typography fontSize="14px" color="text.muted" mr="4px">
-              Order ID:
+              {translate("account.orderDetails.labels.orderId", { defaultMessage: "Order ID:" })}
             </Typography>
 
             <Typography fontSize="14px">{displayOrderId}</Typography>
@@ -153,7 +161,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
 
           <FlexBox className="pre" m="6px" alignItems="center">
             <Typography fontSize="14px" color="text.muted" mr="4px">
-              Placed on:
+              {translate("account.orderDetails.labels.placedOn", { defaultMessage: "Placed on:" })}
             </Typography>
 
             <Typography fontSize="14px">{placedDate}</Typography>
@@ -161,11 +169,11 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
 
           <FlexBox className="pre" m="6px" alignItems="center">
             <Typography fontSize="14px" color="text.muted" mr="4px">
-              Status:
+              {translate("account.orderDetails.labels.status", { defaultMessage: "Status:" })}
             </Typography>
 
-            <Chip bg={statusPalette.background} p="0.25rem 0.75rem">
-              <Small color={statusPalette.color}>{statusLabel}</Small>
+            <Chip p="0.25rem 1rem" bg={chipBackground}>
+              <Small color={chipColor}>{statusLabel}</Small>
             </Chip>
           </FlexBox>
         </TableRow>
@@ -181,7 +189,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
         <Grid item lg={6} md={6} xs={12}>
           <Card p="20px 30px" borderRadius={12}>
             <H5 mt="0px" mb="14px">
-              Shipping Address
+              {translate("account.orderDetails.sections.shipping", { defaultMessage: "Shipping Address" })}
             </H5>
 
             <Paragraph fontSize="14px" my="0px">
@@ -193,12 +201,12 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
         <Grid item lg={6} md={6} xs={12}>
           <Card p="20px 30px" borderRadius={12}>
             <H5 mt="0px" mb="14px">
-              Total Summary
+              {translate("account.orderDetails.sections.summary", { defaultMessage: "Total Summary" })}
             </H5>
 
             <FlexBox justifyContent="space-between" alignItems="center" mb="0.5rem">
               <Typography fontSize="14px" color="text.hint">
-                Subtotal:
+                {translate("account.orderDetails.summary.subtotal", { defaultMessage: "Subtotal:" })}
               </Typography>
 
               <H6 my="0px">{formatOrderMoney(subtotal.amount, subtotal.currency)}</H6>
@@ -206,7 +214,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
 
             <FlexBox justifyContent="space-between" alignItems="center" mb="0.5rem">
               <Typography fontSize="14px" color="text.hint">
-                Shipping fee:
+                {translate("account.orderDetails.summary.shippingFee", { defaultMessage: "Shipping fee:" })}
               </Typography>
 
               <H6 my="0px">{formatOrderMoney(shipping.amount, shipping.currency)}</H6>
@@ -214,7 +222,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
 
             <FlexBox justifyContent="space-between" alignItems="center" mb="0.5rem">
               <Typography fontSize="14px" color="text.hint">
-                Tax:
+                {translate("account.orderDetails.summary.tax", { defaultMessage: "Tax:" })}
               </Typography>
 
               <H6 my="0px">{formatOrderMoney(tax.amount, tax.currency)}</H6>
@@ -222,7 +230,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
 
             <FlexBox justifyContent="space-between" alignItems="center" mb="0.5rem">
               <Typography fontSize="14px" color="text.hint">
-                Discount:
+                {translate("account.orderDetails.summary.discount", { defaultMessage: "Discount:" })}
               </Typography>
 
               <H6 my="0px">-{formatOrderMoney(discountTotal, currency)}</H6>
@@ -231,7 +239,9 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
             <Divider mb="0.5rem" />
 
             <FlexBox justifyContent="space-between" alignItems="center" mb="1rem">
-              <H6 my="0px">Total</H6>
+              <H6 my="0px">
+                {translate("account.orderDetails.summary.total", { defaultMessage: "Total" })}
+              </H6>
               <H6 my="0px">{formatOrderMoney(order.summary.grandTotal.amount, currency)}</H6>
             </FlexBox>
 

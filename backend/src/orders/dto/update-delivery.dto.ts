@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer'
-import { IsDateString, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator'
+import { Transform, Type } from 'class-transformer'
+import { IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator'
 
 export class UpdateOrderDeliveryDto {
   @IsOptional()
@@ -27,4 +27,18 @@ export class UpdateOrderDeliveryDto {
   @IsInt()
   @Min(0)
   estimatedMaxDays?: number
+
+  @Transform(({ value }) => {
+    if (value === undefined) {
+      return undefined
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase()
+      return normalized === 'true' || normalized === '1'
+    }
+    return Boolean(value)
+  })
+  @IsOptional()
+  @IsBoolean()
+  clearEstimate?: boolean
 }

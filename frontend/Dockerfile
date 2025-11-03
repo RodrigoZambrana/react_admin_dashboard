@@ -2,14 +2,16 @@
 
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package*.json ./
+COPY frontend/package*.json ./
 RUN npm install --legacy-peer-deps
 
 FROM deps AS build
 WORKDIR /app
 ARG VITE_CLIENT_SLUG=core
 ENV VITE_CLIENT_SLUG=${VITE_CLIENT_SLUG}
-COPY . .
+COPY frontend/. ./
+# Provide shared source for alias imports during the build
+COPY src /src
 RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime
@@ -19,6 +21,6 @@ ENV NGINX_ENVSUBST_TEMPLATE_SUFFIX=.template \
     BACKEND_PORT=3000
 WORKDIR /usr/share/nginx/html
 COPY --from=build /app/build ./
-COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
+COPY frontend/nginx/default.conf.template /etc/nginx/templates/default.conf.template
 EXPOSE 80
 CMD ["/docker-entrypoint.sh", "nginx", "-g", "daemon off;"]

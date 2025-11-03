@@ -72,7 +72,7 @@ const DEFAULT_SETTINGS: DefaultSetting[] = [
     eventType: NotificationEventType.ORDER_RECEIVED,
     audience: NotificationAudience.CUSTOMER,
     channel: NotificationChannel.EMAIL,
-    enabled: true,
+    enabled: false,
     emailSubject: 'We received your order',
   },
   {
@@ -100,7 +100,7 @@ const DEFAULT_SETTINGS: DefaultSetting[] = [
     eventType: NotificationEventType.PAYMENT_RECEIVED,
     audience: NotificationAudience.CUSTOMER,
     channel: NotificationChannel.EMAIL,
-    enabled: true,
+    enabled: false,
     emailSubject: 'Payment received for your order',
   },
   {

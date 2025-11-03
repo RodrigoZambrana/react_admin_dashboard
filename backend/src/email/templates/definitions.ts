@@ -119,53 +119,61 @@ const orderCustomerEn = wrapWithLayout(`
   {{#if payload.orderNumber}} <span class="pill">#{{payload.orderNumber}}</span>{{/if}}
 </mj-text>
 <mj-text>
-  {{#if (eq payload.documentType 'BUDGET')}}
-    {{#if (eq payload.event 'budget.created')}}We prepared quote <span class="pill">#{{payload.orderNumber}}</span> on {{payload.orderDate}}. Review the details below.{{else}}
-      {{#if (eq payload.event 'budget.status.sent')}}Your quote is available and ready to share.{{else}}
-        {{#if (eq payload.event 'budget.status.accepted')}}Thanks for approving your quote. We will coordinate next steps shortly.{{else}}
-          {{#if (eq payload.event 'budget.status.converted')}}Your quote is now an order. We will keep you posted with progress.{{else}}
-            {{#if (eq payload.event 'budget.status.expired')}}This quote expired on {{payload.validUntil}}. Contact us if you need an updated version.{{else}}
-              {{#if (eq payload.event 'budget.status.cancelled')}}This quote was cancelled as requested. Reach out if you would like to reactivate it.{{else}}
-                Here is the latest update for your quote.{{/if}}
-              {{/if}}
-            {{/if}}
-          {{/if}}
-        {{/if}}
-      {{/if}}
-    {{/if}}
-  {{else}}
-    {{#if (eq payload.event 'order.received')}}We received order <span class="pill">#{{payload.orderNumber}}</span> on {{payload.orderDate}}. We will share updates as it moves forward.{{else}}
-      {{#if (eq payload.event 'order.status.paid')}}Your payment was confirmed. We are preparing everything for the next step.{{else}}
-        {{#if (eq payload.event 'order.status.delivered')}}Your items have been delivered. Enjoy!{{else}}
-          {{#if (eq payload.event 'order.status.cancelled')}}Your order was cancelled. Contact us if we can help further.{{else}}
-            Here is the latest update for your order.{{/if}}
-          {{/if}}
-        {{/if}}
-      {{/if}}
-    {{/if}}
-  {{/if}}
+  {{eventMessage payload}}
 </mj-text>
-{{#if payload.status}}
-  <mj-text><strong>Current status:</strong> {{payload.status}}</mj-text>
-{{/if}}
-{{#if payload.deliveryEstimate}}
-  <mj-text>
-    <strong>Estimated delivery:</strong>
-    {{#if payload.deliveryEstimate.minHours}}{{payload.deliveryEstimate.minHours}}h{{/if}}
-    {{#if (and payload.deliveryEstimate.minHours payload.deliveryEstimate.maxHours)}} – {{/if}}
-    {{#if payload.deliveryEstimate.maxHours}}{{payload.deliveryEstimate.maxHours}}h{{/if}}
-  </mj-text>
-{{/if}}
-{{#if payload.validUntil}}
-  <mj-text><strong>Valid until:</strong> {{payload.validUntil}}</mj-text>
-{{/if}}
+<mj-table>
+  <tr>
+    <td><strong>Order number</strong></td>
+    <td align="right">{{default payload.orderNumber payload.orderId}}</td>
+  </tr>
+  <tr>
+    <td><strong>Order date</strong></td>
+    <td align="right">{{payload.orderDate}}</td>
+  </tr>
+  {{#if payload.status}}
+  <tr>
+    <td><strong>Current status</strong></td>
+    <td align="right">{{payload.status}}</td>
+  </tr>
+  {{/if}}
+  <tr>
+    <td><strong>Total</strong></td>
+    <td align="right">{{formatCurrency payload.totals.grandTotalRaw payload.totals.currency}}</td>
+  </tr>
+  {{#if payload.paymentMethod}}
+  <tr>
+    <td><strong>Payment method</strong></td>
+    <td align="right">{{payload.paymentMethod}}</td>
+  </tr>
+  {{/if}}
+  {{#if payload.deliveryEstimate}}
+  <tr>
+    <td><strong>Estimated delivery</strong></td>
+    <td align="right">
+      {{#if payload.deliveryEstimate.minHours}}{{payload.deliveryEstimate.minHours}}h{{/if}}
+      {{#if (and payload.deliveryEstimate.minHours payload.deliveryEstimate.maxHours)}} – {{/if}}
+      {{#if payload.deliveryEstimate.maxHours}}{{payload.deliveryEstimate.maxHours}}h{{/if}}
+    </td>
+  </tr>
+  {{/if}}
+  {{#if payload.validUntil}}
+  <tr>
+    <td><strong>Valid until</strong></td>
+    <td align="right">{{payload.validUntil}}</td>
+  </tr>
+  {{/if}}
+</mj-table>
+<mj-divider padding="12px 0" border-color="#E5E7EB" />
+<mj-text font-size="16px" font-weight="600">Order summary</mj-text>
 ${orderItemsTableEn}
 ${totalsBlockEn}
-{{#if payload.paymentMethod}}
-  <mj-text><strong>Payment method:</strong> {{payload.paymentMethod}}</mj-text>
+{{#if payload.notes}}
+  <mj-divider padding="12px 0" border-color="#E5E7EB" />
+  <mj-text><strong>Notes:</strong> {{payload.notes}}</mj-text>
 {{/if}}
+<mj-divider padding="12px 0" border-color="#E5E7EB" />
 ${buildCustomerCta('en')}
-<mj-text class="muted">
+<mj-text css-class="muted">
   Need help? Reply to this email or contact us at {{companyFooter}}.
 </mj-text>
 `)
@@ -176,53 +184,61 @@ const orderCustomerEs = wrapWithLayout(`
   {{#if payload.orderNumber}} <span class="pill">#{{payload.orderNumber}}</span>{{/if}}
 </mj-text>
 <mj-text>
-  {{#if (eq payload.documentType 'BUDGET')}}
-    {{#if (eq payload.event 'budget.created')}}Preparamos el presupuesto <span class="pill">#{{payload.orderNumber}}</span> el {{payload.orderDate}}. Revisá los detalles a continuación.{{else}}
-      {{#if (eq payload.event 'budget.status.sent')}}Tu presupuesto está disponible para compartir.{{else}}
-        {{#if (eq payload.event 'budget.status.accepted')}}Gracias por aprobar tu presupuesto. Coordinaremos los próximos pasos a la brevedad.{{else}}
-          {{#if (eq payload.event 'budget.status.converted')}}Tu presupuesto ahora es un pedido. Te mantendremos al tanto del progreso.{{else}}
-            {{#if (eq payload.event 'budget.status.expired')}}Este presupuesto venció el {{payload.validUntil}}. Contactanos si necesitás una nueva versión.{{else}}
-              {{#if (eq payload.event 'budget.status.cancelled')}}Este presupuesto fue cancelado según tu solicitud. Avisanos si querés reactivarlo.{{else}}
-                Aquí tenés la última actualización de tu presupuesto.{{/if}}
-              {{/if}}
-            {{/if}}
-          {{/if}}
-        {{/if}}
-      {{/if}}
-    {{/if}}
-  {{else}}
-    {{#if (eq payload.event 'order.received')}}Recibimos el pedido <span class="pill">#{{payload.orderNumber}}</span> el {{payload.orderDate}}. Te avisaremos a medida que avance.{{else}}
-      {{#if (eq payload.event 'order.status.paid')}}Confirmamos tu pago. Estamos preparando todo para el próximo paso.{{else}}
-        {{#if (eq payload.event 'order.status.delivered')}}Tu compra ya fue entregada. ¡Gracias por elegirnos!{{else}}
-          {{#if (eq payload.event 'order.status.cancelled')}}Tu pedido fue cancelado. Escribinos si podemos ayudarte.{{else}}
-            Te compartimos la última actualización de tu pedido.{{/if}}
-          {{/if}}
-        {{/if}}
-      {{/if}}
-    {{/if}}
-  {{/if}}
+  {{eventMessage payload}}
 </mj-text>
-{{#if payload.status}}
-  <mj-text><strong>Estado actual:</strong> {{payload.status}}</mj-text>
-{{/if}}
-{{#if payload.deliveryEstimate}}
-  <mj-text>
-    <strong>Entrega estimada:</strong>
-    {{#if payload.deliveryEstimate.minHours}}{{payload.deliveryEstimate.minHours}}h{{/if}}
-    {{#if (and payload.deliveryEstimate.minHours payload.deliveryEstimate.maxHours)}} – {{/if}}
-    {{#if payload.deliveryEstimate.maxHours}}{{payload.deliveryEstimate.maxHours}}h{{/if}}
-  </mj-text>
-{{/if}}
-{{#if payload.validUntil}}
-  <mj-text><strong>Válido hasta:</strong> {{payload.validUntil}}</mj-text>
-{{/if}}
+<mj-table>
+  <tr>
+    <td><strong>Número de pedido</strong></td>
+    <td align="right">{{default payload.orderNumber payload.orderId}}</td>
+  </tr>
+  <tr>
+    <td><strong>Fecha del pedido</strong></td>
+    <td align="right">{{payload.orderDate}}</td>
+  </tr>
+  {{#if payload.status}}
+  <tr>
+    <td><strong>Estado actual</strong></td>
+    <td align="right">{{payload.status}}</td>
+  </tr>
+  {{/if}}
+  <tr>
+    <td><strong>Total</strong></td>
+    <td align="right">{{formatCurrency payload.totals.grandTotalRaw payload.totals.currency}}</td>
+  </tr>
+  {{#if payload.paymentMethod}}
+  <tr>
+    <td><strong>Método de pago</strong></td>
+    <td align="right">{{payload.paymentMethod}}</td>
+  </tr>
+  {{/if}}
+  {{#if payload.deliveryEstimate}}
+  <tr>
+    <td><strong>Entrega estimada</strong></td>
+    <td align="right">
+      {{#if payload.deliveryEstimate.minHours}}{{payload.deliveryEstimate.minHours}}h{{/if}}
+      {{#if (and payload.deliveryEstimate.minHours payload.deliveryEstimate.maxHours)}} – {{/if}}
+      {{#if payload.deliveryEstimate.maxHours}}{{payload.deliveryEstimate.maxHours}}h{{/if}}
+    </td>
+  </tr>
+  {{/if}}
+  {{#if payload.validUntil}}
+  <tr>
+    <td><strong>Válido hasta</strong></td>
+    <td align="right">{{payload.validUntil}}</td>
+  </tr>
+  {{/if}}
+</mj-table>
+<mj-divider padding="12px 0" border-color="#E5E7EB" />
+<mj-text font-size="16px" font-weight="600">Resumen del pedido</mj-text>
 ${orderItemsTableEs}
 ${totalsBlockEs}
-{{#if payload.paymentMethod}}
-  <mj-text><strong>Método de pago:</strong> {{payload.paymentMethod}}</mj-text>
+{{#if payload.notes}}
+  <mj-divider padding="12px 0" border-color="#E5E7EB" />
+  <mj-text><strong>Notas:</strong> {{payload.notes}}</mj-text>
 {{/if}}
+<mj-divider padding="12px 0" border-color="#E5E7EB" />
 ${buildCustomerCta('es')}
-<mj-text class="muted">
+<mj-text css-class="muted">
   ¿Necesitás ayuda? Respondé este correo o escribinos a {{companyFooter}}.
 </mj-text>
 `)
@@ -233,69 +249,55 @@ const orderAdminEn = wrapWithLayout(`
   {{#if payload.orderNumber}} <span class="pill">#{{payload.orderNumber}}</span>{{/if}}
 </mj-text>
 <mj-text>
-  {{#if (eq payload.documentType 'BUDGET')}}
-    {{#if (eq payload.event 'budget.created')}}New quote created by {{default payload.customer.name payload.customer.email}} on {{payload.orderDate}}.{{else}}
-      {{#if (eq payload.event 'budget.status.sent')}}Quote shared with customer.{{else}}
-        {{#if (eq payload.event 'budget.status.accepted')}}Customer approved the quote. Review next steps.{{else}}
-          {{#if (eq payload.event 'budget.status.converted')}}Quote converted to order. Monitor fulfillment progress.{{else}}
-            {{#if (eq payload.event 'budget.status.expired')}}Quote expired on {{payload.validUntil}}.{{else}}
-              {{#if (eq payload.event 'budget.status.cancelled')}}Quote cancelled per customer request.{{else}}
-                Quote update for follow-up.{{/if}}
-              {{/if}}
-            {{/if}}
-          {{/if}}
-        {{/if}}
-      {{/if}}
-    {{/if}}
-  {{else}}
-    {{#if (eq payload.event 'order.received')}}New order placed by {{default payload.customer.name payload.customer.email}} on {{payload.orderDate}}.{{else}}
-      {{#if (eq payload.event 'order.status.paid')}}Order marked as paid. Confirm logistics or invoicing.{{else}}
-        {{#if (eq payload.event 'order.status.delivered')}}Order delivered. Close out outstanding tasks.{{else}}
-          {{#if (eq payload.event 'order.status.cancelled')}}Order cancelled. Review inventory or refund actions.{{else}}
-            Order status updated.{{/if}}
-          {{/if}}
-        {{/if}}
-      {{/if}}
-    {{/if}}
-  {{/if}}
+  {{eventAdminMessage payload}}
 </mj-text>
 <mj-table>
   <tr>
-    <td align="left"><strong>Customer</strong></td>
+    <td><strong>Order number</strong></td>
+    <td align="right">{{default payload.orderNumber payload.orderId}}</td>
+  </tr>
+  <tr>
+    <td><strong>Customer</strong></td>
     <td align="right">{{default payload.customer.name payload.customer.email}} ({{payload.customer.email}})</td>
+  </tr>
+  <tr>
+    <td><strong>Order date</strong></td>
+    <td align="right">{{payload.orderDate}}</td>
   </tr>
   {{#if payload.status}}
   <tr>
-    <td align="left"><strong>Status</strong></td>
+    <td><strong>Status</strong></td>
     <td align="right">{{payload.status}}</td>
   </tr>
   {{/if}}
   {{#if payload.previousStatus}}
   <tr>
-    <td align="left"><strong>Previous status</strong></td>
+    <td><strong>Previous status</strong></td>
     <td align="right">{{payload.previousStatus}}</td>
   </tr>
   {{/if}}
+  <tr>
+    <td><strong>Total</strong></td>
+    <td align="right">{{formatCurrency payload.totals.grandTotalRaw payload.totals.currency}}</td>
+  </tr>
   {{#if payload.paymentMethod}}
   <tr>
-    <td align="left"><strong>Payment</strong></td>
+    <td><strong>Payment method</strong></td>
     <td align="right">{{payload.paymentMethod}}</td>
   </tr>
   {{/if}}
-  {{#if payload.validUntil}}
-  <tr>
-    <td align="left"><strong>Valid until</strong></td>
-    <td align="right">{{payload.validUntil}}</td>
-  </tr>
-  {{/if}}
 </mj-table>
+<mj-divider padding="12px 0" border-color="#E5E7EB" />
+<mj-text font-size="16px" font-weight="600">Order summary</mj-text>
 ${orderItemsTableEn}
 ${totalsBlockEn}
 {{#if payload.notes}}
+  <mj-divider padding="12px 0" border-color="#E5E7EB" />
   <mj-text><strong>Notes:</strong> {{payload.notes}}</mj-text>
 {{/if}}
+<mj-divider padding="12px 0" border-color="#E5E7EB" />
 ${buildAdminCta('en')}
-<mj-text class="muted">Automated notification generated by the system.</mj-text>
+<mj-text css-class="muted">Automated notification generated by the system.</mj-text>
 `)
 
 const orderAdminEs = wrapWithLayout(`
@@ -304,69 +306,55 @@ const orderAdminEs = wrapWithLayout(`
   {{#if payload.orderNumber}} <span class="pill">#{{payload.orderNumber}}</span>{{/if}}
 </mj-text>
 <mj-text>
-  {{#if (eq payload.documentType 'BUDGET')}}
-    {{#if (eq payload.event 'budget.created')}}Nuevo presupuesto creado por {{default payload.customer.name payload.customer.email}} el {{payload.orderDate}}.{{else}}
-      {{#if (eq payload.event 'budget.status.sent')}}Presupuesto enviado al cliente.{{else}}
-        {{#if (eq payload.event 'budget.status.accepted')}}El cliente aprobó el presupuesto. Revisá los próximos pasos.{{else}}
-          {{#if (eq payload.event 'budget.status.converted')}}El presupuesto se convirtió en pedido. Supervisá la ejecución.{{else}}
-            {{#if (eq payload.event 'budget.status.expired')}}El presupuesto venció el {{payload.validUntil}}.{{else}}
-              {{#if (eq payload.event 'budget.status.cancelled')}}El presupuesto fue cancelado por el cliente.{{else}}
-                Actualización de presupuesto para seguimiento.{{/if}}
-              {{/if}}
-            {{/if}}
-          {{/if}}
-        {{/if}}
-      {{/if}}
-    {{/if}}
-  {{else}}
-    {{#if (eq payload.event 'order.received')}}Nuevo pedido ingresado por {{default payload.customer.name payload.customer.email}} el {{payload.orderDate}}.{{else}}
-      {{#if (eq payload.event 'order.status.paid')}}Pedido marcado como pagado. Confirmá logística o facturación.{{else}}
-        {{#if (eq payload.event 'order.status.delivered')}}Pedido entregado. Cerrá las tareas pendientes.{{else}}
-          {{#if (eq payload.event 'order.status.cancelled')}}Pedido cancelado. Revisá inventario o devoluciones.{{else}}
-            Actualización de estado del pedido.{{/if}}
-          {{/if}}
-        {{/if}}
-      {{/if}}
-    {{/if}}
-  {{/if}}
+  {{eventAdminMessage payload}}
 </mj-text>
 <mj-table>
   <tr>
-    <td align="left"><strong>Cliente</strong></td>
+    <td><strong>Número de pedido</strong></td>
+    <td align="right">{{default payload.orderNumber payload.orderId}}</td>
+  </tr>
+  <tr>
+    <td><strong>Cliente</strong></td>
     <td align="right">{{default payload.customer.name payload.customer.email}} ({{payload.customer.email}})</td>
+  </tr>
+  <tr>
+    <td><strong>Fecha del pedido</strong></td>
+    <td align="right">{{payload.orderDate}}</td>
   </tr>
   {{#if payload.status}}
   <tr>
-    <td align="left"><strong>Estado</strong></td>
+    <td><strong>Estado</strong></td>
     <td align="right">{{payload.status}}</td>
   </tr>
   {{/if}}
   {{#if payload.previousStatus}}
   <tr>
-    <td align="left"><strong>Estado anterior</strong></td>
+    <td><strong>Estado anterior</strong></td>
     <td align="right">{{payload.previousStatus}}</td>
   </tr>
   {{/if}}
+  <tr>
+    <td><strong>Total</strong></td>
+    <td align="right">{{formatCurrency payload.totals.grandTotalRaw payload.totals.currency}}</td>
+  </tr>
   {{#if payload.paymentMethod}}
   <tr>
-    <td align="left"><strong>Pago</strong></td>
+    <td><strong>Método de pago</strong></td>
     <td align="right">{{payload.paymentMethod}}</td>
   </tr>
   {{/if}}
-  {{#if payload.validUntil}}
-  <tr>
-    <td align="left"><strong>Válido hasta</strong></td>
-    <td align="right">{{payload.validUntil}}</td>
-  </tr>
-  {{/if}}
 </mj-table>
+<mj-divider padding="12px 0" border-color="#E5E7EB" />
+<mj-text font-size="16px" font-weight="600">Resumen del pedido</mj-text>
 ${orderItemsTableEs}
 ${totalsBlockEs}
 {{#if payload.notes}}
+  <mj-divider padding="12px 0" border-color="#E5E7EB" />
   <mj-text><strong>Notas:</strong> {{payload.notes}}</mj-text>
 {{/if}}
+<mj-divider padding="12px 0" border-color="#E5E7EB" />
 ${buildAdminCta('es')}
-<mj-text class="muted">Notificación automática generada por el sistema.</mj-text>
+<mj-text css-class="muted">Notificación automática generada por el sistema.</mj-text>
 `)
 
 const paymentCustomerEn = wrapWithLayout(`
@@ -387,7 +375,7 @@ const paymentCustomerEn = wrapWithLayout(`
 {{#if payload.portalUrl}}
   <mj-button href="{{payload.portalUrl}}">View payment details</mj-button>
 {{/if}}
-<mj-text class="muted">Keep this receipt for your records.</mj-text>
+<mj-text css-class="muted">Keep this receipt for your records.</mj-text>
 `)
 
 const paymentCustomerEs = wrapWithLayout(`
@@ -408,7 +396,7 @@ const paymentCustomerEs = wrapWithLayout(`
 {{#if payload.portalUrl}}
   <mj-button href="{{payload.portalUrl}}">Ver detalle del pago</mj-button>
 {{/if}}
-<mj-text class="muted">Guardá este comprobante para tus registros.</mj-text>
+<mj-text css-class="muted">Guardá este comprobante para tus registros.</mj-text>
 `)
 
 const paymentAdminEn = wrapWithLayout(`
@@ -470,7 +458,7 @@ const resetCustomerEn = wrapWithLayout(`
     {{#if (eq payload.event 'reset_link')}}Reset password{{else}}Secure account{{/if}}
   </mj-button>
 {{/if}}
-<mj-text class="muted">
+<mj-text css-class="muted">
   {{#if (eq payload.event 'password_changed')}}
     If you did not authorize this change, secure your account or contact us immediately.
   {{else if (eq payload.event 'recovery_notice')}}
@@ -500,7 +488,7 @@ const resetCustomerEs = wrapWithLayout(`
     {{#if (eq payload.event 'reset_link')}}Restablecer contraseña{{else}}Proteger cuenta{{/if}}
   </mj-button>
 {{/if}}
-<mj-text class="muted">
+<mj-text css-class="muted">
   {{#if (eq payload.event 'password_changed')}}
     Si no realizaste este cambio, asegurá tu cuenta o contactanos de inmediato.
   {{else if (eq payload.event 'recovery_notice')}}
@@ -530,7 +518,7 @@ const resetAdminEn = wrapWithLayout(`
     {{#if (eq payload.event 'reset_link')}}Reset administrator password{{else}}Secure administrator account{{/if}}
   </mj-button>
 {{/if}}
-<mj-text class="muted">
+<mj-text css-class="muted">
   {{#if (eq payload.event 'reset_link')}}
     If you no longer need this, you can safely ignore this email.
   {{else}}
@@ -558,7 +546,7 @@ const resetAdminEs = wrapWithLayout(`
     {{#if (eq payload.event 'reset_link')}}Restablecer contraseña{{else}}Proteger cuenta de administrador{{/if}}
   </mj-button>
 {{/if}}
-<mj-text class="muted">
+<mj-text css-class="muted">
   {{#if (eq payload.event 'reset_link')}}
     Si ya no necesitás esta acción, podés ignorar este mensaje.
   {{else}}
@@ -572,7 +560,7 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.ORDERS,
     variant: EmailTemplateVariant.CUSTOMER,
     locale: 'en',
-    version: 2,
+    version: 4,
     subject: orderCustomerSubjectEn,
     body: orderCustomerEn,
   },
@@ -580,7 +568,7 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.ORDERS,
     variant: EmailTemplateVariant.CUSTOMER,
     locale: 'es',
-    version: 2,
+    version: 4,
     subject: orderCustomerSubjectEs,
     body: orderCustomerEs,
   },
@@ -588,7 +576,7 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.ORDERS,
     variant: EmailTemplateVariant.ADMIN,
     locale: 'en',
-    version: 2,
+    version: 4,
     subject: orderAdminSubjectEn,
     body: orderAdminEn,
   },
@@ -596,7 +584,7 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.ORDERS,
     variant: EmailTemplateVariant.ADMIN,
     locale: 'es',
-    version: 2,
+    version: 4,
     subject: orderAdminSubjectEs,
     body: orderAdminEs,
   },
