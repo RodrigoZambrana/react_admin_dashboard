@@ -11,6 +11,14 @@ import Typography from "@component/Typography";
 import Avatar from "@component/avatar";
 import type { OrderTimelineResponse, OrderTimelineEvent } from "@/types/orderTimeline";
 import { useI18n, useTranslation } from "@/state/i18n-context";
+import {
+  getBadgePalette,
+  resolvePaymentState,
+  formatOrderBadgeLabel,
+  PAYMENT_STATE_VARIANT,
+  type StatusColorVariant,
+  type OrderBadgeDescriptor,
+} from "@/lib/utils/order-status";
 
 type OrderPaymentInfo = {
   status?: string | null;
@@ -51,12 +59,14 @@ type PaymentBadge = {
   state: "waiting" | "partial" | "full";
   label: string;
   detail?: string;
+  color: StatusColorVariant;
 };
 
 type DeliveryBadge = {
   state: "delivered" | "estimated" | "unknown";
   label: string;
   detail?: string;
+  color: StatusColorVariant;
 };
 
 type Summary = {
@@ -107,6 +117,27 @@ const EVENT_ICON_FILES: Record<string, string> = {
 const PAYMENT_EVENT_TYPES = new Set(["PAYMENT_WAITING", "PAYMENT_PARTIAL", "PAYMENT_FULL", "PAYMENT_FULL_SUMMARY"]);
 
 const DONE_ICON_SRC = iconPath("done.svg");
+
+const PAYMENT_BADGE_META: Record<PaymentBadge["state"], { labelKey: string; defaultLabel: string }> = {
+  waiting: {
+    labelKey: "order.timeline.payment.summary.labels.waiting",
+    defaultLabel: "Payment pending"
+  },
+  partial: {
+    labelKey: "order.timeline.payment.summary.labels.partial",
+    defaultLabel: "Partial payment"
+  },
+  full: {
+    labelKey: "order.timeline.payment.summary.labels.full",
+    defaultLabel: "Payment complete"
+  }
+};
+
+const DELIVERY_BADGE_META: Record<DeliveryBadge["state"], { color: StatusColorVariant }> = {
+  delivered: { color: "success" },
+  estimated: { color: "primary" },
+  unknown: { color: "secondary" }
+};
 
 const formatDate = (value?: string | null, locale?: string) => {
   if (!value) return "";
@@ -376,6 +407,11 @@ const buildPaymentBadge = (
     })
     .sort((a, b) => dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf());
 
+  const hasFullPaymentEvent = events.some((event) => {
+    const type = (event.type || "").toUpperCase();
+    return type === "PAYMENT_FULL" || type === "PAYMENT_FULL_SUMMARY";
+  });
+
   for (const event of paymentsChronological) {
     if (!currency && event.currency) {
       currency = event.currency;
@@ -398,8 +434,8 @@ const buildPaymentBadge = (
     }
   }
 
-  const normalizedRemaining = Math.max(0, remaining);
-  const paid = Math.max(0, total - normalizedRemaining);
+  let normalizedRemaining = Math.max(0, remaining);
+  let paid = Math.max(0, total - normalizedRemaining);
 
   let state: PaymentBadge["state"] = "waiting";
   if (total <= 0) {
@@ -410,42 +446,56 @@ const buildPaymentBadge = (
     state = "partial";
   }
 
+  const explicitState = order.paymentStatus
+    ? resolvePaymentState(order.paymentStatus)
+    : undefined;
+
+  if (explicitState === "full" || hasFullPaymentEvent) {
+    state = "full";
+    normalizedRemaining = 0;
+    paid = total;
+  } else if (explicitState === "partial") {
+    state = "partial";
+    normalizedRemaining = Math.max(0, total - paid);
+  }
+
   const totalLabel = formatAmount(total, currency, order.orderCurrency) ?? total.toFixed(2);
   const paidLabel = formatAmount(paid, currency, order.orderCurrency) ?? paid.toFixed(2);
   const remainingLabel =
     formatAmount(normalizedRemaining, currency, order.orderCurrency) ?? normalizedRemaining.toFixed(2);
 
+  const baseDescriptor: OrderBadgeDescriptor = {
+    type: "payment",
+    state,
+    variant: PAYMENT_STATE_VARIANT[state],
+    fallbackLabel: PAYMENT_BADGE_META[state].defaultLabel
+  };
+  const label = formatOrderBadgeLabel(baseDescriptor, translate);
+
+  let detail: string | undefined;
   if (state === "full") {
-    return {
-      state,
-      label: translate("order.timeline.payment.summary.full", {
-        defaultMessage: `Paid in full (${totalLabel})`,
-        values: { total: totalLabel },
-      }),
-      detail: totalLabel,
-    };
+    detail = translate("order.timeline.payment.summary.detail.full", {
+      defaultMessage: `Paid ${totalLabel}`,
+      values: { total: totalLabel }
+    });
+  } else if (state === "partial") {
+    detail = translate("order.timeline.payment.summary.detail.partial", {
+      defaultMessage: `Paid ${paidLabel} of ${totalLabel} (remaining ${remainingLabel})`,
+      values: { paid: paidLabel, total: totalLabel, remaining: remainingLabel }
+    });
+  } else if (total > 0) {
+    detail = translate("order.timeline.payment.summary.detail.waiting", {
+      defaultMessage: `Outstanding ${totalLabel}`,
+      values: { total: totalLabel }
+    });
   }
-  if (state === "partial") {
-    return {
-      state,
-      label: translate("order.timeline.payment.summary.partial", {
-        defaultMessage: `Paid ${paidLabel} of ${totalLabel} (remaining ${remainingLabel})`,
-        values: { paid: paidLabel, total: totalLabel, remaining: remainingLabel },
-      }),
-      detail: remainingLabel,
-    };
-  }
-  if (total > 0) {
-    return {
-      state,
-      label: translate("order.timeline.payment.summary.outstanding", {
-        defaultMessage: `Outstanding ${totalLabel}`,
-        values: { total: totalLabel },
-      }),
-      detail: totalLabel,
-    };
-  }
-  return undefined;
+
+  return {
+    state,
+    label,
+    detail,
+    color: baseDescriptor.variant
+  };
 };
 
 const buildDeliveryBadge = (
@@ -468,6 +518,7 @@ const buildDeliveryBadge = (
         values: { date: deliveredDate ?? "" },
       }),
       detail: deliveredDate ?? undefined,
+      color: DELIVERY_BADGE_META.delivered.color,
     };
   }
 
@@ -480,6 +531,7 @@ const buildDeliveryBadge = (
         values: { date: estimate ?? "" },
       }),
       detail: estimate ?? undefined,
+      color: DELIVERY_BADGE_META[estimate ? "estimated" : "unknown"].color,
     };
   }
 
@@ -493,6 +545,7 @@ const buildDeliveryBadge = (
         values: { date: fallback },
       }),
       detail: fallback,
+      color: DELIVERY_BADGE_META.estimated.color,
     };
   }
 
@@ -809,6 +862,9 @@ export default function OrderStatus({ timeline, paymentInfo = null, loading = fa
     [summary.events],
   );
 
+  const paymentBadgePalette = summary.payment ? getBadgePalette(summary.payment.color) : null;
+  const deliveryBadgePalette = summary.delivery ? getBadgePalette(summary.delivery.color) : null;
+
   return (
     <Card p="2rem 1.5rem" mb="30px" borderRadius={12}>
       <FlexBox justifyContent="space-between" alignItems="center" flexWrap="wrap" gridGap="0.75rem" mb="1.5rem">
@@ -816,27 +872,27 @@ export default function OrderStatus({ timeline, paymentInfo = null, loading = fa
           Order timeline
         </Typography>
         <FlexBox gridGap="0.75rem" flexWrap="wrap">
-          {summary.payment && (
+          {summary.payment && paymentBadgePalette && (
             <Typography
               fontSize="13px"
               px="12px"
               py="6px"
               borderRadius="300px"
-              bg="secondary.light"
-              color="secondary.main"
+              bg={paymentBadgePalette.background}
+              color={paymentBadgePalette.color}
               title={summary.payment.detail}
             >
               {summary.payment.label}
             </Typography>
           )}
-          {summary.delivery && (
+          {summary.delivery && deliveryBadgePalette && (
             <Typography
               fontSize="13px"
               px="12px"
               py="6px"
               borderRadius="300px"
-              bg="primary.light"
-              color="primary.main"
+              bg={deliveryBadgePalette.background}
+              color={deliveryBadgePalette.color}
               title={summary.delivery.detail}
             >
               {summary.delivery.label}

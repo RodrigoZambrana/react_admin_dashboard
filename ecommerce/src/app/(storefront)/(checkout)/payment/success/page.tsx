@@ -12,6 +12,7 @@ import Typography from "@component/Typography";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { useCheckout } from "@/state/checkout-context";
+import { useCurrency } from "@/state/currency-context";
 import { useStorefrontCart } from "@/state/cart-context";
 import type { CreateOrderPayload } from "@/types/storefront";
 
@@ -39,6 +40,7 @@ export default function PaymentSuccessPage() {
     checkoutToken
   } = useCheckout();
   const { state: cartState, clearCart } = useStorefrontCart();
+  const { currency: activeCurrency } = useCurrency();
 
   const [orderState, setOrderState] = useState<OrderCreationState>("idle");
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -128,7 +130,7 @@ export default function PaymentSuccessPage() {
         country: shippingAddress.country
       };
 
-      const payload = {
+      const payload: CreateOrderPayload = {
         customer: {
           email: contact.email,
           firstName: contact.firstName,
@@ -139,7 +141,8 @@ export default function PaymentSuccessPage() {
         items: orderItems,
         notes: notes && notes.trim().length > 0 ? notes.trim() : undefined,
         paymentIntentId: payment.paymentIntentId,
-        checkoutToken
+        checkoutToken,
+        currency: activeCurrency
       };
 
       const order = await StorefrontApi.createOrder(payload);
@@ -183,7 +186,8 @@ export default function PaymentSuccessPage() {
     shippingAddress.line2,
     shippingAddress.state,
     shippingAddress.zip,
-    checkoutToken
+    checkoutToken,
+    activeCurrency
   ]);
 
   useEffect(() => {

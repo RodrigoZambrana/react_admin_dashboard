@@ -292,25 +292,31 @@ export class OrderTimelineService {
         ? `order:${orderId}:estimate:set:${snapshot.estimateDate.toISOString()}`
         : `order:${orderId}:estimate:update:${snapshot.estimateDate.toISOString()}`
 
-    const metadata =
-      snapshot.metadata ??
-      (snapshot.previousEstimate
-        ? {
-            previousEstimate: snapshot.previousEstimate.toISOString(),
-            nextEstimate: snapshot.estimateDate.toISOString(),
-          }
-        : {
-            estimate: snapshot.estimateDate.toISOString(),
-          })
+    const estimateDate = new Date(snapshot.estimateDate)
+    const recordedAt = snapshot.timestamp ? new Date(snapshot.timestamp) : new Date()
+
+    const metadataBase: Record<string, unknown> =
+      snapshot.metadata && typeof snapshot.metadata === 'object' && !Array.isArray(snapshot.metadata)
+        ? { ...(snapshot.metadata as Record<string, unknown>) }
+        : snapshot.previousEstimate
+          ? {
+              previousEstimate: snapshot.previousEstimate.toISOString(),
+              nextEstimate: estimateDate.toISOString(),
+            }
+          : {
+              estimate: estimateDate.toISOString(),
+            }
+    metadataBase.recordedAt = recordedAt.toISOString()
+    const metadata = Object.keys(metadataBase).length ? metadataBase : undefined
 
     await this.persist(
       orderId,
       {
         eventId: eventIdBase,
         type: eventType,
-        timestamp: snapshot.timestamp ?? new Date(),
+        timestamp: estimateDate,
         actor: snapshot.actor ?? 'system',
-        estimateDate: snapshot.estimateDate,
+        estimateDate,
         message: snapshot.message ?? null,
         metadata,
       },
@@ -539,34 +545,65 @@ export class OrderTimelineService {
       }
     }
 
-    const deliveredExists = events.some((event) => event.type === 'DELIVERED')
-    if (deliveredExists) {
-      const estimateTypes = new Set<OrderTimelineEventType>(['ESTIMATE_SET', 'ESTIMATE_UPDATED'])
-      const filtered: OrderTimelineEventRecord[] = []
-      let wasDeliveredEncountered = false
+    const estimateTypes = new Set<OrderTimelineEventType>(['ESTIMATE_SET', 'ESTIMATE_UPDATED'])
+    const deliveredEvent =
+      events
+        .filter((event) => event.type === 'DELIVERED')
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+        .pop() ?? null
 
-      for (const event of events.sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-      )) {
-        const isDeliveryEvent = event.type === 'DELIVERED'
-        if (isDeliveryEvent) {
-          wasDeliveredEncountered = true
-          filtered.push(event)
-          continue
+    if (deliveredEvent) {
+      const parseDate = (value?: string | null): Date | null => {
+        if (!value) {
+          return null
         }
-
-        if (wasDeliveredEncountered && estimateTypes.has(event.type as OrderTimelineEventType)) {
-          continue
-        }
-
-        filtered.push(event)
+        const date = new Date(value)
+        return Number.isNaN(date.getTime()) ? null : date
       }
 
-      return filtered
+      const estimateEvents = events
+        .filter((event) => estimateTypes.has(event.type as OrderTimelineEventType))
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      const latestEstimate = estimateEvents.length ? estimateEvents[estimateEvents.length - 1] : null
+
+      let result = events.slice()
+      if (latestEstimate) {
+        const deliveredDate =
+          parseDate(deliveredEvent.timestamp) ??
+          parseDate(deliveredEvent.estimateDate) ??
+          parseDate(latestEstimate.estimateDate) ??
+          parseDate(latestEstimate.timestamp) ??
+          new Date()
+        const completedIso = deliveredDate.toISOString()
+        const metadata =
+          latestEstimate.metadata && typeof latestEstimate.metadata === 'object' && !Array.isArray(latestEstimate.metadata)
+            ? { ...(latestEstimate.metadata as Record<string, unknown>) }
+            : {}
+        metadata.completed = true
+        metadata.completedAt = completedIso
+        metadata.completedBy = deliveredEvent.actor ?? 'system'
+        metadata.completionSource = deliveredEvent.eventId
+
+        result = result.map((event) => {
+          if (event.eventId !== latestEstimate.eventId) {
+            return event
+          }
+          return {
+            ...event,
+            timestamp: completedIso,
+            estimateDate: completedIso,
+            metadata,
+          }
+        })
+      }
+
+      return result.sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      )
     }
 
-    return events.sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-    )
+    return events
+      .slice()
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
   }
 }

@@ -206,6 +206,25 @@ export async function apiUpdateSalesOrderPaymentMethod<
     })
 }
 
+export type UpdateOrderDeliveryPayload = {
+    shippingVendor?: string | null
+    deliveryFees?: number
+    estimatedDate?: string
+    estimatedMinDays?: number
+    estimatedMaxDays?: number
+}
+
+export async function apiUpdateSalesOrderDelivery<T>(
+    id: number,
+    payload: UpdateOrderDeliveryPayload,
+) {
+    return ApiService.fetchData<T>({
+        url: `/orders/${id}/delivery`,
+        method: 'patch',
+        data: payload,
+    })
+}
+
 export async function apiPersistSalesDocumentFile<
     T,
 >(id: number, data: FormData, resource: SalesDocumentResource = 'orders') {

@@ -16,6 +16,7 @@ import CheckoutCostSummary from "@/components/cart/CheckoutCostSummary";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { normalizeMoney } from "@/lib/utils/format";
 import { useCheckout } from "@/state/checkout-context";
+import { useCurrency } from "@/state/currency-context";
 import { useStorefrontCart } from "@/state/cart-context";
 import type { CheckoutPayment } from "@/state/checkout-context";
 import type { CreateOrderPayload, Money, OrderSummary } from "@/types/storefront";
@@ -141,6 +142,7 @@ export default function ReviewClient() {
   );
   const { formatMoney: formatDisplayMoney } = useMoneyFormatter();
   const toast = useToast();
+  const { currency: activeCurrency } = useCurrency();
 
   const reviewItems = useMemo<ReviewItem[]>(() => {
     return cartState.items.map((item) => {
@@ -265,7 +267,7 @@ export default function ReviewClient() {
         country: shippingAddress.country
       };
 
-      const payload = {
+      const payload: CreateOrderPayload = {
         customer: {
           email: contact.email,
           firstName: contact.firstName,
@@ -277,7 +279,8 @@ export default function ReviewClient() {
         notes: notes.trim().length > 0 ? notes.trim() : undefined,
         paymentIntentId:
           payment && payment.method === "mercadopago" ? payment.paymentIntentId : undefined,
-        checkoutToken
+        checkoutToken,
+        currency: activeCurrency
       };
 
       const order = await StorefrontApi.createOrder(payload);
@@ -293,7 +296,7 @@ export default function ReviewClient() {
       clearCart();
       reset();
       setLastOrder(order);
-      const orderLabel = order.orderNumber || order.uuid;
+      const orderLabel = order.orderNumber || `#${order.id}`;
       toast.success({
         title: "Pedido confirmado",
         description: orderLabel
@@ -333,6 +336,7 @@ export default function ReviewClient() {
     shippingAddress.line2,
     shippingAddress.state,
     checkoutToken,
+    activeCurrency,
     isSubmitting,
     toast
   ]);

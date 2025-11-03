@@ -10,14 +10,17 @@ import Grid from "@component/grid/Grid";
 import Divider from "@component/Divider";
 import FlexBox from "@component/FlexBox";
 import TableRow from "@component/TableRow";
+import Chip from "@component/Chip";
 import { Button } from "@component/buttons";
-import Typography, { H5, H6, Paragraph } from "@component/Typography";
+import Typography, { H5, H6, Paragraph, Small } from "@component/Typography";
 import DashboardPageHeader from "@component/DashboardPageHeader";
 import Spinner from "@component/Spinner";
 
 import { OrderStatus, WriteReview } from "@sections/customer-dashboard/orders";
 
 import { useAccountOrder } from "@/hooks/useAccountOrders";
+import { getBadgePalette, resolveOrderBadgeDescriptor } from "@/lib/utils/order-status";
+import { useTranslation } from "@/state/i18n-context";
 
 const BACK_BUTTON = (
   <Link href="/account/orders">
@@ -56,6 +59,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
     refresh,
     needsReauthentication
   } = useAccountOrder(identifier);
+  const translate = useTranslation();
 
   if (needsReauthentication) {
     return (
@@ -112,12 +116,21 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
   }
 
   const orderIdentifier = order.uuid || order.reference || order.orderNumber || String(order.id);
+  const displayOrderId = `#${order.id}`;
   const placedDate = format(new Date(order.placedAt), "dd MMM, yyyy");
   const subtotal = order.summary.subtotal;
   const shipping = order.summary.shipping;
   const tax = order.summary.tax;
   const discountTotal = (order.summary.discounts ?? []).reduce((sum, item) => sum + item.amount, 0);
   const currency = order.summary.grandTotal.currency;
+  const badgeDescriptor = resolveOrderBadgeDescriptor(order);
+  const statusLabel =
+    badgeDescriptor.type === "payment"
+      ? translate(`order.timeline.payment.summary.labels.${badgeDescriptor.state}`, {
+          defaultMessage: badgeDescriptor.fallbackLabel
+        })
+      : badgeDescriptor.fallbackLabel;
+  const statusPalette = getBadgePalette(badgeDescriptor.variant);
 
   return (
     <>
@@ -137,7 +150,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
               Order ID:
             </Typography>
 
-            <Typography fontSize="14px">#{orderIdentifier}</Typography>
+            <Typography fontSize="14px">{displayOrderId}</Typography>
           </FlexBox>
 
           <FlexBox className="pre" m="6px" alignItems="center">
@@ -153,7 +166,9 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
               Status:
             </Typography>
 
-            <Typography fontSize="14px">{order.statusLabel ?? order.status}</Typography>
+            <Chip bg={statusPalette.background} p="0.25rem 0.75rem">
+              <Small color={statusPalette.color}>{statusLabel}</Small>
+            </Chip>
           </FlexBox>
         </TableRow>
 

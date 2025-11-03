@@ -40,6 +40,7 @@ import {
   matchPaymentMethod,
   listPaymentMethods,
 } from '../common/constants/payment-methods'
+import { UpdateOrderDeliveryDto } from './dto/update-delivery.dto'
 
 const SALES_UNIT_KEYWORDS: Record<SalesUnit, string[]> = {
   [SalesUnit.UNIT]: ['unit', 'units', 'unidad', 'unidades', 'u'],
@@ -2028,6 +2029,166 @@ export class SalesDocumentsService {
       }
     }
     return true
+  }
+
+  async updateOrderDeliveryDetails(id: number, dto: UpdateOrderDeliveryDto) {
+    const order = await this.prisma.order.findFirst({
+      where: { id, documentType: DocumentType.ORDER },
+      select: {
+        id: true,
+        deliveryFees: true,
+        shippingVendor: true,
+        estimatedMin: true,
+        estimatedMax: true,
+        date: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
+    if (!order) {
+      throw new BadRequestException('sales.orders.validation.notFound')
+    }
+
+    const baselineDate = order.date ?? order.createdAt ?? new Date()
+    const previousEstimate = this.resolveDeliveryEstimate(
+      baselineDate,
+      order.estimatedMin ?? null,
+      order.estimatedMax ?? null,
+    )
+
+    const updateData: Prisma.OrderUpdateInput = {}
+    if (dto.shippingVendor !== undefined) {
+      const trimmed = dto.shippingVendor?.trim() ?? ''
+      updateData.shippingVendor = trimmed.length ? trimmed : null
+    }
+    if (dto.deliveryFees !== undefined) {
+      updateData.deliveryFees = decimal(dto.deliveryFees ?? 0).toFixed(2)
+    }
+
+    let nextEstimatedMin = order.estimatedMin ?? null
+    let nextEstimatedMax = order.estimatedMax ?? null
+
+    if (dto.estimatedDate) {
+      const parsed = new Date(dto.estimatedDate)
+      if (Number.isNaN(parsed.getTime())) {
+        throw new BadRequestException('orders.delivery.validation.invalidEstimateDate')
+      }
+      const diffDays = Math.max(
+        0,
+        Math.round((parsed.getTime() - baselineDate.getTime()) / (24 * 60 * 60 * 1000)),
+      )
+      nextEstimatedMin = diffDays
+      nextEstimatedMax = diffDays
+    }
+
+    if (dto.estimatedMinDays !== undefined) {
+      nextEstimatedMin = Math.max(0, Math.round(Number(dto.estimatedMinDays)))
+    }
+    if (dto.estimatedMaxDays !== undefined) {
+      const raw = Math.max(0, Math.round(Number(dto.estimatedMaxDays)))
+      nextEstimatedMax = nextEstimatedMin !== null ? Math.max(nextEstimatedMin, raw) : raw
+    }
+
+    if (nextEstimatedMin !== null || nextEstimatedMax !== null) {
+      if (nextEstimatedMax === null && nextEstimatedMin !== null) {
+        nextEstimatedMax = nextEstimatedMin
+      }
+      if (nextEstimatedMin === null && nextEstimatedMax !== null) {
+        nextEstimatedMin = nextEstimatedMax
+      }
+      if (
+        nextEstimatedMin !== (order.estimatedMin ?? null) ||
+        nextEstimatedMax !== (order.estimatedMax ?? null)
+      ) {
+        updateData.estimatedMin = nextEstimatedMin
+        updateData.estimatedMax = nextEstimatedMax
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      const computedEstimate = this.resolveDeliveryEstimate(
+        baselineDate,
+        order.estimatedMin ?? null,
+        order.estimatedMax ?? null,
+      )
+      return {
+        id: order.id,
+        shipping: {
+          deliveryFees: Number(order.deliveryFees?.toString?.() ?? order.deliveryFees ?? 0),
+          shippingVendor: order.shippingVendor ?? null,
+          estimatedMin: order.estimatedMin ?? null,
+          estimatedMax: order.estimatedMax ?? null,
+          estimatedDate: computedEstimate ? computedEstimate.estimate.toISOString() : null,
+        },
+      }
+    }
+
+    const updated = await this.prisma.order.update({
+      where: { id: order.id },
+      data: updateData,
+      select: {
+        id: true,
+        deliveryFees: true,
+        shippingVendor: true,
+        estimatedMin: true,
+        estimatedMax: true,
+        date: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
+
+    const currentEstimate = this.resolveDeliveryEstimate(
+      updated.date ?? updated.createdAt ?? new Date(),
+      updated.estimatedMin ?? null,
+      updated.estimatedMax ?? null,
+    )
+
+    const estimateChanged =
+      (previousEstimate?.estimate?.getTime() ?? null) !==
+        (currentEstimate?.estimate?.getTime() ?? null) ||
+      previousEstimate?.minDays !== currentEstimate?.minDays ||
+      previousEstimate?.maxDays !== currentEstimate?.maxDays
+
+    if (currentEstimate && estimateChanged) {
+      const metadata: Record<string, unknown> = {
+        source: 'admin',
+      }
+      if (dto.estimatedDate) {
+        metadata.estimatedDateInput = dto.estimatedDate
+      }
+      if (dto.estimatedMinDays !== undefined) {
+        metadata.estimatedMinDays = Math.max(0, Math.round(Number(dto.estimatedMinDays)))
+      }
+      if (dto.estimatedMaxDays !== undefined) {
+        metadata.estimatedMaxDays = Math.max(0, Math.round(Number(dto.estimatedMaxDays)))
+      }
+      try {
+        await this.timeline.recordEstimateSnapshot(order.id, {
+          estimateDate: currentEstimate.estimate,
+          previousEstimate: previousEstimate?.estimate ?? null,
+          actor: 'admin',
+          type: previousEstimate ? 'ESTIMATE_UPDATED' : 'ESTIMATE_SET',
+          timestamp: updated.updatedAt ?? new Date(),
+          metadata,
+        })
+      } catch (error) {
+        this.logger.warn(
+          `Failed to append estimate timeline event for order ${order.id}: ${(error as Error).message}`,
+        )
+      }
+    }
+
+    return {
+      id: updated.id,
+      shipping: {
+        deliveryFees: Number(updated.deliveryFees?.toString?.() ?? updated.deliveryFees ?? 0),
+        shippingVendor: updated.shippingVendor ?? null,
+        estimatedMin: updated.estimatedMin ?? null,
+        estimatedMax: updated.estimatedMax ?? null,
+        estimatedDate: currentEstimate ? currentEstimate.estimate.toISOString() : null,
+      },
+    }
   }
 
   async updateDocumentComment(documentType: DocumentType, id: number, body: { comment?: string }) {

@@ -514,7 +514,7 @@
       "export": "Exportar",
       "addProduct": "Agregar producto",
       "batchDelete": "Eliminar en lote",
-      "viewCarrierDetails": "Ver detalles del transportista",
+      "editDeliveryInformation": "Editar información de entrega",
       "save": "Guardar",
       "discard": "Descartar",
       "cancel": "Cancelar",
@@ -1380,7 +1380,8 @@
           "estimateUpdatedDetail": "Nueva fecha estimada {{next}}",
           "estimateUpdatedDetailWithPrevious": "Nueva fecha estimada {{next}} (antes {{previous}})",
           "estimateSetDetail": "Entrega estimada {{date}}",
-          "deliveredDetail": "Entregado el {{date}}"
+          "deliveredDetail": "Entregado el {{date}}",
+          "estimateCompletedDetail": "Entrega realizada el {{date}}"
         },
         "event": {
           "order_received": "Pedido recibido",
@@ -1396,6 +1397,32 @@
           "status_changed": "Estado actualizado",
           "note": "Nota agregada",
           "other": "Actividad"
+        }
+      },
+      "delivery": {
+        "editTitle": "Editar información de entrega",
+        "fields": {
+          "shippingVendor": "Transportista",
+          "deliveryFees": "Costo de envío",
+          "estimatedDate": "Fecha estimada de entrega",
+          "minDays": "Días mínimos",
+          "maxDays": "Días máximos"
+        },
+        "placeholders": {
+          "shippingVendor": "Nombre del transportista"
+        },
+        "helpers": {
+          "estimatedDate": "Selecciona una fecha específica o deja vacío y define el rango de días."
+        },
+        "feedback": {
+          "updatedTitle": "Información de entrega actualizada",
+          "updatedDesc": "Guardamos la información de entrega correctamente.",
+          "updateFailedTitle": "No pudimos actualizar la información de entrega",
+          "updateFailedDesc": "Intenta nuevamente en unos instantes."
+        },
+        "validation": {
+          "deliveryFeesPositive": "El costo de envío debe ser un número positivo.",
+          "daysPositive": "Los días deben ser un número entero mayor o igual a cero."
         }
       }
     },

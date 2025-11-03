@@ -22,6 +22,7 @@ import { SalesDocumentsService } from './sales-documents.service'
 import { CreateOrderDto } from '../sales/dto/order.dto'
 import { parseSingleFileMultipart } from '../common/uploads/multipart'
 import { OrderTimelineService } from './order-timeline.service'
+import { UpdateOrderDeliveryDto } from './dto/update-delivery.dto'
 
 @UseGuards(JwtAuthGuard)
 @Controller('orders')
@@ -98,6 +99,14 @@ export class OrdersController {
   @Patch(':id/comment')
   updateOrderComment(@Param('id', ParseIntPipe) id: number, @Body() body: { comment?: string }) {
     return this.documents.updateDocumentComment(DocumentType.ORDER, id, body)
+  }
+
+  @Patch(':id/delivery')
+  updateOrderDelivery(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateOrderDeliveryDto,
+  ) {
+    return this.documents.updateOrderDeliveryDetails(id, dto)
   }
 
   @Put(':id/status')

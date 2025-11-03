@@ -632,7 +632,7 @@
       "export": "Export",
       "addProduct": "Add Product",
       "batchDelete": "Batch Delete",
-      "viewCarrierDetails": "View Carrier Details",
+      "editDeliveryInformation": "Edit delivery information",
       "save": "Save",
       "discard": "Discard",
       "cancel": "Cancel",
@@ -1411,7 +1411,8 @@
           "estimateUpdatedDetail": "New estimate {{next}}",
           "estimateUpdatedDetailWithPrevious": "New estimate {{next}} (previously {{previous}})",
           "estimateSetDetail": "Estimated delivery {{date}}",
-          "deliveredDetail": "Delivered on {{date}}"
+          "deliveredDetail": "Delivered on {{date}}",
+          "estimateCompletedDetail": "Delivery completed {{date}}"
         },
         "event": {
           "order_received": "Order received",
@@ -1427,6 +1428,32 @@
           "status_changed": "Status changed",
           "note": "Note added",
           "other": "Activity"
+        }
+      },
+      "delivery": {
+        "editTitle": "Edit delivery information",
+        "fields": {
+          "shippingVendor": "Carrier",
+          "deliveryFees": "Delivery fee",
+          "estimatedDate": "Estimated delivery date",
+          "minDays": "Minimum days",
+          "maxDays": "Maximum days"
+        },
+        "placeholders": {
+          "shippingVendor": "Carrier name"
+        },
+        "helpers": {
+          "estimatedDate": "Pick a specific delivery date or leave it empty and define the day range."
+        },
+        "feedback": {
+          "updatedTitle": "Delivery details updated",
+          "updatedDesc": "The delivery information was saved successfully.",
+          "updateFailedTitle": "Could not update delivery details",
+          "updateFailedDesc": "Please try again in a moment."
+        },
+        "validation": {
+          "deliveryFeesPositive": "Delivery fee must be a positive number.",
+          "daysPositive": "Days must be a non-negative integer."
         }
       }
     },
