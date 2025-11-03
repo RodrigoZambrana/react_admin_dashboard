@@ -11,6 +11,7 @@ import Activity from './components/Activity'
 import CustomerInfo from './components/CustomerInfo'
 import OrderPaymentsCard from './components/OrderPaymentsCard'
 import NewPaymentDialog from './components/NewPaymentDialog'
+import EditDeliveryDialog from './components/EditDeliveryDialog'
 import { HiOutlineCalendar, HiOutlineDocumentText, HiOutlinePencil } from 'react-icons/hi'
 import { apiGetSalesOrderDetails, apiGetSalesOrderTimeline } from '@/services/SalesService'
 import { apiGetOrderStatuses, apiGetSystemConfig } from '@/services/SettingsService'
@@ -162,6 +163,7 @@ const OrderDetails = () => {
     const [orderStatuses, setOrderStatuses] = useState<{ id: number; name: string; color: string }[]>([])
     const [taxRate, setTaxRate] = useState<number>()
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
+    const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false)
     const [timeline, setTimeline] = useState<OrderTimelineResponse | null>(null)
     const [timelineLoading, setTimelineLoading] = useState(false)
     const [timelineError, setTimelineError] = useState<string | null>(null)
@@ -363,6 +365,33 @@ const OrderDetails = () => {
         const plain = disclaimerHtml.replace(/<[^>]+>/g, ' ').trim()
         return plain ? resolveTextDirection(plain) : undefined
     }, [disclaimerHtml])
+
+    const latestEstimatedDate = useMemo(() => {
+        if (!timeline || !timeline.events) {
+            return null
+        }
+        const estimateEvents = timeline.events
+            .filter((event) => {
+                const type = (event.type || '').toUpperCase()
+                return type === 'ESTIMATE_SET' || type === 'ESTIMATE_UPDATED'
+            })
+            .sort(
+                (a, b) =>
+                    dayjs(a.estimateDate ?? a.timestamp).valueOf() -
+                    dayjs(b.estimateDate ?? b.timestamp).valueOf(),
+            )
+        if (estimateEvents.length === 0) {
+            return null
+        }
+        const latest = estimateEvents[estimateEvents.length - 1]
+        return latest.estimateDate ?? latest.timestamp ?? null
+    }, [timeline])
+
+    const handleDeliverySaved = useCallback(() => {
+        setDeliveryDialogOpen(false)
+        void fetchData()
+    }, [fetchData])
+
     return (
         <Container className="h-full">
             <Loading loading={loading}>
@@ -458,7 +487,11 @@ const OrderDetails = () => {
                             </div>
                             <div className="xl:max-w-[360px] w-full space-y-4">
                                 <CustomerInfo data={data.customer} />
-                                <ShippingInfo data={data.shipping} />
+                                <ShippingInfo
+                                    data={data.shipping}
+                                    estimatedDate={latestEstimatedDate}
+                                    onEdit={() => setDeliveryDialogOpen(true)}
+                                />
                                 {disclaimerHtml && (
                                     <Card bodyClass="p-5">
                                         <h4 className="mb-2">{disclaimerLabel}</h4>
@@ -500,6 +533,18 @@ const OrderDetails = () => {
                     setPaymentDialogOpen(false)
                     fetchData()
                 }}
+            />
+            <EditDeliveryDialog
+                open={deliveryDialogOpen}
+                onClose={() => setDeliveryDialogOpen(false)}
+                onSaved={handleDeliverySaved}
+                orderId={data.id ? Number(data.id) : undefined}
+                initialVendor={data.shipping?.shippingVendor ?? ''}
+                initialDeliveryFees={data.shipping?.deliveryFees ?? 0}
+                initialEstimatedMin={data.shipping?.estimatedMin ?? null}
+                initialEstimatedMax={data.shipping?.estimatedMax ?? null}
+                initialEstimatedDate={latestEstimatedDate}
+                orderPlacedAt={data.dateTime ? dayjs.unix(data.dateTime).toISOString() : null}
             />
         </Container>
     )

@@ -526,6 +526,7 @@ export interface CreateOrderPayload {
   notes?: string;
   paymentIntentId?: string;
   checkoutToken?: string;
+  currency?: string;
 }
 
 export interface OrderSummary {

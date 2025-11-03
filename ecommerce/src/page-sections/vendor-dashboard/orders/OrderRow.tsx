@@ -37,7 +37,7 @@ export default function OrderRow({ order }: OrderRowProps) {
         border="1px solid"
         borderColor="gray.200">
         <H5 m="6px" textAlign="left">
-          #{order.uuid || order.id}
+          #{order.id}
         </H5>
 
         <Box m="6px">

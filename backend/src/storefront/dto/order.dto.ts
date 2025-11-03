@@ -9,6 +9,7 @@ import {
   IsString,
   ValidateNested,
   IsObject,
+  Matches,
 } from 'class-validator'
 
 class StorefrontOrderCustomerDto {
@@ -98,4 +99,9 @@ export class StorefrontCreateOrderDto {
   @IsOptional()
   @IsString()
   checkoutToken?: string
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z]{3}$/, { message: 'Currency must be a 3-letter ISO code' })
+  currency?: string
 }

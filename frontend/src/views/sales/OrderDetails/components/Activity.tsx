@@ -22,6 +22,7 @@ type DisplayEvent = {
     badgeClassName: string
     timestampLabel: string
     isEnd: boolean
+    completed?: boolean
 }
 
 type PaymentSummary = {
@@ -165,6 +166,13 @@ const sanitizeDays = (value?: number | null) => {
         return null
     }
     return Math.max(0, Math.round(numeric))
+}
+
+const getEventMetadata = (event: OrderTimelineEvent): Record<string, unknown> => {
+    if (!event.metadata || typeof event.metadata !== 'object' || Array.isArray(event.metadata)) {
+        return {}
+    }
+    return event.metadata as Record<string, unknown>
 }
 
 const computeOrderEstimate = (order?: OrderTimelineResponse['order']) => {
@@ -315,6 +323,7 @@ const getEventDescription = (
     order: OrderTimelineResponse['order'] | undefined,
     translate: (key: string, options: { defaultValue: string; [key: string]: unknown }) => string,
 ) => {
+    const metadata = getEventMetadata(event)
     const type = (event.type || '').toUpperCase()
     const currency = event.currency ?? order?.orderCurrency ?? null
 
@@ -365,13 +374,30 @@ const getEventDescription = (
     }
 
     if (type === 'ESTIMATE_SET' || type === 'ESTIMATE_UPDATED') {
+        const isCompleted = metadata.completed === true
+        if (isCompleted) {
+            const completedLabel =
+                typeof metadata.completedAt === 'string'
+                    ? formatDateOnly(metadata.completedAt)
+                    : null
+            const fallbackLabel =
+                formatDateOnly(event.estimateDate ?? null) ??
+                formatDateOnly(event.timestamp ?? null) ??
+                ''
+            const label = completedLabel ?? fallbackLabel
+            return translate('sales.orderDetails.timeline.delivery.estimateCompletedDetail', {
+                defaultValue: label ? `Delivery completed ${label}` : 'Delivery completed',
+                date: label,
+            })
+        }
+
         const dateLabel =
             formatDateOnly(event.estimateDate ?? null) ??
             formatDateOnly(event.timestamp ?? null)
         if (type === 'ESTIMATE_UPDATED') {
             const previous =
-                typeof event.metadata === 'object' && event.metadata
-                    ? (event.metadata as Record<string, unknown>).previousEstimate
+                typeof metadata.previousEstimate === 'string'
+                    ? metadata.previousEstimate
                     : null
             const previousLabel = formatDateOnly(
                 typeof previous === 'string' ? previous : undefined,
@@ -450,8 +476,8 @@ const buildTimelineSummary = (
         .slice()
         .sort(
             (a, b) =>
-                dayjs(a.timestamp).valueOf() -
-                dayjs(b.timestamp).valueOf(),
+                dayjs(a.estimateDate ?? a.timestamp).valueOf() -
+                dayjs(b.estimateDate ?? b.timestamp).valueOf(),
         )
 
     let startEvent =
@@ -517,8 +543,8 @@ const buildTimelineSummary = (
 
     const deduped = dedupeByEventId(sorted).sort(
         (a, b) =>
-            dayjs(a.timestamp).valueOf() -
-            dayjs(b.timestamp).valueOf(),
+            dayjs(a.estimateDate ?? a.timestamp).valueOf() -
+            dayjs(b.estimateDate ?? b.timestamp).valueOf(),
     )
 
     const estimateEventForSummary = latestEstimate ?? earliestEstimate ?? null
@@ -546,17 +572,23 @@ const buildTimelineSummary = (
             `sales.orderDetails.timeline.event.${normalizedType.toLowerCase()}`,
             { defaultValue: fallbackLabel },
         )
+        const metadata = getEventMetadata(event)
         const description = getEventDescription(event, order, translate)
-        const badgeClassName =
-            EVENT_BADGE_COLORS[(event.type || '').toUpperCase()] ?? 'bg-slate-400'
+        const isEstimateEvent = normalizedType === 'ESTIMATE_SET' || normalizedType === 'ESTIMATE_UPDATED'
+        const isCompleted = isEstimateEvent && metadata.completed === true
+        const badgeClassName = isCompleted
+            ? 'bg-emerald-600'
+            : EVENT_BADGE_COLORS[(event.type || '').toUpperCase()] ?? 'bg-slate-400'
+        const timestampSource = event.estimateDate ?? event.timestamp
         return {
             id: event.eventId,
             event,
             label,
             description,
             badgeClassName,
-            timestampLabel: formatDateTime(event.timestamp),
+            timestampLabel: formatDateTime(timestampSource),
             isEnd: event.eventId === endEvent?.eventId,
+            completed: isCompleted,
         }
     })
 
@@ -588,8 +620,8 @@ const Activity = ({ timeline, loading = false, error = null }: ActivityProps) =>
                 return 1
             }
             return (
-                dayjs(b.event.timestamp).valueOf() -
-                dayjs(a.event.timestamp).valueOf()
+                dayjs(b.event.estimateDate ?? b.event.timestamp).valueOf() -
+                dayjs(a.event.estimateDate ?? a.event.timestamp).valueOf()
             )
         })
     }, [summary.events])
@@ -645,7 +677,8 @@ const Activity = ({ timeline, loading = false, error = null }: ActivityProps) =>
                                     <Badge
                                         innerClass={classNames(
                                             item.badgeClassName,
-                                            item.isEnd && 'ring-2 ring-emerald-300',
+                                            (item.isEnd || item.completed) &&
+                                                'ring-2 ring-emerald-300',
                                         )}
                                     />
                                 </div>
@@ -655,6 +688,7 @@ const Activity = ({ timeline, loading = false, error = null }: ActivityProps) =>
                                 className={classNames(
                                     'font-semibold mb-1 text-base',
                                     item.isEnd && 'text-primary',
+                                    item.completed && 'text-emerald-600',
                                 )}
                             >
                                 {item.label}

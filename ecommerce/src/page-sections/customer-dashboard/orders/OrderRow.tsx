@@ -14,21 +14,25 @@ import Typography, { H5, Small } from "@component/Typography";
 
 import type { OrderSummary } from "@/types/storefront";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
+import { getBadgePalette, resolveOrderBadgeDescriptor, formatOrderBadgeLabel } from "@/lib/utils/order-status";
+import { useTranslation } from "@/state/i18n-context";
 
 // =================================================
 type OrderRowProps = { order: OrderSummary };
 // =================================================
 
 export default function OrderRow({ order }: OrderRowProps) {
-  const statusLabel = order.statusLabel ?? order.status ?? "Pendiente";
-  const badgeVariant = order.statusBadgeColor ?? "secondary";
+  const translate = useTranslation();
+  const badgeDescriptor = resolveOrderBadgeDescriptor(order);
+  const statusLabel = formatOrderBadgeLabel(badgeDescriptor, translate);
+  const badgePalette = getBadgePalette(badgeDescriptor.variant);
   const placedDate = format(new Date(order.placedAt), "MMM dd, yyyy");
   const total = order.summary.grandTotal;
   const { formatMoney } = useMoneyFormatter();
   const formattedTotal = useMemo(() => formatMoney(total), [formatMoney, total]);
-  const orderIdentifierRaw = order.uuid || order.reference || order.orderNumber || String(order.id);
-  const orderIdentifier = String(orderIdentifierRaw);
-  const encodedIdentifier = encodeURIComponent(orderIdentifier);
+  const orderUuid = order.uuid || order.reference || order.orderNumber || String(order.id);
+  const encodedIdentifier = encodeURIComponent(orderUuid);
+  const displayIdentifier = `#${order.id}`;
 
   return (
     <Link href={`/orders/${encodedIdentifier}`}>
@@ -39,12 +43,12 @@ export default function OrderRow({ order }: OrderRowProps) {
         border="1px solid"
         borderColor="gray.200">
         <H5 m="6px" textAlign="left" fontWeight={500}>
-          #{orderIdentifier}
+          {displayIdentifier}
         </H5>
 
         <Box m="6px">
-          <Chip p="0.25rem 1rem" bg={`${badgeVariant}.light`}>
-            <Small color={`${badgeVariant}.main`}>{statusLabel}</Small>
+          <Chip p="0.25rem 1rem" bg={badgePalette.background}>
+            <Small color={badgePalette.color}>{statusLabel}</Small>
           </Chip>
         </Box>
 

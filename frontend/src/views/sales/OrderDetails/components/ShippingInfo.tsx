@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+import dayjs from 'dayjs'
 import Avatar from '@/components/ui/Avatar'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -12,10 +14,20 @@ type ShippingInfoProps = {
         shippingLogo: string
         shippingVendor: string
     }
+    estimatedDate?: string | null
+    onEdit?: () => void
 }
 
-const ShippingInfo = ({ data }: ShippingInfoProps) => {
+const ShippingInfo = ({ data, estimatedDate, onEdit }: ShippingInfoProps) => {
     const { t } = useTranslation()
+    const estimatedDateLabel = useMemo(() => {
+        if (!estimatedDate) {
+            return null
+        }
+        const parsed = dayjs(estimatedDate)
+        return parsed.isValid() ? parsed.format('DD MMM YYYY') : null
+    }, [estimatedDate])
+
     return (
         <Card className="mb-4">
             <h5 className="mb-4">{t('text.titles.shipping')}</h5>
@@ -24,9 +36,15 @@ const ShippingInfo = ({ data }: ShippingInfoProps) => {
                     <Avatar size={60} src={data?.shippingLogo} />
                     <div className="ltr:ml-2 rtl:mr-2">
                         <h6>{data?.shippingVendor}</h6>
-                        <span>
-                            {t('text.labels.deliveryIn')} {data?.estimatedMin} ~ {data?.estimatedMax} {t('text.labels.days')}
-                        </span>
+                        <div className="text-sm text-gray-600 dark:text-gray-300">
+                            {t('text.labels.deliveryIn')} {data?.estimatedMin} ~ {data?.estimatedMax}{' '}
+                            {t('text.labels.days')}
+                        </div>
+                        {estimatedDateLabel && (
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                                {t('text.labels.estimatedDelivery')}: {estimatedDateLabel}
+                            </div>
+                        )}
                     </div>
                 </div>
                 <span className="font-semibold">
@@ -40,7 +58,9 @@ const ShippingInfo = ({ data }: ShippingInfoProps) => {
                     />
                 </span>
             </div>
-            <Button block>{t('text.actions.viewCarrierDetails')}</Button>
+            <Button block onClick={() => onEdit?.()}>
+                {t('text.actions.editDeliveryInformation')}
+            </Button>
         </Card>
     )
 }
