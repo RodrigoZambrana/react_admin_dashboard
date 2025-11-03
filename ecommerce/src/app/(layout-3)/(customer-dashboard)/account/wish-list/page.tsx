@@ -7,14 +7,17 @@ import { Button } from "@component/buttons";
 import DashboardPageHeader from "@component/DashboardPageHeader";
 
 import { WishlistContent } from "@/app/(storefront)/account/wish-list/wishlist-page";
+import { useTranslation } from "@/state/i18n-context";
 
 export default function AccountWishListPage() {
+  const t = useTranslation();
+
   return (
     <Box display="flex" flexDirection="column" gap="1.5rem">
       <DashboardPageHeader
-        title="My Wish List"
+        title={t("My Wish List")}
         Icon={<IconHeartFilled size={27} />}
-        button={<Button color="primary">Add All to Cart</Button>}
+        button={<Button color="primary">{t("Add All to Cart")}</Button>}
       />
       <WishlistContent />
     </Box>

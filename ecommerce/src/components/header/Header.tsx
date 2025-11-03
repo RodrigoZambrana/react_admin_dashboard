@@ -22,6 +22,7 @@ import Categories from "@component/categories/Categories";
 import { SearchInputWithCategory } from "@component/search-box";
 import useCart from "@hook/useCart";
 import { useSession } from "@/state/session-context";
+import { useTranslation } from "@/state/i18n-context";
 import { looksLikePhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
 import type { CategorySummary } from "@/types/storefront";
 import { useStorefrontNavigation, type StorefrontNavigationNode } from "@/hooks/useStorefrontNavigation";
@@ -146,6 +147,7 @@ export default function Header({ isFixed, className }: HeaderProps) {
   const { state, itemCount } = useCart();
   const router = useRouter();
   const { isAuthenticated, logout, login, loginWithGoogle, error, clearError } = useSession();
+  const t = useTranslation();
   const [cartOpen, setCartOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
@@ -428,13 +430,13 @@ export default function Header({ isFixed, className }: HeaderProps) {
             handle={<AccountButton />}>
             <Box p="1.25rem" height="100%" display="flex" flexDirection="column" onClickCapture={handleAccountNavClick}>
               <H4 mb="0.75rem" fontWeight={600}>
-                My Account
+                {t("My Account")}
               </H4>
               <Box flex="1 1 0" overflow="auto" pr="0.25rem">
                 <DashboardNavigation />
               </Box>
               <Button variant="outlined" color="primary" mt="1.5rem" onClick={() => { void handleLogout(); }}>
-                Log out
+                {t("Log out")}
               </Button>
             </Box>
           </Sidenav>

@@ -3,6 +3,7 @@ interface Service {
   icon: string;
   title: string;
   description?: string;
+  href?: string;
 }
 
 export default Service;

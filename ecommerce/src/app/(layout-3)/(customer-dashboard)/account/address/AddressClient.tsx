@@ -13,17 +13,18 @@ import DashboardPageHeader from "@component/DashboardPageHeader";
 import { AddressItem, AddressPagination } from "@sections/customer-dashboard/address";
 
 import { useAccountProfile } from "@/hooks/useAccountProfile";
-
-const HEADER_LINK = (
-  <Link href="/account/address/create">
-    <Button color="primary">Add New Address</Button>
-  </Link>
-);
+import { useTranslation } from "@/state/i18n-context";
 
 export default function AddressClient() {
   const { profile, loading, error, refresh } = useAccountProfile();
+  const t = useTranslation();
 
   const addresses = profile?.addresses ?? [];
+  const headerLink = (
+    <Link href="/account/address/create">
+      <Button color="primary">{t("Add New Address")}</Button>
+    </Link>
+  );
 
   if (loading && !profile) {
     return (
@@ -45,7 +46,7 @@ export default function AddressClient() {
           {error}
         </Typography>
         <Button color="primary" variant="contained" onClick={() => refresh()}>
-          Try again
+          {t("Try again")}
         </Button>
       </FlexBox>
     );
@@ -54,8 +55,8 @@ export default function AddressClient() {
   return (
     <Fragment>
       <DashboardPageHeader
-        title="My Addresses"
-        button={HEADER_LINK}
+        title={t("My Addresses")}
+        button={headerLink}
         Icon={<IconMapPin size={27} />}
       />
 
@@ -72,7 +73,7 @@ export default function AddressClient() {
             {error}
           </Typography>
           <Button color="primary" variant="outlined" onClick={() => refresh()} size="small">
-            Retry
+            {t("Retry")}
           </Button>
         </FlexBox>
       )}
@@ -89,14 +90,14 @@ export default function AddressClient() {
           borderRadius={12}
           p="2rem">
           <Typography fontWeight={600} fontSize="16px">
-            You haven&apos;t saved any addresses yet.
+            {t("You haven't saved any addresses yet.")}
           </Typography>
           <Typography color="text.muted" textAlign="center" maxWidth="360px">
-            Add your shipping address details so your future orders are ready to go.
+            {t("Add your shipping address details so your future orders are ready to go.")}
           </Typography>
           <Link href="/account/address/create">
             <Button color="primary" variant="contained">
-              Add an address
+              {t("Add an address")}
             </Button>
           </Link>
         </FlexBox>

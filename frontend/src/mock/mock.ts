@@ -48,6 +48,10 @@ import {
     paymentMethodsData,
     emailTemplatesData,
     emailMetricsData,
+    emailSettingsData,
+    emailRoleRulesData,
+    emailLogsData,
+    emailProviderConfigData,
 } from './data/settingsData'
 
 import {
@@ -107,6 +111,10 @@ export function mockServer({ environment = 'test' }) {
                 paymentMethodsData,
                 emailTemplatesData,
                 emailMetricsData,
+                emailSettingsData,
+                emailRoleRulesData,
+                emailLogsData,
+                emailProviderConfigData,
                 crmDashboardData,
                 projectDashboardData,
                 cryptoDashboardData,

@@ -5,7 +5,8 @@ import { EmailCategory, EmailTemplate, EmailTemplateVariant } from '@prisma/clie
 import { TEMPLATE_DEFINITIONS, TemplateDefinition } from './templates/definitions'
 import { EmailRenderContext } from './email.types'
 import Handlebars from 'handlebars'
-import mjml2html from 'mjml'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+import mjml2html = require('mjml')
 import { htmlToText } from 'html-to-text'
 
 type CompiledTemplate = {
@@ -64,6 +65,7 @@ export class EmailTemplateService implements OnModuleInit {
   private readonly logger = new Logger(EmailTemplateService.name)
   private readonly hbs = Handlebars.create()
   private templateCache = new Map<string, CompiledTemplate>()
+  private readonly compileMjml = (markup: string, options?: Record<string, unknown>) => mjml2html(markup, options)
 
   constructor(
     private readonly prisma: PrismaService,
@@ -101,6 +103,12 @@ export class EmailTemplateService implements OnModuleInit {
     )
     this.hbs.registerHelper('eventLabel', (event: string, options?: Handlebars.HelperOptions) =>
       this.resolveEventLabel(event, options),
+    )
+    this.hbs.registerHelper('eventMessage', (payload: unknown, options?: Handlebars.HelperOptions) =>
+      this.resolveEventMessage(payload, options, 'customer'),
+    )
+    this.hbs.registerHelper('eventAdminMessage', (payload: unknown, options?: Handlebars.HelperOptions) =>
+      this.resolveEventMessage(payload, options, 'admin'),
     )
   }
 
@@ -187,6 +195,261 @@ export class EmailTemplateService implements OnModuleInit {
     const language = locale.split(/[-_]/)[0]?.toLowerCase() || 'en'
     const labels = EVENT_LABELS[language] ?? EVENT_LABELS.en
     return labels[event] ?? labels['order.status.updated'] ?? event
+  }
+
+  private resolveEventMessage(
+    payload: unknown,
+    options: Handlebars.HelperOptions | undefined,
+    audience: 'customer' | 'admin',
+  ) {
+    if (!payload || typeof payload !== 'object') {
+      return ''
+    }
+    const locale = this.resolveLocale(options)
+    const language = locale.split(/[-_]/)[0]?.toLowerCase() || 'en'
+    const isSpanish = language === 'es'
+    const data = payload as Record<string, unknown>
+    const docType = String(data.documentType ?? 'ORDER').toUpperCase()
+    const event = String(data.event ?? '')
+    const orderNumber =
+      data.orderNumber !== undefined && data.orderNumber !== null && data.orderNumber !== ''
+        ? String(data.orderNumber)
+        : null
+    const orderDate = data.orderDate ? String(data.orderDate) : null
+    const validUntil = data.validUntil ? String(data.validUntil) : null
+    const customer =
+      (data.customer as Record<string, unknown> | undefined) ?? undefined
+    const customerName =
+      (customer?.name as string | undefined) ||
+      (customer?.email as string | undefined) ||
+      (isSpanish ? 'el cliente' : 'the customer')
+
+    const makeRef = (type: 'order' | 'quote') => {
+      const nounEn = type === 'order' ? 'order' : 'quote'
+      const nounEs = type === 'order' ? 'pedido' : 'presupuesto'
+      if (orderNumber) {
+        if (isSpanish) {
+          return `el ${nounEs} #${orderNumber}`
+        }
+        return `${nounEn} #${orderNumber}`
+      }
+      if (isSpanish) {
+        return audience === 'customer'
+          ? `tu ${nounEs}`
+          : `el ${nounEs}`
+      }
+      if (audience === 'customer') {
+        return type === 'order' ? 'your order' : 'your quote'
+      }
+      return `the ${nounEn}`
+    }
+
+    const finalize = (text?: string | null) => {
+      if (!text) {
+        return null
+      }
+      const trimmed = text.trim()
+      if (!trimmed) {
+        return null
+      }
+      return trimmed.endsWith('.') ? trimmed : `${trimmed}.`
+    }
+
+    const joinSentences = (...sentences: Array<string | null>) =>
+      sentences.filter(Boolean).join(' ')
+
+    const orderRef = makeRef('order')
+    const quoteRef = makeRef('quote')
+    const dateFragment = (value: string | null, prefixEn: string, prefixEs: string) => {
+      if (!value) {
+        return ''
+      }
+      return isSpanish ? ` ${prefixEs} ${value}` : ` ${prefixEn} ${value}`
+    }
+
+    const buildCustomerMessage = () => {
+      if (docType === 'BUDGET') {
+        switch (event) {
+          case 'budget.created':
+            return joinSentences(
+              finalize(
+                isSpanish
+                ? `Preparamos ${quoteRef}${dateFragment(orderDate, 'on', 'el')} para que lo revises.`
+                : `We prepared ${quoteRef}${dateFragment(orderDate, 'on', 'el')} for you to review.`,
+              ),
+              finalize(
+                isSpanish
+                  ? 'Revisá los detalles a continuación.'
+                  : 'Review the details below.',
+              ),
+            )
+          case 'budget.status.sent':
+            return finalize(
+              isSpanish
+                ? 'Tu presupuesto está listo para compartir.'
+                : 'Your quote is ready to share.',
+            )
+          case 'budget.status.accepted':
+            return finalize(
+              isSpanish
+                ? 'Gracias por aprobar tu presupuesto. Coordinaremos los próximos pasos a la brevedad.'
+                : 'Thanks for approving your quote. We will coordinate the next steps shortly.',
+            )
+          case 'budget.status.converted':
+            return finalize(
+              isSpanish
+                ? 'Tu presupuesto ahora es un pedido. Te mantendremos al tanto del progreso.'
+                : 'Your quote is now an order. We will keep you posted with progress.',
+            )
+          case 'budget.status.expired':
+            return joinSentences(
+              finalize(
+                isSpanish
+                  ? `${quoteRef} venció${validUntil ? ` el ${validUntil}` : ''}.`
+                  : `${quoteRef} expired${validUntil ? ` on ${validUntil}` : ''}.`,
+              ),
+              finalize(
+                isSpanish
+                  ? 'Contactanos si necesitás una versión actualizada.'
+                  : 'Contact us if you need an updated version.',
+              ),
+            )
+          case 'budget.status.cancelled':
+            return finalize(
+              isSpanish
+                ? 'Este presupuesto fue cancelado según tu solicitud. Escribinos si querés reactivarlo.'
+                : 'This quote was cancelled as requested. Reach out if you would like to reactivate it.',
+            )
+          default:
+            return finalize(
+              isSpanish
+                ? 'Aquí tenés la última actualización de tu presupuesto.'
+                : 'Here is the latest update for your quote.',
+            )
+        }
+      }
+      switch (event) {
+        case 'order.received':
+          return joinSentences(
+            finalize(
+              (isSpanish ? 'Recibimos' : 'We received') +
+                ` ${orderRef}${dateFragment(orderDate, 'on', 'el')}.`,
+            ),
+            finalize(
+              isSpanish
+                ? 'Te avisaremos a medida que avance.'
+                : 'We will share updates as it moves forward.',
+            ),
+          )
+        case 'order.status.paid':
+          return finalize(
+            isSpanish
+              ? 'Confirmamos tu pago. Estamos preparando todo para el próximo paso.'
+              : 'Your payment was confirmed. We are preparing everything for the next step.',
+          )
+        case 'order.status.delivered':
+          return finalize(
+            isSpanish
+              ? 'Tu pedido fue entregado. ¡Gracias por elegirnos!'
+              : 'Your items have been delivered. Enjoy!',
+          )
+        case 'order.status.cancelled':
+          return finalize(
+            isSpanish
+              ? 'Tu pedido fue cancelado. Contactanos si podemos ayudarte.'
+              : 'Your order was cancelled. Contact us if we can help further.',
+          )
+        default:
+          return finalize(
+            isSpanish
+              ? 'Te compartimos la última novedad de tu pedido.'
+              : 'Here is the latest update for your order.',
+          )
+      }
+    }
+
+    const buildAdminMessage = () => {
+      if (docType === 'BUDGET') {
+        switch (event) {
+          case 'budget.created':
+            return finalize(
+              isSpanish
+                ? `Nuevo ${quoteRef} creado por ${customerName}${dateFragment(orderDate, 'on', 'el')}.`
+                : `New ${quoteRef} created by ${customerName}${dateFragment(orderDate, 'on', 'el')}.`,
+            )
+          case 'budget.status.sent':
+            return finalize(
+              isSpanish
+                ? `${quoteRef} compartido con el cliente.`
+                : `${quoteRef} shared with the customer.`,
+            )
+          case 'budget.status.accepted':
+            return finalize(
+              isSpanish
+                ? `El cliente aprobó ${quoteRef}. Revisá los próximos pasos.`
+                : `Customer approved ${quoteRef}. Review next steps.`,
+            )
+          case 'budget.status.converted':
+            return finalize(
+              isSpanish
+                ? `${quoteRef} se convirtió en pedido. Supervisá el avance.`
+                : `${quoteRef} converted to an order. Monitor fulfillment progress.`,
+            )
+          case 'budget.status.expired':
+            return finalize(
+              isSpanish
+                ? `${quoteRef} venció${validUntil ? ` el ${validUntil}` : ''}.`
+                : `${quoteRef} expired${validUntil ? ` on ${validUntil}` : ''}.`,
+            )
+          case 'budget.status.cancelled':
+            return finalize(
+              isSpanish
+                ? `${quoteRef} cancelado a pedido del cliente.`
+                : `${quoteRef} cancelled per customer request.`,
+            )
+          default:
+            return finalize(
+              isSpanish
+                ? `Actualización de ${quoteRef} para seguimiento.`
+                : `${quoteRef} update for follow-up.`,
+            )
+        }
+      }
+      switch (event) {
+        case 'order.received':
+          return finalize(
+            isSpanish
+              ? `Nuevo ${orderRef} generado por ${customerName}${dateFragment(orderDate, 'on', 'el')}.`
+              : `New ${orderRef} placed by ${customerName}${dateFragment(orderDate, 'on', 'el')}.`,
+          )
+        case 'order.status.paid':
+          return finalize(
+            isSpanish
+              ? `${orderRef} marcado como pagado. Confirmá logística o facturación.`
+              : `${orderRef} marked as paid. Confirm logistics or invoicing.`,
+          )
+        case 'order.status.delivered':
+          return finalize(
+            isSpanish
+              ? `${orderRef} entregado. Cerrá las tareas pendientes.`
+              : `${orderRef} delivered. Close out outstanding tasks.`,
+          )
+        case 'order.status.cancelled':
+          return finalize(
+            isSpanish
+              ? `${orderRef} cancelado. Revisá inventario o devoluciones.`
+              : `${orderRef} cancelled. Review inventory or refund actions.`,
+          )
+        default:
+          return finalize(
+            isSpanish
+              ? `Actualización del ${orderRef}.`
+              : `${orderRef} updated.`,
+          )
+      }
+    }
+
+    return audience === 'customer' ? buildCustomerMessage() ?? '' : buildAdminMessage() ?? ''
   }
 
   private async synchronizeStaticTemplates() {
@@ -328,7 +591,7 @@ export class EmailTemplateService implements OnModuleInit {
 
     const subject = template.subjectCompiler(baseContext)
     const mjmlMarkup = template.bodyCompiler(baseContext)
-    const result = mjml2html(mjmlMarkup, {
+    const result = this.compileMjml(mjmlMarkup, {
       validationLevel: 'soft',
       fonts: {
         Inter: 'https://fonts.googleapis.com/css?family=Inter',

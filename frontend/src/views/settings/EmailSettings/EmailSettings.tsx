@@ -187,7 +187,6 @@ const EmailListEditor = ({
 }: EmailListEditorProps) => {
     const [draft, setDraft] = useState('')
     const { t } = useTranslation()
-    const { confirm, ConfirmationDialog } = useConfirmation()
 
     const addEmail = useCallback(() => {
         const normalized = draft.trim().toLowerCase()
@@ -921,6 +920,7 @@ const TemplatesPanel = ({
 
 const EmailSettings = () => {
     const { t } = useTranslation()
+    const { confirm, ConfirmationDialog } = useConfirmation()
     const [activeTab, setActiveTab] = useState<EmailCategory>('ORDERS')
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState<Record<EmailCategory, boolean>>({
@@ -958,9 +958,9 @@ const EmailSettings = () => {
         },
     })
     const [roleRules, setRoleRules] = useState<RoleRuleResponse[]>([])
-   const [roleOptions, setRoleOptions] = useState<RoleOption[]>([])
-   const [loadingRules, setLoadingRules] = useState(false)
-   const [templates, setTemplates] = useState<EmailTemplateSummary[]>([])
+    const [roleOptions, setRoleOptions] = useState<RoleOption[]>([])
+    const [loadingRules, setLoadingRules] = useState(false)
+    const [templates, setTemplates] = useState<EmailTemplateSummary[]>([])
     const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
     const [templateDetail, setTemplateDetail] = useState<EmailTemplateDetail | null>(null)
     const [templateDirty, setTemplateDirty] = useState(false)
@@ -976,6 +976,17 @@ const EmailSettings = () => {
     const categoryLabels = useMemo(() => buildCategoryLabel(t), [t])
     const statusLabels = useMemo(() => buildStatusLabel(t), [t])
     const recipientLabels = useMemo(() => buildRecipientLabel(t), [t])
+    const scenarioSelectOptions = useMemo(
+        () => scenarioOptions.map((option) => ({ value: option.key, label: option.label })),
+        [scenarioOptions],
+    )
+    const scenarioSelectValue = useMemo(
+        () =>
+            scenarioKey
+                ? scenarioSelectOptions.find((option) => option.value === scenarioKey) ?? null
+                : null,
+        [scenarioKey, scenarioSelectOptions],
+    )
 
     const mapResponseToDraft = (setting: CategorySettingResponse): CategoryDraft => ({
         enabled: setting.enabled,
@@ -1476,10 +1487,14 @@ const EmailSettings = () => {
                                         onChange={(option) => setPreviewLocale((option?.value as string) || 'en')}
                                     />
                                     <Select
-                                        value={scenarioKey ?? ''}
-                                        options={scenarioOptions.map((option) => ({ value: option.key, label: option.label }))}
-                                        placeholder={t('settings.email.templates.scenarioPlaceholder', { defaultValue: 'Scenario' })}
-                                        onChange={(option) => setScenarioKey((option?.value as string) || undefined)}
+                                        value={scenarioSelectValue}
+                                        options={scenarioSelectOptions}
+                                        placeholder={t('settings.email.templates.scenarioPlaceholder', {
+                                            defaultValue: 'Scenario',
+                                        })}
+                                        onChange={(option) =>
+                                            setScenarioKey((option?.value as string | undefined) ?? undefined)
+                                        }
                                         isClearable
                                     />
                                 </div>

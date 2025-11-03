@@ -209,9 +209,10 @@ export async function apiUpdateSalesOrderPaymentMethod<
 export type UpdateOrderDeliveryPayload = {
     shippingVendor?: string | null
     deliveryFees?: number
-    estimatedDate?: string
+    estimatedDate?: string | null
     estimatedMinDays?: number
     estimatedMaxDays?: number
+    clearEstimate?: boolean
 }
 
 export async function apiUpdateSalesOrderDelivery<T>(

@@ -201,7 +201,7 @@ export default function SearchInputWithCategory() {
           fullWidth
           onChange={handleSearch}
           className="search-field"
-          placeholder="Search and hit enter..."
+          placeholder={t("Search and hit enter...")}
         />
 
         <Menu

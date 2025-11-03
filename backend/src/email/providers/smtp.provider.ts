@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer'
+import * as nodemailer from 'nodemailer'
 import type SMTPTransport from 'nodemailer/lib/smtp-transport'
 import { EmailMessage, EmailProviderSendResult } from '../email.types'
 import { EmailProvider } from './email-provider'

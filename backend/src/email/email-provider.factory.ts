@@ -4,6 +4,7 @@ import { EmailProvider } from './providers/email-provider'
 import { SmtpEmailProvider } from './providers/smtp.provider'
 import { DevEmailProvider } from './providers/dev.provider'
 import { SendGridEmailProvider } from './providers/sendgrid.provider'
+import { EmailSettingsService } from './email-settings.service'
 
 export type EmailProviderType = 'SMTP' | 'SENDGRID' | 'DEV'
 
@@ -12,31 +13,30 @@ export class EmailProviderFactory {
   private readonly logger = new Logger(EmailProviderFactory.name)
   private cachedProvider: EmailProvider | null = null
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly emailSettings: EmailSettingsService,
+  ) {}
 
-  getProvider(): EmailProvider {
+  async getProvider(): Promise<EmailProvider> {
     if (this.cachedProvider) {
       return this.cachedProvider
     }
-    const providerType = (this.config.get<string>('EMAIL_PROVIDER') || 'DEV').toUpperCase() as EmailProviderType
-    this.logger.log(`Initializing email provider: ${providerType}`)
-    switch (providerType) {
+    const providerConfig = await this.emailSettings.resolveEmailProviderConfig()
+    this.logger.log(`Initializing email provider: ${providerConfig.provider}`)
+    switch (providerConfig.provider) {
       case 'SMTP': {
-        const host = this.config.get<string>('EMAIL_SMTP_HOST') ?? ''
-        const port = Number(this.config.get<string>('EMAIL_SMTP_PORT') ?? '587')
-        const secure = (this.config.get<string>('EMAIL_SMTP_SECURE') ?? 'false').toLowerCase() === 'true'
-        const user = this.config.get<string>('EMAIL_SMTP_USER') ?? undefined
-        const password = this.config.get<string>('EMAIL_SMTP_PASSWORD') ?? undefined
-        if (!host) {
-          throw new Error('EMAIL_SMTP_HOST is required when EMAIL_PROVIDER=SMTP')
+        const smtp = providerConfig.smtp
+        if (!smtp || !smtp.host) {
+          throw new Error('SMTP configuration is incomplete. Host is required.')
         }
         this.cachedProvider = new SmtpEmailProvider({
-          host,
-          port,
-          secure,
-          user,
-          password,
-          allowInvalidCerts: (this.config.get<string>('EMAIL_SMTP_ALLOW_INVALID_CERTS') ?? 'false').toLowerCase() === 'true',
+          host: smtp.host,
+          port: smtp.port,
+          secure: smtp.secure,
+          user: smtp.user ?? undefined,
+          password: smtp.password ?? undefined,
+          allowInvalidCerts: smtp.allowInvalidCerts,
         })
         break
       }
@@ -56,5 +56,9 @@ export class EmailProviderFactory {
       }
     }
     return this.cachedProvider
+  }
+
+  reset() {
+    this.cachedProvider = null
   }
 }

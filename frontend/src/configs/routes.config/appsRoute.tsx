@@ -416,9 +416,21 @@ const baseAppsRoute: Routes = [
         authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
-        key: 'appsSettings.email',
+        key: 'appsSettings.emailRoot',
         path: `${APP_PREFIX_PATH}/settings/email`,
-        component: lazy(() => import('@/views/settings/EmailSettings')),
+        component: lazy(() => import('@/views/settings/EmailSettings/EmailSettingsRedirect')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+    },
+    {
+        key: 'appsSettings.emailConfig',
+        path: `${APP_PREFIX_PATH}/settings/email/config`,
+        component: lazy(() => import('@/views/settings/Email')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+    },
+    {
+        key: 'appsSettings.emailTemplates',
+        path: `${APP_PREFIX_PATH}/settings/email/templates`,
+        component: lazy(() => import('@/views/settings/EmailSettings/EmailTemplatesRedirect')),
         authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {

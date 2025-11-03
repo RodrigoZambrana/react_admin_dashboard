@@ -24,6 +24,9 @@ import { EmailService } from './email.service'
 import { EmailQueueService } from './queue/email-queue.service'
 import { UpdateEmailTemplateDto } from './dto/update-email-template.dto'
 import { PreviewEmailTemplateDto } from './dto/preview-email-template.dto'
+import { UpdateEmailConfigDto, EmailConfigTestDto } from './dto/update-email-config.dto'
+import { EmailProviderFactory } from './email-provider.factory'
+import type { EmailProviderConfig } from './email-settings.service'
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
@@ -35,7 +38,49 @@ export class EmailAdminController {
     private readonly templates: EmailTemplateService,
     private readonly emailService: EmailService,
     private readonly queue: EmailQueueService,
+    private readonly providerFactory: EmailProviderFactory,
   ) {}
+
+  @Get('config')
+  async getConfig() {
+    return this.settings.getEmailProviderConfig()
+  }
+
+  @Put('config')
+  async updateConfig(@Body() body: UpdateEmailConfigDto) {
+    const payload: EmailProviderConfig = {
+      provider: body.provider,
+      fromAddress: body.fromAddress,
+      fromName: body.fromName,
+      smtp:
+        body.provider === 'SMTP'
+          ? {
+              host: body.smtp?.host ?? '',
+              port: body.smtp?.port ?? 587,
+              secure: body.smtp?.secure ?? false,
+              allowInvalidCerts: body.smtp?.allowInvalidCerts ?? false,
+              user: body.smtp?.user ?? null,
+              password: body.smtp?.password ?? null,
+            }
+          : null,
+    }
+    const updated = await this.settings.updateEmailProviderConfig(payload)
+    this.providerFactory.reset()
+    return updated
+  }
+
+  @Post('config/test')
+  async sendConfigTest(@Body() body: EmailConfigTestDto) {
+    this.providerFactory.reset()
+    await this.emailService.sendTestEmail({
+      category: EmailCategory.ORDERS,
+      variant: EmailTemplateVariant.ADMIN,
+      to: body.to,
+      locale: 'en',
+      scenarioKey: 'order.received',
+    })
+    return { ok: true }
+  }
 
   @Get('categories')
   async listCategories() {

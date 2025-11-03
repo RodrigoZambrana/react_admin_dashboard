@@ -43,7 +43,8 @@ export const defaultMarket1ServiceList: Service[] = [
     id: "service-support",
     icon: "customer-service",
     title: "24/7 Support",
-    description: null
+    description: null,
+    href: "http://localhost:3000/account/register"
   }
 ];
 

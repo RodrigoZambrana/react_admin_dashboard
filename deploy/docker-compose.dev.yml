@@ -80,8 +80,8 @@ services:
   frontend:
     <<: *frontend-common
     build:
-      context: ../frontend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: frontend/Dockerfile
       # Ajusta VITE_CLIENT_SLUG para construir una variante específica (por ejemplo urucortinas)
       args:
         VITE_CLIENT_SLUG: ${VITE_CLIENT_SLUG:-core}
@@ -99,8 +99,8 @@ services:
   storefront:
     <<: *storefront-common
     build:
-      context: ../ecommerce
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: ecommerce/Dockerfile
       target: runtime
     container_name: dashboard-storefront-dev
     ports:

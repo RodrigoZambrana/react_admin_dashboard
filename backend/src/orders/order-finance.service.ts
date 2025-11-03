@@ -199,14 +199,28 @@ export class OrderFinanceService {
       })),
     )
 
-    const totalPaidConfirmed = subtractDecimals(
+    let totalPaidConfirmed = subtractDecimals(
       addDecimals(aggregates.depositConfirmed, aggregates.balanceConfirmed),
       aggregates.refundsConfirmed,
     )
 
-    const outstandingRaw = subtractDecimals(grandTotal, totalPaidConfirmed)
-    const outstanding = outstandingRaw.isNegative() ? decimal(0) : outstandingRaw
-    const credit = outstandingRaw.isNegative() ? outstandingRaw.abs() : decimal(0)
+    let outstandingRaw = subtractDecimals(grandTotal, totalPaidConfirmed)
+    let outstanding = outstandingRaw.isNegative() ? decimal(0) : outstandingRaw
+    let credit = outstandingRaw.isNegative() ? outstandingRaw.abs() : decimal(0)
+
+    const isCancelled = order.statusId === ORDER_STATUS_CODES.CANCELLED
+    if (isCancelled) {
+      aggregates.depositConfirmed = decimal(0)
+      aggregates.balanceConfirmed = decimal(0)
+      aggregates.refundsConfirmed = decimal(0)
+      aggregates.depositPending = decimal(0)
+      aggregates.balancePending = decimal(0)
+      aggregates.refundsPending = decimal(0)
+      totalPaidConfirmed = decimal(0)
+      outstanding = decimal(0)
+      outstandingRaw = decimal(0)
+      credit = decimal(0)
+    }
 
     const depositMet = aggregates.depositConfirmed.greaterThanOrEqualTo(roundDecimal(depositRequired, 2))
 

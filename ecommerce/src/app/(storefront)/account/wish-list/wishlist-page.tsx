@@ -19,6 +19,7 @@ import ProductWishlistButton from "@/components/product-cards/ProductWishlistBut
 import { useWishlist } from "@/state/wishlist-context";
 import { isMissingProductImage } from "@/lib/utils/image";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
+import { useTranslation } from "@/state/i18n-context";
 
 const formatAddedDate = (isoString: string) => {
   const date = new Date(isoString);
@@ -31,6 +32,7 @@ const formatAddedDate = (isoString: string) => {
 export function WishlistContent() {
   const { items, count, isLoading, error, clearError, remove, isPending, refresh } = useWishlist();
   const { formatMoney } = useMoneyFormatter();
+  const t = useTranslation();
 
   const handleRemove = useCallback(
     async (productId: number) => {
@@ -45,27 +47,29 @@ export function WishlistContent() {
 
   const emptyState = useMemo(
     () => ({
-      title: "Your wishlist is empty",
-      description: "Save products you love and revisit them anytime.",
+      title: t("Your wishlist is empty"),
+      description: t("Save products you love and revisit them anytime."),
       action: (
         <Link href="/shop">
-          <Button variant="contained" color="primary">Browse products</Button>
+          <Button variant="contained" color="primary">{t("Browse products")}</Button>
         </Link>
       )
     }),
-    []
+    [t]
   );
 
   return (
     <Box display="flex" flexDirection="column" gap="1.5rem">
       <Box display="flex" flexDirection="column" gap="0.5rem">
         <H3 fontSize="24px" fontWeight={700}>
-          Wishlist
+          {t("Wishlist")}
         </H3>
         <Paragraph color="gray.600">
           {count > 0
-            ? `You have ${count} ${count === 1 ? "item" : "items"} saved for later.`
-            : "Keep track of items you love and get back to them easily."}
+            ? (count === 1
+                ? t("You have {count} item saved for later.", { values: { count } })
+                : t("You have {count} items saved for later.", { values: { count } }))
+            : t("Keep track of items you love and get back to them easily.")}
         </Paragraph>
       </Box>
 
@@ -76,7 +80,7 @@ export function WishlistContent() {
               {error}
             </Paragraph>
             <Button variant="outlined" size="small" onClick={clearError}>
-              Dismiss
+              {t("Dismiss")}
             </Button>
           </FlexBox>
         </Card>
@@ -85,7 +89,7 @@ export function WishlistContent() {
       {isLoading ? (
         <FlexBox minHeight="200px" flexDirection="column" justifyContent="center" alignItems="center" gap="1rem">
           <Spinner />
-          <Paragraph color="gray.600">Loading your wishlist...</Paragraph>
+          <Paragraph color="gray.600">{t("Loading your wishlist...")}</Paragraph>
         </FlexBox>
       ) : null}
 
@@ -135,7 +139,7 @@ export function WishlistContent() {
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                       />
                     ) : (
-                      <NoImagePlaceholder height="100%" width="100%" text="No image available" />
+                      <NoImagePlaceholder height="100%" width="100%" text={t("No image available")} />
                     )}
                   </Box>
 
@@ -154,7 +158,9 @@ export function WishlistContent() {
                       {formatMoney(product.salePrice ?? product.price)}
                     </Paragraph>
                     {addedText ? (
-                      <Small color="gray.500">Added on {addedText}</Small>
+                      <Small color="gray.500">
+                        {t("Added on {date}", { values: { date: addedText } })}
+                      </Small>
                     ) : null}
                   </FlexBox>
 
@@ -165,7 +171,7 @@ export function WishlistContent() {
                         size="small"
                         color="primary"
                         style={{ width: "100%" }}>
-                        View product
+                        {t("View product")}
                       </Button>
                     </Link>
 
@@ -177,7 +183,7 @@ export function WishlistContent() {
                       onClick={() => {
                         void handleRemove(item.productId);
                       }}>
-                      Remove
+                      {t("Remove")}
                     </Button>
                   </FlexBox>
                 </FlexBox>
@@ -194,7 +200,7 @@ export function WishlistContent() {
             size="small"
             disabled={isLoading}
             onClick={() => void refresh()}>
-            Refresh
+            {t("Refresh")}
           </Button>
         </FlexBox>
       ) : null}

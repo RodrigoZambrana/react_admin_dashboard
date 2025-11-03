@@ -449,7 +449,7 @@ const appsNavigationConfig: NavigationTree[] = [
                     },
                     {
                         key: 'appsSettings.email',
-                        path: `${APP_PREFIX_PATH}/settings/email`,
+                        path: `${APP_PREFIX_PATH}/settings/email/config`,
                         title: 'Email',
                         translateKey: 'nav.appsSettings.email',
                         icon: '',
