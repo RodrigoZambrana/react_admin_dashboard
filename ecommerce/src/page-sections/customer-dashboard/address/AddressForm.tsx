@@ -387,7 +387,7 @@ export default function AddressForm({ address }: AddressFormProps) {
           ? "Actualizamos la dirección en tu cuenta."
           : "Agregamos la nueva dirección a tu cuenta."
       });
-      router.push("/address");
+      router.push("/account/address");
     } catch (error) {
       let message = "Unable to save address. Please try again.";
       if (isApiError(error)) {

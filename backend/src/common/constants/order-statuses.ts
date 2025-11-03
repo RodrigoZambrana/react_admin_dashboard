@@ -41,7 +41,7 @@ const ORDER_STATUS_DEFINITIONS: OrderStatusDefinition[] = [
     code: 'paid',
     documentTypes: [DocumentType.ORDER],
     label: 'Pagado',
-    color: 'green',
+    color: 'blue',
     translations: {
       es: 'Pagado',
       en: 'Paid',
@@ -261,4 +261,3 @@ export const getDefaultStatusForDocument = (documentType: DocumentType) =>
   ORDER_STATUS_DEFINITIONS.find(
     (definition) => definition.documentTypes.includes(documentType) && definition.isDefault,
   ) ?? null
-

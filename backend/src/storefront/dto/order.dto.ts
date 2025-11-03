@@ -94,4 +94,8 @@ export class StorefrontCreateOrderDto {
   @IsOptional()
   @IsString()
   paymentIntentId?: string
+
+  @IsOptional()
+  @IsString()
+  checkoutToken?: string
 }

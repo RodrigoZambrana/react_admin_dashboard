@@ -124,33 +124,59 @@ export class MercadoPagoService {
   ): Promise<StorefrontPaymentIntent> {
     const { client, config } = await this.acquireClient()
 
-    const body = {
-      transaction_amount: Number(dto.transactionAmount.toFixed(2)),
+    const transactionAmount = Number(dto.transactionAmount.toFixed(2))
+    const currencyCode = (dto.currency ?? '').trim().toUpperCase() || undefined
+
+    const payerEmail = dto.payer.email.trim()
+    const payerFirstName = dto.payer.firstName?.trim()
+    const payerLastName = dto.payer.lastName?.trim()
+    const rawIdentificationType = dto.payer.identification.type.trim()
+    const identificationType = rawIdentificationType.toUpperCase()
+    const identificationNumber = dto.payer.identification.number.trim()
+
+    if (config.country === 'UY' && ['OTRO', 'OTHER'].includes(identificationType)) {
+      throw new BadRequestException(
+        'El tipo de documento no es válido para Uruguay. Usa CI o RUT para continuar con Mercado Pago.',
+      )
+    }
+
+    const payer: Record<string, unknown> = {
+      email: payerEmail,
+      identification: {
+        type: rawIdentificationType,
+        number: identificationNumber,
+      },
+    }
+
+    if (payerFirstName) {
+      payer.first_name = payerFirstName
+    }
+
+    if (payerLastName) {
+      payer.last_name = payerLastName
+    }
+
+    const body: Record<string, unknown> = {
       token: dto.token,
-      description: dto.description,
+      transaction_amount: transactionAmount,
       installments: dto.installments,
       payment_method_id: dto.paymentMethodId,
-      statement_descriptor: dto.statementDescriptor,
-      currency_id: dto.currency,
-      payer: {
-        email: dto.payer.email,
-        first_name: dto.payer.firstName,
-        last_name: dto.payer.lastName,
-        identification: {
-          type: dto.payer.identification.type,
-          number: dto.payer.identification.number,
-        },
-      },
-      metadata: {
-        cartId: dto.cartId ?? options.cartId ?? null,
-        orderId: dto.orderId ?? null,
-        origin: 'storefront',
-        country: config.country ?? null,
-      },
-    } as Record<string, unknown>
+      payer,
+    }
+
+    if (dto.description) {
+      body.description = dto.description
+    }
+
+    if (dto.statementDescriptor) {
+      body.statement_descriptor = dto.statementDescriptor
+    }
 
     if (dto.issuerId) {
-      body.issuer_id = dto.issuerId
+      const issuerIdNumber = Number(dto.issuerId)
+      if (Number.isFinite(issuerIdNumber)) {
+        body.issuer_id = issuerIdNumber
+      }
     }
 
     if (config.applicationId) {
@@ -171,7 +197,7 @@ export class MercadoPagoService {
     const paymentData = payment as unknown as Record<string, any>
 
     const amount = Number(paymentData.transaction_amount ?? dto.transactionAmount)
-    const currency = (paymentData.currency_id ?? dto.currency ?? 'ARS').toUpperCase()
+    const currency = (paymentData.currency_id ?? currencyCode ?? dto.currency ?? 'ARS').toUpperCase()
 
     const orderId = dto.orderId
     const externalPaymentId = paymentData.id ? String(paymentData.id) : undefined
@@ -196,11 +222,11 @@ export class MercadoPagoService {
         description: dto.description ?? null,
         cartId: dto.cartId ?? options.cartId ?? null,
         orderId: orderId ? Number.parseInt(orderId, 10) || null : null,
-        payerEmail: dto.payer.email,
-        payerIdentificationType: dto.payer.identification.type,
-        payerIdentificationNumber: dto.payer.identification.number,
-        payerFirstName: dto.payer.firstName ?? null,
-        payerLastName: dto.payer.lastName ?? null,
+        payerEmail,
+        payerIdentificationType: identificationType,
+        payerIdentificationNumber: identificationNumber,
+        payerFirstName: payerFirstName ?? null,
+        payerLastName: payerLastName ?? null,
         riskLevel: (paymentData.risk_execution_mode as string | undefined) ?? null,
         fraudStatus: (paymentData.fraud_mode as string | undefined) ?? null,
         captureMethod: (paymentData.capture_method as string | undefined) ?? null,

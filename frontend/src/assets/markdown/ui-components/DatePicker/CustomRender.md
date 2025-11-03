@@ -44,7 +44,7 @@ const CustomRender = () => {
                         {day}
                         <Badge
                             className="absolute bottom-1"
-                            innerClass="h-1 w-1"
+                            innerClass="h-1 w-1 bg-emerald-500"
                         />
                     </span>
                 )

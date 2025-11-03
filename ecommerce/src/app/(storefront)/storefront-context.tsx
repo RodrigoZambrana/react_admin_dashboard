@@ -1,17 +1,24 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect } from "react";
 
 import type { StorefrontConfig } from "@/types/storefront";
+import { setSnapshotFallbackEnabled } from "@/lib/resilience-flags";
 
 const StorefrontConfigContext = createContext<StorefrontConfig | null>(null);
 
 export const StorefrontConfigProvider: React.FC<{
   config: StorefrontConfig;
   children: React.ReactNode;
-}> = ({ config, children }) => (
-  <StorefrontConfigContext.Provider value={config}>{children}</StorefrontConfigContext.Provider>
-);
+}> = ({ config, children }) => {
+  useEffect(() => {
+    setSnapshotFallbackEnabled(config.resilience?.snapshotFallbackEnabled !== false);
+  }, [config.resilience?.snapshotFallbackEnabled]);
+
+  return (
+    <StorefrontConfigContext.Provider value={config}>{children}</StorefrontConfigContext.Provider>
+  );
+};
 
 export const useStorefrontConfig = () => {
   const context = useContext(StorefrontConfigContext);
@@ -20,4 +27,3 @@ export const useStorefrontConfig = () => {
   }
   return context;
 };
-

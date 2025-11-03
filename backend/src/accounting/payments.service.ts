@@ -12,10 +12,11 @@ import {
   PaymentListQueryDto,
   UpdatePaymentDto,
 } from './dto/payment.dto'
-import { roundDecimal } from '../common/currency/money.util'
+import { roundDecimal, decimal } from '../common/currency/money.util'
 import { NotificationOrchestratorService } from '../notifications/notification-orchestrator.service'
 import { findPaymentMethodById, matchPaymentMethod } from '../common/constants/payment-methods'
 import { findOrderStatusById } from '../common/constants/order-statuses'
+import { OrderTimelineService } from '../orders/order-timeline.service'
 
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient
 
@@ -24,6 +25,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly orderFinance: OrderFinanceService,
+    private readonly timeline: OrderTimelineService,
     private readonly notifications: NotificationOrchestratorService,
   ) {}
 
@@ -366,9 +368,29 @@ export class PaymentsService {
           })
         }
       }
-      await this.orderFinance.recalculateOrderFinancials(order.id, tx)
-      return payment
-    }).then(async (payment) => {
+      const summary = await this.orderFinance.recalculateOrderFinancials(order.id, tx)
+      const totalConfirmed = decimal(summary.totalPaidConfirmed)
+      const confirmedBefore = payment.status === PaymentStatus.CONFIRMED
+        ? totalConfirmed.minus(decimal(payment.amount))
+        : totalConfirmed
+      const hasPriorConfirmedPayments = confirmedBefore.greaterThan(0)
+      await this.timeline.recordPaymentCapture(
+        {
+          orderId: order.id,
+          paymentId: payment.id,
+          amount: payment.amount,
+          currency,
+          paymentMethod: payment.method ?? null,
+          remainingOutstanding: summary.outstanding,
+          hasPriorConfirmedPayments,
+          paymentStatus: payment.status,
+          paymentType: payment.type,
+          timestamp: payment.date,
+        },
+        tx,
+      )
+      return { payment }
+    }).then(async ({ payment }) => {
       const details = await this.getPayment(payment.id)
       this.notifyPayment(details.id, details.status as PaymentStatus | string | null | undefined)
       return details

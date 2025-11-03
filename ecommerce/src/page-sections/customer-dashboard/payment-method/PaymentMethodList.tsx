@@ -59,7 +59,7 @@ export default function PaymentMethodList({ methodList }: Props) {
           </Typography>
 
           <Typography className="pre" textAlign="center" color="text.muted">
-            <IconButton onClick={() => router.push("/payment-methods/xkssThds6h37sd")}>
+            <IconButton onClick={() => router.push("/account/payment-methods/xkssThds6h37sd")}>
               <IconEdit size={18} />
             </IconButton>
 

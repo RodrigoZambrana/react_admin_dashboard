@@ -1,2233 +1,2290 @@
 {
-    "nav": {
-        "apps": "Apps",
-        "appsProject": {
-            "project": "Project",
-            "dashboard": "Dashboard",
-            "projectList": "Project List",
-            "scrumBoard": "Scrum Board",
-            "issue": "Issue"
-        },
-        "appsCrm": {
-            "crm": "Clients",
-            "dashboard": "Dashboard",
-            "calendar": "Calendar",
-            "customers": "Customers",
-            "customerDetails": "Customer Details",
-            "mail": "Mail"
-        },
-        "appsCalendar": {
-            "calendar": "Calendar",
-            "activities": "Activities",
-            "schedule": "Schedule"
-        },
-        "appsSales": {
-            "sales": "Sales",
-            "dashboard": "Dashboard",
-            "productList": "Product List",
-            "productEdit": "Product Edit",
-            "productNew": "New Product",
-            "orderList": "Order List",
-            "orderDetails": "Order Details",
-            "addOrder": "Add Order",
-            "budgetList": "Budgets",
-            "budgetQuick": "Quick Budget",
-            "budgetNew": "Add Budget",
-            "productionOrders": "Production Orders",
-            "shippingOptions": "Shipping Options"
-        },
-        "appsBudgets": {
-            "budgets": "Budgets",
-            "list": "Budget List",
-            "summary": "Budget Summary",
-            "new": "New Budget"
-        },
-        "appsAccounting": {
-            "accounting": "Accounting",
-            "dashboard": "Dashboard",
-            "expenses": "Expenses",
-            "expensesList": "List",
-            "expensesNew": "New",
-            "expensesCategories": "Categories",
-            "expensesConfig": "Expenses Configuration",
-            "payments": "Payments"
-        },
-        "appsProducts": {
-            "products": "Products",
-            "list": "Product List",
-            "config": "Configuration",
-            "parametric": "Parametric Products",
-            "aberturas": "Aberturas"
-        },
-        "appsCrypto": {
-            "crypto": "Crypto",
-            "dashboard": "Dashboard",
-            "portfolio": "Portfolio",
-            "market": "Market",
-            "wallets": "Wallets"
-        },
-        "appsknowledgeBase": {
-            "knowledgeBase": "Knowledge Base",
-            "helpCenter": "Help Center",
-            "article": "Article",
-            "manageArticles": "Manage Articles",
-            "editArticle": "Edit Article"
-        },
-        "appsAccount": {
-            "account": "Account",
-            "settings": "Settings",
-            "invoice": "Invoice",
-            "budget": "Budget",
-            "activityLog": "Activity Log",
-            "kycForm": "KYC Form"
-        },
-        "appsUsers": {
-            "users": "Users",
-            "userList": "User List",
-            "userNew": "Add User"
-        },
-        "appsSettings": {
-            "settings": "Settings",
-            "companyProfile": "Company Profile",
-            "mercadoPago": "Mercado Pago",
-            "google": "Google & reCAPTCHA",
-            "systemConfig": "System Config",
-            "email": "Email",
-            "calendarEventTypes": "Calendar Event Types"
-        },
-        "uiComponents": "UI Components",
-        "uiComponentsCommon": {
-            "common": "Common",
-            "grid": "Grid",
-            "button": "Button",
-            "typography": "Typography",
-            "icons": "Icons"
-        },
-        "uiComponentsFeeback": {
-            "feedback": "Feedback",
-            "alert": "Alert",
-            "dialog": "Dialog",
-            "drawer": "Drawer",
-            "progress": "Progress",
-            "skeleton": "Skeleton",
-            "spinner": "Spinner",
-            "toast": "Toast"
-        },
-        "uiComponentsDataDisplay": {
-            "dataDisplay": "Data Display",
-            "avatar": "Avatar",
-            "badge": "Badge",
-            "calendar": "Calendar",
-            "cards": "Cards",
-            "table": "Table",
-            "tag": "Tag",
-            "timeline": "Timeline",
-            "tooltip": "Tooltip"
-        },
-        "uiComponentsForms": {
-            "forms": "Forms",
-            "checkbox": "Checkbox",
-            "datePicker": "Date Picker",
-            "formControl": "Form Control",
-            "input": "Input",
-            "inputGroup": "Input Group",
-            "radio": "Radio",
-            "segment": "Segment",
-            "select": "Select",
-            "switcher": "Switcher",
-            "timeInput": "Time Input",
-            "upload": "Upload"
-        },
-        "uiComponentsNavigation": {
-            "navigation": "Navigation",
-            "dropdown": "Dropdown",
-            "menu": "Menu",
-            "pagination": "Pagination",
-            "steps": "Steps",
-            "tabs": "Tabs"
-        },
-        "uiComponentsGraph": {
-            "graph": "Graph",
-            "charts": "Charts",
-            "maps": "Maps"
-        },
-        "pages": {
-            "pages": "Pages",
-            "welcome": "Welcome",
-            "accessDenied": "Access Denied"
-        },
-        "authentication": {
-            "authentication": "Authentication",
-            "signIn": "Sign In",
-            "signInSimple": "Simple",
-            "signInSide": "Side",
-            "signInCover": "Cover",
-            "signUp": "Sign Up",
-            "signUpSimple": "Simple",
-            "signUpSide": "Side",
-            "signUpCover": "Cover",
-            "forgotPassword": "Forgot Password",
-            "forgotPasswordSimple": "Simple",
-            "forgotPasswordSide": "Side",
-            "forgotPasswordCover": "Cover",
-            "resetPassword": "Reset Password",
-            "resetPasswordSimple": "Simple",
-            "resetPasswordSide": "Side",
-            "resetPasswordCover": "Cover"
-        },
-        "docs": {
-            "guide": "Guide",
-            "documentation": "Documentation",
-            "sharedComponentDoc": "Shared Component",
-            "utilsDoc": "Utilities",
-            "changeLog": "Changelog"
-        },
-        "signOut": "Sign out"
+  "nav": {
+    "apps": "Apps",
+    "appsProject": {
+      "project": "Project",
+      "dashboard": "Dashboard",
+      "projectList": "Project List",
+      "scrumBoard": "Scrum Board",
+      "issue": "Issue"
     },
-    "calendar": {
-        "calendar": "Calendar",
-        "month": "Month",
-        "week": "Week",
-        "day": "Day",
-        "agendaTitle": "Agenda",
-        "calendarTitle": "Calendar",
-        "activitiesTitle": "Activities",
-        "actions": {
-            "addActivity": "New activity"
-        },
-        "searchTitle": "Search activities",
-        "searchResults": "Search results",
-        "latestActivities": "Latest activities",
-        "upcomingActivities": "Upcoming activities",
-        "noSearchResults": "No activities match the current search.",
-        "noLatestActivities": "There are no recent activities to display.",
-        "noUpcomingActivities": "There are no upcoming activities to display.",
-        "allDay": "All day",
-        "noDescription": "No description available.",
-        "confirmDelete": "Delete the event \"{{title}}\"? This action cannot be undone.",
-        "fields": {
-            "start": "Start",
-            "end": "End",
-            "allDay": "All day event",
-            "internal": "Internal event",
-            "customer": "Linked customer (optional)",
-            "eventType": "Event type",
-            "address": {
-                "street": "Street",
-                "number": "Number",
-                "city": "City",
-                "country": "Country",
-                "corner": "Cross street",
-                "apartment": "Apartment"
-            }
-        },
-        "labels": {
-            "address": "Address",
-            "duration": "Duration",
-            "unknownDate": "Date not specified"
-        },
-        "address": {
-            "cornerFormat": "Corner {{corner}}"
-        },
-        "messages": {
-            "noLinkedCustomer": "No customer linked.",
-            "customerNotFound": "Customer information not found.",
-            "noDescription": "No description available.",
-            "eventDeleted": "Event deleted successfully.",
-            "searchInstructions": "Enter a term to search across all activities.",
-            "noEndTime": "No end time"
-        },
-        "placeholders": {
-            "title": "Event title",
-            "customer": "Select customer",
-            "eventType": "Select event type",
-            "street": "Enter street",
-            "number": "Number",
-            "city": "City",
-            "country": "Country",
-            "corner": "Cross street",
-            "apartment": "Apartment / Unit",
-            "location": "Room, link or reference",
-            "description": "Details, goals or agenda",
-            "search": "Search by title, date, customer or content"
-        },
-        "errors": {
-            "customers": "Unable to load customers.",
-            "customerAddress": "Could not load customer address.",
-            "deleteFailed": "We couldn't delete the event."
-        },
-        "validation": {
-            "eventTypeRequired": "Event type is required"
-        },
-        "eventTypes": {
-            "meeting": "Meeting",
-            "task": "Task",
-            "workshop": "Workshop",
-            "other": "Other"
-        },
-        "attachments": {
-            "supported": "Supported formats: images and documents (pdf, doc, xls, csv, txt, zip).",
-            "confirmDelete": "Delete the file \"{{name}}\"?",
-            "unnamed": "Unnamed file",
-            "deleteSuccess": "File deleted successfully.",
-            "deleteFailed": "We couldn't delete the file.",
-            "downloadFailed": "We couldn't retrieve the attachment.",
-            "updateSuccess": "Attachments updated successfully.",
-            "updateFailed": "We couldn't update the attachments.",
-            "saving": "Saving changes…"
-        },
-        "comments": {
-            "title": "Comments",
-            "placeholder": "Write a comment...",
-            "add": "Add comment",
-            "empty": "There are no comments for this activity yet.",
-            "anonymous": "User",
-            "createFailed": "We couldn't add the comment.",
-            "deleteFailed": "We couldn't delete the comment.",
-            "edit": "Edit",
-            "save": "Save",
-            "cancel": "Cancel",
-            "delete": "Delete",
-            "deleteConfirm": "Delete this comment?",
-            "updateFailed": "We couldn't update the comment.",
-            "messageRequired": "Comment message cannot be empty."
-        }
+    "appsCrm": {
+      "crm": "Clients",
+      "dashboard": "Dashboard",
+      "calendar": "Calendar",
+      "customers": "Customers",
+      "customerDetails": "Customer Details",
+      "mail": "Mail"
     },
-    "menu": {
-        "products": {
-            "list": "Product List",
-            "config": "Configuration"
-        },
-        "accounting": {
-            "title": "Accounting",
-            "expenses": {
-                "title": "Expenses",
-                "list": "List",
-                "new": "New",
-                "categories": "Categories"
-            },
-            "payments": "Payments"
-        }
+    "appsCalendar": {
+      "calendar": "Calendar",
+      "activities": "Activities",
+      "schedule": "Schedule"
     },
-    "user": {
-        "menu": {
-            "profile": "Profile",
-            "accountSetting": "Account Setting",
-            "activityLog": "Activity Log",
-            "signOut": "Sign Out"
-        }
+    "appsSales": {
+      "sales": "Sales",
+      "dashboard": "Dashboard",
+      "productList": "Product List",
+      "productEdit": "Product Edit",
+      "productNew": "New Product",
+      "orderList": "Order List",
+      "orderDetails": "Order Details",
+      "addOrder": "Add Order",
+      "budgetList": "Budgets",
+      "budgetQuick": "Quick Budget",
+      "budgetNew": "Add Budget",
+      "productionOrders": "Production Orders",
+      "shippingOptions": "Shipping Options"
     },
-    "theme": {
-        "config": {
-            "title": "Theme Config",
-            "darkMode": {
-                "title": "Dark Mode",
-                "desc": "Switch theme to dark mode"
-            },
-            "navMode": {
-                "title": "Nav Mode",
-                "default": "Default",
-                "themed": "Themed"
-            },
-            "theme": {
-                "title": "Theme"
-            },
-            "layout": {
-                "title": "Layout"
-            },
-            "save": {
-                "button": "Save theme",
-                "success": {
-                    "title": "Theme updated",
-                    "desc": "Theme configuration saved successfully."
-                },
-                "error": {
-                    "title": "Save failed",
-                    "desc": "We couldn't save the theme configuration."
-                }
-            }
-        }
+    "appsBudgets": {
+      "budgets": "Budgets",
+      "list": "Budget List",
+      "summary": "Budget Summary",
+      "new": "New Budget"
+    },
+    "appsAccounting": {
+      "accounting": "Accounting",
+      "dashboard": "Dashboard",
+      "expenses": "Expenses",
+      "expensesList": "List",
+      "expensesNew": "New",
+      "expensesCategories": "Categories",
+      "expensesConfig": "Expenses Configuration",
+      "payments": "Payments"
+    },
+    "appsProducts": {
+      "products": "Products",
+      "list": "Product List",
+      "config": "Configuration",
+      "parametric": "Parametric Products",
+      "aberturas": "Aberturas"
+    },
+    "appsCrypto": {
+      "crypto": "Crypto",
+      "dashboard": "Dashboard",
+      "portfolio": "Portfolio",
+      "market": "Market",
+      "wallets": "Wallets"
+    },
+    "appsknowledgeBase": {
+      "knowledgeBase": "Knowledge Base",
+      "helpCenter": "Help Center",
+      "article": "Article",
+      "manageArticles": "Manage Articles",
+      "editArticle": "Edit Article"
+    },
+    "appsAccount": {
+      "account": "Account",
+      "settings": "Settings",
+      "invoice": "Invoice",
+      "budget": "Budget",
+      "activityLog": "Activity Log",
+      "kycForm": "KYC Form"
+    },
+    "appsUsers": {
+      "users": "Users",
+      "userList": "User List",
+      "userNew": "Add User"
+    },
+    "appsSettings": {
+      "settings": "Settings",
+      "companyProfile": "Company Profile",
+      "mercadoPago": "Mercado Pago",
+      "google": "Google & reCAPTCHA",
+      "systemConfig": "System Config",
+      "email": "Email",
+      "calendarEventTypes": "Calendar Event Types"
+    },
+    "uiComponents": "UI Components",
+    "uiComponentsCommon": {
+      "common": "Common",
+      "grid": "Grid",
+      "button": "Button",
+      "typography": "Typography",
+      "icons": "Icons"
+    },
+    "uiComponentsFeeback": {
+      "feedback": "Feedback",
+      "alert": "Alert",
+      "dialog": "Dialog",
+      "drawer": "Drawer",
+      "progress": "Progress",
+      "skeleton": "Skeleton",
+      "spinner": "Spinner",
+      "toast": "Toast"
+    },
+    "uiComponentsDataDisplay": {
+      "dataDisplay": "Data Display",
+      "avatar": "Avatar",
+      "badge": "Badge",
+      "calendar": "Calendar",
+      "cards": "Cards",
+      "table": "Table",
+      "tag": "Tag",
+      "timeline": "Timeline",
+      "tooltip": "Tooltip"
+    },
+    "uiComponentsForms": {
+      "forms": "Forms",
+      "checkbox": "Checkbox",
+      "datePicker": "Date Picker",
+      "formControl": "Form Control",
+      "input": "Input",
+      "inputGroup": "Input Group",
+      "radio": "Radio",
+      "segment": "Segment",
+      "select": "Select",
+      "switcher": "Switcher",
+      "timeInput": "Time Input",
+      "upload": "Upload"
+    },
+    "uiComponentsNavigation": {
+      "navigation": "Navigation",
+      "dropdown": "Dropdown",
+      "menu": "Menu",
+      "pagination": "Pagination",
+      "steps": "Steps",
+      "tabs": "Tabs"
+    },
+    "uiComponentsGraph": {
+      "graph": "Graph",
+      "charts": "Charts",
+      "maps": "Maps"
     },
     "pages": {
-        "accessDenied": {
-            "title": "Access Denied!",
-            "message": "You have no permission to visit this page"
-        }
+      "pages": "Pages",
+      "welcome": "Welcome",
+      "accessDenied": "Access Denied"
     },
-    "auth": {
-        "common": {
-            "backToSignIn": "Back to ",
-            "signIn": "Sign in",
-            "signUp": "Sign up"
-        },
-        "resetPassword": {
-            "setNewPassword": {
-                "title": "Set new password",
-                "subtitle": "Your new password must be different from the previous password"
-            },
-            "success": {
-                "title": "Password reset",
-                "subtitle": "Your password has been successfully reset"
-            },
-            "continue": "Continue"
-        },
-        "forgotPassword": {
-            "title": "Forgot Password",
-            "subtitle": "Please enter your email address to receive a verification code",
-            "emailSent": {
-                "title": "Check your email",
-                "subtitle": "We have sent password recovery instructions to your email"
-            },
-            "sendEmail": "Send Email",
-            "resendEmail": "Resend Email"
-        },
-        "signIn": {
-            "title": "Welcome back!",
-            "subtitle": "Please enter your credentials to sign in!",
-            "rememberMe": "Remember Me",
-            "forgotPassword": "Forgot Password?",
-            "submit": "Sign In",
-            "submitting": "Signing in...",
-            "noAccount": "Don't have an account yet?",
-            "recaptchaMessage": "reCAPTCHA Enterprise protects this action."
-        },
-        "signUp": {
-            "title": "Sign Up",
-            "subtitle": "And let's get started with your free trial",
-            "submit": "Sign Up",
-            "submitting": "Creating Account...",
-            "hasAccount": "Already have an account?"
-        }
+    "authentication": {
+      "authentication": "Authentication",
+      "signIn": "Sign In",
+      "signInSimple": "Simple",
+      "signInSide": "Side",
+      "signInCover": "Cover",
+      "signUp": "Sign Up",
+      "signUpSimple": "Simple",
+      "signUpSide": "Side",
+      "signUpCover": "Cover",
+      "forgotPassword": "Forgot Password",
+      "forgotPasswordSimple": "Simple",
+      "forgotPasswordSide": "Side",
+      "forgotPasswordCover": "Cover",
+      "resetPassword": "Reset Password",
+      "resetPasswordSimple": "Simple",
+      "resetPasswordSide": "Side",
+      "resetPasswordCover": "Cover"
     },
-    "project": {
-        "dashboard": {
-            "greeting": "Hello, {{name}}!",
-            "tasksOnHand": "You have {{count}} tasks on hand.",
-            "taskOverview": "Task Overview",
-            "projects": "Projects",
-            "ranges": {
-                "monthly": "Monthly",
-                "weekly": "Weekly",
-                "daily": "Daily"
-            }
-        }
+    "docs": {
+      "guide": "Guide",
+      "documentation": "Documentation",
+      "sharedComponentDoc": "Shared Component",
+      "utilsDoc": "Utilities",
+      "changeLog": "Changelog"
     },
-    "text": {
-        "titles": {
-            "products": "Products",
-            "shipping": "Shipping",
-            "paymentSummary": "Payment Summary",
-            "paymentHistory": "Payment History",
-            "orderHistory": "Order History",
-            "budgetHistory": "Budget History",
-            "activity": "Activity",
-            "details": "Details",
-            "addEvent": "Add New Event",
-            "editEvent": "Edit Event",
-            "deleteCustomer": "Delete customer",
-            "customerDeleted": "Successfully Deleted",
-            "deleteCustomerFailed": "Cannot delete customer",
-            "editCreditCard": "Edit Credit Card",
-            "schedule": "Schedule",
-            "myTasks": "My Tasks",
-            "addNewProject": "Add new project",
-            "addNewCustomer": "Add new customer",
-            "addPeople": "Add people",
-            "addNewTicket": "Add New Ticket",
-            "deleteBoard": "Delete Board",
-            "installed": "Installed",
-            "available": "Available",
-            "password": "Password",
-            "invoice": "Invoice",
-            "budget": "Budget",
-            "shippingAddress": "Shipping Address",
-            "billingAddress": "Billing address",
-            "comments": "Comments",
-            "conversionSnapshot": "Conversion snapshot",
-            "description": "Description",
-            "role": "Role",
-            "activityDetails": "Activity Details",
-            "attachments": "Attachments",
-            "whereSignedIn": "Where you're signed in",
-            "addressInformation": "Address Information",
-            "permanentAddress": "Permanent Address",
-            "correspondenceAddress": "Correspondence Address",
-            "basicInformation": "Basic Information",
-            "pricing": "Pricing",
-            "deleteProduct": "Delete product",
-            "paymentMethods": "Payment Methods",
-            "billingHistory": "Billing History",
-            "activityLog": "Activity Log",
-            "filterActivity": "Filter Activity",
-            "taskManagement": "Task Management"
-        },
-        "labels": {
-            "firstName": "First name",
-            "lastName": "Last name",
-            "deliveryIn": "Delivery in",
-            "days": "days",
-            "subtotal": "Subtotal",
-            "deliveryFee": "Delivery fee",
-            "tax": "Tax",
-            "taxWithRate": "Tax ({{rate}}%)",
-            "minDays": "Min days",
-            "maxDays": "Max days",
-            "sameAsShipping": "Use shipping address",
-            "productName": "Product Name",
-            "code": "Code",
-            "description": "Description",
-            "specifications": "Specifications",
-            "unitOfMeasure": "Sales unit",
-            "widthMeters": "Width (m)",
-            "heightMeters": "Height (m)",
-            "linearMeters": "Linear meters (m)",
-            "estimatedQuantity": "Estimated quantity: {{value}} {{unit}}",
-            "sku": "SKU",
-            "bulkDiscountPrice": "Bulk Discount Price",
-            "taxRatePercent": "Tax Rate(%)",
-            "taxRate": "Tax Rate",
-            "name": "Name",
-            "email": "Email",
-            "date": "Date",
-            "time": "Time",
-            "userName": "User Name",
-            "password": "Password",
-            "confirmPassword": "Confirm Password",
-            "location": "Location",
-            "phoneNumber": "Phone Number",
-            "title": "Title",
-            "role": "Role",
-            "avatar": "Avatar",
-            "birthday": "Birthday",
-            "phone": "Phone",
-            "dateOfBirth": "Date of birth",
-            "social": "Social",
-            "facebookLink": "Facebook link",
-            "twitterLink": "Twitter link",
-            "pinterestLink": "Pinterest link",
-            "linkedInLink": "LinkedIn link",
-            "eventTitle": "Event Title",
-            "startDate": "Start Date",
-            "endDate": "End Date",
-            "preferredColor": "Preferred Color",
-            "cardHolderName": "Card holder name",
-            "creditCardNumber": "Credit Card Number",
-            "expirationDate": "Expiration date",
-            "cvv": "CVV",
-            "totalCustomers": "Total Customers",
-            "activeCustomers": "Active Customers",
-            "newCustomers": "New Customers",
-            "createdBy": "created by",
-            "inProgress": "In Progress",
-            "linkedTickets": "Linked tickets",
-            "recipient": "Recipient",
-            "billTo": "Bill to",
-            "address": "Address",
-            "addressLabel": "Address label",
-            "budgetValidity": "Budget validity",
-            "storyPoint": "{{count}} story point",
-            "createdOn": "Created on",
-            "assignees": "Assignees",
-            "tags": "Tags",
-            "membersAvailable": "members available",
-            "otherPaymentMethods": "Other payment methods",
-            "issuedBy": "Issued by",
-            "invoiceNumber": "Invoice number",
-            "budgetNumber": "Budget number",
-            "issuedOn": "Issue date",
-            "taxId": "Tax ID",
-            "website": "Website",
-            "baseCurrency": "Base currency",
-            "conversionRates": "Conversion rates",
-            "snapshotGeneratedAt": "Snapshot generated at",
-            "primary": "Primary",
-            "none": "None",
-            "expired": "Expired",
-            "about": "About",
-            "keyFeatures": "Key Features",
-            "to": "To",
-            "grandTotal": "Grand Total",
-            "previousOrders": "Previous orders",
-            "previousBudgets": "Previous budgets",
-            "setAsPrimary": "Set this card as primary",
-            "country": "Country",
-            "street": "Street",
-            "number": "Number",
-            "apartment": "Apartment",
-            "corner": "Corner",
-            "cornerFormat": "Corner {{corner}}",
-            "comments": "Comments",
-            "addressLine1": "Address Line 1",
-            "addressLine2": "Address Line 2",
-            "city": "City",
-            "state": "State",
-            "zipCode": "Zip Code",
-            "current": "Current",
-            "language": "Language",
-            "ticket": "Ticket",
-            "comment": "Comment",
-            "timeZone": "Time Zone",
-            "syncData": "Sync Data",
-            "category": "Category",
-            "brand": "Brand",
-            "vendor": "Vendor",
-            "permanentStock": "Permanent stock",
-            "stockStatus": "Stock status",
-            "offerPrice": "Offer price",
-            "ticketTitle": "Ticket title",
-            "untitledBoard": "Untitled Board",
-            "untitledCard": "Untitled Card"
-        },
-        "columns": {
-            "order": "Order",
-            "date": "Date",
-            "customer": "Customer",
-            "status": "Status",
-            "paymentMethod": "Payment Method",
-            "total": "Total",
-            "name": "Name",
-            "category": "Category",
-            "quantity": "Quantity",
-            "price": "Unit Price",
-            "salePrice": "Sale price",
-            "costPrice": "Cost price",
-            "product": "Product",
-            "reference": "Reference",
-            "amount": "Amount",
-            "taxCreditEligible": "Generates tax credit",
-            "createdTime": "Created Time",
-            "assignee": "Assignee",
-            "sold": "Sold",
-            "email": "Email",
-            "phone": "Phone",
-            "lastOnline": "Last online",
-            "taskId": "Task ID",
-            "subject": "Subject",
-            "priority": "Priority",
-            "assignees": "Assignees",
-            "actions": "Actions",
-            "published": "Published",
-            "stock": "Stock",
-            "comments": "Comments",
-            "specifications": "Specifications",
-            "type": "Type"
-        },
-        "mobileNav": {
-            "home": "Home",
-            "agenda": "Agenda",
-            "addCustomer": "Add Client",
-            "addOrder": "Add Order",
-            "quickBudget": "Quick budget",
-            "menu": "Menu"
-        },
-        "priority": {
-            "high": "High",
-            "medium": "Medium",
-            "low": "Low"
-        },
-        "actions": {
-            "view": "View",
-            "viewInvoice": "View invoice",
-            "delete": "Delete",
-            "export": "Export",
-            "addProduct": "Add Product",
-            "batchDelete": "Batch Delete",
-            "viewCarrierDetails": "View Carrier Details",
-            "save": "Save",
-            "discard": "Discard",
-            "cancel": "Cancel",
-            "update": "Update",
-            "edit": "Edit",
-            "clearAll": "Clear All",
-            "viewAll": "View All",
-            "loadMore": "Load More",
-            "submit": "Submit",
-            "done": "Done",
-            "comment": "Comment",
-            "copy": "Copy",
-            "copied": "Copied",
-            "remove": "Remove",
-            "add": "Add",
-            "addMore": "Add More",
-            "download": "Download",
-            "import": "Import",
-            "send": "Send",
-            "generateMessage": "Generate message",
-            "change": "Change",
-            "rename": "Rename",
-            "filter": "Filter",
-            "showFilters": "Show Filters",
-            "hideFilters": "Hide Filters",
-            "query": "Query",
-            "addTicket": "Add Ticket",
-            "deleteBoard": "Delete Board",
-            "viewIntegration": "View Integration",
-            "install": "Install",
-            "installed": "Installed",
-            "updating": "Updating",
-            "reset": "Reset",
-            "addNewCard": "Add new card",
-            "back": "Back",
-            "next": "Next",
-            "finalize": "Finalize",
-            "print": "Print",
-            "updatePassword": "Update Password",
-            "assigned": "assigned",
-            "addedAComment": "added a comment"
-        },
-        "placeholders": {
-            "search": "Search",
-            "searchProduct": "Search product",
-            "date": "Date",
-            "name": "Name",
-            "lastName": "Last name",
-            "code": "Code",
-            "codeSku": "Code (SKU)",
-            "stock": "Stock",
-            "url": "URL",
-            "eventTitle": "Please enter title",
-            "leaveComment": "Leave a comment",
-            "enterComment": "Add a note for this product",
-            "specifications": "Product specifications",
-            "quickSearchMember": "Quick search member",
-            "ticketTitle": "Please enter ticket title",
-            "writeComment": "Write comment",
-            "boardTitle": "Please enter board title",
-            "country": "Country",
-            "currentPassword": "Current Password",
-            "newPassword": "New Password",
-            "confirmPassword": "Confirm Password"
-        },
-        "status": {
-            "paid": "Paid",
-            "pending": "Pending",
-            "failed": "Failed",
-            "inStock": "In Stock",
-            "limited": "Limited",
-            "outOfStock": "Out of Stock",
-            "active": "Active",
-            "blocked": "Blocked",
-            "unpaid": "Unpaid",
-            "fulfilled": "Fulfilled",
-            "unfulfilled": "Unfulfilled",
-            "new": "New",
-            "sold": "Sold",
-            "notInterested": "Not Interested",
-            "inProgress": "In Progress",
-            "published": "Published",
-            "disabled": "Disabled",
-            "archive": "Archive"
-        },
-        "salesUnit": {
-            "UNIT": "Unit",
-            "SQUARE_METER": "Square meter",
-            "LINEAR_METER": "Linear meter"
-        },
-        "specs": {
-            "width": "Width",
-            "height": "Height",
-            "length": "Length"
-        },
-        "date": {
-            "monthsShort": {
-                "jan": "Jan",
-                "feb": "Feb",
-                "mar": "Mar",
-                "apr": "Apr",
-                "may": "May",
-                "jun": "Jun",
-                "jul": "Jul",
-                "aug": "Aug",
-                "sep": "Sep",
-                "oct": "Oct",
-                "nov": "Nov",
-                "dec": "Dec"
-            }
-        },
-        "tooltips": {
-            "cvv": "The CVV/CVC code is located on the back of your credit/debit card on the right side of the white signature strip"
-        },
-        "descriptions": {
-            "basicProductInfo": "Section to config basic product information",
-            "productSalesInfo": "Section to config product sales information",
-            "salePriceAuto": "Sale price defaults to cost price × 1.30 and can be adjusted manually",
-            "passwordDesc": "Enter your current and new password to reset your password",
-            "viewPreviousBilling": "View your previous billing",
-            "addressInformation": "Enter your address information to help us speed up the verification process",
-            "inviteTeamMember": "Invite your team members to collaborate on this board",
-            "taskManagement": "Team task board to register and resolve work items"
-        },
-        "messages": {
-            "deleteProductConfirm": "Are you sure you want to delete this product? All record related to this product will be deleted as well. This action cannot be undone.",
-            "customerDeleted": "Customer successfully deleted",
-            "customerDeleteHasOrders": "You cannot delete a customer that already has orders.",
-            "customerAdded": "Customer added successfully",
-            "customerEmailTaken": "A customer with this email already exists.",
-            "customerPhoneTaken": "A customer with this phone number already exists.",
-            "customerEmailAndPhoneTaken": "A customer with this email and phone number already exists.",
-            "customerDuplicate": "A customer with duplicated unique data already exists.",
-            "deleteCustomerConfirm": "Are you sure you want to delete this customer? All record related to this customer will be deleted as well. This action cannot be undone.",
-            "noActivities": "No Activities",
-            "noMoreActivity": "No more activity to load",
-            "deleteBoardConfirm": "Are you sure you want to delete this board? All the tickets under this board will be deleted as well. This action cannot be undone.",
-            "billingUpdated": "Billing information updated",
-            "appInstalled": "App installed",
-            "invoiceNote": "Invoice was created on a computer and is valid without the signature and seal.",
-            "invoiceDownloadError": "We couldn't generate the invoice PDF. Please try again.",
-            "passwordUpdated": "Password updated",
-            "passwordUpdateFailed": "We could not update the password.",
-            "userCreated": "User created",
-            "userUpdated": "User updated",
-            "userDeleted": "User deleted",
-            "userDeleteFailed": "We could not delete the user.",
-            "userSaveFailed": "We could not save the user.",
-            "deleteUserConfirm": "Are you sure you want to delete this user? This action cannot be undone.",
-            "passwordTabRequiresUser": "Create the user before setting a password.",
-            "viewPreviousBilling": "View your previous billing"
-        },
-        "validation": {
-            "failed": "Please correct the highlighted fields",
-            "fieldInvalid": "Invalid field: {{field}}",
-            "invalidCharacters": "Detected unsupported characters. Please review your input.",
-            "titleRequired": "Title Required",
-            "receiverRequired": "Receiver Required",
-            "productNameRequired": "Product Name Required",
-            "priceRequired": "Price Required",
-            "costPriceRequired": "Cost price is required",
-            "costPriceMin": "Cost price cannot be negative",
-            "salePriceRequired": "Sale price is required",
-            "salePriceMin": "Sale price cannot be negative",
-            "skuRequired": "SKU Required",
-            "stockRequired": "Stock is required",
-            "stockNumber": "Stock must be a number",
-            "stockMin": "Stock cannot be negative",
-            "categoryRequired": "Category Required",
-            "unitOfMeasureRequired": "Sales unit is required",
-            "invalidEmail": "Invalid email",
-            "emailRequired": "Email Required",
-            "userNameRequired": "User Name Required",
-            "invalidPhoneNumber": "Phone number is not valid",
-            "phoneNumberRequired": "Phone number is required",
-            "eventTitleRequired": "Event title Required",
-            "startDateRequired": "Start Date Required",
-            "colorRequired": "Color Required",
-            "passwordRequired": "Password Required",
-            "passwordComplexity": "Password must be 8-128 characters and include uppercase, lowercase, number, and special character",
-            "confirmPasswordRequired": "Confirm Password is required",
-            "passwordMismatch": "Passwords must match",
-            "enterNewPassword": "Enter your new password",
-            "tooShort": "Too Short!",
-            "tooLong": "Too Long!",
-            "lettersNumbersOnly": "Only Letters & Numbers Allowed",
-            "onlyNumbers": "Please enter numbers only.",
-            "passwordNotMatch": "Password not match",
-            "selectCountry": "Please select country",
-            "enterAddress": "Please enter your address",
-            "enterCity": "Please enter your city",
-            "enterState": "Please enter your state",
-            "enterZipCode": "Please enter zip code",
-            "ticketTitleRequired": "Ticket title is required!",
-            "cardHolderNameRequired": "Card holder name required",
-            "creditCardNumberRequired": "Credit card number required",
-            "invalidCreditCardNumber": "Invalid credit card number",
-            "cardExpiryRequired": "Expiry date required",
-            "invalidDate": "Invalid date",
-            "cvvRequired": "CVV required",
-            "invalidCvv": "Invalid CVV",
-            "dateRequired": "Date is required"
-        },
-        "tabs": {
-            "personalInfo": "Personal Info",
-            "address": "Address",
-            "social": "Social",
-            "userDetails": "Details",
-            "password": "Password"
-        },
-        "filters": {
-            "all": "All",
-            "commentOnPost": "Comment on post",
-            "mentionedYou": "Mentioned you",
-            "ticketStatus": "Ticket status",
-            "assignTicket": "Assign ticket",
-            "newTicket": "New ticket",
-            "addTags": "Add tags",
-            "addFiles": "Add files"
-        }
+    "signOut": "Sign out"
+  },
+  "calendar": {
+    "calendar": "Calendar",
+    "month": "Month",
+    "week": "Week",
+    "day": "Day",
+    "agendaTitle": "Agenda",
+    "calendarTitle": "Calendar",
+    "activitiesTitle": "Activities",
+    "actions": {
+      "addActivity": "New activity"
     },
-    "account": {
-        "settings": {
-            "tabs": {
-                "profile": "Profile",
-                "password": "Password",
-                "notification": "Notification",
-                "integration": "Integration",
-                "billing": "Billing"
-            },
-            "profile": {
-                "profileUpdated": "Profile updated",
-                "general": "General",
-                "generalDesc": "Basic info, like your name and address that will be displayed in public",
-                "preferences": "Preferences",
-                "preferencesDesc": "Your personalized preferences displayed in your account",
-                "updateFailed": "We couldn't update your profile.",
-                "emailTaken": "Another account is already using that email.",
-                "invalidAvatarType": "Please upload a valid image file (JPG, PNG, GIF, or WEBP)."
-            },
-            "billing": {
-                "paymentMethod": "Payment Method",
-                "paymentMethodDesc": "You can update your cards information here",
-                "creditCards": "Credit Cards"
-            },
-            "integration": {
-                "aboutText": "This is where you can learn more about this integration and how it helps your workflow.",
-                "features": {
-                    "0": "Simple setup and configuration",
-                    "1": "Secure data synchronization",
-                    "2": "Seamless team collaboration",
-                    "3": "Actionable insights and analytics"
-                }
-            },
-            "notification": {
-                "updated": "Notification settings updated",
-                "channels": {
-                    "email": "Email",
-                    "inApp": "In-app",
-                    "push": "Push (coming soon)"
-                },
-                "audience": {
-                    "admin": "Administrators",
-                    "customer": "Customers"
-                },
-                "roles": {
-                    "hint": "Select which internal roles should receive these notifications."
-                },
-                "events": {
-                    "orderReceived": {
-                        "title": "Order received",
-                        "desc": "Configure customer and internal notifications when a new order is created."
-                    },
-                    "paymentReceived": {
-                        "title": "Payment received",
-                        "desc": "Notify teams and customers when a payment is confirmed."
-                    },
-                    "orderStatusChanged": {
-                        "title": "Order status updated",
-                        "desc": "Alert stakeholders whenever an order changes status (confirmed or canceled)."
-                    }
-                }
-            }
-        },
-        "activity": {
-            "events": {
-                "login": "logged in successfully.",
-                "loginDescription": "Successful authentication recorded.",
-                "device": "signed in on a new device.",
-                "deviceDescription": "A new session was created from an unrecognized browser.",
-                "passwordChange": "updated the account password.",
-                "passwordDescription": "Password change confirmed.",
-                "profileUpdate": "updated the account profile.",
-                "profileDescription": "Profile information was modified.",
-                "securityAlert": "triggered a security alert.",
-                "securityDescription": "Unusual activity detected by the security system.",
-                "generic": "recorded an account activity."
-            },
-            "metadata": {
-                "device": "Device",
-                "location": "Location",
-                "ipAddress": "IP address",
-                "method": "Method",
-                "fields": "Fields",
-                "reason": "Reason",
-                "browser": "Browser",
-                "platform": "Platform"
-            },
-            "filters": {
-                "login": "Sign-ins",
-                "device": "New devices",
-                "securityAlert": "Security alerts",
-                "passwordChange": "Password changes",
-                "profileUpdate": "Profile updates"
-            },
-            "categories": {
-                "security": "Security",
-                "account": "Account changes"
-            }
-        }
+    "searchTitle": "Search activities",
+    "searchResults": "Search results",
+    "latestActivities": "Latest activities",
+    "upcomingActivities": "Upcoming activities",
+    "noSearchResults": "No activities match the current search.",
+    "noLatestActivities": "There are no recent activities to display.",
+    "noUpcomingActivities": "There are no upcoming activities to display.",
+    "allDay": "All day",
+    "noDescription": "No description available.",
+    "confirmDelete": "Delete the event \"{{title}}\"? This action cannot be undone.",
+    "fields": {
+      "start": "Start",
+      "end": "End",
+      "allDay": "All day event",
+      "internal": "Internal event",
+      "customer": "Linked customer (optional)",
+      "eventType": "Event type",
+      "address": {
+        "street": "Street",
+        "number": "Number",
+        "city": "City",
+        "country": "Country",
+        "corner": "Cross street",
+        "apartment": "Apartment"
+      }
     },
-    "users": {
-        "validation": {
-            "duplicateEmail": "A user with that email already exists.",
-            "passwordRequired": "Password is required.",
-            "cannotDeleteSelf": "You cannot delete the currently signed-in user."
-        }
+    "labels": {
+      "address": "Address",
+      "duration": "Duration",
+      "unknownDate": "Date not specified"
     },
-    "welcome": {
-        "step1": {
-            "title": "Welcome on board, let's get started with the Administrative System",
-            "subtitle": "Tell us a bit about yourself to get the best experience. This will only take a minute or two.",
-            "getStarted": "Get started",
-            "skipNow": "Skip now"
-        },
-        "step2": {
-            "title": "Tell us about your organization",
-            "labels": {
-                "orgName": "Name of your organization",
-                "orgSize": "Size of your organization"
-            },
-            "placeholders": {
-                "orgName": "Organization Name...",
-                "orgSize": "Organization Size..."
-            },
-            "validation": {
-                "orgNameRequired": "Organization name is required",
-                "orgSizeRequired": "Please select your organization size"
-            },
-            "sizes": {
-                "solo": "Solo",
-                "2_10": "2 ~ 10 members",
-                "11_50": "11 ~ 50 members",
-                "51_200": "51 ~ 200 members",
-                "201_500": "201 ~ 500 members"
-            }
-        },
-        "step3": {
-            "title": "What is your role in the organization?",
-            "roles": {
-                "softwareEngineer": "Software Engineer",
-                "productManager": "Product Manager",
-                "designer": "Designer",
-                "qaTester": "QA Tester",
-                "stakeholder": "Stakeholder",
-                "other": "Others"
-            }
-        },
-        "step4": {
-            "title": "What is your main objective with the Administrative System?",
-            "items": {
-                "startScratch": "Start project from scratch",
-                "automateTasks": "Automate time-consuming tasks",
-                "enhanceWorkflow": "Enhance current workflow",
-                "other": "Others"
-            }
-        },
-        "quickStart": {
-            "title": "🚀 Let's get you set up with the Administrative System",
-            "items": {
-                "completeAccount": {
-                    "title": "Complete your Account Information",
-                    "desc": "Fill in your information to complete your account",
-                    "btn": "Fill now"
-                },
-                "createWorkspace": {
-                    "title": "Create your first workspace",
-                    "desc": "We recommend one project per workspace",
-                    "btn": "Create Workspace"
-                },
-                "inviteTeam": {
-                    "title": "Invite team members",
-                    "desc": "Show the team what you have completed so far.",
-                    "btn": "Invite"
-                }
-            }
-        }
+    "address": {
+      "cornerFormat": "Corner {{corner}}"
     },
-    "sales": {
-        "productEdit": {
-            "toast": {
-                "updated": {
-                    "title": "Successfully updated",
-                    "desc": "Product successfully updated"
-                },
-                "deleted": {
-                    "title": "Successfully deleted",
-                    "desc": "Product successfully deleted"
-                }
-            }
-        },
-        "dashboard": {
-            "overview": {
-                "title": "Sales Overview",
-                "subtitle": "View your current sales & summary"
-            },
-            "filters": {
-                "range": {
-                    "label": "Date range",
-                    "options": {
-                        "today": "Today",
-                        "thisWeek": "This week",
-                        "thisMonth": "This month",
-                        "thisYear": "This year",
-                        "last15Days": "Last 15 days",
-                        "custom": "Custom"
-                    }
-                }
-            },
-            "stat": {
-                "revenue": "Revenue",
-                "orders": "Orders",
-                "netIncome": "Net income",
-                "vsMonths": "vs. {{months}} months prior to {{date}}"
-            },
-            "categories": {
-                "title": "Categories",
-                "donutText": "Product Sold",
-                "empty": "No data available for the selected period"
-            },
-            "latestOrders": {
-                "title": "Latest Orders",
-                "viewOrders": "View Orders"
-            },
-            "topProduct": {
-                "title": "Top Selling",
-                "viewProducts": "View Products"
-            },
-            "salesReport": {
-                "title": "Sales Report",
-                "export": "Export Report",
-                "revenueLine": "Revenue",
-                "netIncomeLine": "Net income",
-                "empty": "No sales recorded for the selected period"
-            }
-        },
-        "orders": {
-            "title": "Orders",
-            "addAction": "New Order",
-            "invoiceAction": "View invoice",
-            "validUntilLabel": "Valid until",
-            "disclaimerLabel": "Disclaimer",
-            "editAction": "Edit order",
-            "delete": {
-                "title": "Delete order",
-                "confirm": "Are you sure you want to delete this order? All record related to this order will be deleted as well. This action cannot be undone.",
-                "titleSuccess": "Successfully Deleted",
-                "single": "Order successfully deleted",
-                "batch": "{{count}} orders successfully deleted"
-            },
-            "created": {
-                "title": "Successfully created",
-                "desc": "Order created successfully"
-            },
-            "updated": {
-                "title": "Updated successfully",
-                "desc": "Order updated successfully"
-            },
-            "import": {
-                "fileRequired": "Select a CSV file to import.",
-                "emptyFile": "The uploaded file does not contain any rows."
-            },
-            "importSuccess": "Successfully imported {{imported}} orders.",
-            "importSuccessWithErrors": "{{imported}} orders imported. {{failed}} rows returned errors.",
-            "importError": "We couldn't import the orders.",
-            "importErrorRow": "Row {{row}}: {{message}}",
-            "importErrorMore": "{{count}} additional errors were omitted.",
-            "validation": {
-                "customerRequired": "Customer is required",
-                "itemsRequired": "Please add at least one product",
-                "customerAddressRequired": "Customer must have a primary address",
-                "quantityPositive": "Quantity must be greater than 0"
-            },
-            "summary": {
-                "purchaseSummaryTitle": "Purchase summary",
-                "purchaseSummaryNote": "Amounts shown in {{currency}}.",
-                "totalDue": "Total due",
-                "orderOverview": "Order overview",
-                "shippingDetails": "Shipping details",
-                "contactDetails": "Contact details",
-                "subtotal": "Subtotal",
-                "tax": "Estimated tax",
-                "productsSelected": "Products selected",
-                "totalUnits": "Total units",
-                "logistics": "Shipping & contact",
-                "estimatedDelivery": "Estimated delivery",
-                "days": "days",
-                "notAvailable": "Not available",
-                "unknownCustomer": "Unassigned customer",
-                "noContact": "No contact details provided",
-                "notesAndScheduling": "Notes & scheduling"
-            },
-            "administrative": {
-                "title": "Administrative info",
-                "totalCost": "Total cost",
-                "netIncome": "Net income",
-                "lineDetail": "{{qty}} × {{unitCost}}",
-                "empty": "No cost data available"
-            },
-            "payments": {
-                "title": "Payments",
-                "orderLabel": "Order ID #{id}",
-                "add": "Add payment",
-                "totalPaid": "Total paid",
-                "remaining": "Remaining",
-                "method": "Method",
-                "attachments": "Attachments",
-                "empty": "No payments recorded yet.",
-                "new": "Register payment",
-                "save": "Save payment",
-                "attachmentDeletedTitle": "Attachment removed",
-                "attachmentDeletedDesc": "The attachment was removed successfully.",
-                "attachmentDeleteFailedTitle": "Could not remove attachment",
-                "attachmentDeleteFailedDesc": "Please try again in a moment.",
-                "deleteAttachmentTitle": "Delete attachment",
-                "deleteAttachmentConfirm": "Are you sure you want to delete the attachment \"{{name}}\"? This action cannot be undone.",
-                "type": "Type",
-                "status": "Status",
-                "date": "Date",
-                "idLabel": "Payment ID"
-            }
-        },
-        "documents": {
-            "squareSummary": "Width: {{width}} m · Height: {{height}} m",
-            "linearSummary": "Linear meters: {{length}} m",
-            "noExtraAttributes": "No additional details required.",
-            "pdfNotFound": "No stored PDF is available for this document.",
-            "quickMessage": {
-                "title": "Generated message",
-                "header": "Quantity Product Specifications Comments Total (Unit price)",
-                "perUnit": "each",
-                "totalLabel": "Total due",
-                "copyError": "We couldn't copy the message.",
-                "measurementMissing": "Complete the required measurements (width, height, length) before continuing."
-            }
-        },
-        "budgets": {
-            "title": "Budgets",
-            "addAction": "Create budget",
-            "invoiceAction": "Download budget",
-            "validUntilLabel": "Valid until",
-            "disclaimerLabel": "Disclaimer",
-            "editAction": "Edit budget",
-            "importSuccess": "Successfully imported {{imported}} budgets.",
-            "importSuccessWithErrors": "Budgets imported: {{imported}}. {{failed}} rows returned errors.",
-            "importError": "We couldn't import the budgets.",
-            "importErrorRow": "Row {{row}}: {{message}}",
-            "importErrorMore": "{{count}} additional errors were omitted.",
-            "exportSuccess": "Budget CSV generated successfully.",
-            "exportError": "We couldn't generate the budget CSV.",
-            "delete": {
-                "title": "Delete budget",
-                "confirm": "Are you sure you want to delete this budget? This action cannot be undone.",
-                "titleSuccess": "Budget deleted",
-                "single": "Budget deleted successfully",
-                "batch": "{{count}} budgets deleted successfully"
-            },
-            "table": {
-                "id": "Budget"
-            },
-            "administrative": {
-                "title": "Administrative info",
-                "totalCost": "Total cost",
-                "netIncome": "Net income",
-                "lineDetail": "{{qty}} × {{unitCost}}",
-                "empty": "No cost data available"
-            }
-        },
-        "productForm": {
-            "organizations": {
-                "title": "Organizations",
-                "desc": "Section to config the product attribute"
-            },
-            "categories": {
-                "bags": "Bags",
-                "cloths": "Clothes",
-                "devices": "Devices",
-                "watches": "Watches",
-                "shoes": "Shoes"
-            },
-            "images": {
-                "title": "Product Image",
-                "desc": "Add or change image for the product",
-                "removeConfirm": "Are you sure you want to remove this image?",
-                "upload": "Upload",
-                "dropHere": "Drop your image here, or",
-                "browse": "browse",
-                "support": "Support: jpeg, png",
-                "invalidType": "Please upload a .jpeg or .png file!",
-                "invalidSize": "Upload image cannot be more than 500kb!",
-                "cover": "Cover",
-                "setCover": "Set as cover"
-            },
-            "variants": {
-                "title": "Product variants",
-                "description": "Configure variable products by combining color, size, and material options.",
-                "mode": {
-                    "simple": "Simple product",
-                    "variable": "Variable product",
-                    "parametric": "Parametric product"
-                },
-                "attributes": {
-                    "title": "Available attributes",
-                    "addValue": "Add value",
-                    "types": {
-                        "color": "Color",
-                        "size": "Size",
-                        "material": "Material"
-                    },
-                    "placeholder": {
-                        "color": "Red, Blue, Green...",
-                        "size": "S, M, L, 38, 39...",
-                        "material": "Cotton, Leather..."
-                    },
-                    "colorValuePlaceholder": "Optional description or code",
-                    "addSwatch": "Add swatch",
-                    "replaceSwatch": "Replace swatch",
-                    "clearSwatch": "Remove swatch",
-                    "addMaterialImage": "Add image",
-                    "replaceMaterialImage": "Replace image",
-                    "clearMaterialImage": "Remove image",
-                    "imageAltPlaceholder": "Describe the image for accessibility",
-                    "noImage": "No image uploaded for this value yet."
-                },
-                "actions": {
-                    "inheritPrice": "Inherit price",
-                    "applyBasePrice": "Apply base price",
-                    "inheritStock": "Inherit stock",
-                    "applyBaseStock": "Apply base stock",
-                    "activateAll": "Activate all",
-                    "deactivateAll": "Deactivate all"
-                },
-                "table": {
-                    "title": "Generated variants",
-                    "description": "Edit price, stock, SKU, and images for each variant or inherit the product values.",
-                    "empty": "Select attributes and values to generate the variant table.",
-                    "price": "Price",
-                    "stock": "Stock",
-                    "images": "Images",
-                    "active": "Active",
-                    "inheritPrice": "Use product price",
-                    "inheritStock": "Use product stock",
-                    "permanentStock": "Unlimited stock",
-                    "inheritSku": "Use product SKU"
-                },
-                "images": {
-                    "title": "Variant images",
-                    "inherit": "Use product images",
-                    "upload": "Upload images",
-                    "empty": "No images uploaded for this variant.",
-                    "inheritLabel": "Inherits images",
-                    "count": "{{count}} images",
-                    "none": "No custom images"
-                },
-                "error": {
-                    "noAttributes": "Select at least one attribute to generate variants.",
-                    "emptyValues": "Each attribute must define at least one value.",
-                    "noVariants": "Configure at least one variant before saving."
-                }
-            },
-            "parametric": {
-                "requiresProduct": "Save the product to configure parametric pricing.",
-                "requiresProductDetail": "Create the product first, then you will be able to import reference prices and configure the pricing engine.",
-                "title": "Parametric pricing",
-                "subtitle": "Import quotation history and test the price engine with real-time parameters.",
-                "testTitle": "Try calculation",
-                "width": "Width (m)",
-                "height": "Height (m)",
-                "color": "Color",
-                "glass": "Glass",
-                "mosquitoNet": "Mosquito net",
-                "monoblock": "Monoblock",
-                "calculate": "Calculate price",
-                "lastQuote": "Last quote: {{total}} {{currency}} ({{date}})",
-                "breakdown": "Breakdown",
-                "base": "Base",
-                "colorModifier": "Color",
-                "glassModifier": "Glass",
-                "monoblockModifier": "Monoblock",
-                "mosquitoModifier": "Mosquito net",
-                "importTitle": "Bulk import",
-                "importDescription": "Upload an Excel or CSV file with the required columns (FECHA COTIZACION, PRODUCTO, MOSQUITERO, ANCHO, ALTO, SERIE, COLOR, VIDRIO, PRECIO, DETALLE).",
-                "importing": "Importing…",
-                "importCta": "Drop file here or click to browse",
-                "loadingConfig": "Loading configuration…",
-                "configSummary": "Configured series: {{series}}. Colors: {{colors}}.",
-                "importSuccess": "Import completed",
-                "importSummary": "Processed {{rows}} rows. Created {{references}} references and {{modifiers}} modifiers.",
-                "importError": "Import failed",
-                "importErrorDescription": "Please check the file format and try again.",
-                "quoteError": "Unable to generate quote",
-                "quoteErrorDescription": "Verify the parameters and try again."
-            }
-        },
-        "productList": {
-            "filter": {
-                "includedText": "Include text",
-                "keyword": "Search by name or code",
-                "productCategory": "Product category",
-                "currency": "Currency",
-                "publicationStatus": "Publication status",
-                "productStatus": "Stock"
-            },
-            "deleted": {
-                "title": "Successfully Deleted",
-                "desc": "Product successfully deleted"
-            },
-            "created": {
-                "title": "Product created",
-                "desc": "The product was added successfully."
-            },
-            "exportSuccess": "Product CSV generated successfully.",
-            "exportError": "Unable to generate the CSV file.",
-            "import": {
-                "fileRequired": "Select a CSV file to continue.",
-                "emptyFile": "The uploaded file does not contain any rows."
-            },
-            "importSuccess": "Products processed: {{imported}} (created: {{created}}, updated: {{updated}}).",
-            "importSuccessWithErrors": "Products processed: {{imported}} (created: {{created}}, updated: {{updated}}). Rows with errors: {{failed}}.",
-            "importError": "We couldn't import the products.",
-            "importErrorRow": "Row {{row}}: {{message}}",
-            "importErrorMore": "{{count}} additional errors were omitted.",
-            "createError": "Unable to create the product."
-        },
-        "orderDetails": {
-            "activity": {
-                "parcel_has_been_delivered": "Parcel has been delivered",
-                "parcel_is_out_for_delivery": "Parcel is out for delivery",
-                "parcel_has_arrived_at_delivery_station": "Parcel has arrived at delivery station",
-                "parcel_has_been_picked_up_by_courier": "Parcel has been picked up by courier",
-                "seller_is_preparing_to_ship_your_parcel": "Seller is preparing to ship your parcel"
-            }
-        },
-        "productionOrders": {
-            "title": "Production orders",
-            "actions": {
-                "new": "New production order"
-            },
-            "columns": {
-                "order": "Order",
-                "workOrder": "Work order",
-                "priority": "Priority",
-                "assignee": "Assignee",
-                "scheduled": "Scheduled"
-            },
-            "filters": {
-                "search": "Search by customer, code or id",
-                "status": "Status"
-            },
-            "summary": {
-                "total": "Total orders",
-                "overdue": "Overdue"
-            },
-            "stats": {
-                "title": "Monthly activity",
-                "subtitle": "Orders created vs completed",
-                "empty": "No activity recorded yet.",
-                "created": "Created",
-                "completed": "Completed"
-            },
-            "form": {
-                "createTitle": "Create production order",
-                "editTitle": "Edit production order",
-                "submit": "Create production order",
-                "orderId": "Order ID",
-                "workOrderId": "Work order ID",
-                "priority": "Priority",
-                "assignedTo": "Assigned to",
-                "scheduledAt": "Scheduled",
-                "startedAt": "Started",
-                "completedAt": "Completed",
-                "deliveredAt": "Delivered"
-            },
-            "delete": {
-                "title": "Delete production order",
-                "confirm": "Are you sure you want to delete production order #{id}?"
-            },
-            "validation": {
-                "orderId": "A valid order id is required",
-                "priority": "Priority must be a positive number",
-                "invalidDate": "Select a valid date",
-                "startedBeforeScheduled": "Start date cannot be before the scheduled date",
-                "completedBeforeStarted": "Completion date cannot be before the start date",
-                "deliveredBeforeCompleted": "Delivery date cannot be before the completion date",
-                "assigneeNotFound": "Selected assignee could not be found"
-            },
-            "status": {
-                "PENDING": "Pending",
-                "IN_PROGRESS": "In progress",
-                "READY": "Ready",
-                "DELIVERED": "Delivered",
-                "CLOSED": "Closed",
-                "CANCELED": "Canceled"
-            }
-        }
+    "messages": {
+      "noLinkedCustomer": "No customer linked.",
+      "customerNotFound": "Customer information not found.",
+      "noDescription": "No description available.",
+      "eventDeleted": "Event deleted successfully.",
+      "searchInstructions": "Enter a term to search across all activities.",
+      "noEndTime": "No end time"
     },
-    "accounting": {
-        "dashboard": {
-            "overview": {
-                "title": "Accounting Overview",
-                "subtitle": "Monthly sales, expenses and taxes"
-            },
-            "filters": {
-                "range": {
-                    "label": "Date range",
-                    "options": {
-                        "today": "Today",
-                        "thisWeek": "This week",
-                        "thisMonth": "This month",
-                        "last15Days": "Last 15 days",
-                        "thisYear": "This year",
-                        "custom": "Custom"
-                    }
-                }
-            },
-            "stat": {
-                "sales": "Sales",
-                "expenses": "Expenses",
-                "taxes": "Taxes",
-                "netIncome": "Net income",
-                "totalLabel": "Total for the selected period"
-            },
-            "monthly": {
-                "title": "Monthly statistics",
-                "subtitle": "Aggregated totals by month",
-                "rangeLabel": "Selected range",
-                "empty": "No accounting data for the selected period",
-                "series": {
-                    "sales": "Sales",
-                    "expenses": "Expenses",
-                    "taxes": "Taxes",
-                    "netIncome": "Net income"
-                }
-            },
-            "summary": {
-                "metrics": {
-                    "sales": "Sales",
-                    "expenses": "Expenses",
-                    "taxes": "Taxes",
-                    "liquidIncome": "Liquid income"
-                },
-                "cardTitle": "Summary {{currency}}",
-                "chartTitle": "Bar chart by currency",
-                "chartSubtitle": "Sales, expenses, taxes and liquid income grouped by currency.",
-                "chartEmpty": "Not enough data to display the chart.",
-                "empty": "No transactions recorded yet."
-            },
-            "currencies": {
-                "title": "Movements by currency",
-                "subtitle": "Compare sales, expenses, taxes and results across currencies",
-                "totalsTitle": "Totals by currency",
-                "totalsEmpty": "No movements recorded yet.",
-                "monthlyTitle": "Monthly detail",
-                "monthlyEmpty": "No movements to show.",
-                "table": {
-                    "currency": "Currency",
-                    "sales": "Sales",
-                    "expenses": "Expenses",
-                    "taxes": "Taxes",
-                    "balance": "Balance",
-                    "liquidIncome": "Liquid income"
-                },
-                "labels": {
-                    "iusd": "USD",
-                    "uyu": "UYU",
-                    "other": "Other"
-                }
-            }
-        },
-        "payments": {
-            "title": "Payments",
-            "columns": {
-                "order": "Order",
-                "customer": "Customer",
-                "method": "Method",
-                "reference": "Reference"
-            },
-            "filters": {
-                "statusAll": "All statuses",
-                "typeAll": "All types",
-                "searchPlaceholder": "Search payments by order, reference or method"
-            },
-            "actions": {
-                "search": "Search",
-                "new": "Add payment",
-                "save": "Save",
-                "create": "Create"
-            },
-            "status": {
-                "confirmed": "Confirmed",
-                "registered": "Registered",
-                "failed": "Failed"
-            },
-            "type": {
-                "deposit": "Deposit",
-                "balance": "Balance",
-                "refund": "Refund"
-            },
-            "form": {
-                "editTitle": "Edit payment",
-                "createTitle": "New payment",
-                "orderId": "Order ID",
-                "paymentMethod": "Payment method",
-                "methodLabel": "Method label",
-                "reference": "Reference",
-                "notes": "Notes"
-            },
-            "validation": {
-                "orderIdRequired": "Order ID is required",
-                "amountRequired": "Amount is required",
-                "amountPositive": "Amount must be greater than zero"
-            },
-            "feedback": {
-                "loading": "Loading payment information...",
-                "loadFailedTitle": "Unable to load payment",
-                "loadFailedDesc": "We couldn’t retrieve the selected payment. Please try again.",
-                "createdTitle": "Payment created",
-                "createdDesc": "The payment was registered successfully.",
-                "updatedTitle": "Payment updated",
-                "updatedDesc": "The payment changes were saved.",
-                "saveFailedTitle": "Unable to save payment",
-                "saveFailedDesc": "Please review the information and try again.",
-                "deletedTitle": "Payment deleted",
-                "deletedDesc": "The payment was removed successfully.",
-                "deleteFailedTitle": "Unable to delete payment",
-                "deleteFailedDesc": "We couldn’t delete the payment. Please try again."
-            },
-            "delete": {
-                "title": "Delete payment",
-                "confirm": "Are you sure you want to delete this payment? This action cannot be undone."
-            }
-        }
-    },
-    "crm": {
-        "mail": {
-            "newMessage": "New Message",
-            "mailbox": "Mailbox",
-            "title": "Mail",
-            "labels": "Labels",
-            "sent": "Mail Sent",
-            "mailboxesUnavailable": "Mailboxes are not available right now. Please try again later.",
-            "messagesUnavailable": "Unable to load inbox messages right now. Please try again later.",
-            "unknownSender": "Unknown sender",
-            "selectMailPrompt": "Select a mail to read",
-            "noSubject": "No subject",
-            "noPreview": "No preview available",
-            "moreAttachments": "+{{count}} more",
-            "categories": {
-                "inbox": "Inbox",
-                "sentItem": "Sent Item",
-                "draft": "Draft",
-                "starred": "Starred",
-                "deleted": "Deleted"
-            },
-            "labelsList": {
-                "work": "Work",
-                "private": "Private",
-                "important": "Important"
-            },
-            "dynamicMailboxes": {
-                "archive": "Archive",
-                "spam": "Spam",
-                "trash": "Trash",
-                "junk": "Junk"
-            },
-            "actions": {
-                "reply": "Reply",
-                "star": "Star",
-                "starred": "Starred",
-                "flag": "Flag",
-                "flagged": "Flagged",
-                "moveTo": "Move to"
-            }
-        },
-        "dashboard": {
-            "thisMonth": "this month",
-            "stat": {
-                "total": "Total Customers",
-                "active": "Active Customers",
-                "new": "New Customers",
-                "newLeads": "New Leads",
-                "emailResponse": "Email",
-                "proposals": "Proposals",
-                "appointment": "Appointment"
-            },
-            "leadByCountries": {
-                "title": "Lead By Countries"
-            }
-        },
-        "customerDetail": {
-            "noUserFound": "No user found!",
-            "removePaymentMethod": "Remove payment method",
-            "removePaymentMethodConfirm": "Are you sure you want to remove this payment method?",
-            "subscription": {
-                "title": "Subscription",
-                "billing": "Billing",
-                "nextPaymentOn": "Next payment on",
-                "for": "for",
-                "cancelPlan": "Cancel plan",
-                "update": "Update",
-                "subscribe": "Subscribe",
-                "plan": "Plan"
-            }
-        },
-        "leads": {
-            "title": "Leads",
-            "viewAll": "View All Leads"
-        },
-        "emailSent": {
-            "title": "Email Sent",
-            "opened": "Opened",
-            "performance": "Performance",
-            "average": "Average"
-        }
-    },
-    "expenses": {
-        "dashboard": {
-            "overview": {
-                "title": "Expenses Overview",
-                "subtitle": "Track company spending and summary"
-            },
-            "stat": {
-                "total": "Total Expenses",
-                "transactions": "Transactions",
-                "recurring": "Recurring",
-                "vsMonths": "vs. {{months}} months prior to {{date}}"
-            },
-            "categories": {
-                "title": "Categories",
-                "donutText": "Total Spend"
-            },
-            "latestExpenses": {
-                "title": "Latest Expenses",
-                "viewExpenses": "View expenses"
-            },
-            "expensesReport": {
-                "title": "Expenses Report",
-                "export": "Export report",
-                "empty": "No expenses recorded for the selected period"
-            },
-            "filters": {
-                "range": {
-                    "label": "Date range",
-                    "options": {
-                        "today": "Today",
-                        "thisWeek": "This week",
-                        "thisMonth": "This month",
-                        "last15Days": "Last 15 days",
-                        "thisYear": "This year",
-                        "custom": "Custom"
-                    }
-                }
-            }
-        },
-        "latestExpenses": {
-            "columns": {
-                "expense": "Expense",
-                "vendor": "Vendor"
-            }
-        },
-        "list": {
-            "title": "Expenses",
-            "columns": {
-                "expense": "Expense",
-                "vendor": "Vendor"
-            },
-            "delete": {
-                "title": "Delete expense",
-                "confirm": "Are you sure you want to delete the selected expense(s)? This action cannot be undone.",
-                "titleSuccess": "Successfully deleted",
-                "single": "Expense deleted successfully",
-                "batch": "{{count}} expenses deleted successfully"
-            }
-        },
-        "new": {
-            "title": "New Expense",
-            "fields": {
-                "vendor": "Vendor"
-            },
-            "placeholders": {
-                "vendor": "Vendor name"
-            },
-            "validation": {
-                "vendorRequired": "Vendor is required",
-                "amountRequired": "Amount is required",
-                "amountNumber": "Amount must be a valid number",
-                "amountPositive": "Amount must be greater than 0"
-            },
-            "created": {
-                "title": "Successfully created",
-                "desc": "Expense created successfully"
-            }
-        },
-        "edit": {
-            "title": "Edit Expense",
-            "fields": {
-                "paymentReference": "Payment reference"
-            },
-            "placeholders": {
-                "paymentReference": "e.g. Receipt number, transaction id"
-            },
-            "updated": {
-                "title": "Updated successfully",
-                "desc": "Expense updated successfully"
-            }
-        },
-        "attachments": {
-            "dropOr": "Drop your file here, or ",
-            "browse": "browse"
-        },
-        "categories": {
-            "title": "Expense Categories",
-            "columns": {
-                "name": "Name"
-            },
-            "actions": {
-                "add": "Add",
-                "manage": "Manage categories"
-            },
-            "placeholders": {
-                "name": "Category name"
-            },
-            "created": {
-                "title": "Successfully created",
-                "desc": "Category created successfully"
-            },
-            "updated": {
-                "title": "Updated successfully",
-                "desc": "Category updated successfully"
-            },
-            "deleted": {
-                "title": "Successfully deleted",
-                "desc": "Category deleted successfully"
-            }
-        }
-    },
-    "settings": {
-        "productCategories": {
-            "title": "Product Categories",
-            "columns": {
-                "id": "ID",
-                "name": "Name",
-                "service": "Installation service",
-                "parent": "Parent",
-                "description": "Description",
-                "image": "Image"
-            },
-            "placeholders": {
-                "name": "Category name",
-                "description": "Description (optional)",
-                "image": "Image URL (optional)",
-                "serviceName": "Installation service name",
-                "serviceProductCode": "Service code (optional)",
-                "serviceSalePrice": "Sale price",
-                "serviceCostPrice": "Cost price (optional)",
-                "serviceCurrency": "Currency",
-                "serviceTaxRate": "Tax rate (optional)",
-                "serviceUnitOfMeasure": "Unit of measure",
-                "serviceDescription": "Service description (optional)"
-            },
-            "fields": {
-                "image": "Image"
-            },
-            "form": {
-                "parent": "Parent category",
-                "noParent": "No parent"
-            },
-            "validation": {
-                "selfParent": "A category cannot be its own parent.",
-                "invalidServicePrice": "Please provide a valid installation price.",
-                "invalidServiceCost": "Please provide a valid installation cost.",
-                "invalidServiceTax": "Please provide a valid tax rate.",
-                "imageUploadFailed": "We could not process the selected image."
-            },
-            "labels": {
-                "installable": "This category includes an optional installation service",
-                "serviceHeading": "Installation Service",
-                "serviceSubtitle": "Define the installation product created automatically for this category."
-            },
-            "actions": {
-                "uploadImage": "Upload image",
-                "removeImage": "Remove image"
-            },
-            "created": {
-                "title": "Successfully created",
-                "desc": "Category created successfully"
-            },
-            "updated": {
-                "title": "Updated successfully",
-                "desc": "Category updated successfully"
-            },
-            "deleted": {
-                "title": "Successfully deleted",
-                "desc": "Category deleted successfully"
-            },
-            "delete": {
-                "title": "Delete category",
-                "confirm": "Are you sure you want to delete the category \"{{name}}\"? This action cannot be undone."
-            }
-        },
-        "productStatuses": {
-            "title": "Product Statuses",
-            "columns": {
-                "name": "Name"
-            },
-            "placeholders": {
-                "name": "Status name"
-            },
-            "created": {
-                "title": "Successfully created",
-                "desc": "Status created successfully"
-            },
-            "updated": {
-                "title": "Updated successfully",
-                "desc": "Status updated successfully"
-            },
-            "deleted": {
-                "title": "Successfully deleted",
-                "desc": "Status deleted successfully"
-            }
-        },
-        "expenseStatuses": {
-            "title": "Expense Statuses",
-            "columns": {
-                "name": "Name"
-            },
-            "placeholders": {
-                "name": "Status name"
-            },
-            "created": {
-                "title": "Successfully created",
-                "desc": "Status created successfully"
-            },
-            "updated": {
-                "title": "Updated successfully",
-                "desc": "Status updated successfully"
-            },
-            "deleted": {
-                "title": "Successfully deleted",
-                "desc": "Status deleted successfully"
-            }
-        },
-        "shippingOptions": {
-            "title": "Shipping Options",
-            "columns": {
-                "image": "Image",
-                "name": "Name",
-                "deliveryFees": "Delivery fee",
-                "estimatedMin": "Min days",
-                "estimatedMax": "Max days"
-            },
-            "placeholders": {
-                "name": "Carrier name",
-                "deliveryFees": "Fee (e.g. 12.50)",
-                "estimatedMin": "Min days",
-                "estimatedMax": "Max days",
-                "img": "Image URL"
-            },
-            "created": {
-                "title": "Shipping option created",
-                "desc": "The shipping option was added successfully."
-            },
-            "updated": {
-                "title": "Shipping option updated",
-                "desc": "The shipping option was updated successfully."
-            },
-            "deleted": {
-                "title": "Shipping option removed",
-                "desc": "The shipping option was deleted successfully."
-            },
-            "errors": {
-                "invalidImageType": "Unsupported file type. Please upload a JPG, PNG, WEBP, GIF, or SVG image."
-            }
-        },
-        "email": {
-            "title": "Email",
-            "categories": {
-                "orders": "Orders",
-                "payments": "Payments",
-                "auth": "Authentication"
-            },
-            "category": {
-                "description": "Configure sender information and recipients for this email category."
-            },
-            "status": {
-                "enabled": "Enabled",
-                "disabled": "Disabled"
-            },
-            "fields": {
-                "fromName": "From name",
-                "fromAddress": "From email"
-            },
-            "recipients": {
-                "admin": "Administrator recipients",
-                "empty": "No recipients"
-            },
-            "actions": {
-                "add": "Add",
-                "save": "Save changes",
-                "saveTemplate": "Save template",
-                "sendTest": "Send test email",
-                "refresh": "Refresh",
-                "addRule": "Add rule",
-                "removeRecipient": "Remove recipient"
-            },
-            "updatedAtExact": "Last updated {{value}}",
-            "test": {
-                "title": "Send test email",
-                "variant": {
-                    "orders": "Email type",
-                    "payments": "Email type",
-                    "auth": "Email type"
-                },
-                "locale": "Locale",
-                "emailPlaceholder": "Email address",
-                "sent": "Test email queued successfully."
-            },
-            "validation": {
-                "invalidEmail": "Enter a valid email address.",
-                "selectCategory": "Select at least one category."
-            },
-            "saveSuccess": "Settings were updated successfully.",
-            "roles": {
-                "title": "Role routing rules",
-                "description": "Automatically notify internal users based on their role. Recipients are merged with manual admin recipients.",
-                "fields": {
-                    "role": "Role",
-                    "categories": "Categories"
-                },
-                "placeholders": {
-                    "role": "Select role"
-                },
-                "list": "Existing rules",
-                "empty": "No role-based rules defined yet.",
-                "deleteTitle": "Delete rule",
-                "deleteConfirm": "Are you sure you want to delete notifications for the role \"{{role}}\"?"
-            },
-            "logs": {
-                "title": "Delivery logs",
-                "description": "Inspect recent email deliveries, statuses, and errors.",
-                "filters": {
-                    "category": "All categories",
-                    "status": "All statuses",
-                    "recipient": "All recipients"
-                },
-                "columns": {
-                    "date": "Date",
-                    "category": "Category",
-                    "recipient": "Recipient",
-                    "subject": "Subject",
-                    "status": "Status"
-                },
-                "status": {
-                    "queued": "Queued",
-                    "sent": "Sent",
-                    "failed": "Failed",
-                    "retrying": "Retrying"
-                },
-                "recipient": {
-                    "customer": "Customer",
-                    "admin": "Administrator",
-                    "system": "System"
-                },
-                "empty": "No logs found.",
-                "actions": {
-                    "loadMore": "Load more"
-                }
-            },
-            "templates": {
-                "title": "Active templates",
-                "description": "Overview of active MJML templates per category, locale, and variant.",
-                "saveSuccess": "Template saved successfully.",
-                "editorTitle": "Template editor",
-                "editorDescription": "Review and adjust the subject and MJML body. Changes apply to future emails once saved.",
-                "fields": {
-                    "subject": "Subject",
-                    "body": "Body (MJML)"
-                },
-                "unsaved": "Unsaved changes",
-                "previewSettings": "Preview settings",
-                "scenarioPlaceholder": "Scenario",
-                "previewTitle": "Live preview",
-                "previewText": "Plain text version",
-                "previewEmpty": "No preview available."
-            },
-            "metrics": {
-                "title": "Delivery metrics",
-                "description": "Track send attempts, successes, and failures per category and template.",
-                "attempts": "Attempts",
-                "sent": "Sent",
-                "failed": "Failed",
-                "byCategory": "By category",
-                "category": "Category",
-                "attemptsShort": "Att.",
-                "sentShort": "Sent",
-                "failedShort": "Fail",
-                "byTemplate": "By template",
-                "template": "Template",
-                "empty": "No metrics available yet."
-            }
-        },
-        "companyProfile": {
-            "title": "Company information",
-            "subtitle": "Customize the company data displayed on invoices and other documents.",
-            "fields": {
-                "legalName": "Legal name",
-                "tradeName": "Trade name",
-                "taxId": "Tax ID",
-                "phone": "Phone",
-                "email": "Email",
-                "website": "Website",
-                "addressLine1": "Address line 1",
-                "addressLine2": "Address line 2",
-                "logo": "Logo"
-            },
-            "placeholders": {
-                "legalName": "Sistema Administrativo, Inc.",
-                "tradeName": "Sistema Administrativo",
-                "taxId": "RUC 1234567890",
-                "phone": "(123) 456-7890",
-                "email": "facturacion@sistemadministrativo.com",
-                "website": "www.sistemadministrativo.com",
-                "addressLine1": "9498 Harvard Street",
-                "addressLine2": "Fairfield, Chicago Town 06824"
-            },
-            "labels": {
-                "noLogo": "No logo selected"
-            },
-            "actions": {
-                "uploadLogo": "Upload logo",
-                "removeLogo": "Remove",
-                "resetLogo": "Reset"
-            },
-            "logoHint": "PNG, JPG, WEBP or GIF up to 512 KB.",
-            "errors": {
-                "logoUnsupported": "Unsupported file format. Use PNG, JPG, WEBP or GIF.",
-                "logoTooLarge": "Logo must not exceed 512 KB.",
-                "logoInvalid": "Unable to read the selected file."
-            },
-            "updated": {
-                "title": "Company information updated",
-                "desc": "Details saved successfully."
-            }
-        },
-        "systemConfig": {
-            "title": "System configuration",
-            "desc": "Define the global values used across sales calculations.",
-            "taxRateLabel": "Tax (%)",
-            "updated": {
-                "title": "Successfully updated",
-                "desc": "Configuration saved"
-            },
-            "currency": {
-                "title": "Allowed currencies",
-                "desc": "Manage the list of currency codes that can be used across products and orders.",
-                "placeholder": "E.g. USD",
-                "columns": {
-                    "code": "Currency"
-                },
-                "actions": {
-                    "add": "Add currency"
-                },
-                "empty": "No currencies configured yet.",
-                "validation": {
-                    "format": "Currency must use 3–5 uppercase letters (e.g. USD).",
-                    "duplicate": "Currency already exists."
-                },
-                "created": {
-                    "title": "Currency added",
-                    "desc": "The currency was added successfully."
-                },
-                "updated": {
-                    "title": "Currency updated",
-                    "desc": "The currency was updated successfully."
-                },
-                "deleted": {
-                    "title": "Currency removed",
-                    "desc": "The currency was deleted successfully."
-                },
-                "deleteTitle": "Delete currency",
-                "deleteConfirm": "Are you sure you want to delete the currency \"{{code}}\"? This may impact pricing and exchange rates."
-            },
-            "disclaimer": {
-                "title": "Document disclaimer",
-                "desc": "Define a shared note displayed below the comments on every generated budget and invoice.",
-                "hint": "Supports basic HTML formatting. Leave blank to hide the disclaimer.",
-                "successTitle": "Disclaimer updated",
-                "success": "Document disclaimer saved successfully."
-            }
-        },
-        "calendarEventTypes": {
-            "title": "Calendar event types",
-            "subtitle": "Configure the options available when scheduling events.",
-            "fields": {
-                "name": "Display name",
-                "color": "Color"
-            },
-            "placeholders": {
-                "label": "E.g. Meeting"
-            },
-            "actions": {
-                "add": "Add event type"
-            },
-            "validation": {
-                "keyFormat": "Key can include letters, numbers, dashes and dots only.",
-                "keyRequired": "Key is required",
-                "labelRequired": "Display name is required",
-                "uniqueKeys": "Keys must be unique.",
-                "minItems": "Define at least one event type."
-            },
-            "loadError": "Could not load current types. Default values are shown.",
-            "updated": "Event type updated successfully.",
-            "created": "Event type created successfully.",
-            "deleted": "Event type removed successfully.",
-            "deleteTitle": "Delete event type",
-            "confirmDelete": "Are you sure you want to delete the event type \"{{name}}\"? This action cannot be undone.",
-            "empty": "No event types configured yet."
-        }
-    },
-    "common": {
-        "success": "Success",
-        "error": "Error",
-        "notFound": {
-            "product": "No product found!",
-            "order": "No order found!",
-            "user": "No user found!"
-        },
-        "labels": {
-            "yes": "Yes",
-            "no": "No",
-            "notSpecified": "Not specified",
-            "unassigned": "Unassigned"
-        }
-    },
-    "notification": {
-        "title": "Notifications",
-        "markAllRead": "Mark all as read",
-        "empty": {
-            "title": "No notifications!",
-            "desc": "Please try again later"
-        },
-        "viewAll": "View All Activity",
-        "untitled": "Notification",
-        "loading": "Loading notifications...",
-        "lastUpdated": "Updated {{date}}",
-        "viewRecent": "Notifications will appear here."
-    },
-    "production": {
-        "orders": {
-            "disabled": "Production orders feature is not enabled.",
-            "notFound": "Production order not found.",
-            "validation": {
-                "orderNotFound": "Order not found.",
-                "workOrderMismatch": "Work order does not belong to the target order.",
-                "metadataJson": "Metadata must be valid JSON.",
-                "assigneeNotFound": "Selected assignee could not be found."
-            }
-        }
+    "placeholders": {
+      "title": "Event title",
+      "customer": "Select customer",
+      "eventType": "Select event type",
+      "street": "Enter street",
+      "number": "Number",
+      "city": "City",
+      "country": "Country",
+      "corner": "Cross street",
+      "apartment": "Apartment / Unit",
+      "location": "Room, link or reference",
+      "description": "Details, goals or agenda",
+      "search": "Search by title, date, customer or content"
     },
     "errors": {
-        "timeout": "The request took too long. Please try again.",
-        "dbConnection": "We could not reach the database right now.",
-        "conflict": "There is already a record with this information.",
-        "dbPanic": "The data service encountered an unexpected error.",
-        "dbTimeout": "The database did not respond in time.",
-        "unauthorized": "You need to sign in to continue.",
-        "forbidden": "You don't have permission to perform this action.",
-        "validation": "Review the provided information.",
-        "rateLimited": "Too many requests. Please wait a moment.",
-        "notFound": "We couldn't find what you were looking for.",
-        "unknown": "Something went wrong. Please try again.",
-        "circuitOpen": "Service is intermittent. Showing previous data.",
-        "networkOffline": "We couldn't connect. Check your connection.",
-        "invalidResponse": "The server responded in an unexpected format.",
-        "requestFailed": "We couldn't complete the request.",
-        "requestCancelled": "The request was cancelled."
+      "customers": "Unable to load customers.",
+      "customerAddress": "Could not load customer address.",
+      "deleteFailed": "We couldn't delete the event."
+    },
+    "validation": {
+      "eventTypeRequired": "Event type is required"
+    },
+    "eventTypes": {
+      "meeting": "Meeting",
+      "task": "Task",
+      "workshop": "Workshop",
+      "other": "Other"
+    },
+    "attachments": {
+      "supported": "Supported formats: images and documents (pdf, doc, xls, csv, txt, zip).",
+      "confirmDelete": "Delete the file \"{{name}}\"?",
+      "unnamed": "Unnamed file",
+      "deleteSuccess": "File deleted successfully.",
+      "deleteFailed": "We couldn't delete the file.",
+      "downloadFailed": "We couldn't retrieve the attachment.",
+      "updateSuccess": "Attachments updated successfully.",
+      "updateFailed": "We couldn't update the attachments.",
+      "saving": "Saving changes…"
+    },
+    "comments": {
+      "title": "Comments",
+      "placeholder": "Write a comment...",
+      "add": "Add comment",
+      "empty": "There are no comments for this activity yet.",
+      "anonymous": "User",
+      "createFailed": "We couldn't add the comment.",
+      "deleteFailed": "We couldn't delete the comment.",
+      "edit": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this comment?",
+      "updateFailed": "We couldn't update the comment.",
+      "messageRequired": "Comment message cannot be empty."
     }
+  },
+  "menu": {
+    "products": {
+      "list": "Product List",
+      "config": "Configuration"
+    },
+    "accounting": {
+      "title": "Accounting",
+      "expenses": {
+        "title": "Expenses",
+        "list": "List",
+        "new": "New",
+        "categories": "Categories"
+      },
+      "payments": "Payments"
+    }
+  },
+  "user": {
+    "menu": {
+      "profile": "Profile",
+      "accountSetting": "Account Setting",
+      "activityLog": "Activity Log",
+      "signOut": "Sign Out"
+    }
+  },
+  "theme": {
+    "config": {
+      "title": "Theme Config",
+      "darkMode": {
+        "title": "Dark Mode",
+        "desc": "Switch theme to dark mode"
+      },
+      "navMode": {
+        "title": "Nav Mode",
+        "default": "Default",
+        "themed": "Themed"
+      },
+      "theme": {
+        "title": "Theme"
+      },
+      "layout": {
+        "title": "Layout"
+      },
+      "save": {
+        "button": "Save theme",
+        "success": {
+          "title": "Theme updated",
+          "desc": "Theme configuration saved successfully."
+        },
+        "error": {
+          "title": "Save failed",
+          "desc": "We couldn't save the theme configuration."
+        }
+      }
+    }
+  },
+  "pages": {
+    "accessDenied": {
+      "title": "Access Denied!",
+      "message": "You have no permission to visit this page"
+    }
+  },
+  "auth": {
+    "common": {
+      "backToSignIn": "Back to ",
+      "signIn": "Sign in",
+      "signUp": "Sign up"
+    },
+    "resetPassword": {
+      "setNewPassword": {
+        "title": "Set new password",
+        "subtitle": "Your new password must be different from the previous password"
+      },
+      "success": {
+        "title": "Password reset",
+        "subtitle": "Your password has been successfully reset"
+      },
+      "continue": "Continue"
+    },
+    "forgotPassword": {
+      "title": "Forgot Password",
+      "subtitle": "Please enter your email address to receive a verification code",
+      "emailSent": {
+        "title": "Check your email",
+        "subtitle": "We have sent password recovery instructions to your email"
+      },
+      "sendEmail": "Send Email",
+      "resendEmail": "Resend Email"
+    },
+    "signIn": {
+      "title": "Welcome back!",
+      "subtitle": "Please enter your credentials to sign in!",
+      "rememberMe": "Remember Me",
+      "forgotPassword": "Forgot Password?",
+      "submit": "Sign In",
+      "submitting": "Signing in...",
+      "noAccount": "Don't have an account yet?",
+      "recaptchaMessage": "reCAPTCHA Enterprise protects this action."
+    },
+    "signUp": {
+      "title": "Sign Up",
+      "subtitle": "And let's get started with your free trial",
+      "submit": "Sign Up",
+      "submitting": "Creating Account...",
+      "hasAccount": "Already have an account?"
+    }
+  },
+  "project": {
+    "dashboard": {
+      "greeting": "Hello, {{name}}!",
+      "tasksOnHand": "You have {{count}} tasks on hand.",
+      "taskOverview": "Task Overview",
+      "projects": "Projects",
+      "ranges": {
+        "monthly": "Monthly",
+        "weekly": "Weekly",
+        "daily": "Daily"
+      }
+    }
+  },
+  "text": {
+    "titles": {
+      "products": "Products",
+      "shipping": "Shipping",
+      "paymentSummary": "Payment Summary",
+      "paymentHistory": "Payment History",
+      "orderHistory": "Order History",
+      "budgetHistory": "Budget History",
+      "activity": "Activity",
+      "details": "Details",
+      "addEvent": "Add New Event",
+      "editEvent": "Edit Event",
+      "deleteCustomer": "Delete customer",
+      "customerDeleted": "Successfully Deleted",
+      "deleteCustomerFailed": "Cannot delete customer",
+      "editCreditCard": "Edit Credit Card",
+      "schedule": "Schedule",
+      "myTasks": "My Tasks",
+      "addNewProject": "Add new project",
+      "addNewCustomer": "Add new customer",
+      "addPeople": "Add people",
+      "addNewTicket": "Add New Ticket",
+      "deleteBoard": "Delete Board",
+      "installed": "Installed",
+      "available": "Available",
+      "password": "Password",
+      "invoice": "Invoice",
+      "budget": "Budget",
+      "shippingAddress": "Shipping Address",
+      "billingAddress": "Billing address",
+      "comments": "Comments",
+      "conversionSnapshot": "Conversion snapshot",
+      "description": "Description",
+      "role": "Role",
+      "activityDetails": "Activity Details",
+      "attachments": "Attachments",
+      "whereSignedIn": "Where you're signed in",
+      "addressInformation": "Address Information",
+      "permanentAddress": "Permanent Address",
+      "correspondenceAddress": "Correspondence Address",
+      "basicInformation": "Basic Information",
+      "pricing": "Pricing",
+      "deleteProduct": "Delete product",
+      "paymentMethods": "Payment Methods",
+      "billingHistory": "Billing History",
+      "activityLog": "Activity Log",
+      "filterActivity": "Filter Activity",
+      "taskManagement": "Task Management"
+    },
+    "labels": {
+      "firstName": "First name",
+      "lastName": "Last name",
+      "deliveryIn": "Delivery in",
+      "days": "days",
+      "subtotal": "Subtotal",
+      "deliveryFee": "Delivery fee",
+      "tax": "Tax",
+      "taxWithRate": "Tax ({{rate}}%)",
+      "minDays": "Min days",
+      "maxDays": "Max days",
+      "sameAsShipping": "Use shipping address",
+      "productName": "Product Name",
+      "code": "Code",
+      "description": "Description",
+      "specifications": "Specifications",
+      "unitOfMeasure": "Sales unit",
+      "widthMeters": "Width (m)",
+      "heightMeters": "Height (m)",
+      "linearMeters": "Linear meters (m)",
+      "estimatedQuantity": "Estimated quantity: {{value}} {{unit}}",
+      "sku": "SKU",
+      "bulkDiscountPrice": "Bulk Discount Price",
+      "taxRatePercent": "Tax Rate(%)",
+      "taxRate": "Tax Rate",
+      "name": "Name",
+      "email": "Email",
+      "date": "Date",
+      "time": "Time",
+      "userName": "User Name",
+      "password": "Password",
+      "confirmPassword": "Confirm Password",
+      "location": "Location",
+      "phoneNumber": "Phone Number",
+      "title": "Title",
+      "role": "Role",
+      "avatar": "Avatar",
+      "birthday": "Birthday",
+      "phone": "Phone",
+      "dateOfBirth": "Date of birth",
+      "social": "Social",
+      "facebookLink": "Facebook link",
+      "twitterLink": "Twitter link",
+      "pinterestLink": "Pinterest link",
+      "linkedInLink": "LinkedIn link",
+      "eventTitle": "Event Title",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "preferredColor": "Preferred Color",
+      "cardHolderName": "Card holder name",
+      "creditCardNumber": "Credit Card Number",
+      "expirationDate": "Expiration date",
+      "cvv": "CVV",
+      "totalCustomers": "Total Customers",
+      "activeCustomers": "Active Customers",
+      "newCustomers": "New Customers",
+      "createdBy": "created by",
+      "inProgress": "In Progress",
+      "linkedTickets": "Linked tickets",
+      "recipient": "Recipient",
+      "billTo": "Bill to",
+      "address": "Address",
+      "addressLabel": "Address label",
+      "budgetValidity": "Budget validity",
+      "storyPoint": "{{count}} story point",
+      "createdOn": "Created on",
+      "assignees": "Assignees",
+      "tags": "Tags",
+      "membersAvailable": "members available",
+      "otherPaymentMethods": "Other payment methods",
+      "issuedBy": "Issued by",
+      "invoiceNumber": "Invoice number",
+      "budgetNumber": "Budget number",
+      "issuedOn": "Issue date",
+      "taxId": "Tax ID",
+      "website": "Website",
+      "baseCurrency": "Base currency",
+      "conversionRates": "Conversion rates",
+      "snapshotGeneratedAt": "Snapshot generated at",
+      "primary": "Primary",
+      "none": "None",
+      "expired": "Expired",
+      "about": "About",
+      "keyFeatures": "Key Features",
+      "to": "To",
+      "grandTotal": "Grand Total",
+      "previousOrders": "Previous orders",
+      "previousBudgets": "Previous budgets",
+      "setAsPrimary": "Set this card as primary",
+      "country": "Country",
+      "street": "Street",
+      "number": "Number",
+      "apartment": "Apartment",
+      "corner": "Corner",
+      "cornerFormat": "Corner {{corner}}",
+      "comments": "Comments",
+      "addressLine1": "Address Line 1",
+      "addressLine2": "Address Line 2",
+      "city": "City",
+      "state": "State",
+      "zipCode": "Zip Code",
+      "current": "Current",
+      "language": "Language",
+      "ticket": "Ticket",
+      "comment": "Comment",
+      "timeZone": "Time Zone",
+      "syncData": "Sync Data",
+      "category": "Category",
+      "brand": "Brand",
+      "vendor": "Vendor",
+      "permanentStock": "Permanent stock",
+      "stockStatus": "Stock status",
+      "offerPrice": "Offer price",
+      "ticketTitle": "Ticket title",
+      "untitledBoard": "Untitled Board",
+      "untitledCard": "Untitled Card"
+    },
+    "columns": {
+      "order": "Order",
+      "date": "Date",
+      "customer": "Customer",
+      "status": "Status",
+      "paymentMethod": "Payment Method",
+      "total": "Total",
+      "name": "Name",
+      "category": "Category",
+      "quantity": "Quantity",
+      "price": "Unit Price",
+      "salePrice": "Sale price",
+      "costPrice": "Cost price",
+      "product": "Product",
+      "reference": "Reference",
+      "amount": "Amount",
+      "taxCreditEligible": "Generates tax credit",
+      "createdTime": "Created Time",
+      "assignee": "Assignee",
+      "sold": "Sold",
+      "email": "Email",
+      "phone": "Phone",
+      "lastOnline": "Last online",
+      "taskId": "Task ID",
+      "subject": "Subject",
+      "priority": "Priority",
+      "assignees": "Assignees",
+      "actions": "Actions",
+      "published": "Published",
+      "stock": "Stock",
+      "comments": "Comments",
+      "specifications": "Specifications",
+      "type": "Type"
+    },
+    "mobileNav": {
+      "home": "Home",
+      "agenda": "Agenda",
+      "addCustomer": "Add Client",
+      "addOrder": "Add Order",
+      "quickBudget": "Quick budget",
+      "menu": "Menu"
+    },
+    "priority": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "actions": {
+      "view": "View",
+      "viewInvoice": "View invoice",
+      "delete": "Delete",
+      "export": "Export",
+      "addProduct": "Add Product",
+      "batchDelete": "Batch Delete",
+      "viewCarrierDetails": "View Carrier Details",
+      "save": "Save",
+      "discard": "Discard",
+      "cancel": "Cancel",
+      "update": "Update",
+      "edit": "Edit",
+      "clearAll": "Clear All",
+      "viewAll": "View All",
+      "loadMore": "Load More",
+      "submit": "Submit",
+      "done": "Done",
+      "comment": "Comment",
+      "copy": "Copy",
+      "copied": "Copied",
+      "remove": "Remove",
+      "add": "Add",
+      "addMore": "Add More",
+      "download": "Download",
+      "import": "Import",
+      "send": "Send",
+      "generateMessage": "Generate message",
+      "change": "Change",
+      "rename": "Rename",
+      "filter": "Filter",
+      "showFilters": "Show Filters",
+      "hideFilters": "Hide Filters",
+      "query": "Query",
+      "addTicket": "Add Ticket",
+      "deleteBoard": "Delete Board",
+      "viewIntegration": "View Integration",
+      "install": "Install",
+      "installed": "Installed",
+      "updating": "Updating",
+      "reset": "Reset",
+      "addNewCard": "Add new card",
+      "back": "Back",
+      "next": "Next",
+      "finalize": "Finalize",
+      "print": "Print",
+      "updatePassword": "Update Password",
+      "assigned": "assigned",
+      "addedAComment": "added a comment"
+    },
+    "placeholders": {
+      "search": "Search",
+      "searchProduct": "Search product",
+      "date": "Date",
+      "name": "Name",
+      "lastName": "Last name",
+      "code": "Code",
+      "codeSku": "Code (SKU)",
+      "stock": "Stock",
+      "url": "URL",
+      "eventTitle": "Please enter title",
+      "leaveComment": "Leave a comment",
+      "enterComment": "Add a note for this product",
+      "specifications": "Product specifications",
+      "quickSearchMember": "Quick search member",
+      "ticketTitle": "Please enter ticket title",
+      "writeComment": "Write comment",
+      "boardTitle": "Please enter board title",
+      "country": "Country",
+      "currentPassword": "Current Password",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm Password"
+    },
+    "status": {
+      "paid": "Paid",
+      "pending": "Pending",
+      "failed": "Failed",
+      "inStock": "In Stock",
+      "limited": "Limited",
+      "outOfStock": "Out of Stock",
+      "active": "Active",
+      "blocked": "Blocked",
+      "unpaid": "Unpaid",
+      "fulfilled": "Fulfilled",
+      "unfulfilled": "Unfulfilled",
+      "new": "New",
+      "sold": "Sold",
+      "notInterested": "Not Interested",
+      "inProgress": "In Progress",
+      "published": "Published",
+      "disabled": "Disabled",
+      "archive": "Archive"
+    },
+    "salesUnit": {
+      "UNIT": "Unit",
+      "SQUARE_METER": "Square meter",
+      "LINEAR_METER": "Linear meter"
+    },
+    "specs": {
+      "width": "Width",
+      "height": "Height",
+      "length": "Length"
+    },
+    "date": {
+      "monthsShort": {
+        "jan": "Jan",
+        "feb": "Feb",
+        "mar": "Mar",
+        "apr": "Apr",
+        "may": "May",
+        "jun": "Jun",
+        "jul": "Jul",
+        "aug": "Aug",
+        "sep": "Sep",
+        "oct": "Oct",
+        "nov": "Nov",
+        "dec": "Dec"
+      }
+    },
+    "tooltips": {
+      "cvv": "The CVV/CVC code is located on the back of your credit/debit card on the right side of the white signature strip"
+    },
+    "descriptions": {
+      "basicProductInfo": "Section to config basic product information",
+      "productSalesInfo": "Section to config product sales information",
+      "salePriceAuto": "Sale price defaults to cost price × 1.30 and can be adjusted manually",
+      "passwordDesc": "Enter your current and new password to reset your password",
+      "viewPreviousBilling": "View your previous billing",
+      "addressInformation": "Enter your address information to help us speed up the verification process",
+      "inviteTeamMember": "Invite your team members to collaborate on this board",
+      "taskManagement": "Team task board to register and resolve work items"
+    },
+    "messages": {
+      "deleteProductConfirm": "Are you sure you want to delete this product? All record related to this product will be deleted as well. This action cannot be undone.",
+      "customerDeleted": "Customer successfully deleted",
+      "customerDeleteHasOrders": "You cannot delete a customer that already has orders.",
+      "customerAdded": "Customer added successfully",
+      "customerEmailTaken": "A customer with this email already exists.",
+      "customerPhoneTaken": "A customer with this phone number already exists.",
+      "customerEmailAndPhoneTaken": "A customer with this email and phone number already exists.",
+      "customerDuplicate": "A customer with duplicated unique data already exists.",
+      "deleteCustomerConfirm": "Are you sure you want to delete this customer? All record related to this customer will be deleted as well. This action cannot be undone.",
+      "noActivities": "No Activities",
+      "noMoreActivity": "No more activity to load",
+      "deleteBoardConfirm": "Are you sure you want to delete this board? All the tickets under this board will be deleted as well. This action cannot be undone.",
+      "billingUpdated": "Billing information updated",
+      "appInstalled": "App installed",
+      "invoiceNote": "Invoice was created on a computer and is valid without the signature and seal.",
+      "invoiceDownloadError": "We couldn't generate the invoice PDF. Please try again.",
+      "passwordUpdated": "Password updated",
+      "passwordUpdateFailed": "We could not update the password.",
+      "userCreated": "User created",
+      "userUpdated": "User updated",
+      "userDeleted": "User deleted",
+      "userDeleteFailed": "We could not delete the user.",
+      "userSaveFailed": "We could not save the user.",
+      "deleteUserConfirm": "Are you sure you want to delete this user? This action cannot be undone.",
+      "passwordTabRequiresUser": "Create the user before setting a password.",
+      "viewPreviousBilling": "View your previous billing"
+    },
+    "validation": {
+      "failed": "Please correct the highlighted fields",
+      "fieldInvalid": "Invalid field: {{field}}",
+      "invalidCharacters": "Detected unsupported characters. Please review your input.",
+      "titleRequired": "Title Required",
+      "receiverRequired": "Receiver Required",
+      "productNameRequired": "Product Name Required",
+      "priceRequired": "Price Required",
+      "costPriceRequired": "Cost price is required",
+      "costPriceMin": "Cost price cannot be negative",
+      "salePriceRequired": "Sale price is required",
+      "salePriceMin": "Sale price cannot be negative",
+      "skuRequired": "SKU Required",
+      "stockRequired": "Stock is required",
+      "stockNumber": "Stock must be a number",
+      "stockMin": "Stock cannot be negative",
+      "categoryRequired": "Category Required",
+      "unitOfMeasureRequired": "Sales unit is required",
+      "invalidEmail": "Invalid email",
+      "emailRequired": "Email Required",
+      "userNameRequired": "User Name Required",
+      "invalidPhoneNumber": "Phone number is not valid",
+      "phoneNumberRequired": "Phone number is required",
+      "eventTitleRequired": "Event title Required",
+      "startDateRequired": "Start Date Required",
+      "colorRequired": "Color Required",
+      "passwordRequired": "Password Required",
+      "passwordComplexity": "Password must be 8-128 characters and include uppercase, lowercase, number, and special character",
+      "confirmPasswordRequired": "Confirm Password is required",
+      "passwordMismatch": "Passwords must match",
+      "enterNewPassword": "Enter your new password",
+      "tooShort": "Too Short!",
+      "tooLong": "Too Long!",
+      "lettersNumbersOnly": "Only Letters & Numbers Allowed",
+      "onlyNumbers": "Please enter numbers only.",
+      "passwordNotMatch": "Password not match",
+      "selectCountry": "Please select country",
+      "enterAddress": "Please enter your address",
+      "enterCity": "Please enter your city",
+      "enterState": "Please enter your state",
+      "enterZipCode": "Please enter zip code",
+      "ticketTitleRequired": "Ticket title is required!",
+      "cardHolderNameRequired": "Card holder name required",
+      "creditCardNumberRequired": "Credit card number required",
+      "invalidCreditCardNumber": "Invalid credit card number",
+      "cardExpiryRequired": "Expiry date required",
+      "invalidDate": "Invalid date",
+      "cvvRequired": "CVV required",
+      "invalidCvv": "Invalid CVV",
+      "dateRequired": "Date is required"
+    },
+    "tabs": {
+      "personalInfo": "Personal Info",
+      "address": "Address",
+      "social": "Social",
+      "userDetails": "Details",
+      "password": "Password"
+    },
+    "filters": {
+      "all": "All",
+      "commentOnPost": "Comment on post",
+      "mentionedYou": "Mentioned you",
+      "ticketStatus": "Ticket status",
+      "assignTicket": "Assign ticket",
+      "newTicket": "New ticket",
+      "addTags": "Add tags",
+      "addFiles": "Add files"
+    }
+  },
+  "account": {
+    "settings": {
+      "tabs": {
+        "profile": "Profile",
+        "password": "Password",
+        "notification": "Notification",
+        "integration": "Integration",
+        "billing": "Billing"
+      },
+      "profile": {
+        "profileUpdated": "Profile updated",
+        "general": "General",
+        "generalDesc": "Basic info, like your name and address that will be displayed in public",
+        "preferences": "Preferences",
+        "preferencesDesc": "Your personalized preferences displayed in your account",
+        "updateFailed": "We couldn't update your profile.",
+        "emailTaken": "Another account is already using that email.",
+        "invalidAvatarType": "Please upload a valid image file (JPG, PNG, GIF, or WEBP)."
+      },
+      "billing": {
+        "paymentMethod": "Payment Method",
+        "paymentMethodDesc": "You can update your cards information here",
+        "creditCards": "Credit Cards"
+      },
+      "integration": {
+        "aboutText": "This is where you can learn more about this integration and how it helps your workflow.",
+        "features": {
+          "0": "Simple setup and configuration",
+          "1": "Secure data synchronization",
+          "2": "Seamless team collaboration",
+          "3": "Actionable insights and analytics"
+        }
+      },
+      "notification": {
+        "updated": "Notification settings updated",
+        "channels": {
+          "email": "Email",
+          "inApp": "In-app",
+          "push": "Push (coming soon)"
+        },
+        "audience": {
+          "admin": "Administrators",
+          "customer": "Customers"
+        },
+        "roles": {
+          "hint": "Select which internal roles should receive these notifications."
+        },
+        "events": {
+          "orderReceived": {
+            "title": "Order received",
+            "desc": "Configure customer and internal notifications when a new order is created."
+          },
+          "paymentReceived": {
+            "title": "Payment received",
+            "desc": "Notify teams and customers when a payment is confirmed."
+          },
+          "orderStatusChanged": {
+            "title": "Order status updated",
+            "desc": "Alert stakeholders whenever an order changes status (confirmed or canceled)."
+          }
+        }
+      }
+    },
+    "activity": {
+      "events": {
+        "login": "logged in successfully.",
+        "loginDescription": "Successful authentication recorded.",
+        "device": "signed in on a new device.",
+        "deviceDescription": "A new session was created from an unrecognized browser.",
+        "passwordChange": "updated the account password.",
+        "passwordDescription": "Password change confirmed.",
+        "profileUpdate": "updated the account profile.",
+        "profileDescription": "Profile information was modified.",
+        "securityAlert": "triggered a security alert.",
+        "securityDescription": "Unusual activity detected by the security system.",
+        "generic": "recorded an account activity."
+      },
+      "metadata": {
+        "device": "Device",
+        "location": "Location",
+        "ipAddress": "IP address",
+        "method": "Method",
+        "fields": "Fields",
+        "reason": "Reason",
+        "browser": "Browser",
+        "platform": "Platform"
+      },
+      "filters": {
+        "login": "Sign-ins",
+        "device": "New devices",
+        "securityAlert": "Security alerts",
+        "passwordChange": "Password changes",
+        "profileUpdate": "Profile updates"
+      },
+      "categories": {
+        "security": "Security",
+        "account": "Account changes"
+      }
+    }
+  },
+  "users": {
+    "validation": {
+      "duplicateEmail": "A user with that email already exists.",
+      "passwordRequired": "Password is required.",
+      "cannotDeleteSelf": "You cannot delete the currently signed-in user."
+    }
+  },
+  "welcome": {
+    "step1": {
+      "title": "Welcome on board, let's get started with the Administrative System",
+      "subtitle": "Tell us a bit about yourself to get the best experience. This will only take a minute or two.",
+      "getStarted": "Get started",
+      "skipNow": "Skip now"
+    },
+    "step2": {
+      "title": "Tell us about your organization",
+      "labels": {
+        "orgName": "Name of your organization",
+        "orgSize": "Size of your organization"
+      },
+      "placeholders": {
+        "orgName": "Organization Name...",
+        "orgSize": "Organization Size..."
+      },
+      "validation": {
+        "orgNameRequired": "Organization name is required",
+        "orgSizeRequired": "Please select your organization size"
+      },
+      "sizes": {
+        "solo": "Solo",
+        "2_10": "2 ~ 10 members",
+        "11_50": "11 ~ 50 members",
+        "51_200": "51 ~ 200 members",
+        "201_500": "201 ~ 500 members"
+      }
+    },
+    "step3": {
+      "title": "What is your role in the organization?",
+      "roles": {
+        "softwareEngineer": "Software Engineer",
+        "productManager": "Product Manager",
+        "designer": "Designer",
+        "qaTester": "QA Tester",
+        "stakeholder": "Stakeholder",
+        "other": "Others"
+      }
+    },
+    "step4": {
+      "title": "What is your main objective with the Administrative System?",
+      "items": {
+        "startScratch": "Start project from scratch",
+        "automateTasks": "Automate time-consuming tasks",
+        "enhanceWorkflow": "Enhance current workflow",
+        "other": "Others"
+      }
+    },
+    "quickStart": {
+      "title": "🚀 Let's get you set up with the Administrative System",
+      "items": {
+        "completeAccount": {
+          "title": "Complete your Account Information",
+          "desc": "Fill in your information to complete your account",
+          "btn": "Fill now"
+        },
+        "createWorkspace": {
+          "title": "Create your first workspace",
+          "desc": "We recommend one project per workspace",
+          "btn": "Create Workspace"
+        },
+        "inviteTeam": {
+          "title": "Invite team members",
+          "desc": "Show the team what you have completed so far.",
+          "btn": "Invite"
+        }
+      }
+    }
+  },
+  "sales": {
+    "productEdit": {
+      "toast": {
+        "updated": {
+          "title": "Successfully updated",
+          "desc": "Product successfully updated"
+        },
+        "deleted": {
+          "title": "Successfully deleted",
+          "desc": "Product successfully deleted"
+        }
+      }
+    },
+    "dashboard": {
+      "overview": {
+        "title": "Sales Overview",
+        "subtitle": "View your current sales & summary"
+      },
+      "filters": {
+        "range": {
+          "label": "Date range",
+          "options": {
+            "today": "Today",
+            "thisWeek": "This week",
+            "thisMonth": "This month",
+            "thisYear": "This year",
+            "last15Days": "Last 15 days",
+            "custom": "Custom"
+          }
+        }
+      },
+      "stat": {
+        "revenue": "Revenue",
+        "orders": "Orders",
+        "netIncome": "Net income",
+        "vsMonths": "vs. {{months}} months prior to {{date}}"
+      },
+      "categories": {
+        "title": "Categories",
+        "donutText": "Product Sold",
+        "empty": "No data available for the selected period"
+      },
+      "latestOrders": {
+        "title": "Latest Orders",
+        "viewOrders": "View Orders"
+      },
+      "topProduct": {
+        "title": "Top Selling",
+        "viewProducts": "View Products"
+      },
+      "salesReport": {
+        "title": "Sales Report",
+        "export": "Export Report",
+        "revenueLine": "Revenue",
+        "netIncomeLine": "Net income",
+        "empty": "No sales recorded for the selected period"
+      }
+    },
+    "orders": {
+      "title": "Orders",
+      "addAction": "New Order",
+      "invoiceAction": "View invoice",
+      "validUntilLabel": "Valid until",
+      "disclaimerLabel": "Disclaimer",
+      "editAction": "Edit order",
+      "delete": {
+        "title": "Delete order",
+        "confirm": "Are you sure you want to delete this order? All record related to this order will be deleted as well. This action cannot be undone.",
+        "titleSuccess": "Successfully Deleted",
+        "single": "Order successfully deleted",
+        "batch": "{{count}} orders successfully deleted"
+      },
+      "created": {
+        "title": "Successfully created",
+        "desc": "Order created successfully"
+      },
+      "updated": {
+        "title": "Updated successfully",
+        "desc": "Order updated successfully"
+      },
+      "import": {
+        "fileRequired": "Select a CSV file to import.",
+        "emptyFile": "The uploaded file does not contain any rows."
+      },
+      "importSuccess": "Successfully imported {{imported}} orders.",
+      "importSuccessWithErrors": "{{imported}} orders imported. {{failed}} rows returned errors.",
+      "importError": "We couldn't import the orders.",
+      "importErrorRow": "Row {{row}}: {{message}}",
+      "importErrorMore": "{{count}} additional errors were omitted.",
+      "validation": {
+        "customerRequired": "Customer is required",
+        "itemsRequired": "Please add at least one product",
+        "customerAddressRequired": "Customer must have a primary address",
+        "quantityPositive": "Quantity must be greater than 0"
+      },
+      "summary": {
+        "purchaseSummaryTitle": "Purchase summary",
+        "purchaseSummaryNote": "Amounts shown in {{currency}}.",
+        "totalDue": "Total due",
+        "orderOverview": "Order overview",
+        "shippingDetails": "Shipping details",
+        "contactDetails": "Contact details",
+        "subtotal": "Subtotal",
+        "tax": "Estimated tax",
+        "productsSelected": "Products selected",
+        "totalUnits": "Total units",
+        "logistics": "Shipping & contact",
+        "estimatedDelivery": "Estimated delivery",
+        "days": "days",
+        "notAvailable": "Not available",
+        "unknownCustomer": "Unassigned customer",
+        "noContact": "No contact details provided",
+        "notesAndScheduling": "Notes & scheduling"
+      },
+      "administrative": {
+        "title": "Administrative info",
+        "totalCost": "Total cost",
+        "netIncome": "Net income",
+        "lineDetail": "{{qty}} × {{unitCost}}",
+        "empty": "No cost data available"
+      },
+      "payments": {
+        "title": "Payments",
+        "orderLabel": "Order ID #{id}",
+        "add": "Add payment",
+        "totalPaid": "Total paid",
+        "remaining": "Remaining",
+        "method": "Method",
+        "attachments": "Attachments",
+        "empty": "No payments recorded yet.",
+        "new": "Register payment",
+        "save": "Save payment",
+        "attachmentDeletedTitle": "Attachment removed",
+        "attachmentDeletedDesc": "The attachment was removed successfully.",
+        "attachmentDeleteFailedTitle": "Could not remove attachment",
+        "attachmentDeleteFailedDesc": "Please try again in a moment.",
+        "deleteAttachmentTitle": "Delete attachment",
+        "deleteAttachmentConfirm": "Are you sure you want to delete the attachment \"{{name}}\"? This action cannot be undone.",
+        "type": "Type",
+        "status": "Status",
+        "date": "Date",
+        "idLabel": "Payment ID"
+      }
+    },
+    "documents": {
+      "squareSummary": "Width: {{width}} m · Height: {{height}} m",
+      "linearSummary": "Linear meters: {{length}} m",
+      "noExtraAttributes": "No additional details required.",
+      "pdfNotFound": "No stored PDF is available for this document.",
+      "quickMessage": {
+        "title": "Generated message",
+        "header": "Quantity Product Specifications Comments Total (Unit price)",
+        "perUnit": "each",
+        "totalLabel": "Total due",
+        "copyError": "We couldn't copy the message.",
+        "measurementMissing": "Complete the required measurements (width, height, length) before continuing."
+      }
+    },
+    "budgets": {
+      "title": "Budgets",
+      "addAction": "Create budget",
+      "invoiceAction": "Download budget",
+      "validUntilLabel": "Valid until",
+      "disclaimerLabel": "Disclaimer",
+      "editAction": "Edit budget",
+      "importSuccess": "Successfully imported {{imported}} budgets.",
+      "importSuccessWithErrors": "Budgets imported: {{imported}}. {{failed}} rows returned errors.",
+      "importError": "We couldn't import the budgets.",
+      "importErrorRow": "Row {{row}}: {{message}}",
+      "importErrorMore": "{{count}} additional errors were omitted.",
+      "exportSuccess": "Budget CSV generated successfully.",
+      "exportError": "We couldn't generate the budget CSV.",
+      "delete": {
+        "title": "Delete budget",
+        "confirm": "Are you sure you want to delete this budget? This action cannot be undone.",
+        "titleSuccess": "Budget deleted",
+        "single": "Budget deleted successfully",
+        "batch": "{{count}} budgets deleted successfully"
+      },
+      "table": {
+        "id": "Budget"
+      },
+      "administrative": {
+        "title": "Administrative info",
+        "totalCost": "Total cost",
+        "netIncome": "Net income",
+        "lineDetail": "{{qty}} × {{unitCost}}",
+        "empty": "No cost data available"
+      }
+    },
+    "productForm": {
+      "organizations": {
+        "title": "Organizations",
+        "desc": "Section to config the product attribute"
+      },
+      "categories": {
+        "bags": "Bags",
+        "cloths": "Clothes",
+        "devices": "Devices",
+        "watches": "Watches",
+        "shoes": "Shoes"
+      },
+      "images": {
+        "title": "Product Image",
+        "desc": "Add or change image for the product",
+        "removeConfirm": "Are you sure you want to remove this image?",
+        "upload": "Upload",
+        "dropHere": "Drop your image here, or",
+        "browse": "browse",
+        "support": "Support: jpeg, png",
+        "invalidType": "Please upload a .jpeg or .png file!",
+        "invalidSize": "Upload image cannot be more than 500kb!",
+        "cover": "Cover",
+        "setCover": "Set as cover"
+      },
+      "variants": {
+        "title": "Product variants",
+        "description": "Configure variable products by combining color, size, and material options.",
+        "mode": {
+          "simple": "Simple product",
+          "variable": "Variable product",
+          "parametric": "Parametric product"
+        },
+        "attributes": {
+          "title": "Available attributes",
+          "addValue": "Add value",
+          "types": {
+            "color": "Color",
+            "size": "Size",
+            "material": "Material"
+          },
+          "placeholder": {
+            "color": "Red, Blue, Green...",
+            "size": "S, M, L, 38, 39...",
+            "material": "Cotton, Leather..."
+          },
+          "colorValuePlaceholder": "Optional description or code",
+          "addSwatch": "Add swatch",
+          "replaceSwatch": "Replace swatch",
+          "clearSwatch": "Remove swatch",
+          "addMaterialImage": "Add image",
+          "replaceMaterialImage": "Replace image",
+          "clearMaterialImage": "Remove image",
+          "imageAltPlaceholder": "Describe the image for accessibility",
+          "noImage": "No image uploaded for this value yet."
+        },
+        "actions": {
+          "inheritPrice": "Inherit price",
+          "applyBasePrice": "Apply base price",
+          "inheritStock": "Inherit stock",
+          "applyBaseStock": "Apply base stock",
+          "activateAll": "Activate all",
+          "deactivateAll": "Deactivate all"
+        },
+        "table": {
+          "title": "Generated variants",
+          "description": "Edit price, stock, SKU, and images for each variant or inherit the product values.",
+          "empty": "Select attributes and values to generate the variant table.",
+          "price": "Price",
+          "stock": "Stock",
+          "images": "Images",
+          "active": "Active",
+          "inheritPrice": "Use product price",
+          "inheritStock": "Use product stock",
+          "permanentStock": "Unlimited stock",
+          "inheritSku": "Use product SKU"
+        },
+        "images": {
+          "title": "Variant images",
+          "inherit": "Use product images",
+          "upload": "Upload images",
+          "empty": "No images uploaded for this variant.",
+          "inheritLabel": "Inherits images",
+          "count": "{{count}} images",
+          "none": "No custom images"
+        },
+        "error": {
+          "noAttributes": "Select at least one attribute to generate variants.",
+          "emptyValues": "Each attribute must define at least one value.",
+          "noVariants": "Configure at least one variant before saving."
+        }
+      },
+      "parametric": {
+        "requiresProduct": "Save the product to configure parametric pricing.",
+        "requiresProductDetail": "Create the product first, then you will be able to import reference prices and configure the pricing engine.",
+        "title": "Parametric pricing",
+        "subtitle": "Import quotation history and test the price engine with real-time parameters.",
+        "testTitle": "Try calculation",
+        "width": "Width (m)",
+        "height": "Height (m)",
+        "color": "Color",
+        "glass": "Glass",
+        "mosquitoNet": "Mosquito net",
+        "monoblock": "Monoblock",
+        "calculate": "Calculate price",
+        "lastQuote": "Last quote: {{total}} {{currency}} ({{date}})",
+        "breakdown": "Breakdown",
+        "base": "Base",
+        "colorModifier": "Color",
+        "glassModifier": "Glass",
+        "monoblockModifier": "Monoblock",
+        "mosquitoModifier": "Mosquito net",
+        "importTitle": "Bulk import",
+        "importDescription": "Upload an Excel or CSV file with the required columns (FECHA COTIZACION, PRODUCTO, MOSQUITERO, ANCHO, ALTO, SERIE, COLOR, VIDRIO, PRECIO, DETALLE).",
+        "importing": "Importing…",
+        "importCta": "Drop file here or click to browse",
+        "loadingConfig": "Loading configuration…",
+        "configSummary": "Configured series: {{series}}. Colors: {{colors}}.",
+        "importSuccess": "Import completed",
+        "importSummary": "Processed {{rows}} rows. Created {{references}} references and {{modifiers}} modifiers.",
+        "importError": "Import failed",
+        "importErrorDescription": "Please check the file format and try again.",
+        "quoteError": "Unable to generate quote",
+        "quoteErrorDescription": "Verify the parameters and try again."
+      }
+    },
+    "productList": {
+      "filter": {
+        "includedText": "Include text",
+        "keyword": "Search by name or code",
+        "productCategory": "Product category",
+        "currency": "Currency",
+        "publicationStatus": "Publication status",
+        "productStatus": "Stock"
+      },
+      "deleted": {
+        "title": "Successfully Deleted",
+        "desc": "Product successfully deleted"
+      },
+      "created": {
+        "title": "Product created",
+        "desc": "The product was added successfully."
+      },
+      "exportSuccess": "Product CSV generated successfully.",
+      "exportError": "Unable to generate the CSV file.",
+      "import": {
+        "fileRequired": "Select a CSV file to continue.",
+        "emptyFile": "The uploaded file does not contain any rows."
+      },
+      "importSuccess": "Products processed: {{imported}} (created: {{created}}, updated: {{updated}}).",
+      "importSuccessWithErrors": "Products processed: {{imported}} (created: {{created}}, updated: {{updated}}). Rows with errors: {{failed}}.",
+      "importError": "We couldn't import the products.",
+      "importErrorRow": "Row {{row}}: {{message}}",
+      "importErrorMore": "{{count}} additional errors were omitted.",
+      "createError": "Unable to create the product."
+    },
+    "orderDetails": {
+      "activity": {
+        "parcel_has_been_delivered": "Parcel has been delivered",
+        "parcel_is_out_for_delivery": "Parcel is out for delivery",
+        "parcel_has_arrived_at_delivery_station": "Parcel has arrived at delivery station",
+        "parcel_has_been_picked_up_by_courier": "Parcel has been picked up by courier",
+        "seller_is_preparing_to_ship_your_parcel": "Seller is preparing to ship your parcel"
+      },
+      "timeline": {
+        "empty": "No timeline events yet.",
+        "actor": "By {{actor}}",
+        "statusChangedDetail": "Status changed to {{status}}",
+        "payment": {
+          "waiting": "Waiting for payment",
+          "partial": "Partial payment received",
+          "full": "Paid in full",
+          "waitingDetail": "Outstanding balance {{amount}}",
+          "partialDetail": "Paid {{paid}} of {{total}} ({{remaining}} remaining)",
+          "fullDetail": "Total paid {{total}}",
+          "partialEvent": "{{amount}}{{remaining}}",
+          "fullEvent": "{{amount}}",
+          "partialRemainingSuffix": " ({{remaining}} remaining)",
+          "fullSummary": "Payment complete",
+          "fullAmountDetail": "{{amount}} (balance {{remaining}})"
+        },
+        "delivery": {
+          "deliveredShort": "Delivered",
+          "estimatedShort": "Estimated delivery",
+          "pendingShort": "No delivery estimate",
+          "deliveredOn": "Delivered on {{date}}",
+          "estimatedOn": "Estimated delivery {{date}}",
+          "estimateUpdatedDetail": "New estimate {{next}}",
+          "estimateUpdatedDetailWithPrevious": "New estimate {{next}} (previously {{previous}})",
+          "estimateSetDetail": "Estimated delivery {{date}}",
+          "deliveredDetail": "Delivered on {{date}}"
+        },
+        "event": {
+          "order_received": "Order received",
+          "payment_waiting": "Waiting for payment",
+          "payment_partial": "Partial payment received",
+          "payment_full": "Full payment received",
+          "estimate_set": "Estimated delivery date set",
+          "estimate_updated": "Estimated delivery date updated",
+          "shipped": "Shipped",
+          "in_transit": "In transit",
+          "out_for_delivery": "Out for delivery",
+          "delivered": "Delivered",
+          "status_changed": "Status changed",
+          "note": "Note added",
+          "other": "Activity"
+        }
+      }
+    },
+    "productionOrders": {
+      "title": "Production orders",
+      "actions": {
+        "new": "New production order"
+      },
+      "columns": {
+        "order": "Order",
+        "workOrder": "Work order",
+        "priority": "Priority",
+        "assignee": "Assignee",
+        "scheduled": "Scheduled"
+      },
+      "filters": {
+        "search": "Search by customer, code or id",
+        "status": "Status"
+      },
+      "summary": {
+        "total": "Total orders",
+        "overdue": "Overdue"
+      },
+      "stats": {
+        "title": "Monthly activity",
+        "subtitle": "Orders created vs completed",
+        "empty": "No activity recorded yet.",
+        "created": "Created",
+        "completed": "Completed"
+      },
+      "form": {
+        "createTitle": "Create production order",
+        "editTitle": "Edit production order",
+        "submit": "Create production order",
+        "orderId": "Order ID",
+        "workOrderId": "Work order ID",
+        "priority": "Priority",
+        "assignedTo": "Assigned to",
+        "scheduledAt": "Scheduled",
+        "startedAt": "Started",
+        "completedAt": "Completed",
+        "deliveredAt": "Delivered"
+      },
+      "delete": {
+        "title": "Delete production order",
+        "confirm": "Are you sure you want to delete production order #{id}?"
+      },
+      "validation": {
+        "orderId": "A valid order id is required",
+        "priority": "Priority must be a positive number",
+        "invalidDate": "Select a valid date",
+        "startedBeforeScheduled": "Start date cannot be before the scheduled date",
+        "completedBeforeStarted": "Completion date cannot be before the start date",
+        "deliveredBeforeCompleted": "Delivery date cannot be before the completion date",
+        "assigneeNotFound": "Selected assignee could not be found"
+      },
+      "status": {
+        "PENDING": "Pending",
+        "IN_PROGRESS": "In progress",
+        "READY": "Ready",
+        "DELIVERED": "Delivered",
+        "CLOSED": "Closed",
+        "CANCELED": "Canceled"
+      }
+    }
+  },
+  "accounting": {
+    "dashboard": {
+      "overview": {
+        "title": "Accounting Overview",
+        "subtitle": "Monthly sales, expenses and taxes"
+      },
+      "filters": {
+        "range": {
+          "label": "Date range",
+          "options": {
+            "today": "Today",
+            "thisWeek": "This week",
+            "thisMonth": "This month",
+            "last15Days": "Last 15 days",
+            "thisYear": "This year",
+            "custom": "Custom"
+          }
+        }
+      },
+      "stat": {
+        "sales": "Sales",
+        "expenses": "Expenses",
+        "taxes": "Taxes",
+        "netIncome": "Net income",
+        "totalLabel": "Total for the selected period"
+      },
+      "monthly": {
+        "title": "Monthly statistics",
+        "subtitle": "Aggregated totals by month",
+        "rangeLabel": "Selected range",
+        "empty": "No accounting data for the selected period",
+        "series": {
+          "sales": "Sales",
+          "expenses": "Expenses",
+          "taxes": "Taxes",
+          "netIncome": "Net income"
+        }
+      },
+      "summary": {
+        "metrics": {
+          "sales": "Sales",
+          "expenses": "Expenses",
+          "taxes": "Taxes",
+          "liquidIncome": "Liquid income"
+        },
+        "cardTitle": "Summary {{currency}}",
+        "chartTitle": "Bar chart by currency",
+        "chartSubtitle": "Sales, expenses, taxes and liquid income grouped by currency.",
+        "chartEmpty": "Not enough data to display the chart.",
+        "empty": "No transactions recorded yet."
+      },
+      "currencies": {
+        "title": "Movements by currency",
+        "subtitle": "Compare sales, expenses, taxes and results across currencies",
+        "totalsTitle": "Totals by currency",
+        "totalsEmpty": "No movements recorded yet.",
+        "monthlyTitle": "Monthly detail",
+        "monthlyEmpty": "No movements to show.",
+        "table": {
+          "currency": "Currency",
+          "sales": "Sales",
+          "expenses": "Expenses",
+          "taxes": "Taxes",
+          "balance": "Balance",
+          "liquidIncome": "Liquid income"
+        },
+        "labels": {
+          "iusd": "USD",
+          "uyu": "UYU",
+          "other": "Other"
+        }
+      }
+    },
+    "payments": {
+      "title": "Payments",
+      "columns": {
+        "order": "Order",
+        "customer": "Customer",
+        "method": "Method",
+        "reference": "Reference"
+      },
+      "filters": {
+        "statusAll": "All statuses",
+        "typeAll": "All types",
+        "searchPlaceholder": "Search payments by order, reference or method"
+      },
+      "actions": {
+        "search": "Search",
+        "new": "Add payment",
+        "save": "Save",
+        "create": "Create"
+      },
+      "status": {
+        "confirmed": "Confirmed",
+        "registered": "Registered",
+        "failed": "Failed"
+      },
+      "type": {
+        "deposit": "Deposit",
+        "balance": "Balance",
+        "refund": "Refund"
+      },
+      "form": {
+        "editTitle": "Edit payment",
+        "createTitle": "New payment",
+        "orderId": "Order ID",
+        "paymentMethod": "Payment method",
+        "methodLabel": "Method label",
+        "reference": "Reference",
+        "notes": "Notes"
+      },
+      "validation": {
+        "orderIdRequired": "Order ID is required",
+        "amountRequired": "Amount is required",
+        "amountPositive": "Amount must be greater than zero"
+      },
+      "feedback": {
+        "loading": "Loading payment information...",
+        "loadFailedTitle": "Unable to load payment",
+        "loadFailedDesc": "We couldn’t retrieve the selected payment. Please try again.",
+        "createdTitle": "Payment created",
+        "createdDesc": "The payment was registered successfully.",
+        "updatedTitle": "Payment updated",
+        "updatedDesc": "The payment changes were saved.",
+        "saveFailedTitle": "Unable to save payment",
+        "saveFailedDesc": "Please review the information and try again.",
+        "deletedTitle": "Payment deleted",
+        "deletedDesc": "The payment was removed successfully.",
+        "deleteFailedTitle": "Unable to delete payment",
+        "deleteFailedDesc": "We couldn’t delete the payment. Please try again."
+      },
+      "delete": {
+        "title": "Delete payment",
+        "confirm": "Are you sure you want to delete this payment? This action cannot be undone."
+      }
+    }
+  },
+  "crm": {
+    "mail": {
+      "newMessage": "New Message",
+      "mailbox": "Mailbox",
+      "title": "Mail",
+      "labels": "Labels",
+      "sent": "Mail Sent",
+      "mailboxesUnavailable": "Mailboxes are not available right now. Please try again later.",
+      "messagesUnavailable": "Unable to load inbox messages right now. Please try again later.",
+      "unknownSender": "Unknown sender",
+      "selectMailPrompt": "Select a mail to read",
+      "noSubject": "No subject",
+      "noPreview": "No preview available",
+      "moreAttachments": "+{{count}} more",
+      "categories": {
+        "inbox": "Inbox",
+        "sentItem": "Sent Item",
+        "draft": "Draft",
+        "starred": "Starred",
+        "deleted": "Deleted"
+      },
+      "labelsList": {
+        "work": "Work",
+        "private": "Private",
+        "important": "Important"
+      },
+      "dynamicMailboxes": {
+        "archive": "Archive",
+        "spam": "Spam",
+        "trash": "Trash",
+        "junk": "Junk"
+      },
+      "actions": {
+        "reply": "Reply",
+        "star": "Star",
+        "starred": "Starred",
+        "flag": "Flag",
+        "flagged": "Flagged",
+        "moveTo": "Move to"
+      }
+    },
+    "dashboard": {
+      "thisMonth": "this month",
+      "stat": {
+        "total": "Total Customers",
+        "active": "Active Customers",
+        "new": "New Customers",
+        "newLeads": "New Leads",
+        "emailResponse": "Email",
+        "proposals": "Proposals",
+        "appointment": "Appointment"
+      },
+      "leadByCountries": {
+        "title": "Lead By Countries"
+      }
+    },
+    "customerDetail": {
+      "noUserFound": "No user found!",
+      "removePaymentMethod": "Remove payment method",
+      "removePaymentMethodConfirm": "Are you sure you want to remove this payment method?",
+      "subscription": {
+        "title": "Subscription",
+        "billing": "Billing",
+        "nextPaymentOn": "Next payment on",
+        "for": "for",
+        "cancelPlan": "Cancel plan",
+        "update": "Update",
+        "subscribe": "Subscribe",
+        "plan": "Plan"
+      }
+    },
+    "leads": {
+      "title": "Leads",
+      "viewAll": "View All Leads"
+    },
+    "emailSent": {
+      "title": "Email Sent",
+      "opened": "Opened",
+      "performance": "Performance",
+      "average": "Average"
+    }
+  },
+  "expenses": {
+    "dashboard": {
+      "overview": {
+        "title": "Expenses Overview",
+        "subtitle": "Track company spending and summary"
+      },
+      "stat": {
+        "total": "Total Expenses",
+        "transactions": "Transactions",
+        "recurring": "Recurring",
+        "vsMonths": "vs. {{months}} months prior to {{date}}"
+      },
+      "categories": {
+        "title": "Categories",
+        "donutText": "Total Spend"
+      },
+      "latestExpenses": {
+        "title": "Latest Expenses",
+        "viewExpenses": "View expenses"
+      },
+      "expensesReport": {
+        "title": "Expenses Report",
+        "export": "Export report",
+        "empty": "No expenses recorded for the selected period"
+      },
+      "filters": {
+        "range": {
+          "label": "Date range",
+          "options": {
+            "today": "Today",
+            "thisWeek": "This week",
+            "thisMonth": "This month",
+            "last15Days": "Last 15 days",
+            "thisYear": "This year",
+            "custom": "Custom"
+          }
+        }
+      }
+    },
+    "latestExpenses": {
+      "columns": {
+        "expense": "Expense",
+        "vendor": "Vendor"
+      }
+    },
+    "list": {
+      "title": "Expenses",
+      "columns": {
+        "expense": "Expense",
+        "vendor": "Vendor"
+      },
+      "delete": {
+        "title": "Delete expense",
+        "confirm": "Are you sure you want to delete the selected expense(s)? This action cannot be undone.",
+        "titleSuccess": "Successfully deleted",
+        "single": "Expense deleted successfully",
+        "batch": "{{count}} expenses deleted successfully"
+      }
+    },
+    "new": {
+      "title": "New Expense",
+      "fields": {
+        "vendor": "Vendor"
+      },
+      "placeholders": {
+        "vendor": "Vendor name"
+      },
+      "validation": {
+        "vendorRequired": "Vendor is required",
+        "amountRequired": "Amount is required",
+        "amountNumber": "Amount must be a valid number",
+        "amountPositive": "Amount must be greater than 0"
+      },
+      "created": {
+        "title": "Successfully created",
+        "desc": "Expense created successfully"
+      }
+    },
+    "edit": {
+      "title": "Edit Expense",
+      "fields": {
+        "paymentReference": "Payment reference"
+      },
+      "placeholders": {
+        "paymentReference": "e.g. Receipt number, transaction id"
+      },
+      "updated": {
+        "title": "Updated successfully",
+        "desc": "Expense updated successfully"
+      }
+    },
+    "attachments": {
+      "dropOr": "Drop your file here, or ",
+      "browse": "browse"
+    },
+    "categories": {
+      "title": "Expense Categories",
+      "columns": {
+        "name": "Name"
+      },
+      "actions": {
+        "add": "Add",
+        "manage": "Manage categories"
+      },
+      "placeholders": {
+        "name": "Category name"
+      },
+      "created": {
+        "title": "Successfully created",
+        "desc": "Category created successfully"
+      },
+      "updated": {
+        "title": "Updated successfully",
+        "desc": "Category updated successfully"
+      },
+      "deleted": {
+        "title": "Successfully deleted",
+        "desc": "Category deleted successfully"
+      }
+    }
+  },
+  "settings": {
+    "productCategories": {
+      "title": "Product Categories",
+      "columns": {
+        "id": "ID",
+        "name": "Name",
+        "service": "Installation service",
+        "parent": "Parent",
+        "description": "Description",
+        "image": "Image"
+      },
+      "placeholders": {
+        "name": "Category name",
+        "description": "Description (optional)",
+        "image": "Image URL (optional)",
+        "serviceName": "Installation service name",
+        "serviceProductCode": "Service code (optional)",
+        "serviceSalePrice": "Sale price",
+        "serviceCostPrice": "Cost price (optional)",
+        "serviceCurrency": "Currency",
+        "serviceTaxRate": "Tax rate (optional)",
+        "serviceUnitOfMeasure": "Unit of measure",
+        "serviceDescription": "Service description (optional)"
+      },
+      "fields": {
+        "image": "Image"
+      },
+      "form": {
+        "parent": "Parent category",
+        "noParent": "No parent"
+      },
+      "validation": {
+        "selfParent": "A category cannot be its own parent.",
+        "invalidServicePrice": "Please provide a valid installation price.",
+        "invalidServiceCost": "Please provide a valid installation cost.",
+        "invalidServiceTax": "Please provide a valid tax rate.",
+        "imageUploadFailed": "We could not process the selected image."
+      },
+      "labels": {
+        "installable": "This category includes an optional installation service",
+        "serviceHeading": "Installation Service",
+        "serviceSubtitle": "Define the installation product created automatically for this category."
+      },
+      "actions": {
+        "uploadImage": "Upload image",
+        "removeImage": "Remove image"
+      },
+      "created": {
+        "title": "Successfully created",
+        "desc": "Category created successfully"
+      },
+      "updated": {
+        "title": "Updated successfully",
+        "desc": "Category updated successfully"
+      },
+      "deleted": {
+        "title": "Successfully deleted",
+        "desc": "Category deleted successfully"
+      },
+      "delete": {
+        "title": "Delete category",
+        "confirm": "Are you sure you want to delete the category \"{{name}}\"? This action cannot be undone."
+      }
+    },
+    "productStatuses": {
+      "title": "Product Statuses",
+      "columns": {
+        "name": "Name"
+      },
+      "placeholders": {
+        "name": "Status name"
+      },
+      "created": {
+        "title": "Successfully created",
+        "desc": "Status created successfully"
+      },
+      "updated": {
+        "title": "Updated successfully",
+        "desc": "Status updated successfully"
+      },
+      "deleted": {
+        "title": "Successfully deleted",
+        "desc": "Status deleted successfully"
+      }
+    },
+    "expenseStatuses": {
+      "title": "Expense Statuses",
+      "columns": {
+        "name": "Name"
+      },
+      "placeholders": {
+        "name": "Status name"
+      },
+      "created": {
+        "title": "Successfully created",
+        "desc": "Status created successfully"
+      },
+      "updated": {
+        "title": "Updated successfully",
+        "desc": "Status updated successfully"
+      },
+      "deleted": {
+        "title": "Successfully deleted",
+        "desc": "Status deleted successfully"
+      }
+    },
+    "shippingOptions": {
+      "title": "Shipping Options",
+      "columns": {
+        "image": "Image",
+        "name": "Name",
+        "deliveryFees": "Delivery fee",
+        "estimatedMin": "Min days",
+        "estimatedMax": "Max days"
+      },
+      "placeholders": {
+        "name": "Carrier name",
+        "deliveryFees": "Fee (e.g. 12.50)",
+        "estimatedMin": "Min days",
+        "estimatedMax": "Max days",
+        "img": "Image URL"
+      },
+      "created": {
+        "title": "Shipping option created",
+        "desc": "The shipping option was added successfully."
+      },
+      "updated": {
+        "title": "Shipping option updated",
+        "desc": "The shipping option was updated successfully."
+      },
+      "deleted": {
+        "title": "Shipping option removed",
+        "desc": "The shipping option was deleted successfully."
+      },
+      "errors": {
+        "invalidImageType": "Unsupported file type. Please upload a JPG, PNG, WEBP, GIF, or SVG image."
+      }
+    },
+    "email": {
+      "title": "Email",
+      "categories": {
+        "orders": "Orders",
+        "payments": "Payments",
+        "auth": "Authentication"
+      },
+      "category": {
+        "description": "Configure sender information and recipients for this email category."
+      },
+      "status": {
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "fields": {
+        "fromName": "From name",
+        "fromAddress": "From email"
+      },
+      "recipients": {
+        "admin": "Administrator recipients",
+        "empty": "No recipients"
+      },
+      "actions": {
+        "add": "Add",
+        "save": "Save changes",
+        "saveTemplate": "Save template",
+        "sendTest": "Send test email",
+        "refresh": "Refresh",
+        "addRule": "Add rule",
+        "removeRecipient": "Remove recipient"
+      },
+      "updatedAtExact": "Last updated {{value}}",
+      "test": {
+        "title": "Send test email",
+        "variant": {
+          "orders": "Email type",
+          "payments": "Email type",
+          "auth": "Email type"
+        },
+        "locale": "Locale",
+        "emailPlaceholder": "Email address",
+        "sent": "Test email queued successfully."
+      },
+      "validation": {
+        "invalidEmail": "Enter a valid email address.",
+        "selectCategory": "Select at least one category."
+      },
+      "saveSuccess": "Settings were updated successfully.",
+      "roles": {
+        "title": "Role routing rules",
+        "description": "Automatically notify internal users based on their role. Recipients are merged with manual admin recipients.",
+        "fields": {
+          "role": "Role",
+          "categories": "Categories"
+        },
+        "placeholders": {
+          "role": "Select role"
+        },
+        "list": "Existing rules",
+        "empty": "No role-based rules defined yet.",
+        "deleteTitle": "Delete rule",
+        "deleteConfirm": "Are you sure you want to delete notifications for the role \"{{role}}\"?"
+      },
+      "logs": {
+        "title": "Delivery logs",
+        "description": "Inspect recent email deliveries, statuses, and errors.",
+        "filters": {
+          "category": "All categories",
+          "status": "All statuses",
+          "recipient": "All recipients"
+        },
+        "columns": {
+          "date": "Date",
+          "category": "Category",
+          "recipient": "Recipient",
+          "subject": "Subject",
+          "status": "Status"
+        },
+        "status": {
+          "queued": "Queued",
+          "sent": "Sent",
+          "failed": "Failed",
+          "retrying": "Retrying"
+        },
+        "recipient": {
+          "customer": "Customer",
+          "admin": "Administrator",
+          "system": "System"
+        },
+        "empty": "No logs found.",
+        "actions": {
+          "loadMore": "Load more"
+        }
+      },
+      "templates": {
+        "title": "Active templates",
+        "description": "Overview of active MJML templates per category, locale, and variant.",
+        "saveSuccess": "Template saved successfully.",
+        "editorTitle": "Template editor",
+        "editorDescription": "Review and adjust the subject and MJML body. Changes apply to future emails once saved.",
+        "fields": {
+          "subject": "Subject",
+          "body": "Body (MJML)"
+        },
+        "unsaved": "Unsaved changes",
+        "previewSettings": "Preview settings",
+        "scenarioPlaceholder": "Scenario",
+        "previewTitle": "Live preview",
+        "previewText": "Plain text version",
+        "previewEmpty": "No preview available."
+      },
+      "metrics": {
+        "title": "Delivery metrics",
+        "description": "Track send attempts, successes, and failures per category and template.",
+        "attempts": "Attempts",
+        "sent": "Sent",
+        "failed": "Failed",
+        "byCategory": "By category",
+        "category": "Category",
+        "attemptsShort": "Att.",
+        "sentShort": "Sent",
+        "failedShort": "Fail",
+        "byTemplate": "By template",
+        "template": "Template",
+        "empty": "No metrics available yet."
+      }
+    },
+    "companyProfile": {
+      "title": "Company information",
+      "subtitle": "Customize the company data displayed on invoices and other documents.",
+      "fields": {
+        "legalName": "Legal name",
+        "tradeName": "Trade name",
+        "taxId": "Tax ID",
+        "phone": "Phone",
+        "email": "Email",
+        "website": "Website",
+        "addressLine1": "Address line 1",
+        "addressLine2": "Address line 2",
+        "logo": "Logo"
+      },
+      "placeholders": {
+        "legalName": "Sistema Administrativo, Inc.",
+        "tradeName": "Sistema Administrativo",
+        "taxId": "RUC 1234567890",
+        "phone": "(123) 456-7890",
+        "email": "facturacion@sistemadministrativo.com",
+        "website": "www.sistemadministrativo.com",
+        "addressLine1": "9498 Harvard Street",
+        "addressLine2": "Fairfield, Chicago Town 06824"
+      },
+      "labels": {
+        "noLogo": "No logo selected"
+      },
+      "actions": {
+        "uploadLogo": "Upload logo",
+        "removeLogo": "Remove",
+        "resetLogo": "Reset"
+      },
+      "logoHint": "PNG, JPG, WEBP or GIF up to 512 KB.",
+      "errors": {
+        "logoUnsupported": "Unsupported file format. Use PNG, JPG, WEBP or GIF.",
+        "logoTooLarge": "Logo must not exceed 512 KB.",
+        "logoInvalid": "Unable to read the selected file."
+      },
+      "updated": {
+        "title": "Company information updated",
+        "desc": "Details saved successfully."
+      }
+    },
+    "systemConfig": {
+      "title": "System configuration",
+      "desc": "Define the global values used across sales calculations.",
+      "taxRateLabel": "Tax (%)",
+      "updated": {
+        "title": "Successfully updated",
+        "desc": "Configuration saved"
+      },
+      "currency": {
+        "title": "Allowed currencies",
+        "desc": "Manage the list of currency codes that can be used across products and orders.",
+        "placeholder": "E.g. USD",
+        "columns": {
+          "code": "Currency"
+        },
+        "actions": {
+          "add": "Add currency"
+        },
+        "empty": "No currencies configured yet.",
+        "validation": {
+          "format": "Currency must use 3–5 uppercase letters (e.g. USD).",
+          "duplicate": "Currency already exists."
+        },
+        "created": {
+          "title": "Currency added",
+          "desc": "The currency was added successfully."
+        },
+        "updated": {
+          "title": "Currency updated",
+          "desc": "The currency was updated successfully."
+        },
+        "deleted": {
+          "title": "Currency removed",
+          "desc": "The currency was deleted successfully."
+        },
+        "deleteTitle": "Delete currency",
+        "deleteConfirm": "Are you sure you want to delete the currency \"{{code}}\"? This may impact pricing and exchange rates."
+      },
+      "disclaimer": {
+        "title": "Document disclaimer",
+        "desc": "Define a shared note displayed below the comments on every generated budget and invoice.",
+        "hint": "Supports basic HTML formatting. Leave blank to hide the disclaimer.",
+        "successTitle": "Disclaimer updated",
+        "success": "Document disclaimer saved successfully."
+      },
+      "storefrontFallback": {
+        "title": "Storefront cache fallback",
+        "desc": "Serve cached catalog data when the storefront API is unavailable.",
+        "label": "Enable snapshot fallback"
+      }
+    },
+    "calendarEventTypes": {
+      "title": "Calendar event types",
+      "subtitle": "Configure the options available when scheduling events.",
+      "fields": {
+        "name": "Display name",
+        "color": "Color"
+      },
+      "placeholders": {
+        "label": "E.g. Meeting"
+      },
+      "actions": {
+        "add": "Add event type"
+      },
+      "validation": {
+        "keyFormat": "Key can include letters, numbers, dashes and dots only.",
+        "keyRequired": "Key is required",
+        "labelRequired": "Display name is required",
+        "uniqueKeys": "Keys must be unique.",
+        "minItems": "Define at least one event type."
+      },
+      "loadError": "Could not load current types. Default values are shown.",
+      "updated": "Event type updated successfully.",
+      "created": "Event type created successfully.",
+      "deleted": "Event type removed successfully.",
+      "deleteTitle": "Delete event type",
+      "confirmDelete": "Are you sure you want to delete the event type \"{{name}}\"? This action cannot be undone.",
+      "empty": "No event types configured yet."
+    }
+  },
+  "common": {
+    "success": "Success",
+    "error": "Error",
+    "notFound": {
+      "product": "No product found!",
+      "order": "No order found!",
+      "user": "No user found!"
+    },
+    "labels": {
+      "yes": "Yes",
+      "no": "No",
+      "notSpecified": "Not specified",
+      "unassigned": "Unassigned"
+    }
+  },
+  "notification": {
+    "title": "Notifications",
+    "markAllRead": "Mark all as read",
+    "empty": {
+      "title": "No notifications!",
+      "desc": "Please try again later"
+    },
+    "viewAll": "View All Activity",
+    "untitled": "Notification",
+    "loading": "Loading notifications...",
+    "lastUpdated": "Updated {{date}}",
+    "viewRecent": "Notifications will appear here."
+  },
+  "production": {
+    "orders": {
+      "disabled": "Production orders feature is not enabled.",
+      "notFound": "Production order not found.",
+      "validation": {
+        "orderNotFound": "Order not found.",
+        "workOrderMismatch": "Work order does not belong to the target order.",
+        "metadataJson": "Metadata must be valid JSON.",
+        "assigneeNotFound": "Selected assignee could not be found."
+      }
+    }
+  },
+  "errors": {
+    "timeout": "The request took too long. Please try again.",
+    "dbConnection": "We could not reach the database right now.",
+    "conflict": "There is already a record with this information.",
+    "dbPanic": "The data service encountered an unexpected error.",
+    "dbTimeout": "The database did not respond in time.",
+    "unauthorized": "You need to sign in to continue.",
+    "forbidden": "You don't have permission to perform this action.",
+    "validation": "Review the provided information.",
+    "rateLimited": "Too many requests. Please wait a moment.",
+    "notFound": "We couldn't find what you were looking for.",
+    "unknown": "Something went wrong. Please try again.",
+    "circuitOpen": "Service is intermittent. Showing previous data.",
+    "networkOffline": "We couldn't connect. Check your connection.",
+    "invalidResponse": "The server responded in an unexpected format.",
+    "requestFailed": "We couldn't complete the request.",
+    "requestCancelled": "The request was cancelled."
+  },
+  "orderDetails": {
+    "timeline": {
+      "event": {
+        "payment_full": "Payment received",
+        "payment_full_summary": "Payment complete"
+      }
+    }
+  }
 }

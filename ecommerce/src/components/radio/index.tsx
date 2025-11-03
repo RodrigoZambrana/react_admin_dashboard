@@ -1,4 +1,4 @@
-import { InputHTMLAttributes, useId } from "react";
+import { InputHTMLAttributes, ReactNode, Ref, useId } from "react";
 import { ColorProps, SpaceProps } from "styled-system";
 import { colorOptions } from "interfaces";
 import { StyledRadio, Wrapper } from "./styles";
@@ -10,12 +10,12 @@ export interface RadioProps
   color?: colorOptions;
   labelColor?: colorOptions;
   labelPlacement?: "start" | "end";
-  label?: string | React.ReactNode;
-  ref?: React.Ref<HTMLInputElement>;
+  label?: string | ReactNode;
+  ref?: Ref<HTMLInputElement>;
 }
 
 export interface WrapperProps extends ColorProps, SpaceProps {
-  labelPlacement?: "start" | "end";
+  $labelPlacement?: "start" | "end";
   $disabled?: boolean;
 }
 // ==============================================================
@@ -33,20 +33,31 @@ const Radio = ({
   const internalId = useId();
   const id = externalId || internalId;
 
-  const spacingProps = Object.entries(props).reduce((acc, [key, value]) => {
-    if (key.startsWith("m") || key.startsWith("p")) {
-      acc[key] = value;
+  const spacingProps: Partial<SpaceProps> = {};
+  const inputProps: Record<string, unknown> = {};
+
+  Object.entries(props as Record<string, unknown>).forEach(([key, value]) => {
+    if (/^(m|p)(t|r|b|l|x|y)?$|^(margin|padding)/i.test(key)) {
+      spacingProps[key as keyof SpaceProps] = value as never;
+    } else {
+      inputProps[key] = value;
     }
-    return acc;
-  }, {} as Record<string, unknown>);
+  });
 
   return (
     <Wrapper
       $disabled={disabled}
-      labelPlacement={labelPlacement}
+      $labelPlacement={labelPlacement}
       color={labelColor ? `${labelColor}.main` : undefined}
       {...spacingProps}>
-      <StyledRadio id={id} type="radio" ref={ref} disabled={disabled} color={color} {...props} />
+      <StyledRadio
+        id={id}
+        type="radio"
+        ref={ref}
+        disabled={disabled}
+        color={color}
+        {...(inputProps as Omit<RadioProps, keyof SpaceProps>)}
+      />
       {label && <label htmlFor={id}>{label}</label>}
     </Wrapper>
   );

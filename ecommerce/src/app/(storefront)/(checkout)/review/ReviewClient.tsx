@@ -129,7 +129,8 @@ export default function ReviewClient() {
     hasPayment,
     lastOrder,
     setLastOrder,
-    reset
+    reset,
+    checkoutToken
   } = useCheckout();
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -173,6 +174,21 @@ export default function ReviewClient() {
   const handlePlaceOrder = useCallback(async () => {
     if (isSubmitting) return;
     setErrorMessage(null);
+
+    const orderLockKey =
+      typeof window !== "undefined" && checkoutToken
+        ? `storefront:order:${checkoutToken}`
+        : null;
+
+    if (orderLockKey && typeof window !== "undefined") {
+      if (sessionStorage.getItem(orderLockKey) === "completed") {
+        toast.info({
+          title: "Pedido ya registrado",
+          description: "Ya registramos tu pedido. Revisa tus órdenes para más detalles."
+        });
+        return;
+      }
+    }
 
     if (!contact.firstName || !contact.lastName || !contact.email) {
       const message = "Your contact details are incomplete. Please return to checkout.";
@@ -260,7 +276,8 @@ export default function ReviewClient() {
         items: orderItems,
         notes: notes.trim().length > 0 ? notes.trim() : undefined,
         paymentIntentId:
-          payment && payment.method === "mercadopago" ? payment.paymentIntentId : undefined
+          payment && payment.method === "mercadopago" ? payment.paymentIntentId : undefined,
+        checkoutToken
       };
 
       const order = await StorefrontApi.createOrder(payload);
@@ -270,6 +287,9 @@ export default function ReviewClient() {
         name: nameForConfirmation || contact.email,
         email: contact.email
       });
+      if (orderLockKey && typeof window !== "undefined") {
+        sessionStorage.setItem(orderLockKey, "completed");
+      }
       clearCart();
       reset();
       setLastOrder(order);
@@ -312,6 +332,7 @@ export default function ReviewClient() {
     shippingAddress.line1,
     shippingAddress.line2,
     shippingAddress.state,
+    checkoutToken,
     isSubmitting,
     toast
   ]);

@@ -7,6 +7,7 @@ import type {
   CustomerWishlist,
   HomeLayoutDefinition,
   OrderSummary,
+  OrderTimelineResponse,
   PaginatedResponse,
   ProductDetail,
   ProductListQuery,
@@ -14,7 +15,69 @@ import type {
   StorefrontConfig
 } from "@/types/storefront";
 
-import { apiFetch } from "../http";
+import { apiFetch, isApiError } from "../http";
+import { loadStorefrontSnapshot } from "@/lib/snapshots/loaders";
+import type { StorefrontSnapshot } from "@/lib/snapshots/types";
+
+let cachedFallbackCategories: CategorySummary[] | null = null;
+
+export const resetSnapshotCaches = () => {
+  cachedFallbackCategories = null;
+};
+
+const loadFallbackCategoriesFromSnapshot = async (): Promise<CategorySummary[]> => {
+  if (cachedFallbackCategories) {
+    return cachedFallbackCategories;
+  }
+  const record = await loadStorefrontSnapshot();
+  if (!record) {
+    return [];
+  }
+  cachedFallbackCategories = record.value.categories ?? [];
+  return cachedFallbackCategories;
+};
+
+const selectSnapshotProducts = (
+  snapshot: StorefrontSnapshot,
+  query: ProductListQuery,
+): ProductSummary[] => {
+  if (query.categorySlug) {
+    const byCategory = snapshot.products.byCategory[query.categorySlug];
+    if (byCategory && byCategory.length) {
+      return byCategory;
+    }
+  }
+
+  switch (query.sort) {
+    case "newest":
+      return snapshot.products.newest;
+    case "best-sellers":
+      return snapshot.products.bestSellers;
+    case "featured":
+    default:
+      return snapshot.products.featured;
+  }
+};
+
+const buildPaginatedResponse = (
+  items: ProductSummary[],
+  query: ProductListQuery,
+): PaginatedResponse<ProductSummary> => {
+  const pageSize = query.pageSize && query.pageSize > 0 ? query.pageSize : 12;
+  const page = query.page && query.page > 0 ? query.page : 1;
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const start = (page - 1) * pageSize;
+  const end = start + pageSize;
+
+  return {
+    data: items.slice(start, end),
+    total,
+    page,
+    pageSize,
+    totalPages,
+  };
+};
 
 export interface StorefrontAddressInput {
   street: string;
@@ -83,17 +146,37 @@ export const StorefrontApi = {
   },
 
   async listProducts(query: ProductListQuery = {}): Promise<PaginatedResponse<ProductSummary>> {
-    return apiFetch<PaginatedResponse<ProductSummary>>("products", {
-      params: {
-        page: query.page,
-        pageSize: query.pageSize,
-        category: query.categorySlug,
-        search: query.search,
-        sort: query.sort,
-        tag: query.tag
-      },
-      cache: "no-store"
-    });
+    try {
+      return await apiFetch<PaginatedResponse<ProductSummary>>("products", {
+        params: {
+          page: query.page,
+          pageSize: query.pageSize,
+          category: query.categorySlug,
+          search: query.search,
+          sort: query.sort,
+          tag: query.tag
+        },
+        cache: "no-store"
+      });
+    } catch (error) {
+      if (isSnapshotFallbackEnabled()) {
+        const record = await loadStorefrontSnapshot();
+        if (record) {
+          const fallbackItems = selectSnapshotProducts(record.value, query);
+          if (fallbackItems.length) {
+            const status = isApiError(error) ? error.status : "unknown";
+            console.warn(
+              `[storefront] products endpoint unavailable (status: ${status}). Serving snapshot dataset.`,
+            );
+            const unique = Array.from(
+              new Map(fallbackItems.map((item) => [item.slug ?? item.id, item])).values(),
+            );
+            return buildPaginatedResponse(unique, query);
+          }
+        }
+      }
+      throw error;
+    }
   },
 
   async getProduct(slugOrId: string): Promise<ProductDetail> {
@@ -123,9 +206,23 @@ export const StorefrontApi = {
   },
 
   async listCategories(): Promise<CategorySummary[]> {
-    return apiFetch<CategorySummary[]>("categories", {
-      cache: "no-store"
-    });
+    try {
+      return await apiFetch<CategorySummary[]>("categories", {
+        cache: "no-store"
+      });
+    } catch (error) {
+      if (isSnapshotFallbackEnabled()) {
+        const fallback = await loadFallbackCategoriesFromSnapshot();
+        if (fallback.length) {
+          const status = isApiError(error) ? error.status : "unknown";
+          console.warn(
+            `[storefront] categories endpoint unavailable (status: ${status}). Serving snapshot dataset.`,
+          );
+          return fallback;
+        }
+      }
+      throw error;
+    }
   },
 
   async getRecommendations(productId: number, limit = 8): Promise<ProductSummary[]> {
@@ -296,6 +393,18 @@ export const StorefrontApi = {
       },
       cache: "no-store"
     });
+  },
+
+  async getOrderTimeline(token: string, identifier: string): Promise<OrderTimelineResponse> {
+    return apiFetch<OrderTimelineResponse>(
+      `account/orders/${encodeURIComponent(identifier)}/timeline`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        cache: "no-store"
+      },
+    );
   },
 
   async listAddresses(token: string) {

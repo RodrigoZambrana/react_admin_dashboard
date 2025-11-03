@@ -682,7 +682,7 @@ const CalendarActivities = () => {
                                     <span className="relative flex justify-center items-center w-full h-full">
                                         {day}
                                         {isToday(date) && (
-                                            <Badge className="absolute top-1" innerClass="h-1 w-1" />
+                                            <Badge className="absolute top-1" innerClass="h-1 w-1 bg-emerald-500" />
                                         )}
                                         {hasEvents && (
                                             <span className="absolute bottom-1 flex gap-[2px]">

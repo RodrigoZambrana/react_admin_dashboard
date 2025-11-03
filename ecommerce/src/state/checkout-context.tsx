@@ -57,6 +57,7 @@ interface CheckoutState {
   completed: Record<CheckoutStep, boolean>;
   prefilledCustomerId: number | null;
   lastOrder?: OrderSummary | null;
+  checkoutToken: string;
 }
 
 type CheckoutAction =
@@ -78,7 +79,18 @@ type CheckoutAction =
     }
   | { type: "SET_LAST_ORDER"; payload: OrderSummary | null };
 
-const initialState: CheckoutState = {
+const generateCheckoutToken = (): string => {
+  const cryptoSource =
+    typeof globalThis !== "undefined" && (globalThis as { crypto?: Crypto }).crypto
+      ? (globalThis as { crypto?: Crypto }).crypto
+      : undefined;
+  if (cryptoSource?.randomUUID) {
+    return cryptoSource.randomUUID();
+  }
+  return `chk_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+};
+
+const createInitialState = (): CheckoutState => ({
   contact: {
     firstName: "",
     lastName: "",
@@ -100,8 +112,11 @@ const initialState: CheckoutState = {
     payment: false
   },
   prefilledCustomerId: null,
-  lastOrder: null
-};
+  lastOrder: null,
+  checkoutToken: generateCheckoutToken()
+});
+
+const initialState: CheckoutState = createInitialState();
 
 const mergeIfEmpty = (current: string, next?: string | null): string => {
   if (current && current.trim().length > 0) {
@@ -148,9 +163,7 @@ const checkoutReducer = (state: CheckoutState, action: CheckoutAction): Checkout
       return { ...state, notes: action.payload };
     }
     case "RESET": {
-      return {
-        ...initialState
-      };
+      return createInitialState();
     }
     case "PREFILL_FROM_SESSION": {
       const customerId = action.payload.customerId ?? null;
@@ -201,6 +214,7 @@ interface CheckoutContextValue {
   notes: string;
   completed: Record<CheckoutStep, boolean>;
   lastOrder?: OrderSummary | null;
+  checkoutToken: string;
   hasDetails: boolean;
   hasPayment: boolean;
   setDetails: (contact: CheckoutContact, shippingAddress: CheckoutAddress) => void;
@@ -291,6 +305,7 @@ export const StorefrontCheckoutProvider: React.FC<{ children: React.ReactNode }>
       notes: state.notes,
       completed: state.completed,
       lastOrder: state.lastOrder,
+      checkoutToken: state.checkoutToken,
       hasDetails: state.completed.details,
       hasPayment: state.completed.payment,
       setDetails,

@@ -1,6 +1,8 @@
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { mapProductSummaryToProduct } from "@/lib/storefront/adapters";
 
+export const revalidate = 180;
+
 import FlexBox from "@component/FlexBox";
 import { H1 } from "@component/Typography";
 import Container from "@component/Container";

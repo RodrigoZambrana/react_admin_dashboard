@@ -12,6 +12,7 @@ import Loading from '@/components/shared/Loading'
 import Table from '@/components/ui/Table'
 import Select from '@/components/ui/Select'
 import RichTextEditor from '@/components/shared/RichTextEditor'
+import Switcher from '@/components/ui/Switcher'
 import {
     apiGetSystemConfig,
     apiUpdateSystemConfig,
@@ -47,9 +48,14 @@ const SystemConfig = () => {
     const { t } = useTranslation()
     const { confirm, ConfirmationDialog } = useConfirmation()
     const dispatch = useAppDispatch()
-    const [initial, setInitial] = useState<{ taxRate: number; currencyBase: string }>({
+    const [initial, setInitial] = useState<{
+        taxRate: number
+        currencyBase: string
+        snapshotFallbackEnabled: boolean
+    }>({
         taxRate: 22,
         currencyBase: 'USD',
+        snapshotFallbackEnabled: true,
     })
     const [loading, setLoading] = useState(true)
     const [currencies, setCurrencies] = useState<string[]>([...FALLBACK_CURRENCY_CODES])
@@ -93,6 +99,15 @@ const SystemConfig = () => {
     })
     const addCurrencyRatePlaceholder = t('settings.systemConfig.exchangeRates.placeholder', {
         defaultValue: 'Enter rate',
+    })
+    const snapshotFallbackTitle = t('settings.systemConfig.storefrontFallback.title', {
+        defaultValue: 'Storefront cache fallback',
+    })
+    const snapshotFallbackDesc = t('settings.systemConfig.storefrontFallback.desc', {
+        defaultValue: 'Serve cached catalog data when the storefront API is unavailable.',
+    })
+    const snapshotFallbackLabel = t('settings.systemConfig.storefrontFallback.label', {
+        defaultValue: 'Enable snapshot fallback',
     })
 
     const ensureCurrencyPresence = useCallback((list: string[], baseCode: string) => {
@@ -209,12 +224,17 @@ const SystemConfig = () => {
                     currencyBase?: string
                     currencyOptions?: { code: string; label: string; symbol?: string }[]
                     exchangeRates?: { quote: string; rate: number }[]
+                    storefrontSnapshotFallbackEnabled?: boolean
                 }>()
                 const data = res.data || {}
                 const rawBase = typeof data.currencyBase === 'string' ? data.currencyBase : FALLBACK_CURRENCY_CODES[0]
                 const base = rawBase.trim().toUpperCase()
                 setCurrencyBase(base)
                 const value = Number(data.taxRate)
+                const fallbackEnabled =
+                    typeof data.storefrontSnapshotFallbackEnabled === 'boolean'
+                        ? data.storefrontSnapshotFallbackEnabled
+                        : true
                 const fallbackWithLabels = [...FALLBACK_CURRENCY_OPTIONS]
                 const optionList =
                     Array.isArray(data.currencyOptions) && data.currencyOptions.length
@@ -242,6 +262,7 @@ const SystemConfig = () => {
                 setInitial({
                     taxRate: Number.isNaN(value) ? 22 : value,
                     currencyBase: base,
+                    snapshotFallbackEnabled: fallbackEnabled,
                 })
             } catch {
                 const fallbackBase = FALLBACK_CURRENCY_CODES[0]
@@ -250,7 +271,7 @@ const SystemConfig = () => {
                 setCurrencies(fallbackCurrencies)
                 syncStoreCurrencies(fallbackCurrencies)
                 setExchangeRates(deriveRateRecord(fallbackBase, fallbackCurrencies))
-                setInitial({ taxRate: 22, currencyBase: fallbackBase })
+                setInitial({ taxRate: 22, currencyBase: fallbackBase, snapshotFallbackEnabled: true })
                 setCurrenciesLoaded(false)
             } finally {
                 setLoading(false)
@@ -641,10 +662,16 @@ const SystemConfig = () => {
                         try {
                             await apiUpdateSystemConfig<
                                 boolean,
-                                { taxRate: number; currencyBase: string }
+                                {
+                                    taxRate: number
+                                    currencyBase: string
+                                    storefrontSnapshotFallbackEnabled: boolean
+                                }
                             >({
                                 taxRate: values.taxRate,
                                 currencyBase: values.currencyBase,
+                                storefrontSnapshotFallbackEnabled:
+                                    values.snapshotFallbackEnabled,
                             })
                             toast.push(
                                 <Notification title={t('settings.systemConfig.updated.title')} type="success">
@@ -656,10 +683,11 @@ const SystemConfig = () => {
                                 (option) => option.value === values.currencyBase,
                             )
                             setInitial({
-                                ...values,
+                                taxRate: values.taxRate,
                                 currencyBase: baseExists
                                     ? values.currencyBase
                                     : resolvedCurrencyOptions[0]?.value || '',
+                                snapshotFallbackEnabled: values.snapshotFallbackEnabled,
                             })
                             setCurrencyBase(
                                 baseExists
@@ -741,6 +769,25 @@ const SystemConfig = () => {
                                             )
                                         }}
                                     </Field>
+                                </FormItem>
+                                <FormItem label={snapshotFallbackTitle}>
+                                    <div className="flex flex-col gap-2">
+                                        <Field name="snapshotFallbackEnabled">
+                                            {({ field, form }: { field: any; form: any }) => (
+                                                <Switcher
+                                                    checked={Boolean(field.value)}
+                                                    onChange={(checked) =>
+                                                        form.setFieldValue(field.name, checked)
+                                                    }
+                                                    content={snapshotFallbackLabel}
+                                                    disabled={isSubmitting}
+                                                />
+                                            )}
+                                        </Field>
+                                        <p className="text-sm opacity-70">
+                                            {snapshotFallbackDesc}
+                                        </p>
+                                    </div>
                                 </FormItem>
                                 <div>
                                     <Button type="submit" variant="solid" loading={isSubmitting}>

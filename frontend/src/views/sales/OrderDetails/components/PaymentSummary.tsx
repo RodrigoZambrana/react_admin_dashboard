@@ -77,16 +77,16 @@ const PaymentSummary = ({ data, taxRate, currency, paymentsSummary }: PaymentSum
     const remainingLabel = t('sales.orders.payments.remaining', {
         defaultValue: 'Remaining',
     })
-    const paidCurrency =
-        paymentsSummary?.currency && normalizeCurrencyCode(paymentsSummary.currency, normalizedCurrency)
-            ? paymentsSummary.currency
-            : normalizedCurrency
+    const paymentsCurrency = paymentsSummary?.currency
+        ? normalizeCurrencyCode(paymentsSummary.currency)
+        : undefined
+    const paidCurrency = normalizedCurrency ?? paymentsCurrency ?? defaultCurrency
     const formatPaid = useMemo(
         () => (value?: number) =>
-            formatCurrency(value, paidCurrency ?? normalizedCurrency, i18n.language, {
+            formatCurrency(value, paidCurrency, i18n.language, {
                 fallbackCurrency: defaultCurrency,
             }),
-        [paidCurrency, normalizedCurrency, i18n.language, defaultCurrency],
+        [paidCurrency, i18n.language, defaultCurrency],
     )
 
     return (

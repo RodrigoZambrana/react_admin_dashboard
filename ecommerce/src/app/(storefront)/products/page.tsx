@@ -1,6 +1,9 @@
 import type { ProductListQuery } from "@/types/storefront";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 
+export const revalidate = 180;
+export const dynamic = "force-static";
+
 type ProductsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };

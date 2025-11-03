@@ -14,6 +14,8 @@ interface ProductPageSearchParams {
   productId?: string | string[];
 }
 
+export const revalidate = 300;
+
 // ==============================================================
 interface Props {
   params: { slug: string } | Promise<{ slug: string }>;

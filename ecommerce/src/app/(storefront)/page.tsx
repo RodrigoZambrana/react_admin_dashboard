@@ -14,6 +14,9 @@ export const metadata = {
   description: "Configurable ecommerce storefront powered by the Bonik UI."
 };
 
+export const revalidate = 300;
+export const dynamic = "force-static";
+
 export default async function StorefrontHomePage() {
   return (
     <AppLayout navbar={<Navbar navListOpen />}>

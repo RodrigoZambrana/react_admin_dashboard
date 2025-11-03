@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import reducer, {
     getProducts,
     useAppDispatch,
@@ -29,6 +29,10 @@ const ProductList = () => {
     const dispatch = useAppDispatch()
     const [newProductOpen, setNewProductOpen] = useState(false)
     const location = useLocation()
+    const isParametricView = useMemo(
+        () => location.pathname.includes('/products/parametric'),
+        [location.pathname],
+    )
 
     const tableData = useAppSelector(
         (state) => state.salesProductList.data.tableData,
@@ -61,8 +65,6 @@ const ProductList = () => {
     }, [])
 
     useEffect(() => {
-        const pathname = location.pathname
-        const isParametricView = pathname.includes('/products/parametric')
         const targetMode: ProductMode | 'all' | undefined = isParametricView
             ? 'parametric'
             : undefined
@@ -140,15 +142,26 @@ const ProductList = () => {
         [refreshProducts, t],
     )
 
+    const card = (
+        <AdaptableCard
+            className={isParametricView ? '' : 'h-full'}
+            bodyClass={isParametricView ? '' : 'h-full'}
+        >
+            <div className="lg:flex items-center justify-between mb-4">
+                <h3 className="mb-4 lg:mb-0">{t('text.titles.products')}</h3>
+                <ProductTableTools onAddProduct={handleAddProductClick} />
+            </div>
+            <ProductTable />
+        </AdaptableCard>
+    )
+
     return (
         <>
-            <AdaptableCard className="h-full" bodyClass="h-full">
-                <div className="lg:flex items-center justify-between mb-4">
-                    <h3 className="mb-4 lg:mb-0">{t('text.titles.products')}</h3>
-                    <ProductTableTools onAddProduct={handleAddProductClick} />
-                </div>
-                <ProductTable />
-            </AdaptableCard>
+            {isParametricView ? (
+                <div className="mx-auto w-full max-w-6xl px-4">{card}</div>
+            ) : (
+                card
+            )}
             <Drawer
                 isOpen={newProductOpen}
                 onClose={handleCloseDrawer}

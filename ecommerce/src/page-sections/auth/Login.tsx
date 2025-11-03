@@ -88,7 +88,7 @@ export default function Login({
       const submitHandler =
         onSubmit ??
         (async () => {
-          router.push("/profile");
+          router.push("/account/profile");
         });
 
       if (managesSubmitting) {

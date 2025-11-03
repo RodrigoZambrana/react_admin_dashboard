@@ -62,10 +62,11 @@ import { StorefrontAddressDto } from './dto/address.dto'
 import { MercadoPagoService } from './payments/mercadopago.service'
 import { GoogleConfigService } from '../common/integrations/google-config.service'
 import type { FastifyRequest } from 'fastify'
-import { findOrderStatusById } from '../common/constants/order-statuses'
+import { findOrderStatusById, ORDER_STATUS_CODES } from '../common/constants/order-statuses'
 import { findPaymentMethodById, findPaymentMethodByCode } from '../common/constants/payment-methods'
 import { ParametricPricingService } from '../pricing/parametric-pricing.service'
 import type { ParametricQuoteInput } from '../pricing/types'
+import { OrderTimelineService } from '../orders/order-timeline.service'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
@@ -74,6 +75,45 @@ const INVENTORY_STATUS: Record<number, 'in-stock' | 'limited' | 'out-of-stock'> 
   0: 'in-stock',
   1: 'limited',
   2: 'out-of-stock',
+}
+
+const CHECKOUT_UUID_PREFIX = 'storefront:checkout:'
+
+const mapStatusColorToBadge = (color?: string | null): 'primary' | 'secondary' | 'success' | 'warning' | 'error' => {
+  if (!color) {
+    return 'secondary'
+  }
+  const normalized = color.toLowerCase()
+  if (normalized.includes('green')) {
+    return 'success'
+  }
+  if (normalized.includes('orange') || normalized.includes('yellow')) {
+    return 'warning'
+  }
+  if (normalized.includes('red')) {
+    return 'error'
+  }
+  if (normalized.includes('blue')) {
+    return 'primary'
+  }
+  return 'secondary'
+}
+
+const PAYMENT_STATUS_META: Record<
+  string,
+  { label: string; badge: 'primary' | 'secondary' | 'success' | 'warning' | 'error'; color: string }
+> = {
+  paid: { label: 'Pagado', badge: 'primary', color: 'blue' },
+  pending: { label: 'Pendiente', badge: 'warning', color: 'orange' },
+  processing: { label: 'En revisión', badge: 'warning', color: 'orange' },
+  failed: { label: 'Fallido', badge: 'error', color: 'red' },
+}
+
+const resolvePaymentStatusMeta = (
+  status: string,
+): { label: string; badge: 'primary' | 'secondary' | 'success' | 'warning' | 'error'; color: string } => {
+  const normalized = status.toLowerCase()
+  return PAYMENT_STATUS_META[normalized] ?? { label: status, badge: 'secondary', color: 'gray' }
 }
 
 const parsePositiveInt = (value?: string | number | null, fallback = 1): number => {
@@ -168,6 +208,16 @@ const mapInventoryStatus = (product: { status: number; permanentStock: boolean |
   return (INVENTORY_STATUS[product.status] ?? 'in-stock') as InventoryStatus
 }
 
+const generateCheckoutUuid = (seed: string): string => {
+  const hashBuffer = createHash('sha1').update(`${CHECKOUT_UUID_PREFIX}${seed}`).digest()
+  // Set version to 5
+  hashBuffer[6] = (hashBuffer[6] & 0x0f) | 0x50
+  // Set variant to RFC 4122
+  hashBuffer[8] = (hashBuffer[8] & 0x3f) | 0x80
+  const hex = hashBuffer.toString('hex')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
+}
+
 const money = (amount: number, currency = 'USD'): MoneyDto => ({ amount, currency })
 
 type OrderWithRelations = Prisma.OrderGetPayload<{
@@ -235,11 +285,13 @@ export class StorefrontService implements OnModuleInit {
     private readonly mercadoPago: MercadoPagoService,
     private readonly googleConfig: GoogleConfigService,
     private readonly parametricPricing: ParametricPricingService,
+    private readonly timeline: OrderTimelineService,
   ) {}
 
   private defaultCustomerPassword!: string
   private defaultCustomerPasswordHash!: string
   private readonly companySingletonKey = 'default'
+  private readonly snapshotFallbackConfigKey = 'storefront:snapshotFallbackEnabled'
 
   private mapCompanyProfile(record?: CompanyProfile | null): StorefrontConfig['companyProfile'] {
     if (!record) {
@@ -286,6 +338,10 @@ export class StorefrontService implements OnModuleInit {
       }
     }
     const merged = mergeDeep(DEFAULT_STOREFRONT_CONFIG, overrides)
+    const snapshotFallbackRecord = await this.prisma.systemConfig.findUnique({
+      where: { key: this.snapshotFallbackConfigKey },
+    })
+    const snapshotFallbackEnabled = snapshotFallbackRecord?.value === 'false' ? false : true
     const layouts = Array.isArray(merged.layouts) && merged.layouts.length > 0 ? merged.layouts : DEFAULT_HOME_LAYOUTS
     const defaultLayout = layouts.some((layout) => layout.key === merged.defaultLayout) ? merged.defaultLayout : FALLBACK_LAYOUT_KEY
 
@@ -336,6 +392,15 @@ export class StorefrontService implements OnModuleInit {
       },
     }
 
+    const mergedResilienceFlag =
+      typeof merged.resilience?.snapshotFallbackEnabled === 'boolean'
+        ? merged.resilience.snapshotFallbackEnabled
+        : true
+
+    const resilience = {
+      snapshotFallbackEnabled: Boolean(mergedResilienceFlag) && snapshotFallbackEnabled,
+    }
+
     return {
       ...merged,
       layouts,
@@ -343,6 +408,7 @@ export class StorefrontService implements OnModuleInit {
       companyProfile,
       payments,
       integrations,
+      resilience,
     }
   }
 
@@ -934,6 +1000,53 @@ export class StorefrontService implements OnModuleInit {
     const email = normalizeEmail(dto.customer.email)
     const phone = sanitizePhoneInput(dto.customer.phone)
     await this.ensureDefaultPasswordHash()
+
+    if (dto.paymentIntentId) {
+      const intentRecord = await this.prisma.storefrontPaymentIntent.findUnique({
+        where: { id: dto.paymentIntentId },
+        select: { orderId: true },
+      })
+
+      if (!intentRecord) {
+        throw new BadRequestException('El pago no existe o venció. Vuelve a intentarlo.')
+      }
+
+      if (intentRecord.orderId) {
+        const existingOrder = await this.prisma.order.findUnique({
+          where: { id: intentRecord.orderId },
+          include: {
+            items: true,
+            payments: true,
+            storefrontPayments: true,
+          },
+        })
+
+        if (existingOrder) {
+          return this.toOrderSummary(existingOrder)
+        }
+      }
+    }
+
+    const normalizedCheckoutToken =
+      typeof dto.checkoutToken === 'string' && dto.checkoutToken.trim().length > 0
+        ? dto.checkoutToken.trim()
+        : null
+    const checkoutUuid = normalizedCheckoutToken ? generateCheckoutUuid(normalizedCheckoutToken) : null
+
+    let order: OrderWithRelations | null = null
+    let isNewOrder = false
+
+    if (checkoutUuid) {
+      order = await this.prisma.order.findUnique({
+        where: { uuid: checkoutUuid },
+        include: {
+          items: true,
+          payments: true,
+          storefrontPayments: true,
+        },
+      })
+    }
+
     let customer = await this.prisma.customer.findUnique({ where: { email } })
     if (!customer) {
       customer = await this.prisma.customer.create({
@@ -1148,76 +1261,122 @@ export class StorefrontService implements OnModuleInit {
     const selectedPaymentMethod = dto.paymentIntentId
       ? findPaymentMethodByCode('mercado_pago')
       : findPaymentMethodByCode('cash')
-    const subtotalDecimal = lineItems.reduce(
+    const grossSubtotalDecimal = lineItems.reduce(
       (sum, item) => sum.plus(item.unitPrice.times(item.quantity)),
       decimal(0),
     )
-    const taxRate = decimal(products[0]?.taxRate ?? 22).dividedBy(100)
-    const taxDecimal = subtotalDecimal.times(taxRate)
-    const grandTotalDecimal = subtotalDecimal.plus(taxDecimal)
+    const taxRatePercentRaw = Number(products[0]?.taxRate ?? 0)
+    const taxRateDecimal = decimal(taxRatePercentRaw).dividedBy(100)
 
-    let order: OrderWithRelations = await this.prisma.order.create({
-      data: {
-        documentType: DocumentType.ORDER,
-        customer: { connect: { id: customer.id } },
-        date: new Date(),
-        shippingAddress1: dto.shippingAddress.line1,
-        shippingAddress2: dto.shippingAddress.line2,
-        shippingCity: dto.shippingAddress.city,
-        shippingState: dto.shippingAddress.state,
-        shippingZip: dto.shippingAddress.zip,
-        billingAddress1: dto.billingAddress?.line1 ?? dto.shippingAddress.line1,
-        billingAddress2: dto.billingAddress?.line2 ?? dto.shippingAddress.line2,
-        billingCity: dto.billingAddress?.city ?? dto.shippingAddress.city,
-        billingState: dto.billingAddress?.state ?? dto.shippingAddress.state,
-        billingZip: dto.billingAddress?.zip ?? dto.shippingAddress.zip,
-        subTotal: subtotalDecimal,
-        tax: taxDecimal,
-        grandTotal: grandTotalDecimal,
-        orderCurrency: currency,
-        comment: dto.notes,
-        paymentMethodId: selectedPaymentMethod?.id ?? null,
-        items: {
-          create: lineItems.map((item) => ({
-            product: { connect: { id: item.product.id } },
-            ...(item.variant ? { variant: { connect: { id: item.variant.id } } } : {}),
-            name: item.nameSnapshot,
-            qty: item.quantity,
-            price: item.unitPrice,
-            unitCurrency: currency,
-            unitAmount: item.unitPrice,
-            unitPriceSnapshot: item.unitPrice,
-            unitCostAmount: item.unitCost,
-            unitCostCurrency: currency,
-            skuSnapshot: item.skuSnapshot,
-            nameSnapshot: item.nameSnapshot,
-            img: item.image ?? undefined,
-            specSummary: item.specSummary || null,
-            specJson: item.specEntries.length ? item.specEntries : undefined,
-            parametricConfig: item.parametricConfig
-              ? (item.parametricConfig as Prisma.InputJsonValue)
-              : undefined,
-            parametricBreakdown: item.parametricSnapshot
-              ? {
-                  total: item.parametricSnapshot.total,
-                  breakdown: item.parametricSnapshot.breakdown,
-                  modifiers: item.parametricSnapshot.modifiers,
-                }
-              : undefined,
-            parametricReferenceDate: item.parametricSnapshot?.referenceDate
-              ? new Date(item.parametricSnapshot.referenceDate)
-              : undefined,
-            parametricSource: item.parametricSnapshot?.source,
-            parametricVersion: item.parametricSnapshot?.dataVersion,
-          })),
-        },
-      },
-      include: {
-        items: true,
-        payments: true,
-        storefrontPayments: true,
-      },
-    })
+    let netSubtotalDecimal = grossSubtotalDecimal
+    let taxDecimal = decimal(0)
+
+    if (taxRateDecimal.greaterThan(0)) {
+      const divisor = decimal(1).plus(taxRateDecimal)
+      const netSubtotal = grossSubtotalDecimal.dividedBy(divisor)
+      const netRounded = netSubtotal.toDecimalPlaces(2)
+      const taxRounded = grossSubtotalDecimal.minus(netRounded).toDecimalPlaces(2)
+      netSubtotalDecimal = netRounded
+      taxDecimal = taxRounded
+    }
+
+    const grandTotalDecimal = grossSubtotalDecimal
+
+    if (!order) {
+      try {
+        order = await this.prisma.order.create({
+          data: {
+            ...(checkoutUuid ? { uuid: checkoutUuid } : {}),
+            documentType: DocumentType.ORDER,
+            customer: { connect: { id: customer.id } },
+            date: new Date(),
+            shippingAddress1: dto.shippingAddress.line1,
+            shippingAddress2: dto.shippingAddress.line2,
+            shippingCity: dto.shippingAddress.city,
+            shippingState: dto.shippingAddress.state,
+            shippingZip: dto.shippingAddress.zip,
+            billingAddress1: dto.billingAddress?.line1 ?? dto.shippingAddress.line1,
+            billingAddress2: dto.billingAddress?.line2 ?? dto.shippingAddress.line2,
+            billingCity: dto.billingAddress?.city ?? dto.shippingAddress.city,
+            billingState: dto.billingAddress?.state ?? dto.shippingAddress.state,
+            billingZip: dto.billingAddress?.zip ?? dto.shippingAddress.zip,
+            subTotal: netSubtotalDecimal,
+            tax: taxDecimal,
+            grandTotal: grandTotalDecimal,
+            orderCurrency: currency,
+            comment: dto.notes,
+            paymentMethodId: selectedPaymentMethod?.id ?? null,
+            statusId: ORDER_STATUS_CODES.PENDING,
+            items: {
+              create: lineItems.map((item) => ({
+                product: { connect: { id: item.product.id } },
+                ...(item.variant ? { variant: { connect: { id: item.variant.id } } } : {}),
+                name: item.nameSnapshot,
+                qty: item.quantity,
+                price: item.unitPrice,
+                unitCurrency: currency,
+                unitAmount: item.unitPrice,
+                unitPriceSnapshot: item.unitPrice,
+                unitCostAmount: item.unitCost,
+                unitCostCurrency: currency,
+                skuSnapshot: item.skuSnapshot,
+                nameSnapshot: item.nameSnapshot,
+                img: item.image ?? undefined,
+                specSummary: item.specSummary || null,
+                specJson: item.specEntries.length ? item.specEntries : undefined,
+                parametricConfig: item.parametricConfig
+                  ? (item.parametricConfig as Prisma.InputJsonValue)
+                  : undefined,
+                parametricBreakdown: item.parametricSnapshot
+                  ? {
+                      total: item.parametricSnapshot.total,
+                      breakdown: item.parametricSnapshot.breakdown,
+                      modifiers: item.parametricSnapshot.modifiers,
+                    }
+                  : undefined,
+                parametricReferenceDate: item.parametricSnapshot?.referenceDate
+                  ? new Date(item.parametricSnapshot.referenceDate)
+                  : undefined,
+                parametricSource: item.parametricSnapshot?.source,
+                parametricVersion: item.parametricSnapshot?.dataVersion,
+              })),
+            },
+          },
+          include: {
+            items: true,
+            payments: true,
+            storefrontPayments: true,
+          },
+        })
+        isNewOrder = true
+      } catch (error) {
+        if (
+          checkoutUuid &&
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          const existingOrder = await this.prisma.order.findUnique({
+            where: { uuid: checkoutUuid },
+            include: {
+              items: true,
+              payments: true,
+              storefrontPayments: true,
+            },
+          })
+          if (existingOrder) {
+            order = existingOrder
+          } else {
+            throw error
+          }
+        } else {
+          throw error
+        }
+      }
+    }
+
+    if (!order) {
+      throw new BadRequestException('Unable to create order. Please try again.')
+    }
 
     if (dto.paymentIntentId && !this.mercadoPago.isEnabled()) {
       throw new BadRequestException('Mercado Pago payments are not enabled en este entorno.')
@@ -1226,8 +1385,9 @@ export class StorefrontService implements OnModuleInit {
     if (dto.paymentIntentId) {
       try {
         await this.mercadoPago.attachPaymentIntentToOrder(order.id, dto.paymentIntentId)
-        const refreshed = await this.prisma.order.findUnique({
+        const refreshed = await this.prisma.order.update({
           where: { id: order.id },
+          data: { statusId: ORDER_STATUS_CODES.PAID },
           include: {
             items: true,
             payments: true,
@@ -1249,9 +1409,15 @@ export class StorefrontService implements OnModuleInit {
       billingAddress: dto.billingAddress ?? dto.shippingAddress,
     })
 
-    this.notifications
-      .notifyOrderReceived(order.id)
-      .catch((error) => this.logger.error(`Failed to dispatch notifications for order ${order.id}: ${(error as Error).message}`))
+    if (isNewOrder) {
+      this.notifications
+        .notifyOrderReceived(order.id)
+        .catch((error) =>
+          this.logger.error(
+            `Failed to dispatch notifications for order ${order.id}: ${(error as Error).message}`,
+          ),
+        )
+    }
 
     return summary
   }
@@ -1414,6 +1580,204 @@ export class StorefrontService implements OnModuleInit {
     }
 
     return this.toOrderSummary(order)
+  }
+
+  async getCustomerOrderTimeline(customerId: number, identifier: string) {
+    const orderId = await this.resolveCustomerOrderId(customerId, identifier)
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: orderId,
+        customerId,
+        documentType: DocumentType.ORDER,
+      },
+      include: {
+        payments: true,
+        storefrontPayments: true,
+        items: true,
+      },
+    })
+
+    if (!order) {
+      throw new NotFoundException('Order not found')
+    }
+
+    const orderTotal = decimalToNumber(order.grandTotal ?? decimal(0))
+    const orderCurrency = order.orderCurrency ?? 'USD'
+    const orderCurrencyCode = orderCurrency.toUpperCase()
+
+    const storefrontIntents = (order.storefrontPayments ?? [])
+      .slice()
+      .sort((a, b) => {
+        const left = (a.updatedAt ?? a.createdAt).getTime()
+        const right = (b.updatedAt ?? b.createdAt).getTime()
+        return right - left
+      })
+    const primaryIntent = storefrontIntents[0] ?? null
+
+    const paymentsDesc = (order.payments ?? [])
+      .slice()
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+    const primaryPayment = paymentsDesc[0] ?? null
+
+    const paymentsAsc = (order.payments ?? [])
+      .slice()
+      .sort((a, b) => a.date.getTime() - b.date.getTime())
+
+    const paymentStatus = this.resolvePaymentStatus(primaryIntent, paymentsDesc)
+    let paymentSummary = this.buildOrderPaymentSummary(primaryIntent, primaryPayment, orderCurrency, order, paymentStatus)
+
+    const events = await this.timeline.list(order.id)
+    const hasPaymentEvent = events.some((event) => {
+      const type = (event.type || '').toUpperCase()
+      return type === 'PAYMENT_WAITING' || type === 'PAYMENT_PARTIAL' || type === 'PAYMENT_FULL'
+    })
+
+    if (!hasPaymentEvent) {
+      if (paymentsAsc.length > 0) {
+        let accumulated = 0
+        paymentsAsc.forEach((payment, index) => {
+          const amountNumber = decimalToNumber(payment.amount ?? decimal(0))
+          accumulated += amountNumber
+          const currencyCode = (payment.currency ?? orderCurrency).toUpperCase()
+          const sameCurrency = currencyCode === orderCurrencyCode
+
+          let eventType: 'PAYMENT_PARTIAL' | 'PAYMENT_FULL' = 'PAYMENT_PARTIAL'
+          let remainingAmount: number | null = null
+
+          if (sameCurrency) {
+            remainingAmount = Math.max(0, orderTotal - accumulated)
+            if (remainingAmount <= 0.01) {
+              eventType = 'PAYMENT_FULL'
+            }
+          } else if (index === paymentsAsc.length - 1 && paymentStatus === 'paid') {
+            eventType = 'PAYMENT_FULL'
+          }
+
+          events.push({
+            eventId: `synthetic:order:${order.id}:payment:${payment.id}`,
+            orderId: order.id,
+            type: eventType,
+            timestamp: payment.date.toISOString(),
+            actor: payment.method ?? 'system',
+            amount: amountNumber,
+            currency: currencyCode,
+            paymentMethod: payment.method ?? null,
+            remainingAmount,
+            estimateDate: null,
+            statusFrom: null,
+            statusTo: null,
+            message: payment.notes ?? null,
+            metadata: { source: 'storefront:payment-record' },
+          })
+        })
+      } else if (paymentSummary) {
+        const amountValue = typeof paymentSummary.amount?.amount === 'number' ? paymentSummary.amount?.amount : null
+        const currencyCode = (paymentSummary.amount?.currency ?? orderCurrency).toUpperCase()
+        const sameCurrency = currencyCode === orderCurrencyCode
+
+        let eventType: 'PAYMENT_FULL' | 'PAYMENT_PARTIAL' | 'PAYMENT_WAITING' | null = null
+        if (paymentStatus === 'paid') {
+          if (sameCurrency && amountValue !== null && Math.abs(orderTotal - amountValue) > 0.01) {
+            eventType = 'PAYMENT_PARTIAL'
+          } else {
+            eventType = 'PAYMENT_FULL'
+          }
+        } else if (paymentStatus === 'processing' || paymentStatus === 'pending') {
+          eventType = 'PAYMENT_WAITING'
+        }
+
+        if (eventType) {
+          let remainingAmount: number | null = null
+          if (eventType === 'PAYMENT_PARTIAL' && sameCurrency && amountValue !== null) {
+            remainingAmount = Math.max(0, orderTotal - amountValue)
+          } else if (eventType === 'PAYMENT_FULL') {
+            remainingAmount = 0
+          } else if (eventType === 'PAYMENT_WAITING' && sameCurrency && amountValue !== null) {
+            remainingAmount = Math.max(0, orderTotal - amountValue)
+          }
+
+          events.push({
+            eventId: `synthetic:order:${order.id}:${eventType.toLowerCase()}`,
+            orderId: order.id,
+            type: eventType,
+            timestamp: paymentSummary.updatedAt ?? order.updatedAt.toISOString(),
+            actor: paymentSummary.provider ?? 'system',
+            amount: amountValue,
+            currency: currencyCode,
+            paymentMethod: null,
+            remainingAmount,
+            estimateDate: null,
+            statusFrom: null,
+            statusTo: null,
+            message: paymentSummary.statusDetail ?? null,
+            metadata: { source: 'storefront:payment-summary' },
+          })
+        }
+      }
+    }
+
+    events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+
+    const paymentEventsSorted = events
+      .filter((event) => {
+        const normalized = (event.type || '').toUpperCase()
+        return (
+          normalized === 'PAYMENT_WAITING' ||
+          normalized === 'PAYMENT_PARTIAL' ||
+          normalized === 'PAYMENT_FULL'
+        )
+      })
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+
+    const hasSummaryEvent = events.some((event) => (event.type || '').toUpperCase() === 'PAYMENT_FULL_SUMMARY')
+
+    if (!hasSummaryEvent && paymentEventsSorted.length > 0) {
+      const lastPaymentEvent = paymentEventsSorted[paymentEventsSorted.length - 1]
+      const lastRemaining =
+        typeof lastPaymentEvent.remainingAmount === 'number' ? Number(lastPaymentEvent.remainingAmount) : null
+      const lastType = (lastPaymentEvent.type || '').toUpperCase()
+      const isFullyPaid =
+        lastType === 'PAYMENT_FULL' || (lastRemaining !== null && lastRemaining <= 0.01)
+
+      if (isFullyPaid) {
+        const baseTimestamp = paymentSummary?.updatedAt ?? lastPaymentEvent.timestamp
+        const summaryDate = new Date(baseTimestamp)
+        const summaryTimestamp = new Date(summaryDate.getTime() + 1).toISOString()
+        events.push({
+          eventId: `synthetic:order:${order.id}:payment_full_summary`,
+          orderId: order.id,
+          type: 'PAYMENT_FULL_SUMMARY',
+          timestamp: summaryTimestamp,
+          actor: paymentSummary?.provider ?? lastPaymentEvent.actor ?? 'system',
+          amount: null,
+          currency: null,
+          paymentMethod: null,
+          remainingAmount: 0,
+          estimateDate: null,
+          statusFrom: null,
+          statusTo: null,
+          message: paymentSummary?.statusDetail ?? null,
+          metadata: { source: 'storefront:payment-summary' },
+        })
+        events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      }
+    }
+
+    return {
+      order: {
+        id: order.id,
+        customerId: order.customerId,
+        statusId: order.statusId,
+        createdAt: order.createdAt.toISOString(),
+        updatedAt: order.updatedAt.toISOString(),
+        date: order.date.toISOString(),
+        grandTotal: orderTotal,
+        orderCurrency: order.orderCurrency,
+        estimatedMin: order.estimatedMin,
+        estimatedMax: order.estimatedMax,
+      },
+      events,
+    }
   }
 
   async getCustomerWishlist(customerId: number): Promise<CustomerWishlistDto> {
@@ -1794,7 +2158,11 @@ export class StorefrontService implements OnModuleInit {
       }
 
     const statusDefinition = findOrderStatusById(order.statusId ?? null)
-    const status = statusDefinition?.label ?? 'pending'
+    const statusCode = statusDefinition?.code ?? 'pending'
+    const statusLabel = statusDefinition?.label ?? 'Pendiente'
+    const statusColor = statusDefinition?.color ?? 'gray'
+    const statusBadgeColor = mapStatusColorToBadge(statusDefinition?.color)
+    const fulfillmentStatus = statusCode
 
     const intents = (order.storefrontPayments ?? [])
       .slice()
@@ -1811,7 +2179,8 @@ export class StorefrontService implements OnModuleInit {
     const primaryPayment = payments[0] ?? null
 
     const paymentStatus = this.resolvePaymentStatus(primaryIntent, payments)
-    const paymentSummary = this.buildOrderPaymentSummary(primaryIntent, primaryPayment, currency, order)
+    const paymentMeta = resolvePaymentStatusMeta(paymentStatus)
+    const paymentSummary = this.buildOrderPaymentSummary(primaryIntent, primaryPayment, currency, order, paymentStatus)
 
     return {
       id: order.id,
@@ -1819,9 +2188,16 @@ export class StorefrontService implements OnModuleInit {
       orderNumber: this.buildOrderNumber(order.id),
       reference: this.buildOrderReference(order),
       placedAt: order.createdAt.toISOString(),
-      status,
+      status: statusCode,
+      statusLabel,
+      statusColor,
+      statusBadgeColor,
       paymentStatus,
-      fulfillmentStatus: status,
+      paymentStatusLabel: paymentMeta.label,
+      paymentStatusColor: paymentMeta.color,
+      paymentStatusBadgeColor: paymentMeta.badge,
+      fulfillmentStatus,
+      fulfillmentStatusLabel: statusLabel,
       items,
       summary: {
         items,
@@ -1886,12 +2262,13 @@ export class StorefrontService implements OnModuleInit {
     payment: (OrderWithRelations['payments'][number] & { updatedAt: Date }) | null,
     fallbackCurrency: string,
     order: OrderWithRelations,
+    resolvedStatus: string,
   ) {
     if (intent) {
       const currency = intent.currency ?? fallbackCurrency
       return {
         provider: intent.provider,
-        status: intent.status ?? 'unknown',
+        status: resolvedStatus,
         statusDetail: intent.statusDetail ?? undefined,
         paymentId: intent.externalPaymentId ?? undefined,
         paymentIntentId: intent.id,
@@ -1908,7 +2285,7 @@ export class StorefrontService implements OnModuleInit {
       const paymentMethod = findPaymentMethodById(order.paymentMethodId ?? null)
       return {
         provider: paymentMethod?.label ?? payment.method ?? 'manual',
-        status: this.mapInternalPaymentStatus(payment.status),
+        status: resolvedStatus ?? this.mapInternalPaymentStatus(payment.status),
         statusDetail: undefined,
         paymentId: payment.reference ?? undefined,
         paymentIntentId: undefined,

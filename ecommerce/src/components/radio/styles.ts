@@ -1,8 +1,11 @@
 import { color, compose, space } from "styled-system";
 import styled from "styled-components";
 import { RadioProps, WrapperProps } from "./index";
+import { isValidProp } from "@utils/utils";
 
-export const StyledRadio = styled.input<RadioProps>`
+export const StyledRadio = styled.input.withConfig({
+  shouldForwardProp: isValidProp
+})<RadioProps>`
   appearance: none;
   outline: none;
   cursor: pointer;
@@ -41,10 +44,12 @@ export const StyledRadio = styled.input<RadioProps>`
   ${compose(color)}
 `;
 
-export const Wrapper = styled.div<WrapperProps>`
+export const Wrapper = styled.div.withConfig({
+  shouldForwardProp: isValidProp
+})<WrapperProps>`
   display: flex;
   align-items: center;
-  flex-direction: ${({ labelPlacement }) => (labelPlacement !== "end" ? "row" : "row-reverse")};
+  flex-direction: ${({ $labelPlacement }) => ($labelPlacement !== "end" ? "row" : "row-reverse")};
   gap: 0.5rem;
 
   label {

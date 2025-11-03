@@ -22,6 +22,7 @@ import useThemeClass from '@/utils/hooks/useThemeClass'
 import { useNavigate } from 'react-router-dom'
 import cloneDeep from 'lodash/cloneDeep'
 import { normalizeCurrencyCode } from '@/utils/currency'
+import { deriveStatusColorClasses } from '@/utils/statusColor'
 import dayjs from 'dayjs'
 import type {
     DataTableResetHandle,
@@ -138,23 +139,42 @@ const OrdersTable = () => {
     const currentResource = contextResource
     const storeCurrency = useAppSelector((state) => state.currency.code)
 
-    const defaultOrderStatuses = useMemo(() => {
+    type StatusOption = {
+        id: number
+        name: string
+        dotClass: string
+        textClass: string
+        customColor?: string
+    }
+
+    const mapStatusOption = useCallback((id: number, name: string, color?: string): StatusOption => {
+        const classes = deriveStatusColorClasses(color)
+        return {
+            id,
+            name,
+            dotClass: classes.dotClass || 'bg-gray-400',
+            textClass: classes.textClass || 'text-gray-600',
+            customColor: classes.customColor,
+        }
+    }, [])
+
+    const defaultOrderStatuses = useMemo<StatusOption[]>(() => {
         if (currentResource === 'budgets') {
             return [
-                { id: 1000, name: 'Quote - Draft', color: '#9ca3af' },
-                { id: 1010, name: 'Quote - Sent', color: '#3b82f6' },
-                { id: 1020, name: 'Quote - Accepted', color: '#10b981' },
-                { id: 1050, name: 'Quote - Expired', color: '#f97316' },
+                mapStatusOption(1000, 'Quote - Draft', '#9ca3af'),
+                mapStatusOption(1010, 'Quote - Sent', '#3b82f6'),
+                mapStatusOption(1020, 'Quote - Accepted', '#10b981'),
+                mapStatusOption(1050, 'Quote - Expired', '#f97316'),
             ]
         }
         return [
-            { id: 100, name: 'Pending', color: 'orange' },
-            { id: 200, name: 'Paid', color: 'green' },
-            { id: 300, name: 'Cancelled', color: 'red' },
-            { id: 400, name: 'Delivered', color: 'green' },
+            mapStatusOption(100, 'Pending', 'orange-500'),
+            mapStatusOption(200, 'Paid', 'blue-500'),
+            mapStatusOption(300, 'Cancelled', 'red-500'),
+            mapStatusOption(400, 'Delivered', 'emerald-500'),
         ]
-    }, [currentResource])
-    const [statuses, setStatuses] = useState<{ id: number; name: string; color: string }[]>(defaultOrderStatuses)
+    }, [currentResource, mapStatusOption])
+    const [statuses, setStatuses] = useState<StatusOption[]>(defaultOrderStatuses)
     const [paymentMethods, setPaymentMethods] = useState<{ value: string; label: string }[]>([])
 
     const fetchData = useCallback(() => {
@@ -180,11 +200,16 @@ const OrdersTable = () => {
             const res = await apiGetOrderStatuses<
                 { id: number | string; label?: string; color?: string; documentTypes?: string[] }[]
             >({ documentType: currentResource === 'budgets' ? 'BUDGET' : 'ORDER' })
-            const normalized = (res.data || []).map((status) => ({
-                id: Number(status.id),
-                name: status.label || String(status.id),
-                color: status.color || 'gray-500',
-            }))
+            const normalized = (res.data || []).map((status) => {
+                const classes = deriveStatusColorClasses(status.color)
+                return {
+                    id: Number(status.id),
+                    name: status.label || String(status.id),
+                    dotClass: classes.dotClass || 'bg-gray-400',
+                    textClass: classes.textClass || 'text-gray-600',
+                    customColor: classes.customColor,
+                }
+            })
             if (normalized.length) {
                 setStatuses(normalized)
             }
@@ -288,7 +313,9 @@ const OrdersTable = () => {
                     const options = statuses.map((x) => ({
                         value: x.id,
                         label: x.name,
-                        color: x.color,
+                        dotClass: x.dotClass,
+                        textClass: x.textClass,
+                        customColor: x.customColor,
                     }))
                     const onChange = async (opt: any) => {
                         await apiUpdateSalesOrderStatus<boolean, { id: string; status: number }>(
@@ -303,18 +330,22 @@ const OrdersTable = () => {
                             <Select
                                 size="sm"
                                 options={options}
-                                value={
-                                    {
-                                        value: s?.id ?? statusId,
-                                        label: s?.name ?? String(statusId),
-                                        color: s?.color ?? 'gray-500',
-                                    } as any
-                                }
+                                value={{
+                                    value: s?.id ?? statusId,
+                                    label: s?.name ?? String(statusId),
+                                    dotClass: s?.dotClass ?? 'bg-gray-400',
+                                    textClass: s?.textClass ?? 'text-gray-600',
+                                    customColor: s?.customColor,
+                                } as any}
                                 formatOptionLabel={(option: any) => (
                                     <div className="flex items-center">
-                                        <span className={`badge-dot bg-${option.color}`}></span>
                                         <span
-                                            className={`ml-2 rtl:mr-2 capitalize font-semibold text-${option.color}`}
+                                            className={`badge-dot ${option.dotClass || 'bg-gray-400'}`}
+                                            style={option.customColor ? { backgroundColor: option.customColor } : undefined}
+                                        ></span>
+                                        <span
+                                            className={`ml-2 rtl:mr-2 capitalize font-semibold ${option.textClass || 'text-gray-600'}`}
+                                            style={option.customColor ? { color: option.customColor } : undefined}
                                         >
                                             {option.label}
                                         </span>

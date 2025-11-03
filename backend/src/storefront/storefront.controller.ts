@@ -371,6 +371,16 @@ export class StorefrontController {
   }
 
   @UseGuards(StorefrontJwtGuard)
+  @Get('account/orders/:identifier/timeline')
+  getAccountOrderTimeline(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Param('identifier') identifier: string,
+  ) {
+    const user = req.user
+    return this.storefront.getCustomerOrderTimeline(user.sub, identifier)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
   @Get('account/addresses')
   listAccountAddresses(@Req() req: FastifyRequest & { user: StorefrontJwtPayload }) {
     const user = req.user

@@ -1,6 +1,9 @@
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { flattenCategorySummaries } from "@/lib/storefront/adapters";
 
+export const revalidate = 180;
+export const dynamic = "force-static";
+
 export const metadata = {
   title: "Categories · Storefront"
 };

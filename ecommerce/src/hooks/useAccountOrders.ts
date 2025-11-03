@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import type { OrderSummary } from "@/types/storefront";
+import type { OrderTimelineResponse } from "@/types/orderTimeline";
 import { useSession } from "@/state/session-context";
 import { useToast } from "@/contexts/ToastContext";
 
@@ -95,8 +96,11 @@ export function useAccountOrders(): UseAccountOrdersResult {
 
 interface UseAccountOrderResult {
   order: OrderSummary | null;
+  timeline: OrderTimelineResponse | null;
   loading: boolean;
+  timelineLoading: boolean;
   error: string | null;
+  timelineError: string | null;
   refresh: () => Promise<void>;
   token: string | null;
   needsReauthentication: boolean;
@@ -107,6 +111,9 @@ export function useAccountOrder(identifier: string): UseAccountOrderResult {
   const [order, setOrder] = useState<OrderSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [timeline, setTimeline] = useState<OrderTimelineResponse | null>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
   const [needsReauthentication, setNeedsReauthentication] = useState(false);
   const toast = useToast();
 
@@ -120,9 +127,30 @@ export function useAccountOrder(identifier: string): UseAccountOrderResult {
     setLoading(true);
     setError(null);
     setNeedsReauthentication(false);
+    setTimelineLoading(true);
+    setTimelineError(null);
     try {
       const data = await StorefrontApi.getOrder(token, identifier);
       setOrder(data);
+      try {
+        const timelineResponse = await StorefrontApi.getOrderTimeline(token, identifier);
+        setTimeline(timelineResponse);
+        setTimelineError(null);
+      } catch (cause) {
+        setTimeline(null);
+        if (isApiError(cause)) {
+          const message = cause.payload?.message ?? cause.message;
+          setTimelineError(message);
+          toast.error({
+            title: "No pudimos cargar la línea de tiempo",
+            description: message
+          });
+        } else if (cause instanceof Error) {
+          setTimelineError(cause.message);
+        } else {
+          setTimelineError("Unable to load order timeline");
+        }
+      }
     } catch (cause) {
       if (isApiError(cause)) {
         if (cause.status === 401) {
@@ -133,6 +161,13 @@ export function useAccountOrder(identifier: string): UseAccountOrderResult {
           toast.error({
             title: "Sesión expirada",
             description: "Tu sesión caducó. Vuelve a iniciar sesión para ver el pedido."
+          });
+        } else if (cause.status === 404 || cause.status === 410) {
+          const message = "This item is no longer available.";
+          setError(message);
+          toast.error({
+            title: "No pudimos encontrar el pedido",
+            description: message
           });
         } else {
           const message = cause.payload?.message ?? cause.message;
@@ -156,8 +191,10 @@ export function useAccountOrder(identifier: string): UseAccountOrderResult {
           description: message
         });
       }
+      setTimeline(null);
     } finally {
       setLoading(false);
+      setTimelineLoading(false);
     }
   }, [token, identifier, logout, toast]);
 
@@ -166,13 +203,17 @@ export function useAccountOrder(identifier: string): UseAccountOrderResult {
       void refresh();
     } else if (status === "unauthenticated") {
       setOrder(null);
+      setTimeline(null);
     }
   }, [status, token, identifier, refresh]);
 
   return {
     order,
+    timeline,
     loading: status === "loading" || loading,
+    timelineLoading,
     error,
+    timelineError,
     refresh,
     token,
     needsReauthentication
