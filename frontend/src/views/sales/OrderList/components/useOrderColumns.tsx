@@ -1,13 +1,11 @@
 import { useMemo } from 'react'
 import Select from '@/components/ui/Select'
-import { NumericFormat } from 'react-number-format'
 import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
 import useThemeClass from '@/utils/hooks/useThemeClass'
-import { normalizeCurrencyCode } from '@/utils/currency'
-import { useAppSelector } from '@/store'
 import type { ColumnDef } from '@/components/shared/DataTable'
 import type { SalesDocumentSummaryComputation } from '@/utils/salesDocumentCalculations'
+import { formatOrderMoney } from '@/utils/orderMoney'
 
 export type Order = {
     id: string
@@ -38,7 +36,6 @@ type Params = {
 export function useOrderColumns({ t, statuses, onChangeStatus, selectOnly: _selectOnly = true }: Params) {
     const navigate = useNavigate()
     const { textTheme } = useThemeClass()
-    const storeCurrency = useAppSelector((state) => state.currency.code)
 
     // Use formatOptionLabel to unify menu and value rendering and keep alignment
 
@@ -137,17 +134,9 @@ export function useOrderColumns({ t, statuses, onChangeStatus, selectOnly: _sele
                 accessorKey: 'totalAmount',
                 cell: (props) => {
                     const { totalAmount, orderCurrency } = props.row.original
-                    const normalizedCurrency = normalizeCurrencyCode(orderCurrency, storeCurrency)
-                    return (
-                        <NumericFormat
-                            displayType="text"
-                            value={(Math.round(totalAmount * 100) / 100).toFixed(2)}
-                            prefix={normalizedCurrency ? `${normalizedCurrency} ` : ''}
-                            thousandSeparator={true}
-                        />
-                    )
+                    return <span>{formatOrderMoney(totalAmount, orderCurrency)}</span>
                 },
             },
         ]
-    }, [navigate, statuses, t, textTheme, onChangeStatus, storeCurrency])
+    }, [navigate, statuses, t, textTheme, onChangeStatus])
 }

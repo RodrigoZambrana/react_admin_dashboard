@@ -1,0 +1,11 @@
+export const ORDER_STATUS_IDS = {
+    PENDING: 100,
+    PAID: 200,
+    CANCELLED: 300,
+    DELIVERED: 400,
+} as const
+
+export const ORDER_STATUS_CHANGE_ALLOWED = new Set<number>([
+    ORDER_STATUS_IDS.CANCELLED,
+    ORDER_STATUS_IDS.DELIVERED,
+])

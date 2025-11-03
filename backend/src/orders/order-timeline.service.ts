@@ -88,6 +88,37 @@ export type StatusTransitionSnapshot = {
   metadata?: Record<string, unknown> | string | null
 }
 
+const normalizeStatusCode = (value?: string | null): string => {
+  return typeof value === 'string' ? value.trim().toLowerCase() : ''
+}
+
+const CANCELLED_STATUS_CODES = new Set(['cancelled', 'canceled', 'cancelado', 'cancelada'])
+
+const compareTimelineEvents = (
+  a: OrderTimelineEventRecord | OrderTimelineEvent,
+  b: OrderTimelineEventRecord | OrderTimelineEvent,
+) => {
+  const typeA = (a.type || '').toUpperCase()
+  const typeB = (b.type || '').toUpperCase()
+  const aCancelled = typeA === 'CANCELLED'
+  const bCancelled = typeB === 'CANCELLED'
+  if (aCancelled && !bCancelled) {
+    return 1
+  }
+  if (!aCancelled && bCancelled) {
+    return -1
+  }
+  const timeA = new Date(a.timestamp || 0).getTime()
+  const timeB = new Date(b.timestamp || 0).getTime()
+  if (!Number.isFinite(timeA) && Number.isFinite(timeB)) {
+    return -1
+  }
+  if (Number.isFinite(timeA) && !Number.isFinite(timeB)) {
+    return 1
+  }
+  return timeA - timeB
+}
+
 @Injectable()
 export class OrderTimelineService {
   constructor(private readonly prisma: PrismaService) {}
@@ -545,6 +576,59 @@ export class OrderTimelineService {
       }
     }
 
+    const cancellationEvents: OrderTimelineEventRecord[] = []
+    for (const event of events) {
+      if ((event.type || '').toUpperCase() !== 'STATUS_CHANGED') {
+        continue
+      }
+      const statusTo = normalizeStatusCode(event.statusTo)
+      if (!CANCELLED_STATUS_CODES.has(statusTo)) {
+        continue
+      }
+      const cancellationId = `${event.eventId}:cancelled`
+      if (eventIds.has(cancellationId)) {
+        continue
+      }
+      eventIds.add(cancellationId)
+      let metadata: Record<string, unknown> | undefined
+      if (event.metadata && typeof event.metadata === 'object' && !Array.isArray(event.metadata)) {
+        metadata = { ...(event.metadata as Record<string, unknown>) }
+      } else if (event.metadata !== null && event.metadata !== undefined) {
+        metadata = { originalMetadata: event.metadata }
+      }
+      metadata = metadata ?? {}
+      metadata.source = (metadata.source as string | undefined) ?? 'status-transition'
+      metadata.statusFrom = event.statusFrom ?? metadata.statusFrom ?? null
+      metadata.statusTo = event.statusTo ?? metadata.statusTo ?? null
+      metadata.statusToNormalized = statusTo
+      cancellationEvents.push({
+        eventId: cancellationId,
+        orderId: event.orderId,
+        type: 'CANCELLED',
+        timestamp: event.timestamp,
+        actor: event.actor ?? 'system',
+        amount: null,
+        currency: null,
+        paymentMethod: null,
+        remainingAmount: null,
+        estimateDate: null,
+        statusFrom: event.statusFrom ?? null,
+        statusTo: event.statusTo ?? null,
+        message: null,
+        metadata,
+      })
+    }
+    if (cancellationEvents.length) {
+      events.push(...cancellationEvents)
+    }
+
+    const statusFiltered = events.filter(
+      (event) => (event.type || '').toUpperCase() !== 'STATUS_CHANGED',
+    )
+    if (statusFiltered.length !== events.length) {
+      events.splice(0, events.length, ...statusFiltered)
+    }
+
     const estimateTypes = new Set<OrderTimelineEventType>(['ESTIMATE_SET', 'ESTIMATE_UPDATED'])
     const deliveredEvent =
       events
@@ -597,13 +681,9 @@ export class OrderTimelineService {
         })
       }
 
-      return result.sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-      )
+      return result.sort(compareTimelineEvents)
     }
 
-    return events
-      .slice()
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    return events.slice().sort(compareTimelineEvents)
   }
 }

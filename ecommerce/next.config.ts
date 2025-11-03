@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -29,6 +30,12 @@ const nextConfig: NextConfig = {
         ]
       }
     ];
+  },
+  webpack(config) {
+    config.resolve = config.resolve ?? {};
+    config.resolve.alias = config.resolve.alias ?? {};
+    config.resolve.alias["@common"] = path.resolve(__dirname, "../src/common");
+    return config;
   }
 };
 

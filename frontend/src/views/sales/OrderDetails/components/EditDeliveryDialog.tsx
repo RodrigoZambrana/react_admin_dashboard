@@ -167,21 +167,45 @@ const EditDeliveryDialog = ({
             return parsed
         }
 
-        let minDays: number | null = null
-        let maxDays: number | null = null
+        let minDaysInput: number | null = null
+        let maxDaysInput: number | null = null
         try {
-            minDays = parseOptionalInt(values.estimatedMinDays, 'estimatedMinDays')
-            maxDays = parseOptionalInt(values.estimatedMaxDays, 'estimatedMaxDays')
+            minDaysInput = parseOptionalInt(values.estimatedMinDays, 'estimatedMinDays')
+            maxDaysInput = parseOptionalInt(values.estimatedMaxDays, 'estimatedMaxDays')
         } catch {
             return
         }
 
-        if (minDays !== null && minDays !== initialContext.estimatedMin) {
-            payload.estimatedMinDays = minDays
+        const baseline = orderPlacedAt ? dayjs(orderPlacedAt).startOf('day') : null
+        let computedDiff: number | null = null
+        if (values.estimatedDate && baseline) {
+            const target = dayjs(values.estimatedDate)
+            if (target.isValid()) {
+                computedDiff = Math.max(0, target.startOf('day').diff(baseline, 'day'))
+            }
+        }
+
+        let nextMin = minDaysInput
+        let nextMax = maxDaysInput
+
+        if (nextMin === null) {
+            nextMin = computedDiff
+        }
+        if (nextMax === null) {
+            nextMax = computedDiff
+        }
+
+        const normalizedMin =
+            nextMin !== null && Number.isFinite(nextMin) ? Math.max(0, nextMin) : null
+        const normalizedMax =
+            nextMax !== null && Number.isFinite(nextMax) ? Math.max(0, nextMax) : null
+
+        if (normalizedMin !== initialContext.estimatedMin) {
+            payload.estimatedMinDays = normalizedMin
             hasChanges = true
         }
-        if (maxDays !== null && maxDays !== initialContext.estimatedMax) {
-            payload.estimatedMaxDays = maxDays
+        if (normalizedMax !== initialContext.estimatedMax) {
+            payload.estimatedMaxDays = normalizedMax
             hasChanges = true
         }
 
@@ -192,11 +216,9 @@ const EditDeliveryDialog = ({
                 hasChanges = true
             }
         } else if (initialContext.estimatedDateIso) {
-            // Allow clearing the date by providing min/max days instead
-            if (minDays !== null || maxDays !== null) {
-                payload.estimatedDate = undefined
-                hasChanges = true
-            }
+            // Allow clearing the date when it was previously set
+            payload.estimatedDate = undefined
+            hasChanges = true
         }
 
         if (!hasChanges) {
@@ -233,6 +255,7 @@ const EditDeliveryDialog = ({
                     })}
                 </Notification>,
             )
+        } finally {
             helpers.setSubmitting(false)
         }
     }

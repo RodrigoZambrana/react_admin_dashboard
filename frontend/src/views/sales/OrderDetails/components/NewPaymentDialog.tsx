@@ -99,12 +99,12 @@ const NewPaymentDialog = ({ open, onClose, onCreated, orderId, orderCurrency }: 
             type: 'BALANCE',
             status: 'CONFIRMED',
             paymentMethodId: null,
-            method: '',
+            method: t('accounting.payments.defaultMethod', { defaultValue: 'Transferencia' }),
             reference: '',
             notes: '',
             attachments: [],
         }),
-        [orderCurrency, orderId, storeCurrency],
+        [orderCurrency, orderId, storeCurrency, t],
     )
 
     const onSubmit = async (values: PaymentFormValues) => {
@@ -218,32 +218,8 @@ const NewPaymentDialog = ({ open, onClose, onCreated, orderId, orderCurrency }: 
                             <FormItem label={t('text.columns.date')}>
                                 <DatePicker value={values.date} onChange={(val) => setFieldValue('date', val)} />
                             </FormItem>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <FormItem label={t('text.columns.type')}>
-                                    <Select
-                                        value={typeOptions.find((option) => option.value === values.type) ?? null}
-                                        options={typeOptions.map((option) => ({
-                                            value: option.value,
-                                            label: t(option.label),
-                                        }))}
-                                        onChange={(option) =>
-                                            setFieldValue('type', option ? (option as any).value : 'BALANCE')
-                                        }
-                                    />
-                                </FormItem>
-                                <FormItem label={t('text.columns.status')}>
-                                    <Select
-                                        value={statusOptions.find((option) => option.value === values.status) ?? null}
-                                        options={statusOptions.map((option) => ({
-                                            value: option.value,
-                                            label: t(option.label),
-                                        }))}
-                                        onChange={(option) =>
-                                            setFieldValue('status', option ? (option as any).value : 'CONFIRMED')
-                                        }
-                                    />
-                                </FormItem>
-                            </div>
+                            <input type="hidden" name="type" value={values.type} />
+                            <input type="hidden" name="status" value={values.status} />
                             <FormItem label={t('accounting.payments.form.paymentMethod')}>
                                 <Select
                                     isClearable
@@ -258,9 +234,7 @@ const NewPaymentDialog = ({ open, onClose, onCreated, orderId, orderCurrency }: 
                                     }
                                 />
                             </FormItem>
-                            <FormItem label={t('accounting.payments.form.methodLabel')}>
-                                <Field type="text" name="method" component={Input} value={values.method} />
-                            </FormItem>
+                            <input type="hidden" name="method" value={values.method} />
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <FormItem label={t('accounting.payments.form.reference')}>
                                     <Field type="text" name="reference" component={Input} value={values.reference} />

@@ -90,6 +90,61 @@ export const parseValidityRecord = (value: unknown): ValidityRecord | null => {
 
   return assignValidityAliases(value)
 }
+
+const toNullableStatusId = (value: unknown): number | null => {
+  if (value === null || value === undefined) {
+    return null
+  }
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    if ('id' in record && record.id !== undefined) {
+      const normalized = toNullableStatusId(record.id)
+      if (normalized !== null) {
+        return normalized
+      }
+    }
+    if ('code' in record && record.code !== undefined) {
+      const normalized = toNullableStatusId(record.code)
+      if (normalized !== null) {
+        return normalized
+      }
+    }
+    return null
+  }
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) {
+    return null
+  }
+  const normalized = Math.trunc(numeric)
+  return normalized > 0 ? normalized : null
+}
+
+const resolveStatusIdFromSource = (source: any): number | null => {
+  if (!source || typeof source !== 'object') {
+    return toNullableStatusId(source)
+  }
+  const record = source as Record<string, unknown>
+  const rawStatus = record.status
+  const statusRecord = isPlainObject(rawStatus) ? (rawStatus as Record<string, unknown>) : undefined
+  const candidates: unknown[] = [
+    record.statusId,
+    statusRecord?.id,
+    statusRecord?.code,
+    record.statusCode,
+    statusRecord,
+    !statusRecord ? rawStatus : undefined,
+    record.progressStatus,
+    (record as any).status_id,
+    (record as any).statusCodeId,
+  ]
+  for (const candidate of candidates) {
+    const normalized = toNullableStatusId(candidate)
+    if (normalized !== null) {
+      return normalized
+    }
+  }
+  return null
+}
 export function toUnixSeconds(date: any): number {
   try {
     const d = date ? new Date(date) : new Date()
@@ -307,8 +362,9 @@ export function adaptOrderToDetailsView(
     shippingVendor: o.shippingVendor || '',
   }
   const normalizedOrderCurrency =
+    normalizeCurrencyCode(o.orderCurrency) ||
     detectSalesDocumentCurrency(o.items, o.orderCurrency) ||
-    normalizeCurrencyCode(o.orderCurrency)
+    'USD'
   const resolvedMode: SalesDocumentMode =
     options?.mode === 'budget' ? 'budget' : 'order'
   const roundAmount = createSalesDocumentRounder(resolvedMode)
@@ -500,9 +556,10 @@ export function adaptOrderToDetailsView(
     }
     return ''
   })()
+  const resolvedStatusId = resolveStatusIdFromSource(o)
   return {
     id: String(o.id),
-    progressStatus: o.statusId || 0,
+    progressStatus: resolvedStatusId ?? 0,
     payementStatus,
     dateTime,
     validUntil,

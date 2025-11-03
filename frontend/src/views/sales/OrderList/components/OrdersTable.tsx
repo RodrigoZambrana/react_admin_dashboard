@@ -3,7 +3,6 @@ import Select from '@/components/ui/Select'
 import Tooltip from '@/components/ui/Tooltip'
 import DataTable from '@/components/shared/DataTable'
 import { HiOutlineDocumentText, HiOutlineEye, HiOutlineTrash, HiOutlinePencil } from 'react-icons/hi'
-import { NumericFormat } from 'react-number-format'
 import {
     setSelectedRows,
     addRowItem,
@@ -13,7 +12,6 @@ import {
     getOrders,
     setTableData,
     useAppDispatch,
-    useAppSelector,
     useSalesOrderListData,
 } from '../store'
 import { apiGetOrderStatuses, apiGetPaymentMethods } from '@/services/SettingsService'
@@ -21,8 +19,8 @@ import { apiUpdateSalesOrderStatus, apiUpdateSalesOrderPaymentMethod } from '@/s
 import useThemeClass from '@/utils/hooks/useThemeClass'
 import { useNavigate } from 'react-router-dom'
 import cloneDeep from 'lodash/cloneDeep'
-import { normalizeCurrencyCode } from '@/utils/currency'
 import { deriveStatusColorClasses } from '@/utils/statusColor'
+import { ORDER_STATUS_CHANGE_ALLOWED } from '@/constants/orderStatus'
 import dayjs from 'dayjs'
 import type {
     DataTableResetHandle,
@@ -33,6 +31,7 @@ import type {
 import type { StylesConfig } from 'react-select'
 import { useSalesDocumentI18n } from '../../context/useSalesDocumentI18n'
 import type { SalesDocumentSummaryComputation } from '@/utils/salesDocumentCalculations'
+import { formatOrderMoney } from '@/utils/orderMoney'
 
 type Order = {
     id: string
@@ -137,7 +136,6 @@ const OrdersTable = () => {
     const { tableData: tableDataState, loading, orderList: data } = salesOrderState
     const { pageIndex, pageSize, sort, query, total } = tableDataState
     const currentResource = contextResource
-    const storeCurrency = useAppSelector((state) => state.currency.code)
 
     type StatusOption = {
         id: number
@@ -318,6 +316,9 @@ const OrdersTable = () => {
                         customColor: x.customColor,
                     }))
                     const onChange = async (opt: any) => {
+                        if (currentResource === 'orders' && !ORDER_STATUS_CHANGE_ALLOWED.has(Number(opt.value))) {
+                            return
+                        }
                         await apiUpdateSalesOrderStatus<boolean, { id: string; status: number }>(
                             { id: row.id, status: opt.value },
                             currentResource,
@@ -337,6 +338,11 @@ const OrdersTable = () => {
                                     textClass: s?.textClass ?? 'text-gray-600',
                                     customColor: s?.customColor,
                                 } as any}
+                                isOptionDisabled={(option: any) =>
+                                    currentResource === 'orders'
+                                        ? !ORDER_STATUS_CHANGE_ALLOWED.has(Number(option.value))
+                                        : false
+                                }
                                 formatOptionLabel={(option: any) => (
                                     <div className="flex items-center">
                                         <span
@@ -403,18 +409,7 @@ const OrdersTable = () => {
                 accessorKey: 'totalAmount',
                 cell: (props) => {
                     const { totalAmount, orderCurrency } = props.row.original
-                    const normalizedCurrency = normalizeCurrencyCode(
-                        orderCurrency,
-                        storeCurrency,
-                    )
-                    return (
-                        <NumericFormat
-                            displayType="text"
-                            value={(Math.round(totalAmount * 100) / 100).toFixed(2)}
-                            prefix={normalizedCurrency ? `${normalizedCurrency} ` : ''}
-                            thousandSeparator
-                        />
-                    )
+                    return <span>{formatOrderMoney(totalAmount, orderCurrency)}</span>
                 },
             },
         ]
@@ -471,7 +466,6 @@ const OrdersTable = () => {
         handleEdit,
         handleInvoice,
         handleDelete,
-        storeCurrency,
         dispatch,
         fetchData,
         currentResource,

@@ -23,7 +23,10 @@ module.exports = {
         project: './tsconfig.json',
       },
       alias: {
-        map: [['@', './src']],
+        map: [
+          ['@', './src'],
+          ['@common', '../src/common'],
+        ],
         extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
       },
     },

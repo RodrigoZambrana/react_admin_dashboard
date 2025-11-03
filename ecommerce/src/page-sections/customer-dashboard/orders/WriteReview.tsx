@@ -9,11 +9,10 @@ import NoImagePlaceholder from "@component/NoImagePlaceholder";
 import { isMissingProductImage } from "@/lib/utils/image";
 
 import type { CheckoutLineItem } from "@/types/storefront";
-import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
+import { formatOrderMoney } from "@common/currency/orderMoney";
 
 export default function WriteReview({ item }: { item: CheckoutLineItem }) {
-  const { formatMoney } = useMoneyFormatter();
-  const price = formatMoney(item.price);
+  const price = formatOrderMoney(item.price.amount, item.price.currency);
 
   const productSpecs = Array.isArray(item.specifications)
     ? item.specifications
