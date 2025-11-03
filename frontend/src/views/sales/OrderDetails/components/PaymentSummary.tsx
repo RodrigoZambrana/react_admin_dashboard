@@ -2,8 +2,8 @@ import Card from '@/components/ui/Card'
 import classNames from 'classnames'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAppSelector } from '@/store'
-import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
+import { normalizeCurrencyCode } from '@/utils/currency'
+import { formatOrderMoney } from '@/utils/orderMoney'
 
 type PaymentInfoProps = {
     label?: string
@@ -46,19 +46,16 @@ const PaymentInfo = ({ label, value, isLast, format }: PaymentInfoProps) => {
 
 const PaymentSummary = ({ data, taxRate, currency, paymentsSummary }: PaymentSummaryProps) => {
     const { t, i18n } = useTranslation()
-    const storeCurrency = useAppSelector((state) => state.currency.code)
-    const defaultCurrency =
-        normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
-    const normalizedCurrency = normalizeCurrencyCode(
-        currency ?? data?.currency,
-        defaultCurrency,
-    )
+    const resolvedOrderCurrency =
+        normalizeCurrencyCode(currency ?? data?.currency) ??
+        currency ??
+        data?.currency
     const formatValue = useMemo(
         () => (value?: number) =>
-            formatCurrency(value, normalizedCurrency, i18n.language, {
-                fallbackCurrency: defaultCurrency,
+            formatOrderMoney(value, resolvedOrderCurrency, {
+                locale: i18n.language,
             }),
-        [normalizedCurrency, i18n.language, defaultCurrency],
+        [resolvedOrderCurrency, i18n.language],
     )
     const taxLabel =
         typeof taxRate === 'number'
@@ -77,16 +74,16 @@ const PaymentSummary = ({ data, taxRate, currency, paymentsSummary }: PaymentSum
     const remainingLabel = t('sales.orders.payments.remaining', {
         defaultValue: 'Remaining',
     })
-    const paymentsCurrency = paymentsSummary?.currency
-        ? normalizeCurrencyCode(paymentsSummary.currency)
-        : undefined
-    const paidCurrency = normalizedCurrency ?? paymentsCurrency ?? defaultCurrency
+    const paymentsCurrency =
+        normalizeCurrencyCode(paymentsSummary?.currency) ??
+        paymentsSummary?.currency ??
+        resolvedOrderCurrency
     const formatPaid = useMemo(
         () => (value?: number) =>
-            formatCurrency(value, paidCurrency, i18n.language, {
-                fallbackCurrency: defaultCurrency,
+            formatOrderMoney(value, paymentsCurrency, {
+                locale: i18n.language,
             }),
-        [paidCurrency, i18n.language, defaultCurrency],
+        [paymentsCurrency, i18n.language],
     )
 
     return (

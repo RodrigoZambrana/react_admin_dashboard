@@ -89,6 +89,7 @@ const DEFAULT_EVENT_LABELS: Record<string, string> = {
   IN_TRANSIT: "In transit",
   OUT_FOR_DELIVERY: "Out for delivery",
   DELIVERED: "Delivered",
+  CANCELLED: "Order cancelled",
   STATUS_CHANGED: "Status changed",
   NOTE: "Note added",
   OTHER: "Activity",
@@ -109,6 +110,7 @@ const EVENT_ICON_FILES: Record<string, string> = {
   IN_TRANSIT: "truck-1.svg",
   OUT_FOR_DELIVERY: "truck-1.svg",
   DELIVERED: "box-delivery.svg",
+  CANCELLED: "box-delivery.svg",
   STATUS_CHANGED: "package-box.svg",
   NOTE: "comment.svg",
   OTHER: "package-box.svg",
@@ -118,17 +120,14 @@ const PAYMENT_EVENT_TYPES = new Set(["PAYMENT_WAITING", "PAYMENT_PARTIAL", "PAYM
 
 const DONE_ICON_SRC = iconPath("done.svg");
 
-const PAYMENT_BADGE_META: Record<PaymentBadge["state"], { labelKey: string; defaultLabel: string }> = {
+const PAYMENT_BADGE_META: Record<PaymentBadge["state"], { defaultLabel: string }> = {
   waiting: {
-    labelKey: "order.timeline.payment.summary.labels.waiting",
     defaultLabel: "Payment pending"
   },
   partial: {
-    labelKey: "order.timeline.payment.summary.labels.partial",
     defaultLabel: "Partial payment"
   },
   full: {
-    labelKey: "order.timeline.payment.summary.labels.full",
     defaultLabel: "Payment complete"
   }
 };
@@ -201,6 +200,18 @@ const dedupeByEventId = (events: OrderTimelineEvent[]) => {
     result.push(event);
   }
   return result;
+};
+
+const compareTimelineEvents = (a: OrderTimelineEvent, b: OrderTimelineEvent) => {
+  const typeA = (a.type || "").toUpperCase();
+  const typeB = (b.type || "").toUpperCase();
+  const aCancelled = typeA === "CANCELLED";
+  const bCancelled = typeB === "CANCELLED";
+  if (aCancelled && !bCancelled) return 1;
+  if (!aCancelled && bCancelled) return -1;
+  const timeA = dayjs(a.timestamp).valueOf();
+  const timeB = dayjs(b.timestamp).valueOf();
+  return timeA - timeB;
 };
 
 const isPaymentEvent = (event: OrderTimelineEvent) => PAYMENT_EVENT_TYPES.has((event.type || "").toUpperCase());
@@ -450,10 +461,18 @@ const buildPaymentBadge = (
     ? resolvePaymentState(order.paymentStatus)
     : undefined;
 
-  if (explicitState === "full" || hasFullPaymentEvent) {
+  if (hasFullPaymentEvent) {
     state = "full";
     normalizedRemaining = 0;
     paid = total;
+  } else if (explicitState === "full") {
+    if (normalizedRemaining <= 0.01 || total <= 0) {
+      state = "full";
+      normalizedRemaining = 0;
+      paid = total;
+    } else {
+      state = paid > 0 ? "partial" : "waiting";
+    }
   } else if (explicitState === "partial") {
     state = "partial";
     normalizedRemaining = Math.max(0, total - paid);
@@ -645,6 +664,14 @@ const getEventDescription = (
     });
   }
 
+  if (type === "CANCELLED") {
+    const cancelled = formatDate(event.timestamp ?? null, locale);
+    return translate("order.timeline.status.cancelled", {
+      defaultMessage: cancelled ? `Order cancelled on ${cancelled}` : "Order cancelled",
+      values: { date: cancelled ?? "" },
+    });
+  }
+
   if (event.message) {
     return translate(event.message, { defaultMessage: event.message });
   }
@@ -659,19 +686,17 @@ const determineEventState = (type: string): StepState => {
 };
 
 const buildTimelineSummary = (
-  timeline: OrderTimelineResponse | null,
-  paymentInfo: OrderPaymentInfo | null | undefined,
-  translate: Translator,
-  locale?: string,
+    timeline: OrderTimelineResponse | null,
+    paymentInfo: OrderPaymentInfo | null | undefined,
+    translate: Translator,
+    locale?: string,
 ): Summary => {
   if (!timeline) {
     return { events: [] };
   }
 
   const order = timeline.order;
-  const sorted = timeline.events
-    .slice()
-    .sort((a, b) => dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf());
+  const sorted = timeline.events.slice().sort(compareTimelineEvents);
 
   let startEvent =
     sorted.find((event) => (event.type || "").toUpperCase() === "ORDER_RECEIVED") ?? null;
@@ -690,6 +715,12 @@ const buildTimelineSummary = (
   let deliveredEvent =
     sorted
       .filter((event) => (event.type || "").toUpperCase() === "DELIVERED")
+      .sort((a, b) => dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf())
+      .pop() ?? null;
+
+  let cancelledEvent =
+    sorted
+      .filter((event) => (event.type || "").toUpperCase() === "CANCELLED")
       .sort((a, b) => dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf())
       .pop() ?? null;
 
@@ -730,11 +761,37 @@ const buildTimelineSummary = (
     }
   }
 
-  const deduped = dedupeByEventId(sorted).sort(
-    (a, b) => dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf(),
+  const deduped = dedupeByEventId(sorted).sort(compareTimelineEvents);
+
+  let normalizedEvents = deduped.slice();
+  const hasCancelledEvent = normalizedEvents.some(
+    (event) => (event.type || "").toUpperCase() === "CANCELLED",
+  );
+  if (!hasCancelledEvent) {
+    const statusChangeToCancelled = normalizedEvents.find((event) => {
+      const normalizedType = (event.type || "").toUpperCase();
+      if (normalizedType !== "STATUS_CHANGED") {
+        return false;
+      }
+      const statusTo = `${event.statusTo ?? ""}`.toLowerCase();
+      return statusTo.includes("cancel");
+    });
+    if (statusChangeToCancelled) {
+      normalizedEvents.push({
+        ...statusChangeToCancelled,
+        eventId: `${statusChangeToCancelled.eventId}:cancelled-fallback`,
+        type: "CANCELLED",
+      });
+    }
+  }
+
+  normalizedEvents = normalizedEvents.sort(compareTimelineEvents);
+
+  const cleanedEvents = normalizedEvents.filter(
+    (event) => (event.type || "").toUpperCase() !== "STATUS_CHANGED",
   );
 
-  const augmented = ensurePaymentEvents(deduped, order, paymentInfo);
+  const augmented = ensurePaymentEvents(cleanedEvents, order, paymentInfo);
   const timelineWithPayments = augmented.slice();
 
   const hasPaymentEvents = timelineWithPayments.some((event) =>
@@ -763,9 +820,7 @@ const buildTimelineSummary = (
         message: "Waiting for payment",
         metadata: { synthetic: true },
       });
-      timelineWithPayments.sort(
-        (a, b) => dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf(),
-      );
+      timelineWithPayments.sort(compareTimelineEvents);
     }
   }
 
@@ -775,6 +830,14 @@ const buildTimelineSummary = (
     deliveredEvent =
       timelineWithPayments
         .filter((event) => (event.type || "").toUpperCase() === "DELIVERED")
+        .sort((a, b) => dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf())
+        .pop() ?? null;
+  }
+
+  if (!cancelledEvent) {
+    cancelledEvent =
+      timelineWithPayments
+        .filter((event) => (event.type || "").toUpperCase() === "CANCELLED")
         .sort((a, b) => dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf())
         .pop() ?? null;
   }
@@ -789,7 +852,7 @@ const buildTimelineSummary = (
       .slice()
       .sort((a, b) => dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf())
       .pop() ?? null;
-  const terminalId = (deliveredEvent ?? estimateEventForSummary ?? lastEvent)?.eventId ?? null;
+  const terminalId = (cancelledEvent ?? deliveredEvent ?? estimateEventForSummary ?? lastEvent)?.eventId ?? null;
 
   const displayEvents: DisplayEvent[] = timelineWithPayments.map((event) => {
     const normalized = (event.type || "").toUpperCase();
@@ -853,6 +916,10 @@ export default function OrderStatus({ timeline, paymentInfo = null, loading = fa
       summary.events
         .slice()
         .sort((a, b) => {
+          const aCancelled = a.type === "CANCELLED";
+          const bCancelled = b.type === "CANCELLED";
+          if (aCancelled && !bCancelled) return -1;
+          if (!aCancelled && bCancelled) return 1;
           const aDelivered = a.type === "DELIVERED";
           const bDelivered = b.type === "DELIVERED";
           if (aDelivered && !bDelivered) return -1;
@@ -922,8 +989,14 @@ export default function OrderStatus({ timeline, paymentInfo = null, loading = fa
           {orderedEvents.map((event, index) => {
             const isLast = index === orderedEvents.length - 1;
             const isCompleted = event.state === "completed";
-            const hasCheck = event.type === "DELIVERED" || event.type === "PAYMENT_FULL_SUMMARY";
-            const backgroundColor = isCompleted ? "primary.main" : "gray.300";
+          const hasCheck = event.type === "DELIVERED" || event.type === "PAYMENT_FULL_SUMMARY";
+          const showCancelBadge = event.type === "CANCELLED";
+          const backgroundColor =
+            event.type === "CANCELLED"
+              ? "error.main"
+              : isCompleted
+                ? "primary.main"
+                : "gray.300";
 
             return (
               <FlexBox key={event.id} alignItems="flex-start" mb={isLast ? "0" : "1.75rem"}>
@@ -935,6 +1008,13 @@ export default function OrderStatus({ timeline, paymentInfo = null, loading = fa
                     <Box position="absolute" right="-4px" top="-6px">
                       <Avatar size={22} bg="gray.200" color="success.main" borderRadius={20}>
                         <Image src={DONE_ICON_SRC} alt="Completed" width={12} height={12} />
+                      </Avatar>
+                    </Box>
+                  )}
+                  {showCancelBadge && (
+                    <Box position="absolute" right="-4px" top="-6px">
+                      <Avatar size={22} bg="gray.200" borderRadius={20}>
+                        <Image src={iconPath("red-cross.svg")} alt="Cancelled" width={12} height={12} />
                       </Avatar>
                     </Box>
                   )}

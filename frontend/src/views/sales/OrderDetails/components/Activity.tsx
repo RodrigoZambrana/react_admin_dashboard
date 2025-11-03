@@ -57,6 +57,7 @@ const DEFAULT_EVENT_LABELS: Record<string, string> = {
     IN_TRANSIT: 'In transit',
     OUT_FOR_DELIVERY: 'Out for delivery',
     DELIVERED: 'Delivered',
+    CANCELLED: 'Order cancelled',
     STATUS_CHANGED: 'Status changed',
     NOTE: 'Note added',
     OTHER: 'Activity',
@@ -73,6 +74,7 @@ const EVENT_BADGE_COLORS: Record<string, string> = {
     IN_TRANSIT: 'bg-blue-500',
     OUT_FOR_DELIVERY: 'bg-blue-500',
     DELIVERED: 'bg-emerald-600',
+    CANCELLED: 'bg-red-500',
     STATUS_CHANGED: 'bg-slate-500',
     NOTE: 'bg-slate-400',
     OTHER: 'bg-slate-400',
@@ -463,6 +465,22 @@ const dedupeByEventId = (events: OrderTimelineEvent[]) => {
     return result
 }
 
+const compareTimelineEvents = (a: OrderTimelineEvent, b: OrderTimelineEvent) => {
+    const typeA = (a.type || '').toUpperCase()
+    const typeB = (b.type || '').toUpperCase()
+    const aCancelled = typeA === 'CANCELLED'
+    const bCancelled = typeB === 'CANCELLED'
+    if (aCancelled && !bCancelled) {
+        return 1
+    }
+    if (!aCancelled && bCancelled) {
+        return -1
+    }
+    const timeA = dayjs(a.estimateDate ?? a.timestamp).valueOf()
+    const timeB = dayjs(b.estimateDate ?? b.timestamp).valueOf()
+    return timeA - timeB
+}
+
 const buildTimelineSummary = (
     timeline: OrderTimelineResponse | null | undefined,
     translate: (key: string, options: { defaultValue: string; [key: string]: unknown }) => string,
@@ -472,13 +490,7 @@ const buildTimelineSummary = (
     }
 
     const order = timeline.order
-    const sorted = timeline.events
-        .slice()
-        .sort(
-            (a, b) =>
-                dayjs(a.estimateDate ?? a.timestamp).valueOf() -
-                dayjs(b.estimateDate ?? b.timestamp).valueOf(),
-        )
+    const sorted = timeline.events.slice().sort(compareTimelineEvents)
 
     let startEvent =
         sorted.find((event) => (event.type || '').toUpperCase() === 'ORDER_RECEIVED') ?? null
@@ -497,6 +509,12 @@ const buildTimelineSummary = (
     const deliveredEvent =
         sorted
             .filter((event) => (event.type || '').toUpperCase() === 'DELIVERED')
+            .sort((a, b) => dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf())
+            .pop() ?? null
+
+    const cancelledEvent =
+        sorted
+            .filter((event) => (event.type || '').toUpperCase() === 'CANCELLED')
             .sort((a, b) => dayjs(a.timestamp).valueOf() - dayjs(b.timestamp).valueOf())
             .pop() ?? null
 
@@ -541,17 +559,38 @@ const buildTimelineSummary = (
         }
     }
 
-    const deduped = dedupeByEventId(sorted).sort(
-        (a, b) =>
-            dayjs(a.estimateDate ?? a.timestamp).valueOf() -
-            dayjs(b.estimateDate ?? b.timestamp).valueOf(),
+    let normalizedEvents = dedupeByEventId(sorted).sort(compareTimelineEvents)
+    const hasCancelledEvent = normalizedEvents.some(
+        (event) => (event.type || '').toUpperCase() === 'CANCELLED',
+    )
+    if (!hasCancelledEvent) {
+        const statusChangeToCancelled = normalizedEvents.find((event) => {
+            const normalizedType = (event.type || '').toUpperCase()
+            if (normalizedType !== 'STATUS_CHANGED') {
+                return false
+            }
+            const statusTo = `${event.statusTo ?? ''}`.toLowerCase()
+            return statusTo.includes('cancel')
+        })
+        if (statusChangeToCancelled) {
+            normalizedEvents = normalizedEvents.concat({
+                ...statusChangeToCancelled,
+                eventId: `${statusChangeToCancelled.eventId}:cancelled-fallback`,
+                type: 'CANCELLED',
+            })
+        }
+    }
+    normalizedEvents = normalizedEvents.sort(compareTimelineEvents)
+
+    const cleanedEvents = normalizedEvents.filter(
+        (event) => (event.type || '').toUpperCase() !== 'STATUS_CHANGED',
     )
 
     const estimateEventForSummary = latestEstimate ?? earliestEstimate ?? null
 
-    const endEvent = deliveredEvent ?? estimateEventForSummary ?? startEvent
+    const endEvent = cancelledEvent ?? deliveredEvent ?? estimateEventForSummary ?? startEvent
 
-    const payment = buildPaymentSummary(order, deduped, translate)
+    const payment = buildPaymentSummary(order, normalizedEvents, translate)
     const delivery = buildDeliverySummary(
         order,
         deliveredEvent,
@@ -559,7 +598,7 @@ const buildTimelineSummary = (
         translate,
     )
 
-    const displayEvents: DisplayEvent[] = deduped.map((event) => {
+    const displayEvents: DisplayEvent[] = cleanedEvents.map((event) => {
         const normalizedType = (event.type || '').toUpperCase()
         const fallbackLabel =
             DEFAULT_EVENT_LABELS[normalizedType] ??
@@ -609,6 +648,14 @@ const Activity = ({ timeline, loading = false, error = null }: ActivityProps) =>
 
     const orderedEvents = useMemo(() => {
         return summary.events.slice().sort((a, b) => {
+            const aCancelled = (a.event.type || '').toUpperCase() === 'CANCELLED'
+            const bCancelled = (b.event.type || '').toUpperCase() === 'CANCELLED'
+            if (aCancelled && !bCancelled) {
+                return -1
+            }
+            if (!aCancelled && bCancelled) {
+                return 1
+            }
             const aDelivered =
                 (a.event.type || '').toUpperCase() === 'DELIVERED'
             const bDelivered =

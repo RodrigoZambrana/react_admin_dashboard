@@ -1419,8 +1419,8 @@ export class StorefrontService implements OnModuleInit {
                 name: item.nameSnapshot,
                 qty: item.quantity,
                 price: item.orderCurrencyUnitPrice.toDecimalPlaces(2),
-                unitCurrency: item.priceCurrency,
-                unitAmount: item.unitPrice.toDecimalPlaces(4),
+                unitCurrency: orderCurrency,
+                unitAmount: item.orderCurrencyUnitPrice.toDecimalPlaces(4),
                 unitAmountOrderCurrency: item.orderCurrencyUnitPrice.toDecimalPlaces(4),
                 conversionRate: item.priceConversionRate.toDecimalPlaces(8),
                 unitPriceSnapshot: item.orderCurrencyUnitPrice.toDecimalPlaces(4),
@@ -1731,7 +1731,7 @@ export class StorefrontService implements OnModuleInit {
       .slice()
       .sort((a, b) => a.date.getTime() - b.date.getTime())
 
-    const paymentStatus = this.resolvePaymentStatus(primaryIntent, paymentsDesc)
+    const paymentStatus = this.resolvePaymentStatus(order, primaryIntent, paymentsDesc)
     let paymentSummary = this.buildOrderPaymentSummary(primaryIntent, primaryPayment, orderCurrency, order, paymentStatus)
 
     const events = await this.timeline.list(order.id)
@@ -2286,7 +2286,7 @@ export class StorefrontService implements OnModuleInit {
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
     const primaryPayment = payments[0] ?? null
 
-    const paymentStatus = this.resolvePaymentStatus(primaryIntent, payments)
+    const paymentStatus = this.resolvePaymentStatus(order, primaryIntent, payments)
     const paymentMeta = resolvePaymentStatusMeta(paymentStatus)
     const paymentSummary = this.buildOrderPaymentSummary(primaryIntent, primaryPayment, currency, order, paymentStatus)
 
@@ -2322,17 +2322,59 @@ export class StorefrontService implements OnModuleInit {
   }
 
   private resolvePaymentStatus(
+    order: OrderWithRelations,
     intent: StorefrontPaymentIntent | null,
-    payments: Array<{ status: PaymentStatus }>,
+    payments: OrderWithRelations['payments'],
   ): string {
-    if (payments.some((payment) => payment.status === PaymentStatus.CONFIRMED)) {
-      return 'paid'
+    const orderCurrency = (order.orderCurrency ?? 'USD').toUpperCase()
+    const orderTotal = decimalToNumber(order.grandTotal ?? decimal(0))
+    const tolerance = orderTotal > 0 ? Math.max(orderTotal * 0.001, 0.01) : 0.01
+
+    const normalizedPayments = payments ?? []
+    const confirmedPayments = normalizedPayments.filter(
+      (payment) => payment.status === PaymentStatus.CONFIRMED,
+    )
+    let confirmedTotal = 0
+    for (const payment of confirmedPayments) {
+      const amount = decimalToNumber(payment.amount ?? decimal(0))
+      if (!Number.isFinite(amount)) {
+        continue
+      }
+      const paymentCurrency = (payment.currency ?? orderCurrency).toUpperCase()
+      if (!orderCurrency || !paymentCurrency || paymentCurrency === orderCurrency) {
+        confirmedTotal += amount
+        continue
+      }
+      confirmedTotal += amount
+    }
+
+    if (orderTotal > 0 && confirmedTotal > 0) {
+      const remaining = Math.max(0, orderTotal - confirmedTotal)
+      if (remaining <= tolerance) {
+        return 'paid'
+      }
+      return 'partial'
     }
 
     if (intent) {
       const normalized = (intent.status ?? '').toLowerCase()
+      const intentAmount = decimalToNumber(intent.amount ?? decimal(0))
+      const intentCurrency = (intent.currency ?? orderCurrency).toUpperCase()
+      const sameCurrency =
+        !orderCurrency || !intentCurrency || intentCurrency === orderCurrency
+      const coversTotal =
+        orderTotal > 0 && sameCurrency && Number.isFinite(intentAmount)
+          ? Math.max(0, orderTotal - intentAmount) <= tolerance
+          : false
+
       if (['approved', 'authorized', 'captured'].includes(normalized)) {
-        return 'paid'
+        if (coversTotal) {
+          return 'paid'
+        }
+        if (intentAmount > 0) {
+          return 'partial'
+        }
+        return 'processing'
       }
       if (['in_process', 'pending', 'in_mediation'].includes(normalized)) {
         return 'processing'
@@ -2345,8 +2387,12 @@ export class StorefrontService implements OnModuleInit {
       }
     }
 
-    if (payments.length > 0) {
-      return this.mapInternalPaymentStatus(payments[0].status)
+    if (confirmedPayments.length > 0) {
+      return orderTotal > 0 ? 'partial' : 'paid'
+    }
+
+    if (normalizedPayments.length > 0) {
+      return this.mapInternalPaymentStatus(normalizedPayments[0].status)
     }
 
     return 'pending'

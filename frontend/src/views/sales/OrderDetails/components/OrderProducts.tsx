@@ -9,8 +9,7 @@ import {
     createColumnHelper,
 } from '@tanstack/react-table'
 import isLastChild from '@/utils/isLastChild'
-import { useAppSelector } from '@/store'
-import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
+import { normalizeCurrencyCode } from '@/utils/currency'
 import type { FxSnapshot } from '@/adapters/sales'
 import { resolveTextDirection } from '@/utils/textDirection'
 import { calculateLineTotal } from '@/utils/salesUnitCalculation'
@@ -21,6 +20,7 @@ import {
 import { createSalesDocumentRounder } from '@/utils/salesDocumentCalculations'
 import { useSalesDocumentI18n } from '../../context/useSalesDocumentI18n'
 import { useSalesDocument } from '../../context/SalesDocumentContext'
+import { formatOrderMoney } from '@/utils/orderMoney'
 
 type Product = {
     id: string
@@ -88,11 +88,6 @@ const ProductColumn = ({ row, showSku }: { row: Product; showSku: boolean }) => 
     )
 }
 
-const getNumeric = (value?: number | null) => {
-    const numeric = Number(value)
-    return Number.isFinite(numeric) ? numeric : undefined
-}
-
 const formatSpecKey = (key: string) =>
     key
         .replace(/[_-]+/g, ' ')
@@ -140,8 +135,7 @@ const resolveSpecifications = (row: Product) => {
 const columns = (
     t: (k: string) => string,
     formatAmount: (value: number, currency?: string) => string,
-    orderCurrency: string,
-    defaultCurrency: string,
+    orderCurrency: string | undefined,
     fxSnapshot: FxSnapshot | undefined,
     roundAmount: (value: number) => number,
     options: { showSpecifications?: boolean; showSku?: boolean } = {},
@@ -219,8 +213,7 @@ const columns = (
             cell: (props) => {
                 const row = props.row.original
                 const displayCurrency =
-                    normalizeCurrencyCode(orderCurrency, defaultCurrency) ||
-                    defaultCurrency
+                    normalizeCurrencyCode(orderCurrency) ?? orderCurrency ?? undefined
                 const derivedPrice = computeSalesDocumentDisplayUnitPrice(
                     row,
                     displayCurrency,
@@ -239,7 +232,7 @@ const columns = (
             cell: (props) => {
                 const row = props.row.original
                 const displayCurrency =
-                    normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
+                    normalizeCurrencyCode(orderCurrency) ?? orderCurrency ?? undefined
                 const storedTotal = Number(row.total)
                 if (Number.isFinite(storedTotal)) {
                     return (
@@ -282,18 +275,15 @@ const OrderProducts = ({ data = [], orderCurrency, fxSnapshot }: OrderProductsPr
     const { t, i18n } = useTranslation()
     const { mode } = useSalesDocument()
     const { showProductSpecifications } = useSalesDocumentI18n()
-    const storeCurrency = useAppSelector((state) => state.currency.code)
-    const defaultCurrency =
-        normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
     const normalizedOrderCurrency =
-        normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
+        normalizeCurrencyCode(orderCurrency) ?? orderCurrency ?? undefined
     const roundAmount = useMemo(
         () => createSalesDocumentRounder(mode),
         [mode],
     )
     const formatAmount = (value: number, currency?: string) =>
-        formatCurrency(value, currency, i18n.language, {
-            fallbackCurrency: defaultCurrency,
+        formatOrderMoney(value, currency ?? normalizedOrderCurrency, {
+            locale: i18n.language,
         })
     const table = useReactTable({
         data,
@@ -301,7 +291,6 @@ const OrderProducts = ({ data = [], orderCurrency, fxSnapshot }: OrderProductsPr
             t,
             formatAmount,
             normalizedOrderCurrency,
-            defaultCurrency,
             fxSnapshot,
             roundAmount,
             {

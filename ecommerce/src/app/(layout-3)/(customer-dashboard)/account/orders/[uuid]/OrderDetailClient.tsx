@@ -21,6 +21,7 @@ import { OrderStatus, WriteReview } from "@sections/customer-dashboard/orders";
 import { useAccountOrder } from "@/hooks/useAccountOrders";
 import { getBadgePalette, resolveOrderBadgeDescriptor } from "@/lib/utils/order-status";
 import { useTranslation } from "@/state/i18n-context";
+import { formatOrderMoney } from "@common/currency/orderMoney";
 
 const BACK_BUTTON = (
   <Link href="/account/orders">
@@ -29,9 +30,6 @@ const BACK_BUTTON = (
     </Button>
   </Link>
 );
-
-const formatMoney = (amount: number, currency: string) =>
-  new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
 
 const formatAddress = (address: {
   line1: string;
@@ -203,7 +201,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
                 Subtotal:
               </Typography>
 
-              <H6 my="0px">{formatMoney(subtotal.amount, subtotal.currency)}</H6>
+              <H6 my="0px">{formatOrderMoney(subtotal.amount, subtotal.currency)}</H6>
             </FlexBox>
 
             <FlexBox justifyContent="space-between" alignItems="center" mb="0.5rem">
@@ -211,7 +209,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
                 Shipping fee:
               </Typography>
 
-              <H6 my="0px">{formatMoney(shipping.amount, shipping.currency)}</H6>
+              <H6 my="0px">{formatOrderMoney(shipping.amount, shipping.currency)}</H6>
             </FlexBox>
 
             <FlexBox justifyContent="space-between" alignItems="center" mb="0.5rem">
@@ -219,7 +217,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
                 Tax:
               </Typography>
 
-              <H6 my="0px">{formatMoney(tax.amount, tax.currency)}</H6>
+              <H6 my="0px">{formatOrderMoney(tax.amount, tax.currency)}</H6>
             </FlexBox>
 
             <FlexBox justifyContent="space-between" alignItems="center" mb="0.5rem">
@@ -227,14 +225,14 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
                 Discount:
               </Typography>
 
-              <H6 my="0px">-{formatMoney(discountTotal, currency)}</H6>
+              <H6 my="0px">-{formatOrderMoney(discountTotal, currency)}</H6>
             </FlexBox>
 
             <Divider mb="0.5rem" />
 
             <FlexBox justifyContent="space-between" alignItems="center" mb="1rem">
               <H6 my="0px">Total</H6>
-              <H6 my="0px">{formatMoney(order.summary.grandTotal.amount, currency)}</H6>
+              <H6 my="0px">{formatOrderMoney(order.summary.grandTotal.amount, currency)}</H6>
             </FlexBox>
 
           </Card>

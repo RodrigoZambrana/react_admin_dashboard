@@ -13,9 +13,9 @@ import { IconButton } from "@component/buttons";
 import Typography, { H5, Small } from "@component/Typography";
 
 import type { OrderSummary } from "@/types/storefront";
-import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import { getBadgePalette, resolveOrderBadgeDescriptor, formatOrderBadgeLabel } from "@/lib/utils/order-status";
 import { useTranslation } from "@/state/i18n-context";
+import { formatOrderMoney } from "@common/currency/orderMoney";
 
 // =================================================
 type OrderRowProps = { order: OrderSummary };
@@ -28,8 +28,10 @@ export default function OrderRow({ order }: OrderRowProps) {
   const badgePalette = getBadgePalette(badgeDescriptor.variant);
   const placedDate = format(new Date(order.placedAt), "MMM dd, yyyy");
   const total = order.summary.grandTotal;
-  const { formatMoney } = useMoneyFormatter();
-  const formattedTotal = useMemo(() => formatMoney(total), [formatMoney, total]);
+  const formattedTotal = useMemo(
+    () => formatOrderMoney(total.amount, total.currency),
+    [total]
+  );
   const orderUuid = order.uuid || order.reference || order.orderNumber || String(order.id);
   const encodedIdentifier = encodeURIComponent(orderUuid);
   const displayIdentifier = `#${order.id}`;

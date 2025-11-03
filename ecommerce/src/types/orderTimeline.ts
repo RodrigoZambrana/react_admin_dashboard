@@ -9,6 +9,7 @@ export type OrderTimelineEventType =
   | "IN_TRANSIT"
   | "OUT_FOR_DELIVERY"
   | "DELIVERED"
+  | "CANCELLED"
   | "NOTE"
   | "STATUS_CHANGED"
   | "OTHER";

@@ -95,7 +95,9 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
             <h6 className="mb-4">{t('text.titles.shippingAddress')}</h6>
             <address className="not-italic space-y-1">
                 {shippingLines.length > 0 ? (
-                    shippingLines.map((line) => <div key={line}>{line}</div>)
+                    shippingLines.map((line, index) => (
+                        <div key={`${line}-${index}`}>{line}</div>
+                    ))
                 ) : (
                     <div>—</div>
                 )}
@@ -104,7 +106,9 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
             <h6 className="mb-4">{t('text.titles.billingAddress')}</h6>
             <address className="not-italic space-y-1">
                 {billingLines.length > 0 ? (
-                    billingLines.map((line) => <div key={line}>{line}</div>)
+                    billingLines.map((line, index) => (
+                        <div key={`${line}-${index}`}>{line}</div>
+                    ))
                 ) : (
                     <div>—</div>
                 )}

@@ -2,12 +2,12 @@ import { useMemo } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { useTranslation } from 'react-i18next'
-import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
-import { useAppSelector } from '@/store'
+import { normalizeCurrencyCode } from '@/utils/currency'
 import dayjs from 'dayjs'
 import { HiOutlineDocumentText, HiOutlineTrash } from 'react-icons/hi'
 import Tooltip from '@/components/ui/Tooltip'
 import useConfirmation from '@/hooks/useConfirmation'
+import { formatOrderMoney } from '@/utils/orderMoney'
 
 type PaymentRecord = {
     id: number
@@ -59,17 +59,20 @@ const OrderPaymentsCard = ({
 }: OrderPaymentsCardProps) => {
     const { t, i18n } = useTranslation()
     const { confirm, ConfirmationDialog } = useConfirmation()
-    const storeCurrency = useAppSelector((state) => state.currency.code)
-    const defaultCurrency =
-        normalizeCurrencyCode(storeCurrency, 'UYU') || 'UYU'
-    const currencyForFormat = normalizeCurrencyCode(orderCurrency, defaultCurrency) || defaultCurrency
+    const resolvedOrderCurrency =
+        normalizeCurrencyCode(orderCurrency) ?? orderCurrency ?? undefined
 
     const formatAmount = useMemo(
-        () => (value?: number) =>
-            formatCurrency(value, currencyForFormat, i18n.language, {
-                fallbackCurrency: defaultCurrency,
-            }),
-        [currencyForFormat, i18n.language, defaultCurrency],
+        () => (value?: number, customCurrency?: string | null) => {
+            const normalizedCustom =
+                normalizeCurrencyCode(customCurrency) ??
+                customCurrency ??
+                resolvedOrderCurrency
+            return formatOrderMoney(value, normalizedCustom, {
+                locale: i18n.language,
+            })
+        },
+        [resolvedOrderCurrency, i18n.language],
     )
 
     const handleDeleteAttachment = async (attachment: PaymentRecord['attachments'][number]) => {
@@ -145,7 +148,7 @@ const OrderPaymentsCard = ({
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                 <div>
                                     <h6 className="font-semibold text-gray-800 dark:text-gray-100">
-                                        {formatAmount(payment.amount)}
+                                        {formatAmount(payment.amount, payment.currency)}
                                     </h6>
                                     <div className="text-sm text-gray-500 dark:text-gray-300">
                                         {t('sales.orders.payments.date', { defaultValue: 'Date' })}:{' '}

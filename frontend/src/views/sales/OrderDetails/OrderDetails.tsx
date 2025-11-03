@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import classNames from 'classnames'
 import Tag from '@/components/ui/Tag'
+import Select from '@/components/ui/Select'
+import type { StylesConfig } from 'react-select'
 import Loading from '@/components/shared/Loading'
 import Container from '@/components/shared/Container'
 import DoubleSidedImage from '@/components/shared/DoubleSidedImage'
@@ -13,7 +15,7 @@ import OrderPaymentsCard from './components/OrderPaymentsCard'
 import NewPaymentDialog from './components/NewPaymentDialog'
 import EditDeliveryDialog from './components/EditDeliveryDialog'
 import { HiOutlineCalendar, HiOutlineDocumentText, HiOutlinePencil } from 'react-icons/hi'
-import { apiGetSalesOrderDetails, apiGetSalesOrderTimeline } from '@/services/SalesService'
+import { apiGetSalesOrderDetails, apiGetSalesOrderTimeline, apiUpdateSalesOrderStatus } from '@/services/SalesService'
 import { apiGetOrderStatuses, apiGetSystemConfig } from '@/services/SettingsService'
 import { adaptOrderToDetailsView } from '@/adapters/sales'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -29,6 +31,8 @@ import { resolveTextDirection } from '@/utils/textDirection'
 import { sanitizeRichText } from '@/utils/security/inputGuards'
 import { apiDeletePaymentAttachment } from '@/services/AccountingService'
 import type { OrderTimelineResponse } from '@/types/orderTimeline'
+import { deriveStatusColorClasses } from '@/utils/statusColor'
+import { ORDER_STATUS_CHANGE_ALLOWED, ORDER_STATUS_IDS } from '@/constants/orderStatus'
 
 type SalesOrderDetailsResponse = {
     id?: string
@@ -288,13 +292,20 @@ const OrderDetails = () => {
         'Valid until',
     )
 
+    const normalizedStatusId = useMemo(() => {
+        const raw = Number(data.progressStatus)
+        if (!Number.isFinite(raw) || raw === 0) {
+            return resource === 'orders' ? ORDER_STATUS_IDS.PENDING : raw
+        }
+        return raw
+    }, [data.progressStatus, resource])
+
     const currentOrderStatus = useMemo(() => {
-        const sid = Number(data.progressStatus)
-        if (!Number.isFinite(sid)) {
+        if (!Number.isFinite(normalizedStatusId)) {
             return undefined
         }
-        return orderStatuses.find((x) => x.id === sid)
-    }, [data.progressStatus, orderStatuses])
+        return orderStatuses.find((x) => x.id === normalizedStatusId)
+    }, [normalizedStatusId, orderStatuses])
 
     const productStatusClasses = useMemo(() => {
         const colorToken = currentOrderStatus?.color || 'gray-500'
@@ -307,6 +318,53 @@ const OrderDetails = () => {
             `dark:text-${color}-100`,
         ]
     }, [currentOrderStatus])
+
+    const statusOptions = useMemo(
+        () =>
+            orderStatuses.map((status) => {
+                const classes = deriveStatusColorClasses(status.color)
+                return {
+                    value: status.id,
+                    label: status.name,
+                    dotClass: classes.dotClass || 'bg-gray-400',
+                    textClass: classes.textClass || 'text-gray-600',
+                    customColor: classes.customColor,
+                }
+            }),
+        [orderStatuses],
+    )
+
+    const currentStatusOption = useMemo(() => {
+        if (!Number.isFinite(normalizedStatusId)) {
+            return undefined
+        }
+        return statusOptions.find((option) => Number(option.value) === normalizedStatusId)
+    }, [normalizedStatusId, statusOptions])
+
+    const selectStyles = useMemo<StylesConfig<any, false>>(
+        () => ({
+            valueContainer: (provided) => ({ ...provided, display: 'flex', alignItems: 'center' }),
+            singleValue: (provided) => ({ ...provided, display: 'flex', alignItems: 'center' }),
+        }),
+        [],
+    )
+
+    const handleStatusChange = useCallback(
+        async (option: { value: number }) => {
+            if (!data.id) {
+                return
+            }
+            if (!ORDER_STATUS_CHANGE_ALLOWED.has(Number(option.value))) {
+                return
+            }
+            await apiUpdateSalesOrderStatus<boolean, { id: string | number; status: number }>(
+                { id: data.id, status: option.value },
+                resource === 'budgets' ? 'budgets' : 'orders',
+            )
+            fetchData()
+        },
+        [data.id, fetchData, resource],
+    )
 
     const onViewInvoice = useCallback(() => {
         if (!data.id) return
@@ -387,6 +445,36 @@ const OrderDetails = () => {
         return latest.estimateDate ?? latest.timestamp ?? null
     }, [timeline])
 
+    const resolvedEstimatedDate = useMemo(() => {
+        const maxDays =
+            data.shipping && typeof data.shipping.estimatedMax === 'number'
+                ? data.shipping.estimatedMax
+                : null
+        const minDays =
+            data.shipping && typeof data.shipping.estimatedMin === 'number'
+                ? data.shipping.estimatedMin
+                : null
+        const baseTimestamp = typeof data.dateTime === 'number' && data.dateTime > 0 ? data.dateTime : null
+
+        if (baseTimestamp !== null) {
+            const base = dayjs.unix(baseTimestamp)
+            if (maxDays !== null && Number.isFinite(maxDays)) {
+                const date = base.add(maxDays, 'day')
+                if (date.isValid()) {
+                    return date.toISOString()
+                }
+            }
+            if (minDays !== null && Number.isFinite(minDays)) {
+                const date = base.add(minDays, 'day')
+                if (date.isValid()) {
+                    return date.toISOString()
+                }
+            }
+        }
+
+        return latestEstimatedDate
+    }, [data.shipping?.estimatedMax, data.shipping?.estimatedMin, data.dateTime, latestEstimatedDate])
+
     const handleDeliverySaved = useCallback(() => {
         setDeliveryDialogOpen(false)
         void fetchData()
@@ -411,11 +499,41 @@ const OrderDetails = () => {
                                                 #{data.id}
                                             </span>
                                         </h3>
-                                        {currentOrderStatus && (
+                                        {resource === 'orders' && currentStatusOption ? (
+                                            <Select
+                                            className="min-w-[200px] ltr:ml-2 rtl:mr-2"
+                                            size="sm"
+                                            styles={selectStyles}
+                                            options={statusOptions as any}
+                                            value={currentStatusOption as any}
+                                            isOptionDisabled={(option: any) =>
+                                                !ORDER_STATUS_CHANGE_ALLOWED.has(Number(option.value))
+                                            }
+                                            formatOptionLabel={(option: any) => (
+                                                <div className="flex items-center">
+                                                        <span
+                                                            className={`badge-dot ${option.dotClass || 'bg-gray-400'}`}
+                                                            style={
+                                                                option.customColor
+                                                                    ? { backgroundColor: option.customColor }
+                                                                    : undefined
+                                                            }
+                                                        ></span>
+                                                        <span
+                                                            className={`ml-2 rtl:mr-2 capitalize font-semibold ${option.textClass || 'text-gray-600'}`}
+                                                            style={option.customColor ? { color: option.customColor } : undefined}
+                                                        >
+                                                            {option.label}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                onChange={(option: any) => option && handleStatusChange(option)}
+                                            />
+                                        ) : currentOrderStatus ? (
                                             <Tag className={classNames('border-0 rounded-md ltr:ml-2 rtl:mr-2', ...productStatusClasses)}>
                                                 {currentOrderStatus.name}
                                             </Tag>
-                                        )}
+                                        ) : null}
                                     </div>
                                     <span className="flex items-center">
                                         <HiOutlineCalendar className="text-lg" />
@@ -461,6 +579,11 @@ const OrderDetails = () => {
                         </div>
                         <div className="xl:flex gap-4">
                             <div className="w-full space-y-4">
+                                <OrderProducts
+                                    data={data.product}
+                                    orderCurrency={data.paymentSummary?.currency}
+                                    fxSnapshot={data.fxSnapshot}
+                                />
                                 <PaymentSummary
                                     data={data.paymentSummary}
                                     taxRate={taxRate}
@@ -474,11 +597,6 @@ const OrderDetails = () => {
                                     onAddPayment={() => setPaymentDialogOpen(true)}
                                     onDeleteAttachment={handleDeleteAttachment}
                                 />
-                                <OrderProducts
-                                    data={data.product}
-                                    orderCurrency={data.paymentSummary?.currency}
-                                    fxSnapshot={data.fxSnapshot}
-                                />
                                 <Activity
                                     timeline={timeline}
                                     loading={timelineLoading}
@@ -489,7 +607,7 @@ const OrderDetails = () => {
                                 <CustomerInfo data={data.customer} />
                                 <ShippingInfo
                                     data={data.shipping}
-                                    estimatedDate={latestEstimatedDate}
+                                    estimatedDate={resolvedEstimatedDate}
                                     onEdit={() => setDeliveryDialogOpen(true)}
                                 />
                                 {disclaimerHtml && (
@@ -543,7 +661,7 @@ const OrderDetails = () => {
                 initialDeliveryFees={data.shipping?.deliveryFees ?? 0}
                 initialEstimatedMin={data.shipping?.estimatedMin ?? null}
                 initialEstimatedMax={data.shipping?.estimatedMax ?? null}
-                initialEstimatedDate={latestEstimatedDate}
+                initialEstimatedDate={resolvedEstimatedDate}
                 orderPlacedAt={data.dateTime ? dayjs.unix(data.dateTime).toISOString() : null}
             />
         </Container>

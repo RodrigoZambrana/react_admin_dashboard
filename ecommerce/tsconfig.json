@@ -27,7 +27,8 @@
       "@component/*": ["components/*"],
       "@sections/*": ["page-sections/*"],
       "@models/*": ["models/*"],
-      "@state/*": ["state/*"]
+      "@state/*": ["state/*"],
+      "@common/*": ["../../src/common/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
