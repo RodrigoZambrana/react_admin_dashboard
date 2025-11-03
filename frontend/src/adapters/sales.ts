@@ -402,6 +402,39 @@ export function adaptOrderToDetailsView(
     total: summaryComputation.total,
     currency: normalizedOrderCurrency,
   }
+  const normalizedPayments = (() => {
+    const source = o.payments
+    if (!source || typeof source !== 'object') {
+      return source ?? null
+    }
+    const summarySource = source.summary as Record<string, unknown> | null | undefined
+    const normalizedSummaryCurrency =
+      normalizeCurrencyCode(
+        (summarySource?.currency as string | undefined) ?? undefined,
+        normalizedOrderCurrency,
+      ) ||
+      normalizedOrderCurrency ||
+      ((summarySource?.currency as string | undefined) ?? undefined)
+    const summary = summarySource
+      ? {
+          ...summarySource,
+          currency: normalizedSummaryCurrency,
+        }
+      : null
+    const records = Array.isArray(source.records)
+      ? source.records.map((record: any) => ({
+          ...record,
+          attachments: Array.isArray(record?.attachments)
+            ? record.attachments.map((attachment: any) => ({ ...attachment }))
+            : [],
+        }))
+      : []
+    return {
+      ...source,
+      summary,
+      records,
+    }
+  })()
   const normalizedShipping = {
     ...shipping,
     deliveryFees: summaryComputation.deliveryFees,
@@ -475,7 +508,7 @@ export function adaptOrderToDetailsView(
     validUntil,
     validityDate: validUntil,
     paymentSummary,
-    payments: o.payments ?? null,
+    payments: normalizedPayments,
     shipping: normalizedShipping,
     product,
     activity: [],

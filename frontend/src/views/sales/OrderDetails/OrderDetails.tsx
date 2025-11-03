@@ -12,7 +12,7 @@ import CustomerInfo from './components/CustomerInfo'
 import OrderPaymentsCard from './components/OrderPaymentsCard'
 import NewPaymentDialog from './components/NewPaymentDialog'
 import { HiOutlineCalendar, HiOutlineDocumentText, HiOutlinePencil } from 'react-icons/hi'
-import { apiGetSalesOrderDetails } from '@/services/SalesService'
+import { apiGetSalesOrderDetails, apiGetSalesOrderTimeline } from '@/services/SalesService'
 import { apiGetOrderStatuses, apiGetSystemConfig } from '@/services/SettingsService'
 import { adaptOrderToDetailsView } from '@/adapters/sales'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -27,6 +27,7 @@ import { useSalesDocumentI18n } from '../context/useSalesDocumentI18n'
 import { resolveTextDirection } from '@/utils/textDirection'
 import { sanitizeRichText } from '@/utils/security/inputGuards'
 import { apiDeletePaymentAttachment } from '@/services/AccountingService'
+import type { OrderTimelineResponse } from '@/types/orderTimeline'
 
 type SalesOrderDetailsResponse = {
     id?: string
@@ -157,32 +158,87 @@ const OrderDetails = () => {
 
     const [loading, setLoading] = useState(true)
     const [data, setData] = useState<SalesOrderDetailsResponse>({})
+    const [fetchError, setFetchError] = useState<string | null>(null)
     const [orderStatuses, setOrderStatuses] = useState<{ id: number; name: string; color: string }[]>([])
     const [taxRate, setTaxRate] = useState<number>()
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
+    const [timeline, setTimeline] = useState<OrderTimelineResponse | null>(null)
+    const [timelineLoading, setTimelineLoading] = useState(false)
+    const [timelineError, setTimelineError] = useState<string | null>(null)
     const { t } = useTranslation()
     const { tDoc, resource, routes, mode } = useSalesDocumentI18n()
     const showValidUntil = resource === 'budgets'
+
+    const fetchTimeline = useCallback(
+        async (orderId: string) => {
+            if (resource !== 'orders') {
+                setTimeline(null)
+                setTimelineError(null)
+                return
+            }
+            setTimelineLoading(true)
+            setTimelineError(null)
+            try {
+                const response = await apiGetSalesOrderTimeline<OrderTimelineResponse>(orderId)
+                setTimeline(response?.data ?? null)
+            } catch (error) {
+                setTimeline(null)
+                setTimelineError(
+                    error instanceof Error
+                        ? error.message
+                        : t('text.errors.unexpectedError', { defaultValue: 'Unexpected error' }),
+                )
+            } finally {
+                setTimelineLoading(false)
+            }
+        },
+        [resource, t],
+    )
 
     const fetchData = useCallback(async () => {
         const idSegment = location.pathname.substring(
             location.pathname.lastIndexOf('/') + 1,
         )
-        if (idSegment) {
-            setLoading(true)
+        if (!idSegment) {
+            setTimeline(null)
+            setTimelineError(null)
+            return
+        }
+        setLoading(true)
+        setFetchError(null)
+        try {
             const response = await apiGetSalesOrderDetails<
                 SalesOrderDetailsResponse,
                 { id: string }
             >({ id: idSegment }, resource)
             if (response) {
-                setLoading(false)
                 const mapped = adaptOrderToDetailsView((response as any).data, {
                     mode,
                 })
                 setData(mapped as SalesOrderDetailsResponse)
+                if (resource === 'orders') {
+                    void fetchTimeline(idSegment)
+                } else {
+                    setTimeline(null)
+                    setTimelineError(null)
+                }
+                setLoading(false)
+                return
             }
+            setData({})
+            setFetchError('This item is no longer available.')
+        } catch (error) {
+            setData({})
+            setFetchError('This item is no longer available.')
+            if (resource === 'orders') {
+                setTimeline(null)
+            }
+            // eslint-disable-next-line no-console
+            console.error('Failed to load order detail', error)
+        } finally {
+            setLoading(false)
         }
-    }, [location.pathname, mode, resource])
+    }, [fetchTimeline, location.pathname, mode, resource])
 
     useEffect(() => {
         fetchData()
@@ -394,7 +450,11 @@ const OrderDetails = () => {
                                     orderCurrency={data.paymentSummary?.currency}
                                     fxSnapshot={data.fxSnapshot}
                                 />
-                                <Activity data={data.activity} />
+                                <Activity
+                                    timeline={timeline}
+                                    loading={timelineLoading}
+                                    error={timelineError}
+                                />
                             </div>
                             <div className="xl:max-w-[360px] w-full space-y-4">
                                 <CustomerInfo data={data.customer} />
@@ -419,9 +479,16 @@ const OrderDetails = () => {
                     <DoubleSidedImage
                         src="/img/others/img-2.png"
                         darkModeSrc="/img/others/img-2-dark.png"
-                        alt={t('common.notFound.order')}
+                        alt={t('common.notFound.order', {
+                            defaultValue: 'This item is no longer available.',
+                        })}
                     />
-                    <h3 className="mt-8">{t('common.notFound.order')}</h3>
+                    <h3 className="mt-8">
+                        {fetchError ??
+                            t('common.notFound.order', {
+                                defaultValue: 'This item is no longer available.',
+                            })}
+                    </h3>
                 </div>
             )}
             <NewPaymentDialog

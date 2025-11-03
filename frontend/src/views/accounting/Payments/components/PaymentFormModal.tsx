@@ -179,9 +179,12 @@ const PaymentFormModal = () => {
                         notes: data.notes ?? '',
                     })
                 } catch (error) {
+                    const unavailableMessage = 'This item is no longer available.'
+                    // eslint-disable-next-line no-console
+                    console.error('Failed to load payment detail:', error)
                     toast.push(
                         <Notification title={t('accounting.payments.feedback.loadFailedTitle')} type="danger">
-                            {t('accounting.payments.feedback.loadFailedDesc')}
+                            {unavailableMessage}
                         </Notification>,
                     )
                     dispatch(togglePaymentDialog({ open: false }))

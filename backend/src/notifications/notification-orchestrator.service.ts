@@ -12,6 +12,8 @@ import { CreateNotificationInput } from './notifications.types'
 import { findOrderStatusById } from '../common/constants/order-statuses'
 import { findPaymentMethodById } from '../common/constants/payment-methods'
 
+type NotificationEntityType = 'order' | 'payment' | 'customer' | 'quote'
+
 @Injectable()
 export class NotificationOrchestratorService {
   private readonly logger = new Logger(NotificationOrchestratorService.name)
@@ -92,13 +94,19 @@ export class NotificationOrchestratorService {
     await this.dispatchAdminOrderStatusChange(order, metadata)
   }
 
-  private async dispatchCustomerOrderReceived(order: any, metadata: Record<string, unknown>) {
+  private async dispatchCustomerOrderReceived(order: any, metadataBase: Record<string, unknown>) {
     const channels = await this.settings.resolveAudienceChannels(
       NotificationEventType.ORDER_RECEIVED,
       NotificationAudience.CUSTOMER,
     )
     const notifications: CreateNotificationInput[] = []
     if (channels[NotificationChannel.IN_APP]?.enabled && order.customerId) {
+      const metadata = this.buildNotificationMetadata(
+        'order',
+        order.id,
+        NotificationAudience.CUSTOMER,
+        metadataBase,
+      )
       notifications.push({
         eventType: NotificationEventType.ORDER_RECEIVED,
         audience: NotificationAudience.CUSTOMER,
@@ -124,7 +132,7 @@ export class NotificationOrchestratorService {
     }
   }
 
-  private async dispatchAdminOrderReceived(order: any, metadata: Record<string, unknown>) {
+  private async dispatchAdminOrderReceived(order: any, metadataBase: Record<string, unknown>) {
     const channels = await this.settings.resolveAudienceChannels(
       NotificationEventType.ORDER_RECEIVED,
       NotificationAudience.ADMIN,
@@ -132,6 +140,12 @@ export class NotificationOrchestratorService {
     const recipients = await this.settings.resolveAdminRecipients(NotificationEventType.ORDER_RECEIVED)
     const notifications: CreateNotificationInput[] = []
     if (channels[NotificationChannel.IN_APP]?.enabled && recipients.length) {
+      const metadata = this.buildNotificationMetadata(
+        'order',
+        order.id,
+        NotificationAudience.ADMIN,
+        metadataBase,
+      )
       for (const recipient of recipients) {
         notifications.push({
           eventType: NotificationEventType.ORDER_RECEIVED,
@@ -159,13 +173,19 @@ export class NotificationOrchestratorService {
     }
   }
 
-  private async dispatchCustomerPaymentReceived(payment: any, metadata: Record<string, unknown>) {
+  private async dispatchCustomerPaymentReceived(payment: any, metadataBase: Record<string, unknown>) {
     const channels = await this.settings.resolveAudienceChannels(
       NotificationEventType.PAYMENT_RECEIVED,
       NotificationAudience.CUSTOMER,
     )
     const notifications: CreateNotificationInput[] = []
     if (channels[NotificationChannel.IN_APP]?.enabled && payment.order?.customerId) {
+      const metadata = this.buildNotificationMetadata(
+        'payment',
+        payment.id,
+        NotificationAudience.CUSTOMER,
+        metadataBase,
+      )
       notifications.push({
         eventType: NotificationEventType.PAYMENT_RECEIVED,
         audience: NotificationAudience.CUSTOMER,
@@ -190,7 +210,7 @@ export class NotificationOrchestratorService {
     }
   }
 
-  private async dispatchAdminPaymentReceived(payment: any, metadata: Record<string, unknown>) {
+  private async dispatchAdminPaymentReceived(payment: any, metadataBase: Record<string, unknown>) {
     const channels = await this.settings.resolveAudienceChannels(
       NotificationEventType.PAYMENT_RECEIVED,
       NotificationAudience.ADMIN,
@@ -198,6 +218,12 @@ export class NotificationOrchestratorService {
     const recipients = await this.settings.resolveAdminRecipients(NotificationEventType.PAYMENT_RECEIVED)
     const notifications: CreateNotificationInput[] = []
     if (channels[NotificationChannel.IN_APP]?.enabled && recipients.length) {
+      const metadata = this.buildNotificationMetadata(
+        'payment',
+        payment.id,
+        NotificationAudience.ADMIN,
+        metadataBase,
+      )
       for (const recipient of recipients) {
         notifications.push({
           eventType: NotificationEventType.PAYMENT_RECEIVED,
@@ -224,11 +250,18 @@ export class NotificationOrchestratorService {
     }
   }
 
-  private async dispatchCustomerOrderStatusChange(order: any, metadata: Record<string, unknown>) {
+  private async dispatchCustomerOrderStatusChange(order: any, metadataBase: Record<string, unknown>) {
     const channels = await this.settings.resolveAudienceChannels(
       NotificationEventType.ORDER_STATUS_CHANGED,
       NotificationAudience.CUSTOMER,
     )
+    const metadata = this.buildNotificationMetadata(
+      'order',
+      order.id,
+      NotificationAudience.CUSTOMER,
+      metadataBase,
+    )
+
     if (channels[NotificationChannel.IN_APP]?.enabled && order.customerId) {
       const title = metadata.status
         ? `Your order #${metadata.orderNumber} is now ${metadata.status}`
@@ -258,12 +291,19 @@ export class NotificationOrchestratorService {
     }
   }
 
-  private async dispatchAdminOrderStatusChange(order: any, metadata: Record<string, unknown>) {
+  private async dispatchAdminOrderStatusChange(order: any, metadataBase: Record<string, unknown>) {
     const channels = await this.settings.resolveAudienceChannels(
       NotificationEventType.ORDER_STATUS_CHANGED,
       NotificationAudience.ADMIN,
     )
     const recipients = await this.settings.resolveAdminRecipients(NotificationEventType.ORDER_STATUS_CHANGED)
+    const metadata = this.buildNotificationMetadata(
+      'order',
+      order.id,
+      NotificationAudience.ADMIN,
+      metadataBase,
+    )
+
     if (channels[NotificationChannel.IN_APP]?.enabled && recipients.length) {
       const title = metadata.status
         ? `Order #${metadata.orderNumber} ${metadata.status}`
@@ -299,6 +339,7 @@ export class NotificationOrchestratorService {
     const statusDefinition = findOrderStatusById(order.statusId ?? null)
     return {
       orderId: order.id,
+      orderUuid: order.uuid ?? null,
       orderNumber,
       amount,
       currency: order.orderCurrency ?? order.currency ?? null,
@@ -320,6 +361,7 @@ export class NotificationOrchestratorService {
     return {
       paymentId: payment.id,
       orderId: payment.orderId,
+      orderUuid: payment.order?.uuid ?? null,
       orderNumber,
       amount,
       currency,
@@ -331,5 +373,132 @@ export class NotificationOrchestratorService {
         [payment.order?.customer?.firstName, payment.order?.customer?.lastName].filter(Boolean).join(' ').trim() ??
         null,
     }
+  }
+
+  private buildNotificationMetadata(
+    type: NotificationEntityType,
+    entityId: number | string | null,
+    audience: NotificationAudience,
+    base: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const redirectPath = this.resolveRedirectPath(type, entityId, audience, base)
+    return {
+      ...base,
+      type,
+      entityId,
+      redirectPath,
+    }
+  }
+
+  private resolveRedirectPath(
+    type: NotificationEntityType,
+    entityId: number | string | null,
+    audience: NotificationAudience,
+    base: Record<string, unknown>,
+  ): string | null {
+    if (!type) {
+      return null
+    }
+    if (audience === NotificationAudience.CUSTOMER) {
+      return this.resolveCustomerRedirect(type, entityId, base)
+    }
+    if (audience === NotificationAudience.ADMIN) {
+      return this.resolveAdminRedirect(type, entityId)
+    }
+    return null
+  }
+
+  private resolveCustomerRedirect(
+    type: NotificationEntityType,
+    entityId: number | string | null,
+    base: Record<string, unknown>,
+  ): string | null {
+    const orderSegment = this.extractOrderPathSegment(base)
+    switch (type) {
+      case 'order': {
+        if (orderSegment) {
+          return `/account/orders/${orderSegment}`
+        }
+        if (this.hasEntityId(entityId)) {
+          return `/account/orders/${entityId}`
+        }
+        return '/account/orders'
+      }
+      case 'payment': {
+        if (orderSegment) {
+          const paymentParam = this.hasEntityId(entityId) ? `?payment=${entityId}` : ''
+          return `/account/orders/${orderSegment}${paymentParam}`
+        }
+        if (this.hasEntityId(entityId)) {
+          return `/account/payments/${entityId}`
+        }
+        return '/account/orders'
+      }
+      default: {
+        if (this.hasEntityId(entityId)) {
+          return `/account/notifications/${entityId}`
+        }
+        return '/account/notifications'
+      }
+    }
+  }
+
+  private resolveAdminRedirect(
+    type: NotificationEntityType,
+    entityId: number | string | null,
+  ): string | null {
+    switch (type) {
+      case 'order':
+        if (this.hasEntityId(entityId)) {
+          return `/app/sales/order-details/${entityId}`
+        }
+        return '/app/sales/order-list'
+      case 'quote':
+        if (this.hasEntityId(entityId)) {
+          return `/app/sales/budget-details/${entityId}`
+        }
+        return '/app/sales/budget-list'
+      case 'payment':
+        if (this.hasEntityId(entityId)) {
+          return `/app/accounting/payments?paymentId=${entityId}`
+        }
+        return '/app/accounting/payments'
+      case 'customer':
+        if (this.hasEntityId(entityId)) {
+          return `/app/crm/customer-details?id=${entityId}`
+        }
+        return '/app/crm/customers'
+      default:
+        if (this.hasEntityId(entityId)) {
+          return `/app/notifications/${entityId}`
+        }
+        return '/app/notifications'
+    }
+  }
+
+  private extractOrderPathSegment(base: Record<string, unknown>): string | null {
+    const uuid = base.orderUuid
+    if (typeof uuid === 'string' && uuid.trim().length > 0) {
+      return uuid
+    }
+    const numberValue = base.orderNumber
+    if (typeof numberValue === 'string' && numberValue.trim().length > 0) {
+      return numberValue
+    }
+    const orderId = base.orderId
+    if (typeof orderId === 'number' || typeof orderId === 'string') {
+      return String(orderId)
+    }
+    return null
+  }
+
+  private hasEntityId(entityId: number | string | null): entityId is number | string {
+    if (entityId === null || entityId === undefined) {
+      return false
+    }
+    if (typeof entityId === 'string') {
+      return entityId.trim().length > 0
+    }
+    return true
   }
 }

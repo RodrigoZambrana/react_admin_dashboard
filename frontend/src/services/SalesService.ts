@@ -166,6 +166,13 @@ export async function apiGetSalesOrderDetails<
     })
 }
 
+export async function apiGetSalesOrderTimeline<T>(orderId: string | number) {
+    return ApiService.fetchData<T>({
+        url: `/orders/${orderId}/timeline`,
+        method: 'get',
+    })
+}
+
 export async function apiGetSalesDocumentPdf<
     T = Blob,
     U extends string | number = string | number,

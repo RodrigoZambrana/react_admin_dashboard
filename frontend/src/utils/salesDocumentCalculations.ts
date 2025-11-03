@@ -96,6 +96,9 @@ export const detectSalesDocumentCurrency = (
     fallback?: string | null,
 ): string | undefined => {
     const normalizedFallback = normalizeCurrencyCode(fallback ?? undefined)
+    if (normalizedFallback) {
+        return normalizedFallback
+    }
     if (Array.isArray(rawItems)) {
         for (const raw of rawItems) {
             if (!raw || typeof raw !== 'object') {
@@ -110,7 +113,7 @@ export const detectSalesDocumentCurrency = (
             }
         }
     }
-    return normalizedFallback ?? undefined
+    return undefined
 }
 
 export const createSalesDocumentRounder = (

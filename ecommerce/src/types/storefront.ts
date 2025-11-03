@@ -115,6 +115,9 @@ export interface StorefrontConfig {
       siteKey: string | null;
     };
   };
+  resilience?: {
+    snapshotFallbackEnabled: boolean;
+  };
 }
 
 export type InventoryStatus = "in-stock" | "limited" | "back-order" | "out-of-stock";
@@ -522,6 +525,7 @@ export interface CreateOrderPayload {
   items: Array<{ productId: number; quantity: number; variantId?: number }>;
   notes?: string;
   paymentIntentId?: string;
+  checkoutToken?: string;
 }
 
 export interface OrderSummary {
@@ -531,8 +535,15 @@ export interface OrderSummary {
   reference?: string;
   placedAt: string;
   status: string;
+  statusLabel?: string;
+  statusColor?: string;
+  statusBadgeColor?: string;
   paymentStatus: string;
+  paymentStatusLabel?: string;
+  paymentStatusColor?: string;
+  paymentStatusBadgeColor?: string;
   fulfillmentStatus: string;
+  fulfillmentStatusLabel?: string;
   items: CheckoutLineItem[];
   summary: CheckoutSummary;
   shippingAddress: CreateOrderPayload["shippingAddress"];

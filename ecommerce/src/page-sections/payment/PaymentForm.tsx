@@ -115,7 +115,8 @@ export default function PaymentForm() {
     hasDetails,
     payment,
     setPayment,
-    clearPayment
+    clearPayment,
+    checkoutToken
   } = useCheckout();
 
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(() =>

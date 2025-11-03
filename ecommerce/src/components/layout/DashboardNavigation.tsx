@@ -6,8 +6,6 @@ import {
   IconPin,
   IconUser,
   IconHeart,
-  // IconHelpCircle,
-  // IconCreditCard,
   IconShoppingBagCheck
 } from "@tabler/icons-react";
 
@@ -27,10 +25,10 @@ export default function DashboardNavigation() {
   const dynamicNavigation = useMemo(() => {
     const totalOrders = orders.length;
     const addressCount = profile?.addresses?.length ?? 0;
-    const basePath = pathname.startsWith("/account") ? "/account" : "";
+    const basePath = "/account";
     const resolveHref = (target: string) => {
       const normalized = target.startsWith("/") ? target : `/${target}`;
-      return basePath ? `${basePath}${normalized}` : normalized;
+      return `${basePath}${normalized}`;
     };
 
     return [
@@ -69,7 +67,7 @@ export default function DashboardNavigation() {
         ]
       }
     ];
-  }, [orders, pathname, profile?.addresses, profile?.wishlistCount]);
+  }, [orders, profile?.addresses, profile?.wishlistCount]);
 
   return (
     <DashboardNavigationWrapper px="0px" pb="1.5rem" color="gray.900" borderRadius={8}>
@@ -79,17 +77,21 @@ export default function DashboardNavigation() {
             {navGroup.title}
           </Typography>
 
-          {navGroup.links.map(({ Icon, count, href, title }) => (
-            <StyledDashboardNav href={href} key={title} isActive={pathname.includes(href)}>
-              <FlexBox alignItems="center" style={{ gap: 8 }}>
-                <Icon size={20} className="icon" />
+          {navGroup.links.map(({ Icon, count, href, title }) => {
+            const isActive = pathname === href || pathname.startsWith(`${href}/`);
 
-                <span>{title}</span>
-              </FlexBox>
+            return (
+              <StyledDashboardNav href={href} key={title} isActive={isActive}>
+                <FlexBox alignItems="center" style={{ gap: 8 }}>
+                  <Icon size={20} className="icon" />
 
-              {count !== undefined && <span>{count}</span>}
-            </StyledDashboardNav>
-          ))}
+                  <span>{title}</span>
+                </FlexBox>
+
+                {count !== undefined && <span>{count}</span>}
+              </StyledDashboardNav>
+            );
+          })}
         </Fragment>
       ))}
     </DashboardNavigationWrapper>

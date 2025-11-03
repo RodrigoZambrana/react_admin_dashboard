@@ -5,9 +5,10 @@ import { useOrderColumns, type Order } from '@/views/sales/OrderList/components/
 import { apiGetOrderStatuses } from '@/services/SettingsService'
 import { apiUpdateSalesOrderStatus, apiGetSalesOrders } from '@/services/SalesService'
 import { adaptSalesDocumentListRecord } from '@/adapters/sales'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { deriveStatusColorClasses } from '@/utils/statusColor'
 
 type LatestOrderProps = {
     data?: Order[]
@@ -16,18 +17,35 @@ type LatestOrderProps = {
 
 const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
     const { t } = useTranslation()
-    const defaultOrderStatuses = useMemo(
+    type StatusOption = {
+        id: number
+        name: string
+        dotClass: string
+        textClass: string
+        customColor?: string
+    }
+
+    const mapStatusOption = useCallback((id: number, name: string, color?: string): StatusOption => {
+        const classes = deriveStatusColorClasses(color)
+        return {
+            id,
+            name,
+            dotClass: classes.dotClass || 'bg-gray-400',
+            textClass: classes.textClass || 'text-gray-600',
+            customColor: classes.customColor,
+        }
+    }, [])
+
+    const defaultOrderStatuses = useMemo<StatusOption[]>(
         () => [
-            { id: 100, name: 'Pending', color: 'orange' },
-            { id: 200, name: 'Paid', color: 'green' },
-            { id: 300, name: 'Cancelled', color: 'red' },
-            { id: 400, name: 'Delivered', color: 'green' },
+            mapStatusOption(100, 'Pending', 'orange-500'),
+            mapStatusOption(200, 'Paid', 'blue-500'),
+            mapStatusOption(300, 'Cancelled', 'red-500'),
+            mapStatusOption(400, 'Delivered', 'emerald-500'),
         ],
-        [],
+        [mapStatusOption],
     )
-    const [statuses, setStatuses] = useState<{ id: number; name: string; color: string }[]>(
-        defaultOrderStatuses,
-    )
+    const [statuses, setStatuses] = useState<StatusOption[]>(defaultOrderStatuses)
     const [rows, setRows] = useState<Order[]>(data)
     const [loading, setLoading] = useState(false)
 
@@ -36,11 +54,16 @@ const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
             const res = await apiGetOrderStatuses<
                 { id: number | string; label?: string; color?: string }[]
             >({ documentType: 'ORDER' })
-            const normalized = (res.data || []).map((status) => ({
-                id: Number(status.id),
-                name: status.label || String(status.id),
-                color: status.color || 'gray-500',
-            }))
+            const normalized = (res.data || []).map((status) => {
+                const classes = deriveStatusColorClasses(status.color)
+                return {
+                    id: Number(status.id),
+                    name: status.label || String(status.id),
+                    dotClass: classes.dotClass || 'bg-gray-400',
+                    textClass: classes.textClass || 'text-gray-600',
+                    customColor: classes.customColor,
+                }
+            })
             if (normalized.length) setStatuses(normalized)
         }
         fetch()

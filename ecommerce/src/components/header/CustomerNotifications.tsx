@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useRouter } from "next/navigation";
 import { IconBell, IconCheck } from "@tabler/icons-react";
 import Box from "@component/Box";
 import FlexBox from "@component/FlexBox";
@@ -32,6 +33,67 @@ const formatSummary = (notification: CustomerNotification): string | null => {
   return null;
 };
 
+const hasEntityId = (value: unknown): value is string | number => {
+  if (value === null || value === undefined) {
+    return false;
+  }
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+  return typeof value === "number";
+};
+
+const extractOrderPathSegment = (notification: CustomerNotification): string | null => {
+  const metadata = notification.metadata ?? {};
+  const uuid = metadata.orderUuid;
+  if (typeof uuid === "string" && uuid.trim()) {
+    return uuid.trim();
+  }
+  const orderNumber = metadata.orderNumber;
+  if (typeof orderNumber === "string" && orderNumber.trim()) {
+    return orderNumber.trim();
+  }
+  const metadataOrderId = metadata.orderId;
+  if (hasEntityId(metadataOrderId)) {
+    return String(metadataOrderId);
+  }
+  if (hasEntityId(notification.orderId)) {
+    return String(notification.orderId);
+  }
+  return null;
+};
+
+const resolveNotificationPath = (notification: CustomerNotification): string => {
+  const metadata = notification.metadata ?? {};
+  const redirect =
+    typeof metadata.redirectPath === "string" ? metadata.redirectPath.trim() : "";
+  if (redirect) {
+    return redirect;
+  }
+  const rawType = typeof metadata.type === "string" ? metadata.type.toLowerCase() : "";
+  if (rawType === "order" || rawType === "payment") {
+    const segment = extractOrderPathSegment(notification);
+    if (segment) {
+      if (rawType === "payment") {
+        const paymentId = metadata.paymentId ?? notification.paymentId;
+        if (hasEntityId(paymentId)) {
+          return `/account/orders/${segment}?payment=${paymentId}`;
+        }
+      }
+      return `/account/orders/${segment}`;
+    }
+    return "/account/orders";
+  }
+  if (rawType === "customer") {
+    return "/account/profile";
+  }
+  if (rawType === "quote") {
+    const segment = extractOrderPathSegment(notification);
+    return segment ? `/account/orders/${segment}` : "/account/orders";
+  }
+  return "/account/orders";
+};
+
 export default function CustomerNotifications() {
   const { session, isAuthenticated, logout } = useSession();
   const [open, setOpen] = useState(false);
@@ -41,6 +103,7 @@ export default function CustomerNotifications() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const unauthorizedRef = useRef(false);
   const toast = useToast();
+  const router = useRouter();
   const token = session?.accessToken ?? null;
 
   const handleUnauthorized = useCallback(() => {
@@ -158,17 +221,22 @@ export default function CustomerNotifications() {
     [open, fetchNotifications]
   );
 
-  const handleMarkAsRead = useCallback(
-    async (id: number) => {
+  const handleNotificationClick = useCallback(
+    async (notification: CustomerNotification) => {
       if (!token) return;
+      const wasUnread = !notification.readAt;
       try {
-        await StorefrontApi.markNotificationsRead(token, { ids: [id] });
+        await StorefrontApi.markNotificationsRead(token, { ids: [notification.id] });
         setNotifications((prev) =>
           prev.map((item) =>
-            item.id === id ? { ...item, readAt: item.readAt ?? new Date().toISOString() } : item
+            item.id === notification.id
+              ? { ...item, readAt: item.readAt ?? new Date().toISOString() }
+              : item
           )
         );
-        setUnreadCount((count) => Math.max(0, count - 1));
+        if (wasUnread) {
+          setUnreadCount((count) => Math.max(0, count - 1));
+        }
       } catch (error) {
         if (isApiError(error) && error.status === 401) {
           handleUnauthorized();
@@ -176,8 +244,14 @@ export default function CustomerNotifications() {
         }
         console.error("Failed to mark notification as read", error);
       }
+      try {
+        const path = resolveNotificationPath(notification);
+        router.push(path);
+      } catch (err) {
+        console.error("Failed to redirect from notification:", err);
+      }
     },
-    [token, handleUnauthorized]
+    [token, handleUnauthorized, router]
   );
 
   const handleMarkAll = useCallback(async () => {
@@ -232,8 +306,18 @@ export default function CustomerNotifications() {
             ) : entries.length > 0 ? (
               <Scrollbar style={{ maxHeight: `${PANEL_HEIGHT - 10}px` }}>
                 {entries.map((item) => (
-                  <MenuItem key={item.id} onClick={() => handleMarkAsRead(item.id)}>
-                    <FlexBox flexDirection="column" gridGap="0.2rem">
+                  <MenuItem
+                    key={item.id}
+                    onClick={() => void handleNotificationClick(item)}
+                    style={{
+                      backgroundColor: !item.readAt ? "rgba(59, 130, 246, 0.08)" : undefined
+                    }}
+                  >
+                    <FlexBox
+                      flexDirection="column"
+                      gridGap="0.2rem"
+                      style={{ opacity: item.readAt ? 0.7 : 1 }}
+                    >
                       <FlexBox alignItems="center" justifyContent="space-between" gridGap="0.5rem">
                         <Small fontWeight={600} color="text.primary">
                           {item.title ?? "Notification"}

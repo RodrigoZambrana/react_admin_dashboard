@@ -68,8 +68,26 @@ export default async function CategoryProductShelf(props: CategoryProductShelfPr
     emptyStateText
   } = props;
 
-  const categoriesTree = await StorefrontApi.listCategories();
-  const flattened = flattenCategorySummaries(categoriesTree);
+  let flattened: CategorySummary[] = [];
+
+  try {
+    const categoriesTree = await StorefrontApi.listCategories();
+    flattened = flattenCategorySummaries(categoriesTree);
+  } catch (error) {
+    console.warn(
+      "[storefront] Category shelf fell back to offline mode. Unable to load categories from API.",
+      error,
+    );
+    return (
+      <section aria-live="polite" style={{ padding: "2rem 1.5rem" }}>
+        <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "0.75rem" }}>{title}</h2>
+        <p style={{ color: "#b45309", fontSize: 14 }}>
+          Mostramos el catálogo guardado cuando el servicio esté disponible nuevamente.
+        </p>
+      </section>
+    );
+  }
+
   const filteredCategories = filterCategories(flattened, props);
 
   if (filteredCategories.length === 0) {

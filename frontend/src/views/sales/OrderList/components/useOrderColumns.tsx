@@ -30,7 +30,7 @@ export type Order = {
 
 type Params = {
     t: (k: string) => string
-    statuses: { id: number; name: string; color: string }[]
+    statuses: { id: number; name: string; dotClass: string; textClass: string; customColor?: string }[]
     onChangeStatus: (row: Order, statusId: number) => void
     selectOnly?: boolean
 }
@@ -69,17 +69,37 @@ export function useOrderColumns({ t, statuses, onChangeStatus, selectOnly: _sele
                             ? parseInt((row as any).status as unknown as string, 10)
                             : (row as any).status
                     const s = statuses.find((x) => x.id === statusId)
-                    const options = statuses.map((x) => ({ value: x.id, label: x.name, color: x.color }))
+                    const options = statuses.map((x) => ({
+                        value: x.id,
+                        label: x.name,
+                        dotClass: x.dotClass,
+                        textClass: x.textClass,
+                        customColor: x.customColor,
+                    }))
                     return (
                         <div className="min-w-[140px]">
                             <Select
                                 size="sm"
                                 options={options}
-                                value={{ value: s?.id ?? statusId, label: s?.name ?? String(statusId), color: s?.color ?? 'gray-500' } as any}
+                                value={{
+                                    value: s?.id ?? statusId,
+                                    label: s?.name ?? String(statusId),
+                                    dotClass: s?.dotClass ?? 'bg-gray-400',
+                                    textClass: s?.textClass ?? 'text-gray-600',
+                                    customColor: s?.customColor,
+                                } as any}
                                 formatOptionLabel={(option: any) => (
                                     <div className="flex items-center">
-                                        <span className={`badge-dot bg-${option.color}`}></span>
-                                        <span className={`ml-2 rtl:mr-2 capitalize font-semibold text-${option.color}`}>{option.label}</span>
+                                        <span
+                                            className={`badge-dot ${option.dotClass || 'bg-gray-400'}`}
+                                            style={option.customColor ? { backgroundColor: option.customColor } : undefined}
+                                        ></span>
+                                        <span
+                                            className={`ml-2 rtl:mr-2 capitalize font-semibold ${option.textClass || 'text-gray-600'}`}
+                                            style={option.customColor ? { color: option.customColor } : undefined}
+                                        >
+                                            {option.label}
+                                        </span>
                                     </div>
                                 )}
                                 style={{

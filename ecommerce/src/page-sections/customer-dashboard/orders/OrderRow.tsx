@@ -15,30 +15,13 @@ import Typography, { H5, Small } from "@component/Typography";
 import type { OrderSummary } from "@/types/storefront";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 
-type StatusColor = "error" | "secondary" | "success" | "warning" | "primary";
-
-const STATUS_COLORS: Record<string, StatusColor> = {
-  cancelled: "error",
-  canceled: "error",
-  pending: "warning",
-  processing: "warning",
-  confirmed: "primary",
-  shipped: "primary",
-  fulfilled: "success",
-  completed: "success",
-  delivered: "success"
-};
-
 // =================================================
 type OrderRowProps = { order: OrderSummary };
 // =================================================
 
 export default function OrderRow({ order }: OrderRowProps) {
-  const statusKey = (order.status ?? "pending").toLowerCase();
-  const colorKey = STATUS_COLORS[statusKey] ?? "secondary";
-  const statusLabel = order.status
-    ? order.status.replace(/[-_]+/g, " ")
-    : "Unknown";
+  const statusLabel = order.statusLabel ?? order.status ?? "Pendiente";
+  const badgeVariant = order.statusBadgeColor ?? "secondary";
   const placedDate = format(new Date(order.placedAt), "MMM dd, yyyy");
   const total = order.summary.grandTotal;
   const { formatMoney } = useMoneyFormatter();
@@ -60,8 +43,8 @@ export default function OrderRow({ order }: OrderRowProps) {
         </H5>
 
         <Box m="6px">
-          <Chip p="0.25rem 1rem" bg={`${colorKey}.light`}>
-            <Small color={`${colorKey}.main`}>{statusLabel}</Small>
+          <Chip p="0.25rem 1rem" bg={`${badgeVariant}.light`}>
+            <Small color={`${badgeVariant}.main`}>{statusLabel}</Small>
           </Chip>
         </Box>
 

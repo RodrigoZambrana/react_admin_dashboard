@@ -251,7 +251,12 @@ export default function MercadoPagoCardBrick({
               }
             },
             paymentMethods: {
-              maxInstallments
+              minInstallments: 1,
+              maxInstallments,
+              installments: {
+                min: 1,
+                max: maxInstallments
+              }
             }
           },
           callbacks: {

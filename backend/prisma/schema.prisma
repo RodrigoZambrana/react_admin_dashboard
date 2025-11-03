@@ -765,12 +765,37 @@ model Order {
   workOrders            WorkOrder[]
   productionOrders      ProductionOrder[]         @relation("OrderProduction")
   storefrontPayments    StorefrontPaymentIntent[]
+  timelineEvents        OrderTimelineEvent[]
 
   @@unique([originId])
   @@unique([convertedOrderId])
   @@index([documentType, statusId, customerId, createdAt])
   @@index([documentType, createdAt])
   @@index([validUntil])
+}
+
+model OrderTimelineEvent {
+  id              Int       @id @default(autoincrement())
+  eventId         String    @unique
+  orderId         Int
+  order           Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type            String
+  timestamp       DateTime  @default(now())
+  actor           String?
+  amount          Decimal?  @db.Decimal(18, 2)
+  currency        String?
+  paymentMethod   String?
+  remainingAmount Decimal?  @db.Decimal(18, 2)
+  estimateDate    DateTime?
+  statusFrom      String?
+  statusTo        String?
+  message         String?
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([orderId, timestamp])
+  @@index([orderId, type])
 }
 
 model OrderItem {

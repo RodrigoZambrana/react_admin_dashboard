@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import classNames from 'classnames'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -39,7 +40,7 @@ const NotificationToggle = ({
     return (
         <div className={classNames('text-2xl', className)}>
             {dot ? (
-                <Badge badgeStyle={{ top: '3px', right: '6px' }}>
+                <Badge badgeStyle={{ top: '3px', right: '6px' }} innerClass="bg-red-500">
                     <HiOutlineBell />
                 </Badge>
             ) : (
@@ -79,12 +80,68 @@ const formatMetadataSummary = (item: NotificationItem): string | null => {
     return null
 }
 
+const hasEntityId = (value: unknown): value is string | number => {
+    if (value === null || value === undefined) {
+        return false
+    }
+    if (typeof value === 'string') {
+        return value.trim().length > 0
+    }
+    return typeof value === 'number'
+}
+
+const resolveNotificationPath = (item: NotificationItem): string => {
+    const metadata = item.metadata ?? {}
+    const redirect = typeof metadata.redirectPath === 'string' ? metadata.redirectPath.trim() : ''
+    if (redirect) {
+        return redirect
+    }
+    const rawType =
+        (typeof metadata.type === 'string' && metadata.type) ||
+        (typeof item.eventType === 'string' ? item.eventType.toLowerCase() : '')
+    const type = rawType ? rawType.toLowerCase() : ''
+    const entityId =
+        metadata.entityId ??
+        metadata.orderId ??
+        metadata.paymentId ??
+        item.orderId ??
+        item.paymentId ??
+        null
+
+    if (type === 'order') {
+        if (hasEntityId(entityId)) {
+            return `/app/sales/order-details/${entityId}`
+        }
+        return '/app/sales/order-list'
+    }
+    if (type === 'quote') {
+        if (hasEntityId(entityId)) {
+            return `/app/sales/budget-details/${entityId}`
+        }
+        return '/app/sales/budget-list'
+    }
+    if (type === 'payment') {
+        if (hasEntityId(entityId)) {
+            return `/app/accounting/payments?paymentId=${entityId}`
+        }
+        return '/app/accounting/payments'
+    }
+    if (type === 'customer') {
+        if (hasEntityId(entityId)) {
+            return `/app/crm/customer-details?id=${entityId}`
+        }
+        return '/app/crm/customers'
+    }
+    return `/app/notifications/${item.id}`
+}
+
 const _Notification = ({ className }: { className?: string }) => {
     const dispatch = useAppDispatch()
     const notifications = useAppSelector(selectNotifications)
     const { unreadCount, loading } = useAppSelector(selectNotificationsMeta)
     const signedIn = useAppSelector((state) => state.auth.session.signedIn)
     const { t, i18n } = useTranslation()
+    const navigate = useNavigate()
     const eventSourceRef = useRef<EventSource | null>(null)
     const hasLoadedRef = useRef(false)
 
@@ -160,14 +217,26 @@ const _Notification = ({ className }: { className?: string }) => {
         void dispatch(markNotificationsRead({ markAll: true }))
     }, [dispatch, unreadCount, signedIn])
 
-    const onMarkAsRead = useCallback(
-        (id: number) => {
+    const handleNotificationClick = useCallback(
+        async (entry: NotificationEntry) => {
             if (!signedIn) {
                 return
             }
-            void dispatch(markNotificationsRead({ ids: [id] }))
+            try {
+                await dispatch(markNotificationsRead({ ids: [entry.id] })).unwrap()
+            } catch (error) {
+                // eslint-disable-next-line no-console
+                console.error('Failed to mark notification as read', error)
+            }
+            try {
+                const path = resolveNotificationPath(entry)
+                navigate(path)
+            } catch (err) {
+                // eslint-disable-next-line no-console
+                console.error('Failed to redirect from notification:', err)
+            }
         },
-        [dispatch, signedIn],
+        [dispatch, navigate, signedIn],
     )
 
     const noResult = entries.length === 0 && !loading
@@ -205,10 +274,13 @@ const _Notification = ({ className }: { className?: string }) => {
                                 <div
                                     key={item.id}
                                     className={classNames(
-                                        'relative flex px-4 py-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-black/20',
+                                        'relative flex px-4 py-4 cursor-pointer transition-colors hover:bg-gray-50 active:bg-gray-100 dark:hover:bg-black/20',
                                         'border-b border-gray-200 dark:border-gray-600 last:border-b-0',
+                                        item.isUnread
+                                            ? 'bg-blue-50/80 dark:bg-blue-500/20'
+                                            : 'bg-white dark:bg-transparent opacity-75',
                                     )}
-                                    onClick={() => onMarkAsRead(item.id)}
+                                    onClick={() => void handleNotificationClick(item)}
                                 >
                                     <Avatar
                                         shape="circle"

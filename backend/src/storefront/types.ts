@@ -80,6 +80,9 @@ export interface StorefrontConfig {
       siteKey: string | null
     }
   }
+  resilience?: {
+    snapshotFallbackEnabled: boolean
+  }
 }
 
 export interface CompanyProfileDto {
@@ -224,6 +227,7 @@ export interface CreateOrderInput {
   items: CheckoutItemInput[]
   notes?: string
   paymentIntentId?: string
+  checkoutToken?: string
 }
 
 export interface CheckoutLineItem {
@@ -268,8 +272,15 @@ export interface OrderSummary {
   reference?: string
   placedAt: string
   status: string
+  statusLabel?: string
+  statusColor?: string
+  statusBadgeColor?: string
   paymentStatus: string
+  paymentStatusLabel?: string
+  paymentStatusColor?: string
+  paymentStatusBadgeColor?: string
   fulfillmentStatus: string
+  fulfillmentStatusLabel?: string
   items: CheckoutLineItem[]
   summary: CheckoutSummary
   shippingAddress: CreateOrderInput['shippingAddress']

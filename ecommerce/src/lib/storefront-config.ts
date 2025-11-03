@@ -4,6 +4,8 @@ import type { HomeLayoutDefinition, StorefrontConfig } from "@/types/storefront"
 
 import { StorefrontApi, isApiError } from "./api/storefront";
 import { DEFAULT_HOME_LAYOUTS, FALLBACK_LAYOUT_KEY } from "./layouts/homeLayouts";
+import { readJsonCache, writeJsonCache } from "./persistent-cache";
+import { setSnapshotFallbackEnabled } from "./resilience-flags";
 
 const FALLBACK_CONFIG: StorefrontConfig = {
   defaultLayout: FALLBACK_LAYOUT_KEY,
@@ -91,30 +93,68 @@ const FALLBACK_CONFIG: StorefrontConfig = {
   integrations: {
     google: { enabled: false },
     recaptcha: { enabled: false, siteKey: null }
+  },
+  resilience: {
+    snapshotFallbackEnabled: true
   }
+};
+
+let lastConfigErrorSignature: string | null = null;
+
+const STOREFRONT_CONFIG_CACHE_KEY = "storefront-config";
+
+const mergeConfig = (config: StorefrontConfig): StorefrontConfig => {
+  const layouts = config.layouts?.length ? config.layouts : DEFAULT_HOME_LAYOUTS;
+  const defaultLayout =
+    config.defaultLayout && layouts.some((layout) => layout.key === config.defaultLayout)
+      ? config.defaultLayout
+      : layouts.find((layout) => layout.isDefault)?.key ?? FALLBACK_LAYOUT_KEY;
+
+  return {
+    ...FALLBACK_CONFIG,
+    ...config,
+    layouts,
+    defaultLayout
+  };
 };
 
 export const getStorefrontConfig = cache(async (): Promise<StorefrontConfig> => {
   try {
     const config = await StorefrontApi.getConfig();
-    const layouts = config.layouts?.length ? config.layouts : DEFAULT_HOME_LAYOUTS;
-    const defaultLayout =
-      config.defaultLayout && layouts.some((layout) => layout.key === config.defaultLayout)
-        ? config.defaultLayout
-        : layouts.find((layout) => layout.isDefault)?.key ?? FALLBACK_LAYOUT_KEY;
-
-    return {
-      ...FALLBACK_CONFIG,
-      ...config,
-      layouts,
-      defaultLayout
-    };
+    const merged = mergeConfig(config);
+    await writeJsonCache(STOREFRONT_CONFIG_CACHE_KEY, merged);
+    lastConfigErrorSignature = null;
+    setSnapshotFallbackEnabled(merged.resilience?.snapshotFallbackEnabled !== false);
+    return merged;
   } catch (error) {
     if (isApiError(error)) {
-      console.error(`[storefront] Failed to load config via API (${error.status}):`, error.message);
+      const signature = `${error.status}:${error.code ?? ""}:${error.message ?? ""}`;
+      if (signature !== lastConfigErrorSignature) {
+        console.warn(
+          `[storefront] API config unavailable (${error.status}). Using cached configuration when available.`,
+          error.message,
+        );
+        lastConfigErrorSignature = signature;
+      }
     } else {
-      console.error("[storefront] Failed to load config, falling back to defaults:", error);
+      const signature = `unknown:${(error as Error)?.message ?? "unknown"}`;
+      if (signature !== lastConfigErrorSignature) {
+        console.warn(
+          "[storefront] Unexpected error loading config. Using cached configuration when available.",
+          error,
+        );
+        lastConfigErrorSignature = signature;
+      }
     }
+    const cached = await readJsonCache<StorefrontConfig>(STOREFRONT_CONFIG_CACHE_KEY);
+    if (cached) {
+      console.info("[storefront] Serving cached storefront config snapshot from", cached.storedAt);
+      const normalized = mergeConfig(cached.value);
+      setSnapshotFallbackEnabled(normalized.resilience?.snapshotFallbackEnabled !== false);
+      return normalized;
+    }
+    console.info("[storefront] No cached config available. Falling back to defaults.");
+    setSnapshotFallbackEnabled(FALLBACK_CONFIG.resilience?.snapshotFallbackEnabled !== false);
     return FALLBACK_CONFIG;
   }
 });

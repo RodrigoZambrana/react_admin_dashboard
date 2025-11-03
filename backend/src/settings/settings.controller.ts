@@ -169,6 +169,7 @@ export class SettingsController {
   private readonly companySingletonKey = 'default'
 
   private readonly disclaimerConfigKey = 'documentDisclaimerHtml'
+  private readonly storefrontSnapshotFallbackKey = 'storefront:snapshotFallbackEnabled'
 
   private readonly defaultCalendarEventTypes = [
     { name: 'Reunión', color: '#2563eb' },
@@ -1703,6 +1704,7 @@ export class SettingsController {
     const cfg = await this.prisma.systemConfig.findMany()
     const map = new Map(cfg.map((c) => [c.key, c.value]))
     const taxRate = Number(map.get('taxRate') ?? '22')
+    const storefrontSnapshotFallbackEnabled = map.get(this.storefrontSnapshotFallbackKey) !== 'false'
     const baseCurrency = await this.currencyConversion.getBaseCurrency()
     const exchangeRates = await this.currencyConversion.listRates(baseCurrency)
     const ratesPayload: { quote: string; rate: number; updatedAt: Date | null }[] = exchangeRates.map((rate) => ({
@@ -1718,6 +1720,7 @@ export class SettingsController {
       currencyBase: baseCurrency,
       exchangeRates: ratesPayload,
       currencyOptions: this.currencyConversion.getStandardCurrencies(),
+      storefrontSnapshotFallbackEnabled,
     }
   }
 
@@ -1725,7 +1728,12 @@ export class SettingsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   async updateSystemConfig(
-    @Body() body: { taxRate?: number; currencyBase?: string; currencies?: string[] },
+    @Body() body: {
+      taxRate?: number
+      currencyBase?: string
+      currencies?: string[]
+      storefrontSnapshotFallbackEnabled?: boolean
+    },
   ) {
     if (body.currencies) {
       const normalized = body.currencies
@@ -1756,6 +1764,14 @@ export class SettingsController {
           create: { key: 'taxRate', value: String(value) },
         })
       }
+    }
+    if (body.storefrontSnapshotFallbackEnabled !== undefined) {
+      const flag = body.storefrontSnapshotFallbackEnabled ? 'true' : 'false'
+      await this.prisma.systemConfig.upsert({
+        where: { key: this.storefrontSnapshotFallbackKey },
+        update: { value: flag },
+        create: { key: this.storefrontSnapshotFallbackKey, value: flag },
+      })
     }
     return true
   }

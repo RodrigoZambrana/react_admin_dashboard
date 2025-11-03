@@ -171,7 +171,7 @@ const vendorPageList = [
   },
   {
     imgUrl: "/assets/images/landing/customer/page-1.png",
-    previewUrl: "/orders/f0ba538b-c8f3-45ce-b6c1-209cf07ba5f8",
+    previewUrl: "/account/orders/f0ba538b-c8f3-45ce-b6c1-209cf07ba5f8",
     title: "Order Details",
     new: false
   }
@@ -180,55 +180,55 @@ const vendorPageList = [
 const customerPageList = [
   {
     imgUrl: "/assets/images/landing/customer/page-5.png",
-    previewUrl: "/profile",
+    previewUrl: "/account/profile",
     title: "Profile",
     new: false
   },
   {
     imgUrl: "/assets/images/landing/customer/page-6.png",
-    previewUrl: "/profile/edit",
+    previewUrl: "/account/profile/edit",
     title: "Edit Profile",
     new: false
   },
   {
     imgUrl: "/assets/images/landing/customer/page-2.png",
-    previewUrl: "/orders",
+    previewUrl: "/account/orders",
     title: "Orders",
     new: false
   },
   {
     imgUrl: "/assets/images/landing/customer/page-1.png",
-    previewUrl: "/address",
+    previewUrl: "/account/address",
     title: "Addresses",
     new: false
   },
   {
     imgUrl: "/assets/images/landing/customer/page-3.png",
-    previewUrl: "/orders/f0ba538b-c8f3-45ce-b6c1-209cf07ba5f8",
+    previewUrl: "/account/orders/f0ba538b-c8f3-45ce-b6c1-209cf07ba5f8",
     title: "Order Details",
     new: false
   },
   {
     imgUrl: "/assets/images/landing/customer/page-4.png",
-    previewUrl: "/payment-methods",
+    previewUrl: "/account/payment-methods",
     title: "Payment Methods",
     new: false
   },
   {
     imgUrl: "/assets/images/landing/customer/page-7.png",
-    previewUrl: "/support-tickets",
+    previewUrl: "/account/support-tickets",
     title: "Support Tickets",
     new: false
   },
   {
     imgUrl: "/assets/images/landing/customer/page-8.png",
-    previewUrl: "/support-tickets/product-broken.-i-need-refund",
+    previewUrl: "/account/support-tickets/product-broken.-i-need-refund",
     title: "Ticket Details",
     new: false
   },
   {
     imgUrl: "/assets/images/landing/customer/page-9.png",
-    previewUrl: "/wish-list",
+    previewUrl: "/account/wish-list",
     title: "Wish List",
     new: false
   }

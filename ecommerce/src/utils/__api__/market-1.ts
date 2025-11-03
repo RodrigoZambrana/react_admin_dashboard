@@ -14,9 +14,12 @@ import {
   flattenCategorySummaries,
 } from "@/lib/storefront/adapters";
 
-const ALLOW_MOCK_FALLBACKS =
-  process.env.NEXT_PUBLIC_ENABLE_STOREFRONT_FALLBACKS === "true" ||
-  process.env.ENABLE_STOREFRONT_FALLBACKS === "true";
+const fallbackEnvValue =
+  process.env.NEXT_PUBLIC_ENABLE_STOREFRONT_FALLBACKS ??
+  process.env.ENABLE_STOREFRONT_FALLBACKS ??
+  "true";
+
+const ALLOW_MOCK_FALLBACKS = fallbackEnvValue !== "false" && fallbackEnvValue !== "0";
 
 type Market1DataModule = typeof import("@/__server__/__db__/market-1/data");
 

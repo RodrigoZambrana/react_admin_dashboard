@@ -23,6 +23,7 @@ import {
   divideDecimals,
 } from '../common/currency/money.util'
 import { OrderFinanceService } from './order-finance.service'
+import { OrderTimelineService } from './order-timeline.service'
 import { NotificationOrchestratorService } from '../notifications/notification-orchestrator.service'
 import { EmailService } from '../email/email.service'
 import {
@@ -98,6 +99,7 @@ export class SalesDocumentsService {
     private readonly prisma: PrismaService,
     private readonly currencyConversion: CurrencyConversionService,
     private readonly orderFinance: OrderFinanceService,
+    private readonly timeline: OrderTimelineService,
     private readonly notifications: NotificationOrchestratorService,
     private readonly email: EmailService,
   ) {}
@@ -163,6 +165,38 @@ export class SalesDocumentsService {
     const validity = new Date(now)
     validity.setDate(validity.getDate() + 30)
     return validity
+  }
+
+  private resolveDeliveryEstimate(
+    date: Date,
+    estimatedMin?: number | null,
+    estimatedMax?: number | null,
+  ) {
+    const sanitize = (value?: number | null) => {
+      if (value === null || value === undefined) {
+        return null
+      }
+      const numeric = Number(value)
+      if (!Number.isFinite(numeric)) {
+        return null
+      }
+      return Math.max(0, Math.round(numeric))
+    }
+    const minDays = sanitize(estimatedMin)
+    const maxDays = sanitize(estimatedMax)
+    if (minDays === null && maxDays === null) {
+      return null
+    }
+    const baseline = new Date(date)
+    baseline.setHours(0, 0, 0, 0)
+    const offset = maxDays ?? minDays ?? 0
+    const estimate = new Date(baseline)
+    estimate.setDate(estimate.getDate() + offset)
+    return {
+      estimate,
+      minDays,
+      maxDays,
+    }
   }
 
   private sanitizeDisclaimer(value?: string | null) {
@@ -1766,6 +1800,43 @@ export class SalesDocumentsService {
     })
     await this.orderFinance.recalculateOrderFinancials(created.id)
     if (documentType === DocumentType.ORDER) {
+      try {
+        await this.timeline.ensureOrderReceived(created.id, created.createdAt, 'system')
+        await this.timeline.ensurePaymentWaiting(
+          created.id,
+          monetary.grandTotal,
+          monetary.orderCurrency,
+          undefined,
+          created.createdAt,
+        )
+        const estimate = this.resolveDeliveryEstimate(
+          created.date ?? created.createdAt,
+          created.estimatedMin ?? null,
+          created.estimatedMax ?? null,
+        )
+        if (estimate) {
+          const metadata: Record<string, unknown> = {}
+          if (estimate.minDays !== null) {
+            metadata.estimatedMinDays = estimate.minDays
+          }
+          if (estimate.maxDays !== null) {
+            metadata.estimatedMaxDays = estimate.maxDays
+          }
+          await this.timeline.recordEstimateSnapshot(created.id, {
+            estimateDate: estimate.estimate,
+            actor: 'system',
+            type: 'ESTIMATE_SET',
+            timestamp: created.createdAt,
+            metadata: Object.keys(metadata).length ? metadata : undefined,
+          })
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Failed to initialize timeline for order ${created.id}: ${(error as Error).message}`,
+        )
+      }
+    }
+    if (documentType === DocumentType.ORDER) {
       this.notifications
         .notifyOrderReceived(created.id)
         .catch((error) => this.logger.error(`Failed to dispatch notifications for order ${created.id}: ${(error as Error).message}`))
@@ -1846,7 +1917,7 @@ export class SalesDocumentsService {
       })
     }
 
-    await this.prisma.order.update({
+    const updated = await this.prisma.order.update({
       where: { id },
       data: {
         customerId,
@@ -1893,9 +1964,69 @@ export class SalesDocumentsService {
           create: monetary.items,
         },
       },
+      select: {
+        id: true,
+        date: true,
+        estimatedMin: true,
+        estimatedMax: true,
+        createdAt: true,
+        updatedAt: true,
+        orderCurrency: true,
+      },
     })
     await deleteSalesDocumentFile(existing.documentFilePath)
     await this.orderFinance.recalculateOrderFinancials(existing.id)
+    if (documentType === DocumentType.ORDER) {
+      try {
+        const previousEstimate = this.resolveDeliveryEstimate(
+          existing.date ?? existing.createdAt ?? new Date(),
+          existing.estimatedMin ?? null,
+          existing.estimatedMax ?? null,
+        )
+        const currentEstimate = this.resolveDeliveryEstimate(
+          updated.date ?? updated.createdAt,
+          updated.estimatedMin ?? null,
+          updated.estimatedMax ?? null,
+        )
+        if (
+          currentEstimate &&
+          (!previousEstimate ||
+            currentEstimate.estimate.getTime() !== previousEstimate.estimate.getTime() ||
+            currentEstimate.minDays !== previousEstimate.minDays ||
+            currentEstimate.maxDays !== previousEstimate.maxDays)
+        ) {
+          const metadata: Record<string, unknown> = {}
+          if (previousEstimate) {
+            metadata.previousEstimateDate = previousEstimate.estimate.toISOString()
+            if (previousEstimate.minDays !== null) {
+              metadata.previousEstimatedMinDays = previousEstimate.minDays
+            }
+            if (previousEstimate.maxDays !== null) {
+              metadata.previousEstimatedMaxDays = previousEstimate.maxDays
+            }
+          }
+          metadata.nextEstimateDate = currentEstimate.estimate.toISOString()
+          if (currentEstimate.minDays !== null) {
+            metadata.nextEstimatedMinDays = currentEstimate.minDays
+          }
+          if (currentEstimate.maxDays !== null) {
+            metadata.nextEstimatedMaxDays = currentEstimate.maxDays
+          }
+          await this.timeline.recordEstimateSnapshot(existing.id, {
+            estimateDate: currentEstimate.estimate,
+            previousEstimate: previousEstimate?.estimate ?? null,
+            actor: 'system',
+            type: previousEstimate ? 'ESTIMATE_UPDATED' : 'ESTIMATE_SET',
+            timestamp: updated.updatedAt ?? new Date(),
+            metadata,
+          })
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Failed to append estimate timeline event for order ${existing.id}: ${(error as Error).message}`,
+        )
+      }
+    }
     return true
   }
 
@@ -1938,6 +2069,19 @@ export class SalesDocumentsService {
       this.notifications
         .notifyOrderStatusChanged(id, previousStatusId, body.status)
         .catch((error) => this.logger.error(`Failed to dispatch status change notifications for order ${id}: ${(error as Error).message}`))
+      try {
+        await this.timeline.recordStatusTransition({
+          orderId: id,
+          previousStatusId,
+          nextStatusId: body.status,
+          actor: 'admin',
+          timestamp: new Date(),
+        })
+      } catch (error) {
+        this.logger.warn(
+          `Failed to append status change timeline event for order ${id}: ${(error as Error).message}`,
+        )
+      }
     } else if (documentType === DocumentType.BUDGET) {
       this.email
         .sendBudgetStatusChanged({ orderId: id, previousStatusId, nextStatusId: body.status })
