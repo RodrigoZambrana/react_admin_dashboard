@@ -75,6 +75,12 @@ type SubmitActions = {
   reject?: (reason?: unknown) => void;
 };
 
+type MercadoPagoBrickController = {
+  destroy?: () => void;
+  unmount?: () => void;
+  update?: (settings: Record<string, unknown>) => Promise<void>;
+};
+
 type SubmitEventArg =
   | CardPaymentFormData
   | {
@@ -159,7 +165,7 @@ const sanitizeInstallments = (value: number | string | undefined): number => {
 
 const isValidEmail = (value: string) => /\S+@\S+\.\S+/.test(value.trim());
 
-const destroyController = (controller: MercadoPagoBricksController | null) => {
+const destroyController = (controller: MercadoPagoBrickController | null) => {
   if (!controller) return;
   if (typeof controller.destroy === "function") {
     controller.destroy();
@@ -211,7 +217,7 @@ export default function MercadoPagoCardBrick({
   onError
 }: MercadoPagoCardBrickProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const controllerRef = useRef<MercadoPagoBricksController | null>(null);
+  const controllerRef = useRef<MercadoPagoBrickController | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

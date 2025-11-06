@@ -3,6 +3,7 @@ import { flattenCategorySummaries, FALLBACK_CATEGORY_IMAGE } from "@/lib/storefr
 import type { CategorySummary } from "@/types/storefront";
 import CategoryProductShelfClient from "./CategoryProductShelfClient";
 import { mapProductSummaryToCardProps } from "./mapProductSummaryToCard";
+import type { StorefrontProductCardProps } from "@component/product-cards/StorefrontProductCard";
 
 export interface CategoryProductShelfProps {
   title: string;
@@ -99,7 +100,7 @@ export default async function CategoryProductShelf(props: CategoryProductShelfPr
       ? defaultCategorySlug
       : filteredCategories[0].slug;
 
-  let initialProducts = [];
+  let initialProducts: StorefrontProductCardProps[] = [];
 
   try {
     const response = await StorefrontApi.listProducts({

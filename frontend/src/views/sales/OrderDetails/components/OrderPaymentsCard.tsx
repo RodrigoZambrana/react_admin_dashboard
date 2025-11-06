@@ -119,7 +119,7 @@ const OrderPaymentsCard = ({
                     {orderId && (
                         <p className="text-sm text-gray-500 dark:text-gray-300">
                             {t('sales.orders.payments.orderLabel', {
-                                defaultValue: 'Order #{id}',
+                                defaultValue: 'Order #{{id}}',
                                 id: orderId,
                             })}
                         </p>

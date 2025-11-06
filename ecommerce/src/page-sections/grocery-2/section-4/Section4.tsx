@@ -27,12 +27,12 @@ export default function Section4({ title, products }: Props) {
               <ProductCard10
                 id={item.id}
                 slug={item.slug}
-                unit={item.unit}
+                unit={typeof item.unit === "string" ? item.unit : ""}
                 title={item.title}
                 price={item.price}
                 off={item.discount}
                 rating={item.rating}
-                images={item.images}
+                images={item.images ?? []}
                 imgUrl={item.thumbnail}
               />
             </Box>

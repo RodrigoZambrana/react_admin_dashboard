@@ -45,7 +45,7 @@ export default function MobileCategoryNav() {
   useEffect(() => setSuggestedList(suggestion), []);
 
   // HIDDEN IN LARGE DEVICE
-  if (width > 900) return null;
+  if ((width ?? 0) > 900) return null;
 
   return (
     <MobileCategoryNavStyle>

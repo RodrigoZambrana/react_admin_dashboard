@@ -213,7 +213,7 @@ export default function ProductCard9({
                 {calculateDiscount(price, off as number)}
               </H5>
 
-              {off > 0 && (
+              {typeof off === "number" && off > 0 && (
                 <SemiSpan fontWeight="600">
                   <del>{currency(price)}</del>
                 </SemiSpan>

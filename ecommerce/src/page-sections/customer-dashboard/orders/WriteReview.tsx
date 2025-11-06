@@ -7,11 +7,13 @@ import { Button } from "@component/buttons";
 import Typography, { H6 } from "@component/Typography";
 import NoImagePlaceholder from "@component/NoImagePlaceholder";
 import { isMissingProductImage } from "@/lib/utils/image";
+import { useTranslation } from "@/state/i18n-context";
 
 import type { CheckoutLineItem } from "@/types/storefront";
 import { formatOrderMoney } from "@common/currency/orderMoney";
 
 export default function WriteReview({ item }: { item: CheckoutLineItem }) {
+  const t = useTranslation();
   const price = formatOrderMoney(item.price.amount, item.price.currency);
 
   const productSpecs = Array.isArray(item.specifications)
@@ -27,6 +29,7 @@ export default function WriteReview({ item }: { item: CheckoutLineItem }) {
     : [];
   const propertiesText = productSpecs.length > 0 ? productSpecs.join(", ") : null;
   const hasImage = item.image && !isMissingProductImage(item.image);
+  const propertiesLabel = propertiesText ?? t("Not specified");
 
   return (
     <FlexBox px="1rem" py="0.5rem" flexWrap="wrap" alignItems="center" key={`${item.productId}-${item.name}`}>
@@ -34,16 +37,23 @@ export default function WriteReview({ item }: { item: CheckoutLineItem }) {
         {hasImage ? (
           <Avatar src={item.image!} size={64} />
         ) : (
-          <NoImagePlaceholder width={64} height={64} borderRadius="50%" text="No image available" />
+          <NoImagePlaceholder
+            width={64}
+            height={64}
+            borderRadius="50%"
+            text={t("No image available")}
+          />
         )}
 
         <Box ml="20px">
-          <H6 my="0px">{item.name ?? `Item ${item.productId}`}</H6>
+          <H6 my="0px">
+            {item.name ?? t("Item {id}", { values: { id: item.productId } })}
+          </H6>
           <Typography fontSize="14px" color="text.muted">
             {price} × {item.quantity}
           </Typography>
           <Typography fontSize="14px" color="text.muted">
-            Product properties: {propertiesText ?? "Not specified"}
+            {t("Product properties: {properties}", { values: { properties: propertiesLabel } })}
           </Typography>
         </Box>
       </FlexBox>
@@ -54,7 +64,7 @@ export default function WriteReview({ item }: { item: CheckoutLineItem }) {
 
       <FlexBox flex="160px" m="6px" alignItems="center">
         <Button variant="text" color="primary">
-          <Typography fontSize="14px">Write a Review</Typography>
+          <Typography fontSize="14px">{t("Write a Review")}</Typography>
         </Button>
       </FlexBox>
     </FlexBox>

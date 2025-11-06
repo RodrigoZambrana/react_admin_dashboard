@@ -36,7 +36,7 @@ export default function Section3({ products }: Props) {
                 price={item.price}
                 off={item.discount}
                 rating={item.rating}
-                images={item.images}
+                images={item.images ?? []}
                 imgUrl={item.thumbnail}
               />
             </Box>

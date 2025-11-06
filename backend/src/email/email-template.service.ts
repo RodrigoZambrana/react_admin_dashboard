@@ -30,6 +30,7 @@ type RenderResult = {
 const EVENT_LABELS: Record<string, Record<string, string>> = {
   en: {
     'order.received': 'We received your order',
+    'order.received_admin': 'New order received',
     'order.status.pending': 'Order pending',
     'order.status.paid': 'Payment confirmed',
     'order.status.delivered': 'Order delivered',
@@ -45,6 +46,7 @@ const EVENT_LABELS: Record<string, Record<string, string>> = {
   },
   es: {
     'order.received': 'Recibimos tu pedido',
+    'order.received_admin': 'Nuevo pedido recibido',
     'order.status.pending': 'Pedido pendiente',
     'order.status.paid': 'Pago confirmado',
     'order.status.delivered': 'Pedido entregado',
@@ -417,10 +419,11 @@ export class EmailTemplateService implements OnModuleInit {
       }
       switch (event) {
         case 'order.received':
+        case 'order.received_admin':
           return finalize(
             isSpanish
-              ? `Nuevo ${orderRef} generado por ${customerName}${dateFragment(orderDate, 'on', 'el')}.`
-              : `New ${orderRef} placed by ${customerName}${dateFragment(orderDate, 'on', 'el')}.`,
+              ? `Nuevo ${orderNumber ? `pedido #${orderNumber}` : 'pedido'} generado por ${customerName}${dateFragment(orderDate, 'on', 'el')}.`
+              : `New ${orderNumber ? `order #${orderNumber}` : 'order'} placed by ${customerName}${dateFragment(orderDate, 'on', 'el')}.`,
           )
         case 'order.status.paid':
           return finalize(

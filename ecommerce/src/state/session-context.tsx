@@ -11,10 +11,12 @@ import {
 } from "react";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { extractApiErrorMessage } from "@/lib/api/errors";
 import { env } from "@/lib/env";
 import { looksLikePhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
 import type { AuthSession, CustomerProfile } from "@/types/storefront";
 import { useToast } from "@/contexts/ToastContext";
+import { useI18n } from "@/state/i18n-context";
 
 type SessionStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -38,6 +40,7 @@ export interface RegisterPayload {
   firstName: string;
   lastName: string;
   phone?: string;
+  locale?: string;
 }
 
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
@@ -71,11 +74,16 @@ const normalizeCustomerProfile = (profile: CustomerProfile): CustomerProfile => 
     typeof profile?.wishlistCount === "number" && Number.isFinite(profile.wishlistCount)
       ? Math.max(0, Math.trunc(profile.wishlistCount))
       : wishlistProductIds.length;
+  const preferredLocale =
+    profile?.preferredLocale === "en" || profile?.preferredLocale === "es"
+      ? profile.preferredLocale
+      : undefined;
 
   return {
     ...profile,
     wishlistProductIds,
-    wishlistCount
+    wishlistCount,
+    preferredLocale
   };
 };
 
@@ -163,6 +171,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
   const [error, setError] = useState<string | null>(null);
   const isBootstrapped = useRef(false);
   const toast = useToast();
+  const { locale, setLocale } = useI18n();
 
   useEffect(() => {
     if (isBootstrapped.current) return;
@@ -176,6 +185,14 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
     isBootstrapped.current = true;
   }, []);
 
+  useEffect(() => {
+    const preferred = session?.customer?.preferredLocale;
+    const normalized = preferred === "en" || preferred === "es" ? preferred : null;
+    if (normalized && normalized !== locale) {
+      setLocale(normalized);
+    }
+  }, [locale, session?.customer?.preferredLocale, setLocale]);
+
   const clearError = useCallback(() => setError(null), []);
 
   const handleAuthSuccess = useCallback(
@@ -185,6 +202,13 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       setStatus("authenticated");
       persistSession(normalizedSession);
       setError(null);
+
+      const preferredLocale = normalizedSession.customer.preferredLocale;
+      const normalizedLocale =
+        preferredLocale === "en" || preferredLocale === "es" ? preferredLocale : null;
+      if (normalizedLocale && normalizedLocale !== locale) {
+        setLocale(normalizedLocale);
+      }
 
       const customerName = [normalizedSession.customer.firstName, normalizedSession.customer.lastName]
         .filter(Boolean)
@@ -204,14 +228,15 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
 
       return normalizedSession;
     },
-    [toast]
+    [locale, setLocale, toast]
   );
 
   const handleAuthError = useCallback(
     (cause: unknown, origin: "login" | "register" = "login") => {
       let message = "Unable to authenticate. Please try again.";
       if (isApiError(cause)) {
-        message = cause.payload?.message ?? cause.message ?? message;
+        const resolved = extractApiErrorMessage(cause);
+        message = resolved || message;
       } else if (cause instanceof Error) {
         message = cause.message;
       }
@@ -554,7 +579,8 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           password: payload.password,
           firstName: payload.firstName.trim(),
           lastName: payload.lastName.trim(),
-          phone: normalizedPhone
+          phone: normalizedPhone ?? undefined,
+          locale: payload.locale ?? locale ?? "es"
         });
         return handleAuthSuccess(sessionResponse, "register");
       } catch (cause) {
@@ -562,7 +588,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         throw cause;
       }
     },
-    [handleAuthError, handleAuthSuccess]
+    [handleAuthError, handleAuthSuccess, locale]
   );
 
   const logout = useCallback(async () => {

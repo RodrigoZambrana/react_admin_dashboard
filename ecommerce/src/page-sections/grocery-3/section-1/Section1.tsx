@@ -25,7 +25,13 @@ export default function Section1({ carouselData }: Props) {
             <StyledGrid container>
               <GridItemOne item md={6} sm={6} xs={12}>
                 <div className="img">
-                  <NextImage priority width={500} height={500} src={item.imgUrl} alt="bonik" />
+                  <NextImage
+                    priority
+                    width={500}
+                    height={500}
+                    src={item.imgUrl ?? "/assets/images/products/placeholder.png"}
+                    alt="bonik"
+                  />
                 </div>
               </GridItemOne>
 

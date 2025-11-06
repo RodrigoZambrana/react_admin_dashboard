@@ -114,17 +114,17 @@ const ProductionOrdersTable = ({
             {
                 header: t('text.columns.id'),
                 accessorKey: 'id',
-                cell: ({ row }) => `#${row.id}`,
+                cell: ({ row }) => `#${row.original.id}`,
             },
             {
                 header: t('sales.productionOrders.columns.order', { defaultValue: 'Order' }),
                 accessorKey: 'order',
                 cell: ({ row }) => (
                     <div>
-                        <div className="font-medium">#{row.order.id}</div>
-                        {row.order.customer && (
+                        <div className="font-medium">#{row.original.order.id}</div>
+                        {row.original.order.customer && (
                             <div className="text-xs text-gray-500 dark:text-gray-300">
-                                {row.order.customer.name}
+                                {row.original.order.customer.name}
                             </div>
                         )}
                     </div>
@@ -133,7 +133,7 @@ const ProductionOrdersTable = ({
             {
                 header: t('sales.productionOrders.columns.workOrder', { defaultValue: 'Work order' }),
                 accessorKey: 'workOrder',
-                cell: ({ row }) => row.workOrder.code,
+                cell: ({ row }) => row.original.workOrder.code,
             },
             {
                 header: t('text.columns.status'),
@@ -142,12 +142,12 @@ const ProductionOrdersTable = ({
                     <Tag
                         className={classNames(
                             'rounded-full px-3 py-1 text-xs font-semibold',
-                            STATUS_TAG_COLOR[row.status as WorkOrderStatus] ??
+                            STATUS_TAG_COLOR[row.original.status as WorkOrderStatus] ??
                                 'bg-gray-200 text-gray-700 dark:bg-gray-500/20 dark:text-gray-200',
                         )}
                     >
-                        {t(`sales.productionOrders.status.${row.status}`, {
-                            defaultValue: row.status,
+                        {t(`sales.productionOrders.status.${row.original.status}`, {
+                            defaultValue: row.original.status,
                         })}
                     </Tag>
                 ),
@@ -160,15 +160,17 @@ const ProductionOrdersTable = ({
                 header: t('sales.productionOrders.columns.assignee', { defaultValue: 'Assignee' }),
                 accessorKey: 'assignedTo',
                 cell: ({ row }) =>
-                    row.assignedTo?.name || row.assignedTo?.lastName
-                        ? `${row.assignedTo?.name ?? ''} ${row.assignedTo?.lastName ?? ''}`.trim()
+                    row.original.assignedTo?.name || row.original.assignedTo?.lastName
+                        ? `${row.original.assignedTo?.name ?? ''} ${row.original.assignedTo?.lastName ?? ''}`.trim()
                         : t('common.labels.unassigned', { defaultValue: 'Unassigned' }),
             },
             {
                 header: t('sales.productionOrders.columns.scheduled', { defaultValue: 'Scheduled' }),
                 accessorKey: 'scheduledAt',
                 cell: ({ row }) =>
-                    row.scheduledAt ? dayjs(row.scheduledAt).format('DD/MM/YYYY') : t('common.labels.na'),
+                    row.original.scheduledAt
+                        ? dayjs(row.original.scheduledAt).format('DD/MM/YYYY')
+                        : t('common.labels.na'),
             },
             {
                 header: t('text.columns.actions'),

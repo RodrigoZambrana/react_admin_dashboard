@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { ComponentProps, useCallback, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import styled from "styled-components";
 import { IconHeart, IconHeartFilled } from "@tabler/icons-react";
 
-import { IconButton, IconButtonProps } from "@component/buttons";
+import { IconButton } from "@component/buttons";
 import { useWishlist } from "@/state/wishlist-context";
 
 const WishlistButtonRoot = styled(IconButton)(({ theme }) => ({
@@ -31,7 +31,9 @@ const WishlistButtonRoot = styled(IconButton)(({ theme }) => ({
   }
 }));
 
-type ProductWishlistButtonProps = Omit<IconButtonProps, "children"> & {
+type IconButtonComponentProps = ComponentProps<typeof IconButton>;
+
+type ProductWishlistButtonProps = Omit<IconButtonComponentProps, "children"> & {
   productId?: number;
   onRequireAuth?: () => void;
 };

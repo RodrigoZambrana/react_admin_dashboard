@@ -14,7 +14,7 @@ interface SelectProps extends Omit<Props, "theme">, SpaceProps {
   errorText?: string;
 }
 
-const styles = (errorText: string) =>
+const styles = (errorText?: string) =>
   ({
     control: (base, state) => ({
       ...base,

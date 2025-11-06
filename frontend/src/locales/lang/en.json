@@ -1156,7 +1156,7 @@
       },
       "payments": {
         "title": "Payments",
-        "orderLabel": "Order ID #{id}",
+        "orderLabel": "Order ID #{{id}}",
         "add": "Add payment",
         "totalPaid": "Total paid",
         "remaining": "Remaining",
@@ -1505,7 +1505,7 @@
       },
       "delete": {
         "title": "Delete production order",
-        "confirm": "Are you sure you want to delete production order #{id}?"
+        "confirm": "Are you sure you want to delete production order #{{id}}?"
       },
       "validation": {
         "orderId": "A valid order id is required",

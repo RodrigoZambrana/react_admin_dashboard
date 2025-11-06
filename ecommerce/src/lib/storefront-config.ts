@@ -1,7 +1,10 @@
 import { cache } from "react";
+import merge from "lodash/merge";
 
+import { getClientVariantConfig, type StorefrontClientVariantConfig } from "@/clients";
 import type { HomeLayoutDefinition, StorefrontConfig } from "@/types/storefront";
 
+import { env } from "./env";
 import { StorefrontApi, isApiError } from "./api/storefront";
 import { DEFAULT_HOME_LAYOUTS, FALLBACK_LAYOUT_KEY } from "./layouts/homeLayouts";
 import { readJsonCache, writeJsonCache } from "./persistent-cache";
@@ -103,59 +106,75 @@ let lastConfigErrorSignature: string | null = null;
 
 const STOREFRONT_CONFIG_CACHE_KEY = "storefront-config";
 
-const mergeConfig = (config: StorefrontConfig): StorefrontConfig => {
-  const layouts = config.layouts?.length ? config.layouts : DEFAULT_HOME_LAYOUTS;
+const buildCacheKey = (slug: string) => `${STOREFRONT_CONFIG_CACHE_KEY}:${slug}`;
+
+const mergeConfig = (
+  config: StorefrontConfig,
+  clientOverrides: StorefrontClientVariantConfig["configOverrides"] = {}
+): StorefrontConfig => {
+  const merged = merge({}, FALLBACK_CONFIG, config ?? {}, clientOverrides ?? {}) as StorefrontConfig;
+  const layouts = merged.layouts?.length ? merged.layouts : DEFAULT_HOME_LAYOUTS;
   const defaultLayout =
-    config.defaultLayout && layouts.some((layout) => layout.key === config.defaultLayout)
-      ? config.defaultLayout
+    merged.defaultLayout && layouts.some((layout) => layout.key === merged.defaultLayout)
+      ? merged.defaultLayout
       : layouts.find((layout) => layout.isDefault)?.key ?? FALLBACK_LAYOUT_KEY;
 
   return {
-    ...FALLBACK_CONFIG,
-    ...config,
+    ...merged,
     layouts,
     defaultLayout
   };
 };
 
 export const getStorefrontConfig = cache(async (): Promise<StorefrontConfig> => {
+  const variant = getClientVariantConfig(env.clientSlug);
+  const cacheKey = buildCacheKey(variant.slug);
+
   try {
-    const config = await StorefrontApi.getConfig();
-    const merged = mergeConfig(config);
-    await writeJsonCache(STOREFRONT_CONFIG_CACHE_KEY, merged);
+    const config = await StorefrontApi.getConfig(variant.slug);
+    const merged = mergeConfig(config, variant.configOverrides);
+    await writeJsonCache(cacheKey, merged);
     lastConfigErrorSignature = null;
     setSnapshotFallbackEnabled(merged.resilience?.snapshotFallbackEnabled !== false);
     return merged;
   } catch (error) {
     if (isApiError(error)) {
-      const signature = `${error.status}:${error.code ?? ""}:${error.message ?? ""}`;
+      const signature = `${variant.slug}:${error.status}:${error.code ?? ""}:${
+        error.message ?? ""
+      }`;
       if (signature !== lastConfigErrorSignature) {
         console.warn(
-          `[storefront] API config unavailable (${error.status}). Using cached configuration when available.`,
+          `[storefront] API config unavailable for slug "${variant.slug}" (${error.status}). Using cached configuration when available.`,
           error.message,
         );
         lastConfigErrorSignature = signature;
       }
     } else {
-      const signature = `unknown:${(error as Error)?.message ?? "unknown"}`;
+      const signature = `${variant.slug}:unknown:${(error as Error)?.message ?? "unknown"}`;
       if (signature !== lastConfigErrorSignature) {
         console.warn(
-          "[storefront] Unexpected error loading config. Using cached configuration when available.",
+          `[storefront] Unexpected error loading config for slug "${variant.slug}". Using cached configuration when available.`,
           error,
         );
         lastConfigErrorSignature = signature;
       }
     }
-    const cached = await readJsonCache<StorefrontConfig>(STOREFRONT_CONFIG_CACHE_KEY);
+    const cached = await readJsonCache<StorefrontConfig>(cacheKey);
     if (cached) {
-      console.info("[storefront] Serving cached storefront config snapshot from", cached.storedAt);
-      const normalized = mergeConfig(cached.value);
+      console.info(
+        `[storefront] Serving cached storefront config snapshot for slug "${variant.slug}" from`,
+        cached.storedAt,
+      );
+      const normalized = mergeConfig(cached.value, variant.configOverrides);
       setSnapshotFallbackEnabled(normalized.resilience?.snapshotFallbackEnabled !== false);
       return normalized;
     }
-    console.info("[storefront] No cached config available. Falling back to defaults.");
-    setSnapshotFallbackEnabled(FALLBACK_CONFIG.resilience?.snapshotFallbackEnabled !== false);
-    return FALLBACK_CONFIG;
+    console.info(
+      `[storefront] No cached config available for slug "${variant.slug}". Falling back to defaults.`,
+    );
+    const normalizedFallback = mergeConfig(FALLBACK_CONFIG, variant.configOverrides);
+    setSnapshotFallbackEnabled(normalizedFallback.resilience?.snapshotFallbackEnabled !== false);
+    return normalizedFallback;
   }
 });
 

@@ -207,6 +207,8 @@ export class OrderFinanceService {
     let outstandingRaw = subtractDecimals(grandTotal, totalPaidConfirmed)
     let outstanding = outstandingRaw.isNegative() ? decimal(0) : outstandingRaw
     let credit = outstandingRaw.isNegative() ? outstandingRaw.abs() : decimal(0)
+    const outstandingRounded = roundDecimal(outstanding, 2)
+    const isFullySettled = outstandingRounded.lessThanOrEqualTo(decimal(0))
 
     const isCancelled = order.statusId === ORDER_STATUS_CODES.CANCELLED
     if (isCancelled) {
@@ -247,9 +249,6 @@ export class OrderFinanceService {
       if (!order.confirmedAt) {
         updateData.confirmedAt = now
       }
-      if ((order.statusId === pendingStatusId || order.statusId === null) && paidStatusId) {
-        updateData.statusId = paidStatusId
-      }
       if (enableWorkOrders && !targetWorkOrderId) {
         const workOrder = await client.workOrder.create({
           data: {
@@ -262,6 +261,13 @@ export class OrderFinanceService {
       }
     } else if (order.confirmedAt && order.statusId === paidStatusId) {
       updateData.confirmedAt = null
+    }
+
+    const statusCanAdvance = Boolean(
+      paidStatusId && (order.statusId === pendingStatusId || order.statusId === null),
+    )
+    if (isFullySettled && statusCanAdvance) {
+      updateData.statusId = paidStatusId
     }
 
     await client.order.update({
@@ -302,7 +308,7 @@ export class OrderFinanceService {
       depositPending: roundDecimal(aggregates.depositPending, 2),
       balancePending: roundDecimal(aggregates.balancePending, 2),
       refundsPending: roundDecimal(aggregates.refundsPending, 2),
-      outstanding: roundDecimal(outstanding, 2),
+      outstanding: outstandingRounded,
       customerCredit: roundDecimal(credit, 2),
       depositMet,
     }

@@ -28,9 +28,9 @@ export default async function Section4() {
             slug={product.slug}
             title={product.title}
             price={product.price}
-            images={product.images}
+            images={product.images ?? []}
             imgUrl={product.thumbnail}
-            category={product.categories[0]}
+            category={product.categories?.[0] ?? ""}
             reviews={product.reviews?.length || 4}
           />
         ))}

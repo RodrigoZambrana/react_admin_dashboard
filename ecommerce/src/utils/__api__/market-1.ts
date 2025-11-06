@@ -29,11 +29,13 @@ const PRODUCT_FALLBACK_ENDPOINT_MAP: Record<string, string> = {
   "/api/market-1/get-more-items": "more-products",
   "/api/market-1/big-discounts": "big-discounts",
   "/api/market-1/flash-deals": "flash-deals",
+  "/api/market-1/mega-deal-products": "mega-deals",
 };
 
 const CATEGORY_FALLBACK_ENDPOINT_MAP: Record<string, string> = {
   "/api/market-1/bottom-categories": "categories",
   "/api/market-1/top-categories": "top-categories",
+  "/api/market-1/category-grid": "mega-deals",
 };
 
 let market1DataPromise: Promise<Market1DataModule> | null = null;
@@ -175,7 +177,7 @@ const loadMockShopsSlice = async (
   end: number,
   thumbnails: string[]
 ): Promise<Shop[]> => {
-  const shops = await loadMarket1Shops();
+  const shops = (await loadMarket1Shops()) as Shop[];
   return shops.slice(start, end).map((item, index) => ({
     ...item,
     thumbnail: thumbnails[index] ?? item.thumbnail,
@@ -494,7 +496,10 @@ const getMoreItems = async (): Promise<Product[]> => {
 
 const loadMockServiceList = async (): Promise<Service[]> => {
   const { serviceList } = await loadMarket1Data();
-  return serviceList as Service[];
+  return serviceList.map((service) => ({
+    ...service,
+    description: service.description ?? ""
+  })) as Service[];
 };
 
 const getServiceList = async (): Promise<Service[]> => {

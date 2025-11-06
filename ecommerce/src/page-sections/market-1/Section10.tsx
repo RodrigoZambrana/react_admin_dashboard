@@ -21,8 +21,8 @@ export default async function Section10() {
               <Image
                 width={400}
                 height={400}
-                src={category.image}
-                alt={category.name}
+                src={category.image ?? "/assets/images/products/placeholder.png"}
+                alt={category.name ?? "category"}
                 style={{ width: "100%", height: "auto", objectFit: "cover" }}
               />
 

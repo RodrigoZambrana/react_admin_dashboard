@@ -140,7 +140,7 @@ export default function AccountSettings() {
                       onChange={handleChange}
                       value={values.first_name}
                       placeholder="Enter your first name"
-                      errorText={touched.first_name && errors.first_name}
+                      errorText={touched.first_name ? errors.first_name : undefined}
                     />
                   </Grid>
 
@@ -153,7 +153,7 @@ export default function AccountSettings() {
                       onChange={handleChange}
                       value={values.last_name}
                       placeholder="Enter your last name"
-                      errorText={touched.last_name && errors.last_name}
+                      errorText={touched.last_name ? errors.last_name : undefined}
                     />
                   </Grid>
 
@@ -167,7 +167,7 @@ export default function AccountSettings() {
                       value={values.email}
                       onChange={handleChange}
                       placeholder="Enter your email"
-                      errorText={touched.email && errors.email}
+                      errorText={touched.email ? errors.email : undefined}
                     />
                   </Grid>
 
@@ -181,7 +181,7 @@ export default function AccountSettings() {
                       value={values.contact}
                       onChange={handleChange}
                       placeholder="Enter your phone number"
-                      errorText={touched.contact && errors.contact}
+                      errorText={touched.contact ? errors.contact : undefined}
                     />
                   </Grid>
 
@@ -191,7 +191,7 @@ export default function AccountSettings() {
                       options={countryList}
                       value={values.country}
                       placeholder="Select your country"
-                      errorText={touched.country && errors.country}
+                      errorText={touched.country ? errors.country : undefined}
                       onChange={(country) => setFieldValue("country", country)}
                     />
                   </Grid>
@@ -205,7 +205,7 @@ export default function AccountSettings() {
                       onBlur={handleBlur}
                       onChange={handleChange}
                       placeholder="Enter your city"
-                      errorText={touched.city && errors.city}
+                      errorText={touched.city ? errors.city : undefined}
                     />
                   </Grid>
                 </Grid>

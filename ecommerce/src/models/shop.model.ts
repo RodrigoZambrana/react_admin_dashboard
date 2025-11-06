@@ -13,7 +13,8 @@ interface Shop {
   products?: Product[];
   coverPicture: string;
   profilePicture: string;
-  socialLinks: { facebook?: string; youtube?: string; twitter?: string; instagram?: string };
+  thumbnail?: string;
+  socialLinks: { facebook?: string | null; youtube?: string | null; twitter?: string | null; instagram?: string | null };
 }
 
 export default Shop;

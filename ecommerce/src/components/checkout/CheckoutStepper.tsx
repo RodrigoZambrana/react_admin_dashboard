@@ -7,18 +7,19 @@ import Box from "@component/Box";
 import Stepper from "@component/Stepper";
 
 import { useCheckout } from "@/state/checkout-context";
+import { useTranslation } from "@/state/i18n-context";
 
 type StepDefinition = {
-  title: string;
+  titleKey: string;
   path: string;
   key: "cart" | "details" | "payment" | "review";
 };
 
 const STEPS: StepDefinition[] = [
-  { title: "Cart", path: "/cart", key: "cart" },
-  { title: "Details", path: "/checkout", key: "details" },
-  { title: "Payment", path: "/payment", key: "payment" },
-  { title: "Review", path: "/review", key: "review" }
+  { titleKey: "Cart", path: "/cart", key: "cart" },
+  { titleKey: "Details", path: "/checkout", key: "details" },
+  { titleKey: "Payment", path: "/payment", key: "payment" },
+  { titleKey: "Review", path: "/review", key: "review" }
 ];
 
 const PATH_TO_STEP_INDEX = new Map<string, number>(
@@ -28,9 +29,11 @@ const PATH_TO_STEP_INDEX = new Map<string, number>(
 export default function CheckoutStepper() {
   const router = useRouter();
   const pathname = usePathname();
+  const currentPath = pathname ?? "";
   const { hasDetails, hasPayment } = useCheckout();
+  const t = useTranslation();
 
-  const selectedStep = useMemo(() => PATH_TO_STEP_INDEX.get(pathname) ?? 1, [pathname]);
+  const selectedStep = useMemo(() => PATH_TO_STEP_INDEX.get(currentPath) ?? 1, [currentPath]);
 
   const disabledLookup = useMemo<Record<StepDefinition["key"], boolean>>(
     () => ({
@@ -47,11 +50,11 @@ export default function CheckoutStepper() {
       const target = STEPS[index];
       if (!target) return;
       if (disabledLookup[target.key]) return;
-      if (target.path !== pathname) {
+      if (target.path !== currentPath) {
         router.push(target.path);
       }
     },
-    [router, pathname, disabledLookup]
+    [router, currentPath, disabledLookup]
   );
 
   return (
@@ -59,7 +62,7 @@ export default function CheckoutStepper() {
       <Stepper
         selectedStep={selectedStep}
         stepperList={STEPS.map((step) => ({
-          title: step.title,
+          title: t(step.titleKey),
           disabled: disabledLookup[step.key]
         }))}
         onChange={handleStepChange}

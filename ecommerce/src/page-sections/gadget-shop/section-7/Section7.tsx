@@ -19,8 +19,8 @@ export default function Section7({ blogs }: Props) {
               title={item.title}
               date={item.createdAt}
               imgUrl={item.thumbnail}
-              commentCount={item.comments}
-              description={item.description}
+              commentCount={item.comments ?? 0}
+              description={item.description ?? ""}
             />
           </Grid>
         ))}

@@ -1,13 +1,12 @@
 import { redirect } from "next/navigation";
 
-type ProductSearchResultProps = {
-  params: {
-    slug?: string;
-  };
-};
-
-export default function ProductSearchResult({ params }: ProductSearchResultProps) {
-  const searchTerm = params.slug?.trim();
+export default async function ProductSearchResult({
+  params
+}: {
+  params: Promise<{ slug?: string }>;
+}) {
+  const { slug } = await params;
+  const searchTerm = slug?.trim();
   const destination = searchTerm ? `/shop?query=${encodeURIComponent(searchTerm)}` : "/shop";
 
   redirect(destination);

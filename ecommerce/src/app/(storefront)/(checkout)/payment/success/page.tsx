@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -8,13 +8,15 @@ import Box from "@component/Box";
 import FlexBox from "@component/FlexBox";
 import { Card1 } from "@component/Card1";
 import { Button } from "@component/buttons";
-import Typography from "@component/Typography";
+import Typography, { H3 } from "@component/Typography";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { useCheckout } from "@/state/checkout-context";
 import { useCurrency } from "@/state/currency-context";
 import { useStorefrontCart } from "@/state/cart-context";
 import type { CreateOrderPayload } from "@/types/storefront";
+import { readActiveOrderLock, writeOrderLock } from "@/utils/orderLock";
+import { useI18n } from "@/state/i18n-context";
 
 const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
   UY: "11000"
@@ -25,10 +27,18 @@ const POSTAL_CODE_FALLBACK = "00000";
 type OrderCreationState = "idle" | "processing" | "success" | "error";
 
 export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={<PaymentSuccessSkeleton />}>
+      <PaymentSuccessContent />
+    </Suspense>
+  );
+}
+
+function PaymentSuccessContent() {
   const searchParams = useSearchParams();
-  const paymentId = searchParams.get("paymentId") ?? "unknown";
-  const status = searchParams.get("status") ?? "approved";
-  const detail = searchParams.get("detail");
+  const paymentId = searchParams?.get("paymentId") ?? "unknown";
+  const status = searchParams?.get("status") ?? "approved";
+  const detail = searchParams?.get("detail");
 
   const {
     contact,
@@ -41,6 +51,7 @@ export default function PaymentSuccessPage() {
   } = useCheckout();
   const { state: cartState, clearCart } = useStorefrontCart();
   const { currency: activeCurrency } = useCurrency();
+  const { locale } = useI18n();
 
   const [orderState, setOrderState] = useState<OrderCreationState>("idle");
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -103,10 +114,12 @@ export default function PaymentSuccessPage() {
 
     if (typeof window !== "undefined") {
       const completionKey = `storefront:order:${payment.paymentIntentId}`;
-      if (
-        sessionStorage.getItem(completionKey) === "completed" ||
-        (checkoutOrderKey && sessionStorage.getItem(checkoutOrderKey) === "completed")
-      ) {
+      const completionLock = readActiveOrderLock(completionKey);
+      const checkoutLock =
+        checkoutOrderKey && typeof checkoutOrderKey === "string"
+          ? readActiveOrderLock(checkoutOrderKey)
+          : null;
+      if (completionLock || checkoutLock) {
         setOrderState("success");
         return;
       }
@@ -135,7 +148,8 @@ export default function PaymentSuccessPage() {
           email: contact.email,
           firstName: contact.firstName,
           lastName: contact.lastName,
-          phone: contact.phone && contact.phone.length > 0 ? contact.phone : undefined
+          phone: contact.phone && contact.phone.length > 0 ? contact.phone : undefined,
+          locale
         },
         shippingAddress: shippingAddressPayload,
         items: orderItems,
@@ -149,9 +163,9 @@ export default function PaymentSuccessPage() {
 
       if (typeof window !== "undefined") {
         const completionKey = `storefront:order:${payment.paymentIntentId}`;
-        sessionStorage.setItem(completionKey, "completed");
+        writeOrderLock(completionKey);
         if (checkoutOrderKey) {
-          sessionStorage.setItem(checkoutOrderKey, "completed");
+          writeOrderLock(checkoutOrderKey);
         }
       }
 
@@ -187,7 +201,8 @@ export default function PaymentSuccessPage() {
     shippingAddress.state,
     shippingAddress.zip,
     checkoutToken,
-    activeCurrency
+    activeCurrency,
+    locale
   ]);
 
   useEffect(() => {
@@ -206,9 +221,9 @@ export default function PaymentSuccessPage() {
     <Box py="6rem">
       <FlexBox flexDirection="column" alignItems="center" justifyContent="center" px="1.5rem">
         <Card1 maxWidth="540px" width="100%" textAlign="center" p="2.5rem">
-          <Typography variant="h3" fontWeight="700" mb="0.5rem" color="primary.main">
+          <H3 fontWeight="700" mb="0.5rem" color="primary.main">
             Your payment is confirmed
-          </Typography>
+          </H3>
           <Typography color="text.muted" mb="2rem">
             Thank you for completing your purchase with Mercado Pago. You can review the payment details below.
           </Typography>
@@ -283,14 +298,35 @@ export default function PaymentSuccessPage() {
             ) : null}
           </Box>
 
-          <FlexBox justifyContent="center" flexWrap="wrap" gap="1rem">
-            <Button as={Link} href="/account/orders" color="primary" variant="contained">
-              View my orders
-            </Button>
-            <Button as={Link} href="/shop" color="primary" variant="outlined">
-              Continue shopping
-            </Button>
+          <FlexBox justifyContent="center" flexWrap="wrap" style={{ gap: "1rem" }}>
+            <Link href="/account/orders" style={{ textDecoration: "none" }}>
+              <Button color="primary" variant="contained">
+                View my orders
+              </Button>
+            </Link>
+            <Link href="/shop" style={{ textDecoration: "none" }}>
+              <Button color="primary" variant="outlined">
+                Continue shopping
+              </Button>
+            </Link>
           </FlexBox>
+        </Card1>
+      </FlexBox>
+    </Box>
+  );
+}
+
+function PaymentSuccessSkeleton() {
+  return (
+    <Box py="6rem">
+      <FlexBox flexDirection="column" alignItems="center" justifyContent="center" px="1.5rem">
+        <Card1 maxWidth="540px" width="100%" textAlign="center" p="2.5rem">
+          <H3 fontWeight="700" mb="0.5rem" color="primary.main">
+            Finalizing your payment...
+          </H3>
+          <Typography color="text.muted">
+            Hang tight while we load the confirmation details.
+          </Typography>
         </Card1>
       </FlexBox>
     </Box>

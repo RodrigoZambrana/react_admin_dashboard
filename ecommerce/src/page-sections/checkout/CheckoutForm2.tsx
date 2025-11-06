@@ -40,7 +40,7 @@ type FormValues = yup.InferType<typeof checkoutSchema>;
 
 export default function CheckoutForm2() {
   const router = useRouter();
-  const [dateList, setDateList] = useState([]);
+  const [dateList, setDateList] = useState<Array<{ label: string; value: Date }>>([]);
   const [hasVoucher, setHasVoucher] = useState(false);
 
   const handleFormSubmit = async (values: FormValues) => {
@@ -55,7 +55,7 @@ export default function CheckoutForm2() {
   const toggleHasVoucher = () => setHasVoucher((has) => !has);
 
   useEffect(() => {
-    let list = [];
+    const list: Array<{ label: string; value: Date }> = [];
     let today = new Date();
     let dateCount = today.getDate();
 
@@ -66,7 +66,7 @@ export default function CheckoutForm2() {
       list.push({ label: format(today, "dd MMMM"), value: today });
     }
 
-    setDateList(list as any);
+    setDateList(list);
   }, []);
 
   return (
@@ -92,7 +92,7 @@ export default function CheckoutForm2() {
                     options={dateList}
                     value={values.date}
                     onChange={(date) => setFieldValue("date", date)}
-                    errorText={touched.date && (errors.date as string)}
+                    errorText={touched.date ? (errors.date as string) : undefined}
                   />
                 </Grid>
                 <Grid item sm={6} xs={12}>
@@ -101,7 +101,7 @@ export default function CheckoutForm2() {
                     options={timeList}
                     value={values.time}
                     onChange={(time) => setFieldValue("time", time)}
-                    errorText={touched.time && (errors.time as string)}
+                    errorText={touched.time ? (errors.time as string) : undefined}
                   />
                 </Grid>
               </Grid>

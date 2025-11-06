@@ -75,7 +75,7 @@ export default function StorefrontProductCard({
   const gallery = useMemo(() => {
     const list =
       Array.isArray(images) && images.length > 0
-        ? images.filter((item): item is string => typeof item === "string" && item.trim())
+      ? images.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
         : [];
     if (primaryImage) {
       list.unshift(primaryImage);

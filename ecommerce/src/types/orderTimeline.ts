@@ -35,6 +35,14 @@ export interface OrderTimelineOrderSnapshot {
   id: number;
   customerId?: number | null;
   statusId?: number | null;
+  status?: string | null;
+  statusLabel?: string | null;
+  paymentStatus?: string | null;
+  paymentStatusLabel?: string | null;
+  paymentStatusColor?: string | null;
+  paymentStatusBadgeColor?: string | null;
+  fulfillmentStatus?: string | null;
+  fulfillmentStatusLabel?: string | null;
   createdAt: string;
   updatedAt: string;
   date: string;

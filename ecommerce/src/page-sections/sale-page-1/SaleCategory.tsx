@@ -35,7 +35,9 @@ export default function SaleCategory({ categories, selectedSlug }: SaleCategoryP
       if (fallbackKey === activeKey) return;
       setActiveKey(fallbackKey);
 
-      const params = new URLSearchParams(searchParams.toString());
+      if (!pathname) return;
+
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
       if (categorySlug) {
         params.set("category", categorySlug);
       } else {

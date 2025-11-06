@@ -153,7 +153,8 @@ export default function ProductCard1({
 }: ProductCard1Props) {
   const { state, dispatch } = useCart();
   const { formatAmount, baseCurrency } = useMoneyFormatter();
-  const cartItem = state.cart.find((item) => item.id === id);
+  const cartProductId = id ?? slug;
+  const cartItem = state.cart.find((item) => item.id === cartProductId);
 
   const primaryImage = useMemo(() => {
     if (typeof imgUrl !== "string") return undefined;
@@ -190,7 +191,7 @@ export default function ProductCard1({
       dispatch({
         type: "CHANGE_CART_AMOUNT",
         payload: {
-          id,
+          id: cartProductId,
           slug,
           price: effectivePrice,
           currency: productCurrency,
@@ -200,7 +201,7 @@ export default function ProductCard1({
         }
       });
     },
-    [dispatch, id, slug, effectivePrice, primaryImage, productCurrency, title]
+    [dispatch, cartProductId, slug, effectivePrice, primaryImage, productCurrency, title]
   );
 
   return (

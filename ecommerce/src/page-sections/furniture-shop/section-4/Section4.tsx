@@ -26,10 +26,10 @@ export default function Section4({ products }: Props) {
               title={item.title}
               price={item.price}
               off={item.discount}
-              status={item.status}
+              status={item.status ?? ""}
               rating={item.rating}
               imgUrl={item.thumbnail}
-              productColors={item.colors}
+              productColors={item.colors ?? []}
             />
           </Grid>
         ))}

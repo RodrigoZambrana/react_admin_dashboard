@@ -22,11 +22,14 @@ import type { CheckoutPayment } from "@/state/checkout-context";
 import type { CreateOrderPayload, Money, OrderSummary } from "@/types/storefront";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import { useToast } from "@/contexts/ToastContext";
+import { normalizeMercadoPagoStatus } from "@/utils/mercadopago";
 import {
-  buildMercadoPagoStatusMessage,
-  normalizeMercadoPagoStatus
-} from "@/utils/mercadopago";
+  clearOrderLock,
+  readActiveOrderLock,
+  writeOrderLock
+} from "@/utils/orderLock";
 import type { MercadoPagoNormalizedStatus } from "@/utils/mercadopago";
+import { useI18n, useTranslation } from "@/state/i18n-context";
 
 const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
   UY: "11000"
@@ -41,13 +44,13 @@ type ReviewItem = {
   lineTotal: Money;
 };
 
-const PAYMENT_STATUS_LABELS: Record<MercadoPagoNormalizedStatus, string> = {
-  approved: "Approved",
-  authorized: "Authorized",
-  in_process: "Under review",
-  pending: "Pending",
-  processing: "Processing",
-  rejected: "Rejected"
+const PAYMENT_STATUS_LABEL_KEYS: Record<MercadoPagoNormalizedStatus, string> = {
+  approved: "checkout.review.paymentStatus.approved",
+  authorized: "checkout.review.paymentStatus.authorized",
+  in_process: "checkout.review.paymentStatus.in_process",
+  pending: "checkout.review.paymentStatus.pending",
+  processing: "checkout.review.paymentStatus.processing",
+  rejected: "checkout.review.paymentStatus.rejected"
 };
 
 const mapOrderPaymentToCheckoutPayment = (
@@ -133,6 +136,8 @@ export default function ReviewClient() {
     reset,
     checkoutToken
   } = useCheckout();
+  const { locale } = useI18n();
+  const t = useTranslation();
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -183,21 +188,23 @@ export default function ReviewClient() {
         : null;
 
     if (orderLockKey && typeof window !== "undefined") {
-      if (sessionStorage.getItem(orderLockKey) === "completed") {
+      const existingLock = readActiveOrderLock(orderLockKey);
+      if (existingLock) {
         toast.info({
-          title: "Pedido ya registrado",
-          description: "Ya registramos tu pedido. Revisa tus órdenes para más detalles."
+          title: t("checkout.review.toast.alreadyProcessed.title"),
+          description: t("checkout.review.toast.alreadyProcessed.description")
         });
         return;
       }
+      clearOrderLock(orderLockKey);
     }
 
     if (!contact.firstName || !contact.lastName || !contact.email) {
-      const message = "Your contact details are incomplete. Please return to checkout.";
+      const message = t("checkout.review.errors.contactIncompleteMessage");
       setErrorMessage(message);
       toast.error({
-        title: "Completa tus datos de contacto",
-        description: "Necesitamos el nombre y el correo para finalizar tu pedido."
+        title: t("checkout.review.errors.contactIncompleteTitle"),
+        description: t("checkout.review.errors.contactIncompleteDescription")
       });
       router.push("/checkout");
       return;
@@ -206,11 +213,11 @@ export default function ReviewClient() {
     const hasShippingAddress =
       shippingAddress.line1 && shippingAddress.city && shippingAddress.country;
     if (!hasShippingAddress) {
-      const message = "Your shipping address is incomplete. Please return to checkout.";
+      const message = t("checkout.review.errors.addressIncompleteMessage");
       setErrorMessage(message);
       toast.error({
-        title: "Dirección de envío incompleta",
-        description: "Revisa tu dirección antes de confirmar el pedido."
+        title: t("checkout.review.errors.addressIncompleteTitle"),
+        description: t("checkout.review.errors.addressIncompleteDescription")
       });
       router.push("/checkout");
       return;
@@ -238,10 +245,11 @@ export default function ReviewClient() {
       .filter(Boolean) as Array<{ productId: number; quantity: number; variantId?: number; configuration?: Record<string, unknown> }>;
 
     if (orderItems.length === 0) {
-      setErrorMessage("Your cart is empty.");
+      const message = t("checkout.review.errors.emptyCartMessage");
+      setErrorMessage(message);
       toast.info({
-        title: "Tu carrito está vacío",
-        description: "Agrega productos para poder confirmar el pedido."
+        title: t("checkout.review.toast.emptyCartTitle"),
+        description: t("checkout.review.toast.emptyCartDescription")
       });
       router.replace("/cart");
       return;
@@ -272,7 +280,8 @@ export default function ReviewClient() {
           email: contact.email,
           firstName: contact.firstName,
           lastName: contact.lastName,
-          phone: contact.phone && contact.phone.length > 0 ? contact.phone : undefined
+          phone: contact.phone && contact.phone.length > 0 ? contact.phone : undefined,
+          locale
         },
         shippingAddress: shippingAddressPayload,
         items: orderItems,
@@ -284,61 +293,70 @@ export default function ReviewClient() {
       };
 
       const order = await StorefrontApi.createOrder(payload);
-      const normalizedPayment = mapOrderPaymentToCheckoutPayment(order.payment ?? null, order) ?? payment ?? null;
+      const normalizedPayment =
+        mapOrderPaymentToCheckoutPayment(order.payment ?? null, order) ?? payment ?? null;
       setConfirmedPayment(normalizedPayment);
       setConfirmedContact({
         name: nameForConfirmation || contact.email,
         email: contact.email
       });
       if (orderLockKey && typeof window !== "undefined") {
-        sessionStorage.setItem(orderLockKey, "completed");
+        writeOrderLock(orderLockKey);
       }
       clearCart();
       reset();
       setLastOrder(order);
       const orderLabel = order.orderNumber || `#${order.id}`;
       toast.success({
-        title: "Pedido confirmado",
+        title: t("checkout.review.toast.success.title"),
         description: orderLabel
-          ? `Registramos tu pedido ${orderLabel}. Recibirás un correo con los detalles.`
-          : "Registramos tu pedido. Recibirás un correo con los detalles."
+          ? t("checkout.review.toast.success.descriptionWithId", { values: { orderLabel } })
+          : t("checkout.review.toast.success.description")
       });
     } catch (cause) {
       const message = isApiError(cause)
-        ? cause.payload?.message ?? cause.message
+        ? (() => {
+            const detail =
+              typeof cause.details === "object" && cause.details !== null && "message" in cause.details
+                ? String((cause.details as { message?: unknown }).message ?? "").trim()
+                : "";
+            return detail || cause.message;
+          })()
         : cause instanceof Error
           ? cause.message
-          : "We couldn't place your order. Please try again.";
+          : t("checkout.review.errors.placeOrderFailed");
       setErrorMessage(message);
       toast.error({
-        title: "No pudimos confirmar tu pedido",
+        title: t("checkout.review.toast.error.title"),
         description: message
       });
     } finally {
       setIsSubmitting(false);
     }
   }, [
+    activeCurrency,
     cartState.items,
+    checkoutToken,
     clearCart,
     contact.email,
     contact.firstName,
     contact.lastName,
     contact.phone,
+    isSubmitting,
     notes,
     payment,
     reset,
     router,
     setLastOrder,
-    setConfirmedContact,
     shippingAddress.city,
     shippingAddress.country,
     shippingAddress.line1,
     shippingAddress.line2,
     shippingAddress.state,
-    checkoutToken,
-    activeCurrency,
-    isSubmitting,
-    toast
+    shippingAddress.zip,
+    locale,
+    toast,
+    t
   ]);
 
   const contactName = useMemo(
@@ -349,17 +367,20 @@ export default function ReviewClient() {
   const paymentSummary = useMemo(() => {
     const source = confirmedPayment ?? payment;
     if (!source) {
-      return "Not set";
+      return t("checkout.review.paymentSummary.notSet");
     }
     if (source.method === "cod") {
-      return "Cash on delivery";
+      return t("checkout.review.paymentSummary.cod");
     }
     const status = normalizeMercadoPagoStatus(source.status);
     const brand = source.cardBrand ?? "Mercado Pago";
-    const ending = source.cardLastFour ? ` ending in ${source.cardLastFour}` : "";
-    const statusLabel = PAYMENT_STATUS_LABELS[status] ?? "Status";
+    const ending = source.cardLastFour
+      ? ` ${t("checkout.review.paymentSummary.cardEnding", { values: { lastFour: source.cardLastFour } })}`
+      : "";
+    const statusKey = PAYMENT_STATUS_LABEL_KEYS[status] ?? "checkout.review.paymentStatus.generic";
+    const statusLabel = t(statusKey);
     return `${brand}${ending} · ${statusLabel}`;
-  }, [confirmedPayment, payment]);
+  }, [confirmedPayment, payment, t]);
 
   const shippingAddressText = useMemo(
     () => formatAddress(lastOrder?.shippingAddress ?? shippingAddress),
@@ -368,19 +389,31 @@ export default function ReviewClient() {
 
   const hasOrderConfirmation = Boolean(lastOrder);
   const confirmationSummary = lastOrder?.summary;
-  const confirmationName = confirmedContact?.name || contactName || "there";
+  const confirmationName =
+    confirmedContact?.name || contactName || t("checkout.review.confirmation.defaultName");
   const confirmationEmail = confirmedContact?.email || contact.email;
+  const confirmationEmailLabel =
+    confirmationEmail || t("checkout.review.confirmation.yourEmail");
+  const confirmationOrderLabel = lastOrder
+    ? `#${lastOrder.orderNumber ?? lastOrder.id}`
+    : "";
 
   return (
     <Box>
       <Box mb="2rem">
         <H2 fontWeight={600} mb="0.5rem">
-          {hasOrderConfirmation ? "Order confirmed" : "Review your order"}
+          {t(
+            hasOrderConfirmation
+              ? "checkout.review.heading.confirmed"
+              : "checkout.review.heading.review"
+          )}
         </H2>
         <Paragraph color="text.muted" maxWidth="520px">
-          {hasOrderConfirmation
-            ? "Thank you for shopping with us. Your order has been placed successfully."
-            : "Confirm your shipping information and totals. You can return to prior steps if any detail needs to be updated."}
+          {t(
+            hasOrderConfirmation
+              ? "checkout.review.subheading.confirmed"
+              : "checkout.review.subheading.review"
+          )}
         </Paragraph>
       </Box>
 
@@ -388,31 +421,42 @@ export default function ReviewClient() {
         <Box>
           <Card1 mb="2rem">
             <Typography color="primary.main" fontWeight="600" mb="0.5rem">
-              Thank you, {confirmationName}!
+              {t("checkout.review.confirmation.thankYou", { values: { name: confirmationName } })}
             </Typography>
             <Typography fontWeight="600" fontSize="18px" mb="0.5rem">
-              Order #{lastOrder.orderNumber}
+              {t("checkout.review.confirmation.orderLabel", {
+                values: { orderLabel: confirmationOrderLabel }
+              })}
             </Typography>
             <Paragraph color="text.muted" mb="1rem">
-              We&apos;ll send updates to {confirmationEmail || "your email"}.
+              {t("checkout.review.confirmation.updates", {
+                values: { email: confirmationEmailLabel }
+              })}
             </Paragraph>
             <Typography fontWeight="500" mb="0.25rem">
-              Shipping to
+              {t("checkout.review.confirmation.shippingTitle")}
             </Typography>
             <Typography color="text.muted" style={{ whiteSpace: "pre-line" }}>
-              {shippingAddressText || "No shipping address available"}
+              {shippingAddressText || t("checkout.review.confirmation.noShipping")}
             </Typography>
           </Card1>
 
           <Card1 mb="2rem">
             <Typography fontWeight="600" fontSize="18px" mb="1rem">
-              Items
+              {t("checkout.review.items.title")}
             </Typography>
             {lastOrder.items.map((item) => (
               <Box key={item.productId} mb="1rem">
-                <Typography fontWeight="500">{item.name ?? `Product #${item.productId}`}</Typography>
+                <Typography fontWeight="500">
+                  {item.name ?? t("checkout.review.items.productFallback", { values: { id: item.productId } })}
+                </Typography>
                 <Typography color="text.muted">
-                  Qty {item.quantity} · {formatDisplayMoney(item.price)} each
+                  {t("checkout.review.items.quantityPrice", {
+                    values: {
+                      quantity: item.quantity,
+                      price: formatDisplayMoney(item.price)
+                    }
+                  })}
                 </Typography>
               </Box>
             ))}
@@ -420,40 +464,40 @@ export default function ReviewClient() {
             {confirmationSummary && (
               <Box>
                 <FlexBox justifyContent="space-between" mb="0.5rem">
-                  <Typography color="text.hint">Subtotal</Typography>
+                  <Typography color="text.hint">{t("checkout.review.summary.subtotal")}</Typography>
                   <Typography fontWeight="600">
                     {formatDisplayMoney(confirmationSummary.subtotal)}
                   </Typography>
                 </FlexBox>
                 <FlexBox justifyContent="space-between" mb="0.5rem">
-                  <Typography color="text.hint">Shipping</Typography>
+                  <Typography color="text.hint">{t("checkout.review.summary.shipping")}</Typography>
                   <Typography fontWeight="600">
                     {formatDisplayMoney(confirmationSummary.shipping)}
                   </Typography>
                 </FlexBox>
                 <FlexBox justifyContent="space-between" mb="0.5rem">
-                  <Typography color="text.hint">Tax</Typography>
+                  <Typography color="text.hint">{t("checkout.review.summary.tax")}</Typography>
                   <Typography fontWeight="600">
                     {formatDisplayMoney(confirmationSummary.tax)}
                   </Typography>
                 </FlexBox>
                 <Divider mb="0.75rem" />
                 <FlexBox justifyContent="space-between" alignItems="center">
-                  <Typography fontWeight="600">Total</Typography>
+                  <Typography fontWeight="600">{t("checkout.review.summary.total")}</Typography>
                   <Typography fontWeight="700" fontSize="22px">
                     {formatDisplayMoney(confirmationSummary.grandTotal)}
                   </Typography>
                 </FlexBox>
                 <Divider my="0.75rem" />
                 <Typography fontWeight="500" mb="0.25rem">
-                  Payment method
+                  {t("checkout.review.summary.paymentTitle")}
                 </Typography>
                 <Typography color="text.muted">{paymentSummary}</Typography>
                 {confirmationSummary.notes && confirmationSummary.notes.length > 0 && (
                   <>
                     <Divider my="0.75rem" />
                     <Typography fontWeight="500" mb="0.25rem">
-                      Delivery notes
+                      {t("checkout.review.summary.deliveryNotesTitle")}
                     </Typography>
                     <Typography color="text.muted">{confirmationSummary.notes}</Typography>
                   </>
@@ -465,12 +509,12 @@ export default function ReviewClient() {
           <FlexBox flexWrap="wrap" mt="1rem" style={{ gap: "1rem" }}>
             <Link href="/shop">
               <Button variant="contained" color="primary">
-                Continue shopping
+                {t("checkout.review.actions.continue")}
               </Button>
             </Link>
             <Link href="/account/orders">
               <Button variant="outlined" color="primary">
-                View your orders
+                {t("checkout.review.actions.viewOrders")}
               </Button>
             </Link>
           </FlexBox>
@@ -480,7 +524,7 @@ export default function ReviewClient() {
           <Grid item lg={8} md={8} xs={12}>
             <Card1 mb="1.5rem">
               <Typography fontWeight="600" fontSize="18px" mb="1rem">
-                Items
+                {t("checkout.review.items.title")}
               </Typography>
               {reviewItems.map((item, index) => {
                 const isLast = index === reviewItems.length - 1;
@@ -495,7 +539,9 @@ export default function ReviewClient() {
                     <Box mr="1rem">
                       <Typography fontWeight="500">{item.name}</Typography>
                       <Typography color="text.hint">
-                    {item.quantity} × {formatDisplayMoney(item.unitPrice)}
+                    {t("checkout.review.items.quantityPrice", {
+                      values: { quantity: item.quantity, price: formatDisplayMoney(item.unitPrice) }
+                    })}
                   </Typography>
                 </Box>
                 <Typography fontWeight="600">{formatDisplayMoney(item.lineTotal)}</Typography>
@@ -507,7 +553,7 @@ export default function ReviewClient() {
 
             <Card1 mb="1.5rem">
               <Typography fontWeight="600" fontSize="18px" mb="1rem">
-                Contact & shipping
+                {t("checkout.review.contact.title")}
               </Typography>
               <Typography fontWeight="500" mb="0.25rem">
                 {contactName || contact.email}
@@ -517,23 +563,23 @@ export default function ReviewClient() {
                 {contact.phone ? ` · ${contact.phone}` : ""}
               </Typography>
               <Typography fontWeight="500" mb="0.25rem">
-                Shipping address
+                {t("checkout.review.contact.shippingTitle")}
               </Typography>
               <Typography color="text.muted" style={{ whiteSpace: "pre-line" }}>
-                {shippingAddressText || "No shipping address provided"}
+                {shippingAddressText || t("checkout.review.contact.noShipping")}
               </Typography>
             </Card1>
 
             <Card1>
               <Typography fontWeight="600" fontSize="18px" mb="0.5rem">
-                Payment
+                {t("checkout.review.payment.title")}
               </Typography>
               <Typography color="text.muted">{paymentSummary}</Typography>
               {notes.trim().length > 0 && (
                 <>
                   <Divider my="1rem" />
                   <Typography fontWeight="600" fontSize="16px" mb="0.5rem">
-                    Delivery notes
+                    {t("checkout.review.payment.notesTitle")}
                   </Typography>
                   <Typography color="text.muted">{notes}</Typography>
                 </>
@@ -555,7 +601,9 @@ export default function ReviewClient() {
               mt="1.5rem"
               disabled={isSubmitting}
               onClick={handlePlaceOrder}>
-              {isSubmitting ? "Placing order..." : "Place order"}
+              {isSubmitting
+                ? t("checkout.review.actions.placingOrder")
+                : t("checkout.review.actions.placeOrder")}
             </Button>
             <Button
               variant="outlined"
@@ -563,7 +611,7 @@ export default function ReviewClient() {
               fullWidth
               mt="0.75rem"
               onClick={() => router.push("/payment")}>
-              Back to payment
+              {t("checkout.review.actions.backToPayment")}
             </Button>
           </Grid>
         </Grid>

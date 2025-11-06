@@ -5,6 +5,7 @@ import ProductIntro from "@component/products/ProductIntro";
 import api from "@utils/__api__/products";
 import { mocksEnabled } from "@/lib/axios";
 import type Product from "@models/product.model";
+import type Shop from "@models/shop.model";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { mapProductDetailToProduct, mapProductSummaryToProduct } from "@/lib/storefront/adapters";
 import type { ProductDetail } from "@/types/storefront";
@@ -17,12 +18,6 @@ interface ProductPageSearchParams {
 export const revalidate = 300;
 
 // ==============================================================
-interface Props {
-  params: { slug: string } | Promise<{ slug: string }>;
-  searchParams?: ProductPageSearchParams | Promise<ProductPageSearchParams | undefined>;
-}
-// ==============================================================
-
 const coerceParamToString = (value?: string | string[]): string | null => {
   if (!value) return null;
   if (Array.isArray(value)) {
@@ -57,7 +52,13 @@ const collectProductIdentifiers = (slug: string, searchParams?: ProductPageSearc
   return identifiers;
 };
 
-export default async function ProductDetails({ params, searchParams }: Props) {
+export default async function ProductDetails({
+  params,
+  searchParams
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<ProductPageSearchParams | undefined>;
+}) {
   const resolvedParams = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
@@ -68,7 +69,7 @@ export default async function ProductDetails({ params, searchParams }: Props) {
   let product: Product | null = null;
   let relatedProducts: Product[] = [];
   let frequentlyBought: Product[] = [];
-  let shops = [];
+  let shops: Shop[] = [];
 
   for (const identifier of identifierCandidates) {
     try {

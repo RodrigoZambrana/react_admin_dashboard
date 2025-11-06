@@ -1157,7 +1157,7 @@
       },
       "payments": {
         "title": "Pagos",
-        "orderLabel": "Pedido ID #{id}",
+        "orderLabel": "Pedido ID #{{id}}",
         "add": "Agregar pago",
         "totalPaid": "Total pagado",
         "remaining": "Restante",
@@ -1506,7 +1506,7 @@
       },
       "delete": {
         "title": "Eliminar orden de producción",
-        "confirm": "¿Eliminar la orden de producción #{id}?"
+        "confirm": "¿Eliminar la orden de producción #{{id}}?"
       },
       "validation": {
         "orderId": "Se requiere un ID de pedido válido",

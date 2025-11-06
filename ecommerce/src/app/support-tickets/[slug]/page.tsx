@@ -4,11 +4,7 @@ interface Params {
   slug: string;
 }
 
-interface LegacyTicketParams {
-  params: Promise<Params> | Params;
-}
-
-export default async function LegacySupportTicketDetailPage({ params }: LegacyTicketParams) {
+export default async function LegacySupportTicketDetailPage({ params }: { params: Promise<Params> }) {
   const resolved = await params;
   redirect(`/account/support-tickets/${resolved.slug}`);
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { PropsWithChildren } from "react";
-import { Public_Sans } from "next/font/google";
+import localFont from "next/font/local";
 // THEME PROVIDER
 import StyledComponentsRegistry from "@lib/registry";
 // CONTEXT PROVIDER
@@ -15,7 +15,21 @@ import { I18nProvider } from "@/state/i18n-context";
 import ToastProvider from "@context/ToastContext";
 import NetworkStatusBanner from "@/components/status/NetworkStatusBanner";
 
-const publicSans = Public_Sans({ subsets: ["latin"] });
+const publicSans = localFont({
+  src: [
+    {
+      path: "./fonts/public-sans/PublicSans-VariableFont_wght.woff2",
+      style: "normal",
+      weight: "100 900"
+    },
+    {
+      path: "./fonts/public-sans/PublicSans-Italic-VariableFont_wght.woff2",
+      style: "italic",
+      weight: "100 900"
+    }
+  ],
+  display: "swap"
+});
 
 export const metadata: Metadata = {
   title: "Bonik - La mejor plantilla de comercio electrónico React",

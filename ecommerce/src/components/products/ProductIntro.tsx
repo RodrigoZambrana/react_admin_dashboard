@@ -266,8 +266,14 @@ export default function ProductIntro({
   variantAttributes,
   variants
 }: Props) {
-  const param = useParams();
-  const fallbackSlug = typeof param.slug === "string" ? param.slug : Array.isArray(param.slug) ? param.slug[0] : undefined;
+  const param = useParams<{ slug?: string | string[] }>() ?? {};
+  const rawSlug = param.slug;
+  const fallbackSlug =
+    typeof rawSlug === "string"
+      ? rawSlug
+      : Array.isArray(rawSlug)
+        ? rawSlug[0]
+        : undefined;
   const productSlug = slug ?? fallbackSlug ?? String(id);
 
   const { items, addItemSnapshot, updateQuantity } = useCart();

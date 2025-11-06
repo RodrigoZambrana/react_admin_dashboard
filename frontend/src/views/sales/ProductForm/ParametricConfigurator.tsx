@@ -76,7 +76,7 @@ const buildQuotePayload = (
 })
 
 type ParametricConfiguratorProps = {
-    productId: number
+    productId?: number | null
     currency: string
 }
 
@@ -96,9 +96,11 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
     const [importing, setImporting] = useState(false)
 
     const options = useMemo(() => parseConfigOptions(config), [config])
+    const numericProductId = Number(productId ?? 0)
+    const isReadOnly = !Number.isFinite(numericProductId) || numericProductId <= 0
 
     useEffect(() => {
-        if (!productId) {
+        if (!numericProductId || numericProductId <= 0) {
             setConfig(null)
             return
         }
@@ -106,7 +108,7 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
         setLoadingConfig(true)
         ;(async () => {
             try {
-                const response = await apiGetParametricConfig<{ data: Record<string, any> }>(productId)
+                const response = await apiGetParametricConfig<{ data: Record<string, any> }>(numericProductId)
                 if (!mounted) return
                 setConfig((response as any)?.data ?? (response as any))
             } catch (error) {
@@ -123,7 +125,7 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
         return () => {
             mounted = false
         }
-    }, [productId])
+    }, [numericProductId])
 
     const handleFieldChange = useCallback(
         (field: keyof typeof DEFAULT_FORM_STATE) => (value: string | boolean) => {
@@ -137,7 +139,19 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
 
     const handleFileUpload = useCallback(
         async (files: File[]) => {
-            if (!productId || !files.length) {
+            if (!files.length) {
+                return
+            }
+            if (isReadOnly) {
+                toast.push(
+                    <Notification
+                        title={t('sales.productForm.parametric.requiresProduct', {
+                            defaultValue: 'Save the product to configure parametric pricing.',
+                        })}
+                        type="info"
+                    />,
+                    { placement: 'top-center' },
+                )
                 return
             }
             const file = files[0]
@@ -145,7 +159,7 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
             formData.append('file', file)
             setImporting(true)
             try {
-                const response = await apiImportParametricReferences<{ data: any }>(productId, formData)
+                const response = await apiImportParametricReferences<{ data: any }>(numericProductId, formData)
                 toast.push(
                     <Notification
                         title={t('sales.productForm.parametric.importSuccess', { defaultValue: 'Import completed' })}
@@ -175,17 +189,26 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
                 setImporting(false)
             }
         },
-        [productId, t],
+        [isReadOnly, numericProductId, t],
     )
 
     const handleQuote = useCallback(async () => {
-        if (!productId) {
+        if (isReadOnly) {
+            toast.push(
+                <Notification
+                    title={t('sales.productForm.parametric.requiresProduct', {
+                        defaultValue: 'Save the product to configure parametric pricing.',
+                    })}
+                    type="info"
+                />,
+                { placement: 'top-center' },
+            )
             return
         }
         setQuoting(true)
         setQuoteResult(null)
         try {
-            const payload = buildQuotePayload(productId, quoteState)
+            const payload = buildQuotePayload(numericProductId, quoteState)
             const response = await apiQuoteParametricProduct<{
                 total: number
                 currency: string
@@ -209,20 +232,7 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
         } finally {
             setQuoting(false)
         }
-    }, [productId, quoteState, t])
-
-    if (!productId) {
-        return (
-            <AdaptableCard className="mb-4">
-                <h5 className="mb-2">{t('sales.productForm.parametric.requiresProduct', { defaultValue: 'Save the product to configure parametric pricing.' })}</h5>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                    {t('sales.productForm.parametric.requiresProductDetail', {
-                        defaultValue: 'Create the product first, then you will be able to import reference prices and configure the pricing engine.',
-                    })}
-                </p>
-            </AdaptableCard>
-        )
-    }
+    }, [isReadOnly, numericProductId, quoteState, t])
 
     return (
         <AdaptableCard className="mb-4">
@@ -236,6 +246,14 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
                             defaultValue: 'Import quotation history and test the price engine with real-time parameters.',
                         })}
                     </p>
+                    {isReadOnly && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                            {t('sales.productForm.parametric.requiresProductDetail', {
+                                defaultValue:
+                                    'Create and save the product first to import reference prices or run price simulations.',
+                            })}
+                        </p>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -251,6 +269,7 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
                                 }
                                 placeholder="1.00"
                                 label={t('sales.productForm.parametric.width', { defaultValue: 'Width (m)' })}
+                                disabled={isReadOnly}
                             />
                             <Input
                                 value={quoteState.height}
@@ -259,24 +278,28 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
                                 }
                                 placeholder="1.00"
                                 label={t('sales.productForm.parametric.height', { defaultValue: 'Height (m)' })}
+                                disabled={isReadOnly}
                             />
                             <Select
                                 options={options.series.map((value) => ({ label: value, value }))}
                                 value={quoteState.series}
                                 onChange={(value) => handleFieldChange('series')(value)}
                                 placeholder="Serie"
+                                isDisabled={isReadOnly}
                             />
                             <Select
                                 options={options.colors.map((value) => ({ label: value, value }))}
                                 value={quoteState.color}
                                 onChange={(value) => handleFieldChange('color')(value)}
                                 placeholder={t('sales.productForm.parametric.color', { defaultValue: 'Color' })}
+                                isDisabled={isReadOnly}
                             />
                             <Select
                                 options={options.glass.map((value) => ({ label: value, value }))}
                                 value={quoteState.glass}
                                 onChange={(value) => handleFieldChange('glass')(value)}
                                 placeholder={t('sales.productForm.parametric.glass', { defaultValue: 'Glass' })}
+                                isDisabled={isReadOnly}
                             />
                             <div className="flex items-center justify-between border rounded-md px-3 py-2">
                                 <span className="text-sm font-medium">
@@ -285,6 +308,7 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
                                 <Switcher
                                     checked={quoteState.mosquitoNet}
                                     onChange={(checked) => handleFieldChange('mosquitoNet')(checked)}
+                                    disabled={isReadOnly}
                                 />
                             </div>
                         </div>
@@ -296,6 +320,7 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
                                 <Switcher
                                     checked={quoteState.monoblockEnabled}
                                     onChange={(checked) => handleFieldChange('monoblockEnabled')(checked)}
+                                    disabled={isReadOnly}
                                 />
                             </div>
                             {quoteState.monoblockEnabled && (
@@ -305,12 +330,14 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
                                         value={quoteState.monoblockMaterial}
                                         onChange={(value) => handleFieldChange('monoblockMaterial')(value)}
                                         placeholder="Material"
+                                        isDisabled={isReadOnly}
                                     />
                                     <Select
                                         options={['WHITE', 'NATURAL', 'BLACK', 'BROWN'].map((value) => ({ label: value, value }))}
                                         value={quoteState.monoblockColor}
                                         onChange={(value) => handleFieldChange('monoblockColor')(value)}
                                         placeholder="Color"
+                                        isDisabled={isReadOnly}
                                     />
                                 </div>
                             )}
@@ -321,7 +348,7 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
                                 variant="solid"
                                 onClick={handleQuote}
                                 loading={quoting}
-                                disabled={quoting}
+                                disabled={isReadOnly || quoting}
                             >
                                 {t('sales.productForm.parametric.calculate', { defaultValue: 'Calculate price' })}
                             </Button>
@@ -381,16 +408,24 @@ const ParametricConfigurator = ({ productId, currency }: ParametricConfiguratorP
                             beforeUpload={() => true}
                             onChange={(files) => handleFileUpload(files)}
                             showList={false}
-                            disabled={importing}
+                            disabled={isReadOnly || importing}
                         >
                             <div className="border border-dashed rounded-md py-6 text-center text-sm text-gray-600 dark:text-gray-300">
-                                {importing
+                                {isReadOnly
+                                    ? t('sales.productForm.parametric.requiresProduct', {
+                                          defaultValue: 'Save the product to enable imports.',
+                                      })
+                                    : importing
                                     ? t('sales.productForm.parametric.importing', { defaultValue: 'Importing…' })
                                     : t('sales.productForm.parametric.importCta', { defaultValue: 'Drop file here or click to browse' })}
                             </div>
                         </Upload>
                         <div className="border rounded-md p-3 text-sm text-gray-600 dark:text-gray-300">
-                            {loadingConfig
+                            {isReadOnly
+                                ? t('sales.productForm.parametric.configIdle', {
+                                      defaultValue: 'Save the product to load parametric configuration options.',
+                                  })
+                                : loadingConfig
                                 ? t('sales.productForm.parametric.loadingConfig', { defaultValue: 'Loading configuration…' })
                                 : t('sales.productForm.parametric.configSummary', {
                                       defaultValue: 'Configured series: {{series}}. Colors: {{colors}}.',

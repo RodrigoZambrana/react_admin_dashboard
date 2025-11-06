@@ -10,6 +10,7 @@ import {
   ValidateNested,
   IsObject,
   Matches,
+  IsIn,
 } from 'class-validator'
 
 class StorefrontOrderCustomerDto {
@@ -25,6 +26,11 @@ class StorefrontOrderCustomerDto {
   @IsOptional()
   @IsString()
   phone?: string
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['es', 'en'])
+  locale?: string
 }
 
 class StorefrontAddressDto {

@@ -156,6 +156,24 @@ const sanitizePhoneInput = (value?: string | null): string | null => {
   return normalized.length >= 6 ? normalized : null
 }
 
+const normalizeLocalePreference = (value?: string | null): 'en' | 'es' => {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (normalized.startsWith('en')) {
+    return 'en'
+  }
+  return 'es'
+}
+
+const getPreferredLocale = (record: unknown): 'en' | 'es' => {
+  if (record && typeof record === 'object' && 'preferredLocale' in (record as Record<string, unknown>)) {
+    const value = (record as Record<string, unknown>).preferredLocale
+    if (typeof value === 'string') {
+      return normalizeLocalePreference(value)
+    }
+  }
+  return 'es'
+}
+
 const deriveCountryCode = (countryName?: string | null): string | null => {
   if (!countryName) return null
   const normalized = countryName.trim()
@@ -846,6 +864,7 @@ export class StorefrontService implements OnModuleInit {
 
     const phone = sanitizePhoneInput(dto.phone)
     const passwordHash = await bcrypt.hash(dto.password, 12)
+    const preferredLocale = dto.locale ? normalizeLocalePreference(dto.locale) : undefined
     const customer = existing
       ? await this.prisma.customer.update({
           where: { id: existing.id },
@@ -859,6 +878,7 @@ export class StorefrontService implements OnModuleInit {
             passwordAlgVersion: 12,
             passwordUpdatedAt: new Date(),
             ...(phone ? { phoneNumber: phone } : {}),
+            ...(preferredLocale ? { preferredLocale } : {}),
           },
         })
       : await this.prisma.customer.create({
@@ -873,6 +893,7 @@ export class StorefrontService implements OnModuleInit {
             passwordAlgVersion: 12,
             passwordUpdatedAt: new Date(),
             ...(phone ? { phoneNumber: phone } : {}),
+            preferredLocale: preferredLocale ?? 'es',
           },
         })
 
@@ -988,6 +1009,7 @@ export class StorefrontService implements OnModuleInit {
               firstName: customer.firstName,
               lastName: customer.lastName,
               phone: customer.phoneNumber ?? undefined,
+              preferredLocale: getPreferredLocale(customer),
               wishlistCount: wishlistSummary.count,
               wishlistProductIds: wishlistSummary.productIds,
               addresses: addresses.map((address) => this.toCustomerAddress(address)),
@@ -1067,6 +1089,7 @@ export class StorefrontService implements OnModuleInit {
     }
 
     let customer = await this.prisma.customer.findUnique({ where: { email } })
+    const localePreference = dto.customer.locale ? normalizeLocalePreference(dto.customer.locale) : null
     if (!customer) {
       customer = await this.prisma.customer.create({
         data: {
@@ -1081,6 +1104,7 @@ export class StorefrontService implements OnModuleInit {
                 create: [{ phone: phone ?? dto.customer.phone }],
               }
             : undefined,
+          preferredLocale: localePreference ?? 'es',
         },
       })
     } else if (!customer.passwordHash && !customer.storefrontDefaultPasswordHash) {
@@ -1089,6 +1113,9 @@ export class StorefrontService implements OnModuleInit {
         data: {
           storefrontDefaultPasswordHash: this.defaultCustomerPasswordHash,
           ...(phone && !customer.phoneNumber ? { phoneNumber: phone } : {}),
+          ...(localePreference && getPreferredLocale(customer) !== localePreference
+            ? { preferredLocale: localePreference }
+            : {}),
         },
       })
     } else if (phone && !customer.phoneNumber) {
@@ -1096,7 +1123,15 @@ export class StorefrontService implements OnModuleInit {
         where: { id: customer.id },
         data: {
           phoneNumber: phone,
+          ...(localePreference && getPreferredLocale(customer) !== localePreference
+            ? { preferredLocale: localePreference }
+            : {}),
         },
+      })
+    } else if (localePreference && getPreferredLocale(customer) !== localePreference) {
+      customer = await this.prisma.customer.update({
+        where: { id: customer.id },
+        data: { preferredLocale: localePreference },
       })
     }
 
@@ -1625,6 +1660,10 @@ export class StorefrontService implements OnModuleInit {
         birthday = parsed
       }
       updateData.birthday = birthday
+    }
+
+    if (dto.locale !== undefined) {
+      updateData.preferredLocale = normalizeLocalePreference(dto.locale)
     }
 
     if (!nextEmail && !nextPhone) {
@@ -2512,6 +2551,16 @@ export class StorefrontService implements OnModuleInit {
       })
     }
 
+    if (dto.customer.locale) {
+      const localePreference = normalizeLocalePreference(dto.customer.locale)
+      if (getPreferredLocale(updatedCustomer) !== localePreference) {
+        updatedCustomer = await this.prisma.customer.update({
+          where: { id: customer.id },
+          data: { preferredLocale: localePreference },
+        })
+      }
+    }
+
     if (normalizedPhone) {
       const existingPhone = await this.prisma.customerPhone.findFirst({
         where: { customerId: customer.id, phone: normalizedPhone },
@@ -2619,6 +2668,7 @@ export class StorefrontService implements OnModuleInit {
       phone: customer.phoneNumber ?? undefined,
       avatarUrl: customer.img ?? undefined,
       dateOfBirth: customer.birthday ? customer.birthday.toISOString() : null,
+      preferredLocale: getPreferredLocale(customer),
       wishlistCount: wishlistSummary.count,
       wishlistProductIds: wishlistSummary.productIds,
       addresses,
@@ -2710,6 +2760,7 @@ export class StorefrontService implements OnModuleInit {
         firstName: customer.firstName,
         lastName: customer.lastName,
         phone: customer.phoneNumber ?? undefined,
+        preferredLocale: getPreferredLocale(customer),
         wishlistCount: wishlistSummary.count,
         wishlistProductIds: wishlistSummary.productIds,
         addresses: addresses.map((address) => this.toCustomerAddress(address)),

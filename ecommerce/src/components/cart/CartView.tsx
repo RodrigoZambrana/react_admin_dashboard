@@ -105,7 +105,7 @@ function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: C
           </Typography>
         </Link>
         {attributeSummary ? (
-          <Typography variant="body2" color="text.muted" mb="0.5rem">
+          <Typography color="text.muted" mb="0.5rem" fontSize="14px">
             {attributeSummary}
           </Typography>
         ) : null}
@@ -173,9 +173,11 @@ export function CartView() {
           <Paragraph mt="1rem" color="text.muted" textAlign="center" maxWidth="260px">
             Your shopping bag is empty. Start shopping
           </Paragraph>
-          <Button as={Link} href="/shop" mt="1.5rem" variant="contained" color="primary">
-            Continue Shopping
-          </Button>
+          <Link href="/shop" style={{ textDecoration: "none" }}>
+            <Button mt="1.5rem" variant="contained" color="primary">
+              Continue Shopping
+            </Button>
+          </Link>
         </FlexBox>
       </Card1>
     );

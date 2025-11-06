@@ -7,16 +7,17 @@ import type {
   CustomerWishlist,
   HomeLayoutDefinition,
   OrderSummary,
-  OrderTimelineResponse,
   PaginatedResponse,
   ProductDetail,
   ProductListQuery,
   ProductSummary,
   StorefrontConfig
 } from "@/types/storefront";
+import type { OrderTimelineResponse } from "@/types/orderTimeline";
 
 import { apiFetch, isApiError } from "../http";
 import { loadStorefrontSnapshot } from "@/lib/snapshots/loaders";
+import { isSnapshotFallbackEnabled } from "@/lib/resilience-flags";
 import type { StorefrontSnapshot } from "@/lib/snapshots/types";
 
 let cachedFallbackCategories: CategorySummary[] | null = null;
@@ -133,8 +134,9 @@ export interface GoogleAuthStartResponse {
 }
 
 export const StorefrontApi = {
-  async getConfig(): Promise<StorefrontConfig> {
+  async getConfig(slug?: string): Promise<StorefrontConfig> {
     return apiFetch<StorefrontConfig>("config", {
+      params: slug ? { clientSlug: slug } : undefined,
       cache: "no-store"
     });
   },
@@ -254,6 +256,7 @@ export const StorefrontApi = {
       firstName: string;
       lastName: string;
       phone?: string;
+      locale?: string;
     }
   ): Promise<AuthSession> {
     return apiFetch<AuthSession>("auth/register", {
@@ -365,6 +368,7 @@ export const StorefrontApi = {
       email?: string | null;
       phone?: string | null;
       dateOfBirth?: string | null;
+      locale?: string | null;
     }
   ): Promise<CustomerProfile> {
     return apiFetch<CustomerProfile>("account/profile", {

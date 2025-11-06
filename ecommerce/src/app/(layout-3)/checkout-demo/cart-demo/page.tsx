@@ -37,7 +37,7 @@ export default function Cart() {
               id={item.id}
               key={item.id}
               qty={item.qty}
-              slug={item.slug}
+              slug={item.slug ?? ""}
               name={item.name}
               price={item.price}
               imgUrl={item.imgUrl}

@@ -40,7 +40,8 @@
     "slick-carousel": "^1.8.1",
     "styled-components": "^6.1.16",
     "styled-system": "^5.1.5",
-    "yup": "^1.6.1"
+    "yup": "^1.6.1",
+    "@fontsource-variable/public-sans": "^5.0.18"
   },
   "devDependencies": {
     "@types/lodash": "^4.17.16",

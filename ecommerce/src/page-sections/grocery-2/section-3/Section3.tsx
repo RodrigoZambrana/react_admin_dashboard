@@ -33,7 +33,7 @@ export default async function Section3() {
                   width={46}
                   height={46}
                   alt="bonik"
-                  src={item.image}
+                  src={item.image ?? "/assets/images/products/placeholder.png"}
                   objectFit="contain"
                 />
 

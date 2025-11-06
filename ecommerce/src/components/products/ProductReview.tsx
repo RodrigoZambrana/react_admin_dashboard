@@ -89,7 +89,7 @@ export default function ProductReview() {
             onChange={handleChange}
             value={values.comment || ""}
             placeholder="Write a review here..."
-            errorText={touched.comment && errors.comment}
+            errorText={touched.comment ? errors.comment : undefined}
           />
         </Box>
 

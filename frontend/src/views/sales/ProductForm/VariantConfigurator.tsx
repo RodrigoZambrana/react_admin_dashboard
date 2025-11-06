@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Button from '@/components/ui/Button'
+import Alert from '@/components/ui/Alert'
 import Table from '@/components/ui/Table'
 import Checkbox from '@/components/ui/Checkbox'
 import Input from '@/components/ui/Input'
@@ -1275,7 +1276,27 @@ const VariantConfigurator = (props: VariantConfiguratorProps) => {
                 </div>
             )}
             {mode === 'parametric' && (
-                <ParametricConfigurator productId={productId} currency={currency} />
+                <div className="mt-6">
+                    {productId > 0 ? (
+                        <ParametricConfigurator productId={productId} currency={currency} />
+                    ) : (
+                        <Alert type="info" showIcon>
+                            <div className="flex flex-col gap-1">
+                                <span className="font-semibold">
+                                    {t('sales.productForm.parametric.requiresProduct', {
+                                        defaultValue: 'Guardá el producto para configurar precios paramétricos.',
+                                    })}
+                                </span>
+                                <span className="text-sm text-gray-600 dark:text-gray-300">
+                                    {t('sales.productForm.parametric.requiresProductDetail', {
+                                        defaultValue:
+                                            'Creá el producto primero y luego podrás importar referencias y ajustar el motor de precios.',
+                                    })}
+                                </span>
+                            </div>
+                        </Alert>
+                    )}
+                </div>
             )}
             {selectedVariantForImages && (
                 <VariantImagesDialog

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, ReactNode } from "react";
 import { CSSProperties } from "styled-components";
 import { colorOptions } from "interfaces";
 import StyledRating from "./styles";
@@ -33,7 +33,7 @@ export default function Rating({
   let fullStar = parseInt(state.toString());
   let halfStar = Math.ceil(state - fullStar);
   let emptyStar = (outof as number) - Math.ceil(state);
-  let starList = [];
+  let starList: ReactNode[] = [];
 
   const handleStarClick = (inputValue: any) => {
     if (!readOnly) {

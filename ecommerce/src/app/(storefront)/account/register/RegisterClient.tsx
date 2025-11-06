@@ -7,6 +7,7 @@ import { useFormik } from "formik";
 import * as yup from "yup";
 
 import { useSession } from "@/state/session-context";
+import { useI18n } from "@/state/i18n-context";
 import { normalizePhoneNumber } from "@/lib/utils/phone";
 
 import Icon from "@component/icon/Icon";
@@ -51,6 +52,7 @@ type FormValues = yup.InferType<typeof formSchema>;
 export default function RegisterClient() {
   const router = useRouter();
   const { register, error, clearError } = useSession();
+  const { locale } = useI18n();
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -70,7 +72,8 @@ export default function RegisterClient() {
         password: values.password,
         firstName: values.firstName.trim(),
         lastName: values.lastName.trim(),
-        phone: normalizedPhone
+        phone: normalizedPhone,
+        locale
       });
       router.replace("/");
     } catch (err) {
@@ -114,7 +117,7 @@ export default function RegisterClient() {
           value={values.firstName}
           onChange={handleChange}
           placeholder="Jane"
-          errorText={touched.firstName && errors.firstName}
+          errorText={touched.firstName ? errors.firstName : undefined}
           disabled={submitting}
         />
 
@@ -127,7 +130,7 @@ export default function RegisterClient() {
           value={values.lastName}
           onChange={handleChange}
           placeholder="Doe"
-          errorText={touched.lastName && errors.lastName}
+          errorText={touched.lastName ? errors.lastName : undefined}
           disabled={submitting}
         />
 
@@ -141,7 +144,7 @@ export default function RegisterClient() {
           onChange={handleChange}
           placeholder="you@example.com"
           label="Email address"
-          errorText={touched.email && errors.email}
+          errorText={touched.email ? errors.email : undefined}
           disabled={submitting}
         />
 
@@ -154,7 +157,7 @@ export default function RegisterClient() {
           onChange={handleChange}
           placeholder="+1 (555) 000-0000"
           label="Phone number"
-          errorText={touched.phone && errors.phone}
+          errorText={touched.phone ? errors.phone : undefined}
           disabled={submitting}
         />
 
@@ -167,7 +170,7 @@ export default function RegisterClient() {
           onBlur={handleBlur}
           value={values.password}
           onChange={handleChange}
-          errorText={touched.password && errors.password}
+          errorText={touched.password ? errors.password : undefined}
           type={showPassword ? "text" : "password"}
           autoComplete="new-password"
           disabled={submitting}
@@ -202,7 +205,7 @@ export default function RegisterClient() {
           value={values.confirmPassword}
           type={showPassword ? "text" : "password"}
           autoComplete="new-password"
-          errorText={touched.confirmPassword && errors.confirmPassword}
+          errorText={touched.confirmPassword ? errors.confirmPassword : undefined}
           disabled={submitting}
           endAdornment={
             <IconButton

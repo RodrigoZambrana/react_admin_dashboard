@@ -16,8 +16,10 @@ import Typography from "@component/Typography";
 
 import { useSession } from "@/state/session-context";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { extractApiErrorMessage } from "@/lib/api/errors";
 import type { CustomerProfile } from "@/types/storefront";
 import { normalizePhoneNumber, looksLikePhoneNumber } from "@/lib/utils/phone";
+import { useI18n } from "@/state/i18n-context";
 
 type FormValues = {
   firstName: string;
@@ -58,6 +60,7 @@ interface ProfileEditFormProps {
 
 export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormProps) {
   const { session } = useSession();
+  const { locale } = useI18n();
 
   const INITIAL_VALUES: FormValues = {
     firstName: profile.firstName ?? "",
@@ -96,7 +99,8 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
           firstName: values.firstName.trim(),
           lastName: values.lastName.trim() || null,
           email: normalizedEmail,
-          phone: normalizedPhone
+          phone: normalizedPhone,
+          locale
         } as const;
 
         const updated = await StorefrontApi.updateAccountProfile(session.accessToken, payload);
@@ -104,7 +108,7 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
         onUpdated?.(updated);
       } catch (cause) {
         const message = isApiError(cause)
-          ? cause.payload?.message ?? cause.message
+          ? extractApiErrorMessage(cause)
           : cause instanceof Error
             ? cause.message
             : "Unable to update profile.";
@@ -113,7 +117,7 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
         helpers.setSubmitting(false);
       }
     },
-    [onUpdated, session?.accessToken]
+    [locale, onUpdated, session?.accessToken]
   );
 
   return (
@@ -158,7 +162,7 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.firstName}
-                    errorText={touched.firstName && errors.firstName}
+                    errorText={touched.firstName ? errors.firstName : undefined}
                   />
                 </Grid>
 
@@ -170,7 +174,7 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.lastName}
-                    errorText={touched.lastName && errors.lastName}
+                    errorText={touched.lastName ? errors.lastName : undefined}
                   />
                 </Grid>
 
@@ -183,7 +187,7 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
                     onBlur={handleBlur}
                     value={values.email}
                     onChange={handleChange}
-                    errorText={touched.email && errors.email}
+                    errorText={touched.email ? errors.email : undefined}
                   />
                 </Grid>
 
@@ -195,7 +199,7 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
                     onBlur={handleBlur}
                     value={values.phone}
                     onChange={handleChange}
-                    errorText={touched.phone && errors.phone}
+                    errorText={touched.phone ? errors.phone : undefined}
                   />
                 </Grid>
 

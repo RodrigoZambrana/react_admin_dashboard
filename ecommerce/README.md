@@ -2,6 +2,8 @@
 
 This document outlines actionable steps required to replace the existing Wokiee-based storefront with the Bonik storefront template while preserving the backend-ready architecture developed so far.
 
+> Multi-tenant reminder: definí `CLIENT_SLUG` / `NEXT_PUBLIC_CLIENT_SLUG` en los `.env` del storefront para elegir la variante (`core`, `retail`, `urucortinas`, etc.). Las overrides locales viven ahora en `src/clients/<slug>/config.ts` y se mezclan con el payload remoto que expone el backend.
+
 ## Phase 1 – Audit & Prepare
 
 - Install dependencies and run `npm run dev` in `ecommerce` to review the template out of the box.

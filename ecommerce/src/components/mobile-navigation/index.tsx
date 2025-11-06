@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from "react";
 import styled from "styled-components";
 
 import Chip from "@component/Chip";
@@ -7,6 +8,7 @@ import Icon from "@component/icon/Icon";
 import NavLink from "@component/nav-link";
 import useCart from "@hook/useCart";
 import useWindowSize from "@hook/useWindowSize";
+import { useTranslation } from "@/state/i18n-context";
 import { layoutConstant } from "@utils/constants";
 
 // STYLED COMPONENT
@@ -64,11 +66,50 @@ type MobileNavItem = {
   icon: string;
   href?: string;
   action?: string;
+  showCartCount?: boolean;
 };
 
 export default function MobileNavigationBar() {
   const { state, itemCount } = useCart();
   const width = useWindowSize();
+  const t = useTranslation();
+
+  const items = useMemo<MobileNavItem[]>(
+    () => [
+      {
+        title: t("mobileNav.menu", { defaultMessage: "Menu" }),
+        icon: "menu",
+        action: "mobile-nav:open-menu"
+      },
+      {
+        title: t("mobileNav.home", { defaultMessage: "Home" }),
+        icon: "home",
+        href: HOME_PATH.startsWith("/") ? HOME_PATH : `/${HOME_PATH}`
+      },
+      {
+        title: t("mobileNav.shop", { defaultMessage: "Shop" }),
+        icon: "bag",
+        href: "/shop"
+      },
+      {
+        title: t("mobileNav.categories", { defaultMessage: "Categories" }),
+        icon: "category",
+        action: "mobile-nav:open-categories"
+      },
+      {
+        title: t("mobileNav.cart", { defaultMessage: "Cart" }),
+        icon: "shopping-cart",
+        action: "mobile-nav:open-cart",
+        showCartCount: true
+      },
+      {
+        title: t("mobileNav.account", { defaultMessage: "Account" }),
+        icon: "user-2",
+        action: "mobile-nav:open-account"
+      }
+    ],
+    [t]
+  );
 
   const handleAction = (action: string) => () => {
     if (typeof window !== "undefined") {
@@ -76,10 +117,10 @@ export default function MobileNavigationBar() {
     }
   };
 
-  if (width <= 900) {
+  if ((width ?? 0) <= 900) {
     return (
-      <Wrapper $itemCount={list.length}>
-        {list.map((item) => {
+      <Wrapper $itemCount={items.length}>
+        {items.map((item) => {
           const content = (
             <>
               <Icon className="icon" variant="small">
@@ -88,7 +129,7 @@ export default function MobileNavigationBar() {
 
               {item.title}
 
-              {item.title === "Cart" && !!itemCount && (
+              {item.showCartCount && !!itemCount && (
                 <Chip
                   top="4px"
                   px="0.25rem"
@@ -127,20 +168,3 @@ export default function MobileNavigationBar() {
 
   return null;
 }
-
-const list: MobileNavItem[] = [
-  { title: "Menu", icon: "menu", action: "mobile-nav:open-menu" },
-  {
-    title: "Home",
-    icon: "home",
-    href: HOME_PATH.startsWith("/") ? HOME_PATH : `/${HOME_PATH}`
-  },
-  {
-    title: "Shop",
-    icon: "bag",
-    href: "/shop"
-  },
-  { title: "Categories", icon: "category", action: "mobile-nav:open-categories" },
-  { title: "Cart", icon: "shopping-cart", action: "mobile-nav:open-cart" },
-  { title: "Account", icon: "user-2", action: "mobile-nav:open-account" }
-];

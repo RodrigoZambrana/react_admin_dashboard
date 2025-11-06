@@ -339,6 +339,7 @@ model Customer {
   pinterest                     String?
   linkedIn                      String?
   phones                        CustomerPhone[]
+  preferredLocale               String                @default("es")
   createdAt                     DateTime               @default(now())
   updatedAt                     DateTime               @updatedAt
   orders                        Order[]

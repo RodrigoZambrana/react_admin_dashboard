@@ -110,8 +110,8 @@ const totalsBlockEs = buildTotalsBlock({ subtotal: 'Subtotal', tax: 'Impuestos',
 
 const orderCustomerSubjectEn = `[{{companyName}}] {{eventLabel payload.event}} {{#if payload.orderNumber}}#{{payload.orderNumber}}{{/if}}`
 const orderCustomerSubjectEs = `[{{companyName}}] {{eventLabel payload.event}} {{#if payload.orderNumber}}#{{payload.orderNumber}}{{/if}}`
-const orderAdminSubjectEn = `[{{companyName}} - Admin] {{eventLabel payload.event}} {{#if payload.orderNumber}}#{{payload.orderNumber}}{{/if}}`
-const orderAdminSubjectEs = `[{{companyName}} - Admin] {{eventLabel payload.event}} {{#if payload.orderNumber}}#{{payload.orderNumber}}{{/if}}`
+const orderAdminSubjectEn = `[{{companyName}} - Admin] New order received {{#if payload.orderNumber}}#{{payload.orderNumber}}{{/if}}`
+const orderAdminSubjectEs = `[{{companyName}} - Admin] Nuevo pedido recibido {{#if payload.orderNumber}}#{{payload.orderNumber}}{{/if}}`
 
 const orderCustomerEn = wrapWithLayout(`
 <mj-text font-size="18px" font-weight="600">
@@ -146,16 +146,6 @@ const orderCustomerEn = wrapWithLayout(`
     <td align="right">{{payload.paymentMethod}}</td>
   </tr>
   {{/if}}
-  {{#if payload.deliveryEstimate}}
-  <tr>
-    <td><strong>Estimated delivery</strong></td>
-    <td align="right">
-      {{#if payload.deliveryEstimate.minHours}}{{payload.deliveryEstimate.minHours}}h{{/if}}
-      {{#if (and payload.deliveryEstimate.minHours payload.deliveryEstimate.maxHours)}} – {{/if}}
-      {{#if payload.deliveryEstimate.maxHours}}{{payload.deliveryEstimate.maxHours}}h{{/if}}
-    </td>
-  </tr>
-  {{/if}}
   {{#if payload.validUntil}}
   <tr>
     <td><strong>Valid until</strong></td>
@@ -167,6 +157,36 @@ const orderCustomerEn = wrapWithLayout(`
 <mj-text font-size="16px" font-weight="600">Order summary</mj-text>
 ${orderItemsTableEn}
 ${totalsBlockEn}
+{{#if (or payload.deliveryEstimateLabel payload.shippingVendor payload.shippingAddress payload.billingAddress)}}
+  <mj-divider padding="12px 0" border-color="#E5E7EB" />
+  <mj-text font-size="16px" font-weight="600">Delivery information</mj-text>
+  <mj-table>
+    {{#if payload.shippingVendor}}
+    <tr>
+      <td><strong>Carrier</strong></td>
+      <td align="right">{{payload.shippingVendor}}</td>
+    </tr>
+    {{/if}}
+    {{#if payload.deliveryEstimateLabel}}
+    <tr>
+      <td><strong>Estimated delivery</strong></td>
+      <td align="right">{{payload.deliveryEstimateLabel}}</td>
+    </tr>
+    {{/if}}
+  </mj-table>
+  {{#if payload.shippingAddress}}
+    <mj-text>
+      <strong>Shipping address</strong><br/>
+      {{#each payload.shippingAddress.lines}}{{this}}<br/>{{/each}}
+    </mj-text>
+  {{/if}}
+  {{#if payload.billingAddress}}
+    <mj-text>
+      <strong>Billing address</strong><br/>
+      {{#each payload.billingAddress.lines}}{{this}}<br/>{{/each}}
+    </mj-text>
+  {{/if}}
+{{/if}}
 {{#if payload.notes}}
   <mj-divider padding="12px 0" border-color="#E5E7EB" />
   <mj-text><strong>Notes:</strong> {{payload.notes}}</mj-text>
@@ -211,16 +231,6 @@ const orderCustomerEs = wrapWithLayout(`
     <td align="right">{{payload.paymentMethod}}</td>
   </tr>
   {{/if}}
-  {{#if payload.deliveryEstimate}}
-  <tr>
-    <td><strong>Entrega estimada</strong></td>
-    <td align="right">
-      {{#if payload.deliveryEstimate.minHours}}{{payload.deliveryEstimate.minHours}}h{{/if}}
-      {{#if (and payload.deliveryEstimate.minHours payload.deliveryEstimate.maxHours)}} – {{/if}}
-      {{#if payload.deliveryEstimate.maxHours}}{{payload.deliveryEstimate.maxHours}}h{{/if}}
-    </td>
-  </tr>
-  {{/if}}
   {{#if payload.validUntil}}
   <tr>
     <td><strong>Válido hasta</strong></td>
@@ -232,6 +242,36 @@ const orderCustomerEs = wrapWithLayout(`
 <mj-text font-size="16px" font-weight="600">Resumen del pedido</mj-text>
 ${orderItemsTableEs}
 ${totalsBlockEs}
+{{#if (or payload.deliveryEstimateLabel payload.shippingVendor payload.shippingAddress payload.billingAddress)}}
+  <mj-divider padding="12px 0" border-color="#E5E7EB" />
+  <mj-text font-size="16px" font-weight="600">Información de entrega</mj-text>
+  <mj-table>
+    {{#if payload.shippingVendor}}
+    <tr>
+      <td><strong>Transportista</strong></td>
+      <td align="right">{{payload.shippingVendor}}</td>
+    </tr>
+    {{/if}}
+    {{#if payload.deliveryEstimateLabel}}
+    <tr>
+      <td><strong>Tiempo estimado</strong></td>
+      <td align="right">{{payload.deliveryEstimateLabel}}</td>
+    </tr>
+    {{/if}}
+  </mj-table>
+  {{#if payload.shippingAddress}}
+    <mj-text>
+      <strong>Dirección de envío</strong><br/>
+      {{#each payload.shippingAddress.lines}}{{this}}<br/>{{/each}}
+    </mj-text>
+  {{/if}}
+  {{#if payload.billingAddress}}
+    <mj-text>
+      <strong>Dirección de facturación</strong><br/>
+      {{#each payload.billingAddress.lines}}{{this}}<br/>{{/each}}
+    </mj-text>
+  {{/if}}
+{{/if}}
 {{#if payload.notes}}
   <mj-divider padding="12px 0" border-color="#E5E7EB" />
   <mj-text><strong>Notas:</strong> {{payload.notes}}</mj-text>
@@ -291,6 +331,36 @@ const orderAdminEn = wrapWithLayout(`
 <mj-text font-size="16px" font-weight="600">Order summary</mj-text>
 ${orderItemsTableEn}
 ${totalsBlockEn}
+{{#if (or payload.deliveryEstimateLabel payload.shippingVendor payload.shippingAddress payload.billingAddress)}}
+  <mj-divider padding="12px 0" border-color="#E5E7EB" />
+  <mj-text font-size="16px" font-weight="600">Delivery & addresses</mj-text>
+  <mj-table>
+    {{#if payload.shippingVendor}}
+    <tr>
+      <td><strong>Carrier</strong></td>
+      <td align="right">{{payload.shippingVendor}}</td>
+    </tr>
+    {{/if}}
+    {{#if payload.deliveryEstimateLabel}}
+    <tr>
+      <td><strong>Estimated delivery</strong></td>
+      <td align="right">{{payload.deliveryEstimateLabel}}</td>
+    </tr>
+    {{/if}}
+  </mj-table>
+  {{#if payload.shippingAddress}}
+    <mj-text>
+      <strong>Shipping address</strong><br/>
+      {{#each payload.shippingAddress.lines}}{{this}}<br/>{{/each}}
+    </mj-text>
+  {{/if}}
+  {{#if payload.billingAddress}}
+    <mj-text>
+      <strong>Billing address</strong><br/>
+      {{#each payload.billingAddress.lines}}{{this}}<br/>{{/each}}
+    </mj-text>
+  {{/if}}
+{{/if}}
 {{#if payload.notes}}
   <mj-divider padding="12px 0" border-color="#E5E7EB" />
   <mj-text><strong>Notes:</strong> {{payload.notes}}</mj-text>
@@ -348,6 +418,36 @@ const orderAdminEs = wrapWithLayout(`
 <mj-text font-size="16px" font-weight="600">Resumen del pedido</mj-text>
 ${orderItemsTableEs}
 ${totalsBlockEs}
+{{#if (or payload.deliveryEstimateLabel payload.shippingVendor payload.shippingAddress payload.billingAddress)}}
+  <mj-divider padding="12px 0" border-color="#E5E7EB" />
+  <mj-text font-size="16px" font-weight="600">Información de entrega y direcciones</mj-text>
+  <mj-table>
+    {{#if payload.shippingVendor}}
+    <tr>
+      <td><strong>Transportista</strong></td>
+      <td align="right">{{payload.shippingVendor}}</td>
+    </tr>
+    {{/if}}
+    {{#if payload.deliveryEstimateLabel}}
+    <tr>
+      <td><strong>Tiempo estimado</strong></td>
+      <td align="right">{{payload.deliveryEstimateLabel}}</td>
+    </tr>
+    {{/if}}
+  </mj-table>
+  {{#if payload.shippingAddress}}
+    <mj-text>
+      <strong>Dirección de envío</strong><br/>
+      {{#each payload.shippingAddress.lines}}{{this}}<br/>{{/each}}
+    </mj-text>
+  {{/if}}
+  {{#if payload.billingAddress}}
+    <mj-text>
+      <strong>Dirección de facturación</strong><br/>
+      {{#each payload.billingAddress.lines}}{{this}}<br/>{{/each}}
+    </mj-text>
+  {{/if}}
+{{/if}}
 {{#if payload.notes}}
   <mj-divider padding="12px 0" border-color="#E5E7EB" />
   <mj-text><strong>Notas:</strong> {{payload.notes}}</mj-text>
@@ -560,7 +660,7 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.ORDERS,
     variant: EmailTemplateVariant.CUSTOMER,
     locale: 'en',
-    version: 4,
+    version: 5,
     subject: orderCustomerSubjectEn,
     body: orderCustomerEn,
   },
@@ -568,7 +668,7 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.ORDERS,
     variant: EmailTemplateVariant.CUSTOMER,
     locale: 'es',
-    version: 4,
+    version: 5,
     subject: orderCustomerSubjectEs,
     body: orderCustomerEs,
   },
@@ -576,7 +676,7 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.ORDERS,
     variant: EmailTemplateVariant.ADMIN,
     locale: 'en',
-    version: 4,
+    version: 5,
     subject: orderAdminSubjectEn,
     body: orderAdminEn,
   },
@@ -584,7 +684,7 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.ORDERS,
     variant: EmailTemplateVariant.ADMIN,
     locale: 'es',
-    version: 4,
+    version: 5,
     subject: orderAdminSubjectEs,
     body: orderAdminEs,
   },

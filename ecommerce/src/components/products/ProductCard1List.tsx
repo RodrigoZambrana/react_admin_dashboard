@@ -14,7 +14,7 @@ interface Props {
 
 export default function ProductGridView({ products }: Props) {
   const width = useWindowSize();
-  const isTablet = width < 1025;
+  const isTablet = (width ?? 0) < 1025;
 
   return (
     <div>

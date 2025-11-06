@@ -126,7 +126,7 @@ export default function Login({
           onChange={handleChange}
           placeholder="you@example.com or +1 (555) 000-0000"
           label="Email or Phone Number"
-          errorText={touched.identifier && errors.identifier}
+          errorText={touched.identifier ? errors.identifier : undefined}
         />
 
         <TextField
@@ -139,7 +139,7 @@ export default function Login({
           onChange={handleChange}
           placeholder="*********"
           value={values.password}
-          errorText={touched.password && errors.password}
+          errorText={touched.password ? errors.password : undefined}
           type={passwordVisibility ? "text" : "password"}
           endAdornment={
             <IconButton

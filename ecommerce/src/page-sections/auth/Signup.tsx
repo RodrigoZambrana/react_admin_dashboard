@@ -32,7 +32,7 @@ const formSchema = yup.object().shape({
   password: yup.string().required("${path} is required"),
   re_password: yup
     .string()
-    .oneOf([yup.ref("password"), null], "Passwords must match")
+    .oneOf([yup.ref("password")], "Passwords must match")
     .required("Please re-type password"),
   agreement: yup
     .bool()
@@ -79,7 +79,7 @@ export default function Signup() {
           value={values.name}
           onChange={handleChange}
           placeholder="Ralph Adwards"
-          errorText={touched.name && errors.name}
+          errorText={touched.name ? errors.name : undefined}
         />
 
         <TextField
@@ -92,7 +92,7 @@ export default function Signup() {
           onChange={handleChange}
           placeholder="exmple@mail.com"
           label="Email or Phone Number"
-          errorText={touched.email && errors.email}
+          errorText={touched.email ? errors.email : undefined}
         />
 
         <TextField
@@ -104,7 +104,7 @@ export default function Signup() {
           onBlur={handleBlur}
           value={values.password}
           onChange={handleChange}
-          errorText={touched.password && errors.password}
+          errorText={touched.password ? errors.password : undefined}
           type={passwordVisibility ? "text" : "password"}
           endAdornment={
             <IconButton
@@ -129,7 +129,7 @@ export default function Signup() {
           onChange={handleChange}
           value={values.re_password}
           type={passwordVisibility ? "text" : "password"}
-          errorText={touched.re_password && errors.re_password}
+          errorText={touched.re_password ? errors.re_password : undefined}
           endAdornment={
             <IconButton
               p="0.25rem"

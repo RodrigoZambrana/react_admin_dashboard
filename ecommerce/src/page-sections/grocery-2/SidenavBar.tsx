@@ -40,8 +40,10 @@ interface NavItemProps {
 const NavItem = memo(({ item, depth = 0 }: NavItemProps) => {
   const marginLeft = `${depth}rem`;
 
+  const hrefValue = item.href ?? "#";
+
   return (
-    <NavLink href={item.href} color="gray.700">
+    <NavLink href={hrefValue} color="gray.700">
       <SemiSpan ml={marginLeft} py="6px" color="inherit" display="block">
         {item.title}
       </SemiSpan>
@@ -84,7 +86,7 @@ export default function SidenavBar({ isFixedNave, navList }: Props) {
               ))}
             </Accordion>
           ) : (
-            <NavLink href={item.href} color="gray.700">
+            <NavLink href={item.href ?? "#"} color="gray.700">
               <FlexBox py="6px" color="inherit">
                 <Icon variant="small" mr="0.75rem">
                   {item.icon}
