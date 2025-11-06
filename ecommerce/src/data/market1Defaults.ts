@@ -25,25 +25,25 @@ export const defaultMarket1ServiceList: Service[] = [
     id: "service-worldwide-delivery",
     icon: "truck",
     title: "Worldwide Delivery",
-    description: null
+    description: ""
   },
   {
     id: "service-safe-payment",
     icon: "credit",
     title: "Safe Payment",
-    description: null
+    description: ""
   },
   {
     id: "service-shop-with-confidence",
     icon: "shield",
     title: "Shop With Confidence",
-    description: null
+    description: ""
   },
   {
     id: "service-support",
     icon: "customer-service",
     title: "24/7 Support",
-    description: null,
+    description: "",
     href: "http://localhost:3000/account/register"
   }
 ];

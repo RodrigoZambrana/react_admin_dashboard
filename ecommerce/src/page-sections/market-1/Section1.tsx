@@ -14,10 +14,10 @@ export default function Section1() {
           {carouselData.map((item, index) => (
             <CarouselCard1
               key={index}
-              title={item.title}
-              image={item.imgUrl}
-              buttonText={item.buttonText}
-              description={item.description}
+              title={item.title ?? ""}
+              image={item.imgUrl ?? "/assets/images/products/placeholder.png"}
+              buttonText={item.buttonText ?? ""}
+              description={item.description ?? ""}
             />
           ))}
         </Carousel>

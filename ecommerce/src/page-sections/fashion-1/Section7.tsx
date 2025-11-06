@@ -61,7 +61,7 @@ export default function Section7({ products }: Props) {
                   title={item.title}
                   price={item.price}
                   rating={item.rating}
-                  images={item.images}
+                  images={item.images ?? []}
                   imgUrl={item.thumbnail}
                 />
               </Grid>

@@ -33,7 +33,7 @@ export default function DropZone({ onChange }: DropZoneProps) {
       flexDirection="column"
       borderColor="gray.400"
       justifyContent="center"
-      bg={isDragActive && "gray.200"}
+      bg={isDragActive ? "gray.200" : undefined}
       transition="all 250ms ease-in-out"
       style={{ outline: "none" }}
       {...getRootProps()}>

@@ -48,7 +48,7 @@ export default function AddressItem({ item }: { item: Address }) {
       </Typography>
 
       <Typography className="pre" textAlign="center" color="text.muted">
-        <Link href={`/address/${item.id}`}>
+        <Link href={`/account/address/${item.id}`}>
           <IconButton color="gray.600">
             <IconEdit size={18} />
           </IconButton>

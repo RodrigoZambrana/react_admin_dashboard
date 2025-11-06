@@ -17,6 +17,7 @@ import CountrySelect from "@/components/country-city/CountrySelect";
 import CitySelect from "@/components/country-city/CitySelect";
 import { deriveCountryCode, useCountryCityData } from "@/lib/country-city";
 import { StorefrontApi, StorefrontAddressInput, isApiError } from "@/lib/api/storefront";
+import { extractApiErrorMessage } from "@/lib/api/errors";
 import { useAccountProfile } from "@/hooks/useAccountProfile";
 import Address from "@models/address.model";
 import { useToast } from "@/contexts/ToastContext";
@@ -391,7 +392,8 @@ export default function AddressForm({ address }: AddressFormProps) {
     } catch (error) {
       let message = "Unable to save address. Please try again.";
       if (isApiError(error)) {
-        message = error.payload?.message ?? error.message ?? message;
+        const resolved = extractApiErrorMessage(error);
+        message = resolved || message;
       } else if (error instanceof Error) {
         message = error.message;
       }

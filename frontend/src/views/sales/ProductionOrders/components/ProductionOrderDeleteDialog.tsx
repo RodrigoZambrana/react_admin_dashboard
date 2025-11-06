@@ -27,7 +27,7 @@ const ProductionOrderDeleteDialog = ({ record, onCancel, onConfirm }: Production
         >
             <p>
                 {t('sales.productionOrders.delete.confirm', {
-                    defaultValue: 'Are you sure you want to delete production order #{id}?',
+                    defaultValue: 'Are you sure you want to delete production order #{{id}}?',
                     id: record?.id,
                 })}
             </p>

@@ -80,7 +80,8 @@ export default function DashboardNavigation() {
           </Typography>
 
           {navGroup.links.map(({ Icon, count, href, title }) => {
-            const isActive = pathname === href || pathname.startsWith(`${href}/`);
+            const currentPath = pathname ?? "";
+            const isActive = currentPath === href || currentPath.startsWith(`${href}/`);
 
             return (
               <StyledDashboardNav href={href} key={title} isActive={isActive}>

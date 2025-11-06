@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import { useTheme } from "styled-components";
 import { IconLayoutGrid, IconList } from "@tabler/icons-react";
 
@@ -18,6 +18,7 @@ import ProductListView from "@component/products/ProductCard9List";
 import ProductFilterCard from "@component/products/ProductFilterCard";
 import useWindowSize from "@hook/useWindowSize";
 import db from "@data/db";
+import type Product from "@models/product.model";
 
 // ==============================================================
 interface Props {
@@ -35,8 +36,32 @@ export default function SearchResult({ sortOptions }: Props) {
   const handleOpenSidenav = useCallback(() => setOpen(true), []);
   const handleCloseSidenav = useCallback(() => setOpen(false), []);
 
-  const isTablet = width < 1025;
+  const isTablet = (width ?? 0) < 1025;
   const toggleView = useCallback((v: any) => () => setView(v), []);
+
+  const productsSubset = useMemo<Product[]>(
+    () =>
+      db.slice(95, 104).map((item: any) => {
+        const normalizedShop = item.shop
+          ? {
+              ...item.shop,
+              socialLinks: {
+                facebook: item.shop.socialLinks?.facebook ?? undefined,
+                youtube: item.shop.socialLinks?.youtube ?? undefined,
+                twitter: item.shop.socialLinks?.twitter ?? undefined,
+                instagram: item.shop.socialLinks?.instagram ?? undefined
+              }
+            }
+          : undefined;
+
+        return {
+          ...item,
+          brand: item.brand ?? undefined,
+          shop: normalizedShop
+        } as Product;
+      }),
+    []
+  );
 
   return (
     <Fragment>
@@ -105,9 +130,9 @@ export default function SearchResult({ sortOptions }: Props) {
 
         <Grid item lg={9} xs={12}>
           {view === "grid" ? (
-            <ProductGridView products={db.slice(95, 104)} />
+            <ProductGridView products={productsSubset} />
           ) : (
-            <ProductListView products={db.slice(95, 104)} />
+            <ProductListView products={productsSubset} />
           )}
         </Grid>
       </Grid>

@@ -18,7 +18,10 @@ const StyledLinearProgress = styled.div.withConfig({
     content: "";
     position: absolute;
     width: ${({ value }) => value}%;
-    background-color: ${({ color, theme }) => theme.colors[color].main};
+    background-color: ${({ color = "primary", theme }) => {
+      const palette = theme.colors[color] ?? theme.colors.primary;
+      return palette?.main ?? theme.colors.primary.main;
+    }};
   }
 `;
 

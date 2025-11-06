@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { extractApiErrorMessage } from "@/lib/api/errors";
 import type { CustomerProfile } from "@/types/storefront";
 import { useSession } from "@/state/session-context";
 import { useToast } from "@/contexts/ToastContext";
@@ -38,7 +39,7 @@ export function useAccountProfile(): UseAccountProfileResult {
       updateCustomerProfile(result);
     } catch (cause) {
       if (isApiError(cause)) {
-        const message = cause.payload?.message ?? cause.message;
+        const message = extractApiErrorMessage(cause);
         setError(message);
         toast.error({
           title: "No pudimos cargar tu perfil",

@@ -9,6 +9,7 @@ export const mapProductSummaryToCardProps = (
   const thumbnail = product.thumbnail?.url ?? null;
   const gallery = filterValidProductImages([
     product.thumbnail?.url ?? null,
+    ...(product.images?.map((image) => image.url ?? null) ?? []),
     ...(product.gallery?.map((image) => image.url ?? null) ?? [])
   ]);
 

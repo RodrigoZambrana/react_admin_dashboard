@@ -176,6 +176,13 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
    - `VITE_STATE_SIGNATURE_KEY`: clave utilizada para firmar estados en el frontend.
    - `VITE_RECAPTCHA_ENABLED`: activa/desactiva la carga del script de reCAPTCHA en el navegador.
    - `VITE_RECAPTCHA_SITE_KEY`: clave pública del sitio para reCAPTCHA (opcional).
+   - `deploy/env/storefront.dev.env`
+     - `CLIENT_SLUG` / `NEXT_PUBLIC_CLIENT_SLUG`: seleccionan la variante del storefront a cargar (por defecto `core`). Deben coincidir con el slug configurado en backend/frontend para mantener coherencia.
+     - `NEXT_PUBLIC_STOREFRONT_API_URL` / `STOREFRONT_API_URL`: URLs del backend para el storefront (navegador vs. SSR).
+     - `NEXT_PUBLIC_SITE_URL`: dominio público del storefront utilizado para enlaces y redirecciones.
+     - `NEXT_PUBLIC_ENABLE_STOREFRONT_MOCKS` / `ENABLE_STOREFRONT_MOCKS`: habilitan el modo mock cuando se necesita trabajar sin backend.
+     - `NEXT_PUBLIC_STORE_LOCALE`: locale base para formatear moneda/fechas.
+     - `NEXT_PUBLIC_MP_*`: credenciales de Mercado Pago expuestas al navegador cuando corresponda.
 
 2. Levanta el entorno completo (frontend servido por Nginx, backend en modo compilado y PostgreSQL) mediante:
    ```bash

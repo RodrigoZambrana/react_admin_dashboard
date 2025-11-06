@@ -24,7 +24,19 @@ export const buildFallbackCategorySummaries = (): CategorySummary[] => {
     const id = nextId++;
     const slug = extractSlug(item.href) ?? `category-${id}`;
 
-    const children: CategorySummary[] = (item.menuData?.categories ?? []).map((category) => {
+    type NavigationMenuCategory = {
+      title: string;
+      href: string;
+      subCategories?: { title: string; href: string; imgUrl: string }[];
+    };
+
+    const rawMenuData = item.menuData;
+    const categoryEntries: NavigationMenuCategory[] =
+      rawMenuData && !Array.isArray(rawMenuData) && Array.isArray((rawMenuData as { categories?: unknown }).categories)
+        ? ((rawMenuData as { categories: NavigationMenuCategory[] }).categories)
+        : [];
+
+    const children: CategorySummary[] = categoryEntries.map((category) => {
       const childId = nextId++;
       const childSlug = extractSlug(category.href) ?? `${slug}-${childId}`;
 

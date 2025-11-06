@@ -122,7 +122,7 @@ export interface StorefrontConfig {
 
 export type InventoryStatus = "in-stock" | "limited" | "back-order" | "out-of-stock";
 
-export type ProductMode = "simple" | "variable";
+export type ProductMode = "simple" | "variable" | "parametric" | "bundle";
 export type ProductAttributeType = "COLOR" | "SIZE" | "MATERIAL";
 
 export interface ProductAttributeValue {
@@ -188,6 +188,8 @@ export interface ProductSummary {
   categories?: CategorySummary[];
   tags?: string[];
   mode?: ProductMode;
+  images?: ProductImage[];
+  gallery?: ProductImage[];
 }
 
 export interface ProductDetail extends ProductSummary {
@@ -399,6 +401,7 @@ export interface CustomerProfile {
   phone?: string | null;
   dateOfBirth?: string | null;
   avatarUrl?: string | null;
+  preferredLocale?: string | null;
   wishlistCount: number;
   wishlistProductIds: number[];
   addresses: Array<{
@@ -471,6 +474,7 @@ export interface OrderPaymentSummary {
   installments?: number;
   cardBrand?: string;
   cardLastFour?: string;
+  cardholderName?: string;
   updatedAt?: string;
 }
 
@@ -505,6 +509,7 @@ export interface CreateOrderPayload {
     firstName: string;
     lastName: string;
     phone?: string;
+    locale?: string;
   };
   shippingAddress: {
     line1: string;
@@ -522,7 +527,7 @@ export interface CreateOrderPayload {
     zip?: string;
     country: string;
   };
-  items: Array<{ productId: number; quantity: number; variantId?: number }>;
+  items: Array<{ productId: number; quantity: number; variantId?: number; configuration?: Record<string, unknown> }>;
   notes?: string;
   paymentIntentId?: string;
   checkoutToken?: string;

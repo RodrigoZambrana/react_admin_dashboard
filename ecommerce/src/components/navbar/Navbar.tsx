@@ -35,7 +35,7 @@ const NavItem = ({ nav, isRoot = false }: { nav: Nav; isRoot?: boolean }) => {
 
   const renderExternalLink = () => (
     <NavLink
-      href={nav.url}
+      href={nav.url ?? "#"}
       key={nav.title}
       target="_blank"
       className="nav-link"
@@ -44,11 +44,14 @@ const NavItem = ({ nav, isRoot = false }: { nav: Nav; isRoot?: boolean }) => {
     </NavLink>
   );
 
-  const renderInternalLink = () => (
-    <NavLink className={isRoot ? "nav-link" : ""} href={nav.url} key={nav.title}>
-      {isRoot ? renderBadgeOrSpan(nav.title) : <MenuItem>{renderBadgeOrSpan(nav.title)}</MenuItem>}
-    </NavLink>
-  );
+  const renderInternalLink = () => {
+    const hrefValue = nav.url ?? "#";
+    return (
+      <NavLink className={isRoot ? "nav-link" : ""} href={hrefValue} key={nav.title}>
+        {isRoot ? renderBadgeOrSpan(nav.title) : <MenuItem>{renderBadgeOrSpan(nav.title)}</MenuItem>}
+      </NavLink>
+    );
+  };
 
   const renderNestedMenu = () => {
     if (isRoot) {

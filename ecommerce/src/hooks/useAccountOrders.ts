@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { extractApiErrorMessage } from "@/lib/api/errors";
 import type { OrderSummary } from "@/types/storefront";
 import type { OrderTimelineResponse } from "@/types/orderTimeline";
 import { useSession } from "@/state/session-context";
@@ -50,7 +51,7 @@ export function useAccountOrders(): UseAccountOrdersResult {
             description: "Tu sesión caducó. Vuelve a iniciar sesión para ver tus pedidos."
           });
         } else {
-          const message = cause.payload?.message ?? cause.message;
+          const message = extractApiErrorMessage(cause);
           setError(message);
           toast.error({
             title: "No pudimos cargar tus pedidos",
@@ -139,7 +140,7 @@ export function useAccountOrder(identifier: string): UseAccountOrderResult {
       } catch (cause) {
         setTimeline(null);
         if (isApiError(cause)) {
-          const message = cause.payload?.message ?? cause.message;
+          const message = extractApiErrorMessage(cause);
           setTimelineError(message);
           toast.error({
             title: "No pudimos cargar la línea de tiempo",
@@ -170,7 +171,7 @@ export function useAccountOrder(identifier: string): UseAccountOrderResult {
             description: message
           });
         } else {
-          const message = cause.payload?.message ?? cause.message;
+          const message = extractApiErrorMessage(cause);
           setError(message);
           toast.error({
             title: "No pudimos cargar el pedido",

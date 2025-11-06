@@ -1,7 +1,7 @@
 "use client";
 
 import { JSX, memo, forwardRef } from "react";
-import type { ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import {
   flex,
   space,
@@ -31,7 +31,8 @@ interface Props
     FlexProps,
     LayoutProps,
     BorderProps,
-    TextStyleProps {
+    TextStyleProps,
+    Omit<ComponentPropsWithoutRef<"div">, "color"> {
   title?: string;
   className?: string;
   ellipsis?: boolean;

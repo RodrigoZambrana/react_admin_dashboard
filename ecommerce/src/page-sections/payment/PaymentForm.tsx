@@ -13,6 +13,7 @@ import { Button } from "@component/buttons";
 import Typography from "@component/Typography";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { extractApiErrorMessage } from "@/lib/api/errors";
 import { useCheckout } from "@/state/checkout-context";
 import { useStorefrontCart } from "@/state/cart-context";
 import { useCheckoutTotals } from "@/hooks/useCheckoutTotals";
@@ -319,7 +320,7 @@ export default function PaymentForm() {
         };
       } catch (cause) {
         const message = isApiError(cause)
-          ? cause.payload?.message ?? cause.message
+          ? extractApiErrorMessage(cause)
           : cause instanceof Error
             ? cause.message
             : "We couldn't process your payment. Please try again.";

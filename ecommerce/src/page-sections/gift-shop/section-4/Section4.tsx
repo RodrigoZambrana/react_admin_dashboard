@@ -25,7 +25,11 @@ export default async function Section4() {
       <Carousel slidesToShow={3} responsive={responsive}>
         {categories.map((item) => (
           <Link href="#" key={item.id}>
-            <ProductCard14 title={item.name} imgUrl={item.image} available={item.description} />
+            <ProductCard14
+              title={item.name ?? ""}
+              imgUrl={item.image}
+              available={item.description ?? ""}
+            />
           </Link>
         ))}
       </Carousel>

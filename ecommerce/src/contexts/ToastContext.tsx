@@ -39,7 +39,8 @@ export interface ToastOptions {
   action?: ToastAction;
 }
 
-interface ToastMessage extends Required<Omit<ToastOptions, "duration">> {
+interface ToastMessage extends Required<Omit<ToastOptions, "duration" | "action">> {
+  action?: ToastAction;
   duration: number;
   createdAt: number;
 }

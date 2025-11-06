@@ -17,16 +17,21 @@ export default function VendorDashboardLayout({ children }: PropsWithChildren) {
     <Grid container spacing={6}>
       <StyledGrid item lg={3} xs={12}>
         <DashboardNavigationWrapper px="0px" py="1.5rem" color="gray.900" borderRadius={12}>
-          {NAVIGATION_LINKS.map(({ href, title, Icon, count }) => (
-            <StyledDashboardNav href={href} key={title} isActive={pathname.includes(href)}>
-              <FlexBox alignItems="center" style={{ gap: 8 }}>
-                <Icon size={18} className="icon" />
-                <span>{title}</span>
-              </FlexBox>
+          {NAVIGATION_LINKS.map(({ href, title, Icon, count }) => {
+            const currentPath = pathname ?? "";
+            const isActive = currentPath.includes(href);
 
-              <span>{count}</span>
-            </StyledDashboardNav>
-          ))}
+            return (
+              <StyledDashboardNav href={href} key={title} isActive={isActive}>
+                <FlexBox alignItems="center" style={{ gap: 8 }}>
+                  <Icon size={18} className="icon" />
+                  <span>{title}</span>
+                </FlexBox>
+
+                <span>{count}</span>
+              </StyledDashboardNav>
+            );
+          })}
         </DashboardNavigationWrapper>
       </StyledGrid>
 

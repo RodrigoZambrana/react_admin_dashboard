@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Fragment, PropsWithChildren, useCallback, useMemo } from "react";
 import Hidden from "@component/hidden";
 import Stepper from "@component/Stepper";
+import { StorefrontCheckoutProvider } from "@/state/checkout-context";
 
 const STEPPER_LIST = [
   { title: "Cart", disabled: false, path: "/checkout-demo/cart-demo" },
@@ -22,7 +23,7 @@ export default function Layout({ children }: PropsWithChildren) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const selectedStep = useMemo(() => PATH_TO_STEP_MAP[pathname] ?? 0, [pathname]);
+  const selectedStep = useMemo(() => (pathname ? PATH_TO_STEP_MAP[pathname] ?? 0 : 0), [pathname]);
 
   const handleStepChange = useCallback(
     (_step: unknown, index: number) => {
@@ -35,16 +36,18 @@ export default function Layout({ children }: PropsWithChildren) {
   );
 
   return (
-    <Fragment>
-      <Hidden down="md" mb="2rem">
-        <Stepper
-          stepperList={STEPPER_LIST}
-          selectedStep={selectedStep}
-          onChange={handleStepChange}
-        />
-      </Hidden>
+    <StorefrontCheckoutProvider>
+      <Fragment>
+        <Hidden down="md" mb="2rem">
+          <Stepper
+            stepperList={STEPPER_LIST}
+            selectedStep={selectedStep}
+            onChange={handleStepChange}
+          />
+        </Hidden>
 
-      {children}
-    </Fragment>
+        {children}
+      </Fragment>
+    </StorefrontCheckoutProvider>
   );
 }

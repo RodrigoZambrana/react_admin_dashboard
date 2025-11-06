@@ -25,7 +25,7 @@ export default function ProductListView({ products }: Props) {
           title={item.title}
           off={item.discount}
           rating={item.rating}
-          images={item.images}
+          images={item.images ?? []}
           imgUrl={item.thumbnail}
           categories={item.categories}
         />

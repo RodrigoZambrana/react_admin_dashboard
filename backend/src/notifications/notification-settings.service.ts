@@ -269,7 +269,7 @@ export class NotificationSettingsService {
 
   async resolveAdminRecipients(
     eventType: NotificationEventType,
-  ): Promise<Array<{ id: number; email: string; name: string | null; lastName: string | null }>> {
+  ): Promise<Array<{ id: number; email: string; name: string | null; lastName: string | null; lang: string }>> {
     await this.ensureDefaults()
     const settings = await this.prisma.notificationSetting.findMany({
       where: {
@@ -299,6 +299,7 @@ export class NotificationSettingsService {
         email: true,
         name: true,
         lastName: true,
+        lang: true,
       },
     })
     return users

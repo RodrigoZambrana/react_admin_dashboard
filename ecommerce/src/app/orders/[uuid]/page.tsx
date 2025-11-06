@@ -4,11 +4,7 @@ interface Params {
   uuid: string;
 }
 
-interface LegacyOrderParams {
-  params: Promise<Params> | Params;
-}
-
-export default async function LegacyOrderDetailPage({ params }: LegacyOrderParams) {
+export default async function LegacyOrderDetailPage({ params }: { params: Promise<Params> }) {
   const resolved = await params;
   redirect(`/account/orders/${resolved.uuid}`);
 }

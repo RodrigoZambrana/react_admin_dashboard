@@ -24,7 +24,7 @@ export default async function Section3() {
                 width={300}
                 height={300}
                 alt="category"
-                src={item.image}
+                src={item.image ?? "/assets/images/products/placeholder.png"}
                 style={{ width: "100%", objectFit: "cover" }}
               />
 

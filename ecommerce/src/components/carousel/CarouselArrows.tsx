@@ -10,9 +10,10 @@ interface ArrowProps extends CustomArrowProps {
 // ==============================================================
 
 function NextArrow({ onClick, style, className }: ArrowProps) {
-  const updatedClassName = className
+  const baseClass = className ?? "";
+  const updatedClassName = baseClass
     .split(" ")
-    .filter((item) => item !== "slick-next")
+    .filter((item) => item && item !== "slick-next")
     .join(" ");
 
   return (
@@ -23,9 +24,10 @@ function NextArrow({ onClick, style, className }: ArrowProps) {
 }
 
 function PrevArrow({ onClick, style, className }: ArrowProps) {
-  const updatedClassName = className
+  const baseClass = className ?? "";
+  const updatedClassName = baseClass
     .split(" ")
-    .filter((item) => item !== "slick-prev")
+    .filter((item) => item && item !== "slick-prev")
     .join(" ");
 
   return (

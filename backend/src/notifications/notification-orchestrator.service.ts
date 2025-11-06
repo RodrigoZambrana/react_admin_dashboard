@@ -99,6 +99,7 @@ export class NotificationOrchestratorService {
       NotificationEventType.ORDER_RECEIVED,
       NotificationAudience.CUSTOMER,
     )
+    const customerLocale = this.getCustomerLocale(order.customer)
     const notifications: CreateNotificationInput[] = []
     if (channels[NotificationChannel.IN_APP]?.enabled && order.customerId) {
       const metadata = this.buildNotificationMetadata(
@@ -107,14 +108,15 @@ export class NotificationOrchestratorService {
         NotificationAudience.CUSTOMER,
         metadataBase,
       )
+      const message = this.translateCustomerOrderReceived(customerLocale, metadata)
       notifications.push({
         eventType: NotificationEventType.ORDER_RECEIVED,
         audience: NotificationAudience.CUSTOMER,
         channel: NotificationChannel.IN_APP,
         customerId: order.customerId,
         orderId: order.id,
-        title: `We received your order #${metadata.orderNumber}`,
-        body: 'We are reviewing your order and will notify you of updates.',
+        title: message.title,
+        body: message.body,
         metadata,
       })
     }
@@ -126,6 +128,7 @@ export class NotificationOrchestratorService {
     if (emailSetting?.enabled) {
       await this.email.sendOrderReceived({
         orderId: order.id,
+        localeOverride: customerLocale,
         sendToCustomer: true,
         sendToAdmin: false,
       })
@@ -138,6 +141,7 @@ export class NotificationOrchestratorService {
       NotificationAudience.ADMIN,
     )
     const recipients = await this.settings.resolveAdminRecipients(NotificationEventType.ORDER_RECEIVED)
+    const adminLocale: 'en' | 'es' = 'es'
     const notifications: CreateNotificationInput[] = []
     if (channels[NotificationChannel.IN_APP]?.enabled && recipients.length) {
       const metadata = this.buildNotificationMetadata(
@@ -147,16 +151,15 @@ export class NotificationOrchestratorService {
         metadataBase,
       )
       for (const recipient of recipients) {
+        const message = this.translateAdminOrderReceived(adminLocale, metadata)
         notifications.push({
           eventType: NotificationEventType.ORDER_RECEIVED,
           audience: NotificationAudience.ADMIN,
           channel: NotificationChannel.IN_APP,
           recipientId: recipient.id,
           orderId: order.id,
-          title: `New order #${metadata.orderNumber}`,
-          body: metadata.customerName
-            ? `${metadata.customerName} placed a new order.`
-            : 'A new order was placed.',
+          title: message.title,
+          body: message.body,
           metadata,
         })
       }
@@ -167,6 +170,7 @@ export class NotificationOrchestratorService {
     if (emailSetting?.enabled) {
       await this.email.sendOrderReceived({
         orderId: order.id,
+        localeOverride: adminLocale,
         sendToCustomer: false,
         sendToAdmin: true,
       })
@@ -186,6 +190,8 @@ export class NotificationOrchestratorService {
         NotificationAudience.CUSTOMER,
         metadataBase,
       )
+      const locale = this.getCustomerLocale(payment.order?.customer)
+      const message = this.translateCustomerPaymentReceived(locale, metadata)
       notifications.push({
         eventType: NotificationEventType.PAYMENT_RECEIVED,
         audience: NotificationAudience.CUSTOMER,
@@ -193,8 +199,8 @@ export class NotificationOrchestratorService {
         customerId: payment.order.customerId,
         orderId: payment.orderId,
         paymentId: payment.id,
-        title: `Payment received for order #${metadata.orderNumber}`,
-        body: 'Thank you! Your payment has been confirmed.',
+        title: message.title,
+        body: message.body,
         metadata,
       })
       await this.notifications.createNotifications(notifications)
@@ -225,6 +231,8 @@ export class NotificationOrchestratorService {
         metadataBase,
       )
       for (const recipient of recipients) {
+        const locale = this.getUserLocale(recipient)
+        const message = this.translateAdminPaymentReceived(locale, metadata)
         notifications.push({
           eventType: NotificationEventType.PAYMENT_RECEIVED,
           audience: NotificationAudience.ADMIN,
@@ -232,8 +240,8 @@ export class NotificationOrchestratorService {
           recipientId: recipient.id,
           orderId: payment.orderId,
           paymentId: payment.id,
-          title: `Payment confirmed for order #${metadata.orderNumber}`,
-          body: `Payment of ${metadata.amountFormatted} was confirmed.`,
+          title: message.title,
+          body: message.body,
           metadata,
         })
       }
@@ -263,9 +271,8 @@ export class NotificationOrchestratorService {
     )
 
     if (channels[NotificationChannel.IN_APP]?.enabled && order.customerId) {
-      const title = metadata.status
-        ? `Your order #${metadata.orderNumber} is now ${metadata.status}`
-        : `Your order #${metadata.orderNumber} was updated`
+      const locale = this.getCustomerLocale(order.customer)
+      const message = this.translateCustomerOrderStatus(locale, metadata)
       await this.notifications.createNotifications([
         {
           eventType: NotificationEventType.ORDER_STATUS_CHANGED,
@@ -273,8 +280,8 @@ export class NotificationOrchestratorService {
           channel: NotificationChannel.IN_APP,
           customerId: order.customerId,
           orderId: order.id,
-          title,
-          body: metadata.status ? `Status changed to ${metadata.status}.` : 'Order status updated.',
+          title: message.title,
+          body: message.body,
           metadata,
         },
       ])
@@ -305,19 +312,20 @@ export class NotificationOrchestratorService {
     )
 
     if (channels[NotificationChannel.IN_APP]?.enabled && recipients.length) {
-      const title = metadata.status
-        ? `Order #${metadata.orderNumber} ${metadata.status}`
-        : `Order #${metadata.orderNumber} status updated`
-      const notifications: CreateNotificationInput[] = recipients.map((recipient) => ({
-        eventType: NotificationEventType.ORDER_STATUS_CHANGED,
-        audience: NotificationAudience.ADMIN,
-        channel: NotificationChannel.IN_APP,
-        recipientId: recipient.id,
-        orderId: order.id,
-        title,
-        body: metadata.status ? `Status changed to ${metadata.status}.` : 'Order status updated.',
-        metadata,
-      }))
+      const notifications: CreateNotificationInput[] = recipients.map((recipient) => {
+        const locale = this.getUserLocale(recipient)
+        const message = this.translateAdminOrderStatus(locale, metadata)
+        return {
+          eventType: NotificationEventType.ORDER_STATUS_CHANGED,
+          audience: NotificationAudience.ADMIN,
+          channel: NotificationChannel.IN_APP,
+          recipientId: recipient.id,
+          orderId: order.id,
+          title: message.title,
+          body: message.body,
+          metadata,
+        }
+      })
       await this.notifications.createNotifications(notifications)
     }
 
@@ -474,6 +482,245 @@ export class NotificationOrchestratorService {
         }
         return '/app/notifications'
     }
+  }
+
+  private getCustomerLocale(customer: unknown): 'en' | 'es' {
+    if (customer && typeof customer === 'object' && 'preferredLocale' in (customer as Record<string, unknown>)) {
+      const localeValue = (customer as Record<string, unknown>).preferredLocale
+      if (typeof localeValue === 'string') {
+        return this.normalizeLocale(localeValue)
+      }
+    }
+    return 'es'
+  }
+
+  private getUserLocale(user: { lang?: string | null }): 'en' | 'es' {
+    if (typeof user.lang === 'string') {
+      return this.normalizeLocale(user.lang)
+    }
+    return 'es'
+  }
+
+  private normalizeLocale(value: unknown): 'en' | 'es' {
+    const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+    if (normalized.startsWith('en')) {
+      return 'en'
+    }
+    return 'es'
+  }
+
+  private formatTemplate(template: string, values: Record<string, unknown>): string {
+    return template.replace(/\{(\w+)\}/g, (_match, key: string) => {
+      const raw = values[key]
+      if (raw === undefined || raw === null) {
+        return ''
+      }
+      return String(raw)
+    })
+  }
+
+  private interpolate(
+    templates: Record<'en' | 'es', { title: string; body: string }>,
+    locale: 'en' | 'es',
+    values: Record<string, unknown>,
+  ): { title: string; body: string } {
+    const entry = templates[locale] ?? templates.es
+    return {
+      title: this.formatTemplate(entry.title, values),
+      body: this.formatTemplate(entry.body, values),
+    }
+  }
+
+  private translateCustomerOrderReceived(
+    locale: 'en' | 'es',
+    metadata: Record<string, unknown>,
+  ): { title: string; body: string } {
+    const orderNumber = this.getMetadataString(metadata, 'orderNumber') ?? ''
+    const templates = {
+      en: {
+        title: 'We received your order #{orderNumber}',
+        body: 'We are reviewing your order and will notify you of updates.',
+      },
+      es: {
+        title: 'Recibimos tu pedido #{orderNumber}',
+        body: 'Estamos revisando tu pedido y te avisaremos de las novedades.',
+      },
+    }
+    return this.interpolate(templates, locale, { orderNumber })
+  }
+
+  private translateAdminOrderReceived(
+    locale: 'en' | 'es',
+    metadata: Record<string, unknown>,
+  ): { title: string; body: string } {
+    const orderNumber = this.getMetadataString(metadata, 'orderNumber') ?? ''
+    const customerName = this.getMetadataString(metadata, 'customerName')
+    if (customerName) {
+      const templates = {
+        en: {
+          title: 'New order #{orderNumber}',
+          body: '{customerName} placed a new order.',
+        },
+        es: {
+          title: 'Nuevo pedido #{orderNumber}',
+          body: '{customerName} realizó un nuevo pedido.',
+        },
+      }
+      return this.interpolate(templates, locale, { orderNumber, customerName })
+    }
+    const templates = {
+      en: {
+        title: 'New order #{orderNumber}',
+        body: 'A new order was placed.',
+      },
+      es: {
+        title: 'Nuevo pedido #{orderNumber}',
+        body: 'Se registró un nuevo pedido.',
+      },
+    }
+    return this.interpolate(templates, locale, { orderNumber })
+  }
+
+  private translateCustomerPaymentReceived(
+    locale: 'en' | 'es',
+    metadata: Record<string, unknown>,
+  ): { title: string; body: string } {
+    const orderNumber = this.getMetadataString(metadata, 'orderNumber') ?? ''
+    const templates = {
+      en: {
+        title: 'Payment received for order #{orderNumber}',
+        body: 'Thank you! Your payment has been confirmed.',
+      },
+      es: {
+        title: 'Pago recibido para el pedido #{orderNumber}',
+        body: '¡Gracias! Confirmamos tu pago.',
+      },
+    }
+    return this.interpolate(templates, locale, { orderNumber })
+  }
+
+  private translateAdminPaymentReceived(
+    locale: 'en' | 'es',
+    metadata: Record<string, unknown>,
+  ): { title: string; body: string } {
+    const orderNumber = this.getMetadataString(metadata, 'orderNumber') ?? ''
+    const amount = this.resolveAmountDisplay(metadata)
+    if (amount) {
+      const templates = {
+        en: {
+          title: 'Payment confirmed for order #{orderNumber}',
+          body: 'Payment of {amount} was confirmed.',
+        },
+        es: {
+          title: 'Pago confirmado para el pedido #{orderNumber}',
+          body: 'Se confirmó el pago de {amount}.',
+        },
+      }
+      return this.interpolate(templates, locale, { orderNumber, amount })
+    }
+    const templates = {
+      en: {
+        title: 'Payment confirmed for order #{orderNumber}',
+        body: 'Payment was confirmed.',
+      },
+      es: {
+        title: 'Pago confirmado para el pedido #{orderNumber}',
+        body: 'Se confirmó el pago.',
+      },
+    }
+    return this.interpolate(templates, locale, { orderNumber })
+  }
+
+  private translateCustomerOrderStatus(
+    locale: 'en' | 'es',
+    metadata: Record<string, unknown>,
+  ): { title: string; body: string } {
+    const orderNumber = this.getMetadataString(metadata, 'orderNumber') ?? ''
+    const status = this.getMetadataString(metadata, 'status')
+    if (status) {
+      const templates = {
+        en: {
+          title: 'Your order #{orderNumber} is now {status}',
+          body: 'Status changed to {status}.',
+        },
+        es: {
+          title: 'Tu pedido #{orderNumber} ahora está {status}',
+          body: 'El estado cambió a {status}.',
+        },
+      }
+      return this.interpolate(templates, locale, { orderNumber, status })
+    }
+    const templates = {
+      en: {
+        title: 'Your order #{orderNumber} was updated',
+        body: 'Order status updated.',
+      },
+      es: {
+        title: 'Tu pedido #{orderNumber} se actualizó',
+        body: 'El estado del pedido se actualizó.',
+      },
+    }
+    return this.interpolate(templates, locale, { orderNumber })
+  }
+
+  private translateAdminOrderStatus(
+    locale: 'en' | 'es',
+    metadata: Record<string, unknown>,
+  ): { title: string; body: string } {
+    const orderNumber = this.getMetadataString(metadata, 'orderNumber') ?? ''
+    const status = this.getMetadataString(metadata, 'status')
+    if (status) {
+      const templates = {
+        en: {
+          title: 'Order #{orderNumber} {status}',
+          body: 'Status changed to {status}.',
+        },
+        es: {
+          title: 'Pedido #{orderNumber} {status}',
+          body: 'El estado cambió a {status}.',
+        },
+      }
+      return this.interpolate(templates, locale, { orderNumber, status })
+    }
+    const templates = {
+      en: {
+        title: 'Order #{orderNumber} status updated',
+        body: 'Order status updated.',
+      },
+      es: {
+        title: 'Se actualizó el estado del pedido #{orderNumber}',
+        body: 'El estado del pedido se actualizó.',
+      },
+    }
+    return this.interpolate(templates, locale, { orderNumber })
+  }
+
+  private getMetadataString(metadata: Record<string, unknown>, key: string): string | null {
+    const value = metadata[key]
+    if (typeof value === 'string') {
+      return value
+    }
+    if (typeof value === 'number') {
+      return value.toString()
+    }
+    return null
+  }
+
+  private resolveAmountDisplay(metadata: Record<string, unknown>): string | null {
+    const formatted = this.getMetadataString(metadata, 'amountFormatted')
+    if (formatted) {
+      return formatted
+    }
+    const amountRaw = metadata.amount
+    if (typeof amountRaw === 'number') {
+      const currency = this.getMetadataString(metadata, 'currency')
+      return currency ? `${amountRaw.toFixed(2)} ${currency}` : amountRaw.toFixed(2)
+    }
+    if (typeof amountRaw === 'string' && amountRaw.trim()) {
+      const currency = this.getMetadataString(metadata, 'currency')
+      return currency ? `${amountRaw} ${currency}` : amountRaw
+    }
+    return null
   }
 
   private extractOrderPathSegment(base: Record<string, unknown>): string | null {

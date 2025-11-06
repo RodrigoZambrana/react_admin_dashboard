@@ -24,7 +24,7 @@ export default function DashboardPageHeader({ Icon, title, button }: DashboardPa
   const width = useWindowSize();
   const [open, setOpen] = useState(false);
 
-  const isTablet = width < 1025;
+  const isTablet = (width ?? 0) < 1025;
 
   const handleOpenSidenav = useCallback(() => setOpen(true), []);
   const handleCloseSidenav = useCallback(() => setOpen(false), []);

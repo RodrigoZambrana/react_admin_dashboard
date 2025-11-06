@@ -8,7 +8,7 @@ import GlobalStyles from "./GlobalStyles";
 import getThemeOptions from "./themeOptions";
 
 export default function ThemeProvider({ children }: PropsWithChildren) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const theme = getThemeOptions(pathname);
 
   return (

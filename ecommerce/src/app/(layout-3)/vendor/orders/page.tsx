@@ -1,5 +1,6 @@
 import { Fragment } from "react";
 import { IconShoppingBagCheck } from "@tabler/icons-react";
+import type Order from "@models/order.model";
 // UTILS
 import axios from "@lib/axios";
 // GLOBAL CUSTOM COMPONENTS
@@ -11,8 +12,36 @@ import OrderList from "@sections/vendor-dashboard/orders/OrderList";
 
 const ORDER_HEADERS = ["Order #", "Status", "Date purchased", "Total"];
 
+type ApiOrder = Omit<Order, "createdAt" | "deliveredAt"> & {
+  createdAt?: string | Date;
+  deliveredAt?: string | Date;
+};
+
+const isValidOrderArray = (value: unknown): value is ApiOrder[] => Array.isArray(value);
+
+const normalizeOrder = (order: ApiOrder): Order => {
+  const createdAt = order.createdAt ? new Date(order.createdAt) : new Date();
+  const deliveredAt = order.deliveredAt ? new Date(order.deliveredAt) : createdAt;
+
+  return {
+    ...order,
+    createdAt,
+    deliveredAt
+  } as Order;
+};
+
 export default async function Orders() {
-  const { data } = await axios.get("/api/admin/orders");
+  let orders: Order[] = [];
+
+  try {
+    const response = await axios.get<ApiOrder[]>("/api/admin/orders");
+    if (isValidOrderArray(response.data)) {
+      orders = response.data.map(normalizeOrder);
+    }
+  } catch (error) {
+    console.warn("[vendor] Failed to load orders, falling back to empty list", error);
+    orders = [];
+  }
 
   return (
     <Fragment>
@@ -30,7 +59,7 @@ export default async function Orders() {
         </TableRow>
       </Hidden>
 
-      <OrderList orders={data} />
+      <OrderList orders={orders} />
     </Fragment>
   );
 }

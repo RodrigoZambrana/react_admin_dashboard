@@ -28,7 +28,9 @@ export default function SaleProducts({ products, meta, selectedCategorySlug }: P
 
   const handlePageChange = useCallback(
     (page: number) => {
-      const params = new URLSearchParams(searchParams.toString());
+      if (!pathname) return;
+
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
       params.set("page", String(page + 1));
       if (selectedCategorySlug) {
         params.set("category", selectedCategorySlug);

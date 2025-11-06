@@ -244,7 +244,7 @@ export default function CheckoutForm() {
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.firstName}
-                    errorText={touched.firstName && errors.firstName}
+                    errorText={touched.firstName ? errors.firstName : undefined}
                   />
                 </Grid>
 
@@ -258,7 +258,7 @@ export default function CheckoutForm() {
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.lastName}
-                    errorText={touched.lastName && errors.lastName}
+                    errorText={touched.lastName ? errors.lastName : undefined}
                   />
                 </Grid>
 
@@ -273,7 +273,7 @@ export default function CheckoutForm() {
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.email}
-                    errorText={touched.email && errors.email}
+                    errorText={touched.email ? errors.email : undefined}
                   />
                 </Grid>
 
@@ -287,7 +287,7 @@ export default function CheckoutForm() {
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.phone}
-                    errorText={touched.phone && errors.phone}
+                    errorText={touched.phone ? errors.phone : undefined}
                   />
                 </Grid>
               </Grid>
@@ -307,7 +307,7 @@ export default function CheckoutForm() {
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.addressLine1}
-                    errorText={touched.addressLine1 && errors.addressLine1}
+                    errorText={touched.addressLine1 ? errors.addressLine1 : undefined}
                   />
                 </Grid>
 
@@ -321,7 +321,7 @@ export default function CheckoutForm() {
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.addressLine2}
-                    errorText={touched.addressLine2 && errors.addressLine2}
+                    errorText={touched.addressLine2 ? errors.addressLine2 : undefined}
                   />
                 </Grid>
 
@@ -332,7 +332,7 @@ export default function CheckoutForm() {
                     placeholder="Select a country"
                     value={selectedCountry ?? null}
                     isDisabled={countryOptions.length <= 1}
-                    errorText={touched.country && errors.country}
+                    errorText={touched.country ? errors.country : undefined}
                     onChange={handleCountryChange}
                   />
                 </Grid>
@@ -349,7 +349,7 @@ export default function CheckoutForm() {
                           : "Select a department"
                     }
                     value={selectedDepartment}
-                    errorText={touched.department && errors.department}
+                    errorText={touched.department ? errors.department : undefined}
                     onChange={handleDepartmentChange}
                   />
                 </Grid>

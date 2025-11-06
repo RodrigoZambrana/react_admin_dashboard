@@ -19,7 +19,7 @@ import { isValidProp } from "@utils/utils";
 import { useTranslatedNode } from "@/state/i18n-context";
 
 // ==============================================================
-interface IconButtonProps {
+export interface IconButtonProps {
   size?: "small" | "medium" | "large" | "none";
   variant?: "text" | "outlined" | "contained";
   color?: "primary" | "secondary" | "error" | "default" | string;

@@ -123,7 +123,9 @@ export default function ShopFilterPanel({
 
   const updateQuery = useCallback(
     (updates: Record<string, string | undefined>) => {
-      const params = new URLSearchParams(searchParams.toString());
+      if (!pathname) return;
+
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
       Object.entries(updates).forEach(([key, value]) => {
         if (value === undefined) {
           params.delete(key);

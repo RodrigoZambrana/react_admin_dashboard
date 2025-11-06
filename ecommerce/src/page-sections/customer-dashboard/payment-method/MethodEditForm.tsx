@@ -47,7 +47,7 @@ export default function MethodEditForm() {
                   onBlur={handleBlur}
                   value={values.card_no}
                   onChange={handleChange}
-                  errorText={touched.card_no && errors.card_no}
+                  errorText={touched.card_no ? errors.card_no : undefined}
                 />
               </Grid>
 
@@ -60,7 +60,7 @@ export default function MethodEditForm() {
                   value={values.name}
                   label="Name on Card"
                   onChange={handleChange}
-                  errorText={touched.name && errors.name}
+                  errorText={touched.name ? errors.name : undefined}
                 />
               </Grid>
 
@@ -73,7 +73,7 @@ export default function MethodEditForm() {
                   value={values.exp}
                   onBlur={handleBlur}
                   onChange={handleChange}
-                  errorText={touched.exp && errors.exp}
+                  errorText={touched.exp ? errors.exp : undefined}
                 />
               </Grid>
 
@@ -86,7 +86,7 @@ export default function MethodEditForm() {
                   value={values.cvc}
                   onBlur={handleBlur}
                   onChange={handleChange}
-                  errorText={touched.cvc && errors.cvc}
+                  errorText={touched.cvc ? errors.cvc : undefined}
                 />
               </Grid>
             </Grid>

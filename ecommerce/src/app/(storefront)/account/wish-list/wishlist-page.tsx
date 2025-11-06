@@ -59,8 +59,8 @@ export function WishlistContent() {
   );
 
   return (
-    <Box display="flex" flexDirection="column" gap="1.5rem">
-      <Box display="flex" flexDirection="column" gap="0.5rem">
+    <Box display="flex" flexDirection="column" style={{ gap: "1.5rem" }}>
+      <Box display="flex" flexDirection="column" style={{ gap: "0.5rem" }}>
         <H3 fontSize="24px" fontWeight={700}>
           {t("Wishlist")}
         </H3>
@@ -75,7 +75,12 @@ export function WishlistContent() {
 
       {error ? (
         <Card bg="error.light" p="1rem" borderRadius={12}>
-          <FlexBox justifyContent="space-between" alignItems="center" flexWrap="wrap" gap="1rem">
+        <FlexBox
+          justifyContent="space-between"
+          alignItems="center"
+          flexWrap="wrap"
+          style={{ gap: "1rem" }}
+        >
             <Paragraph color="error.main" fontWeight={600}>
               {error}
             </Paragraph>
@@ -87,7 +92,13 @@ export function WishlistContent() {
       ) : null}
 
       {isLoading ? (
-        <FlexBox minHeight="200px" flexDirection="column" justifyContent="center" alignItems="center" gap="1rem">
+        <FlexBox
+          minHeight="200px"
+          flexDirection="column"
+          justifyContent="center"
+          alignItems="center"
+          style={{ gap: "1rem" }}
+        >
           <Spinner />
           <Paragraph color="gray.600">{t("Loading your wishlist...")}</Paragraph>
         </FlexBox>
@@ -123,7 +134,7 @@ export function WishlistContent() {
                   style={{ position: "absolute", top: 16, right: 16 }}
                 />
 
-                <FlexBox flexDirection="column" gap="1rem" height="100%">
+                <FlexBox flexDirection="column" style={{ gap: "1rem" }} height="100%">
                   <Box
                     borderRadius={12}
                     overflow="hidden"
@@ -143,7 +154,7 @@ export function WishlistContent() {
                     )}
                   </Box>
 
-                  <FlexBox flexDirection="column" gap="0.35rem" flex="1 1 auto">
+                  <FlexBox flexDirection="column" style={{ gap: "0.35rem" }} flex="1 1 auto">
                     <Link href={productUrl}>
                       <H6 fontSize="16px" fontWeight={600} color="inherit">
                         {product.name}
@@ -164,7 +175,7 @@ export function WishlistContent() {
                     ) : null}
                   </FlexBox>
 
-                  <FlexBox gap="0.75rem" mt="auto" flexWrap="wrap">
+                  <FlexBox mt="auto" flexWrap="wrap" style={{ gap: "0.75rem" }}>
                     <Link href={productUrl} style={{ flexGrow: 1 }}>
                       <Button
                         variant="contained"

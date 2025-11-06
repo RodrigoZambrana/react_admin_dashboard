@@ -2,6 +2,16 @@ import { EmailCategory, EmailRecipientType, EmailTemplateVariant, Role } from '@
 
 export type EmailLocale = string
 
+export type OrderEmailAddress = {
+  line1?: string | null
+  line2?: string | null
+  city?: string | null
+  state?: string | null
+  zip?: string | null
+  country?: string | null
+  lines: string[]
+}
+
 export type OrderEmailContext = {
   orderId: number
   orderNumber?: string | null
@@ -50,6 +60,10 @@ export type OrderEmailContext = {
     minHours?: number | null
     maxHours?: number | null
   } | null
+  deliveryEstimateLabel?: string | null
+  shippingVendor?: string | null
+  shippingAddress?: OrderEmailAddress | null
+  billingAddress?: OrderEmailAddress | null
   notes?: string | null
   locale: EmailLocale
 }

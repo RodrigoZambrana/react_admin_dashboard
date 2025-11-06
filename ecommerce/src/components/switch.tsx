@@ -15,7 +15,7 @@ import { isValidProp } from "@utils/utils";
 type SwitchSize = "small" | "medium";
 
 export interface SwitcherProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "onChange"> {
+  extends Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "onChange" | "size"> {
   onChange?: (checked: boolean, event: ChangeEvent<HTMLInputElement>) => void;
   size?: SwitchSize;
 }

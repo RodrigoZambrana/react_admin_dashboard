@@ -16,10 +16,13 @@ import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import type { CustomerNotification } from "@/types/storefront";
 import { env } from "@/lib/env";
 import { useToast } from "@/contexts/ToastContext";
+import { useTranslation } from "@/state/i18n-context";
 
 const PANEL_HEIGHT = 320;
 
-const formatSummary = (notification: CustomerNotification): string | null => {
+type TranslateFn = (key: string, params?: { values?: Record<string, string | number> }) => string;
+
+const formatSummary = (notification: CustomerNotification, t: TranslateFn): string | null => {
   const metadata = notification.metadata ?? {};
   if (metadata.orderNumber) {
     return `#${metadata.orderNumber}`;
@@ -28,7 +31,7 @@ const formatSummary = (notification: CustomerNotification): string | null => {
     return `#${metadata.orderId}`;
   }
   if (metadata.paymentId) {
-    return `Payment ${metadata.paymentId}`;
+    return t("notifications.summary.payment", { values: { paymentId: metadata.paymentId } });
   }
   return null;
 };
@@ -96,6 +99,7 @@ const resolveNotificationPath = (notification: CustomerNotification): string => 
 
 export default function CustomerNotifications() {
   const { session, isAuthenticated, logout } = useSession();
+  const t = useTranslation();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<CustomerNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -119,11 +123,11 @@ export default function CustomerNotifications() {
       eventSourceRef.current = null;
     }
     toast.error({
-      title: "Sesión expirada",
-      description: "Tu sesión caducó. Vuelve a iniciar sesión para ver tus notificaciones."
+      title: t("notifications.toast.sessionExpired.title"),
+      description: t("notifications.toast.sessionExpired.description")
     });
     void logout();
-  }, [logout, toast]);
+  }, [logout, toast, t]);
 
   const fetchUnreadCount = useCallback(async () => {
     if (!isAuthenticated || !token) return;
@@ -287,60 +291,59 @@ export default function CustomerNotifications() {
     >
       <Box minWidth="280px" maxWidth="320px" padding="1rem">
         <FlexBox alignItems="center" justifyContent="space-between" mb="0.75rem">
-          <H6 mb="0">Notifications</H6>
+          <H6 mb="0">{t("notifications.panel.title")}</H6>
           <Tiny
             role="button"
             color="text.muted"
             style={{ cursor: unreadCount > 0 ? "pointer" : "default" }}
             onClick={unreadCount > 0 ? handleMarkAll : undefined}
           >
-            Mark all as read
+            {t("notifications.panel.markAll")}
           </Tiny>
         </FlexBox>
         <Box height={`${PANEL_HEIGHT}px`} overflow="hidden">
           {isAuthenticated ? (
             loading ? (
               <FlexBox alignItems="center" justifyContent="center" height="100%">
-                <Spinner size={24} />
+                <Spinner />
               </FlexBox>
             ) : entries.length > 0 ? (
               <Scrollbar style={{ maxHeight: `${PANEL_HEIGHT - 10}px` }}>
-                {entries.map((item) => (
-                  <MenuItem
-                    key={item.id}
-                    onClick={() => void handleNotificationClick(item)}
-                    style={{
-                      backgroundColor: !item.readAt ? "rgba(59, 130, 246, 0.08)" : undefined
-                    }}
-                  >
-                    <FlexBox
-                      flexDirection="column"
-                      gridGap="0.2rem"
-                      style={{ opacity: item.readAt ? 0.7 : 1 }}
+                {entries.map((item) => {
+                  const summary = formatSummary(item, t);
+                  return (
+                    <MenuItem
+                      key={item.id}
+                      onClick={() => void handleNotificationClick(item)}
+                      style={{
+                        backgroundColor: !item.readAt ? "rgba(59, 130, 246, 0.08)" : undefined
+                      }}
                     >
-                      <FlexBox alignItems="center" justifyContent="space-between" gridGap="0.5rem">
-                        <Small fontWeight={600} color="text.primary">
-                          {item.title ?? "Notification"}
-                        </Small>
-                        <Tiny color="text.muted">
-                          {new Date(item.createdAt).toLocaleString()}
-                        </Tiny>
-                      </FlexBox>
-                      {formatSummary(item) && (
-                        <Tiny color="text.hint">{formatSummary(item)}</Tiny>
-                      )}
-                      {item.body && (
-                        <Tiny color="text.secondary">{item.body}</Tiny>
-                      )}
-                      {!item.readAt && (
-                        <FlexBox alignItems="center" gridGap="0.25rem" color="primary.main">
-                          <IconCheck size={12} stroke={1.5} />
-                          <Tiny>Tap to mark as read</Tiny>
+                      <FlexBox
+                        flexDirection="column"
+                        gridGap="0.2rem"
+                        style={{ opacity: item.readAt ? 0.7 : 1 }}
+                      >
+                        <FlexBox alignItems="center" justifyContent="space-between" gridGap="0.5rem">
+                          <Small fontWeight={600} color="text.primary">
+                            {item.title ?? t("notifications.panel.defaultTitle")}
+                          </Small>
+                          <Tiny color="text.muted">
+                            {new Date(item.createdAt).toLocaleString()}
+                          </Tiny>
                         </FlexBox>
-                      )}
-                    </FlexBox>
-                  </MenuItem>
-                ))}
+                        {summary && <Tiny color="text.hint">{summary}</Tiny>}
+                        {item.body && <Tiny color="text.secondary">{item.body}</Tiny>}
+                        {!item.readAt && (
+                          <FlexBox alignItems="center" gridGap="0.25rem" color="primary.main">
+                            <IconCheck size={12} stroke={1.5} />
+                            <Tiny>{t("notifications.panel.markAsRead")}</Tiny>
+                          </FlexBox>
+                        )}
+                      </FlexBox>
+                    </MenuItem>
+                  );
+                })}
               </Scrollbar>
             ) : (
               <FlexBox
@@ -350,8 +353,8 @@ export default function CustomerNotifications() {
                 flexDirection="column"
                 gridGap="0.5rem"
               >
-                <Typography color="text.muted">No notifications yet.</Typography>
-                <Tiny color="text.hint">We will let you know about order updates here.</Tiny>
+                <Typography color="text.muted">{t("notifications.empty.title")}</Typography>
+                <Tiny color="text.hint">{t("notifications.empty.subtitle")}</Tiny>
               </FlexBox>
             )
           ) : (
@@ -362,7 +365,7 @@ export default function CustomerNotifications() {
               flexDirection="column"
               gridGap="0.5rem"
             >
-              <Typography color="text.muted">Sign in to view your notifications.</Typography>
+              <Typography color="text.muted">{t("notifications.unauthenticated")}</Typography>
             </FlexBox>
           )}
         </Box>

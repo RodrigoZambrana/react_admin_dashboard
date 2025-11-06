@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { extractApiErrorMessage } from "@/lib/api/errors";
 import type { CustomerWishlist, WishlistItem } from "@/types/storefront";
 import { useSession } from "./session-context";
 import { useToast } from "@/contexts/ToastContext";
@@ -103,7 +104,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           });
           return;
         }
-        message = cause.payload?.message ?? cause.message;
+        message = extractApiErrorMessage(cause);
       } else if (cause instanceof Error) {
         message = cause.message;
       }

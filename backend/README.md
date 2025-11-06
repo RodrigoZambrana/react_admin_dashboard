@@ -40,11 +40,29 @@ Environment Configuration & Deployment Notes
   - Optional cookie tuning: `STOREFRONT_COOKIE_SECURE`, `STOREFRONT_COOKIE_SAMESITE`, `STOREFRONT_COOKIE_DOMAIN`.
   - Run the new Prisma migration `20260615120000_storefront_google_oauth` and keep Prisma client regenerated.
   - Refer to `../docs/storefront-google-auth.md` for the complete Google Cloud Console walkthrough and testing checklist.
+- Transactional email delivery:
+  - All transactional emails are rendered through the email service (`src/email`) which pulls template definitions from the database. The admin UI at `/app/settings/email/config?tab=templates` allows editing and previewing every locale/variant pair.
+  - Customers always receive messages in their preferred locale (`customer.preferredLocale`, defaulting to `es`). Administrators always receive Spanish copies so frontline staff see a consistent phrasing (for example, order confirmations use the `order.received_admin` event to display “Nuevo pedido recibido”).
+  - Separate audiences exist for every event: customers and admins each have configurable notification channels (in-app + email). Admin recipients are resolved from role rules (`notification_settings` + `role_notification_rules`) and can be managed in the admin UI. Customers always receive the shopper-facing templates; staff only get the admin versions.
+  - To enable delivery make sure the Email Settings section is configured: provider credentials (SMTP/API), default sender (`from` address/name), and optional reply-to or list-unsubscribe headers. Tests can be queued from the same screen, which calls `EmailService.sendTestEmail`.
+  - Environment variables that influence email rendering:
+    - `DEFAULT_EMAIL_LOCALE` (fallback locale when a template or recipient does not provide one).
+    - `EMAIL_REPLY_TO` (optional override for the reply-to header).
+    - `EMAIL_LIST_UNSUBSCRIBE` (optional header required by some providers).
+    - `COMPANY_NAME` (used in template labels when the company profile is not populated).
+  - Company footer data (trade name, support email/phone, website) is loaded from the company profile settings and cached for five minutes; keep those fields up to date to ensure the footer block renders correctly in both customer and admin copies.
 
 Resetting the Database
 - Ensure your `.env` is configured (especially `DATABASE_URL`) before touching Prisma commands.
 - To fully wipe and repopulate the schema in one step, run `npx prisma migrate reset --force`.
 - Alternatively, recreate tables with `npm run prisma:migrate` and then seed fresh data via `npm run prisma:seed`.
+
+Troubleshooting Backend Availability
+- If `curl http://localhost:4000/api/health` fails with `curl: (7) Failed to connect`, the container either never started or it crashed before binding port 4000.
+- Even when `docker compose` shows the stack as “up”, the backend service may have exited early (e.g. due to an unhealthy database connection).
+- Inspect the service status and recent logs to confirm what happened:
+  - `docker compose -f deploy/docker-compose.dev.yml ps backend`
+  - `docker compose -f deploy/docker-compose.dev.yml logs -n 100 backend`
 
 HTTP
 - Global prefix: `/api`

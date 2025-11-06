@@ -26,7 +26,9 @@ export default function SaleNavbar({ categories, selectedSlug }: SaleNavbarProps
       if (fallbackKey === activeKey) return;
       setActiveKey(fallbackKey);
 
-      const params = new URLSearchParams(searchParams.toString());
+      if (!pathname) return;
+
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
       if (categorySlug) {
         params.set("category", categorySlug);
       } else {

@@ -92,11 +92,15 @@ describe('EmailService', () => {
     const customerMessage = extractMessage(queue.enqueue, 0)
     expect(customerMessage.category).toBe(EmailCategory.ORDERS)
     expect(customerMessage.recipientType).toBe(EmailRecipientType.CUSTOMER)
-    expect(customerMessage.recipients[0]).toMatchObject({ email: 'jane@example.com' })
+    expect(customerMessage.locale).toBe('en')
+    expect(customerMessage.recipients[0]).toMatchObject({ email: 'jane@example.com', locale: 'en' })
+    expect(customerMessage.payload.event).toBe('order.received')
 
     const adminMessage = extractMessage(queue.enqueue, 1)
     expect(adminMessage.recipientType).toBe(EmailRecipientType.ADMIN)
-    expect(adminMessage.recipients[0]).toMatchObject({ email: 'admin@example.com' })
+    expect(adminMessage.locale).toBe('es')
+    expect(adminMessage.recipients[0]).toMatchObject({ email: 'admin@example.com', locale: 'es' })
+    expect(adminMessage.payload.event).toBe('order.received_admin')
 
     expect(settings.resolveAdminRecipients).toHaveBeenCalledWith(EmailCategory.ORDERS)
   })

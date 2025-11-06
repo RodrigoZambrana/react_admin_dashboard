@@ -81,7 +81,7 @@ export default function ProductUpdateForm({ product, categories }: Props) {
                   value={values.name}
                   onBlur={handleBlur}
                   onChange={handleChange}
-                  errorText={touched.name && errors.name}
+                  errorText={touched.name ? errors.name : undefined}
                 />
               </Grid>
 
@@ -93,7 +93,7 @@ export default function ProductUpdateForm({ product, categories }: Props) {
                   options={categories}
                   placeholder="Select category"
                   onChange={(value) => setFieldValue("category", value)}
-                  errorText={touched.category && errors.category}
+                  errorText={touched.category ? errors.category : undefined}
                 />
               </Grid>
 
@@ -119,7 +119,7 @@ export default function ProductUpdateForm({ product, categories }: Props) {
                   onChange={handleChange}
                   placeholder="Description"
                   value={values.description}
-                  errorText={touched.description && errors.description}
+                  errorText={touched.description ? errors.description : undefined}
                 />
               </Grid>
 
@@ -132,7 +132,7 @@ export default function ProductUpdateForm({ product, categories }: Props) {
                   onBlur={handleBlur}
                   value={values.stock}
                   onChange={handleChange}
-                  errorText={touched.stock && errors.stock}
+                  errorText={touched.stock ? errors.stock : undefined}
                 />
               </Grid>
 
@@ -145,7 +145,7 @@ export default function ProductUpdateForm({ product, categories }: Props) {
                   value={values.tags}
                   onBlur={handleBlur}
                   onChange={handleChange}
-                  errorText={touched.tags && errors.tags}
+                  errorText={touched.tags ? errors.tags : undefined}
                 />
               </Grid>
 
@@ -159,7 +159,7 @@ export default function ProductUpdateForm({ product, categories }: Props) {
                   label="Regular Price"
                   onChange={handleChange}
                   placeholder="Regular Price"
-                  errorText={touched.price && errors.price}
+                  errorText={touched.price ? errors.price : undefined}
                 />
               </Grid>
 
@@ -173,7 +173,7 @@ export default function ProductUpdateForm({ product, categories }: Props) {
                   onChange={handleChange}
                   placeholder="Sale Price"
                   value={values.sale_price}
-                  errorText={touched.sale_price && errors.sale_price}
+                  errorText={touched.sale_price ? errors.sale_price : undefined}
                 />
               </Grid>
 

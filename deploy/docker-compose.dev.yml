@@ -5,11 +5,6 @@ x-backend-common: &backend-common
     - ./env/backend.dev.env
   environment:
     PORT: ${BACKEND_PORT:-4000}
-    DB_HOST: ${DEV_DB_HOST:-host.docker.internal}
-    DB_PORT: ${DEV_DB_PORT:-5432}
-    DB_USER: ${DEV_DB_USER:-postgres}
-    DB_PASSWORD: ${DEV_DB_PASSWORD:-postgres}
-    DB_NAME: ${POSTGRES_DB_NAME:-react_admin_dashboard}
 
 x-frontend-common: &frontend-common
   env_file:
@@ -17,24 +12,12 @@ x-frontend-common: &frontend-common
 
 x-storefront-common: &storefront-common
   env_file:
+    - ../ecommerce/.env
     - ./env/storefront.dev.env
   environment:
     PORT: ${STOREFRONT_PORT:-3000}
 
 services:
-  db:
-    image: postgres:16-alpine
-    container_name: dashboard-db-dev
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: ${POSTGRES_DB_NAME:-react_admin_dashboard}
-    ports:
-      - "${POSTGRES_HOST_PORT:-5432}:5432"
-    volumes:
-      - postgres_data_dev:/var/lib/postgresql/data
-
   backend:
     <<: *backend-common
     container_name: dashboard-backend-dev
@@ -50,7 +33,7 @@ services:
       sh -c '
         set -e;
         export PGPASSWORD="${DB_PASSWORD:-postgres}";
-        pg_host="${DB_HOST:-db}";
+        pg_host="${DB_HOST:-host.docker.internal}";
         pg_port="${DB_PORT:-5432}";
         pg_user="${DB_USER:-postgres}";
         until pg_isready -h "$$pg_host" -p "$$pg_port" -U "$$pg_user"; do
@@ -74,8 +57,7 @@ services:
     ports:
       - "4000:4000"
       - "5555:5555"
-    depends_on:
-      - db
+    depends_on: []
 
   frontend:
     <<: *frontend-common
@@ -109,6 +91,3 @@ services:
       - backend
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/api/health || exit 1"]
-
-volumes:
-  postgres_data_dev:

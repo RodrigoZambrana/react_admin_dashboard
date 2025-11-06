@@ -12,7 +12,7 @@ import {
   useRef,
   useState
 } from "react";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 import {
   DEFAULT_LOCALE,
@@ -91,10 +91,13 @@ export const translateNode = (
   if (Array.isArray(node)) {
     return Children.toArray(node.map((child) => translateNode(child, translate)));
   }
-  if (isValidElement(node) && node.props?.children) {
-    const translatedChildren = translateNode(node.props.children, translate);
-    if (translatedChildren !== node.props.children) {
-      return cloneElement(node, node.props, translatedChildren);
+  if (isValidElement(node)) {
+    const element = node as ReactElement<{ children?: ReactNode }>;
+    if (element.props?.children) {
+      const translatedChildren = translateNode(element.props.children, translate);
+      if (translatedChildren !== element.props.children) {
+        return cloneElement(element, element.props, translatedChildren);
+      }
     }
   }
   return node;
@@ -153,8 +156,12 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   );
 
   const toggleLocale = useCallback(() => {
-    setLocale((current) => (current === "es" ? "en" : "es"));
-  }, [setLocale]);
+    setLocaleState((current) => {
+      const next = current === "es" ? "en" : "es";
+      persistLocale(next);
+      return next;
+    });
+  }, [persistLocale]);
 
   const translate = useCallback(
     (key: string, params?: TranslateParams) => {

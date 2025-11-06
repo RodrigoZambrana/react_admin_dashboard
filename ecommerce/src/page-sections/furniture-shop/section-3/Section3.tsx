@@ -36,10 +36,10 @@ export default function Section3({ products, title }: Props) {
                 title={item.title}
                 price={item.price}
                 off={item.discount}
-                status={item.status}
+                status={item.status ?? ""}
                 rating={item.rating}
                 imgUrl={item.thumbnail}
-                productColors={item.colors}
+                productColors={item.colors ?? []}
               />
             </Box>
           ))}

@@ -308,6 +308,7 @@ export interface CustomerProfile {
   phone?: string | null
   avatarUrl?: string | null
   dateOfBirth?: string | null
+  preferredLocale?: string | null
   wishlistCount: number
   wishlistProductIds: number[]
   addresses: Array<{

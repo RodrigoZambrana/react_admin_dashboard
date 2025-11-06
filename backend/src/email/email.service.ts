@@ -14,6 +14,7 @@ import { EmailSettingsService } from './email-settings.service'
 import {
   EmailMessage,
   EmailRecipient,
+  OrderEmailAddress,
   OrderEmailContext,
   PaymentEmailContext,
   PasswordResetEmailContext,
@@ -33,6 +34,12 @@ type PaymentEmailOptions = {
   sendToCustomer?: boolean
   sendToAdmin?: boolean
   localeOverride?: string | null
+}
+
+const isOrderEmailContext = (
+  payload: OrderEmailContext | PaymentEmailContext | PasswordResetEmailContext,
+): payload is OrderEmailContext => {
+  return typeof payload === 'object' && payload !== null && 'documentType' in payload && 'event' in payload
 }
 
 type SalesDocumentStatusEmailOptions = {
@@ -101,42 +108,50 @@ export class EmailService {
       this.logger.warn(`Order ${order.id} has no customer; skipping customer email.`)
     }
 
-    const locale = this.resolveLocale(options.localeOverride)
     const company = await this.getCompanyContext()
-    const orderPayload = this.buildOrderPayload(order, locale, { event: 'order.received' })
     const extras = { ...company }
 
     if (options.sendToCustomer !== false && customer?.email) {
+      const customerLocalePreference =
+        (customer as { preferredLocale?: string | null })?.preferredLocale ?? options.localeOverride
+      const customerLocale = this.resolveLocale(customerLocalePreference)
+      const customerPayload = this.buildOrderPayload(order, customerLocale, { event: 'order.received' })
       const recipients: EmailRecipient[] = [
         {
           email: customer.email,
           name: this.sanitizeName(customer.name ?? `${customer.firstName ?? ''} ${customer.lastName ?? ''}`),
-          locale,
+          locale: customerLocale,
         },
       ]
       const message = await this.buildMessage<OrderEmailContext>({
         category: EmailCategory.ORDERS,
         variant: EmailTemplateVariant.CUSTOMER,
-        locale,
+        locale: customerLocale,
         recipientType: EmailRecipientType.CUSTOMER,
         recipients,
-        payload: orderPayload,
+        payload: customerPayload,
         extras,
       })
       await this.queue.enqueue(message)
     }
 
     if (options.sendToAdmin !== false) {
+      const adminLocale = this.resolveLocale('es')
+      const adminPayload = this.buildOrderPayload(order, adminLocale, { event: 'order.received_admin' })
       const recipientsConfig = await this.settings.resolveAdminRecipients(EmailCategory.ORDERS)
       if (recipientsConfig.to.length) {
-        const recipients: EmailRecipient[] = recipientsConfig.to.map((email) => ({ email, name: null, locale }))
+        const recipients: EmailRecipient[] = recipientsConfig.to.map((email) => ({
+          email,
+          name: null,
+          locale: adminLocale,
+        }))
         const message = await this.buildMessage<OrderEmailContext>({
           category: EmailCategory.ORDERS,
           variant: EmailTemplateVariant.ADMIN,
-          locale,
+          locale: adminLocale,
           recipientType: EmailRecipientType.ADMIN,
           recipients,
-          payload: orderPayload,
+          payload: adminPayload,
           extras,
           cc: recipientsConfig.cc,
           bcc: recipientsConfig.bcc,
@@ -446,6 +461,85 @@ export class EmailService {
     }
   }
 
+  private buildDeliveryEstimateLabel(
+    minHours: number | null | undefined,
+    maxHours: number | null | undefined,
+    locale: string,
+  ): string | null {
+    const isSpanish = locale.toLowerCase().startsWith('es')
+    const normalizedMin = typeof minHours === 'number' && Number.isFinite(minHours) ? Math.trunc(minHours) : null
+    const normalizedMax = typeof maxHours === 'number' && Number.isFinite(maxHours) ? Math.trunc(maxHours) : null
+    if (normalizedMin === null && normalizedMax === null) {
+      return null
+    }
+    if (normalizedMin !== null && normalizedMax !== null) {
+      if (normalizedMin === normalizedMax) {
+        return isSpanish ? `Dentro de ${normalizedMin} horas` : `Within ${normalizedMin} hours`
+      }
+      return isSpanish
+        ? `Entre ${normalizedMin} y ${normalizedMax} horas`
+        : `Between ${normalizedMin} and ${normalizedMax} hours`
+    }
+    if (normalizedMin !== null) {
+      return isSpanish ? `Desde ${normalizedMin} horas` : `From ${normalizedMin} hours`
+    }
+    if (normalizedMax !== null) {
+      return isSpanish ? `Hasta ${normalizedMax} horas` : `Up to ${normalizedMax} hours`
+    }
+    return null
+  }
+
+  private buildAddressPayload(params: {
+    line1?: string | null
+    line2?: string | null
+    city?: string | null
+    state?: string | null
+    zip?: string | null
+    country?: string | null
+  }): OrderEmailAddress | null {
+    const sanitize = (value?: string | null) => {
+      if (typeof value !== 'string') {
+        return null
+      }
+      const trimmed = value.trim()
+      return trimmed.length ? trimmed : null
+    }
+    const line1 = sanitize(params.line1)
+    const line2 = sanitize(params.line2)
+    const city = sanitize(params.city)
+    const state = sanitize(params.state)
+    const zip = sanitize(params.zip)
+    const country = sanitize(params.country)
+    const lines: string[] = []
+    const firstLineParts = [line1, line2].filter((segment): segment is string => Boolean(segment))
+    const firstLine = firstLineParts.join(' ').trim()
+    if (firstLine) {
+      lines.push(firstLine)
+    }
+    const cityStateParts = [city, state].filter((segment): segment is string => Boolean(segment))
+    const cityState = cityStateParts.join(', ').trim()
+    const locationLineParts = [cityState || null, zip].filter((segment): segment is string => Boolean(segment))
+    const locationLine = locationLineParts.join(' ').trim()
+    if (locationLine) {
+      lines.push(locationLine)
+    }
+    if (country) {
+      lines.push(country)
+    }
+    if (!lines.length) {
+      return null
+    }
+    return {
+      line1,
+      line2,
+      city,
+      state,
+      zip,
+      country,
+      lines,
+    }
+  }
+
   private buildOrderPayload(
     order: Prisma.OrderGetPayload<{
       include: {
@@ -489,6 +583,39 @@ export class EmailService {
       ? findPaymentMethodById(order.paymentMethodId)?.label ?? null
       : null
     const links = this.buildDocumentLinks(order, documentType)
+    const shippingVendor =
+      typeof order.shippingVendor === 'string' && order.shippingVendor.trim().length
+        ? order.shippingVendor.trim()
+        : null
+    const shippingAddress = this.buildAddressPayload({
+      line1: order.shippingAddress1,
+      line2: order.shippingAddress2,
+      city: order.shippingCity,
+      state: order.shippingState,
+      zip: order.shippingZip,
+      country: null,
+    })
+    const billingAddress = this.buildAddressPayload({
+      line1: order.billingAddress1,
+      line2: order.billingAddress2,
+      city: order.billingCity,
+      state: order.billingState,
+      zip: order.billingZip,
+      country: null,
+    })
+    const hasMinEstimate = order.estimatedMin !== null && order.estimatedMin !== undefined
+    const hasMaxEstimate = order.estimatedMax !== null && order.estimatedMax !== undefined
+    const deliveryEstimate = hasMinEstimate || hasMaxEstimate
+      ? {
+          minHours: hasMinEstimate ? order.estimatedMin ?? null : null,
+          maxHours: hasMaxEstimate ? order.estimatedMax ?? null : null,
+        }
+      : null
+    const deliveryEstimateLabel = this.buildDeliveryEstimateLabel(
+      hasMinEstimate ? order.estimatedMin ?? null : null,
+      hasMaxEstimate ? order.estimatedMax ?? null : null,
+      locale,
+    )
     const payload: OrderEmailContext = {
       orderId: order.id,
       orderNumber: order.uuid || String(order.id),
@@ -511,13 +638,11 @@ export class EmailService {
       links,
       validUntil: order.validUntil ? this.formatDate(order.validUntil, locale) : null,
       paymentMethod,
-      deliveryEstimate:
-        order.estimatedMin || order.estimatedMax
-          ? {
-              minHours: order.estimatedMin ?? null,
-              maxHours: order.estimatedMax ?? null,
-            }
-          : null,
+      deliveryEstimate,
+      deliveryEstimateLabel,
+      shippingVendor,
+      shippingAddress,
+      billingAddress,
       notes: order.comment ?? null,
       locale,
     }
@@ -525,11 +650,21 @@ export class EmailService {
     if (overrides.links !== undefined) {
       mergedLinks = overrides.links === null ? null : { ...(payload.links ?? {}), ...overrides.links }
     }
-    return {
+    const result: OrderEmailContext = {
       ...payload,
       ...overrides,
       links: mergedLinks,
     }
+    const hasDeliveryEstimateOverride = Object.prototype.hasOwnProperty.call(overrides, 'deliveryEstimate')
+    const hasDeliveryLabelOverride = Object.prototype.hasOwnProperty.call(overrides, 'deliveryEstimateLabel')
+    if ((hasDeliveryEstimateOverride && !hasDeliveryLabelOverride) || result.deliveryEstimateLabel === undefined) {
+      result.deliveryEstimateLabel = this.buildDeliveryEstimateLabel(
+        result.deliveryEstimate?.minHours ?? null,
+        result.deliveryEstimate?.maxHours ?? null,
+        locale,
+      )
+    }
+    return result
   }
 
   private buildPaymentPayload(
@@ -648,6 +783,23 @@ export class EmailService {
     const isSpanish = locale.toLowerCase().startsWith('es')
     const format = (value: number) => this.formatAmount(value, locale)
     const baseDate = new Date()
+    const deliveryEstimateBase = { minHours: 24, maxHours: 72 }
+    const shippingAddress = this.buildAddressPayload({
+      line1: isSpanish ? 'Av. Siempre Viva 742' : '742 Evergreen Street',
+      line2: isSpanish ? 'Apto. 12B' : 'Suite 12B',
+      city: isSpanish ? 'Montevideo' : 'Springfield',
+      state: isSpanish ? 'Montevideo' : 'IL',
+      zip: isSpanish ? '11800' : '62704',
+      country: isSpanish ? 'Uruguay' : 'USA',
+    })
+    const billingAddress = this.buildAddressPayload({
+      line1: isSpanish ? '18 de Julio 1234' : '123 Market Street',
+      line2: isSpanish ? 'Oficina 301' : 'Floor 3, Office 301',
+      city: isSpanish ? 'Montevideo' : 'Springfield',
+      state: isSpanish ? 'Montevideo' : 'IL',
+      zip: isSpanish ? '11300' : '62701',
+      country: isSpanish ? 'Uruguay' : 'USA',
+    })
     const base: OrderEmailContext = {
       orderId: 1001,
       orderNumber: 'ORD-1001',
@@ -698,7 +850,15 @@ export class EmailService {
       adminUrl: this.config.get<string>('ADMIN_PORTAL_URL') ?? 'https://admin.example.com/orders/1001',
       validUntil: this.formatDate(new Date(baseDate.getTime() + 7 * 24 * 60 * 60 * 1000), locale),
       paymentMethod: 'Mercado Pago',
-      deliveryEstimate: { minHours: 24, maxHours: 72 },
+      deliveryEstimate: deliveryEstimateBase,
+      deliveryEstimateLabel: this.buildDeliveryEstimateLabel(
+        deliveryEstimateBase.minHours,
+        deliveryEstimateBase.maxHours,
+        locale,
+      ),
+      shippingVendor: isSpanish ? 'Envío Express' : 'Express Courier',
+      shippingAddress,
+      billingAddress,
       notes: isSpanish ? 'El cliente solicitó envoltura para regalo.' : 'Customer requested gift wrap.',
       locale,
     }
@@ -714,6 +874,7 @@ export class EmailService {
           previousStatusCode: 'pending',
           paymentMethod: 'Mercado Pago',
           deliveryEstimate: { minHours: 12, maxHours: 48 },
+          deliveryEstimateLabel: this.buildDeliveryEstimateLabel(12, 48, locale),
         }
       case 'order.delivered':
         return {
@@ -722,6 +883,7 @@ export class EmailService {
           status: isSpanish ? 'Entregado' : 'Delivered',
           statusCode: 'delivered',
           deliveryEstimate: null,
+          deliveryEstimateLabel: null,
           notes: isSpanish ? 'Pedido entregado y firmado por el cliente.' : 'Order delivered and signed by customer.',
         }
       case 'order.cancelled':
@@ -733,6 +895,8 @@ export class EmailService {
           previousStatus: isSpanish ? 'Pendiente' : 'Pending',
           previousStatusCode: 'pending',
           paymentMethod: null,
+          deliveryEstimate: null,
+          deliveryEstimateLabel: null,
           notes: isSpanish
             ? 'El cliente canceló por pedido duplicado.'
             : 'Customer cancelled due to duplicate order.',
@@ -791,6 +955,7 @@ export class EmailService {
             currency: 'USD',
           },
           deliveryEstimate: { minHours: 72, maxHours: 168 },
+          deliveryEstimateLabel: this.buildDeliveryEstimateLabel(72, 168, locale),
           notes: isSpanish
             ? 'Incluye configuración profesional y visita técnica.'
             : 'Includes professional setup and on-site technician visit.',
@@ -969,7 +1134,20 @@ export class EmailService {
     locale: string,
     scenarioKey?: string,
   ) {
-    const payload = this.buildSamplePayload(category, locale, scenarioKey)
+    let payload = this.buildSamplePayload(category, locale, scenarioKey)
+    if (
+      category === EmailCategory.ORDERS &&
+      variant === EmailTemplateVariant.ADMIN &&
+      isOrderEmailContext(payload) &&
+      payload.documentType === 'ORDER' &&
+      payload.event === 'order.received'
+    ) {
+      const updatedPayload: OrderEmailContext = {
+        ...payload,
+        event: 'order.received_admin',
+      }
+      payload = updatedPayload
+    }
     const extras = await this.getCompanyContext()
     return { payload, extras, variant }
   }
@@ -978,8 +1156,12 @@ export class EmailService {
     const isSpanish = locale.toLowerCase().startsWith('es')
     const t = (en: string, es: string) => (isSpanish ? es : en)
     if (category === EmailCategory.ORDERS) {
+      const receivedLabel =
+        variant === EmailTemplateVariant.ADMIN
+          ? t('Order received (staff copy)', 'Pedido recibido (equipo)')
+          : t('Order received (basic)', 'Pedido recibido (básico)')
       const scenarios = [
-        { key: 'order.received', label: t('Order received (basic)', 'Pedido recibido (básico)') },
+        { key: 'order.received', label: receivedLabel },
         { key: 'order.paid', label: t('Order paid', 'Pedido pagado') },
         { key: 'order.delivered', label: t('Order delivered', 'Pedido entregado') },
         { key: 'order.cancelled', label: t('Order cancelled', 'Pedido cancelado') },

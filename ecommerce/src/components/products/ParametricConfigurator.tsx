@@ -18,6 +18,7 @@ import useCart from "@hook/useCart";
 import type Product from "@models/product.model";
 import type { CartProductSnapshot } from "@/state/cart-context";
 import { useTranslation } from "@/state/i18n-context";
+import type { InventoryStatus } from "@/types/storefront";
 
 const DEFAULT_OPTIONS = {
   series: ["20", "25", "30", "GALA", "PROBBA", "SUMMA"],
@@ -50,6 +51,23 @@ const sanitizeCode = (value: string) =>
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "");
+
+const normalizeInventoryStatus = (status?: string | null): InventoryStatus => {
+  const normalized = (status ?? "").toLowerCase();
+  if (["in-stock", "instock", "in_stock", "available"].includes(normalized)) {
+    return "in-stock";
+  }
+  if (["limited", "low-stock", "low", "limited_stock"].includes(normalized)) {
+    return "limited";
+  }
+  if (["back-order", "backorder", "back_order"].includes(normalized)) {
+    return "back-order";
+  }
+  if (["out-of-stock", "out", "sold-out", "sold_out"].includes(normalized)) {
+    return "out-of-stock";
+  }
+  return "in-stock";
+};
 
 const buildParametricLineId = (
   productId: string | number,
@@ -204,10 +222,30 @@ const ParametricConfigurator = ({
   }, [product.id, t]);
 
   const handleFieldChange = useCallback(
-    (field: keyof typeof DEFAULT_FORM) => (value: string | boolean) => {
+    (field: keyof typeof DEFAULT_FORM) => (input: unknown) => {
+      let value: string | boolean;
+      if (typeof input === "boolean") {
+        value = input;
+      } else if (typeof input === "string") {
+        value = input;
+      } else if (input && typeof input === "object" && "value" in input) {
+        const optionValue = (input as { value?: unknown }).value;
+        if (typeof optionValue === "boolean" || typeof optionValue === "string") {
+          value = optionValue;
+        } else if (optionValue == null) {
+          value = "";
+        } else {
+          value = String(optionValue);
+        }
+      } else if (typeof input === "number") {
+        value = String(input);
+      } else {
+        value = "";
+      }
+
       setForm((prev) => ({
         ...prev,
-        [field]: typeof value === "string" ? value : value,
+        [field]: value,
       }));
     },
     []
@@ -271,7 +309,7 @@ const ParametricConfigurator = ({
       name: product.title,
       price: money,
       salePrice: null,
-      inventoryStatus: product.status ?? "in-stock",
+      inventoryStatus: normalizeInventoryStatus(product.status),
       thumbnail: gallery.length
         ? {
             id: lineId,
@@ -303,7 +341,7 @@ const ParametricConfigurator = ({
     }
     return t("product.parametric.units.plural", {
       defaultMessage: "{count} units",
-      count: existingQuantity
+      values: { count: existingQuantity }
     });
   }, [existingQuantity, t]);
 
@@ -313,7 +351,7 @@ const ParametricConfigurator = ({
     }
     return t("product.parametric.notice.inCart", {
       defaultMessage: "You already have {units} of this configuration in the cart.",
-      units: unitsLabel
+      values: { units: unitsLabel }
     });
   }, [existingQuantity, t, unitsLabel]);
 
@@ -400,7 +438,7 @@ const ParametricConfigurator = ({
                 <SemiSpan color="inherit" display="block" mt="0.35rem">
                   {t("product.parametric.quoteVersion", {
                     defaultMessage: "Version {version}",
-                    version: quote.dataVersion.split("#")[0]
+                    values: { version: quote.dataVersion.split("#")[0] }
                   })}
                 </SemiSpan>
               </>
@@ -507,10 +545,20 @@ const ParametricConfigurator = ({
           </Box>
 
           <FlexBox alignItems="center" mb="24px" style={{ gap: "0.75rem" }}>
-            <Button size="small" color="primary" variant="contained" onClick={handleQuote} loading={quoting}>
-              {t("product.parametric.buttons.quote", {
-                defaultMessage: "Calculate price"
-              })}
+            <Button
+              size="small"
+              color="primary"
+              variant="contained"
+              onClick={handleQuote}
+              disabled={quoting}
+            >
+              {quoting
+                ? t("product.parametric.buttons.quotePending", {
+                    defaultMessage: "Calculating..."
+                  })
+                : t("product.parametric.buttons.quote", {
+                    defaultMessage: "Calculate price"
+                  })}
             </Button>
             <Button
               size="small"

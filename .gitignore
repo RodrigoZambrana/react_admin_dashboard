@@ -29,3 +29,6 @@ yarn-error.log*
 # Prisma
 backend/prisma/generated/
 !deploy/nginx/dhparam.pem
+
+# Generated shared modules
+frontend/.shared/

@@ -7,17 +7,22 @@ import Navbar from "@component/navbar/SaleNavbar";
 
 // ==============================================================
 interface Props {
-  categories: { icon: string; title: string }[];
+  categories: { icon: string; title: string; slug?: string }[];
+  selectedSlug?: string;
 }
 // ==============================================================
 
-export default function SaleNavbar({ categories }: Props) {
+export default function SaleNavbar({ categories, selectedSlug }: Props) {
   const [isFixed, setIsFixed] = useState(false);
   const toggleIsFixed = useCallback((fixed: boolean) => setIsFixed(fixed), []);
 
   return (
     <Sticky fixedOn={0} onSticky={toggleIsFixed} scrollDistance={400}>
-      {!isFixed ? <Box display="none" /> : <Navbar categories={categories} />}
+      {!isFixed ? (
+        <Box display="none" />
+      ) : (
+        <Navbar categories={categories} selectedSlug={selectedSlug} />
+      )}
     </Sticky>
   );
 }

@@ -190,35 +190,40 @@ const DeleteProductButton = ({ onDelete }: { onDelete: OnDelete }) => {
 const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
     const {
         type,
-        initialData = {
-            id: 0,
-            name: '',
-            productCode: '',
-            img: '',
-            imgList: [],
-            categoryId: null,
-            costPrice: 0,
-            salePrice: 0,
-            stock: 0,
-            status: 0,
-            bulkDiscountPrice: 0,
-            tags: [],
-            brand: '',
-            vendor: '',
-            description: '',
-            specifications: '',
-            published: false,
-            permanentStock: false,
-            currency: 'UYU',
-            unitOfMeasure: DEFAULT_SALES_UNIT,
-            mode: 'simple',
-            attributes: [],
-            variants: [],
-        },
+        initialData: providedInitialData,
         onFormSubmit,
         onDiscard,
         onDelete,
     } = props
+
+    // Keep a stable fallback payload so mode toggles are not reset on every render.
+    const defaultInitialDataRef = useRef<InitialData>({
+        id: 0,
+        name: '',
+        productCode: '',
+        img: '',
+        imgList: [],
+        categoryId: null,
+        costPrice: 0,
+        salePrice: 0,
+        stock: 0,
+        status: 0,
+        bulkDiscountPrice: 0,
+        tags: [],
+        brand: '',
+        vendor: '',
+        description: '',
+        specifications: '',
+        published: false,
+        permanentStock: false,
+        currency: 'UYU',
+        unitOfMeasure: DEFAULT_SALES_UNIT,
+        mode: 'simple',
+        attributes: [],
+        variants: [],
+    })
+
+    const initialData = providedInitialData ?? defaultInitialDataRef.current
 
     const { t } = useTranslation()
     const currencyState = useAppSelector((state) => state.currency)
@@ -349,10 +354,17 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
     )
 
     useEffect(() => {
-        setMode(initialData.mode ?? 'simple')
+        const nextMode = initialData.mode ?? 'simple'
+        setMode((current) => (current === nextMode ? current : nextMode))
+    }, [initialData.mode])
+
+    useEffect(() => {
         setAttributeDefinitions(initialData.attributes ?? [])
+    }, [initialData.attributes])
+
+    useEffect(() => {
         setVariantRows(initialData.variants ?? [])
-    }, [initialData.mode, initialData.attributes, initialData.variants])
+    }, [initialData.variants])
 
     useEffect(() => {
         if (formRef.current) {

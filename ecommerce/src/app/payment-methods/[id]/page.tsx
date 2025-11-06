@@ -4,11 +4,7 @@ interface Params {
   id: string;
 }
 
-interface LegacyPaymentMethodParams {
-  params: Promise<Params> | Params;
-}
-
-export default async function LegacyPaymentMethodDetailPage({ params }: LegacyPaymentMethodParams) {
+export default async function LegacyPaymentMethodDetailPage({ params }: { params: Promise<Params> }) {
   const resolved = await params;
   redirect(`/account/payment-methods/${resolved.id}`);
 }

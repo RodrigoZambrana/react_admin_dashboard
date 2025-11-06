@@ -13,7 +13,7 @@ export default function AccountWishListPage() {
   const t = useTranslation();
 
   return (
-    <Box display="flex" flexDirection="column" gap="1.5rem">
+    <Box display="flex" flexDirection="column" style={{ gap: "1.5rem" }}>
       <DashboardPageHeader
         title={t("My Wish List")}
         Icon={<IconHeartFilled size={27} />}

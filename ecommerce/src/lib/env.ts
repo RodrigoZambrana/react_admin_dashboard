@@ -1,15 +1,39 @@
+import { DEFAULT_CLIENT_SLUG } from "@/constants/tenancy";
+
 const ensureHttps = (value: string, context: "server" | "client") => {
   if (!value) {
     return value;
   }
 
   if (process.env.NODE_ENV === "production" && value.startsWith("http://")) {
-    throw new Error(
-      `[storefront] ${context} API URL must use HTTPS in production. Received "${value}". Update your environment configuration.`
-    );
+    try {
+      const url = new URL(value);
+      const hostname = url.hostname.toLowerCase();
+      const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
+      const isInternalDockerHost = !hostname.includes(".") || hostname.endsWith(".local");
+      if (!isLocalhost && !isInternalDockerHost) {
+        throw new Error(
+          `[storefront] ${context} API URL must use HTTPS in production. Received "${value}". Update your environment configuration.`
+        );
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(
+        `[storefront] ${context} API URL must use HTTPS in production. Received "${value}". Update your environment configuration.`
+      );
+    }
   }
 
   return value;
+};
+
+const removeTrailingSlash = (value: string): string => {
+  if (!value) {
+    return value;
+  }
+  return value.endsWith("/") && value.length > 1 ? value.slice(0, -1) : value;
 };
 
 const normalize = (value: string, context: "server" | "client"): string => {
@@ -26,8 +50,48 @@ const normalize = (value: string, context: "server" | "client"): string => {
   return ensureHttps(sanitized, context);
 };
 
+const ensureStorefrontPath = (value: string): string => {
+  if (!value) {
+    return value;
+  }
+  try {
+    const url = new URL(value);
+    const path = removeTrailingSlash(url.pathname || "");
+    if (!path || path === "" || path === "/") {
+      url.pathname = "/api/storefront";
+    } else if (path === "/storefront") {
+      url.pathname = "/api/storefront";
+    } else if (path.endsWith("/storefront")) {
+      url.pathname = path;
+    } else if (path.endsWith("/api")) {
+      url.pathname = `${path}/storefront`;
+    } else if (!path.includes("/storefront")) {
+      url.pathname = `${path}/storefront`;
+    }
+    return removeTrailingSlash(url.toString());
+  } catch {
+    return value;
+  }
+};
+
 const DEFAULT_API_BASE = "http://localhost:4000/api/storefront";
 const DEFAULT_SITE_URL = "http://localhost:3000";
+
+const normalizeClientSlug = (value: string | undefined | null) => {
+  if (!value) {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.toLowerCase();
+};
+
+const resolvedClientSlug =
+  normalizeClientSlug(process.env.CLIENT_SLUG) ??
+  normalizeClientSlug(process.env.NEXT_PUBLIC_CLIENT_SLUG) ??
+  DEFAULT_CLIENT_SLUG;
 
 const serverApiBaseRaw =
   process.env.STOREFRONT_API_URL ?? process.env.NEXT_PUBLIC_STOREFRONT_API_URL ?? DEFAULT_API_BASE;
@@ -35,8 +99,10 @@ const clientApiBaseRaw =
   process.env.NEXT_PUBLIC_STOREFRONT_API_URL ?? serverApiBaseRaw ?? DEFAULT_API_BASE;
 const clientSiteUrlRaw = process.env.NEXT_PUBLIC_SITE_URL ?? DEFAULT_SITE_URL;
 
-const normalizedApiBase = normalize(serverApiBaseRaw, "server") || DEFAULT_API_BASE;
-const normalizedPublicApiBase = normalize(clientApiBaseRaw, "client") || DEFAULT_API_BASE;
+const normalizedApiBase =
+  ensureStorefrontPath(normalize(serverApiBaseRaw, "server")) || DEFAULT_API_BASE;
+const normalizedPublicApiBase =
+  ensureStorefrontPath(normalize(clientApiBaseRaw, "client")) || DEFAULT_API_BASE;
 const normalizedSiteUrl = normalize(clientSiteUrlRaw, "client") || DEFAULT_SITE_URL;
 
 const safeOrigin = (value: string | null): string | null => {
@@ -57,5 +123,6 @@ export const env = {
   publicSiteOrigin: safeOrigin(normalizedSiteUrl) ?? safeOrigin(DEFAULT_SITE_URL),
   nodeEnv: process.env.NODE_ENV ?? "development",
   isDevelopment: process.env.NODE_ENV !== "production",
-  isProduction: process.env.NODE_ENV === "production"
+  isProduction: process.env.NODE_ENV === "production",
+  clientSlug: resolvedClientSlug
 };
