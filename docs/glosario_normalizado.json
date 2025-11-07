@@ -1,0 +1,112 @@
+{
+  "meta": {
+    "name": "Glosario normalizado de aberturas",
+    "version": "2025-11-06",
+    "reference_date": "2025-11-06",
+    "notes": [
+      "Vidrios normalizados al estándar sin espacios: 3MM, 4MM, 5MM, 6MM, DVH(4/9/5), DVH(5/9/6).",
+      "Ajustes por color aplicables: BLANCO +8%, NEGRO +15%, MARRÓN +12%, ANOLOC +15%. Otros colores 0%.",
+      "Series S20->20, S25->25, S30->30; GALA 45->GALA45; GALA CR->GALA_CR."
+    ]
+  },
+  "maps": {
+    "tipos_abertura": {
+      "CORREDIZA": "VENTANA_CORREDIZA",
+      "CORREDIZA 2H 2G": "VENTANA_CORREDIZA_2H2G",
+      "CORREDIZA 2H2G + PAÑO FIJO": "VENTANA_CORREDIZA_2H2G_PF",
+      "PAÑO FIJO CON U INFERIOR /LATERAL Y SUP": "PAÑO_FIJO_U",
+      "PUERTA BLINDEX  2  HOJAS": "PUERTA_BLINDEX_2H",
+      "BLINDEX": "PUERTA_BLINDEX",
+      "CORREDIZA 2H2G + CORREDIZA 2H2G": "VENTANA_CORREDIZA_2H2G_DOBLE",
+      "PUERTA +  PAÑO FIJO +  PAÑO FIJO": "PUERTA_CON_PF_DOBLE",
+      "CORREDIZA 3H 3G": "VENTANA_CORREDIZA_3H3G",
+      "CORREDIZA 3H 3G + PAÑO FIJO": "VENTANA_CORREDIZA_3H3G_PF",
+      "CORREDIZA 2H2G + PAÑO FIJO + PAÑO FIJO": "VENTANA_CORREDIZA_2H2G_PF_DOBLE",
+      "PAÑO FIJO + PROYECTANTE + PROYECTANTE": "PAÑO_FIJO_PROYECTANTE_DOBLE",
+      "CORREDIZA 3H 2G": "VENTANA_CORREDIZA_3H2G",
+      "CORREDIZA 4H 4G": "VENTANA_CORREDIZA_4H4G",
+      "PROYECTANTE": "PROYECTANTE",
+      "PROYECTANTE + PAÑO FIJO": "PROYECTANTE_PF",
+      "PROYECCION Y DESLIZ": "PROYECTANTE_DESLIZANTE",
+      "2 OSCILOBATIENTES + PAÑO FIJO": "DOBLE_OSCILOBATIENTE_PF",
+      "TABAQUERA + PAÑO FIJO": "TABAQUERA_PF",
+      "TABAQUERA": "TABAQUERA",
+      "BATIENTE 1H": "PUERTA_BATIENTE_1H",
+      "BATIENTE 2H": "PUERTA_BATIENTE_2H",
+      "OSCILOBATIENTE": "OSCILOBATIENTE",
+      "OSCILOBATIENTE  +  PAÑO FIJO": "OSCILOBATIENTE_PF",
+      "PAÑO FIJO + PAÑO FIJO": "PAÑO_FIJO_COMPUESTO",
+      "PAÑO FIJO": "PAÑO_FIJO",
+      "BATIENTE 1H + PAÑO FIJO": "PUERTA_BATIENTE_1H_PF",
+      "TUBULAR": "TUBULAR",
+      "PUERTA BATIENTE 1H": "PUERTA_BATIENTE_1H",
+      "PUERTA BATIENTE 2H": "PUERTA_BATIENTE_2H",
+      "CELOSIA": "CELOSIA",
+      "TAPAJUNTAS": "TAPAJUNTAS",
+      "PREMARCO": "PREMARCO",
+      "OTROS": "OTROS",
+      "LUCERNARIO": "LUCERNARIO",
+      "BARANDA": "BARANDA"
+    },
+    "series": {
+      "LP": "LP",
+      "S20": "20",
+      "S25": "25",
+      "S30": "30",
+      "PROBBA": "PROBBA",
+      "GALA 45": "GALA45",
+      "GALA CR": "GALA_CR",
+      "SUMMA": "SUMMA",
+      "OTROS": "OTROS"
+    },
+    "colores": {
+      "NATURAL": {
+        "normalized": "NATURAL",
+        "adjust_pct": 0
+      },
+      "BLANCO": {
+        "normalized": "BLANCO",
+        "adjust_pct": 8
+      },
+      "MARRON": {
+        "normalized": "MARRÓN",
+        "adjust_pct": 12
+      },
+      "MADERA": {
+        "normalized": "COLOR MADERA",
+        "adjust_pct": 0
+      },
+      "ANOLOK": {
+        "normalized": "ANOLOC",
+        "adjust_pct": 15
+      },
+      "ANOLOC": {
+        "normalized": "ANOLOC",
+        "adjust_pct": 15
+      },
+      "NEGRO": {
+        "normalized": "NEGRO",
+        "adjust_pct": 15
+      }
+    },
+    "vidrios": {
+      "3MM": "3MM",
+      "3 MM": "3MM",
+      "4MM": "4MM",
+      "4 MM": "4MM",
+      "5MM": "5MM",
+      "5 MM": "5MM",
+      "6MM": "6MM",
+      "6 MM": "6MM",
+      "DVH (4/9/5)": "DVH(4/9/5)",
+      "DVH(4/9/5)": "DVH(4/9/5)",
+      "DVH (5/9/6)": "DVH(5/9/6)",
+      "DVH(5/9/6)": "DVH(5/9/6)"
+    }
+  },
+  "defaults": {
+    "material": "ALUMINIO",
+    "color": "NATURAL",
+    "vidrio": "4MM"
+  }
+}

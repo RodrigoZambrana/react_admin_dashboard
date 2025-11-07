@@ -164,18 +164,57 @@ const baseAppsRoute: Routes = [
             header: lazy(() => import('@/views/settings/ProductSettings/HeaderTitle')),
         },
     },
-    ...(isUrucortinas && hasParametricProducts
-        ? [
-              {
-                  key: 'appsProducts.parametric',
-                  path: `${APP_PREFIX_PATH}/products/parametric`,
-                  component: lazy(() => import('@/views/sales/ProductList')),
-                  authority: getRolesForFeature(FEATURES.PRODUCTS),
-                  meta: {
-                      header: 'Parametric Products',
+    ...(hasParametricProducts
+        ? isUrucortinas
+            ? [
+                  {
+                      key: 'appsAberturas.list',
+                      path: `${APP_PREFIX_PATH}/aberturas/list`,
+                      component: lazy(() => import('@/views/sales/ProductList')),
+                      authority: getRolesForFeature(FEATURES.PRODUCTS),
+                      meta: {
+                          header: 'Aberturas',
+                      },
                   },
-              },
-          ]
+                  {
+                      key: 'appsAberturas.quote',
+                      path: `${APP_PREFIX_PATH}/aberturas/quote`,
+                      component: lazy(() => import('@/views/sales/AberturasQuote')),
+                      authority: getRolesForFeature(FEATURES.PRODUCTS),
+                      meta: {
+                          header: 'Presupuestar Aberturas',
+                      },
+                  },
+                  {
+                      key: 'appsAberturas.config',
+                      path: `${APP_PREFIX_PATH}/aberturas/config`,
+                      component: lazy(() => import('@/views/settings/AberturasGlossary')),
+                      authority: getRolesForFeature(FEATURES.PRODUCTS),
+                      meta: {
+                          header: 'Aberturas',
+                      },
+                  },
+              ]
+            : [
+                  {
+                      key: 'appsProducts.parametric',
+                      path: `${APP_PREFIX_PATH}/products/parametric`,
+                      component: lazy(() => import('@/views/sales/ProductList')),
+                      authority: getRolesForFeature(FEATURES.PRODUCTS),
+                      meta: {
+                          header: 'Parametric Products',
+                      },
+                  },
+                  {
+                      key: 'appsProducts.parametricQuote',
+                      path: `${APP_PREFIX_PATH}/products/parametric/quote`,
+                      component: lazy(() => import('@/views/sales/AberturasQuote')),
+                      authority: getRolesForFeature(FEATURES.PRODUCTS),
+                      meta: {
+                          header: 'Presupuestar Aberturas',
+                      },
+                  },
+              ]
         : []),
     {
         key: 'appsProducts.productEdit',
@@ -186,6 +225,37 @@ const baseAppsRoute: Routes = [
             header: 'Edit Product',
         },
     },
+    ...(isUrucortinas && hasParametricProducts
+        ? [
+              {
+                  key: 'appsProducts.parametricLegacy',
+                  path: `${APP_PREFIX_PATH}/products/parametric`,
+                  component: lazy(() => import('@/views/sales/ProductList')),
+                  authority: getRolesForFeature(FEATURES.PRODUCTS),
+                  meta: {
+                      header: 'Aberturas',
+                  },
+              },
+              {
+                  key: 'appsProducts.parametricQuoteLegacy',
+                  path: `${APP_PREFIX_PATH}/products/parametric/quote`,
+                  component: lazy(() => import('@/views/sales/AberturasQuote')),
+                  authority: getRolesForFeature(FEATURES.PRODUCTS),
+                  meta: {
+                      header: 'Presupuestar Aberturas',
+                  },
+              },
+              {
+                  key: 'appsSettings.aberturasGlossaryLegacy',
+                  path: `${APP_PREFIX_PATH}/settings/aberturas`,
+                  component: lazy(() => import('@/views/settings/AberturasGlossary')),
+                  authority: getRolesForFeature(FEATURES.PRODUCTS),
+                  meta: {
+                      header: 'Aberturas',
+                  },
+              },
+          ]
+        : []),
     {
         key: 'appsSales.orderList',
         path: `${APP_PREFIX_PATH}/sales/order-list`,

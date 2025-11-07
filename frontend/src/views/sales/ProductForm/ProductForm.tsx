@@ -36,7 +36,9 @@ import { formatCurrencyOptionLabel } from '@/utils/currency'
 import { toast } from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
 import VariantConfigurator from './VariantConfigurator'
+import type { ParametricConfiguratorDraft } from './ParametricConfigurator'
 import type { ProductMode, ProductAttribute, ProductVariant } from './types'
+import { clientConfig } from '@/configs/clientConfig'
 
 const sanitizeCurrencyCode = (value?: string | null): CurrencyCode | undefined => {
     if (typeof value !== 'string') {
@@ -91,6 +93,7 @@ type InitialData = {
     mode?: ProductMode
     attributes?: ProductAttribute[]
     variants?: ProductVariant[]
+    parametricDraft?: ParametricConfiguratorDraft | null
 }
 
 export type FormModel = Omit<InitialData, 'tags' | 'permanentStock'> & {
@@ -100,6 +103,7 @@ export type FormModel = Omit<InitialData, 'tags' | 'permanentStock'> & {
     mode: ProductMode
     attributes: ProductAttribute[]
     variants: ProductVariant[]
+    parametricDraft?: ParametricConfiguratorDraft | null
 }
 
 export type SetSubmitting = (isSubmitting: boolean) => void
@@ -114,6 +118,7 @@ type ProductForm = {
     onDiscard?: () => void
     onDelete?: OnDelete
     onFormSubmit: (formData: FormModel, setSubmitting: SetSubmitting) => void
+    allowedModes?: ProductMode[]
 }
 
 const validationSchema = (t: (k: string) => string) =>
@@ -194,6 +199,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
         onFormSubmit,
         onDiscard,
         onDelete,
+        allowedModes,
     } = props
 
     // Keep a stable fallback payload so mode toggles are not reset on every render.
@@ -225,6 +231,28 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
 
     const initialData = providedInitialData ?? defaultInitialDataRef.current
 
+    const isUrucortinas = clientConfig.slug === 'urucortinas'
+
+    const availableModes = useMemo<ProductMode[]>(() => {
+        const source = Array.isArray(allowedModes) && allowedModes.length ? allowedModes : ['simple', 'variable', 'parametric']
+        const unique = Array.from(new Set(source))
+        const filtered = unique.filter((item): item is ProductMode =>
+            ['simple', 'variable', 'parametric'].includes(item),
+        )
+        if (isUrucortinas) {
+            return filtered
+        }
+        return filtered.filter((item) => item !== 'parametric')
+    }, [allowedModes, isUrucortinas])
+
+    const initialMode = useMemo<ProductMode>(() => {
+        const candidate = (initialData.mode ?? availableModes[0] ?? 'simple') as ProductMode
+        if (availableModes.includes(candidate)) {
+            return candidate
+        }
+        return availableModes[0] ?? 'simple'
+    }, [availableModes, initialData.mode])
+
     const { t } = useTranslation()
     const currencyState = useAppSelector((state) => state.currency)
 
@@ -251,10 +279,11 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
         { value: CurrencyCode; label: string }[]
     >([])
 
-    const [mode, setMode] = useState<ProductMode>(initialData.mode ?? 'simple')
+    const [mode, setMode] = useState<ProductMode>(initialMode)
     const [attributeDefinitions, setAttributeDefinitions] = useState<ProductAttribute[]>
         (initialData.attributes ?? [])
     const [variantRows, setVariantRows] = useState<ProductVariant[]>(initialData.variants ?? [])
+    const [parametricDraft, setParametricDraft] = useState<ParametricConfiguratorDraft | null>(null)
 
     const formRef = useRef<FormikRef | null>(null)
 
@@ -354,9 +383,13 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
     )
 
     useEffect(() => {
-        const nextMode = initialData.mode ?? 'simple'
-        setMode((current) => (current === nextMode ? current : nextMode))
-    }, [initialData.mode])
+        setMode((current) => {
+            if (current === initialMode) {
+                return current
+            }
+            return initialMode
+        })
+    }, [initialMode])
 
     useEffect(() => {
         setAttributeDefinitions(initialData.attributes ?? [])
@@ -384,9 +417,27 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
         }
     }, [variantRows])
 
-    const handleModeChange = useCallback((nextMode: ProductMode) => {
-        setMode(nextMode)
-    }, [])
+    useEffect(() => {
+        if (!availableModes.includes(mode)) {
+            setMode(availableModes[0] ?? initialMode)
+        }
+    }, [availableModes, mode, initialMode])
+
+    useEffect(() => {
+        if (!availableModes.includes('parametric')) {
+            setParametricDraft(null)
+        }
+    }, [availableModes])
+
+    const handleModeChange = useCallback(
+        (nextMode: ProductMode) => {
+            if (!availableModes.includes(nextMode)) {
+                return
+            }
+            setMode(nextMode)
+        },
+        [availableModes],
+    )
 
     const handleAttributesUpdate = useCallback((nextAttributes: ProductAttribute[]) => {
         setAttributeDefinitions(nextAttributes)
@@ -395,6 +446,16 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
     const handleVariantsUpdate = useCallback((nextVariants: ProductVariant[]) => {
         setVariantRows(nextVariants)
     }, [])
+
+    const handleParametricDraftChange = useCallback((draft: ParametricConfiguratorDraft | null) => {
+        setParametricDraft(draft)
+    }, [])
+
+    useEffect(() => {
+        if (mode !== 'parametric' && parametricDraft) {
+            setParametricDraft(null)
+        }
+    }, [mode, parametricDraft])
 
     return (
         <>
@@ -436,6 +497,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                     mode,
                     attributes: attributeDefinitions,
                     variants: variantRows,
+                    parametricDraft,
                 }}
                 validationSchema={validationSchema(t)}
                 onSubmit={(values: FormModel, { setSubmitting }) => {
@@ -584,6 +646,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                         mode,
                         attributes: attributePayload,
                         variants: variantPayload,
+                        parametricDraft,
                     }
                     delete (submitData as Record<string, unknown>).status
                     onFormSubmit?.(submitData, setSubmitting)
@@ -627,6 +690,9 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                             onModeChange={handleModeChange}
                                             onAttributesChange={handleAttributesUpdate}
                                             onVariantsChange={handleVariantsUpdate}
+                                            parametricDraft={parametricDraft}
+                                            onParametricDraftChange={handleParametricDraftChange}
+                                            allowedModes={availableModes}
                                         />
                                         <PublicationFields
                                             touched={touched as any}

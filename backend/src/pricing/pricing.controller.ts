@@ -1,24 +1,21 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   Param,
   ParseIntPipe,
   Post,
+  Put,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common'
-import type { FastifyRequest } from 'fastify'
+import type { FastifyRequest, FastifyReply } from 'fastify'
 import { ParametricPricingService } from './parametric-pricing.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
-import type { ParametricQuoteInput } from './types'
+import type { ParametricCompatibilityConfig, ParametricQuoteInput } from './types'
 import { ParametricFeatureGuard } from './pricing.guard'
-
-type AuthenticatedRequest = FastifyRequest & {
-  user?: {
-    id?: number
-  }
-}
 
 @Controller('pricing')
 @UseGuards(JwtAuthGuard, ParametricFeatureGuard)
@@ -28,6 +25,24 @@ export class PricingController {
   @Get('products/:productId/config')
   getConfig(@Param('productId', ParseIntPipe) productId: number) {
     return this.pricing.getProductConfig(productId)
+  }
+
+  @Get('products/:productId/matrix')
+  getMatrix(@Param('productId', ParseIntPipe) productId: number) {
+    return this.pricing.getProductMatrixEntries(productId)
+  }
+
+  @Get('products/:productId/compatibility')
+  getCompatibility(@Param('productId', ParseIntPipe) productId: number) {
+    return this.pricing.getCompatibility(productId)
+  }
+
+  @Put('products/:productId/compatibility')
+  updateCompatibility(
+    @Param('productId', ParseIntPipe) productId: number,
+    @Body() payload: ParametricCompatibilityConfig,
+  ) {
+    return this.pricing.updateCompatibilityConfig(productId, payload)
   }
 
   @Post('quote')
@@ -45,10 +60,29 @@ export class PricingController {
       throw new Error('File is required')
     }
     const buffer = await file.toBuffer()
-    const userId = (req as AuthenticatedRequest).user?.id
     return this.pricing.importFromBuffer(productId, buffer, {
       filename: file.filename,
-      userId,
     })
+  }
+
+  @Get('products/:productId/export')
+  async exportMatrix(
+    @Param('productId', ParseIntPipe) productId: number,
+    @Res() res: FastifyReply,
+  ) {
+    const { filename, buffer } = await this.pricing.exportToBuffer(productId)
+    res.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.header('Content-Disposition', `attachment; filename="${filename}"`)
+    res.send(buffer)
+  }
+
+  @Post('products/import-full')
+  async importParametricProducts(@Req() req: FastifyRequest) {
+    const file = await (req as any)?.file?.()
+    if (!file) {
+      throw new BadRequestException('File is required')
+    }
+    const buffer = await file.toBuffer()
+    return this.pricing.importParametricProductsFromCsv(buffer)
   }
 }

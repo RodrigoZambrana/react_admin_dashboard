@@ -1,61 +1,158 @@
 import type { Prisma } from '@prisma/client'
 import type { PrismaService } from '../prisma/prisma.service'
-import type { ParametricModifierType, ParametricAdjustmentMode } from '@prisma/client'
 
 export type PrismaClientOrTransaction = PrismaService | Prisma.TransactionClient
 
-export type ParametricQuoteInput = {
-  productId: number
-  width: number | string
-  height: number | string
-  series: string
-  color?: string | null
-  glass?: string | null
-  monoblock?: {
-    enabled: boolean
-    material?: string | null
-    color?: string | null
-  }
-  mosquitoNet?: boolean
-  currency?: string | null
+export type ParametricMatrixRow = {
+  fingerprint?: string
+  optionState?: string
+  familyId: string
+  serie: string
+  material: string
+  color: string
+  vidrio: string
+  widthMm: number
+  heightMm: number
+  hasMosquitero: boolean
+  hasShutterMonoblock: boolean
+  shutterMaterial: string
+  price: number
+  priceBase?: number | null
+  priceMosquitero?: number | null
+  priceMonoblock?: number | null
+  priceMonoblockMosquitero?: number | null
+  hasMosquiteroOption?: boolean
+  hasMonoblockOption?: boolean
+  currency: string
+  detailSnapshot?: string | null
+  specifications?: string | null
+  source?: string | null
+  sourceSystem?: string | null
+  referenceDate?: Date | null
 }
 
-export type ParametricModifierSnapshot = {
-  type: ParametricModifierType
-  code: string
-  label?: string
-  adjustmentMode: ParametricAdjustmentMode
-  value: number
-  surcharge?: number
-  quotationDate?: string
-  confidence?: number
+export type ParametricPriceLineageEntry = {
+  source?: string | null
+  referenceDate?: string | null
+}
+
+export type ParametricPriceLineage = {
+  priceBase?: ParametricPriceLineageEntry
+  priceMosquitero?: ParametricPriceLineageEntry
+  priceMonoblock?: ParametricPriceLineageEntry
+  priceMonoblockMosquitero?: ParametricPriceLineageEntry
+}
+
+export type ParametricMatrixEntry = {
+  id: number
+  familyId: string
+  serie: string
+  material: string
+  color: string
+  vidrio: string
+  widthMm: number
+  heightMm: number
+  price: number
+  priceBase: number | null
+  priceMosquitero: number | null
+  priceMonoblock: number | null
+  priceMonoblockMosquitero: number | null
+  hasMosquiteroOption: boolean
+  hasMonoblockOption: boolean
+  shutterMaterial: string
+  currency: string
+  detailSnapshot: string | null
+  specifications: string | null
+  priceLineage: ParametricPriceLineage | null
+  conflictFlags: string[]
+  source: string | null
+  referenceDate: string | null
+}
+
+export type ParametricQuoteInput = {
+  productId: number
+  familyId?: string | null
+  serie: string
+  material: string
+  color: string
+  vidrio: string
+  widthMm: number
+  heightMm: number
+  hasMosquitero: boolean
+  hasShutterMonoblock: boolean
+  shutterMaterial?: string | null
 }
 
 export type ParametricQuoteResult = {
   productId: number
-  currency: string
-  width: number
-  height: number
-  area: number
-  total: number
-  breakdown: {
-    base: number
-    color: number
-    glass: number
-    monoblock: number
-    mosquitoNet: number
+  available: boolean
+  price?: number
+  currency?: string
+  detailSnapshot?: string | null
+  specifications?: string | null
+  source?: string | null
+  referenceDate?: string | null
+  matrixRowId?: number
+  requested: {
+    familyId?: string | null
+    serie: string
+    material: string
+    color: string
+    vidrio: string
+    widthMm: number
+    heightMm: number
+    hasMosquitero: boolean
+    hasShutterMonoblock: boolean
+    shutterMaterial: string
   }
-  referenceDate: string
-  confidence: number
-  dataVersion: string
-  source?: string
-  modifiers: ParametricModifierSnapshot[]
 }
 
 export type ParametricImportSummary = {
-  batchId: number
-  rowsProcessed: number
-  referencesInserted: number
-  modifiersInserted: number
+  rowsInserted: number
+  rowsUpdated: number
   warnings: string[]
+}
+
+export type ParametricProductImportSummary = {
+  productsCreated: number
+  productsUpdated: number
+  matrixRows: number
+  warnings: string[]
+}
+
+export type ParametricCompatibilityConfig = {
+  glassBySeries?: Record<string, string[]>
+  monoblockBySeries?: Record<string, boolean>
+  sizeLimits?: Record<
+    string,
+    {
+      minWidthMm?: number
+      maxWidthMm?: number
+      minHeightMm?: number
+      maxHeightMm?: number
+    }
+  >
+}
+
+export type ParametricConfigSnapshot = {
+  selectors: {
+    families: string[]
+    series: string[]
+    materials: string[]
+    colors: string[]
+    glass: string[]
+    widths: number[]
+    heights: number[]
+    shutterMaterials: string[]
+    hasMosquiteroOption: boolean
+    hasMonoblockOption: boolean
+  }
+  stats: {
+    rowCount: number
+    minimumPrice?: number
+    currency?: string
+    newestReferenceDate?: string | null
+    oldestReferenceDate?: string | null
+  }
+  compatibility: ParametricCompatibilityConfig
 }

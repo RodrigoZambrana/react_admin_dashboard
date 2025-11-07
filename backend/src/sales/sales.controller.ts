@@ -18,7 +18,6 @@ import { UpsertProductDto, UpdateProductDto, TableQueryDto as ProductQuery } fro
 import { calculateOrderLineTotals, costPriceFromSale, decimalToNumber, roundCurrency, salePriceFromCost } from './utils/pricing'
 import { DashboardFilterDto } from './dto/dashboard.dto'
 import type { FastifyRequest } from 'fastify'
-import { ParametricPricingService } from '../pricing/parametric-pricing.service'
 import {
   DEFAULT_PAYMENT_METHOD_ID,
   findPaymentMethodById,
@@ -96,6 +95,18 @@ const ATTRIBUTE_DEFAULT_LABELS: Record<ProductAttributeType, string> = {
 type AttributeInput = NonNullable<UpsertProductDto['attributes']>[number]
 type VariantInput = NonNullable<UpsertProductDto['variants']>[number]
 
+type ParametricSummary = {
+  colors: Set<string>
+  glasses: Set<string>
+  series: Set<string>
+  families: Set<string>
+  widths: Set<number>
+  heights: Set<number>
+  mosquitero: boolean
+  monoblock: boolean
+  shutterMaterials: Set<string>
+}
+
 const SALES_UNIT_KEYWORDS: Record<SalesUnit, string[]> = {
   [SalesUnit.UNIT]: ['unit', 'units', 'unidad', 'unidades', 'u'],
   [SalesUnit.SQUARE_METER]: ['squaremeter', 'squaremeters', 'metroscuadrados', 'metrocuadrado', 'metroscuadrado', 'm2', 'sqm', 'mt2'],
@@ -105,10 +116,7 @@ const SALES_UNIT_KEYWORDS: Record<SalesUnit, string[]> = {
 @UseGuards(JwtAuthGuard)
 @Controller('sales')
 export class SalesController {
-  constructor(
-    private prisma: PrismaService,
-    private readonly parametricPricing: ParametricPricingService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   private async getTaxRate() {
     const cfg = await this.prisma.systemConfig.findUnique({ where: { key: 'taxRate' } })
@@ -667,6 +675,200 @@ export class SalesController {
 
   private buildCsv(rows: unknown[][]): string {
     return rows.map((row) => row.map((cell) => this.formatCsvValue(cell)).join(',')).join('\n')
+  }
+
+  private buildSummaryField(set?: Set<string>) {
+    if (!set || set.size === 0) {
+      return ''
+    }
+    return Array.from(set).join(', ')
+  }
+
+  private buildDimensionSummary(set?: Set<number>) {
+    if (!set || set.size === 0) {
+      return ''
+    }
+    const values = Array.from(set)
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => a - b)
+    if (!values.length) {
+      return ''
+    }
+    const formatValue = (value: number) => `${Math.round(value)}`
+    if (values.length === 1 || values[0] === values[values.length - 1]) {
+      return formatValue(values[0])
+    }
+    if (values.length <= 4) {
+      return values.map(formatValue).join(', ')
+    }
+    return `${formatValue(values[0])} - ${formatValue(values[values.length - 1])}`
+  }
+
+  private buildProductSpecifications(summary?: ParametricSummary) {
+    if (!summary) {
+      return null
+    }
+    const serie = this.buildSummaryField(summary.series) || '-'
+    const vidrio = this.buildSummaryField(summary.glasses) || '-'
+    const color = this.buildSummaryField(summary.colors) || '-'
+    const mosq = summary.mosquitero ? 'Sí' : 'No'
+    const monoblockLabel = (() => {
+      if (!summary.monoblock) {
+        return 'No'
+      }
+      const materials = this.buildSummaryField(summary.shutterMaterials)
+      return materials ? `Sí (${materials})` : 'Sí'
+    })()
+    return `Serie: ${serie} • Vidrio: ${vidrio} • Color: ${color} • Mosquitero: ${mosq} • Monoblock: ${monoblockLabel}`
+  }
+
+  private pickFirstFromSet<T>(set?: Set<T>): T | undefined {
+    if (!set || set.size === 0) {
+      return undefined
+    }
+    const iterator = set.values().next()
+    return iterator.value
+  }
+
+  private resolveDimensionValue(set?: Set<number>) {
+    const value = this.pickFirstFromSet(set)
+    if (value === undefined || value === null) {
+      return undefined
+    }
+    const numeric = Number(value)
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return undefined
+    }
+    return Math.round(numeric)
+  }
+
+  private normalizeSkuToken(value?: string | null) {
+    const trimmed = this.safeTrim(value)
+    if (!trimmed) {
+      return ''
+    }
+    return trimmed
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^A-Za-z0-9]+/g, '')
+      .toUpperCase()
+  }
+
+  private buildProductTypeCode(familyId?: string) {
+    if (!familyId) {
+      return ''
+    }
+    const ascii = familyId
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^A-Za-z0-9_ ]+/g, ' ')
+    const parts = ascii
+      .split(/[_\s]+/)
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+    if (!parts.length) {
+      return ''
+    }
+    const candidate = parts.length > 1 ? parts[1] : parts[0]
+    const normalized = this.normalizeSkuToken(candidate)
+    return normalized.length <= 4 ? normalized : normalized.substring(0, 4)
+  }
+
+  private buildParametricSku(productName: string, productCode?: string | null, summary?: ParametricSummary) {
+    const typeCode = this.buildProductTypeCode(this.pickFirstFromSet(summary?.families))
+    const width = this.resolveDimensionValue(summary?.widths)
+    const height = this.resolveDimensionValue(summary?.heights)
+    const cleanedName = productName.replace(/\(.*?\)/g, ' ')
+    const base =
+      this.normalizeSkuToken(productCode) ||
+      this.normalizeSkuToken(this.pickFirstFromSet(summary?.series)) ||
+      this.normalizeSkuToken(cleanedName)
+    if (!base) {
+      if (width && height) {
+        const sizeOnly = `${width}x${height}`
+        return [typeCode, sizeOnly].filter(Boolean).join('-')
+      }
+      return typeCode
+    }
+    if (!width || !height) {
+      return [typeCode, base].filter(Boolean).join('-')
+    }
+    const sizePart = `${width}x${height}`
+    return [typeCode, base, sizePart].filter(Boolean).join('-')
+  }
+
+  private async collectParametricSummaries(productIds: number[]) {
+    const summaryMap = new Map<number, ParametricSummary>()
+    if (!productIds || productIds.length === 0) {
+      return summaryMap
+    }
+    const matrixRows = await this.prisma.dimensionPriceMatrix.findMany({
+      where: { productId: { in: productIds } },
+      select: {
+        productId: true,
+        familyId: true,
+        serie: true,
+        color: true,
+        vidrio: true,
+        widthMm: true,
+        heightMm: true,
+        hasMosquitero: true,
+        hasMosquiteroOption: true,
+        hasMonoblockOption: true,
+        shutterSystem: true,
+      },
+    })
+    for (const row of matrixRows) {
+      const entry =
+        summaryMap.get(row.productId) ??
+        {
+          colors: new Set<string>(),
+          glasses: new Set<string>(),
+          series: new Set<string>(),
+          families: new Set<string>(),
+          widths: new Set<number>(),
+          heights: new Set<number>(),
+          mosquitero: false,
+          monoblock: false,
+          shutterMaterials: new Set<string>(),
+        }
+      const family = this.safeTrim(row.familyId)
+      const serie = this.safeTrim(row.serie)
+      const color = this.safeTrim(row.color)
+      const vidrio = this.safeTrim(row.vidrio)
+      const width = Number(row.widthMm)
+      const height = Number(row.heightMm)
+      if (family) {
+        entry.families.add(family)
+      }
+      if (serie) {
+        entry.series.add(serie)
+      }
+      if (color) {
+        entry.colors.add(color)
+      }
+      if (vidrio) {
+        entry.glasses.add(vidrio)
+      }
+      if (Number.isFinite(width) && width > 0) {
+        entry.widths.add(width)
+      }
+      if (Number.isFinite(height) && height > 0) {
+        entry.heights.add(height)
+      }
+      if (row.hasMosquitero || row.hasMosquiteroOption) {
+        entry.mosquitero = true
+      }
+      if (row.hasMonoblockOption) {
+        entry.monoblock = true
+        const shutter = this.safeTrim(row.shutterSystem)
+        if (shutter) {
+          entry.shutterMaterials.add(shutter)
+        }
+      }
+      summaryMap.set(row.productId, entry)
+    }
+    return summaryMap
   }
 
   private normalizeProductSortKey(raw?: string | null): ProductSortKey | undefined {
@@ -1394,26 +1596,50 @@ export class SalesController {
         specifications: true,
       },
     })
-    const data = rows.map((p) => ({
-      id: String(p.id),
-      name: p.name,
-      productCode: p.productCode || '',
-      img: p.img || '',
-      category: (p as any).category?.name || '',
-      salePrice: decimalToNumber(p.salePrice),
-      costPrice: decimalToNumber(p.costPrice),
-      currency: p.currency,
-      unitOfMeasure: p.unitOfMeasure,
-      stock: p.stock,
-      permanentStock: p.permanentStock,
-      status: this.deriveInventoryStatus(p.stock, p.permanentStock),
-      published: p.published,
-      tags: (p as any).tags || [],
-      brand: p.brand || '',
-      vendor: p.vendor || '',
-      specifications: p.specifications ?? '',
-      mode: p.mode,
-    }))
+    const parametricSummary = await this.collectParametricSummaries(
+      rows.filter((row) => row.mode === ProductMode.PARAMETRIC).map((row) => row.id),
+    )
+
+    const data = rows.map((p) => {
+      const summary = parametricSummary.get(p.id)
+      const derivedSku =
+        p.mode === ProductMode.PARAMETRIC
+          ? this.buildParametricSku(p.name, p.productCode, summary)
+          : p.productCode || ''
+      const productCodeValue = p.productCode || derivedSku || ''
+      return {
+        id: String(p.id),
+        name: p.name,
+        productCode: productCodeValue,
+        img: p.img || '',
+        category: (p as any).category?.name || '',
+        salePrice: (() => {
+          const raw = decimalToNumber(p.salePrice)
+          return Number.isFinite(raw) ? Math.round(raw) : 0
+        })(),
+        costPrice: decimalToNumber(p.costPrice),
+        currency: p.currency,
+        unitOfMeasure: p.unitOfMeasure,
+        stock: p.stock,
+        permanentStock: p.permanentStock,
+        status: this.deriveInventoryStatus(p.stock, p.permanentStock),
+        published: p.published,
+        tags: (p as any).tags || [],
+        brand: p.brand || '',
+        vendor: p.vendor || '',
+        specifications: this.buildProductSpecifications(summary) ?? p.specifications ?? '',
+        widthSummary: this.buildDimensionSummary(summary?.widths),
+        heightSummary: this.buildDimensionSummary(summary?.heights),
+        serieSummary: this.buildSummaryField(summary?.series),
+        colorSummary: this.buildSummaryField(summary?.colors),
+        glassSummary: this.buildSummaryField(summary?.glasses),
+        mosquiteroAvailable: Boolean(summary?.mosquitero),
+        monoblockAvailable: Boolean(summary?.monoblock),
+        shutterMaterialSummary: this.buildSummaryField(summary?.shutterMaterials),
+        parametricSku: derivedSku,
+        mode: p.mode,
+      }
+    })
     return { data, total }
   }
 
@@ -1884,6 +2110,8 @@ export class SalesController {
     const normalizedCostPrice = roundCurrency(dto.costPrice)
     const coverImage = dto.img || dto.imgList?.[0]?.img || null
 
+    let createdProductId: number | null = null
+
     await this.prisma.$transaction(async (tx) => {
       const product = await tx.product.create({
         data: {
@@ -1910,6 +2138,7 @@ export class SalesController {
           published: dto.published ?? false,
         },
       })
+      createdProductId = product.id
 
       if (dto.imgList && dto.imgList.length) {
         await this.replaceProductImages(tx, product.id, dto.imgList)
@@ -1925,8 +2154,6 @@ export class SalesController {
             status: result.status,
           },
         })
-      } else if (mode === ProductMode.PARAMETRIC) {
-        await this.parametricPricing.ensureProductConfig(product.id, tx)
       } else if (!product.img && dto.imgList && dto.imgList.length) {
         await tx.product.update({
           where: { id: product.id },
@@ -1934,7 +2161,10 @@ export class SalesController {
         })
       }
     })
-    return true
+    return {
+      ok: true,
+      productId: createdProductId,
+    }
   }
 
   @Put('products/update')
@@ -2058,9 +2288,6 @@ export class SalesController {
       } else {
         await this.clearVariableStructure(tx, updated.id)
         finalStatus = this.deriveInventoryStatus(finalStock, finalPermanent)
-        if (nextMode === ProductMode.PARAMETRIC) {
-          await this.parametricPricing.ensureProductConfig(updated.id, tx)
-        }
       }
 
       const coverImageUpdate =

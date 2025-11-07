@@ -95,10 +95,48 @@ export async function apiGetParametricConfig<T>(productId: number) {
     })
 }
 
+export async function apiGetParametricMatrix<T>(productId: number) {
+    return ApiService.fetchData<T>({
+        url: `/pricing/products/${productId}/matrix`,
+        method: 'get',
+    })
+}
+
 export async function apiImportParametricReferences<T>(productId: number, data: FormData) {
     return ApiService.fetchData<T>({
         url: `/pricing/products/${productId}/import`,
         method: 'post',
+        data,
+    })
+}
+
+export async function apiImportParametricProducts<T>(data: FormData) {
+    return ApiService.fetchData<T>({
+        url: '/pricing/products/import-full',
+        method: 'post',
+        data,
+    })
+}
+
+export async function apiExportParametricMatrix(productId: number) {
+    return ApiService.fetchData<Blob>({
+        url: `/pricing/products/${productId}/export`,
+        method: 'get',
+        responseType: 'blob',
+    })
+}
+
+export async function apiGetParametricCompatibility<T>(productId: number) {
+    return ApiService.fetchData<T>({
+        url: `/pricing/products/${productId}/compatibility`,
+        method: 'get',
+    })
+}
+
+export async function apiUpdateParametricCompatibility<T>(productId: number, data: Record<string, unknown>) {
+    return ApiService.fetchData<T>({
+        url: `/pricing/products/${productId}/compatibility`,
+        method: 'put',
         data,
     })
 }

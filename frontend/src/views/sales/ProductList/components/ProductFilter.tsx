@@ -25,7 +25,7 @@ type FormModel = {
     status: number[]
     productStatus: number
     currency: string[]
-    mode?: ProductMode | 'all'
+    mode?: ProductMode | ProductMode[] | 'all'
 }
 
 type FilterFormProps = {

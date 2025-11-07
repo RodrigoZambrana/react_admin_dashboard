@@ -163,6 +163,50 @@ export async function apiUpdateEmailSettings<
     })
 }
 
+// Aberturas parametric glossary
+export async function apiGetAberturasGlossary<T>() {
+    return ApiService.fetchData<T>({
+        url: '/aberturas/glossary',
+        method: 'get',
+    })
+}
+
+export async function apiGetAberturasGlossaryByCategory<T>(category: string) {
+    return ApiService.fetchData<T>({
+        url: `/aberturas/glossary/${category}`,
+        method: 'get',
+    })
+}
+
+export async function apiCreateAberturasGlossaryItem<
+    T,
+    U extends Record<string, unknown>,
+>(category: string, data: U) {
+    return ApiService.fetchData<T>({
+        url: `/aberturas/glossary/${category}`,
+        method: 'post',
+        data,
+    })
+}
+
+export async function apiUpdateAberturasGlossaryItem<
+    T,
+    U extends Record<string, unknown>,
+>(id: number, data: U) {
+    return ApiService.fetchData<T>({
+        url: `/aberturas/glossary/items/${id}`,
+        method: 'put',
+        data,
+    })
+}
+
+export async function apiDeleteAberturasGlossaryItem<T>(id: number) {
+    return ApiService.fetchData<T>({
+        url: `/aberturas/glossary/items/${id}`,
+        method: 'delete',
+    })
+}
+
 export async function apiGetEmailRoleRules<T>() {
     return ApiService.fetchData<T>({
         url: '/settings/email/rules',

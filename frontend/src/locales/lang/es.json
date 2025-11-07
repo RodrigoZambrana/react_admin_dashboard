@@ -57,7 +57,14 @@
       "list": "Listado de productos",
       "config": "Configuración",
       "parametric": "Productos paramétricos",
-      "aberturas": "Aberturas"
+      "aberturas": "Aberturas",
+      "presupuestarAberturas": "Presupuestar Aberturas"
+    },
+    "appsAberturas": {
+      "title": "Aberturas",
+      "list": "Listado de aberturas",
+      "quote": "Presupuestar aberturas",
+      "config": "Configuración"
     },
     "appsCrypto": {
       "crypto": "Cripto",
@@ -91,6 +98,7 @@
       "mercadoPago": "Mercado Pago",
       "google": "Google y reCAPTCHA",
       "systemConfig": "Configuración del sistema",
+      "aberturas": "Aberturas",
       "email": "Correo electrónico",
       "emailTemplates": "Plantillas de correo",
       "emailConfig": "Configuración de correo",
@@ -516,6 +524,7 @@
       "export": "Exportar",
       "addProduct": "Agregar producto",
       "batchDelete": "Eliminar en lote",
+      "deleteSelected": "Eliminar seleccionados",
       "editDeliveryInformation": "Editar información de entrega",
       "save": "Guardar",
       "discard": "Descartar",
@@ -566,7 +575,7 @@
       "name": "Nombre",
       "lastName": "Apellido",
       "code": "Código",
-      "codeSku": "Código (SKU)",
+      "codeSku": "SKU",
       "stock": "Existencias",
       "url": "URL",
       "eventTitle": "Ingrese el título",
@@ -1045,6 +1054,82 @@
         }
       }
     },
+    "aberturasQuote": {
+      "title": "Presupuestar Aberturas",
+      "subtitle": "Explorá la matriz paramétrica para calcular precios y sugerencias cercanas.",
+      "labels": {
+        "product": "Producto paramétrico",
+        "productPlaceholder": "Elegí un producto",
+        "size": "Medida (ancho × alto)",
+        "sizePlaceholder": "Seleccioná una medida",
+        "color": "Color",
+        "colorPlaceholder": "Seleccioná un color",
+        "serie": "Serie",
+        "seriePlaceholder": "Seleccioná una serie",
+        "vidrio": "Vidrio",
+        "vidrioPlaceholder": "Seleccioná un vidrio",
+        "mosquitero": "Mosquitero",
+        "monoblock": "Persiana / Monoblock"
+      },
+      "helpers": {
+        "mosqUnavailable": "No disponible para esta combinación.",
+        "mbUnavailable": "No disponible para esta combinación.",
+        "shutterMaterial": "Material recomendado: {{material}}"
+      },
+      "loading": {
+        "products": "Cargando productos…",
+        "matrix": "Cargando matriz de precios…"
+      },
+      "notifications": {
+        "productsError": "No se pudieron cargar los productos paramétricos.",
+        "emptyMatrix": "Este producto aún no tiene matriz cargada.",
+        "matrixError": "No se pudo cargar la matriz de precios."
+      },
+      "actions": {
+        "calculate": "Calcular precio"
+      },
+      "result": {
+        "title": "Precio encontrado",
+        "estimatedTooltip": "Precio estimado utilizando deltas de mosquitero y/o monoblock.",
+        "estimatedBadge": "Estimado",
+        "components": "Componentes considerados: {{components}}"
+      },
+      "summary": {
+        "serie": "Serie:",
+        "vidrio": "Vidrio:",
+        "color": "Color:",
+        "dimensions": "Medida:",
+        "extras": "Extras seleccionados:",
+        "extrasBoth": "Mosquitero + Persiana",
+        "extrasMosq": "Mosquitero",
+        "extrasMb": "Persiana / Monoblock",
+        "extrasNone": "Sin extras",
+        "reference": "Fecha de referencia: {{date}}",
+        "source": "Fuente: {{source}}"
+      },
+      "reasons": {
+        "missingBase": "No hay precio base disponible para esta combinación.",
+        "mosqNotAllowed": "El mosquitero no está habilitado para esta combinación.",
+        "mbNotAllowed": "El monoblock no está habilitado para esta combinación.",
+        "missingMosqPrice": "No hay precio cargado para mosquitero.",
+        "missingMonoblockPrice": "No hay precio cargado para monoblock.",
+        "missingCombinedPrice": "No hay precio cargado para mosquitero + monoblock.",
+        "noMatch": "No encontramos una fila exacta para esta combinación.",
+        "genericFallback": "No hay precio configurado para esta combinación."
+      },
+      "suggestions": {
+        "title": "Alternativas cercanas",
+        "empty": "No encontramos alternativas cercanas con precios cargados."
+      },
+      "components": {
+        "base": "Precio base",
+        "mosquitero": "Precio con mosquitero",
+        "monoblock": "Precio con monoblock",
+        "monoblockMosq": "Precio con monoblock + mosquitero",
+        "deltaMosq": "Delta mosquitero",
+        "deltaMb": "Delta monoblock"
+      }
+    },
     "dashboard": {
       "overview": {
         "title": "Resumen de ventas",
@@ -1287,8 +1372,16 @@
       "parametric": {
         "requiresProduct": "Guardá el producto para configurar precios paramétricos.",
         "requiresProductDetail": "Creá el producto primero y luego podrás importar referencias y ajustar el motor de precios.",
+        "notAvailableForClient": "La configuración paramétrica está disponible solo para Urucortinas.",
+        "defaultMatrixNote": "La matriz paramétrica de aberturas se importará automáticamente cuando guardes el producto.",
         "title": "Precio paramétrico",
         "subtitle": "Importá el historial de cotizaciones y probá el motor de precios en tiempo real.",
+        "adminPanelTitle": "Herramientas paramétricas",
+        "adminPanelDescription": "Administrá la matriz de precios de aberturas y sus valores por defecto. Solo los super administradores pueden editar esta sección.",
+        "adminToggleLabel": "Mostrar herramientas avanzadas",
+        "uploadLabel": "Archivo de matriz",
+        "import": "Importar matriz",
+        "importResults": "Última importación: {{inserted}} nuevas · {{updated}} actualizadas.",
         "testTitle": "Probar cálculo",
         "width": "Ancho (m)",
         "height": "Alto (m)",
@@ -1314,8 +1407,11 @@
         "importSummary": "Se procesaron {{rows}} filas. Se generaron {{references}} referencias y {{modifiers}} modificadores.",
         "importError": "Error al importar",
         "importErrorDescription": "Verificá el formato del archivo y volvé a intentarlo.",
+        "importProductsSummary": "Productos procesados: {{created}} nuevos · {{updated}} actualizados · {{rows}} filas de matriz.",
+        "importProductsWarnings": "Advertencias ({{count}}):",
         "quoteError": "No se pudo generar la cotización",
-        "quoteErrorDescription": "Verificá los parámetros e intentá nuevamente."
+        "quoteErrorDescription": "Verificá los parámetros e intentá nuevamente.",
+        "quoteSource": "Fuente: {{source}}."
       }
     },
     "productList": {
@@ -1346,7 +1442,20 @@
       "importError": "No fue posible importar los productos.",
       "importErrorRow": "Fila {{row}}: {{message}}",
       "importErrorMore": "Se omitieron {{count}} errores adicionales.",
-      "createError": "No fue posible crear el producto."
+      "createError": "No fue posible crear el producto.",
+      "bulkDeleted": {
+        "desc": "Se eliminaron {{count}} productos.",
+        "confirm": "¿Eliminar los {{count}} productos seleccionados? Esta acción no se puede deshacer."
+      },
+      "columns": {
+        "serie": "Serie",
+        "glass": "Vidrio",
+        "color": "Color",
+        "mosquitero": "Mosquitero",
+        "monoblock": "Monoblock",
+        "width": "Ancho (mm)",
+        "height": "Alto (mm)"
+      }
     },
     "orderDetails": {
       "activity": {
@@ -1868,6 +1977,56 @@
     }
   },
   "settings": {
+    "aberturas": {
+      "title": "Glosario de aberturas",
+      "description": "Gestioná los valores normalizados que usa la matriz paramétrica de aberturas.",
+      "actions": {
+        "add": "Agregar valor"
+      },
+      "tabs": {
+        "types": "Tipos de abertura",
+        "series": "Series",
+        "colors": "Colores",
+        "glass": "Vidrios"
+      },
+      "table": {
+        "label": "Etiqueta",
+        "value": "Valor normalizado",
+        "adjust": "Ajuste %",
+        "actions": "Acciones",
+        "empty": "Todavía no hay registros. Cargá el primer valor para comenzar."
+      },
+      "form": {
+        "label": "Etiqueta",
+        "labelPlaceholder": "Nombre mostrado",
+        "value": "Valor normalizado",
+        "valuePlaceholder": "Valor que se guardará en la matriz",
+        "adjust": "Porcentaje de ajuste",
+        "errors": {
+          "label": "La etiqueta es obligatoria",
+          "value": "El valor es obligatorio",
+          "adjustNumber": "Ingresá un número válido",
+          "adjustRange": "El valor debe estar entre -100% y 200%"
+        }
+      },
+      "drawer": {
+        "addTitle": "Agregar valor",
+        "editTitle": "Editar valor"
+      },
+      "confirmDeleteTitle": "Eliminar valor",
+      "confirmDeleteDescription": "¿Eliminar \"{{label}}\"? Esta acción no se puede deshacer.",
+      "notifications": {
+        "loadErrorTitle": "No pudimos cargar el glosario",
+        "loadErrorDescription": "Intentá nuevamente más tarde.",
+        "deleteSuccess": "Valor eliminado",
+        "deleteErrorTitle": "No pudimos eliminar el valor",
+        "deleteErrorDescription": "Intentá nuevamente más tarde.",
+        "saveErrorTitle": "No pudimos guardar el valor",
+        "saveErrorDescription": "Revisá los datos e intentá nuevamente.",
+        "updateSuccess": "Valor actualizado",
+        "createSuccess": "Valor creado"
+      }
+    },
     "productCategories": {
       "title": "Categorías de productos",
       "columns": {

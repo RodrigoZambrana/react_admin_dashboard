@@ -16,21 +16,41 @@ import ProductForm, {
     type FormModel,
     type SetSubmitting,
 } from '@/views/sales/ProductForm'
-import { apiCreateSalesProduct } from '@/services/SalesService'
+import { apiCreateSalesProduct, apiImportParametricReferences } from '@/services/SalesService'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
 import { useLocation } from 'react-router-dom'
 import type { ProductMode } from '@/views/sales/ProductForm/types'
+import type { ParametricImportSummary } from '@/views/sales/ProductForm/ParametricConfigurator'
+import { clientConfig } from '@/configs/clientConfig'
 
 injectReducer('salesProductList', reducer)
+
+type CreateProductResponse = {
+    ok: boolean
+    productId: number
+}
 
 const ProductList = () => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const [newProductOpen, setNewProductOpen] = useState(false)
     const location = useLocation()
-    const isParametricView = useMemo(
-        () => location.pathname.includes('/products/parametric'),
+    const isUrucortinas = clientConfig.slug === 'urucortinas'
+    const isParametricView = useMemo(() => {
+        if (!isUrucortinas) {
+            return false
+        }
+        return (
+            location.pathname.includes('/products/parametric') ||
+            location.pathname.includes('/aberturas/list')
+        )
+    }, [isUrucortinas, location.pathname])
+
+    const isStandardProductListView = useMemo(
+        () =>
+            location.pathname.includes('/products/list') &&
+            !location.pathname.includes('/products/parametric'),
         [location.pathname],
     )
 
@@ -64,19 +84,40 @@ const ProductList = () => {
         setNewProductOpen(false)
     }, [])
 
-    useEffect(() => {
-        const targetMode: ProductMode | 'all' | undefined = isParametricView
-            ? 'parametric'
-            : undefined
+    const normalizeModeValue = useCallback(
+        (value: ProductMode | ProductMode[] | 'all' | undefined) => {
+            if (value === undefined || value === 'all') {
+                return 'all'
+            }
+            if (Array.isArray(value)) {
+                return value
+                    .map((item) => item?.toString().toLowerCase())
+                    .filter((item): item is string => Boolean(item))
+                    .sort()
+                    .join('|') || 'all'
+            }
+            return value.toLowerCase()
+        },
+        [],
+    )
 
-        if (targetMode !== filterData?.mode) {
+    useEffect(() => {
+        const targetMode: ProductMode | ProductMode[] | 'all' | undefined =
+            isParametricView
+                ? 'parametric'
+                : isStandardProductListView
+                  ? ['simple', 'variable']
+                  : undefined
+
+        const currentKey = normalizeModeValue(filterData?.mode)
+        const targetKey = normalizeModeValue(targetMode)
+
+        if (currentKey !== targetKey) {
             const nextFilter = {
                 ...filterData,
                 mode: targetMode,
             }
-            dispatch(
-                setFilterData(nextFilter),
-            )
+            dispatch(setFilterData(nextFilter))
             if ((tableData?.pageIndex ?? 1) !== 1) {
                 dispatch(
                     setTableData({
@@ -86,14 +127,100 @@ const ProductList = () => {
                 )
             }
         }
-    }, [dispatch, filterData, location.pathname, tableData])
+    }, [
+        dispatch,
+        filterData,
+        isParametricView,
+        isStandardProductListView,
+        tableData,
+        normalizeModeValue,
+    ])
 
     const handleCreateProduct = useCallback(
         async (formData: FormModel, setSubmitting: SetSubmitting) => {
             setSubmitting(true)
             try {
-                const payload = { ...formData, id: undefined }
-                await apiCreateSalesProduct<boolean, typeof payload>(payload)
+                const { parametricDraft, ...productPayload } = formData
+                const payload = { ...productPayload, id: undefined }
+                const response = await apiCreateSalesProduct<CreateProductResponse | boolean, typeof payload>(payload)
+                const result = response.data
+                const productId =
+                    typeof result === 'object' && result !== null && 'productId' in result
+                        ? Number((result as CreateProductResponse).productId)
+                        : undefined
+                const creationOk =
+                    typeof result === 'object' && result !== null && 'ok' in result
+                        ? Boolean((result as CreateProductResponse).ok)
+                        : Boolean(result)
+                if (!creationOk) {
+                    throw new Error('create_failed')
+                }
+                if (
+                    formData.mode === 'parametric' &&
+                    parametricDraft?.matrixFile &&
+                    productId
+                ) {
+                    try {
+                        const formDataUpload = new FormData()
+                        if (parametricDraft.matrixFile instanceof File) {
+                            formDataUpload.append('file', parametricDraft.matrixFile, parametricDraft.matrixFile.name)
+                        } else {
+                            formDataUpload.append('file', parametricDraft.matrixFile, 'parametric-matrix.csv')
+                        }
+                        const importResponse =
+                            await apiImportParametricReferences<ParametricImportSummary>(productId, formDataUpload)
+                        const summary = importResponse as unknown as ParametricImportSummary
+                        toast.push(
+                            <Notification
+                                title={t('sales.productForm.parametric.importSuccess', {
+                                    defaultValue: 'Matrix imported successfully',
+                                })}
+                                type="success"
+                                duration={3200}
+                            >
+                                {t('sales.productForm.parametric.importSummary', {
+                                    defaultValue: 'Processed {{inserted}} new · {{updated}} updated.',
+                                    inserted: summary.rowsInserted,
+                                    updated: summary.rowsUpdated,
+                                })}
+                            </Notification>,
+                            { placement: 'top-center' },
+                        )
+                    } catch (error) {
+                        console.error('parametric/import', error)
+                        toast.push(
+                            <Notification
+                                title={t('sales.productForm.parametric.importError', {
+                                    defaultValue: 'Import failed',
+                                })}
+                                type="warning"
+                                duration={4000}
+                            >
+                                {t('sales.productForm.parametric.importQueuedFallback', {
+                                    defaultValue:
+                                        'El producto se creó, pero la matriz no pudo importarse automáticamente.',
+                                })}
+                            </Notification>,
+                            { placement: 'top-center' },
+                        )
+                    }
+                } else if (formData.mode === 'parametric' && parametricDraft?.matrixFile && !productId) {
+                    toast.push(
+                        <Notification
+                            title={t('sales.productForm.parametric.importQueued', {
+                                defaultValue: 'Matriz pendiente',
+                            })}
+                            type="warning"
+                            duration={3500}
+                        >
+                            {t('sales.productForm.parametric.importUnavailable', {
+                                defaultValue:
+                                    'No se pudo identificar el producto recién creado para importar la matriz automáticamente.',
+                            })}
+                        </Notification>,
+                        { placement: 'top-center' },
+                    )
+                }
                 toast.push(
                     <Notification
                         title={t('sales.productList.created.title', {
@@ -108,8 +235,8 @@ const ProductList = () => {
                     </Notification>,
                     { placement: 'top-center' },
                 )
-                setNewProductOpen(false)
-                refreshProducts()
+               setNewProductOpen(false)
+               refreshProducts()
             } catch (error) {
                 // eslint-disable-next-line no-console
                 console.error('products/create', error)
@@ -143,13 +270,10 @@ const ProductList = () => {
     )
 
     const card = (
-        <AdaptableCard
-            className={isParametricView ? '' : 'h-full'}
-            bodyClass={isParametricView ? '' : 'h-full'}
-        >
+        <AdaptableCard className="h-full" bodyClass="h-full">
             <div className="lg:flex items-center justify-between mb-4">
                 <h3 className="mb-4 lg:mb-0">{t('text.titles.products')}</h3>
-                <ProductTableTools onAddProduct={handleAddProductClick} />
+                <ProductTableTools onAddProduct={handleAddProductClick} isParametricView={isParametricView} />
             </div>
             <ProductTable />
         </AdaptableCard>
@@ -157,26 +281,29 @@ const ProductList = () => {
 
     return (
         <>
-            {isParametricView ? (
-                <div className="mx-auto w-full max-w-6xl px-4">{card}</div>
-            ) : (
-                card
-            )}
+            {card}
             <Drawer
                 isOpen={newProductOpen}
                 onClose={handleCloseDrawer}
                 onRequestClose={handleCloseDrawer}
                 width={640}
                 bodyClass="p-0"
-                title={t('text.actions.addProduct', {
-                    defaultValue: 'Add Product',
-                })}
+                title={
+                    isParametricView
+                        ? t('sales.productForm.parametric.addTitle', {
+                              defaultValue: 'Agregar producto paramétrico',
+                          })
+                        : t('text.actions.addProduct', {
+                              defaultValue: 'Add Product',
+                          })
+                }
             >
                 <div className="p-6">
                     <ProductForm
                         type="new"
                         onDiscard={handleCloseDrawer}
                         onFormSubmit={handleCreateProduct}
+                        allowedModes={isParametricView ? ['parametric'] : ['simple', 'variable']}
                     />
                 </div>
             </Drawer>

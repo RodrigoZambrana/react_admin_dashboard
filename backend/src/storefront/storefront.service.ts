@@ -330,6 +330,71 @@ export class StorefrontService implements OnModuleInit {
   private readonly companySingletonKey = 'default'
   private readonly snapshotFallbackConfigKey = 'storefront:snapshotFallbackEnabled'
 
+  private normalizeConfigString(value: unknown): string {
+    if (value === null || value === undefined) {
+      return ''
+    }
+    return String(value).trim()
+  }
+
+  private normalizeConfigBoolean(value: unknown): boolean {
+    if (typeof value === 'boolean') {
+      return value
+    }
+    if (typeof value === 'number') {
+      return value !== 0
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase()
+      if (!normalized) {
+        return false
+      }
+      return ['1', 'true', 'yes', 'si', 'sí', 'y'].includes(normalized)
+    }
+    return false
+  }
+
+  private normalizeConfigNumber(value: unknown, field: string): number {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.trunc(value)
+    }
+    if (typeof value === 'string') {
+      const normalized = value.replace(',', '.').trim()
+      if (!normalized) {
+        throw new BadRequestException(`Missing value for ${field}`)
+      }
+      const parsed = Number(normalized)
+      if (!Number.isFinite(parsed)) {
+        throw new BadRequestException(`Invalid numeric value for ${field}`)
+      }
+      return Math.trunc(parsed)
+    }
+    throw new BadRequestException(`Invalid numeric value for ${field}`)
+  }
+
+  private buildProductTypeCode(familyId?: string | null): string {
+    if (!familyId || typeof familyId !== 'string') {
+      return ''
+    }
+    const ascii = familyId
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^A-Za-z0-9_ ]+/g, ' ')
+    const parts = ascii
+      .split(/[_\s]+/)
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+    if (!parts.length) {
+      return ''
+    }
+    const candidate = parts.length > 1 ? parts[1] : parts[0]
+    if (!candidate) {
+      return ''
+    }
+    const upper = candidate.toUpperCase()
+    return upper.length <= 4 ? upper : upper.substring(0, 4)
+  }
+
   private mapCompanyProfile(record?: CompanyProfile | null): StorefrontConfig['companyProfile'] {
     if (!record) {
       return null
@@ -791,7 +856,20 @@ export class StorefrontService implements OnModuleInit {
   }
 
   async quoteParametricProduct(payload: Parameters<ParametricPricingService['quote']>[0]) {
-    return this.parametricPricing.quote(payload)
+    const quoteInput: ParametricQuoteInput = {
+      productId: payload.productId,
+      familyId: this.normalizeConfigString((payload as any).familyId ?? ''),
+      serie: this.normalizeConfigString((payload as any).serie ?? ''),
+      material: this.normalizeConfigString((payload as any).material ?? ''),
+      color: this.normalizeConfigString((payload as any).color ?? ''),
+      vidrio: this.normalizeConfigString((payload as any).vidrio ?? ''),
+      widthMm: this.normalizeConfigNumber((payload as any).widthMm, 'width'),
+      heightMm: this.normalizeConfigNumber((payload as any).heightMm, 'height'),
+      hasMosquitero: this.normalizeConfigBoolean((payload as any).hasMosquitero),
+      hasShutterMonoblock: this.normalizeConfigBoolean((payload as any).hasShutterMonoblock),
+      shutterMaterial: this.normalizeConfigString((payload as any).shutterMaterial ?? ''),
+    }
+    return this.parametricPricing.quote(quoteInput)
   }
 
   private async ensureDefaultPasswordHash() {
@@ -1227,43 +1305,76 @@ export class StorefrontService implements OnModuleInit {
           if (!item.configuration || typeof item.configuration !== 'object') {
             throw new BadRequestException('Parametric configuration is required for this product.')
           }
-          parametricConfig = item.configuration as Record<string, unknown>
-          const quoteInput = {
-            ...parametricConfig,
+          const rawConfig = item.configuration as Record<string, unknown>
+          const quoteInput: ParametricQuoteInput = {
             productId: product.id,
-            currency: product.currency ?? 'USD',
-          } as ParametricQuoteInput
+            familyId: this.normalizeConfigString(rawConfig.familyId ?? rawConfig.family_id ?? product.productCode ?? product.name),
+            serie: this.normalizeConfigString(rawConfig.series ?? rawConfig.serie),
+            material: this.normalizeConfigString(rawConfig.material ?? 'ALUMINIO'),
+            color: this.normalizeConfigString(rawConfig.color ?? 'NATURAL'),
+            vidrio: this.normalizeConfigString(rawConfig.vidrio ?? rawConfig.glass ?? '4 MM'),
+            widthMm: this.normalizeConfigNumber(rawConfig.widthMm ?? rawConfig.width_mm ?? rawConfig.width, 'width'),
+            heightMm: this.normalizeConfigNumber(rawConfig.heightMm ?? rawConfig.height_mm ?? rawConfig.height, 'height'),
+            hasMosquitero: this.normalizeConfigBoolean(rawConfig.hasMosquitero ?? rawConfig.mosquitoNet ?? rawConfig.mosquitero),
+            hasShutterMonoblock: this.normalizeConfigBoolean(
+              rawConfig.hasShutterMonoblock ?? rawConfig.monoblock ?? rawConfig.has_monoblock ?? rawConfig.monoblockEnabled,
+            ),
+            shutterMaterial: this.normalizeConfigString(
+              rawConfig.shutterMaterial ??
+                rawConfig.shutter_material ??
+                rawConfig.shutterSystem ??
+                rawConfig.shutter_system ??
+                rawConfig.monoblockSystem ??
+                rawConfig.monoblockMaterial ??
+                '',
+            ),
+          }
           const quote = await this.parametricPricing.quote(quoteInput)
           parametricSnapshot = quote
-          salePriceAmount = quote.total
-          unitPrice = decimal(quote.total)
+          if (!quote.available || quote.price === undefined) {
+            throw new BadRequestException('Selected configuration is not available.')
+          }
+          salePriceAmount = quote.price
+          unitPrice = decimal(quote.price)
           unitCost = decimal(baseCostPrice)
           priceCurrency = this.currencyConversion.normalizeCurrency(quote.currency ?? product.currency) ?? priceCurrency
-          const width = quote.width
-          const height = quote.height
+          const widthMm = quote.requested.widthMm
+          const heightMm = quote.requested.heightMm
           specEntries = [
-            { label: 'Ancho', value: `${width} m` },
-            { label: 'Alto', value: `${height} m` },
-          { label: 'Serie', value: String((parametricConfig.series as string) ?? 'N/A') },
-          { label: 'Color', value: String((parametricConfig.color as string) ?? 'NATURAL') },
-          { label: 'Vidrio', value: String((parametricConfig.glass as string) ?? '4MM') },
-          {
-            label: 'Mosquitero',
-            value: parametricConfig.mosquitoNet ? 'Sí' : 'No',
-          },
-        ]
-        if ((parametricConfig.monoblock as any)?.enabled) {
+            { label: 'Serie', value: quote.requested.serie || 'N/A' },
+            { label: 'Material', value: quote.requested.material || 'N/A' },
+            { label: 'Color', value: quote.requested.color || 'NATURAL' },
+            { label: 'Vidrio', value: quote.requested.vidrio || '4 MM' },
+            { label: 'Ancho', value: `${widthMm} mm` },
+            { label: 'Alto', value: `${heightMm} mm` },
+            {
+              label: 'Mosquitero',
+              value: quote.requested.hasMosquitero ? 'Sí' : 'No',
+            },
+          ]
+          if (quote.requested.hasShutterMonoblock) {
           specEntries.push({
-            label: 'Monoblock',
-            value: `${(parametricConfig.monoblock as any)?.material ?? 'PVC'} ${(parametricConfig.monoblock as any)?.color ?? ''}`.trim(),
+            label: 'Material Monoblock',
+            value: quote.requested.shutterMaterial || 'N/A',
           })
         }
         specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
-        displayName = `${product.name} (${width}x${height})`
+        displayName = `${product.name} (${widthMm}x${heightMm} mm)`
         const skuBase = (product.productCode ?? slugify(product.name)).toUpperCase().replace(/[^A-Z0-9]/g, '')
-        const widthKey = Math.round(width * 1000)
-        const heightKey = Math.round(height * 1000)
-        skuSnapshot = `PAR-${skuBase}-${widthKey}x${heightKey}`
+        const typeCode = this.buildProductTypeCode(quote.requested.familyId)
+        const widthKey = Math.round(widthMm)
+        const heightKey = Math.round(heightMm)
+        const skuParts = [typeCode, skuBase, `${widthKey}x${heightKey}`].filter(
+          (part) => typeof part === 'string' && part.length > 0,
+        )
+        skuSnapshot = skuParts.join('-')
+        parametricConfig = {
+          ...quote.requested,
+          price: quote.price,
+          currency: quote.currency ?? product.currency ?? priceCurrency,
+          detailSnapshot: quote.detailSnapshot ?? null,
+            referenceDate: quote.referenceDate ?? null,
+          }
         } else {
           salePriceAmount =
             variant && variant.salePrice !== null && variant.salePrice !== undefined
@@ -1472,16 +1583,15 @@ export class StorefrontService implements OnModuleInit {
                   : undefined,
                 parametricBreakdown: item.parametricSnapshot
                   ? {
-                      total: item.parametricSnapshot.total,
-                      breakdown: item.parametricSnapshot.breakdown,
-                      modifiers: item.parametricSnapshot.modifiers,
+                      price: item.parametricSnapshot.price,
+                      currency: item.parametricSnapshot.currency,
+                      detailSnapshot: item.parametricSnapshot.detailSnapshot,
+                      requested: item.parametricSnapshot.requested,
                     }
                   : undefined,
-                parametricReferenceDate: item.parametricSnapshot?.referenceDate
-                  ? new Date(item.parametricSnapshot.referenceDate)
-                  : undefined,
-                parametricSource: item.parametricSnapshot?.source,
-                parametricVersion: item.parametricSnapshot?.dataVersion,
+                parametricReferenceDate: undefined,
+                parametricSource: undefined,
+                parametricVersion: undefined,
               })),
             },
           },

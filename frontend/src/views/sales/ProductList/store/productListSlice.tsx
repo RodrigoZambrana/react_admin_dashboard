@@ -23,6 +23,15 @@ type Product = {
     currency?: string
     unitOfMeasure?: SalesUnit
     specifications?: string
+    serieSummary?: string
+    widthSummary?: string
+    heightSummary?: string
+    colorSummary?: string
+    glassSummary?: string
+    mosquiteroAvailable?: boolean
+    monoblockAvailable?: boolean
+    shutterMaterialSummary?: string
+    parametricSku?: string
 }
 
 type Products = Product[]
@@ -38,13 +47,15 @@ type FilterQueries = {
     status: number[]
     productStatus: number
     currency: string[]
-    mode?: ProductMode | 'all'
+    mode?: ProductMode | ProductMode[] | 'all'
 }
 
 export type SalesProductListState = {
     loading: boolean
     deleteConfirmation: boolean
+    bulkDeleteConfirmation: boolean
     selectedProduct: string
+    selectedProductIds: string[]
     tableData: TableQueries
     filterData: FilterQueries
     productList: Product[]
@@ -87,7 +98,9 @@ export const initialTableData: TableQueries = {
 const initialState: SalesProductListState = {
     loading: false,
     deleteConfirmation: false,
+    bulkDeleteConfirmation: false,
     selectedProduct: '',
+    selectedProductIds: [],
     productList: [],
     tableData: initialTableData,
     filterData: {
@@ -116,18 +129,44 @@ const productListSlice = createSlice({
         toggleDeleteConfirmation: (state, action) => {
             state.deleteConfirmation = action.payload
         },
+        toggleBulkDeleteConfirmation: (state, action) => {
+            state.bulkDeleteConfirmation = action.payload
+        },
         setSelectedProduct: (state, action) => {
             state.selectedProduct = action.payload
         },
+        setSelectedProducts: (state, action) => {
+            state.selectedProductIds = action.payload
+        },
     },
-    extraReducers: (builder) => {
-        builder
+   extraReducers: (builder) => {
+       builder
             .addCase(getProducts.fulfilled, (state, action) => {
                 state.productList = action.payload.data.map((item) => ({
                     ...item,
+                    productCode: (() => {
+                        const explicit = typeof (item as any).productCode === 'string' ? (item as any).productCode.trim() : ''
+                        const fallback = typeof (item as any).parametricSku === 'string' ? (item as any).parametricSku.trim() : ''
+                        return explicit || fallback || ''
+                    })(),
                     salePrice: Number((item as any).salePrice ?? 0),
                     costPrice: Number((item as any).costPrice ?? 0),
+                    widthSummary: (item as any).widthSummary ?? '',
+                    heightSummary: (item as any).heightSummary ?? '',
+                    serieSummary: (item as any).serieSummary ?? '',
+                    colorSummary: (item as any).colorSummary ?? '',
+                    glassSummary: (item as any).glassSummary ?? '',
+                    mosquiteroAvailable: Boolean((item as any).mosquiteroAvailable),
+                    monoblockAvailable: Boolean((item as any).monoblockAvailable),
+                    shutterMaterialSummary: (item as any).shutterMaterialSummary ?? '',
+                    parametricSku: (item as any).parametricSku ?? '',
                 }))
+                const availableIds = new Set(
+                    state.productList.map((item) => String(item.id)),
+                )
+                state.selectedProductIds = state.selectedProductIds.filter((id) =>
+                    availableIds.has(id),
+                )
                 state.tableData.total = action.payload.total
                 state.loading = false
             })
@@ -143,6 +182,8 @@ export const {
     setFilterData,
     toggleDeleteConfirmation,
     setSelectedProduct,
+    toggleBulkDeleteConfirmation,
+    setSelectedProducts,
 } = productListSlice.actions
 
 export default productListSlice.reducer

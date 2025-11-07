@@ -10,7 +10,9 @@ export class ParametricFeatureGuard implements CanActivate {
   ) {}
 
   canActivate(_context: ExecutionContext): boolean {
-    const enabled = Boolean(this.clientConfig?.featureFlags?.PARAMETRIC_PRODUCTS)
+    const enabled =
+      this.clientConfig?.slug === 'urucortinas' &&
+      Boolean(this.clientConfig?.featureFlags?.PARAMETRIC_PRODUCTS)
     if (!enabled) {
       throw new NotFoundException()
     }

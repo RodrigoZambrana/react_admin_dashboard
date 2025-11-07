@@ -57,7 +57,14 @@
       "list": "Product List",
       "config": "Configuration",
       "parametric": "Parametric Products",
-      "aberturas": "Aberturas"
+      "aberturas": "Aberturas",
+      "presupuestarAberturas": "Quote Openings"
+    },
+    "appsAberturas": {
+      "title": "Aberturas",
+      "list": "Aberturas List",
+      "quote": "Quote Aberturas",
+      "config": "Configuration"
     },
     "appsCrypto": {
       "crypto": "Crypto",
@@ -92,6 +99,7 @@
       "mercadoPago": "Mercado Pago",
       "google": "Google & reCAPTCHA",
       "systemConfig": "System Config",
+      "aberturas": "Openings",
       "email": "Email",
       "emailTemplates": "Email Templates",
       "emailConfig": "Email Configuration",
@@ -634,6 +642,7 @@
       "export": "Export",
       "addProduct": "Add Product",
       "batchDelete": "Batch Delete",
+      "deleteSelected": "Delete selected",
       "editDeliveryInformation": "Edit delivery information",
       "save": "Save",
       "discard": "Discard",
@@ -1046,6 +1055,82 @@
         }
       }
     },
+    "aberturasQuote": {
+      "title": "Quote Openings",
+      "subtitle": "Browse the parametric matrix to calculate prices and near matches.",
+      "labels": {
+        "product": "Parametric product",
+        "productPlaceholder": "Choose a product",
+        "size": "Size (width × height)",
+        "sizePlaceholder": "Select a size",
+        "color": "Color",
+        "colorPlaceholder": "Select a color",
+        "serie": "Series",
+        "seriePlaceholder": "Select a series",
+        "vidrio": "Glass",
+        "vidrioPlaceholder": "Select a glass type",
+        "mosquitero": "Mosquito net",
+        "monoblock": "Shutter / Monoblock"
+      },
+      "helpers": {
+        "mosqUnavailable": "Not available for this combination.",
+        "mbUnavailable": "Not available for this combination.",
+        "shutterMaterial": "Recommended shutter material: {{material}}"
+      },
+      "loading": {
+        "products": "Loading products…",
+        "matrix": "Loading price matrix…"
+      },
+      "notifications": {
+        "productsError": "Unable to load parametric products.",
+        "emptyMatrix": "This product does not have a matrix yet.",
+        "matrixError": "Unable to load the price matrix."
+      },
+      "actions": {
+        "calculate": "Calculate price"
+      },
+      "result": {
+        "title": "Price found",
+        "estimatedTooltip": "Estimated using mosquito net and/or monoblock deltas.",
+        "estimatedBadge": "Estimated",
+        "components": "Components considered: {{components}}"
+      },
+      "summary": {
+        "serie": "Series:",
+        "vidrio": "Glass:",
+        "color": "Color:",
+        "dimensions": "Size:",
+        "extras": "Selected extras:",
+        "extrasBoth": "Mosquito net + Shutter",
+        "extrasMosq": "Mosquito net",
+        "extrasMb": "Shutter / Monoblock",
+        "extrasNone": "No extras",
+        "reference": "Reference date: {{date}}",
+        "source": "Source: {{source}}"
+      },
+      "reasons": {
+        "missingBase": "No base price available for this combination.",
+        "mosqNotAllowed": "Mosquito net is not enabled for this combination.",
+        "mbNotAllowed": "Monoblock is not enabled for this combination.",
+        "missingMosqPrice": "No mosquito net price available.",
+        "missingMonoblockPrice": "No monoblock price available.",
+        "missingCombinedPrice": "No price for mosquito net + monoblock.",
+        "noMatch": "We couldn't find an exact row for this combination.",
+        "genericFallback": "No price is configured for this combination."
+      },
+      "suggestions": {
+        "title": "Nearby alternatives",
+        "empty": "We couldn't find nearby alternatives with prices."
+      },
+      "components": {
+        "base": "Base price",
+        "mosquitero": "Price with mosquito net",
+        "monoblock": "Price with monoblock",
+        "monoblockMosq": "Price with monoblock + mosquito net",
+        "deltaMosq": "Mosquito delta",
+        "deltaMb": "Monoblock delta"
+      }
+    },
     "dashboard": {
       "overview": {
         "title": "Sales Overview",
@@ -1318,8 +1403,16 @@
       "parametric": {
         "requiresProduct": "Save the product to configure parametric pricing.",
         "requiresProductDetail": "Create the product first, then you will be able to import reference prices and configure the pricing engine.",
+        "notAvailableForClient": "Parametric configuration is available only for Urucortinas.",
+        "defaultMatrixNote": "The openings matrix is preloaded and will be imported automatically once you save the product.",
         "title": "Parametric pricing",
         "subtitle": "Import quotation history and test the price engine with real-time parameters.",
+        "adminPanelTitle": "Parametric tools",
+        "adminPanelDescription": "Manage the openings price matrix and its defaults. Only super-admins can edit these settings.",
+        "adminToggleLabel": "Show advanced tools",
+        "uploadLabel": "Matrix file",
+        "import": "Import matrix",
+        "importResults": "Last import: {{inserted}} new · {{updated}} updated rows.",
         "testTitle": "Try calculation",
         "width": "Width (m)",
         "height": "Height (m)",
@@ -1345,8 +1438,11 @@
         "importSummary": "Processed {{rows}} rows. Created {{references}} references and {{modifiers}} modifiers.",
         "importError": "Import failed",
         "importErrorDescription": "Please check the file format and try again.",
+        "importProductsSummary": "Products processed: {{created}} new · {{updated}} updated · {{rows}} matrix rows.",
+        "importProductsWarnings": "Warnings ({{count}}):",
         "quoteError": "Unable to generate quote",
-        "quoteErrorDescription": "Verify the parameters and try again."
+        "quoteErrorDescription": "Verify the parameters and try again.",
+        "quoteSource": "Source: {{source}}."
       }
     },
     "productList": {
@@ -1377,7 +1473,20 @@
       "importError": "We couldn't import the products.",
       "importErrorRow": "Row {{row}}: {{message}}",
       "importErrorMore": "{{count}} additional errors were omitted.",
-      "createError": "Unable to create the product."
+      "createError": "Unable to create the product.",
+      "bulkDeleted": {
+        "desc": "Deleted {{count}} products.",
+        "confirm": "Delete the {{count}} selected products? This action cannot be undone."
+      },
+      "columns": {
+        "serie": "Series",
+        "glass": "Glass",
+        "color": "Color",
+        "mosquitero": "Mosquito net",
+        "monoblock": "Monoblock",
+        "width": "Width (mm)",
+        "height": "Height (mm)"
+      }
     },
     "orderDetails": {
       "activity": {
@@ -1867,6 +1976,56 @@
     }
   },
   "settings": {
+    "aberturas": {
+      "title": "Openings glossary",
+      "description": "Manage the normalized values used by the openings parametric matrix.",
+      "actions": {
+        "add": "Add value"
+      },
+      "tabs": {
+        "types": "Opening types",
+        "series": "Series",
+        "colors": "Colors",
+        "glass": "Glass"
+      },
+      "table": {
+        "label": "Label",
+        "value": "Normalized value",
+        "adjust": "Adjust %",
+        "actions": "Actions",
+        "empty": "No records yet. Add the first value to get started."
+      },
+      "form": {
+        "label": "Label",
+        "labelPlaceholder": "Display label",
+        "value": "Normalized value",
+        "valuePlaceholder": "Value stored in the matrix",
+        "adjust": "Adjustment percentage",
+        "errors": {
+          "label": "Label is required",
+          "value": "Value is required",
+          "adjustNumber": "Enter a valid number",
+          "adjustRange": "Value must be between -100% and 200%"
+        }
+      },
+      "drawer": {
+        "addTitle": "Add value",
+        "editTitle": "Edit value"
+      },
+      "confirmDeleteTitle": "Delete value",
+      "confirmDeleteDescription": "Delete \"{{label}}\"? This action cannot be undone.",
+      "notifications": {
+        "loadErrorTitle": "Unable to load glossary",
+        "loadErrorDescription": "Please try again later.",
+        "deleteSuccess": "Value deleted",
+        "deleteErrorTitle": "Unable to delete value",
+        "deleteErrorDescription": "Please try again later.",
+        "saveErrorTitle": "Unable to save value",
+        "saveErrorDescription": "Please review the data and try again.",
+        "updateSuccess": "Value updated",
+        "createSuccess": "Value created"
+      }
+    },
     "productCategories": {
       "title": "Product Categories",
       "columns": {
