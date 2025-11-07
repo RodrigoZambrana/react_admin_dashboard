@@ -87,19 +87,6 @@ enum ProductMode {
   PARAMETRIC
 }
 
-enum ParametricModifierType {
-  COLOR
-  MONOBLOCK
-  MOSQUITO_NET
-  GLASS
-  CUSTOM
-}
-
-enum ParametricAdjustmentMode {
-  MULTIPLIER
-  SURCHARGE
-}
-
 enum ProductAttributeType {
   COLOR
   SIZE
@@ -258,19 +245,19 @@ model NotificationSetting {
 
 // Users and Auth
 model User {
-  id                       Int                     @id @default(autoincrement())
+  id                       Int                    @id @default(autoincrement())
   name                     String?
   lastName                 String?
-  email                    String                  @unique
+  email                    String                 @unique
   img                      String?
-  role                     Role                    @default(USER)
-  lang                     String                  @default("en")
+  role                     Role                   @default(USER)
+  lang                     String                 @default("en")
   country                  String?
   countryCode              String?
   city                     String?
   passwordHash             String
-  createdAt                DateTime                @default(now())
-  updatedAt                DateTime                @updatedAt
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
   // relations
   createdTasks             Task[]
   taskAssignees            TaskAssignee[]
@@ -280,10 +267,9 @@ model User {
   calendarComments         CalendarEventComment[]
   activities               UserActivity[]
   devices                  UserDevice[]
-  convertedOrders          Order[]                 @relation("OrderConvertedBy")
-  assignedProductionOrders ProductionOrder[]       @relation("ProductionOrderAssignedTo")
+  convertedOrders          Order[]                @relation("OrderConvertedBy")
+  assignedProductionOrders ProductionOrder[]      @relation("ProductionOrderAssignedTo")
   passwordResetTokens      PasswordResetToken[]
-  parametricImports        ParametricImportBatch[]
 }
 
 model UserDevice {
@@ -318,30 +304,30 @@ model UserActivity {
 
 // CRM Customer
 model Customer {
-  id                            Int                    @id @default(autoincrement())
+  id                            Int                     @id @default(autoincrement())
   name                          String
   firstName                     String?
   lastName                      String?
-  email                         String?                @unique
+  email                         String?                 @unique
   img                           String?
   location                      String?
   title                         String?
-  phoneNumber                   String?                @unique
+  phoneNumber                   String?                 @unique
   passwordHash                  String?
   storefrontDefaultPasswordHash String?
-  passwordAlgorithm             String?                @default("bcrypt")
-  passwordAlgVersion            Int?                   @default(12)
+  passwordAlgorithm             String?                 @default("bcrypt")
+  passwordAlgVersion            Int?                    @default(12)
   passwordUpdatedAt             DateTime?
-  storefrontSessionVersion      Int                    @default(1)
+  storefrontSessionVersion      Int                     @default(1)
   birthday                      DateTime?
   facebook                      String?
   twitter                       String?
   pinterest                     String?
   linkedIn                      String?
   phones                        CustomerPhone[]
-  preferredLocale               String                @default("es")
-  createdAt                     DateTime               @default(now())
-  updatedAt                     DateTime               @updatedAt
+  preferredLocale               String                  @default("es")
+  createdAt                     DateTime                @default(now())
+  updatedAt                     DateTime                @updatedAt
   orders                        Order[]
   notifications                 Notification[]
   passwordResetTokens           PasswordResetToken[]
@@ -350,7 +336,7 @@ model Customer {
   reauthTokens                  CustomerReauthToken[]
   addresses                     CustomerAddress[]
   statusId                      Int?
-  status                        CustomerStatus?        @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  status                        CustomerStatus?         @relation(fields: [statusId], references: [id], onDelete: SetNull)
   wishlist                      Wishlist?
   oauthAccounts                 CustomerOAuthAccount[]
 }
@@ -386,38 +372,38 @@ model CustomerPhone {
 }
 
 model CustomerSecurityEvent {
-  id         Int                        @id @default(autoincrement())
+  id         Int                       @id @default(autoincrement())
   customerId Int?
-  customer   Customer?                  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customer   Customer?                 @relation(fields: [customerId], references: [id], onDelete: SetNull)
   eventType  CustomerSecurityEventType
   channel    String?
   ipAddress  String?
   userAgent  String?
   deviceId   String?
   metadata   Json?
-  createdAt  DateTime                   @default(now())
+  createdAt  DateTime                  @default(now())
 
   @@index([customerId])
   @@index([createdAt])
 }
 
 model CustomerOtpChallenge {
-  id             Int       @id @default(autoincrement())
-  customerId     Int
-  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  phone          String
-  otpHash        String
-  otpLength      Int       @default(6)
-  attemptCount   Int       @default(0)
-  maxAttempts    Int       @default(5)
-  channel        String?
-  ipAddress      String?
-  userAgent      String?
-  expiresAt      DateTime
-  lastAttemptAt  DateTime?
-  consumedAt     DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id            Int       @id @default(autoincrement())
+  customerId    Int
+  customer      Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  phone         String
+  otpHash       String
+  otpLength     Int       @default(6)
+  attemptCount  Int       @default(0)
+  maxAttempts   Int       @default(5)
+  channel       String?
+  ipAddress     String?
+  userAgent     String?
+  expiresAt     DateTime
+  lastAttemptAt DateTime?
+  consumedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([customerId])
   @@index([phone])
@@ -426,17 +412,17 @@ model CustomerOtpChallenge {
 }
 
 model CustomerReauthToken {
-  id         Int                 @id @default(autoincrement())
+  id         Int                  @id @default(autoincrement())
   customerId Int
-  customer   Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  tokenHash  String              @unique
+  customer   Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tokenHash  String               @unique
   method     CustomerReauthMethod
   factors    Json?
   ipAddress  String?
   userAgent  String?
   expiresAt  DateTime
   usedAt     DateTime?
-  createdAt  DateTime            @default(now())
+  createdAt  DateTime             @default(now())
 
   @@index([customerId])
   @@index([expiresAt])
@@ -464,42 +450,41 @@ model WishlistItem {
 
 // Sales Product
 model Product {
-  id                        Int                        @id @default(autoincrement())
+  id                        Int                           @id @default(autoincrement())
   name                      String
   productCode               String?
   img                       String?
   description               String?
   specifications            String?
   categoryId                Int?
-  category                  ProductCategory?           @relation(fields: [categoryId], references: [id])
-  productType               ProductType                @default(PHYSICAL)
-  mode                      ProductMode                @default(SIMPLE)
-  salePrice                 Decimal                    @default(0) @map("precio_venta") @db.Decimal(12, 2)
-  costPrice                 Decimal                    @default(0) @map("precio_costo") @db.Decimal(12, 2)
-  currency                  String                     @default("UYU")
-  unitOfMeasure             SalesUnit                  @default(UNIT)
-  stock                     Int                        @default(0)
-  permanentStock            Boolean                    @default(false)
-  status                    Int                        @default(0) // 0=inStock,1=limited,2=outOfStock
+  category                  ProductCategory?              @relation(fields: [categoryId], references: [id])
+  productType               ProductType                   @default(PHYSICAL)
+  mode                      ProductMode                   @default(SIMPLE)
+  salePrice                 Decimal                       @default(0) @map("precio_venta") @db.Decimal(12, 2)
+  costPrice                 Decimal                       @default(0) @map("precio_costo") @db.Decimal(12, 2)
+  currency                  String                        @default("UYU")
+  unitOfMeasure             SalesUnit                     @default(UNIT)
+  stock                     Int                           @default(0)
+  permanentStock            Boolean                       @default(false)
+  status                    Int                           @default(0) // 0=inStock,1=limited,2=outOfStock
   costPerItem               Float?
   bulkDiscountPrice         Float?
-  taxRate                   Float?                     @default(22)
+  taxRate                   Float?                        @default(22)
   tags                      String[]
   brand                     String?
   vendor                    String?
-  published                 Boolean                    @default(true)
+  published                 Boolean                       @default(true)
   images                    ProductImage[]
   options                   ProductOption[]
   variants                  ProductVariant[]
   wishlistItems             WishlistItem[]
-  createdAt                 DateTime                   @default(now())
-  updatedAt                 DateTime                   @updatedAt
+  createdAt                 DateTime                      @default(now())
+  updatedAt                 DateTime                      @updatedAt
   orderItems                OrderItem[]
-  installServiceForCategory ProductCategory?           @relation("CategoryInstallService")
-  parametricConfig          ParametricProductConfig?
-  parametricReferencePrices ParametricReferencePrice[]
-  parametricModifiers       ParametricModifier[]
-  parametricImportBatches   ParametricImportBatch[]
+  installServiceForCategory ProductCategory?              @relation("CategoryInstallService")
+  priceMatrix               DimensionPriceMatrix[]
+  parametricMatrixStaging   ParametricMatrixStaging[] @relation("ProductParametricMatrixStaging")
+  compatibilityRules        ParametricCompatibilityRule[]
 }
 
 model ProductImage {
@@ -579,85 +564,6 @@ model ProductVariant {
   @@unique([productId, key])
   @@index([productId])
   @@index([productId, isActive])
-}
-
-model ParametricProductConfig {
-  id        Int      @id @default(autoincrement())
-  productId Int      @unique
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  schema    Json
-  defaults  Json?
-  metadata  Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model ParametricImportBatch {
-  id              Int                        @id @default(autoincrement())
-  productId       Int
-  product         Product                    @relation(fields: [productId], references: [id], onDelete: Cascade)
-  rowsProcessed   Int                        @default(0)
-  rowsInserted    Int                        @default(0)
-  rowsFailed      Int                        @default(0)
-  sourceType      String                     @default("manual")
-  sourceFile      String?
-  createdAt       DateTime                   @default(now())
-  importedById    Int?
-  importedBy      User?                      @relation(fields: [importedById], references: [id], onDelete: SetNull)
-  summary         Json?
-  referencePrices ParametricReferencePrice[]
-  modifiers       ParametricModifier[]
-
-  @@index([productId, createdAt])
-}
-
-model ParametricReferencePrice {
-  id            Int                    @id @default(autoincrement())
-  productId     Int
-  product       Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
-  series        String
-  glass         String
-  color         String?
-  width         Decimal?               @db.Decimal(12, 4)
-  height        Decimal?               @db.Decimal(12, 4)
-  area          Decimal                @db.Decimal(14, 4)
-  price         Decimal                @db.Decimal(14, 4)
-  currency      String                 @default("UYU")
-  quotationDate DateTime
-  confidence    Float                  @default(1)
-  source        String?
-  detail        String?
-  metadata      Json?
-  createdAt     DateTime               @default(now())
-  importBatchId Int?
-  importBatch   ParametricImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-
-  @@index([productId, series, glass])
-  @@index([productId, quotationDate])
-}
-
-model ParametricModifier {
-  id             Int                      @id @default(autoincrement())
-  productId      Int
-  product        Product                  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  type           ParametricModifierType
-  code           String
-  label          String?
-  adjustmentMode ParametricAdjustmentMode @default(MULTIPLIER)
-  value          Decimal                  @db.Decimal(12, 6)
-  surcharge      Decimal?                 @db.Decimal(14, 4)
-  currency       String?                  @default("UYU")
-  quotationDate  DateTime?
-  confidence     Float?
-  metadata       Json?
-  createdAt      DateTime                 @default(now())
-  validFrom      DateTime?
-  validTo        DateTime?
-  importBatchId  Int?
-  importBatch    ParametricImportBatch?   @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
-
-  @@index([productId, type, code])
-  @@index([productId, quotationDate])
 }
 
 model ProductVariantSelection {
@@ -1000,23 +906,23 @@ model StorefrontPaymentIntent {
 }
 
 model StorefrontOAuthSession {
-  id           String    @id @default(cuid())
-  provider     String
-  state        String    @unique
-  codeVerifier String
-  nonce        String
-  redirectUri  String
-  returnPath   String?
-  purpose      String?   @default("login")
+  id                 String    @id @default(cuid())
+  provider           String
+  state              String    @unique
+  codeVerifier       String
+  nonce              String
+  redirectUri        String
+  returnPath         String?
+  purpose            String?   @default("login")
   expectedCustomerId Int?
-  scopes       String
-  ipAddress    String?
-  userAgent    String?
-  createdAt    DateTime  @default(now())
-  expiresAt    DateTime
-  completedAt  DateTime?
-  errorCode    String?
-  errorMessage String?
+  scopes             String
+  ipAddress          String?
+  userAgent          String?
+  createdAt          DateTime  @default(now())
+  expiresAt          DateTime
+  completedAt        DateTime?
+  errorCode          String?
+  errorMessage       String?
 
   @@index([expiresAt])
 }
@@ -1420,12 +1326,12 @@ model EmailLog {
 }
 
 model PasswordResetToken {
-  id                   Int                 @id @default(autoincrement())
-  tokenHash            String              @unique
+  id                   Int                  @id @default(autoincrement())
+  tokenHash            String               @unique
   userId               Int?
-  user                 User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                 User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
   customerId           Int?
-  customer             Customer?           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer             Customer?            @relation(fields: [customerId], references: [id], onDelete: Cascade)
   channel              PasswordResetChannel @default(EMAIL)
   targetIdentifierHash String?
   signingKid           String?
@@ -1434,11 +1340,115 @@ model PasswordResetToken {
   usedAt               DateTime?
   ipAddress            String?
   userAgent            String?
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
 
   @@index([userId])
   @@index([customerId])
   @@index([expiresAt])
   @@index([channel])
+}
+
+model DimensionPriceMatrix {
+  id                       Int       @id @default(autoincrement())
+  productId                Int
+  product                  Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fingerprint              String    @db.Char(64)
+  optionState              String    @default("BASE") @map("option_state")
+  familyId                 String
+  serie                    String
+  material                 String
+  color                    String
+  vidrio                   String
+  widthMm                  Int
+  heightMm                 Int
+  hasMosquitero            Boolean   @default(false)
+  hasShutterMonoblock      Boolean   @default(false)
+  shutterSystem            String    @default("")
+  price                    Decimal   @db.Decimal(14, 4)
+  priceBase                Decimal?  @db.Decimal(14, 4)
+  priceMosquitero          Decimal?  @db.Decimal(14, 4)
+  priceMonoblock           Decimal?  @db.Decimal(14, 4)
+  priceMonoblockMosquitero Decimal?  @db.Decimal(14, 4)
+  hasMosquiteroOption      Boolean   @default(false)
+  hasMonoblockOption       Boolean   @default(false)
+  currency                 String    @default("USD")
+  detailSnapshot           String?
+  priceLineage             Json?     @map("price_lineage")
+  conflictFlags            String[]  @default([]) @map("conflict_flags")
+  source                   String?
+  referenceDate            DateTime? @map("reference_date")
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@unique([productId, fingerprint, optionState])
+  @@index([productId])
+  @@map("dimension_price_matrix")
+}
+
+model ParametricMatrixStaging {
+  id                       Int       @id @default(autoincrement())
+  productId                Int
+  product                  Product   @relation("ProductParametricMatrixStaging", fields: [productId], references: [id], onDelete: Cascade)
+  fingerprint              String    @db.Char(64)
+  optionState              String    @default("BASE") @map("option_state")
+  familyId                 String
+  serie                    String
+  material                 String
+  color                    String
+  vidrio                   String
+  widthMm                  Int
+  heightMm                 Int
+  hasMosquitero            Boolean   @default(false)
+  hasShutterMonoblock      Boolean   @default(false)
+  shutterSystem            String    @default("")
+  hasMosquiteroOption      Boolean   @default(false)
+  hasMonoblockOption       Boolean   @default(false)
+  priceBase                Decimal?  @db.Decimal(14, 4)
+  priceMosquitero          Decimal?  @db.Decimal(14, 4)
+  priceMonoblock           Decimal?  @db.Decimal(14, 4)
+  priceMonoblockMosquitero Decimal?  @db.Decimal(14, 4)
+  currency                 String    @default("USD")
+  specifications           String?
+  sourceSystem             String
+  sourceRecordId           String?
+  source                   String?
+  referenceDate            DateTime? @map("reference_date")
+  ingestedAt               DateTime  @default(now())
+  processedAt              DateTime?
+  payload                  Json?
+
+  @@index([productId, processedAt])
+  @@map("parametric_matrix_staging")
+}
+
+model ParametricCompatibilityRule {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type      String
+  ruleKey   String
+  ruleValue Json
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, type, ruleKey])
+  @@index([productId, type])
+  @@map("parametric_compatibility_rules")
+}
+
+model AberturaGlossaryItem {
+  id        Int      @id @default(autoincrement())
+  category  String
+  label     String
+  value     String
+  adjustPct Decimal? @db.Decimal(8, 3)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([category, label], map: "abertura_glossary_category_label")
+  @@index([category])
+  @@map("abertura_glossary_items")
 }

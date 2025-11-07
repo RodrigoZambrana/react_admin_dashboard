@@ -1,8 +1,7 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Button from '@/components/ui/Button'
-import Alert from '@/components/ui/Alert'
 import Table from '@/components/ui/Table'
 import Checkbox from '@/components/ui/Checkbox'
 import Input from '@/components/ui/Input'
@@ -10,7 +9,7 @@ import Switcher from '@/components/ui/Switcher'
 import Upload from '@/components/ui/Upload'
 import Dialog from '@/components/ui/Dialog'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
-import ParametricConfigurator from './ParametricConfigurator'
+import ParametricConfigurator, { ParametricConfiguratorDraft } from './ParametricConfigurator'
 import { HiOutlinePlus, HiOutlinePhotograph, HiOutlineTrash } from 'react-icons/hi'
 import type {
     ProductMode,
@@ -21,6 +20,7 @@ import type {
     ProductVariantAttribute,
     ProductVariantImage,
 } from './types'
+import { clientConfig } from '@/configs/clientConfig'
 
 type VariantConfiguratorProps = {
     mode: ProductMode
@@ -33,6 +33,9 @@ type VariantConfiguratorProps = {
     onModeChange: (mode: ProductMode) => void
     onAttributesChange: (attributes: ProductAttribute[]) => void
     onVariantsChange: (variants: ProductVariant[]) => void
+    parametricDraft?: ParametricConfiguratorDraft | null
+    onParametricDraftChange?: (draft: ParametricConfiguratorDraft | null) => void
+    allowedModes?: ProductMode[]
 }
 
 type VariantImagesDialogProps = {
@@ -147,6 +150,8 @@ const buildVariantKey = (selections: ProductVariantAttribute[]): string => {
     )
     return toCanonical(parts.join('-'), `variant-${Date.now()}`)
 }
+
+const ALL_MODES: ProductMode[] = ['simple', 'variable', 'parametric']
 
 const createDefaultAttribute = (
     type: ProductAttributeType,
@@ -422,8 +427,46 @@ const VariantConfigurator = (props: VariantConfiguratorProps) => {
         onModeChange,
         onAttributesChange,
         onVariantsChange,
+        parametricDraft,
+        onParametricDraftChange,
+        allowedModes,
     } = props
     const { t } = useTranslation()
+
+    const isUrucortinas = clientConfig.slug === 'urucortinas'
+
+    const availableModes = useMemo(() => {
+        const source = Array.isArray(allowedModes) && allowedModes.length ? allowedModes : ALL_MODES
+        const unique = Array.from(new Set(source))
+        const filtered = unique.filter((item): item is ProductMode => ALL_MODES.includes(item))
+        if (isUrucortinas) {
+            return filtered
+        }
+        return filtered.filter((item) => item !== 'parametric')
+    }, [allowedModes, isUrucortinas])
+
+    const currentMode = useMemo<ProductMode>(() => {
+        if (availableModes.includes(mode)) {
+            return mode
+        }
+        return availableModes[0] ?? 'simple'
+    }, [availableModes, mode])
+
+    useEffect(() => {
+        if (!availableModes.includes(mode) && availableModes.length) {
+            onModeChange(availableModes[0])
+        }
+    }, [availableModes, mode, onModeChange])
+
+    const handleModeSelect = useCallback(
+        (nextMode: ProductMode) => {
+            if (!availableModes.includes(nextMode) || nextMode === currentMode) {
+                return
+            }
+            onModeChange(nextMode)
+        },
+        [availableModes, currentMode, onModeChange],
+    )
 
     const attributeText = useMemo(
         () =>
@@ -656,55 +699,67 @@ const VariantConfigurator = (props: VariantConfiguratorProps) => {
     }))
 
     const activeAttributes = sortAttributes(attributes)
+    const modeButtons = useMemo(
+        () =>
+            [
+                {
+                    value: 'simple' as ProductMode,
+                    label: t('sales.productForm.variants.mode.simple', {
+                        defaultValue: 'Producto simple',
+                    }),
+                },
+                {
+                    value: 'variable' as ProductMode,
+                    label: t('sales.productForm.variants.mode.variable', {
+                        defaultValue: 'Producto variable',
+                    }),
+                },
+                {
+                    value: 'parametric' as ProductMode,
+                    label: t('sales.productForm.variants.mode.parametric', {
+                        defaultValue: 'Producto paramétrico',
+                    }),
+                },
+            ].filter((entry) => availableModes.includes(entry.value)),
+        [availableModes, t],
+    )
+
+    const isParametricOnly = availableModes.length === 1 && availableModes[0] === 'parametric'
+    const modeDescription = isParametricOnly
+        ? t('sales.productForm.parametric.drawerDescription', {
+              defaultValue: 'Administrá matrices de precios y compatibilidades para productos paramétricos.',
+          })
+        : t('sales.productForm.variants.description', {
+              defaultValue:
+                  'Configurá un producto variable para ofrecer combinaciones por color, talle o material.',
+          })
 
     return (
         <AdaptableCard divider className="mb-4">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                 <div>
                     <h5>{t('sales.productForm.variants.title', { defaultValue: 'Variantes del producto' })}</h5>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {t('sales.productForm.variants.description', {
-                            defaultValue:
-                                'Configurá un producto variable para ofrecer combinaciones por color, talle o material.',
-                        })}
-                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{modeDescription}</p>
                 </div>
-                <div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                        <Button
-                            type="button"
-                            variant={mode === 'simple' ? 'solid' : 'plain'}
-                            onClick={() => onModeChange('simple')}
-                            size="sm"
-                        >
-                            {t('sales.productForm.variants.mode.simple', {
-                                defaultValue: 'Producto simple',
-                            })}
-                        </Button>
-                        <Button
-                            type="button"
-                            variant={mode === 'variable' ? 'solid' : 'plain'}
-                            onClick={() => onModeChange('variable')}
-                            size="sm"
-                        >
-                            {t('sales.productForm.variants.mode.variable', {
-                                defaultValue: 'Producto variable',
-                            })}
-                        </Button>
-                        <Button
-                            type="button"
-                            variant={mode === 'parametric' ? 'solid' : 'plain'}
-                            onClick={() => onModeChange('parametric')}
-                            size="sm"
-                        >
-                            {t('sales.productForm.variants.mode.parametric', {
-                                defaultValue: 'Producto paramétrico',
-                            })}
-                        </Button>
+                {modeButtons.length > 1 && (
+                    <div>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                            {modeButtons.map((button) => (
+                                <Button
+                                    key={button.value}
+                                    type="button"
+                                    variant={currentMode === button.value ? 'solid' : 'plain'}
+                                    onClick={() => handleModeSelect(button.value)}
+                                    size="sm"
+                                >
+                                    {button.label}
+                                </Button>
+                            ))}
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
-            {mode === 'variable' && (
+            {currentMode === 'variable' && (
                 <div className="flex flex-col gap-6 mt-6">
                     <div className="flex flex-col gap-3">
                         <h6 className="font-semibold text-sm">
@@ -1275,27 +1330,14 @@ const VariantConfigurator = (props: VariantConfiguratorProps) => {
                     </div>
                 </div>
             )}
-            {mode === 'parametric' && (
+            {currentMode === 'parametric' && isUrucortinas && (
                 <div className="mt-6">
-                    {productId > 0 ? (
-                        <ParametricConfigurator productId={productId} currency={currency} />
-                    ) : (
-                        <Alert type="info" showIcon>
-                            <div className="flex flex-col gap-1">
-                                <span className="font-semibold">
-                                    {t('sales.productForm.parametric.requiresProduct', {
-                                        defaultValue: 'Guardá el producto para configurar precios paramétricos.',
-                                    })}
-                                </span>
-                                <span className="text-sm text-gray-600 dark:text-gray-300">
-                                    {t('sales.productForm.parametric.requiresProductDetail', {
-                                        defaultValue:
-                                            'Creá el producto primero y luego podrás importar referencias y ajustar el motor de precios.',
-                                    })}
-                                </span>
-                            </div>
-                        </Alert>
-                    )}
+                    <ParametricConfigurator
+                        productId={productId}
+                        currency={currency}
+                        draft={parametricDraft}
+                        onDraftChange={onParametricDraftChange}
+                    />
                 </div>
             )}
             {selectedVariantForImages && (

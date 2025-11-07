@@ -1,0 +1,128 @@
+{
+  "meta": {
+    "schema_name": "esquema_parametrico",
+    "version": "2025-11-06",
+    "author": "AberturIA",
+    "description": "Formato paramétrico oficial para procesamiento de precios y cotizaciones de aberturas (PDF, Chats, Prompts).",
+    "reference_date": "2025-11-06"
+  },
+  "columns": [
+    {
+      "name": "product_name",
+      "type": "string",
+      "description": "Nombre del producto paramétrico. Si se omite, el sistema lo genera automáticamente concatenando family_id + serie + medidas (ej. \"Ventana Corrediza 2H2G Probba 2650x2100\")."
+    },
+    {
+      "name": "product_code",
+      "type": "string",
+      "description": "Código o SKU del producto. Si no se indica, se genera automáticamente."
+    },
+    {
+      "name": "category_id",
+      "type": "integer",
+      "description": "ID numérico de la categoría donde se creará el producto. Si se omite, se usa el árbol Aberturas > {serie}."
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "description": "Descripción general del producto. Puede quedar vacía."
+    },
+    {
+      "name": "published",
+      "type": "boolean",
+      "description": "Indica si el producto queda publicado luego de la importación. Si se omite, se usa FALSE."
+    },
+    {
+      "name": "family_id",
+      "type": "string",
+      "description": "Tipo de abertura normalizado (ej. VENTANA_CORREDIZA_2H2G, PUERTA_BATIENTE_1H, PAÑO_FIJO)"
+    },
+    {
+      "name": "serie",
+      "type": "string",
+      "description": "Serie de fabricación (20, 25, 30, PROBBA, GALA45, SUMMA, LP, etc.)"
+    },
+    {
+      "name": "color",
+      "type": "string",
+      "description": "Color normalizado (NATURAL, BLANCO, NEGRO, MARRÓN, ANOLOC, COLOR MADERA)"
+    },
+    {
+      "name": "vidrio",
+      "type": "string",
+      "description": "Tipo de vidrio (3MM, 4MM, 5MM, 6MM, DVH(4/9/5), DVH(5/9/6))"
+    },
+    {
+      "name": "width_mm",
+      "type": "integer",
+      "description": "Ancho de la abertura en milímetros"
+    },
+    {
+      "name": "height_mm",
+      "type": "integer",
+      "description": "Alto de la abertura en milímetros"
+    },
+    {
+      "name": "has_mosquitero",
+      "type": "boolean",
+      "description": "true si incluye mosquitero"
+    },
+    {
+      "name": "has_shutter_monoblock",
+      "type": "boolean",
+      "description": "true si incluye monoblock o cortina"
+    },
+    {
+      "name": "shutter_system",
+      "type": "string",
+      "description": "Sistema de cortina (PVC o ALUMINIO), vacío si no aplica"
+    },
+    {
+      "name": "price",
+      "type": "float",
+      "description": "Precio unitario en la moneda indicada"
+    },
+    {
+      "name": "currency",
+      "type": "string",
+      "description": "Moneda del registro paramétrico (USD por defecto). El producto adopta la moneda del primer registro."
+    },
+    {
+      "name": "detalle_snapshot",
+      "type": "string",
+      "description": "Descripción legible orientada a usuario. Contiene información combinada de atributos y fuente textual."
+    },
+    {
+      "name": "source",
+      "type": "string",
+      "description": "Referencia de origen del dato (PDF, Chat, Prompt, etc.)"
+    },
+    {
+      "name": "reference_date",
+      "type": "date",
+      "description": "Fecha ISO de referencia del registro (YYYY-MM-DD)"
+    }
+  ],
+  "rules": {
+    "material": "Si no se especifica se asume ALUMINIO.",
+    "source_generation": {
+      "PDF": "Usa el nombre del archivo como referencia.",
+      "CHAT": "Usa el contacto y la fecha del mensaje.",
+      "PROMPT": "Usa la etiqueta 'Solicitud directa por usuario (prompt)'."
+    },
+    "defaults": {
+      "currency": "USD",
+      "reference_date": "fecha actual si no se especifica",
+      "published": false,
+      "unit_of_measure": "UNIT (no es necesario incluir la columna)",
+      "description": "si se omite queda vacía"
+    },
+    "notes": [
+      "Cada fila describe una combinación exacta de atributos (serie/color/vidrio/medidas/extras).",
+      "Las combinaciones con Mosquitero/Monoblock se fusionan automáticamente para generar la matriz en formato \"wide\".",
+      "Columna `detalle_snapshot` es orientada a usuario final, mientras que `source` es técnica para auditoría.",
+      "El valor `price` del CSV se toma como costo base; el precio de venta del producto se calcula automáticamente aplicando un 25% adicional.",
+      "Los productos importados se crean con stock permanente habilitado por defecto."
+    ]
+  }
+}

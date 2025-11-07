@@ -103,7 +103,19 @@ export class StorefrontController {
   @Post('products/:id/parametric-quote')
   quoteParametric(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { width: number | string; height: number | string; series: string; color?: string; glass?: string; mosquitoNet?: boolean; monoblock?: { enabled: boolean; material?: string; color?: string }; currency?: string },
+    @Body()
+    body: {
+      familyId?: string
+      serie: string
+      material: string
+      color: string
+      vidrio: string
+      widthMm: number
+      heightMm: number
+      hasMosquitero: boolean
+      hasShutterMonoblock: boolean
+      shutterMaterial?: string
+    },
   ) {
     return this.storefront.quoteParametricProduct({
       productId: id,

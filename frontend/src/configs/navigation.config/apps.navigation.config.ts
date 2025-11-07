@@ -170,14 +170,12 @@ const productsSubMenu: NavigationTree[] = [
     },
 ]
 
-if (hasParametricProducts) {
+if (hasParametricProducts && !isUrucortinas) {
     productsSubMenu.push({
         key: 'appsProducts.parametric',
         path: `${APP_PREFIX_PATH}/products/parametric`,
-        title: isUrucortinas ? 'Aberturas' : 'Parametric Products',
-        translateKey: isUrucortinas
-            ? 'nav.appsProducts.aberturas'
-            : 'nav.appsProducts.parametric',
+        title: 'Parametric Products',
+        translateKey: 'nav.appsProducts.parametric',
         icon: '',
         type: NAV_ITEM_TYPE_ITEM,
         authority: getRolesForFeature(FEATURES.PRODUCTS),
@@ -195,6 +193,53 @@ productsSubMenu.push({
     authority: getRolesForFeature(FEATURES.PRODUCTS),
     subMenu: [],
 })
+
+let aberturasNavigation: NavigationTree | null = null
+
+if (isUrucortinas && hasParametricProducts) {
+    const aberturasBasePath = `${APP_PREFIX_PATH}/aberturas`
+    aberturasNavigation = {
+        key: 'apps.aberturas',
+        path: '',
+        title: 'Aberturas',
+        translateKey: 'nav.appsAberturas.title',
+        icon: 'products',
+        type: NAV_ITEM_TYPE_COLLAPSE,
+        authority: getRolesForFeature(FEATURES.PRODUCTS),
+        subMenu: [
+            {
+                key: 'appsAberturas.list',
+                path: `${aberturasBasePath}/list`,
+                title: 'Aberturas List',
+                translateKey: 'nav.appsAberturas.list',
+                icon: '',
+                type: NAV_ITEM_TYPE_ITEM,
+                authority: getRolesForFeature(FEATURES.PRODUCTS),
+                subMenu: [],
+            },
+            {
+                key: 'appsAberturas.quote',
+                path: `${aberturasBasePath}/quote`,
+                title: 'Presupuestar Aberturas',
+                translateKey: 'nav.appsAberturas.quote',
+                icon: '',
+                type: NAV_ITEM_TYPE_ITEM,
+                authority: getRolesForFeature(FEATURES.PRODUCTS),
+                subMenu: [],
+            },
+            {
+                key: 'appsAberturas.config',
+                path: `${aberturasBasePath}/config`,
+                title: 'Configuración',
+                translateKey: 'nav.appsAberturas.config',
+                icon: '',
+                type: NAV_ITEM_TYPE_ITEM,
+                authority: getRolesForFeature(FEATURES.PRODUCTS),
+                subMenu: [],
+            },
+        ],
+    }
+}
 
 const appsNavigationConfig: NavigationTree[] = [
     {
@@ -260,6 +305,7 @@ const appsNavigationConfig: NavigationTree[] = [
                 authority: getRolesForFeature(FEATURES.PRODUCTS),
                 subMenu: productsSubMenu,
             },
+            ...(aberturasNavigation ? [aberturasNavigation] : []),
             // Agenda
             {
                 key: 'apps.calendar',
@@ -447,6 +493,20 @@ const appsNavigationConfig: NavigationTree[] = [
                         authority: getRolesForFeature(FEATURES.SETTINGS),
                         subMenu: [],
                     },
+                    ...(isUrucortinas
+                        ? [
+                              {
+                                  key: 'appsSettings.aberturasGlossary',
+                                  path: `${APP_PREFIX_PATH}/settings/aberturas`,
+                                  title: 'Aberturas',
+                                  translateKey: 'nav.appsSettings.aberturas',
+                                  icon: '',
+                                  type: NAV_ITEM_TYPE_ITEM,
+                                  authority: getRolesForFeature(FEATURES.SETTINGS),
+                                  subMenu: [],
+                              },
+                          ]
+                        : []),
                     {
                         key: 'appsSettings.email',
                         path: `${APP_PREFIX_PATH}/settings/email/config`,

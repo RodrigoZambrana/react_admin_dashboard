@@ -841,12 +841,18 @@ const OrderNew = ({
               defaultValue: '(Opcional)',
           })}`
 
+    type CreateProductResponse = {
+        ok: boolean
+        productId: number
+    }
+
     const addProduct = async (data: ProductFormModel) => {
-        const response = await apiCreateSalesProduct<
-            boolean,
-            ProductFormModel
-        >(data)
-        return response.data
+        const response = await apiCreateSalesProduct<CreateProductResponse | boolean, ProductFormModel>(data)
+        const result = response.data
+        if (typeof result === 'object' && result !== null && 'ok' in result) {
+            return Boolean((result as CreateProductResponse).ok)
+        }
+        return Boolean(result)
     }
 
     const closeNewProductDrawer = () => {
