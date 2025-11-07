@@ -1484,8 +1484,27 @@
         "color": "Color",
         "mosquitero": "Mosquito net",
         "monoblock": "Monoblock",
+        "options": "Options",
         "width": "Width (mm)",
         "height": "Height (mm)"
+      },
+      "options": {
+        "mosquitero": "Mosquito net",
+        "shutters": "Shutters",
+        "noShutters": "No shutter",
+        "genericShutter": "Generic"
+      },
+      "tooltips": {
+        "mosquitero": {
+          "baseUnavailable": "This product has no mosquito net price.",
+          "selectedUnavailable": "{{material}} has no mosquito net price.",
+          "comboLocked": "This product only has mosquito net + shutter pricing."
+        },
+        "shutter": {
+          "noPrice": "There is no price for this shutter option.",
+          "requiresMosquitero": "Disable the mosquito net to use this shutter option.",
+          "comboLocked": "This product only has shutter + mosquito net combos."
+        }
       }
     },
     "orderDetails": {

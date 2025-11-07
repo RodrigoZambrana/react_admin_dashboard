@@ -664,15 +664,31 @@ export class ParametricPricingService {
       source: params.source,
       referenceDate: params.referenceDate,
     }
-    const firstOption = Array.from(shutterOptions.entries())[0]
-    if (firstOption) {
-      const [, option] = firstOption
-      baseRow.hasMonoblockOption = true
-      baseRow.priceMonoblock = option.price ?? null
-      baseRow.priceMonoblockMosquitero = option.priceMosq ?? null
-      baseRow.shutterMaterial = firstOption[0]
-    }
     rows.push(this.enrichMatrixRow(baseRow, params.sourceSystem))
+
+    shutterOptions.forEach((option, label) => {
+      const optionPrice = option.price ?? null
+      const optionMosqPrice = option.priceMosq ?? null
+      if (
+        (optionPrice === null || optionPrice <= 0) &&
+        (optionMosqPrice === null || optionMosqPrice <= 0)
+      ) {
+        return
+      }
+      const optionRow: ParametricMatrixRow = {
+        ...baseRow,
+        hasShutterMonoblock: true,
+        shutterMaterial: label,
+        price: optionPrice ?? optionMosqPrice ?? basePrice ?? params.priceMosquitero ?? 0,
+        priceMonoblock: optionPrice,
+        priceMonoblockMosquitero: optionMosqPrice,
+        hasMonoblockOption: true,
+        hasMosquiteroOption: baseRow.hasMosquiteroOption || Boolean(optionMosqPrice && optionMosqPrice > 0),
+        hasMosquitero: Boolean(optionMosqPrice && optionMosqPrice > 0),
+      }
+      rows.push(this.enrichMatrixRow(optionRow, params.sourceSystem))
+    })
+
     return rows
   }
 
@@ -1121,9 +1137,6 @@ export class ParametricPricingService {
             vidrio: variant.vidrio,
             widthMm: variant.widthMm,
             heightMm: variant.heightMm,
-            hasMosquitero: Boolean(variant.hasMosquitero),
-            hasShutterMonoblock: variant.hasShutterMonoblock,
-            shutterSystem: variant.shutterMaterial,
           })
           if (!productGroups.has(productKey)) {
             productGroups.set(productKey, {
@@ -1414,16 +1427,7 @@ export class ParametricPricingService {
       Number.isFinite(widthMm) && Number.isFinite(heightMm) && widthMm > 0 && heightMm > 0
         ? `${widthMm}x${heightMm}`
         : ''
-    const extras: string[] = []
-    if (hasMosquitero) {
-      extras.push('c/Mosquitero')
-    }
-    if (hasShutterMonoblock) {
-      const shutterLabel = this.prettifyLabel(shutterSystem) || 'Monoblock'
-      extras.push(`+ Monoblock ${shutterLabel}`)
-    }
-    const extrasLabel = extras.join(' ')
-    return [family, serieLabel, colorLabel, glassLabel, sizeLabel, extrasLabel].filter(Boolean).join(' ').trim()
+    return [family, serieLabel, colorLabel, glassLabel, sizeLabel].filter(Boolean).join(' ').trim()
   }
 
   private buildProductGroupingKey(params: {
@@ -1434,26 +1438,19 @@ export class ParametricPricingService {
     vidrio: string
     widthMm: number
     heightMm: number
-    hasMosquitero: boolean
-    hasShutterMonoblock: boolean
-    shutterSystem: string
   }) {
     const normalize = (value?: string | null) => this.normalizeString(value ?? '').toLowerCase()
     const dimension = `${Math.round(Number(params.widthMm) || 0)}x${Math.round(
       Number(params.heightMm) || 0,
     )}`
-    const shutterToken = params.hasShutterMonoblock
-      ? `shutter:1:${normalize(params.shutterSystem) || 'default'}`
-      : 'shutter:0'
     const tokens = [
+      params.productCode ? normalize(params.productCode) : null,
       normalize(params.familyId) || 'family',
       normalize(params.serie) || 'serie',
       dimension,
       normalize(params.color) || 'color',
       normalize(params.vidrio) || 'glass',
-      params.hasMosquitero ? 'mosq:1' : 'mosq:0',
-      shutterToken,
-    ]
+    ].filter(Boolean)
     return tokens.join('::')
   }
 

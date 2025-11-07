@@ -1453,8 +1453,27 @@
         "color": "Color",
         "mosquitero": "Mosquitero",
         "monoblock": "Monoblock",
+        "options": "Opciones",
         "width": "Ancho (mm)",
         "height": "Alto (mm)"
+      },
+      "options": {
+        "mosquitero": "Mosquitero",
+        "shutters": "Persianas",
+        "noShutters": "Sin persiana",
+        "genericShutter": "Genérica"
+      },
+      "tooltips": {
+        "mosquitero": {
+          "baseUnavailable": "Este producto no tiene precio con mosquitero.",
+          "selectedUnavailable": "{{material}} no tiene precio con mosquitero.",
+          "comboLocked": "Esta combinación solo está disponible con mosquitero y persiana."
+        },
+        "shutter": {
+          "noPrice": "No hay precio para esta persiana.",
+          "requiresMosquitero": "Desactivá el mosquitero para usar esta persiana.",
+          "comboLocked": "Solo hay combos de persiana + mosquitero."
+        }
       }
     },
     "orderDetails": {
