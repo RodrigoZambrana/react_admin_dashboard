@@ -95,6 +95,19 @@ const ATTRIBUTE_DEFAULT_LABELS: Record<ProductAttributeType, string> = {
 type AttributeInput = NonNullable<UpsertProductDto['attributes']>[number]
 type VariantInput = NonNullable<UpsertProductDto['variants']>[number]
 
+type ParametricPricingSummary = {
+  currency?: string
+  basePrice?: number | null
+  mosquiteroPrice?: number | null
+  shutterOptions: Record<
+    string,
+    {
+      price?: number | null
+      priceMosq?: number | null
+    }
+  >
+}
+
 type ParametricSummary = {
   colors: Set<string>
   glasses: Set<string>
@@ -105,6 +118,7 @@ type ParametricSummary = {
   mosquitero: boolean
   monoblock: boolean
   shutterMaterials: Set<string>
+  pricing?: ParametricPricingSummary
 }
 
 const SALES_UNIT_KEYWORDS: Record<SalesUnit, string[]> = {
@@ -815,7 +829,14 @@ export class SalesController {
         hasMosquitero: true,
         hasMosquiteroOption: true,
         hasMonoblockOption: true,
+        hasShutterMonoblock: true,
         shutterSystem: true,
+        price: true,
+        priceBase: true,
+        priceMosquitero: true,
+        priceMonoblock: true,
+        priceMonoblockMosquitero: true,
+        currency: true,
       },
     })
     for (const row of matrixRows) {
@@ -831,6 +852,7 @@ export class SalesController {
           mosquitero: false,
           monoblock: false,
           shutterMaterials: new Set<string>(),
+          pricing: undefined,
         }
       const family = this.safeTrim(row.familyId)
       const serie = this.safeTrim(row.serie)
@@ -859,11 +881,54 @@ export class SalesController {
       if (row.hasMosquitero || row.hasMosquiteroOption) {
         entry.mosquitero = true
       }
+      const priceBase =
+        !row.hasShutterMonoblock && !row.hasMosquitero
+          ? decimalToNumber(row.priceBase ?? row.price)
+          : 0
+      const priceMosq =
+        row.hasMosquitero && !row.hasShutterMonoblock
+          ? decimalToNumber(row.priceMosquitero)
+          : 0
+      const priceMonoblock = decimalToNumber(row.priceMonoblock)
+      const priceMonoblockMosq = decimalToNumber(row.priceMonoblockMosquitero)
+      if (!entry.pricing) {
+        entry.pricing = {
+          currency: row.currency || 'USD',
+          basePrice: priceBase > 0 ? priceBase : undefined,
+          mosquiteroPrice: priceMosq > 0 ? priceMosq : undefined,
+          shutterOptions: {},
+        }
+      } else {
+        if (!entry.pricing.currency && row.currency) {
+          entry.pricing.currency = row.currency
+        }
+        if (priceBase > 0) {
+          entry.pricing.basePrice = priceBase
+        }
+        if (priceMosq > 0) {
+          entry.pricing.mosquiteroPrice = priceMosq
+        }
+      }
       if (row.hasMonoblockOption) {
         entry.monoblock = true
-        const shutter = this.safeTrim(row.shutterSystem)
+      }
+      const shutter = this.safeTrim(row.shutterSystem) || 'GENERIC'
+      const shouldRegisterShutter =
+        (row.hasShutterMonoblock || row.hasMonoblockOption) &&
+        (priceMonoblock > 0 || priceMonoblockMosq > 0)
+      if (shouldRegisterShutter) {
         if (shutter) {
           entry.shutterMaterials.add(shutter)
+        }
+        entry.pricing = entry.pricing ?? {
+          currency: row.currency || 'USD',
+          basePrice: priceBase > 0 ? priceBase : undefined,
+          mosquiteroPrice: priceMosq > 0 ? priceMosq : undefined,
+          shutterOptions: {},
+        }
+        entry.pricing.shutterOptions[shutter || 'GENERIC'] = {
+          price: priceMonoblock > 0 ? priceMonoblock : null,
+          priceMosq: priceMonoblockMosq > 0 ? priceMonoblockMosq : null,
         }
       }
       summaryMap.set(row.productId, entry)
@@ -1636,6 +1701,7 @@ export class SalesController {
         mosquiteroAvailable: Boolean(summary?.mosquitero),
         monoblockAvailable: Boolean(summary?.monoblock),
         shutterMaterialSummary: this.buildSummaryField(summary?.shutterMaterials),
+        parametricPricing: summary?.pricing ?? null,
         parametricSku: derivedSku,
         mode: p.mode,
       }

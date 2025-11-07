@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Avatar from '@/components/ui/Avatar'
 import { apiPutSalesProduct } from '@/services/SalesService'
@@ -6,6 +6,8 @@ import DataTable from '@/components/shared/DataTable'
 import { HiOutlinePencil, HiOutlineTrash } from 'react-icons/hi'
 import { FiPackage } from 'react-icons/fi'
 import Switcher from '@/components/ui/Switcher'
+import Button from '@/components/ui/Button'
+import Tooltip from '@/components/ui/Tooltip'
 import {
     getProducts,
     setTableData,
@@ -36,6 +38,18 @@ import {
     type SalesUnit,
 } from '@/constants/product.constant'
 
+type ParametricShutterOption = {
+    price?: number | null
+    priceMosq?: number | null
+}
+
+type ParametricPricing = {
+    currency?: string
+    basePrice?: number | null
+    mosquiteroPrice?: number | null
+    shutterOptions?: Record<string, ParametricShutterOption>
+}
+
 type Product = {
     id: string
     name: string
@@ -59,7 +73,24 @@ type Product = {
     colorSummary?: string
     glassSummary?: string
     mosquiteroAvailable?: boolean
+    monoblockAvailable?: boolean
+    shutterMaterialSummary?: string
     parametricSku?: string
+    parametricPricing?: ParametricPricing | null
+}
+
+type RowOptionState = {
+    mosquitero: boolean
+    shutterMaterial?: string
+}
+
+type AvailabilityInfo = {
+    comboOnly: boolean
+    comboMaterials: string[]
+    baseAvailable: boolean
+    mosqAvailable: boolean
+    standaloneShutterMaterials: string[]
+    requiresSelection: boolean
 }
 
 const ActionColumn = ({ row }: { row: Product }) => {
@@ -175,6 +206,427 @@ const ProductTable = () => {
                 fallbackCurrency,
             }),
         [fallbackCurrency, i18n.language],
+    )
+
+    const [optionSelections, setOptionSelections] = useState<Record<string, RowOptionState>>({})
+
+    const evaluateAvailability = useCallback((row: Product): AvailabilityInfo => {
+        const pricing = row.parametricPricing
+        if (!pricing) {
+            return {
+                comboOnly: false,
+                comboMaterials: [],
+                baseAvailable: false,
+                mosqAvailable: false,
+                standaloneShutterMaterials: [],
+                requiresSelection: false,
+            }
+        }
+        const baseAvailable = Number(pricing.basePrice ?? 0) > 0
+        const mosqAvailable = Number(pricing.mosquiteroPrice ?? 0) > 0
+        const shutterDetails = Object.entries(pricing.shutterOptions ?? {})
+            .map(([material, option]) => {
+                const standalone = Number(option?.price ?? 0)
+                const combo = Number(option?.priceMosq ?? 0)
+                return { material, standalone, combo }
+            })
+            .filter((entry) => entry.standalone > 0 || entry.combo > 0)
+
+        const standaloneShutterMaterials = shutterDetails
+            .filter((entry) => entry.standalone > 0)
+            .map((entry) => entry.material)
+        const comboMaterials = shutterDetails
+            .filter((entry) => entry.combo > 0 && entry.standalone <= 0)
+            .map((entry) => entry.material)
+
+        const hasStandaloneShutter = standaloneShutterMaterials.length > 0
+        const comboOnly =
+            !baseAvailable && !mosqAvailable && !hasStandaloneShutter && comboMaterials.length > 0
+        const requiresSelection = !baseAvailable && (mosqAvailable || shutterDetails.length > 0)
+
+        return {
+            comboOnly,
+            comboMaterials,
+            baseAvailable,
+            mosqAvailable,
+            standaloneShutterMaterials,
+            requiresSelection,
+        }
+    }, [])
+
+    const deriveDefaultSelection = useCallback(
+        (row: Product, availabilityOverride?: AvailabilityInfo): RowOptionState => {
+            const availability = availabilityOverride ?? evaluateAvailability(row)
+            if (availability.comboOnly && availability.comboMaterials.length) {
+                return {
+                    mosquitero: true,
+                    shutterMaterial: availability.comboMaterials[0],
+                }
+            }
+            if (availability.requiresSelection) {
+                if (availability.mosqAvailable) {
+                    return { mosquitero: true }
+                }
+                if (availability.standaloneShutterMaterials.length) {
+                    return {
+                        mosquitero: false,
+                        shutterMaterial: availability.standaloneShutterMaterials[0],
+                    }
+                }
+            }
+            return { mosquitero: false }
+        },
+        [evaluateAvailability],
+    )
+
+    const normalizeSelectionForRow = useCallback(
+        (row: Product, selection?: RowOptionState | null): RowOptionState => {
+            const availability = evaluateAvailability(row)
+            const pricing = row.parametricPricing
+
+            const isValid = (candidate?: RowOptionState | null) => {
+                if (!candidate) {
+                    return false
+                }
+                if (availability.comboOnly) {
+                    return (
+                        candidate.mosquitero &&
+                        Boolean(candidate.shutterMaterial) &&
+                        availability.comboMaterials.includes(candidate.shutterMaterial as string)
+                    )
+                }
+                if (candidate.shutterMaterial) {
+                    const option = pricing?.shutterOptions?.[candidate.shutterMaterial]
+                    if (!option) {
+                        return false
+                    }
+                    const standalone = Number(option.price ?? 0)
+                    const combo = Number(option.priceMosq ?? 0)
+                    if (candidate.mosquitero) {
+                        return combo > 0 || availability.mosqAvailable
+                    }
+                    return standalone > 0
+                }
+                if (candidate.mosquitero) {
+                    return availability.mosqAvailable
+                }
+                return availability.baseAvailable || !availability.requiresSelection
+            }
+
+            if (isValid(selection)) {
+                return selection as RowOptionState
+            }
+            return deriveDefaultSelection(row, availability)
+        },
+        [deriveDefaultSelection, evaluateAvailability],
+    )
+
+    useEffect(() => {
+        setOptionSelections((prev) => {
+            const next: Record<string, RowOptionState> = {}
+            data.forEach((row) => {
+                next[row.id] = normalizeSelectionForRow(row, prev[row.id])
+            })
+            return next
+        })
+    }, [data, normalizeSelectionForRow])
+
+    const getSelectionForRow = useCallback(
+        (row: Product): RowOptionState =>
+            normalizeSelectionForRow(row, optionSelections[row.id]),
+        [normalizeSelectionForRow, optionSelections],
+    )
+
+    const computeEffectivePrices = useCallback(
+        (row: Product) => {
+            const selection = getSelectionForRow(row)
+            const pricing = row.parametricPricing
+            let targetSale = Number(row.salePrice ?? 0)
+            let referenceSale = typeof pricing?.basePrice === 'number' ? pricing.basePrice ?? row.salePrice ?? 0 : row.salePrice ?? 0
+            if (pricing) {
+                if (selection.shutterMaterial) {
+                    const option = pricing.shutterOptions?.[selection.shutterMaterial]
+                    if (selection.mosquitero && option?.priceMosq) {
+                        targetSale = Number(option.priceMosq)
+                    } else if (!selection.mosquitero && option?.price) {
+                        targetSale = Number(option.price)
+                    }
+                } else if (selection.mosquitero && pricing.mosquiteroPrice) {
+                    targetSale = Number(pricing.mosquiteroPrice)
+                } else if (pricing.basePrice) {
+                    targetSale = Number(pricing.basePrice)
+                }
+                if (!referenceSale || referenceSale <= 0) {
+                    referenceSale = pricing.basePrice ?? row.salePrice ?? 0
+                }
+            }
+            const baseCost = Number(row.costPrice ?? 0)
+            const saleDelta = targetSale - Number(referenceSale ?? 0)
+            const targetCost = baseCost + (Number.isFinite(saleDelta) ? saleDelta : 0)
+            const currency = pricing?.currency || row.currency
+            return {
+                sale: targetSale,
+                cost: targetCost,
+                currency,
+            }
+        },
+        [getSelectionForRow],
+    )
+
+    const renderMosquiteroControl = useCallback(
+        (row: Product) => {
+            const selection = getSelectionForRow(row)
+            const pricing = row.parametricPricing
+            const availability = evaluateAvailability(row)
+            const effectiveMosq = availability.comboOnly ? true : selection.mosquitero
+            const selectedShutter = selection.shutterMaterial
+            const selectedOption = selectedShutter
+                ? pricing?.shutterOptions?.[selectedShutter]
+                : undefined
+            const baseMosqAvailable = Boolean(
+                pricing?.mosquiteroPrice && pricing.mosquiteroPrice > 0,
+            )
+            const selectedMosqAvailable = Boolean(
+                selectedOption?.priceMosq && selectedOption.priceMosq > 0,
+            )
+            const mosqEnabledForSelection = selectedShutter
+                ? selectedMosqAvailable
+                : baseMosqAvailable
+            const lockedByCombo = availability.comboOnly
+            const priceUnavailable =
+                !mosqEnabledForSelection ||
+                (availability.requiresSelection && !availability.mosqAvailable && !selectedMosqAvailable)
+            const mosqDisabled = !lockedByCombo && priceUnavailable
+            const mosqTooltip =
+                lockedByCombo
+                    ? t('sales.productList.tooltips.mosquitero.comboLocked', {
+                          defaultValue: 'This product only has mosquito net + shutter pricing.',
+                      })
+                    : mosqDisabled && selectedShutter
+                    ? t('sales.productList.tooltips.mosquitero.selectedUnavailable', {
+                          material:
+                              selectedShutter?.trim() ||
+                              t('sales.productList.options.genericShutter', { defaultValue: 'Generic' }),
+                      })
+                    : mosqDisabled
+                        ? t('sales.productList.tooltips.mosquitero.baseUnavailable', {
+                              defaultValue: 'This product has no mosquito net price.',
+                          })
+                        : undefined
+
+            const handleMosqToggle = (value: boolean) => {
+                if (lockedByCombo) {
+                    return
+                }
+                if (mosqDisabled && value) {
+                    return
+                }
+                setOptionSelections((prev) => {
+                    const current = prev[row.id] ?? { mosquitero: false }
+                    if (!value && !availability.baseAvailable) {
+                        if (!current.shutterMaterial) {
+                            return prev
+                        }
+                        const option = pricing?.shutterOptions?.[current.shutterMaterial]
+                        if (!option || Number(option?.price ?? 0) <= 0) {
+                            return prev
+                        }
+                    }
+                    let nextShutter = current.shutterMaterial
+                    if (!value && current.shutterMaterial && pricing) {
+                        const option =
+                            pricing.shutterOptions?.[current.shutterMaterial]
+                        const requiresMosq =
+                            option &&
+                            (!option.price || option.price <= 0) &&
+                            option.priceMosq &&
+                            option.priceMosq > 0
+                        if (requiresMosq) {
+                            nextShutter = undefined
+                        }
+                    }
+                    return {
+                        ...prev,
+                        [row.id]: {
+                            ...current,
+                            mosquitero:
+                                !availability.baseAvailable && !value && !current.shutterMaterial
+                                    ? current.mosquitero
+                                    : value,
+                            shutterMaterial: nextShutter,
+                        },
+                    }
+                })
+            }
+
+            const switcher = (
+                <Switcher
+                    checked={effectiveMosq}
+                    onChange={handleMosqToggle}
+                    disabled={mosqDisabled}
+                    aria-label={t('sales.productList.options.mosquitero', {
+                        defaultValue: 'Mosquitero',
+                    })}
+                />
+            )
+
+            return (
+                <div className="flex items-center justify-center">
+                    {mosqTooltip ? (
+                        <Tooltip title={mosqTooltip}>
+                            <span className="inline-flex">{switcher}</span>
+                        </Tooltip>
+                    ) : (
+                        switcher
+                    )}
+                </div>
+            )
+        },
+        [evaluateAvailability, getSelectionForRow, optionSelections, setOptionSelections, t],
+    )
+
+    const renderShutterControls = useCallback(
+        (row: Product) => {
+            const selection = getSelectionForRow(row)
+            const pricing = row.parametricPricing
+            const shutterEntries = Object.entries(pricing?.shutterOptions ?? {})
+            const availability = evaluateAvailability(row)
+            const forcedMaterial =
+                availability.comboOnly && availability.comboMaterials.length
+                    ? availability.comboMaterials[0]
+                    : undefined
+            const effectiveShutter = availability.comboOnly
+                ? forcedMaterial ?? selection.shutterMaterial
+                : selection.shutterMaterial
+
+            const handleShutterToggle = (material: string, disabled: boolean) => {
+                if (disabled) {
+                    return
+                }
+                setOptionSelections((prev) => {
+                    const current = prev[row.id] ?? { mosquitero: false }
+                    const isSame = current.shutterMaterial === material
+                    const nextMaterial = isSame ? undefined : material
+                    const baseMosqAvailable = Boolean(
+                        pricing?.mosquiteroPrice && pricing.mosquiteroPrice > 0,
+                    )
+
+                    if (!nextMaterial) {
+                        if (availability.comboOnly) {
+                            return prev
+                        }
+                        if (!availability.baseAvailable && !current.mosquitero) {
+                            return prev
+                        }
+                        const canKeepMosq = baseMosqAvailable || current.mosquitero
+                        return {
+                            ...prev,
+                            [row.id]: {
+                                ...current,
+                                shutterMaterial: undefined,
+                                mosquitero: canKeepMosq ? current.mosquitero : false,
+                            },
+                        }
+                    }
+
+                    const nextOption = pricing?.shutterOptions?.[nextMaterial]
+                    const optionStandalonePrice = Number(nextOption?.price ?? 0)
+                    const optionComboPrice = Number(nextOption?.priceMosq ?? 0)
+                    const optionSupportsMosq = optionComboPrice > 0
+                    const optionRequiresMosq =
+                        optionStandalonePrice <= 0 && optionComboPrice > 0
+
+                    let nextMosq = current.mosquitero
+                    if (optionRequiresMosq) {
+                        nextMosq = true
+                    } else if (!optionSupportsMosq && nextMosq) {
+                        nextMosq = false
+                    }
+
+                    return {
+                        ...prev,
+                        [row.id]: {
+                            ...current,
+                            shutterMaterial: nextMaterial,
+                            mosquitero: availability.comboOnly ? true : nextMosq,
+                        },
+                    }
+                })
+            }
+
+            if (!shutterEntries.length) {
+                return (
+                    <div className="flex justify-center">
+                        <Button size="xs" disabled className="pointer-events-none">
+                            {t('sales.productList.options.noShutters', {
+                                defaultValue: 'Sin persiana',
+                            })}
+                        </Button>
+                    </div>
+                )
+            }
+
+            return (
+                <div className="flex flex-wrap gap-2">
+                    {shutterEntries.map(([material, option]) => {
+                        const label =
+                            material?.trim() ||
+                            t('sales.productList.options.genericShutter', {
+                                defaultValue: 'Genérica',
+                            })
+                        const standalonePrice = Number(option?.price ?? 0)
+                        const comboPrice = Number(option?.priceMosq ?? 0)
+                        const optionAvailable =
+                            standalonePrice > 0 || comboPrice > 0
+                        const mosqActive = availability.comboOnly ? true : selection.mosquitero
+                        const hardLocked = Boolean(forcedMaterial && forcedMaterial === material)
+                        const computedDisabled =
+                            !optionAvailable ||
+                            (mosqActive && comboPrice <= 0 && !hardLocked)
+                        let tooltipReason: string | undefined
+                        if (!optionAvailable) {
+                            tooltipReason = t('sales.productList.tooltips.shutter.noPrice', {
+                                defaultValue: 'No price available for this shutter option.',
+                            })
+                        } else if (mosqActive && comboPrice <= 0 && !hardLocked) {
+                            tooltipReason = t('sales.productList.tooltips.shutter.requiresMosquitero', {
+                                defaultValue: 'Disable the mosquito net to use this shutter option.',
+                            })
+                        } else if (hardLocked) {
+                            tooltipReason = t('sales.productList.tooltips.shutter.comboLocked', {
+                                defaultValue: 'Only shutter + mosquito net combos are available.',
+                            })
+                        }
+                        const active = selection.shutterMaterial === material
+                        const isActive = effectiveShutter === material
+                        const button = (
+                            <Button
+                                key={material || label}
+                                size="xs"
+                                variant={isActive ? 'solid' : 'twoTone'}
+                                disabled={computedDisabled || hardLocked}
+                                onClick={() =>
+                                    handleShutterToggle(
+                                        material,
+                                        computedDisabled || hardLocked,
+                                    )
+                                }
+                            >
+                                {label}
+                            </Button>
+                        )
+                        return tooltipReason ? (
+                            <Tooltip key={`${material || label}-tooltip`} title={tooltipReason}>
+                                <span className="inline-flex">{button}</span>
+                            </Tooltip>
+                        ) : (
+                            button
+                        )
+                    })}
+                </div>
+            )
+        },
+        [evaluateAvailability, getSelectionForRow, optionSelections, setOptionSelections, t],
     )
 
     const resolveStockStatus = useMemo(() => {
@@ -393,28 +845,12 @@ const ProductTable = () => {
                 {
                     header: t('sales.productList.columns.mosquitero', { defaultValue: 'Mosquitero' }),
                     accessorKey: 'mosquiteroAvailable',
-                    cell: (props) => {
-                        const available = Boolean(props.row.original.mosquiteroAvailable)
-                        return <span>{available ? t('common.yes', { defaultValue: 'Sí' }) : t('common.no', { defaultValue: 'No' })}</span>
-                    },
+                    cell: (props) => renderMosquiteroControl(props.row.original),
                 },
                 {
                     header: t('sales.productList.columns.monoblock', { defaultValue: 'Monoblock' }),
                     accessorKey: 'monoblockAvailable',
-                    cell: (props) => {
-                        const row = props.row.original
-                        const available = Boolean(row.monoblockAvailable)
-                        if (!available) {
-                            return <span>{t('common.no', { defaultValue: 'No' })}</span>
-                        }
-                        const details = row.shutterMaterialSummary?.trim()
-                        return (
-                            <span>
-                                {t('common.yes', { defaultValue: 'Sí' })}
-                                {details ? ` (${details})` : ''}
-                            </span>
-                        )
-                    },
+                    cell: (props) => renderShutterControls(props.row.original),
                 },
             )
         } else {
@@ -492,16 +928,18 @@ const ProductTable = () => {
                 header: t('text.columns.costPrice'),
                 accessorKey: 'costPrice',
                 cell: (props) => {
-                    const { costPrice, currency: rowCurrency } = props.row.original
-                    return <span>{formatCurrencyValue(costPrice, rowCurrency)}</span>
+                    const pricingValues = computeEffectivePrices(props.row.original)
+                    const currencyCode = pricingValues.currency || props.row.original.currency
+                    return <span>{formatCurrencyValue(pricingValues.cost, currencyCode)}</span>
                 },
             },
             {
                 header: t('text.columns.salePrice'),
                 accessorKey: 'salePrice',
                 cell: (props) => {
-                    const { salePrice, currency: rowCurrency } = props.row.original
-                    return <span>{formatCurrencyValue(salePrice, rowCurrency)}</span>
+                    const pricingValues = computeEffectivePrices(props.row.original)
+                    const currencyCode = pricingValues.currency || props.row.original.currency
+                    return <span>{formatCurrencyValue(pricingValues.sale, currencyCode)}</span>
                 },
             },
             {
@@ -512,7 +950,17 @@ const ProductTable = () => {
         )
 
         return cols
-    }, [fetchData, formatCurrencyValue, isParametric, resolveStockStatus, t, updateProductRow])
+    }, [
+        computeEffectivePrices,
+        fetchData,
+        formatCurrencyValue,
+        isParametric,
+        renderMosquiteroControl,
+        renderShutterControls,
+        resolveStockStatus,
+        t,
+        updateProductRow,
+    ])
 
     const onPaginationChange = (page: number) => {
         const newTableData = cloneDeep(tableData)

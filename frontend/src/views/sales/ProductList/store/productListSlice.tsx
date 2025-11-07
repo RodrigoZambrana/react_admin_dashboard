@@ -7,6 +7,18 @@ import type { TableQueries } from '@/@types/common'
 import type { SalesUnit } from '@/constants/product.constant'
 import type { ProductMode } from '@/views/sales/ProductForm/types'
 
+type ParametricShutterOption = {
+    price?: number | null
+    priceMosq?: number | null
+}
+
+type ParametricPricing = {
+    currency?: string
+    basePrice?: number | null
+    mosquiteroPrice?: number | null
+    shutterOptions?: Record<string, ParametricShutterOption>
+}
+
 type Product = {
     id: string
     name: string
@@ -32,6 +44,7 @@ type Product = {
     monoblockAvailable?: boolean
     shutterMaterialSummary?: string
     parametricSku?: string
+    parametricPricing?: ParametricPricing | null
 }
 
 type Products = Product[]
@@ -159,6 +172,7 @@ const productListSlice = createSlice({
                     mosquiteroAvailable: Boolean((item as any).mosquiteroAvailable),
                     monoblockAvailable: Boolean((item as any).monoblockAvailable),
                     shutterMaterialSummary: (item as any).shutterMaterialSummary ?? '',
+                    parametricPricing: (item as any).parametricPricing ?? null,
                     parametricSku: (item as any).parametricSku ?? '',
                 }))
                 const availableIds = new Set(
