@@ -102,6 +102,24 @@ export async function apiGetParametricMatrix<T>(productId: number) {
     })
 }
 
+export async function apiGetParametricSelectors<T>(productId: number) {
+    return ApiService.fetchData<T>({
+        url: `/pricing/products/${productId}/selectors`,
+        method: 'get',
+    })
+}
+
+export async function apiSearchParametricMatrix<
+    T,
+    U extends Record<string, unknown>,
+>(productId: number, data: U) {
+    return ApiService.fetchData<T>({
+        url: `/pricing/products/${productId}/search`,
+        method: 'post',
+        data,
+    })
+}
+
 export async function apiImportParametricReferences<T>(productId: number, data: FormData) {
     return ApiService.fetchData<T>({
         url: `/pricing/products/${productId}/import`,

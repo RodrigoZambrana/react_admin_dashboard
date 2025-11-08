@@ -10,6 +10,7 @@ import Alert from '@/components/ui/Alert'
 import Upload from '@/components/ui/Upload'
 import { toast } from '@/components/ui/toast'
 import { apiExportParametricMatrix, apiGetParametricConfig, apiImportParametricReferences, apiQuoteParametricProduct } from '@/services/SalesService'
+import { apiGetAberturasSelectors } from '@/services/SettingsService'
 import { clientConfig } from '@/configs/clientConfig'
 import { useAppSelector } from '@/store'
 import { SUPERADMIN } from '@/constants/roles.constant'
@@ -18,6 +19,12 @@ import {
     getUrucortinasDefaultSnapshot,
     quoteUrucortinasMatrix,
 } from './urucortinasParametricDefaults'
+import {
+    mapSelectorsToOptions,
+    mergeSelectorValues,
+    toSelectorOption,
+} from '@/views/sales/parametric/selectorUtils'
+import type { AberturasSelectorSummary } from '@/views/sales/parametric/selectorUtils'
 
 type QuoteState = {
     familyId: string
@@ -98,13 +105,6 @@ export type ParametricImportSummary = {
     warnings: string[]
 }
 
-type Option = { value: string; label: string }
-
-const toOption = (value: string, label?: string): Option => ({
-    value,
-    label: label ?? value,
-})
-
 export type ParametricConfiguratorDraft = {
     matrixFile?: File | Blob | null
 }
@@ -164,13 +164,9 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
     const numericProductId = Number(productId ?? 0)
     const hasProductId = Number.isFinite(numericProductId) && numericProductId > 0
     const isDraftMode = !hasProductId
-    const initialSnapshot = !hasProductId && isUrucortinas ? getUrucortinasDefaultSnapshot() : null
-
     const [loadingConfig, setLoadingConfig] = useState(false)
-    const [configSnapshot, setConfigSnapshot] = useState<ParametricConfigSnapshot | null>(initialSnapshot)
-    const [quoteState, setQuoteState] = useState<QuoteState | null>(() =>
-        initialSnapshot ? createDefaultState(initialSnapshot) : null,
-    )
+    const [configSnapshot, setConfigSnapshot] = useState<ParametricConfigSnapshot | null>(null)
+    const [quoteState, setQuoteState] = useState<QuoteState | null>(null)
     const [quoteResult, setQuoteResult] = useState<QuoteResult | null>(null)
     const [importing, setImporting] = useState(false)
     const [importSummary, setImportSummary] = useState<ParametricImportSummary | null>(null)
@@ -178,6 +174,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
     const [draftInfo, setDraftInfo] = useState<ParametricConfiguratorDraft>(() => draft ?? {})
     const [draftNoticeShown, setDraftNoticeShown] = useState(false)
     const [showAdminTools, setShowAdminTools] = useState(false)
+    const [selectorSummary, setSelectorSummary] = useState<AberturasSelectorSummary | null>(null)
 
     useEffect(() => {
         if (draft) {
@@ -231,12 +228,87 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
         return parsed.toLocaleDateString()
     }, [quoteResult?.referenceDate])
 
+    const fetchAberturasSelectors = useCallback(async (): Promise<AberturasSelectorSummary | null> => {
+        try {
+            const response = await apiGetAberturasSelectors<AberturasSelectorSummary>()
+            const summary = (response?.data ?? response ?? null) as AberturasSelectorSummary | null
+            if (summary) {
+                setSelectorSummary(summary)
+            }
+            return summary
+        } catch (error) {
+            console.error('[aberturas] failed to load selectors', error)
+            return null
+        }
+    }, [])
+
+    const applySummaryToSnapshot = useCallback(
+        (snapshot: ParametricConfigSnapshot, summary?: AberturasSelectorSummary | null) => {
+            if (!summary) {
+                return snapshot
+            }
+            return {
+                ...snapshot,
+                selectors: {
+                    ...snapshot.selectors,
+                    families: mergeSelectorValues(snapshot.selectors.families, summary.families),
+                    series: mergeSelectorValues(snapshot.selectors.series, summary.series),
+                    colors: mergeSelectorValues(snapshot.selectors.colors, summary.colors),
+                    glass: mergeSelectorValues(snapshot.selectors.glass, summary.glass),
+                },
+            }
+        },
+        [],
+    )
+
+    const buildSnapshotFromSummary = useCallback(
+        (summary: AberturasSelectorSummary): ParametricConfigSnapshot => {
+            const selectorsSnapshot: ParametricConfigSnapshot['selectors'] = {
+                families: summary.families,
+                series: summary.series,
+                materials: ['ALUMINIO'],
+                colors: summary.colors,
+                glass: summary.glass,
+                widths: [],
+                heights: [],
+                shutterMaterials: ['PVC', 'ALUMINIO'],
+                hasMosquiteroOption: true,
+                hasMonoblockOption: true,
+            }
+            const compatibility: ParametricConfigSnapshot['compatibility'] = {
+                glassBySeries: summary.series.reduce<Record<string, string[]>>((acc, serie) => {
+                    acc[serie] = summary.glass.length ? summary.glass : selectorsSnapshot.glass
+                    return acc
+                }, {}),
+                monoblockBySeries: summary.series.reduce<Record<string, boolean>>((acc, serie) => {
+                    acc[serie] = true
+                    return acc
+                }, {}),
+            }
+            return {
+                selectors: selectorsSnapshot,
+                stats: {
+                    rowCount: 0,
+                    minimumPrice: undefined,
+                    currency: undefined,
+                    newestReferenceDate: null,
+                    oldestReferenceDate: null,
+                },
+                compatibility,
+            }
+        },
+        [],
+    )
+
+    useEffect(() => {
+        if (!isUrucortinas || selectorSummary) {
+            return
+        }
+        fetchAberturasSelectors()
+    }, [fetchAberturasSelectors, isUrucortinas, selectorSummary])
+
     const fetchConfig = useCallback(async () => {
         if (!hasProductId) {
-            if (!isUrucortinas) {
-                setConfigSnapshot(null)
-                setQuoteState(null)
-            }
             return
         }
         setLoadingConfig(true)
@@ -244,8 +316,10 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
         try {
             const response = await apiGetParametricConfig<ParametricConfigSnapshot>(numericProductId)
             const snapshot = response as unknown as ParametricConfigSnapshot
-            setConfigSnapshot(snapshot)
-            setQuoteState((prev) => prev ?? createDefaultState(snapshot))
+            const summary = selectorSummary ?? (await fetchAberturasSelectors())
+            const enriched = applySummaryToSnapshot(snapshot, summary)
+            setConfigSnapshot(enriched)
+            setQuoteState((prev) => prev ?? createDefaultState(enriched))
         } catch (error) {
             console.error('[parametric] failed to load configuration', error)
             setConfigError(
@@ -258,7 +332,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
         } finally {
             setLoadingConfig(false)
         }
-    }, [hasProductId, isUrucortinas, numericProductId, t])
+    }, [applySummaryToSnapshot, fetchAberturasSelectors, hasProductId, numericProductId, selectorSummary, t])
 
     useEffect(() => {
         if (!isUrucortinas || !isDraftMode || draftInfo.matrixFile) {
@@ -279,13 +353,26 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
     }, [draftInfo.matrixFile, isDraftMode, isUrucortinas, onDraftChange])
 
     useEffect(() => {
-        if (!isUrucortinas || !isDraftMode || configSnapshot) {
+        if (!isUrucortinas || hasProductId) {
             return
         }
-        const snapshot = getUrucortinasDefaultSnapshot()
-        setConfigSnapshot(snapshot)
-        setQuoteState((prev) => prev ?? createDefaultState(snapshot))
-    }, [configSnapshot, isDraftMode, isUrucortinas])
+        let mounted = true
+        const initializeDefaults = async () => {
+            setLoadingConfig(true)
+            const summary = selectorSummary ?? (await fetchAberturasSelectors())
+            const snapshot = summary ? buildSnapshotFromSummary(summary) : getUrucortinasDefaultSnapshot()
+            if (!mounted) {
+                return
+            }
+            setConfigSnapshot(snapshot)
+            setQuoteState((prev) => prev ?? createDefaultState(snapshot))
+            setLoadingConfig(false)
+        }
+        initializeDefaults()
+        return () => {
+            mounted = false
+        }
+    }, [buildSnapshotFromSummary, fetchAberturasSelectors, hasProductId, isUrucortinas, selectorSummary])
 
     useEffect(() => {
         if (isUrucortinas && isDraftMode && draftInfo.matrixFile) {
@@ -317,8 +404,11 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
     const mosquitoToggleDisabled = !(selectors?.hasMosquiteroOption ?? false)
 
     useEffect(() => {
+        if (!hasProductId) {
+            return
+        }
         fetchConfig()
-    }, [fetchConfig])
+    }, [fetchConfig, hasProductId])
 
     useEffect(() => {
         if (!quoteState || !configSnapshot) {
@@ -682,20 +772,22 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
         }
     }, [hasProductId, numericProductId, t])
 
+    const selectorOptionGroups = useMemo(
+        () => mapSelectorsToOptions(selectors, t),
+        [selectors, t],
+    )
+
     const glassOptions = useMemo(() => {
         if (!selectors || !quoteState) return []
         const allowed = configSnapshot?.compatibility.glassBySeries?.[quoteState.serie]
         const list = selectors.glass.filter((item) => !allowed || !allowed.length || allowed.includes(item))
-        return list.map((value) => toOption(value))
+        return list.map((value) => toSelectorOption(value))
     }, [configSnapshot, quoteState, selectors])
 
-    const serieOptions = selectors?.series.map((serie) => toOption(serie)) ?? []
-    const familyOptions = selectors?.families.map((family) => toOption(family || '', family || t('sales.productForm.parametric.familyDefault', { defaultValue: 'Default' }))) ?? []
-    const colorOptions = selectors?.colors.map((color) => toOption(color)) ?? []
-    const shutterMaterialOptions =
-        selectors?.shutterMaterials
-            .filter((value) => value && value.trim().length > 0)
-            .map((value) => toOption(value)) ?? []
+    const familyOptions = selectorOptionGroups.families
+    const serieOptions = selectorOptionGroups.series
+    const colorOptions = selectorOptionGroups.colors
+    const shutterMaterialOptions = selectorOptionGroups.shutterMaterials
 
     return (
         <AdaptableCard className="mb-4">

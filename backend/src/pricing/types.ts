@@ -43,6 +43,26 @@ export type ParametricPriceLineage = {
   priceMonoblockMosquitero?: ParametricPriceLineageEntry
 }
 
+export type ParametricPriceResolution =
+  | {
+      available: true
+      price: number
+      currency: string
+      estimated: boolean
+      components: string[]
+    }
+  | {
+      available: false
+      reason:
+        | 'missing_base'
+        | 'mosq_not_allowed'
+        | 'mb_not_allowed'
+        | 'missing_price_mosq'
+        | 'missing_price_mb'
+        | 'missing_price_mbm'
+        | 'shutter_material_mismatch'
+    }
+
 export type ParametricMatrixEntry = {
   id: number
   familyId: string
@@ -59,6 +79,7 @@ export type ParametricMatrixEntry = {
   priceMonoblockMosquitero: number | null
   hasMosquiteroOption: boolean
   hasMonoblockOption: boolean
+  hasShutterMonoblock: boolean
   shutterMaterial: string
   currency: string
   detailSnapshot: string | null
@@ -67,6 +88,40 @@ export type ParametricMatrixEntry = {
   conflictFlags: string[]
   source: string | null
   referenceDate: string | null
+}
+
+export type ParametricSelectors = {
+  families: string[]
+  series: string[]
+  colors: string[]
+  glasses: string[]
+  widths: number[]
+  heights: number[]
+  shutterMaterials: string[]
+}
+
+export type ParametricMatrixSearchDto = {
+  familyId?: string
+  serie?: string
+  color?: string
+  vidrio?: string
+  widthMm?: number
+  heightMm?: number
+  hasMosquitero?: boolean
+  hasShutterMonoblock?: boolean
+  shutterMaterial?: string
+  limit?: number
+}
+
+export type ParametricMatrixMatch = {
+  row: ParametricMatrixEntry
+  resolution: ParametricPriceResolution
+  similarity: number
+}
+
+export type ParametricMatrixSearchResult = {
+  exact?: ParametricMatrixMatch
+  suggestions: ParametricMatrixMatch[]
 }
 
 export type ParametricQuoteInput = {

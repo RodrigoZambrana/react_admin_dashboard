@@ -1062,6 +1062,8 @@
         "productPlaceholder": "Elegí un producto",
         "size": "Medida (ancho × alto)",
         "sizePlaceholder": "Seleccioná una medida",
+        "family": "Tipo de abertura",
+        "familyPlaceholder": "Seleccioná un tipo",
         "color": "Color",
         "colorPlaceholder": "Seleccioná un color",
         "serie": "Serie",
@@ -1069,21 +1071,39 @@
         "vidrio": "Vidrio",
         "vidrioPlaceholder": "Seleccioná un vidrio",
         "mosquitero": "Mosquitero",
-        "monoblock": "Persiana / Monoblock"
+        "monoblock": "Persiana / Monoblock",
+        "manualSizeToggle": "Ingresar manualmente",
+        "manualWidth": "Ancho (mm)",
+        "manualHeight": "Alto (mm)",
+        "all": "Todos"
       },
       "helpers": {
         "mosqUnavailable": "No disponible para esta combinación.",
         "mbUnavailable": "No disponible para esta combinación.",
-        "shutterMaterial": "Material recomendado: {{material}}"
+        "shutterMaterial": "Material recomendado: {{material}}",
+        "sizeHint": "Elegí una medida para completar los campos automáticamente.",
+        "manualSizeHint": "Podés ajustar las medidas manualmente cuando quieras."
+      },
+      "config": {
+        "title": "Configuración disponible",
+        "subtitle": "Estos son los valores cargados para este producto paramétrico.",
+        "families": "Tipos de abertura",
+        "series": "Series",
+        "colors": "Colores",
+        "glass": "Vidrios",
+        "empty": "Sin valores configurados."
       },
       "loading": {
         "products": "Cargando productos…",
-        "matrix": "Cargando matriz de precios…"
+        "matrix": "Cargando matriz de precios…",
+        "search": "Buscando…"
       },
       "notifications": {
         "productsError": "No se pudieron cargar los productos paramétricos.",
         "emptyMatrix": "Este producto aún no tiene matriz cargada.",
-        "matrixError": "No se pudo cargar la matriz de precios."
+        "matrixError": "No se pudo cargar la matriz de precios.",
+        "filterErrorTitle": "No se pudo buscar",
+        "filterErrorDesc": "Revisá los filtros e intentá nuevamente."
       },
       "actions": {
         "calculate": "Calcular precio"
@@ -1092,7 +1112,8 @@
         "title": "Precio encontrado",
         "estimatedTooltip": "Precio estimado utilizando deltas de mosquitero y/o monoblock.",
         "estimatedBadge": "Estimado",
-        "components": "Componentes considerados: {{components}}"
+        "components": "Componentes considerados: {{components}}",
+        "unavailable": "Sin precio"
       },
       "summary": {
         "serie": "Serie:",
@@ -1114,6 +1135,7 @@
         "missingMosqPrice": "No hay precio cargado para mosquitero.",
         "missingMonoblockPrice": "No hay precio cargado para monoblock.",
         "missingCombinedPrice": "No hay precio cargado para mosquitero + monoblock.",
+        "shutterMismatch": "El material de persiana elegido no está disponible para esta combinación.",
         "noMatch": "No encontramos una fila exacta para esta combinación.",
         "genericFallback": "No hay precio configurado para esta combinación."
       },
@@ -1128,6 +1150,22 @@
         "monoblockMosq": "Precio con monoblock + mosquitero",
         "deltaMosq": "Delta mosquitero",
         "deltaMb": "Delta monoblock"
+      },
+      "filters": {
+        "title": "Búsqueda por filtros",
+        "subtitle": "Completá los campos que quieras para listar las combinaciones disponibles.",
+        "familyPlaceholder": "Tipo de abertura",
+        "seriesPlaceholder": "Serie",
+        "colorPlaceholder": "Color",
+        "glassPlaceholder": "Vidrio",
+        "widthPlaceholder": "Ancho (mm)",
+        "heightPlaceholder": "Alto (mm)",
+        "shutterPlaceholder": "Material de persiana",
+        "searchButton": "Buscar combinaciones",
+        "optional": "Opcional",
+        "exact": "Coincidencia exacta",
+        "results": "Combinaciones sugeridas",
+        "similarity": "Δ {{value}} mm"
       }
     },
     "dashboard": {

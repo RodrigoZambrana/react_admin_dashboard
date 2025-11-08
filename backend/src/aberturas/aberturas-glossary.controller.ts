@@ -22,6 +22,11 @@ export class AberturasGlossaryController {
     return this.service.listGrouped()
   }
 
+  @Get('selectors')
+  getSelectors() {
+    return this.service.getSelectorSummary()
+  }
+
   @Get(':category')
   getByCategory(@Param('category') category: string) {
     return this.service.listByCategory(category)

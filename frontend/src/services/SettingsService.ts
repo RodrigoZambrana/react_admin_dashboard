@@ -171,6 +171,13 @@ export async function apiGetAberturasGlossary<T>() {
     })
 }
 
+export async function apiGetAberturasSelectors<T>() {
+    return ApiService.fetchData<T>({
+        url: '/aberturas/glossary/selectors',
+        method: 'get',
+    })
+}
+
 export async function apiGetAberturasGlossaryByCategory<T>(category: string) {
     return ApiService.fetchData<T>({
         url: `/aberturas/glossary/${category}`,

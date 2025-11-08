@@ -14,7 +14,11 @@ import {
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { ParametricPricingService } from './parametric-pricing.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
-import type { ParametricCompatibilityConfig, ParametricQuoteInput } from './types'
+import type {
+  ParametricCompatibilityConfig,
+  ParametricMatrixSearchDto,
+  ParametricQuoteInput,
+} from './types'
 import { ParametricFeatureGuard } from './pricing.guard'
 
 @Controller('pricing')
@@ -30,6 +34,19 @@ export class PricingController {
   @Get('products/:productId/matrix')
   getMatrix(@Param('productId', ParseIntPipe) productId: number) {
     return this.pricing.getProductMatrixEntries(productId)
+  }
+
+  @Get('products/:productId/selectors')
+  getSelectors(@Param('productId', ParseIntPipe) productId: number) {
+    return this.pricing.getProductSelectors(productId)
+  }
+
+  @Post('products/:productId/search')
+  searchMatrix(
+    @Param('productId', ParseIntPipe) productId: number,
+    @Body() payload: ParametricMatrixSearchDto,
+  ) {
+    return this.pricing.searchMatrix(productId, payload)
   }
 
   @Get('products/:productId/compatibility')
