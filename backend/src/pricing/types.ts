@@ -113,14 +113,40 @@ export type ParametricMatrixSearchDto = {
   limit?: number
 }
 
+export type ParametricMatchAdjustment = {
+  priceRangeFactor: [number, number]
+  note: string
+}
+
+export type ParametricMatchMetadata = {
+  matchLevel: 'exact' | 'near'
+  similarityScore: number
+  dimensionDistance: number
+  attributeMatches: {
+    family: boolean
+    serie: boolean
+    width: boolean
+    height: boolean
+    vidrio: boolean
+    color: boolean
+  }
+  sizeDeltaMm?: {
+    width: number
+    height: number
+  }
+  suggestedAdjustment?: ParametricMatchAdjustment
+}
+
 export type ParametricMatrixMatch = {
   row: ParametricMatrixEntry
   resolution: ParametricPriceResolution
   similarity: number
+  metadata?: ParametricMatchMetadata
 }
 
 export type ParametricMatrixSearchResult = {
   exact?: ParametricMatrixMatch
+  nearest?: ParametricMatrixMatch
   suggestions: ParametricMatrixMatch[]
 }
 

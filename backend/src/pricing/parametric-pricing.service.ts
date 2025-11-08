@@ -16,6 +16,8 @@ import type {
   ParametricMatrixRow,
   ParametricMatrixSearchDto,
   ParametricMatrixSearchResult,
+  ParametricMatchMetadata,
+  ParametricMatchAdjustment,
   ParametricPriceLineage,
   ParametricPriceLineageEntry,
   ParametricPriceResolution,
@@ -55,6 +57,8 @@ export class ParametricPricingService {
     private readonly clientConfig: ClientVariantConfig,
     private readonly aberturasGlossary: AberturasGlossaryService,
   ) {}
+
+  private static readonly GLASS_PRIORITY = ['3MM', '4MM', '5MM', '6MM', 'DVH (4/9/5)', 'DVH (5/9/6)']
 
   private isFeatureEnabled(): boolean {
     const isUrucortinas = this.clientConfig?.slug === 'urucortinas'
@@ -1624,11 +1628,20 @@ export class ParametricPricingService {
       shutterMaterial: criteria.shutterMaterial?.trim() || undefined,
     }
 
-    const exactMatch = this.pickExactMatch(mapped, criteria, request)
-    const suggestions = this.buildSuggestions(mapped, criteria, request, exactMatch?.row?.id, limit)
+    const rankedMatches = this.rankMatrixMatches(mapped, criteria, request)
+    const exactMatch = rankedMatches.find((match) => match.metadata?.matchLevel === 'exact')
+    const nearestMatch = rankedMatches[0] ?? null
+    const excludeIds = new Set<number>()
+    if (exactMatch) {
+      excludeIds.add(exactMatch.row.id)
+    } else if (nearestMatch) {
+      excludeIds.add(nearestMatch.row.id)
+    }
+    const suggestions = rankedMatches.filter((match) => !excludeIds.has(match.row.id)).slice(0, limit)
 
     return {
       exact: exactMatch ?? undefined,
+      nearest: nearestMatch ?? undefined,
       suggestions,
     }
   }
@@ -1741,64 +1754,151 @@ export class ParametricPricingService {
     return where
   }
 
-  private pickExactMatch(
+  private rankMatrixMatches(
     rows: ParametricMatrixEntry[],
+    criteria: ParametricMatrixSearchDto,
+    request: { hasMosquitero: boolean; hasShutterMonoblock: boolean; shutterMaterial?: string },
+    excludeId?: number,
+  ): ParametricMatrixMatch[] {
+    const evaluated: ParametricMatrixMatch[] = []
+    for (const row of rows) {
+      if (excludeId && row.id === excludeId) {
+        continue
+      }
+      const match = this.evaluateMatrixRow(row, criteria, request)
+      if (match) {
+        evaluated.push(match)
+      }
+    }
+    evaluated.sort((a, b) => (a.metadata?.similarityScore ?? a.similarity) - (b.metadata?.similarityScore ?? b.similarity))
+    return evaluated
+  }
+
+  private evaluateMatrixRow(
+    row: ParametricMatrixEntry,
     criteria: ParametricMatrixSearchDto,
     request: { hasMosquitero: boolean; hasShutterMonoblock: boolean; shutterMaterial?: string },
   ): ParametricMatrixMatch | null {
-    const candidates = rows.filter((row) => {
-      if (typeof criteria.widthMm === 'number' && row.widthMm !== criteria.widthMm) {
-        return false
-      }
-      if (typeof criteria.heightMm === 'number' && row.heightMm !== criteria.heightMm) {
-        return false
-      }
-      if (request.hasShutterMonoblock && request.shutterMaterial) {
-        return row.shutterMaterial?.toLowerCase() === request.shutterMaterial.toLowerCase()
-      }
-      return true
-    })
-    if (!candidates.length) {
+    const resolution = this.resolvePriceForRequest(row, request)
+    if (!resolution.available) {
       return null
     }
-    for (const row of candidates) {
-      const resolution = this.resolvePriceForRequest(row, request)
-      if (resolution.available) {
-        return { row, resolution, similarity: 0 }
-      }
-    }
-    const fallbackRow = candidates[0]
+    const metadata = this.computeMatchMetadata(row, criteria)
     return {
-      row: fallbackRow,
-      resolution: this.resolvePriceForRequest(fallbackRow, request),
-      similarity: 0,
+      row,
+      resolution,
+      similarity: metadata.similarityScore,
+      metadata,
     }
   }
 
-  private buildSuggestions(
-    rows: ParametricMatrixEntry[],
+  private computeMatchMetadata(
+    row: ParametricMatrixEntry,
     criteria: ParametricMatrixSearchDto,
-    request: { hasMosquitero: boolean; hasShutterMonoblock: boolean; shutterMaterial?: string },
-    excludeId: number | undefined,
-    limit: number,
-  ): ParametricMatrixMatch[] {
-    const pool = rows.filter((row) => (excludeId ? row.id !== excludeId : true))
-    const candidates = pool
-      .map((row) => {
-        const resolution = this.resolvePriceForRequest(row, request)
-        const similarity = this.computeSimilarity(row, criteria)
-        return { row, resolution, similarity }
-      })
-      .filter((match) => match.resolution.available)
-      .sort((a, b) => a.similarity - b.similarity)
-      .slice(0, limit)
-    return candidates
+  ): ParametricMatchMetadata {
+    const widthRequested = typeof criteria.widthMm === 'number' ? criteria.widthMm : null
+    const heightRequested = typeof criteria.heightMm === 'number' ? criteria.heightMm : null
+
+    const widthDelta = widthRequested !== null ? row.widthMm - widthRequested : 0
+    const heightDelta = heightRequested !== null ? row.heightMm - heightRequested : 0
+    const dimensionDistance =
+      widthRequested !== null || heightRequested !== null
+        ? Math.sqrt(
+            (widthRequested !== null ? widthDelta : 0) ** 2 + (heightRequested !== null ? heightDelta : 0) ** 2,
+          )
+        : 0
+
+    const familyMatch = !criteria.familyId || row.familyId === criteria.familyId
+    const serieMatch = !criteria.serie || row.serie === criteria.serie
+    const widthMatch = widthRequested === null || row.widthMm === widthRequested
+    const heightMatch = heightRequested === null || row.heightMm === heightRequested
+    const vidrioMatch = !criteria.vidrio || row.vidrio === criteria.vidrio
+    const colorMatch = !criteria.color || row.color === criteria.color
+
+    const seriePenalty = serieMatch ? 0 : 10_000 + dimensionDistance
+    const familyPenalty = familyMatch ? 0 : 200
+    const glassPenalty = !criteria.vidrio
+      ? 0
+      : Math.abs(this.getGlassRank(row.vidrio) - this.getGlassRank(criteria.vidrio)) * 250
+    const colorPenalty = colorMatch ? 0 : 80
+    const prefersLarger =
+      widthRequested !== null && heightRequested !== null
+        ? row.widthMm < widthRequested || row.heightMm < heightRequested
+        : false
+    const sizePreferencePenalty = prefersLarger ? 4 : 0
+
+    const similarityScore = dimensionDistance + seriePenalty + familyPenalty + glassPenalty + colorPenalty + sizePreferencePenalty
+    const attributeMatches = {
+      family: familyMatch,
+      serie: serieMatch,
+      width: widthMatch,
+      height: heightMatch,
+      vidrio: vidrioMatch,
+      color: colorMatch,
+    }
+    const matchLevel =
+      attributeMatches.family &&
+      attributeMatches.serie &&
+      attributeMatches.width &&
+      attributeMatches.height &&
+      attributeMatches.vidrio &&
+      attributeMatches.color
+        ? 'exact'
+        : 'near'
+
+    const suggestedAdjustment = this.buildSuggestedAdjustment(criteria, row, attributeMatches)
+
+    return {
+      matchLevel,
+      similarityScore,
+      dimensionDistance,
+      attributeMatches,
+      sizeDeltaMm:
+        widthRequested !== null && heightRequested !== null
+          ? { width: widthDelta, height: heightDelta }
+          : undefined,
+      suggestedAdjustment,
+    }
   }
 
-  private computeSimilarity(row: ParametricMatrixEntry, criteria: ParametricMatrixSearchDto) {
-    const widthDelta = typeof criteria.widthMm === 'number' ? Math.abs(row.widthMm - criteria.widthMm) : 0
-    const heightDelta = typeof criteria.heightMm === 'number' ? Math.abs(row.heightMm - criteria.heightMm) : 0
-    return widthDelta + heightDelta
+  private buildSuggestedAdjustment(
+    criteria: ParametricMatrixSearchDto,
+    row: ParametricMatrixEntry,
+    attributeMatches: ParametricMatchMetadata['attributeMatches'],
+  ): ParametricMatchAdjustment | undefined {
+    const notes: string[] = []
+    let minFactor = 1
+    let maxFactor = 1
+
+    if (!attributeMatches.color && criteria.color) {
+      notes.push(`Color diferente: pedido ${criteria.color}, disponible ${row.color}`)
+      minFactor = Math.min(minFactor, 0.92)
+      maxFactor = Math.max(maxFactor, 1.15)
+    }
+
+    if (!attributeMatches.vidrio && criteria.vidrio) {
+      notes.push(`Vidrio diferente: pedido ${criteria.vidrio}, disponible ${row.vidrio}`)
+      minFactor = Math.min(minFactor, 0.95)
+      maxFactor = Math.max(maxFactor, 1.08)
+    }
+
+    if (!notes.length) {
+      return undefined
+    }
+
+    return {
+      priceRangeFactor: [Number(minFactor.toFixed(2)), Number(maxFactor.toFixed(2))],
+      note: notes.join(' | '),
+    }
+  }
+
+  private getGlassRank(value?: string | null): number {
+    if (!value) {
+      return Number.MAX_SAFE_INTEGER
+    }
+    const normalized = value.toUpperCase()
+    const index = ParametricPricingService.GLASS_PRIORITY.findIndex((entry) => entry === normalized)
+    return index >= 0 ? index : ParametricPricingService.GLASS_PRIORITY.length
   }
 
   private resolvePriceForRequest(
