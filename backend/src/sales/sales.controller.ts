@@ -1698,6 +1698,8 @@ export class SalesController {
         serieSummary: this.buildSummaryField(summary?.series),
         colorSummary: this.buildSummaryField(summary?.colors),
         glassSummary: this.buildSummaryField(summary?.glasses),
+        familySummary: this.buildSummaryField(summary?.families),
+        familyId: this.pickFirstFromSet(summary?.families) || '',
         mosquiteroAvailable: Boolean(summary?.mosquitero),
         monoblockAvailable: Boolean(summary?.monoblock),
         shutterMaterialSummary: this.buildSummaryField(summary?.shutterMaterials),

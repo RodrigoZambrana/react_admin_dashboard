@@ -5,6 +5,19 @@ export type SelectorOption = {
     label: string
 }
 
+export const normalizeSelectorValue = (value?: string | null): string => {
+    if (!value) {
+        return ''
+    }
+    return value
+        .toString()
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .toUpperCase()
+}
+
 export type AberturasSelectorSummary = {
     families: string[]
     series: string[]
@@ -28,10 +41,13 @@ export type SelectorOptionGroups = {
     shutterMaterials: SelectorOption[]
 }
 
-export const toSelectorOption = (value: string, label?: string): SelectorOption => ({
-    value,
-    label: label ?? value,
-})
+export const toSelectorOption = (value: string, label?: string): SelectorOption => {
+    const sanitized = value?.toString().trim() ?? ''
+    return {
+        value: sanitized,
+        label: label ?? sanitized,
+    }
+}
 
 export const mapSelectorsToOptions = (
     selectors: ParametricSelectorMap | null | undefined,
@@ -46,13 +62,13 @@ export const mapSelectorsToOptions = (
             selectors?.families?.map((family) =>
                 toSelectorOption(family || '', family || defaultFamilyLabel),
             ) ?? [],
-        series: selectors?.series?.map((serie) => toSelectorOption(serie)) ?? [],
-        colors: selectors?.colors?.map((color) => toSelectorOption(color)) ?? [],
-        glass: selectors?.glass?.map((glass) => toSelectorOption(glass)) ?? [],
+        series: selectors?.series?.map((serie) => toSelectorOption(serie ?? '', serie ?? '')) ?? [],
+        colors: selectors?.colors?.map((color) => toSelectorOption(color ?? '', color ?? '')) ?? [],
+        glass: selectors?.glass?.map((glass) => toSelectorOption(glass ?? '', glass ?? '')) ?? [],
         shutterMaterials:
             selectors?.shutterMaterials
                 ?.filter((material) => Boolean(material && material.trim().length))
-                .map((material) => toSelectorOption(material)) ?? [],
+                .map((material) => toSelectorOption(material ?? '', material ?? '')) ?? [],
     }
 }
 

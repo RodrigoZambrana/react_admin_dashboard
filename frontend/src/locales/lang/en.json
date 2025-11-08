@@ -1104,7 +1104,8 @@
         "emptyMatrix": "This product does not have a matrix yet.",
         "matrixError": "Unable to load the price matrix.",
         "filterErrorTitle": "Search failed",
-        "filterErrorDesc": "Review the filters and try again."
+        "filterErrorDesc": "Review the filters and try again.",
+        "searchError": "We couldn't fetch matches. Please try again."
       },
       "actions": {
         "calculate": "Calculate price"
@@ -1143,6 +1144,31 @@
       "suggestions": {
         "title": "Nearby alternatives",
         "empty": "We couldn't find nearby alternatives with prices."
+      },
+      "match": {
+        "sectionTitle": "Search results",
+        "noFilters": "No filters applied.",
+        "exactTitle": "Exact match",
+        "exactDescription": "Matches every requested attribute.",
+        "nearestTitle": "Nearest match",
+        "nearestDescription": "Closest available row considering the requested series and dimensions.",
+        "suggestionsTitle": "Other suggestions",
+        "empty": "No matches found for the provided filters.",
+        "badges": {
+          "exact": "Exact",
+          "near": "Near"
+        },
+        "sizeDelta": "Δ width {{width}} mm · Δ height {{height}} mm",
+        "attributeSummary": "Matches: {{summary}}",
+        "attributes": {
+          "family": "Type",
+          "serie": "Series",
+          "glass": "Glass",
+          "color": "Color"
+        },
+        "attributeMatch": "Yes",
+        "attributeMismatch": "No",
+        "adjustmentRange": "Suggested range: {{min}}× – {{max}}×"
       },
       "components": {
         "base": "Base price",

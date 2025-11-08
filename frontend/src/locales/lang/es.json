@@ -1103,7 +1103,8 @@
         "emptyMatrix": "Este producto aún no tiene matriz cargada.",
         "matrixError": "No se pudo cargar la matriz de precios.",
         "filterErrorTitle": "No se pudo buscar",
-        "filterErrorDesc": "Revisá los filtros e intentá nuevamente."
+        "filterErrorDesc": "Revisá los filtros e intentá nuevamente.",
+        "searchError": "No pudimos obtener coincidencias. Intentá nuevamente."
       },
       "actions": {
         "calculate": "Calcular precio"
@@ -1142,6 +1143,31 @@
       "suggestions": {
         "title": "Alternativas cercanas",
         "empty": "No encontramos alternativas cercanas con precios cargados."
+      },
+      "match": {
+        "sectionTitle": "Resultados de la búsqueda",
+        "noFilters": "Sin filtros aplicados.",
+        "exactTitle": "Coincidencia exacta",
+        "exactDescription": "Cumple todos los atributos solicitados.",
+        "nearestTitle": "Coincidencia cercana",
+        "nearestDescription": "La mejor alternativa disponible considerando la serie y las medidas solicitadas.",
+        "suggestionsTitle": "Otras sugerencias",
+        "empty": "No encontramos coincidencias con los filtros aplicados.",
+        "badges": {
+          "exact": "Exacto",
+          "near": "Cercano"
+        },
+        "sizeDelta": "Δ ancho {{width}} mm · Δ alto {{height}} mm",
+        "attributeSummary": "Coincidencias: {{summary}}",
+        "attributes": {
+          "family": "Tipo",
+          "serie": "Serie",
+          "glass": "Vidrio",
+          "color": "Color"
+        },
+        "attributeMatch": "Sí",
+        "attributeMismatch": "No",
+        "adjustmentRange": "Rango sugerido: {{min}}× – {{max}}×"
       },
       "components": {
         "base": "Precio base",
