@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Inject, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, Inject, NotFoundException, Logger } from '@nestjs/common'
 import { Prisma, ProductMode, ProductType, SalesUnit } from '@prisma/client'
 import type { DimensionPriceMatrix, ParametricMatrixStaging as ParametricMatrixStagingModel } from '@prisma/client'
 import { createHash } from 'crypto'
@@ -6,17 +6,23 @@ import * as XLSX from 'xlsx'
 import { PrismaService } from '../prisma/prisma.service'
 import { CLIENT_CONFIG_TOKEN } from '../config/client-config.constants'
 import type { ClientVariantConfig } from '../config/client-config.types'
+import { AberturasGlossaryService, AberturasSelectorSummary } from '../aberturas/aberturas-glossary.service'
 import type {
   ParametricCompatibilityConfig,
   ParametricConfigSnapshot,
   ParametricImportSummary,
   ParametricMatrixEntry,
+  ParametricMatrixMatch,
   ParametricMatrixRow,
+  ParametricMatrixSearchDto,
+  ParametricMatrixSearchResult,
   ParametricPriceLineage,
   ParametricPriceLineageEntry,
+  ParametricPriceResolution,
   ParametricProductImportSummary,
   ParametricQuoteInput,
   ParametricQuoteResult,
+  ParametricSelectors,
 } from './types'
 import type { PrismaClientOrTransaction } from './types'
 
@@ -41,10 +47,13 @@ const xlsxUtils = XLSX.utils as unknown as {
 
 @Injectable()
 export class ParametricPricingService {
+  private readonly logger = new Logger(ParametricPricingService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(CLIENT_CONFIG_TOKEN)
     private readonly clientConfig: ClientVariantConfig,
+    private readonly aberturasGlossary: AberturasGlossaryService,
   ) {}
 
   private isFeatureEnabled(): boolean {
@@ -311,6 +320,23 @@ export class ParametricPricingService {
       return Math.trunc(parsed)
     }
     throw new BadRequestException(`Invalid numeric value for ${field}`)
+  }
+
+  private mergeSelectors(primary: string[], fallback?: string[]): string[] {
+    const result = new Set<string>()
+    primary.filter(Boolean).forEach((value) => result.add(value))
+    fallback?.filter(Boolean).forEach((value) => result.add(value))
+    return Array.from(result)
+  }
+
+  private async getAberturasFallbackSelectors(): Promise<AberturasSelectorSummary | null> {
+    try {
+      return await this.aberturasGlossary.getSelectorSummary()
+    } catch (error) {
+      const err = error as Error
+      this.logger.warn(`Failed to load Aberturas selector summary: ${err.message}`)
+      return null
+    }
   }
 
   private parsePrice(value: unknown, field = 'price'): number {
@@ -1545,71 +1571,73 @@ export class ParametricPricingService {
         { heightMm: 'asc' },
       ],
     })
-    return rows.map((row) => ({
-      id: row.id,
-      familyId: row.familyId,
-      serie: row.serie,
-      material: row.material,
-      color: row.color,
-      vidrio: row.vidrio,
-      widthMm: row.widthMm,
-      heightMm: row.heightMm,
-      price: this.normalizeDecimal(row.price) ?? 0,
-      priceBase: this.normalizeDecimal(row.priceBase),
-      priceMosquitero: this.normalizeDecimal(row.priceMosquitero),
-      priceMonoblock: this.normalizeDecimal(row.priceMonoblock),
-      priceMonoblockMosquitero: this.normalizeDecimal(row.priceMonoblockMosquitero),
-      hasMosquiteroOption: Boolean(row.hasMosquiteroOption),
-      hasMonoblockOption: Boolean(row.hasMonoblockOption),
-      shutterMaterial: row.shutterSystem ?? '',
-      currency: row.currency,
-      detailSnapshot: row.detailSnapshot ?? null,
-      specifications: row.detailSnapshot ?? null,
-      priceLineage: this.parsePriceLineage(row.priceLineage as Prisma.JsonValue | null),
-      conflictFlags: row.conflictFlags ?? [],
-      source: row.source ?? null,
-      referenceDate: row.referenceDate ? row.referenceDate.toISOString() : null,
-    }))
+    return rows.map((row) => this.mapMatrixEntry(row))
   }
 
-  private async getCompatibilityConfig(productId: number): Promise<ParametricCompatibilityConfig> {
-    const rules = await this.prisma.parametricCompatibilityRule.findMany({
-      where: { productId },
-    })
-    const compatibility: ParametricCompatibilityConfig = {}
-    for (const rule of rules) {
-      switch (rule.type) {
-        case 'glass_by_series': {
-          const value = Array.isArray(rule.ruleValue) ? (rule.ruleValue as string[]) : []
-          compatibility.glassBySeries = compatibility.glassBySeries ?? {}
-          compatibility.glassBySeries[rule.ruleKey] = value
-          break
-        }
-        case 'monoblock_by_series': {
-          const value =
-            typeof rule.ruleValue === 'boolean'
-              ? (rule.ruleValue as boolean)
-              : this.parseBoolean(rule.ruleValue as never)
-          compatibility.monoblockBySeries = compatibility.monoblockBySeries ?? {}
-          compatibility.monoblockBySeries[rule.ruleKey] = value
-          break
-        }
-        case 'size_limits': {
-          const payload = rule.ruleValue as Record<string, number>
-          compatibility.sizeLimits = compatibility.sizeLimits ?? {}
-          compatibility.sizeLimits[rule.ruleKey] = {
-            minWidthMm: payload?.minWidthMm ?? payload?.min_width_mm,
-            maxWidthMm: payload?.maxWidthMm ?? payload?.max_width_mm,
-            minHeightMm: payload?.minHeightMm ?? payload?.min_height_mm,
-            maxHeightMm: payload?.maxHeightMm ?? payload?.max_height_mm,
-          }
-          break
-        }
-        default:
-          break
-      }
+  async getProductSelectors(productId: number): Promise<ParametricSelectors> {
+    this.assertFeatureEnabled()
+    await this.ensureProduct(productId)
+    const [families, series, colors, glasses, widths, heights, shutterMaterials] = await Promise.all([
+      this.getDistinctValues<string>(productId, 'familyId'),
+      this.getDistinctValues<string>(productId, 'serie'),
+      this.getDistinctValues<string>(productId, 'color'),
+      this.getDistinctValues<string>(productId, 'vidrio'),
+      this.getDistinctValues<number>(productId, 'widthMm'),
+      this.getDistinctValues<number>(productId, 'heightMm'),
+      this.getDistinctValues<string>(productId, 'shutterSystem'),
+    ])
+    return {
+      families,
+      series,
+      colors,
+      glasses,
+      widths,
+      heights,
+      shutterMaterials,
     }
-    return compatibility
+  }
+
+  async searchMatrix(
+    productId: number,
+    criteria: ParametricMatrixSearchDto,
+  ): Promise<ParametricMatrixSearchResult> {
+    this.assertFeatureEnabled()
+    await this.ensureProduct(productId)
+
+    const limit = Math.min(Math.max(criteria.limit ?? 10, 1), 50)
+    const where = this.buildMatrixWhere(productId, criteria)
+    const rows = await this.prisma.dimensionPriceMatrix.findMany({
+      where,
+      orderBy: [
+        { widthMm: 'asc' },
+        { heightMm: 'asc' },
+        { serie: 'asc' },
+        { color: 'asc' },
+      ],
+      take: 500,
+    })
+
+    const mapped = rows.map((row) => this.mapMatrixEntry(row))
+    const request = {
+      hasMosquitero: Boolean(criteria.hasMosquitero),
+      hasShutterMonoblock: Boolean(criteria.hasShutterMonoblock),
+      shutterMaterial: criteria.shutterMaterial?.trim() || undefined,
+    }
+
+    const exactMatch = this.pickExactMatch(mapped, criteria, request)
+    const suggestions = this.buildSuggestions(mapped, criteria, request, exactMatch?.row?.id, limit)
+
+    return {
+      exact: exactMatch ?? undefined,
+      suggestions,
+    }
+  }
+
+  private async getCompatibilityConfig(_productId: number): Promise<ParametricCompatibilityConfig> {
+    // Compatibility rules are currently disabled for Urucortinas.
+    // Returning an empty object keeps the rest of the service logic intact
+    // without requiring additional tables/migrations.
+    return {}
   }
 
   async updateCompatibilityConfig(productId: number, payload: ParametricCompatibilityConfig) {
@@ -1664,6 +1692,192 @@ export class ParametricPricingService {
     return this.getCompatibilityConfig(productId)
   }
 
+  private mapMatrixEntry(row: DimensionPriceMatrix): ParametricMatrixEntry {
+    return {
+      id: row.id,
+      familyId: row.familyId,
+      serie: row.serie,
+      material: row.material,
+      color: row.color,
+      vidrio: row.vidrio,
+      widthMm: row.widthMm,
+      heightMm: row.heightMm,
+      price: this.normalizeDecimal(row.price) ?? 0,
+      priceBase: this.normalizeDecimal(row.priceBase),
+      priceMosquitero: this.normalizeDecimal(row.priceMosquitero),
+      priceMonoblock: this.normalizeDecimal(row.priceMonoblock),
+      priceMonoblockMosquitero: this.normalizeDecimal(row.priceMonoblockMosquitero),
+      hasMosquiteroOption: Boolean(row.hasMosquiteroOption),
+      hasMonoblockOption: Boolean(row.hasMonoblockOption),
+      hasShutterMonoblock: Boolean(row.hasShutterMonoblock),
+      shutterMaterial: row.shutterSystem ?? '',
+      currency: row.currency,
+      detailSnapshot: row.detailSnapshot ?? null,
+      specifications: row.detailSnapshot ?? null,
+      priceLineage: this.parsePriceLineage(row.priceLineage as Prisma.JsonValue | null),
+      conflictFlags: row.conflictFlags ?? [],
+      source: row.source ?? null,
+      referenceDate: row.referenceDate ? row.referenceDate.toISOString() : null,
+    }
+  }
+
+  private buildMatrixWhere(
+    productId: number,
+    criteria: ParametricMatrixSearchDto,
+  ): Prisma.DimensionPriceMatrixWhereInput {
+    const where: Prisma.DimensionPriceMatrixWhereInput = { productId }
+    if (criteria.familyId) {
+      where.familyId = criteria.familyId
+    }
+    if (criteria.serie) {
+      where.serie = criteria.serie
+    }
+    if (criteria.color) {
+      where.color = criteria.color
+    }
+    if (criteria.vidrio) {
+      where.vidrio = criteria.vidrio
+    }
+    return where
+  }
+
+  private pickExactMatch(
+    rows: ParametricMatrixEntry[],
+    criteria: ParametricMatrixSearchDto,
+    request: { hasMosquitero: boolean; hasShutterMonoblock: boolean; shutterMaterial?: string },
+  ): ParametricMatrixMatch | null {
+    const candidates = rows.filter((row) => {
+      if (typeof criteria.widthMm === 'number' && row.widthMm !== criteria.widthMm) {
+        return false
+      }
+      if (typeof criteria.heightMm === 'number' && row.heightMm !== criteria.heightMm) {
+        return false
+      }
+      if (request.hasShutterMonoblock && request.shutterMaterial) {
+        return row.shutterMaterial?.toLowerCase() === request.shutterMaterial.toLowerCase()
+      }
+      return true
+    })
+    if (!candidates.length) {
+      return null
+    }
+    for (const row of candidates) {
+      const resolution = this.resolvePriceForRequest(row, request)
+      if (resolution.available) {
+        return { row, resolution, similarity: 0 }
+      }
+    }
+    const fallbackRow = candidates[0]
+    return {
+      row: fallbackRow,
+      resolution: this.resolvePriceForRequest(fallbackRow, request),
+      similarity: 0,
+    }
+  }
+
+  private buildSuggestions(
+    rows: ParametricMatrixEntry[],
+    criteria: ParametricMatrixSearchDto,
+    request: { hasMosquitero: boolean; hasShutterMonoblock: boolean; shutterMaterial?: string },
+    excludeId: number | undefined,
+    limit: number,
+  ): ParametricMatrixMatch[] {
+    const pool = rows.filter((row) => (excludeId ? row.id !== excludeId : true))
+    const candidates = pool
+      .map((row) => {
+        const resolution = this.resolvePriceForRequest(row, request)
+        const similarity = this.computeSimilarity(row, criteria)
+        return { row, resolution, similarity }
+      })
+      .filter((match) => match.resolution.available)
+      .sort((a, b) => a.similarity - b.similarity)
+      .slice(0, limit)
+    return candidates
+  }
+
+  private computeSimilarity(row: ParametricMatrixEntry, criteria: ParametricMatrixSearchDto) {
+    const widthDelta = typeof criteria.widthMm === 'number' ? Math.abs(row.widthMm - criteria.widthMm) : 0
+    const heightDelta = typeof criteria.heightMm === 'number' ? Math.abs(row.heightMm - criteria.heightMm) : 0
+    return widthDelta + heightDelta
+  }
+
+  private resolvePriceForRequest(
+    row: ParametricMatrixEntry,
+    request: { hasMosquitero: boolean; hasShutterMonoblock: boolean; shutterMaterial?: string },
+  ): ParametricPriceResolution {
+    const base = row.priceBase ?? row.price
+    if (!request.hasMosquitero && !request.hasShutterMonoblock) {
+      if (!base || base <= 0) {
+        return { available: false, reason: 'missing_base' }
+      }
+      return {
+        available: true,
+        price: base,
+        currency: row.currency,
+        estimated: false,
+        components: ['base'],
+      }
+    }
+
+    if (request.hasShutterMonoblock) {
+      if (!row.hasMonoblockOption || !row.hasShutterMonoblock) {
+        return { available: false, reason: 'mb_not_allowed' }
+      }
+      if (request.shutterMaterial) {
+        const sameMaterial = row.shutterMaterial?.toLowerCase() === request.shutterMaterial.toLowerCase()
+        if (!sameMaterial) {
+          return { available: false, reason: 'shutter_material_mismatch' }
+        }
+      }
+      if (request.hasMosquitero) {
+        if (!row.priceMonoblockMosquitero || row.priceMonoblockMosquitero <= 0) {
+          return { available: false, reason: 'missing_price_mbm' }
+        }
+        return {
+          available: true,
+          price: row.priceMonoblockMosquitero,
+          currency: row.currency,
+          estimated: false,
+          components: ['base', 'shutter', 'mosquitero'],
+        }
+      }
+      if (!row.priceMonoblock || row.priceMonoblock <= 0) {
+        return { available: false, reason: 'missing_price_mb' }
+      }
+      return {
+        available: true,
+        price: row.priceMonoblock,
+        currency: row.currency,
+        estimated: false,
+        components: ['base', 'shutter'],
+      }
+    }
+
+    if (request.hasMosquitero) {
+      if (!row.hasMosquiteroOption || !row.priceMosquitero || row.priceMosquitero <= 0) {
+        return { available: false, reason: 'missing_price_mosq' }
+      }
+      return {
+        available: true,
+        price: row.priceMosquitero,
+        currency: row.currency,
+        estimated: false,
+        components: ['base', 'mosquitero'],
+      }
+    }
+
+    if (!base || base <= 0) {
+      return { available: false, reason: 'missing_base' }
+    }
+    return {
+      available: true,
+      price: base,
+      currency: row.currency,
+      estimated: false,
+      components: ['base'],
+    }
+  }
+
   private async getDistinctValues<T extends string | number | boolean>(
     productId: number,
     field: keyof ParametricMatrixRow | 'shutterSystem',
@@ -1706,7 +1920,6 @@ export class ParametricPricingService {
       rowCount,
       minPriceRow,
       selectors,
-      compatibility,
       referenceRange,
       mosquiteroOptionCount,
       monoblockOptionCount,
@@ -1727,7 +1940,6 @@ export class ParametricPricingService {
         this.getDistinctValues<number>(productId, 'heightMm'),
         this.getDistinctValues<string>(productId, 'shutterSystem'),
       ]),
-      this.getCompatibilityConfig(productId),
       this.prisma.dimensionPriceMatrix.aggregate({
         where: { productId, referenceDate: { not: null } },
         _min: { referenceDate: true },
@@ -1741,23 +1953,32 @@ export class ParametricPricingService {
       }),
     ])
 
+    let compatibility: ParametricCompatibilityConfig = {}
+    try {
+      compatibility = await this.getCompatibilityConfig(productId)
+    } catch (error) {
+      const err = error as Error
+      this.logger.error(`Failed to load parametric compatibility for product ${productId}: ${err.message}`, err.stack)
+    }
+
     const [families, series, materials, colors, glass, widths, heights, shutterMaterialsRaw] = selectors
 
-    const shutterMaterials = shutterMaterialsRaw.filter((value) => value !== '')
+    const fallbackSelectors = await this.getAberturasFallbackSelectors()
+    const mergedSelectors = {
+      families: this.mergeSelectors(families, fallbackSelectors?.families),
+      series: this.mergeSelectors(series, fallbackSelectors?.series),
+      materials: materials.length ? materials : ['ALUMINIO'],
+      colors: this.mergeSelectors(colors, fallbackSelectors?.colors),
+      glass: this.mergeSelectors(glass, fallbackSelectors?.glass),
+      widths,
+      heights,
+      shutterMaterials: this.mergeSelectors(shutterMaterialsRaw.filter((value) => value !== ''), ['PVC', 'ALUMINIO']),
+      hasMosquiteroOption: mosquiteroOptionCount > 0,
+      hasMonoblockOption: monoblockOptionCount > 0,
+    }
 
     return {
-      selectors: {
-        families,
-        series,
-        materials,
-        colors,
-        glass,
-        widths,
-        heights,
-        shutterMaterials,
-        hasMosquiteroOption: mosquiteroOptionCount > 0,
-        hasMonoblockOption: monoblockOptionCount > 0,
-      },
+      selectors: mergedSelectors,
       stats: {
         rowCount,
         minimumPrice: minPriceRow ? Number(minPriceRow.price.toFixed(4)) : undefined,

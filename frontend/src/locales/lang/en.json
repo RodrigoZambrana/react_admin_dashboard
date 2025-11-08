@@ -1063,6 +1063,8 @@
         "productPlaceholder": "Choose a product",
         "size": "Size (width × height)",
         "sizePlaceholder": "Select a size",
+        "family": "Opening type",
+        "familyPlaceholder": "Select a type",
         "color": "Color",
         "colorPlaceholder": "Select a color",
         "serie": "Series",
@@ -1070,21 +1072,39 @@
         "vidrio": "Glass",
         "vidrioPlaceholder": "Select a glass type",
         "mosquitero": "Mosquito net",
-        "monoblock": "Shutter / Monoblock"
+        "monoblock": "Shutter / Monoblock",
+        "manualSizeToggle": "Enter custom size",
+        "manualWidth": "Width (mm)",
+        "manualHeight": "Height (mm)",
+        "all": "All"
       },
       "helpers": {
         "mosqUnavailable": "Not available for this combination.",
         "mbUnavailable": "Not available for this combination.",
-        "shutterMaterial": "Recommended shutter material: {{material}}"
+        "shutterMaterial": "Recommended shutter material: {{material}}",
+        "sizeHint": "Pick a catalog size to auto-fill the fields.",
+        "manualSizeHint": "Fine-tune the dimensions whenever you need."
+      },
+      "config": {
+        "title": "Available configuration",
+        "subtitle": "These are the values defined for this parametric product.",
+        "families": "Opening types",
+        "series": "Series",
+        "colors": "Colors",
+        "glass": "Glass",
+        "empty": "No values configured."
       },
       "loading": {
         "products": "Loading products…",
-        "matrix": "Loading price matrix…"
+        "matrix": "Loading price matrix…",
+        "search": "Searching…"
       },
       "notifications": {
         "productsError": "Unable to load parametric products.",
         "emptyMatrix": "This product does not have a matrix yet.",
-        "matrixError": "Unable to load the price matrix."
+        "matrixError": "Unable to load the price matrix.",
+        "filterErrorTitle": "Search failed",
+        "filterErrorDesc": "Review the filters and try again."
       },
       "actions": {
         "calculate": "Calculate price"
@@ -1093,7 +1113,8 @@
         "title": "Price found",
         "estimatedTooltip": "Estimated using mosquito net and/or monoblock deltas.",
         "estimatedBadge": "Estimated",
-        "components": "Components considered: {{components}}"
+        "components": "Components considered: {{components}}",
+        "unavailable": "Unavailable"
       },
       "summary": {
         "serie": "Series:",
@@ -1115,6 +1136,7 @@
         "missingMosqPrice": "No mosquito net price available.",
         "missingMonoblockPrice": "No monoblock price available.",
         "missingCombinedPrice": "No price for mosquito net + monoblock.",
+        "shutterMismatch": "The selected shutter material isn't available for this combination.",
         "noMatch": "We couldn't find an exact row for this combination.",
         "genericFallback": "No price is configured for this combination."
       },
@@ -1129,6 +1151,22 @@
         "monoblockMosq": "Price with monoblock + mosquito net",
         "deltaMosq": "Mosquito delta",
         "deltaMb": "Monoblock delta"
+      },
+      "filters": {
+        "title": "Filtered search",
+        "subtitle": "Fill any fields to list matching combinations.",
+        "familyPlaceholder": "Opening type",
+        "seriesPlaceholder": "Series",
+        "colorPlaceholder": "Color",
+        "glassPlaceholder": "Glass",
+        "widthPlaceholder": "Width (mm)",
+        "heightPlaceholder": "Height (mm)",
+        "shutterPlaceholder": "Shutter material",
+        "searchButton": "Search combinations",
+        "optional": "Optional",
+        "exact": "Exact match",
+        "results": "Suggested combinations",
+        "similarity": "Δ {{value}} mm"
       }
     },
     "dashboard": {

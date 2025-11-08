@@ -6,6 +6,13 @@ import { PrismaService } from '../prisma/prisma.service'
 
 type GlossaryCategory = 'tipo' | 'serie' | 'color' | 'vidrio'
 
+export type AberturasSelectorSummary = {
+  families: string[]
+  series: string[]
+  colors: string[]
+  glass: string[]
+}
+
 type CreateGlossaryItemInput = {
   category: string
   label: string
@@ -156,6 +163,38 @@ export class AberturasGlossaryService implements OnModuleInit {
   async remove(id: number) {
     await this.prisma.aberturaGlossaryItem.delete({ where: { id } })
     return { id }
+  }
+
+  async getSelectorSummary(): Promise<AberturasSelectorSummary> {
+    await this.ensureSeeded()
+    const records = await this.prisma.aberturaGlossaryItem.findMany({
+      where: {
+        category: {
+          in: ['tipo', 'serie', 'color', 'vidrio'],
+        },
+      },
+      orderBy: [{ category: 'asc' }, { label: 'asc' }],
+    })
+
+    const summarize = (category: GlossaryCategory) => {
+      const set = new Set<string>()
+      records
+        .filter((record) => record.category === category)
+        .forEach((record) => {
+          const value = (record.value || record.label || '').trim()
+          if (value) {
+            set.add(value)
+          }
+        })
+      return Array.from(set)
+    }
+
+    return {
+      families: summarize('tipo'),
+      series: summarize('serie'),
+      colors: summarize('color'),
+      glass: summarize('vidrio'),
+    }
   }
 
   private normalizePayload(category: string, payload: CreateGlossaryItemInput) {
