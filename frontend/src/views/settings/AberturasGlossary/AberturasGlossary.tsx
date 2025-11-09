@@ -115,6 +115,7 @@ type ConfigFormValues = {
     nearestMaxResults: number
     dimensionTolerancePercent: number
     dimensionMinToleranceMm: number
+    markupPercent: number
 }
 
 type AberturasConfigResponse = {
@@ -123,12 +124,16 @@ type AberturasConfigResponse = {
         dimensionTolerancePercent: number
         dimensionMinToleranceMm: number
     }
+    pricing?: {
+        markupPercent: number
+    }
 }
 
 const defaultConfigValues: ConfigFormValues = {
     nearestMaxResults: 3,
     dimensionTolerancePercent: 12,
     dimensionMinToleranceMm: 40,
+    markupPercent: 25,
 }
 
 const AberturasGlossary = () => {
@@ -152,6 +157,10 @@ const AberturasGlossary = () => {
                 Number(payload?.nearest?.dimensionTolerancePercent) || defaultConfigValues.dimensionTolerancePercent,
             dimensionMinToleranceMm:
                 Number(payload?.nearest?.dimensionMinToleranceMm) || defaultConfigValues.dimensionMinToleranceMm,
+            markupPercent:
+                typeof payload?.pricing?.markupPercent === 'number' && Number.isFinite(payload.pricing.markupPercent)
+                    ? Number(payload.pricing.markupPercent)
+                    : defaultConfigValues.markupPercent,
         }
     }, [])
 
@@ -233,6 +242,19 @@ const AberturasGlossary = () => {
                     )
                     .min(1)
                     .max(2000)
+                    .required(
+                        t('settings.aberturas.config.errors.required', {
+                            defaultValue: 'Required field',
+                        }),
+                    ),
+                markupPercent: Yup.number()
+                    .typeError(
+                        t('settings.aberturas.config.errors.number', {
+                            defaultValue: 'Enter a valid number',
+                        }),
+                    )
+                    .min(0)
+                    .max(500)
                     .required(
                         t('settings.aberturas.config.errors.required', {
                             defaultValue: 'Required field',
@@ -482,6 +504,9 @@ const AberturasGlossary = () => {
                                             dimensionTolerancePercent: Number(values.dimensionTolerancePercent),
                                             dimensionMinToleranceMm: Number(values.dimensionMinToleranceMm),
                                         },
+                                        pricing: {
+                                            markupPercent: Number(values.markupPercent),
+                                        },
                                     }
                                     const response = await apiUpdateAberturasConfig<AberturasConfigResponse, typeof payload>(payload)
                                     const saved = (response?.data ?? response ?? null) as AberturasConfigResponse | null
@@ -518,7 +543,7 @@ const AberturasGlossary = () => {
                         >
                             {({ values, errors, touched, handleChange, handleBlur, isSubmitting, resetForm }) => (
                                 <Form className="space-y-4">
-                                    <div className="grid gap-4 md:grid-cols-3">
+                                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                                         <div>
                                             <label className="text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="nearestMaxResults">
                                                 {t('settings.aberturas.config.fields.nearestMax', {
@@ -577,6 +602,27 @@ const AberturasGlossary = () => {
                                             />
                                             {touched.dimensionMinToleranceMm && errors.dimensionMinToleranceMm && (
                                                 <div className="mt-1 text-xs text-red-500">{errors.dimensionMinToleranceMm}</div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="markupPercent">
+                                                {t('settings.aberturas.config.fields.markupPercent', {
+                                                    defaultValue: 'Markup applied to CSV cost (%)',
+                                                })}
+                                            </label>
+                                            <Input
+                                                id="markupPercent"
+                                                type="number"
+                                                min={0}
+                                                max={500}
+                                                name="markupPercent"
+                                                value={values.markupPercent}
+                                                onChange={handleChange}
+                                                onBlur={handleBlur}
+                                                suffix="%"
+                                            />
+                                            {touched.markupPercent && errors.markupPercent && (
+                                                <div className="mt-1 text-xs text-red-500">{errors.markupPercent}</div>
                                             )}
                                         </div>
                                     </div>

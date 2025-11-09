@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable, Inject, NotFoundException, Logger } from '@nestjs/common'
 import { Prisma, ProductMode, ProductType, SalesUnit } from '@prisma/client'
-import type { DimensionPriceMatrix, ParametricMatrixStaging as ParametricMatrixStagingModel } from '@prisma/client'
+import type {
+  DimensionPriceMatrix,
+  ParametricMatrixStaging as ParametricMatrixStagingModel,
+} from '@prisma/client'
 import { createHash } from 'crypto'
 import * as XLSX from 'xlsx'
 import { PrismaService } from '../prisma/prisma.service'
@@ -18,6 +21,7 @@ import type {
   ParametricMatrixSearchResult,
   ParametricMatchMetadata,
   ParametricMatchAdjustment,
+  ParametricShutterSnapshot,
   ParametricPriceLineage,
   ParametricPriceLineageEntry,
   ParametricPriceResolution,
@@ -1362,6 +1366,17 @@ export class ParametricPricingService {
     const currency = matrices.find((row) => row.currency)?.currency ?? 'USD'
     const productCode = payload.code || null
 
+    let markupPercent = 25
+    try {
+      const pricingConfig = await this.aberturasGlossary.getPricingConfig()
+      if (pricingConfig && Number.isFinite(pricingConfig.markupPercent)) {
+        markupPercent = Number(pricingConfig.markupPercent)
+      }
+    } catch (error) {
+      this.logger.warn('Failed to load aberturas pricing config, falling back to default markup (25%)', error as Error)
+    }
+    const markupMultiplier = 1 + markupPercent / 100
+
     let existing: { id: number } | null = null
     if (productCode) {
       existing = await tx.product.findFirst({ where: { productCode }, select: { id: true } })
@@ -1383,7 +1398,7 @@ export class ParametricPricingService {
     }
 
     const costAmount = Number(numericPrice).toFixed(4)
-    const saleAmount = Number(numericPrice * 1.25).toFixed(4)
+    const saleAmount = Number(numericPrice * markupMultiplier).toFixed(4)
 
     const baseData = {
       name: payload.name,
@@ -1764,6 +1779,19 @@ export class ParametricPricingService {
   }
 
   private mapMatrixEntry(row: DimensionPriceMatrix): ParametricMatrixEntry {
+    const shutterOptionsSnapshot: Record<string, ParametricShutterSnapshot> = {}
+    const normalizedShutterMaterial = (row.shutterSystem ?? '').trim()
+    if (
+      (row.priceMonoblock !== null && row.priceMonoblock !== undefined) ||
+      (row.priceMonoblockMosquitero !== null && row.priceMonoblockMosquitero !== undefined)
+    ) {
+      const key = normalizedShutterMaterial || 'GENERICA'
+      shutterOptionsSnapshot[key] = {
+        price: this.normalizeDecimal(row.priceMonoblock),
+        priceMosq: this.normalizeDecimal(row.priceMonoblockMosquitero),
+      }
+    }
+
     return {
       id: row.id,
       familyId: row.familyId,
@@ -1785,6 +1813,7 @@ export class ParametricPricingService {
       currency: row.currency,
       detailSnapshot: row.detailSnapshot ?? null,
       specifications: row.detailSnapshot ?? null,
+      shutterOptionsSnapshot: Object.keys(shutterOptionsSnapshot).length ? shutterOptionsSnapshot : undefined,
       priceLineage: this.parsePriceLineage(row.priceLineage as Prisma.JsonValue | null),
       conflictFlags: row.conflictFlags ?? [],
       source: row.source ?? null,
@@ -1886,7 +1915,32 @@ export class ParametricPricingService {
       }
     }
     evaluated.sort((a, b) => this.compareMatches(a, b))
-    return evaluated
+    return this.dedupeMatchesByCombination(evaluated)
+  }
+
+  private dedupeMatchesByCombination(matches: ParametricMatrixMatch[]): ParametricMatrixMatch[] {
+    const seen = new Map<string, ParametricMatrixMatch>()
+    const result: ParametricMatrixMatch[] = []
+    for (const match of matches) {
+      const key = this.buildCombinationKey(match.row)
+      const existing = seen.get(key)
+      if (!existing) {
+        seen.set(key, match)
+        result.push(match)
+      } else {
+        this.mergeMatchRows(existing.row, match.row)
+        if (!existing.suggestedAdjustment && match.suggestedAdjustment) {
+          existing.suggestedAdjustment = match.suggestedAdjustment
+        }
+        if (existing.metadata && match.metadata) {
+          existing.metadata.sizeDeltaMm = existing.metadata.sizeDeltaMm ?? match.metadata.sizeDeltaMm
+          if (!existing.metadata.suggestedAdjustment && match.metadata.suggestedAdjustment) {
+            existing.metadata.suggestedAdjustment = match.metadata.suggestedAdjustment
+          }
+        }
+      }
+    }
+    return result
   }
 
   private hasValidPrice(row: ParametricMatrixEntry): boolean {
@@ -1974,6 +2028,66 @@ export class ParametricPricingService {
       none: 2,
     }
     return (order[a] ?? 99) - (order[b] ?? 99)
+  }
+
+  private buildCombinationKey(row: ParametricMatrixEntry): string {
+    return [row.familyId, row.serie, row.material, row.color, row.vidrio, row.widthMm, row.heightMm]
+      .map((value) => (value ?? '').toString().trim().toLowerCase())
+      .join('|')
+  }
+
+  private mergeMatchRows(target: ParametricMatrixEntry, source: ParametricMatrixEntry) {
+    const takeNumber = (current: number | null | undefined, incoming: number | null | undefined) => {
+      if (typeof current === 'number' && current > 0) {
+        return current
+      }
+      if (typeof incoming === 'number' && incoming > 0) {
+        return incoming
+      }
+      return current ?? incoming ?? null
+    }
+
+    target.priceBase = takeNumber(target.priceBase, source.priceBase)
+    target.priceMosquitero = takeNumber(target.priceMosquitero, source.priceMosquitero)
+    target.priceMonoblock = takeNumber(target.priceMonoblock, source.priceMonoblock)
+    target.priceMonoblockMosquitero = takeNumber(target.priceMonoblockMosquitero, source.priceMonoblockMosquitero)
+
+    target.hasMosquiteroOption = target.hasMosquiteroOption || source.hasMosquiteroOption
+    target.hasMonoblockOption = target.hasMonoblockOption || source.hasMonoblockOption
+    target.hasShutterMonoblock = target.hasShutterMonoblock || source.hasShutterMonoblock
+    if (!target.shutterMaterial && source.shutterMaterial) {
+      target.shutterMaterial = source.shutterMaterial
+    }
+
+    if (!target.detailSnapshot && source.detailSnapshot) {
+      target.detailSnapshot = source.detailSnapshot
+    }
+    if (!target.specifications && source.specifications) {
+      target.specifications = source.specifications
+    }
+    if (!target.source && source.source) {
+      target.source = source.source
+    }
+    if (!target.referenceDate && source.referenceDate) {
+      target.referenceDate = source.referenceDate
+    }
+
+    // If the primary price was missing, ensure `price` mirrors the best available base price.
+    if (!target.price || target.price <= 0) {
+      const fallback = takeNumber(target.price, source.price)
+      target.price = typeof fallback === 'number' ? fallback : target.price
+    }
+
+    if (source.shutterOptionsSnapshot) {
+      target.shutterOptionsSnapshot = target.shutterOptionsSnapshot ?? {}
+      for (const [material, snapshot] of Object.entries(source.shutterOptionsSnapshot)) {
+        const existing = target.shutterOptionsSnapshot[material] ?? {}
+        target.shutterOptionsSnapshot[material] = {
+          price: takeNumber(existing.price ?? null, snapshot.price ?? null),
+          priceMosq: takeNumber(existing.priceMosq ?? null, snapshot.priceMosq ?? null),
+        }
+      }
+    }
   }
 
   private getConfiguredParametricProductId(): number | null {

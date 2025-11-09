@@ -1127,7 +1127,8 @@
         "extrasMb": "Persiana / Monoblock",
         "extrasNone": "Sin extras",
         "reference": "Fecha de referencia: {{date}}",
-        "source": "Fuente: {{source}}"
+        "source": "Fuente: {{source}}",
+        "colorUnknown": "Sin especificar"
       },
       "reasons": {
         "missingBase": "No hay precio base disponible para esta combinación.",
@@ -1167,13 +1168,16 @@
         },
         "attributeMatch": "Sí",
         "attributeMismatch": "No",
-        "adjustmentRange": "Rango sugerido: {{min}}× – {{max}}×",
+        "adjustmentRange": "Ajuste sugerido: {{min}} – {{max}}",
         "priceBreakdownTitle": "Precios configurados",
         "priceLabels": {
           "base": "Precio base",
           "mosquitero": "Mosquitero",
           "monoblock": "Monoblock",
-          "monoblockMosq": "Monoblock + mosquitero"
+          "monoblockMosq": "Monoblock + mosquitero",
+          "monoblockMaterial": "Monoblock {{material}}",
+          "monoblockMosqMaterial": "Monoblock {{material}} + mosquitero",
+          "shutterGeneric": "Genérico"
         }
       },
       "components": {
@@ -2122,7 +2126,8 @@
         "fields": {
           "nearestMax": "Cantidad máxima de coincidencias cercanas",
           "tolerancePercent": "Tolerancia porcentual (%)",
-          "minTolerance": "Tolerancia mínima (mm)"
+          "minTolerance": "Tolerancia mínima (mm)",
+          "markupPercent": "Margen sobre costo (%)"
         },
         "errors": {
           "number": "Ingresá un número válido",
