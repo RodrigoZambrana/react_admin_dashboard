@@ -9,6 +9,7 @@ import Alert from '@/components/ui/Alert'
 import Badge from '@/components/ui/Badge'
 import Spinner from '@/components/ui/Spinner'
 import Notification from '@/components/ui/Notification'
+import Tooltip from '@/components/ui/Tooltip'
 import { toast } from '@/components/ui/toast'
 import {
     apiGetParametricConfig,
@@ -151,7 +152,7 @@ type MatchAdjustment = {
 }
 
 type MatchMetadata = {
-    matchLevel: 'exact' | 'near'
+    matchLevel: 'exact' | 'near' | 'none'
     similarityScore: number
     dimensionDistance: number
     attributeMatches: {
@@ -166,6 +167,7 @@ type MatchMetadata = {
         width: number
         height: number
     }
+    glassRankDelta?: number
     suggestedAdjustment?: MatchAdjustment
 }
 
@@ -174,11 +176,13 @@ type MatrixMatch = {
     resolution: PriceResolution
     similarity: number
     metadata?: MatchMetadata
+    matchLevel?: MatchMetadata['matchLevel']
+    suggestedAdjustment?: MatchAdjustment
 }
 
 type MatrixSearchResultPayload = {
     exact?: MatrixMatch
-    nearest?: MatrixMatch
+    nearest: MatrixMatch[]
     suggestions: MatrixMatch[]
 }
 
@@ -206,6 +210,15 @@ type SalesProductsResponse = {
     total: number
 }
 
+type ProductFilterCriteria = {
+    familyId?: string
+    color?: string
+    serie?: string
+    vidrio?: string
+    widthMm?: number
+    heightMm?: number
+}
+
 const normalizeComparableValue = (value?: string | null) =>
     value
         ? value
@@ -217,12 +230,12 @@ const normalizeComparableValue = (value?: string | null) =>
         : ''
 
 const normalizeComparableKey = (value?: string | null) =>
-    normalizeComparableValue(value).replace(/[\s_\-]+/g, '')
+    normalizeComparableValue(value).replace(/[\s_-]+/g, '')
 
 const tokenizeSummary = (value: string) =>
     value
         .replace(/_/g, ' ')
-        .split(/[,/|•·;>-\s]+/)
+        .split(/[,/|•·;>\s-]+/)
         .map((token) => token.trim())
         .filter(Boolean)
 
@@ -253,6 +266,75 @@ const matchesSummaryValue = (summary?: string | null, target?: string | null) =>
     return tokens.includes(normalizedTarget)
 }
 
+const extractNumericTokens = (value?: string | null): number[] => {
+    if (!value) {
+        return []
+    }
+    const matches = value.match(/\d+(?:[.,]\d+)?/g)
+    if (!matches) {
+        return []
+    }
+    return matches
+        .map((token) => {
+            const normalized = token.replace(',', '.').replace(/\.(?=\d{3}(?:\D|$))/g, '')
+            const parsed = Number(normalized)
+            return Number.isFinite(parsed) ? parsed : null
+        })
+        .filter((value): value is number => value !== null)
+}
+
+const matchesDimensionToken = (fields: Array<string | null | undefined>, target?: number) => {
+    if (!target || target <= 0) {
+        return true
+    }
+    return fields.some((field) => {
+        if (!field) {
+            return false
+        }
+        const numbers = extractNumericTokens(field)
+        return numbers.some((value) => value === target)
+    })
+}
+
+const extractDimensionPairs = (value?: string | null): Array<{ width: number; height: number }> => {
+    if (!value) {
+        return []
+    }
+    const normalized = value.toLowerCase()
+    const pattern = /(\d{2,5})(?:\s*(?:x|×|\*|por|⁄|\/|\\|\-|–|—|\s+por\s+)\s*)(\d{2,5})/gi
+    const pairs: Array<{ width: number; height: number }> = []
+    let match: RegExpExecArray | null
+    while ((match = pattern.exec(normalized)) !== null) {
+        const width = Number(match[1])
+        const height = Number(match[2])
+        if (Number.isFinite(width) && Number.isFinite(height)) {
+            pairs.push({ width, height })
+        }
+    }
+    return pairs
+}
+
+const matchesExactDimensionPair = (
+    fields: Array<string | null | undefined>,
+    width?: number,
+    height?: number,
+) => {
+    if ((!width || width <= 0) && (!height || height <= 0)) {
+        return true
+    }
+    return fields.some((field) => {
+        if (!field) {
+            return false
+        }
+        const pairs = extractDimensionPairs(field)
+        return pairs.some((pair) => {
+            const widthMatch = !width || width <= 0 || pair.width === width
+            const heightMatch = !height || height <= 0 || pair.height === height
+            return widthMatch && heightMatch
+        })
+    })
+}
+
 const productMatchesFilters = (product: ProductSummary, filters: ProductFilterCriteria) => {
     if (filters.familyId) {
         const normalizedProductFamily = normalizeComparableKey(product.familyId ?? '')
@@ -277,6 +359,19 @@ const productMatchesFilters = (product: ProductSummary, filters: ProductFilterCr
     }
     if (filters.vidrio && !matchesSummaryValue(product.glassSummary, filters.vidrio)) {
         return false
+    }
+    const dimensionFields = [product.specifications, product.description, product.name]
+    if (filters.widthMm && filters.heightMm) {
+        if (!matchesExactDimensionPair(dimensionFields, filters.widthMm, filters.heightMm)) {
+            return false
+        }
+    } else {
+        if (!matchesDimensionToken(dimensionFields, filters.widthMm)) {
+            return false
+        }
+        if (!matchesDimensionToken(dimensionFields, filters.heightMm)) {
+            return false
+        }
     }
     return true
 }
@@ -556,16 +651,19 @@ const AberturasQuote = () => {
     const { t } = useTranslation()
     const isUrucortinas = clientConfig.slug === 'urucortinas'
 
-    const defaultTableQuery: TableQueries = {
-        total: 0,
-        pageIndex: 1,
-        pageSize: 100,
-        query: '',
-        sort: {
-            order: '',
-            key: '',
-        },
-    }
+    const defaultTableQuery = useMemo<TableQueries>(
+        () => ({
+            total: 0,
+            pageIndex: 1,
+            pageSize: 100,
+            query: '',
+            sort: {
+                order: '',
+                key: '',
+            },
+        }),
+        [],
+    )
 
     const [products, setProducts] = useState<ProductSummary[]>([])
     const [loadingProducts, setLoadingProducts] = useState(false)
@@ -829,7 +927,7 @@ const AberturasQuote = () => {
         } finally {
             setLoadingProducts(false)
         }
-    }, [isUrucortinas, normalizeProduct, resetAllResults, selectedProductId, t])
+    }, [defaultTableQuery, isUrucortinas, normalizeProduct, resetAllResults, selectedProductId, t])
 
     useEffect(() => {
         if (!isUrucortinas) {
@@ -1420,6 +1518,8 @@ const AberturasQuote = () => {
             color: formState.color?.trim() || undefined,
             serie: formState.serie?.trim() || undefined,
             vidrio: formState.vidrio?.trim() || undefined,
+            widthMm: formState.widthMm > 0 ? formState.widthMm : undefined,
+            heightMm: formState.heightMm > 0 ? formState.heightMm : undefined,
         }
         const matches = products.filter(
             (product) =>
@@ -1435,15 +1535,12 @@ const AberturasQuote = () => {
         setProductResults(merged)
         setProductSearchPerformed(true)
 
-        if (!activeProductId) {
-            resetSearchOutcome()
-            return
-        }
-
-        const numericId = Number(activeProductId)
-        if (!Number.isFinite(numericId) || numericId <= 0) {
-            resetSearchOutcome()
-            return
+        let numericId: number | null = null
+        if (activeProductId) {
+            const parsed = Number(activeProductId)
+            if (Number.isFinite(parsed) && parsed > 0) {
+                numericId = parsed
+            }
         }
         const payload: Record<string, unknown> = {}
         const applyFilterValue = (value?: string | null) => {
@@ -1472,13 +1569,22 @@ const AberturasQuote = () => {
                 payload,
             )
             const data = ((response as any)?.data ?? response ?? null) as MatrixSearchResultPayload | null
+            const toArray = (value: unknown): MatrixMatch[] => {
+                if (!value) {
+                    return []
+                }
+                if (Array.isArray(value)) {
+                    return value as MatrixMatch[]
+                }
+                return [value as MatrixMatch]
+            }
             const normalized: MatrixSearchResultPayload = data
                 ? {
                       exact: data.exact,
-                      nearest: data.nearest,
+                      nearest: toArray((data as any).nearest),
                       suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
                   }
-                : { suggestions: [] }
+                : { nearest: [], suggestions: [] }
             setSearchResult(normalized)
         } catch (error) {
             console.error('[aberturas] search failed', error)
@@ -1492,7 +1598,7 @@ const AberturasQuote = () => {
             setSearchPerformed(true)
             setSearchLoading(false)
         }
-    }, [activeProductId, formState, products, resetSearchOutcome, selectedProduct, t])
+    }, [activeProductId, formState, products, selectedProduct, t])
 
     const renderComponents = useCallback(
         (components: string[]) =>
@@ -1586,17 +1692,16 @@ const AberturasQuote = () => {
                     </div>,
                 )
             }
-            if (metadata?.suggestedAdjustment) {
+            const adjustment = match.suggestedAdjustment ?? metadata?.suggestedAdjustment
+            if (adjustment) {
                 blocks.push(
                     <div key="adjustment" className="text-amber-600 dark:text-amber-400">
                         {t('sales.aberturasQuote.match.adjustmentRange', {
                             defaultValue: 'Rango sugerido: {{min}}× – {{max}}×',
-                            min: metadata.suggestedAdjustment.priceRangeFactor[0].toFixed(2),
-                            max: metadata.suggestedAdjustment.priceRangeFactor[1].toFixed(2),
+                            min: adjustment.priceRangeFactor[0].toFixed(2),
+                            max: adjustment.priceRangeFactor[1].toFixed(2),
                         })}
-                        {metadata.suggestedAdjustment.note && (
-                            <div>{metadata.suggestedAdjustment.note}</div>
-                        )}
+                        {adjustment.note && <div>{adjustment.note}</div>}
                     </div>,
                 )
             }
@@ -1615,6 +1720,31 @@ const AberturasQuote = () => {
     const renderMatchCard = useCallback(
         (match: MatrixMatch) => {
             const similarityValue = match.metadata?.dimensionDistance ?? match.similarity
+            const matchLevel = match.matchLevel ?? match.metadata?.matchLevel
+            const priceEntries = [
+                {
+                    key: 'priceBase',
+                    label: t('sales.aberturasQuote.match.priceLabels.base', { defaultValue: 'Precio base' }),
+                    value: typeof match.row.priceBase === 'number' ? match.row.priceBase : match.row.price ?? null,
+                },
+                {
+                    key: 'priceMosquitero',
+                    label: t('sales.aberturasQuote.match.priceLabels.mosquitero', { defaultValue: 'Mosquitero' }),
+                    value: match.row.priceMosquitero,
+                },
+                {
+                    key: 'priceMonoblock',
+                    label: t('sales.aberturasQuote.match.priceLabels.monoblock', { defaultValue: 'Monoblock' }),
+                    value: match.row.priceMonoblock,
+                },
+                {
+                    key: 'priceMonoblockMosquitero',
+                    label: t('sales.aberturasQuote.match.priceLabels.monoblockMosq', {
+                        defaultValue: 'Monoblock + mosquitero',
+                    }),
+                    value: match.row.priceMonoblockMosquitero,
+                },
+            ].filter((entry) => typeof entry.value === 'number' && entry.value > 0)
             return (
                 <div
                     key={`${match.row.id}-${match.similarity}`}
@@ -1629,12 +1759,12 @@ const AberturasQuote = () => {
                                   })}
                         </span>
                         <div className="flex items-center gap-2 flex-wrap justify-end">
-                            {match.metadata?.matchLevel === 'exact' && (
+                            {matchLevel === 'exact' && (
                                 <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
                                     {t('sales.aberturasQuote.match.badges.exact', { defaultValue: 'Exacto' })}
                                 </Badge>
                             )}
-                            {match.metadata?.matchLevel === 'near' && (
+                            {matchLevel === 'near' && (
                                 <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200">
                                     {t('sales.aberturasQuote.match.badges.near', { defaultValue: 'Cercano' })}
                                 </Badge>
@@ -1700,6 +1830,25 @@ const AberturasQuote = () => {
                             })}
                         </div>
                     )}
+                    {priceEntries.length ? (
+                        <div className="text-[11px] text-gray-600 dark:text-gray-300 space-y-1">
+                            <div className="font-semibold">
+                                {t('sales.aberturasQuote.match.priceBreakdownTitle', {
+                                    defaultValue: 'Precios configurados',
+                                })}
+                            </div>
+                            <div className="grid gap-1 sm:grid-cols-2">
+                                {priceEntries.map((entry) => (
+                                    <div key={`${match.row.id}-${entry.key}`} className="flex justify-between gap-2">
+                                        <span>{entry.label}</span>
+                                        <span className="font-medium text-gray-900 dark:text-gray-100">
+                                            {toCurrency(match.row.currency, entry.value as number)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
                     {renderMatchInsights(match)}
                 </div>
             )
@@ -2187,12 +2336,11 @@ const AberturasQuote = () => {
                                     </div>
                                 )}
                                 {(() => {
-                                    const nearest = searchResult?.nearest
                                     const exactId = searchResult?.exact?.row.id
-                                    if (!nearest) {
-                                        return null
-                                    }
-                                    if (exactId && nearest.row.id === exactId) {
+                                    const nearestList = (searchResult?.nearest ?? []).filter(
+                                        (match) => !exactId || match.row.id !== exactId,
+                                    )
+                                    if (!nearestList.length) {
                                         return null
                                     }
                                     return (
@@ -2217,7 +2365,9 @@ const AberturasQuote = () => {
                                                     })}
                                                 </Badge>
                                             </div>
-                                            {renderMatchCard(nearest)}
+                                            <div className="flex flex-col gap-3">
+                                                {nearestList.map((match) => renderMatchCard(match))}
+                                            </div>
                                         </div>
                                     )
                                 })()}
@@ -2234,7 +2384,7 @@ const AberturasQuote = () => {
                                     </div>
                                 ) : null}
                                 {!searchResult?.exact &&
-                                    !searchResult?.nearest &&
+                                    !(searchResult?.nearest?.length) &&
                                     !(searchResult?.suggestions?.length) && (
                                         <p className="text-sm text-gray-600 dark:text-gray-300">
                                             {t('sales.aberturasQuote.match.empty', {

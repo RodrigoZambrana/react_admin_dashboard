@@ -1168,7 +1168,14 @@
         },
         "attributeMatch": "Yes",
         "attributeMismatch": "No",
-        "adjustmentRange": "Suggested range: {{min}}× – {{max}}×"
+        "adjustmentRange": "Suggested range: {{min}}× – {{max}}×",
+        "priceBreakdownTitle": "Configured prices",
+        "priceLabels": {
+          "base": "Base price",
+          "mosquitero": "Screens (mosquitero)",
+          "monoblock": "Monoblock",
+          "monoblockMosq": "Monoblock + screen"
+        }
       },
       "components": {
         "base": "Base price",
@@ -2107,6 +2114,24 @@
         "saveErrorDescription": "Please review the data and try again.",
         "updateSuccess": "Value updated",
         "createSuccess": "Value created"
+      },
+      "config": {
+        "title": "Nearest match configuration",
+        "description": "Fine tune how many alternatives are shown and how tolerant the search is around the requested dimensions.",
+        "fields": {
+          "nearestMax": "Nearest results to show",
+          "tolerancePercent": "Dimension tolerance (%)",
+          "minTolerance": "Minimum tolerance (mm)"
+        },
+        "errors": {
+          "number": "Enter a valid number",
+          "required": "This field is required"
+        },
+        "loadErrorTitle": "Unable to load configuration",
+        "loadErrorDescription": "Check your connection and try again.",
+        "saveSuccess": "Configuration updated",
+        "saveErrorTitle": "Unable to update configuration",
+        "saveErrorDescription": "Please try again in a few seconds."
       }
     },
     "productCategories": {

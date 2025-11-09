@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx'
 import { PrismaService } from '../prisma/prisma.service'
 import { CLIENT_CONFIG_TOKEN } from '../config/client-config.constants'
 import type { ClientVariantConfig } from '../config/client-config.types'
-import { AberturasGlossaryService, AberturasSelectorSummary } from '../aberturas/aberturas-glossary.service'
+import { AberturasGlossaryService, AberturasSelectorSummary, AberturasConfig } from '../aberturas/aberturas-glossary.service'
 import type {
   ParametricCompatibilityConfig,
   ParametricConfigSnapshot,
@@ -1609,39 +1609,97 @@ export class ParametricPricingService {
     await this.ensureProduct(productId)
 
     const limit = Math.min(Math.max(criteria.limit ?? 10, 1), 50)
-    const where = this.buildMatrixWhere(productId, criteria)
-    const rows = await this.prisma.dimensionPriceMatrix.findMany({
-      where,
-      orderBy: [
-        { widthMm: 'asc' },
-        { heightMm: 'asc' },
-        { serie: 'asc' },
-        { color: 'asc' },
-      ],
-      take: 500,
-    })
-
-    const mapped = rows.map((row) => this.mapMatrixEntry(row))
+    const config = await this.aberturasGlossary.getConfig()
+    const mapped = await this.fetchSearchRows(criteria, { productId, nearestConfig: config.nearest })
     const request = {
       hasMosquitero: Boolean(criteria.hasMosquitero),
       hasShutterMonoblock: Boolean(criteria.hasShutterMonoblock),
       shutterMaterial: criteria.shutterMaterial?.trim() || undefined,
     }
+    return this.buildSearchResult(mapped, criteria, request, limit, config.nearest)
+  }
 
-    const rankedMatches = this.rankMatrixMatches(mapped, criteria, request)
-    const exactMatch = rankedMatches.find((match) => match.metadata?.matchLevel === 'exact')
-    const nearestMatch = rankedMatches[0] ?? null
-    const excludeIds = new Set<number>()
-    if (exactMatch) {
-      excludeIds.add(exactMatch.row.id)
-    } else if (nearestMatch) {
-      excludeIds.add(nearestMatch.row.id)
+  async searchMatrixDefault(criteria: ParametricMatrixSearchDto): Promise<ParametricMatrixSearchResult> {
+    this.assertFeatureEnabled()
+    const limit = Math.min(Math.max(criteria.limit ?? 10, 1), 50)
+    const config = await this.aberturasGlossary.getConfig()
+    const request = {
+      hasMosquitero: Boolean(criteria.hasMosquitero),
+      hasShutterMonoblock: Boolean(criteria.hasShutterMonoblock),
+      shutterMaterial: criteria.shutterMaterial?.trim() || undefined,
     }
-    const suggestions = rankedMatches.filter((match) => !excludeIds.has(match.row.id)).slice(0, limit)
+    let mapped = await this.fetchSearchRows(criteria, { nearestConfig: config.nearest })
+    if (!mapped.length) {
+      const productId = await this.resolveDefaultParametricProductId()
+      mapped = await this.fetchSearchRows(criteria, { productId, nearestConfig: config.nearest })
+    }
+    return this.buildSearchResult(mapped, criteria, request, limit, config.nearest)
+  }
+
+  private async fetchSearchRows(
+    criteria: ParametricMatrixSearchDto,
+    options: { productId?: number | null; nearestConfig?: AberturasConfig['nearest'] },
+  ): Promise<ParametricMatrixEntry[]> {
+    const productId = typeof options.productId === 'number' ? options.productId : undefined
+    const dimensionAwareWhere = this.buildMatrixWhere(productId, criteria, {
+      restrictSerie: true,
+      applyDimensions: true,
+      nearestConfig: options.nearestConfig,
+    })
+    let rows = await this.queryMatrixRows(dimensionAwareWhere)
+
+    if (!rows.length && this.hasDimensionCriteria(criteria)) {
+      const relaxedSameSerie = this.buildMatrixWhere(productId, criteria, {
+        restrictSerie: true,
+        applyDimensions: false,
+        nearestConfig: options.nearestConfig,
+      })
+      rows = await this.queryMatrixRows(relaxedSameSerie)
+    }
+
+    if (!rows.length && criteria.serie) {
+      let fallbackWhere = this.buildMatrixWhere(productId, criteria, {
+        restrictSerie: false,
+        applyDimensions: true,
+        nearestConfig: options.nearestConfig,
+      })
+      rows = await this.queryMatrixRows(fallbackWhere)
+      if (!rows.length && this.hasDimensionCriteria(criteria)) {
+        fallbackWhere = this.buildMatrixWhere(productId, criteria, {
+          restrictSerie: false,
+          applyDimensions: false,
+          nearestConfig: options.nearestConfig,
+        })
+        rows = await this.queryMatrixRows(fallbackWhere)
+      }
+    }
+
+    return rows.map((row) => this.mapMatrixEntry(row))
+  }
+
+  private buildSearchResult(
+    rows: ParametricMatrixEntry[],
+    criteria: ParametricMatrixSearchDto,
+    request: { hasMosquitero: boolean; hasShutterMonoblock: boolean; shutterMaterial?: string },
+    limit: number,
+    nearestConfig?: AberturasConfig['nearest'],
+  ): ParametricMatrixSearchResult {
+    const rankedMatches = this.rankMatrixMatches(rows, criteria, request)
+    const exactMatch = rankedMatches.find((match) => match.matchLevel === 'exact')
+    const nearestPool = rankedMatches.filter((match) => !exactMatch || match.row.id !== exactMatch.row.id)
+    const configuredNearestLimit = nearestConfig?.maxResults ?? 3
+    const nearestLimit = Math.min(Math.max(configuredNearestLimit, 1), Math.max(limit, 1))
+    const nearestMatches = nearestPool.slice(0, nearestLimit)
+    const excludedIds = new Set<number>()
+    if (exactMatch) {
+      excludedIds.add(exactMatch.row.id)
+    }
+    nearestMatches.forEach((match) => excludedIds.add(match.row.id))
+    const suggestions = rankedMatches.filter((match) => !excludedIds.has(match.row.id)).slice(0, limit)
 
     return {
       exact: exactMatch ?? undefined,
-      nearest: nearestMatch ?? undefined,
+      nearest: nearestMatches,
       suggestions,
     }
   }
@@ -1735,23 +1793,77 @@ export class ParametricPricingService {
   }
 
   private buildMatrixWhere(
-    productId: number,
+    productId: number | undefined,
     criteria: ParametricMatrixSearchDto,
+    options?: { restrictSerie?: boolean; applyDimensions?: boolean; nearestConfig?: AberturasConfig['nearest'] },
   ): Prisma.DimensionPriceMatrixWhereInput {
-    const where: Prisma.DimensionPriceMatrixWhereInput = { productId }
+    const where: Prisma.DimensionPriceMatrixWhereInput = {}
+    if (typeof productId === 'number') {
+      where.productId = productId
+    }
     if (criteria.familyId) {
       where.familyId = criteria.familyId
     }
-    if (criteria.serie) {
+    if (criteria.serie && options?.restrictSerie !== false) {
       where.serie = criteria.serie
     }
-    if (criteria.color) {
-      where.color = criteria.color
-    }
-    if (criteria.vidrio) {
-      where.vidrio = criteria.vidrio
+    if (options?.applyDimensions !== false) {
+      const dimensionFilter = this.buildDimensionFilter(criteria, options?.nearestConfig)
+      if (dimensionFilter?.widthMm) {
+        where.widthMm = dimensionFilter.widthMm
+      }
+      if (dimensionFilter?.heightMm) {
+        where.heightMm = dimensionFilter.heightMm
+      }
     }
     return where
+  }
+
+  private hasDimensionCriteria(criteria: ParametricMatrixSearchDto): boolean {
+    return Boolean(
+      (typeof criteria.widthMm === 'number' && criteria.widthMm > 0) ||
+        (typeof criteria.heightMm === 'number' && criteria.heightMm > 0),
+    )
+  }
+
+  private buildDimensionFilter(
+    criteria: ParametricMatrixSearchDto,
+    nearestConfig?: AberturasConfig['nearest'],
+  ): null | { widthMm?: Prisma.IntFilter; heightMm?: Prisma.IntFilter } {
+    const bounds: { widthMm?: Prisma.IntFilter; heightMm?: Prisma.IntFilter } = {}
+    const width = typeof criteria.widthMm === 'number' && criteria.widthMm > 0 ? criteria.widthMm : null
+    const height = typeof criteria.heightMm === 'number' && criteria.heightMm > 0 ? criteria.heightMm : null
+
+    const computeRange = (value: number): Prisma.IntFilter => {
+      const tolerancePercent = (nearestConfig?.dimensionTolerancePercent ?? 12) / 100
+      const minTolerance = nearestConfig?.dimensionMinToleranceMm ?? 40
+      const tolerance = Math.max(minTolerance, value * tolerancePercent)
+      const lower = Math.max(0, Math.floor(value - tolerance))
+      const upper = Math.ceil(value + tolerance)
+      return { gte: lower, lte: upper }
+    }
+
+    if (width) {
+      bounds.widthMm = computeRange(width)
+    }
+    if (height) {
+      bounds.heightMm = computeRange(height)
+    }
+
+    return bounds.widthMm || bounds.heightMm ? bounds : null
+  }
+
+  private async queryMatrixRows(where: Prisma.DimensionPriceMatrixWhereInput): Promise<DimensionPriceMatrix[]> {
+    return this.prisma.dimensionPriceMatrix.findMany({
+      where,
+      orderBy: [
+        { widthMm: 'asc' },
+        { heightMm: 'asc' },
+        { serie: 'asc' },
+        { color: 'asc' },
+      ],
+      take: 500,
+    })
   }
 
   private rankMatrixMatches(
@@ -1762,6 +1874,9 @@ export class ParametricPricingService {
   ): ParametricMatrixMatch[] {
     const evaluated: ParametricMatrixMatch[] = []
     for (const row of rows) {
+      if (!this.hasValidPrice(row)) {
+        continue
+      }
       if (excludeId && row.id === excludeId) {
         continue
       }
@@ -1770,8 +1885,132 @@ export class ParametricPricingService {
         evaluated.push(match)
       }
     }
-    evaluated.sort((a, b) => (a.metadata?.similarityScore ?? a.similarity) - (b.metadata?.similarityScore ?? b.similarity))
+    evaluated.sort((a, b) => this.compareMatches(a, b))
     return evaluated
+  }
+
+  private hasValidPrice(row: ParametricMatrixEntry): boolean {
+    const priceCandidates = [row.priceBase ?? row.price ?? null, row.priceMosquitero, row.priceMonoblock, row.priceMonoblockMosquitero]
+    return priceCandidates.some((value) => typeof value === 'number' && Number(value) > 0)
+  }
+
+  private compareMatches(a: ParametricMatrixMatch, b: ParametricMatrixMatch): number {
+    const metaA = a.metadata
+    const metaB = b.metadata
+
+    const serieComparison = this.compareBoolean(metaA?.attributeMatches.serie, metaB?.attributeMatches.serie)
+    if (serieComparison !== 0) {
+      return serieComparison
+    }
+
+    const distanceComparison = this.compareNumbers(metaA?.dimensionDistance, metaB?.dimensionDistance)
+    if (distanceComparison !== 0) {
+      return distanceComparison
+    }
+
+    const sizePreferenceComparison = this.compareBoolean(
+      this.prefersLargerDimensions(metaA),
+      this.prefersLargerDimensions(metaB),
+    )
+    if (sizePreferenceComparison !== 0) {
+      return sizePreferenceComparison
+    }
+
+    const glassComparison = this.compareNumbers(metaA?.glassRankDelta, metaB?.glassRankDelta)
+    if (glassComparison !== 0) {
+      return glassComparison
+    }
+
+    const colorComparison = this.compareBoolean(metaA?.attributeMatches.color, metaB?.attributeMatches.color)
+    if (colorComparison !== 0) {
+      return colorComparison
+    }
+
+    const familyComparison = this.compareBoolean(metaA?.attributeMatches.family, metaB?.attributeMatches.family)
+    if (familyComparison !== 0) {
+      return familyComparison
+    }
+
+    const levelComparison = this.compareMatchLevel(a.matchLevel, b.matchLevel)
+    if (levelComparison !== 0) {
+      return levelComparison
+    }
+
+    return (a.row.id ?? 0) - (b.row.id ?? 0)
+  }
+
+  private compareBoolean(a?: boolean, b?: boolean): number {
+    const av = Boolean(a)
+    const bv = Boolean(b)
+    if (av === bv) {
+      return 0
+    }
+    return av ? -1 : 1
+  }
+
+  private prefersLargerDimensions(metadata?: ParametricMatchMetadata): boolean {
+    if (!metadata?.sizeDeltaMm) {
+      return true
+    }
+    const { width, height } = metadata.sizeDeltaMm
+    const widthOk = typeof width !== 'number' ? true : width >= 0
+    const heightOk = typeof height !== 'number' ? true : height >= 0
+    return widthOk && heightOk
+  }
+
+  private compareNumbers(a?: number, b?: number): number {
+    const av = typeof a === 'number' && Number.isFinite(a) ? a : Number.POSITIVE_INFINITY
+    const bv = typeof b === 'number' && Number.isFinite(b) ? b : Number.POSITIVE_INFINITY
+    if (av === bv) {
+      return 0
+    }
+    return av < bv ? -1 : 1
+  }
+
+  private compareMatchLevel(a: ParametricMatrixMatch['matchLevel'], b: ParametricMatrixMatch['matchLevel']): number {
+    const order: Record<ParametricMatrixMatch['matchLevel'], number> = {
+      exact: 0,
+      near: 1,
+      none: 2,
+    }
+    return (order[a] ?? 99) - (order[b] ?? 99)
+  }
+
+  private getConfiguredParametricProductId(): number | null {
+    const metadataSources: Array<Record<string, unknown> | undefined> = [
+      this.clientConfig?.metadata,
+      this.clientConfig?.backend?.metadata,
+      this.clientConfig?.shared,
+    ]
+    const keys = ['aberturasParametricProductId', 'parametricProductId', 'DEFAULT_PARAMETRIC_PRODUCT_ID']
+    for (const source of metadataSources) {
+      if (!source) {
+        continue
+      }
+      for (const key of keys) {
+        const candidate = source[key]
+        const numeric = Number(candidate)
+        if (Number.isFinite(numeric) && numeric > 0) {
+          return numeric
+        }
+      }
+    }
+    return null
+  }
+
+  private async resolveDefaultParametricProductId(): Promise<number> {
+    const configured = this.getConfiguredParametricProductId()
+    if (configured) {
+      return configured
+    }
+    const fallback = await this.prisma.dimensionPriceMatrix.findFirst({
+      select: { productId: true },
+      orderBy: { productId: 'asc' },
+    })
+    if (!fallback) {
+      throw new NotFoundException('No hay matrices paramétricas disponibles.')
+    }
+    return fallback.productId
   }
 
   private evaluateMatrixRow(
@@ -1789,6 +2028,8 @@ export class ParametricPricingService {
       resolution,
       similarity: metadata.similarityScore,
       metadata,
+      matchLevel: metadata.matchLevel,
+      suggestedAdjustment: metadata.suggestedAdjustment,
     }
   }
 
@@ -1814,20 +2055,8 @@ export class ParametricPricingService {
     const heightMatch = heightRequested === null || row.heightMm === heightRequested
     const vidrioMatch = !criteria.vidrio || row.vidrio === criteria.vidrio
     const colorMatch = !criteria.color || row.color === criteria.color
-
-    const seriePenalty = serieMatch ? 0 : 10_000 + dimensionDistance
-    const familyPenalty = familyMatch ? 0 : 200
-    const glassPenalty = !criteria.vidrio
-      ? 0
-      : Math.abs(this.getGlassRank(row.vidrio) - this.getGlassRank(criteria.vidrio)) * 250
-    const colorPenalty = colorMatch ? 0 : 80
-    const prefersLarger =
-      widthRequested !== null && heightRequested !== null
-        ? row.widthMm < widthRequested || row.heightMm < heightRequested
-        : false
-    const sizePreferencePenalty = prefersLarger ? 4 : 0
-
-    const similarityScore = dimensionDistance + seriePenalty + familyPenalty + glassPenalty + colorPenalty + sizePreferencePenalty
+    const glassRankDelta = criteria.vidrio ? Math.abs(this.getGlassRank(row.vidrio) - this.getGlassRank(criteria.vidrio)) : undefined
+    const similarityScore = dimensionDistance
     const attributeMatches = {
       family: familyMatch,
       serie: serieMatch,
@@ -1836,27 +2065,29 @@ export class ParametricPricingService {
       vidrio: vidrioMatch,
       color: colorMatch,
     }
-    const matchLevel =
-      attributeMatches.family &&
-      attributeMatches.serie &&
-      attributeMatches.width &&
-      attributeMatches.height &&
-      attributeMatches.vidrio &&
-      attributeMatches.color
+    const matchLevel = attributeMatches.serie
+      ? attributeMatches.family &&
+        attributeMatches.width &&
+        attributeMatches.height &&
+        attributeMatches.vidrio &&
+        attributeMatches.color
         ? 'exact'
         : 'near'
+      : 'none'
 
     const suggestedAdjustment = this.buildSuggestedAdjustment(criteria, row, attributeMatches)
+    const sizeDeltaMm =
+      widthRequested !== null && heightRequested !== null
+        ? { width: widthDelta, height: heightDelta }
+        : undefined
 
     return {
       matchLevel,
       similarityScore,
       dimensionDistance,
       attributeMatches,
-      sizeDeltaMm:
-        widthRequested !== null && heightRequested !== null
-          ? { width: widthDelta, height: heightDelta }
-          : undefined,
+      sizeDeltaMm,
+      glassRankDelta,
       suggestedAdjustment,
     }
   }

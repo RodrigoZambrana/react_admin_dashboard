@@ -49,6 +49,11 @@ export class PricingController {
     return this.pricing.searchMatrix(productId, payload)
   }
 
+  @Post('products/search')
+  searchMatrixDefault(@Body() payload: ParametricMatrixSearchDto) {
+    return this.pricing.searchMatrixDefault(payload)
+  }
+
   @Get('products/:productId/compatibility')
   getCompatibility(@Param('productId', ParseIntPipe) productId: number) {
     return this.pricing.getCompatibility(productId)

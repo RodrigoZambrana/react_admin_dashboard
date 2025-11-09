@@ -473,6 +473,4 @@ export const isApiError = (error: unknown): error is ApiError => error instanceo
 
 export const createCorrelationId = generateCorrelationId
 
-export type { ApiError }
-
 export default httpClient

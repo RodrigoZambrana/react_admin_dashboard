@@ -119,7 +119,7 @@ export type ParametricMatchAdjustment = {
 }
 
 export type ParametricMatchMetadata = {
-  matchLevel: 'exact' | 'near'
+  matchLevel: 'exact' | 'near' | 'none'
   similarityScore: number
   dimensionDistance: number
   attributeMatches: {
@@ -134,6 +134,7 @@ export type ParametricMatchMetadata = {
     width: number
     height: number
   }
+  glassRankDelta?: number
   suggestedAdjustment?: ParametricMatchAdjustment
 }
 
@@ -142,11 +143,13 @@ export type ParametricMatrixMatch = {
   resolution: ParametricPriceResolution
   similarity: number
   metadata?: ParametricMatchMetadata
+  matchLevel: ParametricMatchMetadata['matchLevel']
+  suggestedAdjustment?: ParametricMatchAdjustment
 }
 
 export type ParametricMatrixSearchResult = {
   exact?: ParametricMatrixMatch
-  nearest?: ParametricMatrixMatch
+  nearest: ParametricMatrixMatch[]
   suggestions: ParametricMatrixMatch[]
 }
 

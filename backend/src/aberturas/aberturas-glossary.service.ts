@@ -6,6 +6,26 @@ import { PrismaService } from '../prisma/prisma.service'
 
 type GlossaryCategory = 'tipo' | 'serie' | 'color' | 'vidrio'
 
+export type AberturasConfig = {
+  nearest: {
+    maxResults: number
+    dimensionTolerancePercent: number
+    dimensionMinToleranceMm: number
+  }
+}
+
+export type UpdateAberturasConfigInput = {
+  nearest?: Partial<AberturasConfig['nearest']>
+}
+
+const DEFAULT_ABERTURAS_CONFIG: AberturasConfig = {
+  nearest: {
+    maxResults: 3,
+    dimensionTolerancePercent: 12,
+    dimensionMinToleranceMm: 40,
+  },
+}
+
 export type AberturasSelectorSummary = {
   families: string[]
   series: string[]
@@ -24,6 +44,9 @@ type CreateGlossaryItemInput = {
 export class AberturasGlossaryService implements OnModuleInit {
   private readonly logger = new Logger(AberturasGlossaryService.name)
   private seedPromise: Promise<void> | null = null
+  private configCache: { value: AberturasConfig; expiresAt: number } | null = null
+  private static readonly CONFIG_KEY = 'aberturas_config'
+  private static readonly CONFIG_CACHE_TTL_MS = 30_000
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -197,6 +220,47 @@ export class AberturasGlossaryService implements OnModuleInit {
     }
   }
 
+  async getConfig(): Promise<AberturasConfig> {
+    const now = Date.now()
+    if (this.configCache && this.configCache.expiresAt > now) {
+      return this.configCache.value
+    }
+
+    const record = await this.prisma.systemConfig.findUnique({
+      where: { key: AberturasGlossaryService.CONFIG_KEY },
+    })
+    const parsed = this.parseConfig(record?.value)
+    this.configCache = {
+      value: parsed,
+      expiresAt: now + AberturasGlossaryService.CONFIG_CACHE_TTL_MS,
+    }
+    return parsed
+  }
+
+  async updateConfig(payload: UpdateAberturasConfigInput): Promise<AberturasConfig> {
+    const sanitized = this.normalizeConfig(payload)
+    await this.prisma.systemConfig.upsert({
+      where: { key: AberturasGlossaryService.CONFIG_KEY },
+      create: {
+        key: AberturasGlossaryService.CONFIG_KEY,
+        value: JSON.stringify(sanitized),
+      },
+      update: {
+        value: JSON.stringify(sanitized),
+      },
+    })
+    this.configCache = {
+      value: sanitized,
+      expiresAt: Date.now() + AberturasGlossaryService.CONFIG_CACHE_TTL_MS,
+    }
+    return sanitized
+  }
+
+  async getNearestConfig(): Promise<AberturasConfig['nearest']> {
+    const config = await this.getConfig()
+    return config.nearest
+  }
+
   private normalizePayload(category: string, payload: CreateGlossaryItemInput) {
     const label = (payload.label ?? '').trim()
     const value = (payload.value ?? label).trim()
@@ -226,6 +290,40 @@ export class AberturasGlossaryService implements OnModuleInit {
       value: record.value,
       adjustPct: record.adjustPct ? Number(record.adjustPct) : null,
       metadata: record.metadata ?? null,
+    }
+  }
+
+  private parseConfig(raw?: string | null): AberturasConfig {
+    if (!raw) {
+      return DEFAULT_ABERTURAS_CONFIG
+    }
+    try {
+      const parsed = JSON.parse(raw) as Partial<AberturasConfig>
+      return this.normalizeConfig(parsed)
+    } catch (error) {
+      this.logger.warn('Failed to parse stored aberturas config, falling back to defaults', error as Error)
+      return DEFAULT_ABERTURAS_CONFIG
+    }
+  }
+
+  private normalizeConfig(payload?: Partial<AberturasConfig> | UpdateAberturasConfigInput): AberturasConfig {
+    const base = payload ?? {}
+    const nearest = base?.nearest ?? {}
+    const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
+    const maxResults = Number.isFinite(nearest.maxResults) ? clamp(Number(nearest.maxResults), 1, 10) : DEFAULT_ABERTURAS_CONFIG.nearest.maxResults
+    const dimensionTolerancePercent = Number.isFinite(nearest.dimensionTolerancePercent)
+      ? clamp(Number(nearest.dimensionTolerancePercent), 1, 100)
+      : DEFAULT_ABERTURAS_CONFIG.nearest.dimensionTolerancePercent
+    const dimensionMinToleranceMm = Number.isFinite(nearest.dimensionMinToleranceMm)
+      ? clamp(Number(nearest.dimensionMinToleranceMm), 1, 2000)
+      : DEFAULT_ABERTURAS_CONFIG.nearest.dimensionMinToleranceMm
+
+    return {
+      nearest: {
+        maxResults,
+        dimensionTolerancePercent,
+        dimensionMinToleranceMm,
+      },
     }
   }
 }
