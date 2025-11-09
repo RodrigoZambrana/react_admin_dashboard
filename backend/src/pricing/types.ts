@@ -29,6 +29,12 @@ export type ParametricMatrixRow = {
   source?: string | null
   sourceSystem?: string | null
   referenceDate?: Date | null
+  shutterOptionsSnapshot?: Record<string, ParametricShutterSnapshot> | null
+}
+
+export type ParametricShutterSnapshot = {
+  price?: number | null
+  priceMosq?: number | null
 }
 
 export type ParametricPriceLineageEntry = {
@@ -84,6 +90,7 @@ export type ParametricMatrixEntry = {
   currency: string
   detailSnapshot: string | null
   specifications: string | null
+  shutterOptionsSnapshot?: Record<string, ParametricShutterSnapshot> | null
   priceLineage: ParametricPriceLineage | null
   conflictFlags: string[]
   source: string | null

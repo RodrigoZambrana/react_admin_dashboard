@@ -1128,7 +1128,8 @@
         "extrasMb": "Shutter / Monoblock",
         "extrasNone": "No extras",
         "reference": "Reference date: {{date}}",
-        "source": "Source: {{source}}"
+        "source": "Source: {{source}}",
+        "colorUnknown": "Not specified"
       },
       "reasons": {
         "missingBase": "No base price available for this combination.",
@@ -1168,13 +1169,16 @@
         },
         "attributeMatch": "Yes",
         "attributeMismatch": "No",
-        "adjustmentRange": "Suggested range: {{min}}× – {{max}}×",
+        "adjustmentRange": "Suggested adjustment: {{min}} – {{max}}",
         "priceBreakdownTitle": "Configured prices",
         "priceLabels": {
           "base": "Base price",
           "mosquitero": "Screens (mosquitero)",
           "monoblock": "Monoblock",
-          "monoblockMosq": "Monoblock + screen"
+          "monoblockMosq": "Monoblock + screen",
+          "monoblockMaterial": "Monoblock {{material}}",
+          "monoblockMosqMaterial": "Monoblock {{material}} + screen",
+          "shutterGeneric": "Generic"
         }
       },
       "components": {
@@ -2121,7 +2125,8 @@
         "fields": {
           "nearestMax": "Nearest results to show",
           "tolerancePercent": "Dimension tolerance (%)",
-          "minTolerance": "Minimum tolerance (mm)"
+          "minTolerance": "Minimum tolerance (mm)",
+          "markupPercent": "Markup over cost (%)"
         },
         "errors": {
           "number": "Enter a valid number",

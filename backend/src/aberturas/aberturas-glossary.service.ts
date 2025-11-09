@@ -12,10 +12,14 @@ export type AberturasConfig = {
     dimensionTolerancePercent: number
     dimensionMinToleranceMm: number
   }
+  pricing: {
+    markupPercent: number
+  }
 }
 
 export type UpdateAberturasConfigInput = {
   nearest?: Partial<AberturasConfig['nearest']>
+  pricing?: Partial<AberturasConfig['pricing']>
 }
 
 const DEFAULT_ABERTURAS_CONFIG: AberturasConfig = {
@@ -23,6 +27,9 @@ const DEFAULT_ABERTURAS_CONFIG: AberturasConfig = {
     maxResults: 3,
     dimensionTolerancePercent: 12,
     dimensionMinToleranceMm: 40,
+  },
+  pricing: {
+    markupPercent: 25,
   },
 }
 
@@ -261,6 +268,11 @@ export class AberturasGlossaryService implements OnModuleInit {
     return config.nearest
   }
 
+  async getPricingConfig(): Promise<AberturasConfig['pricing']> {
+    const config = await this.getConfig()
+    return config.pricing
+  }
+
   private normalizePayload(category: string, payload: CreateGlossaryItemInput) {
     const label = (payload.label ?? '').trim()
     const value = (payload.value ?? label).trim()
@@ -318,11 +330,19 @@ export class AberturasGlossaryService implements OnModuleInit {
       ? clamp(Number(nearest.dimensionMinToleranceMm), 1, 2000)
       : DEFAULT_ABERTURAS_CONFIG.nearest.dimensionMinToleranceMm
 
+    const pricing = base?.pricing ?? {}
+    const markupPercent = Number.isFinite(pricing.markupPercent)
+      ? clamp(Number(pricing.markupPercent), 0, 500)
+      : DEFAULT_ABERTURAS_CONFIG.pricing.markupPercent
+
     return {
       nearest: {
         maxResults,
         dimensionTolerancePercent,
         dimensionMinToleranceMm,
+      },
+      pricing: {
+        markupPercent,
       },
     }
   }

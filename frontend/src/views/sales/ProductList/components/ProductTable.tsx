@@ -67,6 +67,9 @@ type Product = {
     currency?: string
     unitOfMeasure?: SalesUnit
     specifications?: string
+    description?: string | null
+    familySummary?: string
+    familyId?: string
     serieSummary?: string
     widthSummary?: string
     heightSummary?: string
@@ -77,6 +80,18 @@ type Product = {
     shutterMaterialSummary?: string
     parametricSku?: string
     parametricPricing?: ParametricPricing | null
+}
+
+export type ProductTableRow = Product
+
+export type ProductTableHiddenColumn = 'sku' | 'specifications' | 'published' | 'costPrice'
+
+type ProductTableProps = {
+    dataOverride?: ProductTableRow[]
+    loadingOverride?: boolean
+    hiddenColumns?: ProductTableHiddenColumn[]
+    disableAutoFetch?: boolean
+    forceParametricMode?: boolean
 }
 
 type RowOptionState = {
@@ -140,7 +155,13 @@ const ProductColumn = ({ row }: { row: Product }) => {
     )
 }
 
-const ProductTable = () => {
+const ProductTable = ({
+    dataOverride,
+    loadingOverride,
+    hiddenColumns = [],
+    disableAutoFetch = false,
+    forceParametricMode,
+}: ProductTableProps = {}) => {
     const { t, i18n } = useTranslation()
     const tableRef = useRef<DataTableResetHandle>(null)
 
@@ -154,13 +175,16 @@ const ProductTable = () => {
         (state) => state.salesProductList.data.filterData,
     )
 
-    const loading = useAppSelector(
+    const storeLoading = useAppSelector(
         (state) => state.salesProductList.data.loading,
     )
 
-    const data = useAppSelector(
+    const storeData = useAppSelector(
         (state) => state.salesProductList.data.productList,
     )
+
+    const loading = loadingOverride ?? storeLoading
+    const data = dataOverride ?? storeData
     const selectedProductIds = useAppSelector(
         (state) => state.salesProductList.data.selectedProductIds,
     )
@@ -180,8 +204,11 @@ const ProductTable = () => {
     }, [dispatch, pageIndex, pageSize, sort, query, filterData])
 
     useEffect(() => {
+        if (disableAutoFetch || dataOverride) {
+            return
+        }
         fetchData()
-    }, [fetchData])
+    }, [dataOverride, disableAutoFetch, fetchData])
 
     useEffect(() => {
         if (tableRef) {
@@ -189,10 +216,19 @@ const ProductTable = () => {
         }
     }, [filterData])
 
-    const tableData = useMemo(
-        () => ({ pageIndex, pageSize, sort, query, total }),
-        [pageIndex, pageSize, sort, query, total],
-    )
+    const tableData = useMemo(() => {
+        if (dataOverride) {
+            const count = dataOverride.length
+            return {
+                pageIndex: 1,
+                pageSize: Math.max(count, 1),
+                sort: { order: '', key: '' },
+                query: '',
+                total: count,
+            }
+        }
+        return { pageIndex, pageSize, sort, query, total }
+    }, [dataOverride, pageIndex, pageSize, sort, query, total])
 
     const defaultCurrency = useAppSelector((state) => state.currency.code)
     const fallbackCurrency = useMemo(
@@ -656,19 +692,24 @@ const ProductTable = () => {
     }, [])
 
     const isParametric = useMemo(() => {
+        if (typeof forceParametricMode === 'boolean') {
+            return forceParametricMode
+        }
         const mode = filterData?.mode
         if (Array.isArray(mode)) {
             return mode.length === 1 && mode[0] === 'parametric'
         }
         return mode === 'parametric'
-    }, [filterData?.mode])
+    }, [forceParametricMode, filterData?.mode])
+
+    const selectionEnabled = isParametric && !dataOverride
 
     useEffect(() => {
-        if (!isParametric && selectedProductIds.length) {
+        if (!selectionEnabled && selectedProductIds.length) {
             dispatch(setSelectedProducts([]))
             tableRef.current?.resetSelected()
         }
-    }, [dispatch, isParametric, selectedProductIds.length])
+    }, [dispatch, selectionEnabled, selectedProductIds.length])
 
     useEffect(() => {
         if (!selectedProductIds.length) {
@@ -710,6 +751,8 @@ const ProductTable = () => {
     )
 
     const columns: ColumnDef<Product>[] = useMemo(() => {
+        const isColumnHidden = (key: ProductTableHiddenColumn) =>
+            hiddenColumns?.includes(key) ?? false
         const cols: ColumnDef<Product>[] = [
             {
                 header: t('text.columns.name'),
@@ -719,14 +762,20 @@ const ProductTable = () => {
                     return <ProductColumn row={row} />
                 },
             },
-            {
+        ]
+
+        if (!isColumnHidden('sku')) {
+            cols.push({
                 header: t('text.labels.codeSku') || 'Code (SKU)',
                 accessorKey: 'productCode',
                 cell: (props) => {
                     const skuValue = props.row.original.productCode
                     return <span className="font-mono text-xs">{skuValue || '-'}</span>
                 },
-            },
+            })
+        }
+
+        cols.push(
             {
                 header: isParametric
                     ? t('sales.productList.columns.serie', { defaultValue: 'Serie' })
@@ -744,7 +793,7 @@ const ProductTable = () => {
                     )
                 },
             },
-        ]
+        )
 
         if (!isParametric) {
             cols.push({
@@ -779,8 +828,8 @@ const ProductTable = () => {
             )
         }
 
-        cols.push(
-            {
+        if (!isColumnHidden('specifications')) {
+            cols.push({
                 header: t('text.columns.specifications', {
                     defaultValue: 'Especificaciones',
                 }),
@@ -801,8 +850,8 @@ const ProductTable = () => {
                         </span>
                     )
                 },
-            },
-        )
+            })
+        }
 
         if (isParametric) {
             cols.push(
@@ -905,8 +954,8 @@ const ProductTable = () => {
             )
         }
 
-        cols.push(
-            {
+        if (!isColumnHidden('published')) {
+            cols.push({
                 header: t('text.columns.published'),
                 accessorKey: 'published',
                 cell: (props) => {
@@ -923,8 +972,11 @@ const ProductTable = () => {
                         </div>
                     )
                 },
-            },
-            {
+            })
+        }
+
+        if (!isColumnHidden('costPrice')) {
+            cols.push({
                 header: t('text.columns.costPrice'),
                 accessorKey: 'costPrice',
                 cell: (props) => {
@@ -932,7 +984,10 @@ const ProductTable = () => {
                     const currencyCode = pricingValues.currency || props.row.original.currency
                     return <span>{formatCurrencyValue(pricingValues.cost, currencyCode)}</span>
                 },
-            },
+            })
+        }
+
+        cols.push(
             {
                 header: t('text.columns.salePrice'),
                 accessorKey: 'salePrice',
@@ -957,6 +1012,7 @@ const ProductTable = () => {
         isParametric,
         renderMosquiteroControl,
         renderShutterControls,
+        hiddenColumns,
         resolveStockStatus,
         t,
         updateProductRow,
@@ -987,10 +1043,10 @@ const ProductTable = () => {
                 ref={tableRef}
                 columns={columns}
                 data={data}
-                selectable={isParametric}
-                onCheckBoxChange={isParametric ? handleRowSelect : undefined}
+                selectable={selectionEnabled}
+                onCheckBoxChange={selectionEnabled ? handleRowSelect : undefined}
                 onIndeterminateCheckBoxChange={
-                    isParametric ? handleBulkSelect : undefined
+                    selectionEnabled ? handleBulkSelect : undefined
                 }
                 skeletonAvatarColumns={[0]}
                 skeletonAvatarProps={{ className: 'rounded-md' }}

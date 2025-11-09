@@ -11,6 +11,15 @@ import Spinner from '@/components/ui/Spinner'
 import Notification from '@/components/ui/Notification'
 import Tooltip from '@/components/ui/Tooltip'
 import { toast } from '@/components/ui/toast'
+import ProductTable, {
+    type ProductTableHiddenColumn,
+    type ProductTableRow,
+} from '@/views/sales/ProductList/components/ProductTable'
+import productListReducer from '@/views/sales/ProductList/store'
+import { injectReducer } from '@/store'
+import { DEFAULT_SALES_UNIT, type SalesUnit } from '@/constants/product.constant'
+
+injectReducer('salesProductList', productListReducer)
 import {
     apiGetParametricConfig,
     apiGetParametricMatrix,
@@ -24,23 +33,7 @@ import type { ParametricConfigSnapshot } from '@/views/sales/ProductForm/Paramet
 import { mapSelectorsToOptions, mergeSelectorValues, normalizeSelectorValue } from '@/views/sales/parametric/selectorUtils'
 import type { AberturasSelectorSummary, SelectorOption } from '@/views/sales/parametric/selectorUtils'
 
-type ProductSummary = {
-    id: string
-    name: string
-    currency?: string
-    salePrice?: number
-    productCode?: string
-    serieSummary?: string
-    colorSummary?: string
-    glassSummary?: string
-    familySummary?: string
-    category?: string
-    familyId?: string
-    specifications?: string | null
-    description?: string | null
-    mosquiteroAvailable?: boolean
-    monoblockAvailable?: boolean
-}
+type ProductSummary = ProductTableRow
 
 type MatrixRow = {
     id: number
@@ -64,6 +57,7 @@ type MatrixRow = {
     specifications?: string | null
     referenceDate: string | null
     source: string | null
+    shutterOptionsSnapshot?: Record<string, { price?: number | null; priceMosq?: number | null }> | null
 }
 
 type SizeOption = {
@@ -184,6 +178,20 @@ type MatrixSearchResultPayload = {
     exact?: MatrixMatch
     nearest: MatrixMatch[]
     suggestions: MatrixMatch[]
+}
+
+const dedupeMatches = (matches?: MatrixMatch[] | null): MatrixMatch[] => {
+    if (!matches) {
+        return []
+    }
+    const seen = new Set<number>()
+    return matches.filter((match) => {
+        if (seen.has(match.row.id)) {
+            return false
+        }
+        seen.add(match.row.id)
+        return true
+    })
 }
 
 type AnalysisState =
@@ -636,17 +644,6 @@ const componentLabels: Record<string, string> = {
     delta_mb: 'sales.aberturasQuote.components.deltaMb',
 }
 
-const formatProductPrice = (product: ProductSummary) => {
-    const hasPrice = typeof product.salePrice === 'number' && Number.isFinite(product.salePrice)
-    if (hasPrice && product.currency) {
-        return toCurrency(product.currency, product.salePrice!)
-    }
-    if (hasPrice) {
-        return product.salePrice!.toFixed(2)
-    }
-    return '—'
-}
-
 const AberturasQuote = () => {
     const { t } = useTranslation()
     const isUrucortinas = clientConfig.slug === 'urucortinas'
@@ -788,6 +785,10 @@ const AberturasQuote = () => {
     const [searchPerformed, setSearchPerformed] = useState(false)
     const [searchLoading, setSearchLoading] = useState(false)
     const [searchError, setSearchError] = useState<string | null>(null)
+    const productTableHiddenColumns = useMemo<ProductTableHiddenColumn[]>(
+        () => ['sku', 'specifications', 'published', 'costPrice'],
+        [],
+    )
     const resetProductResults = useCallback(() => {
         setProductResults([])
         setProductSearchPerformed(false)
@@ -834,49 +835,76 @@ const AberturasQuote = () => {
     }, [isUrucortinas, t])
 
     const normalizeProduct = useCallback((item: any): ProductSummary => {
-        const rawCurrency =
-            (item as ProductSummary).currency ??
-            ((item as any)?.parametricPricing?.currency as string | undefined) ??
-            ((item as any)?.currency as string | undefined)
-        const familyValue =
-            ((item as any)?.familySummary as string | undefined) ??
-            ((item as any)?.familyName as string | undefined) ??
-            ((item as any)?.parametricFamily as string | undefined) ??
-            ((item as any)?.categoryName as string | undefined) ??
-            ((item as any)?.category as string | undefined)
+        const productCodeRaw =
+            (typeof item.productCode === 'string' && item.productCode.trim()) ||
+            (typeof item.parametricSku === 'string' && item.parametricSku.trim()) ||
+            ''
+        const salePrice = Number(
+            item.salePrice ?? item.price ?? item?.parametricPricing?.basePrice ?? 0,
+        )
+        const costPrice = Number(item.costPrice ?? 0)
+        const stockValue = Number(item.stock ?? 0)
+        const currency =
+            item.currency ?? item?.parametricPricing?.currency ?? 'USD'
+        const specs =
+            typeof item.specifications === 'string' ? item.specifications : ''
+        const description =
+            typeof item.description === 'string' ? item.description : ''
+        const familyIdRaw =
+            item.familyId ?? item.family_id ?? item.familyKey ?? item.family ?? ''
+        const familyId = typeof familyIdRaw === 'string' ? familyIdRaw.trim() : ''
         return {
-            id: String((item as any).id ?? ''),
-            name: (item as any).name ?? (item as any).productCode ?? (item as any).parametricSku ?? '-',
-            currency: rawCurrency || undefined,
-            salePrice: (() => {
-                const rawPrice = Number(
-                    (item as any).salePrice ??
-                        (item as any).price ??
-                        (item as any)?.parametricPricing?.basePrice ??
-                        Number.NaN,
-                )
-                return Number.isFinite(rawPrice) ? rawPrice : undefined
-            })(),
-            productCode: ((item as any).productCode ?? (item as any).parametricSku ?? '') as string,
-            serieSummary: ((item as any).serieSummary ?? (item as any).seriesSummary ?? '') as string,
-            colorSummary: ((item as any).colorSummary ?? '') as string,
-            glassSummary: ((item as any).glassSummary ?? '') as string,
-            familySummary: (item as any).familySummary ?? familyValue ?? '',
-            category: ((item as any).category ?? (item as any).categoryName ?? '') as string,
-            familyId: (() => {
-                const raw =
-                    (item as any).familyId ??
-                    (item as any).family_id ??
-                    (item as any).familyKey ??
-                    (item as any).family ??
-                    ''
-                const trimmed = typeof raw === 'string' ? raw.trim() : ''
-                return trimmed || undefined
-            })(),
-            specifications: typeof (item as any).specifications === 'string' ? (item as any).specifications : null,
-            description: typeof (item as any).description === 'string' ? (item as any).description : null,
-            mosquiteroAvailable: Boolean((item as any).mosquiteroAvailable),
-            monoblockAvailable: Boolean((item as any).monoblockAvailable),
+            id: String(item.id ?? ''),
+            name:
+                (typeof item.name === 'string' && item.name.trim()) ||
+                productCodeRaw ||
+                '-',
+            productCode: productCodeRaw,
+            img: typeof item.img === 'string' ? item.img : '',
+            category: String(item.category ?? ''),
+            salePrice: Number.isFinite(salePrice) ? salePrice : 0,
+            costPrice: Number.isFinite(costPrice) ? costPrice : 0,
+            stock: Number.isFinite(stockValue) ? stockValue : 0,
+            status: Number(item.status ?? 0),
+            published:
+                typeof item.published === 'boolean' ? item.published : undefined,
+            brand: typeof item.brand === 'string' ? item.brand : '',
+            vendor: typeof item.vendor === 'string' ? item.vendor : '',
+            permanentStock: Boolean(item.permanentStock),
+            currency,
+            unitOfMeasure:
+                (item.unitOfMeasure as SalesUnit | undefined) ?? DEFAULT_SALES_UNIT,
+            specifications: specs,
+            description,
+            familySummary:
+                (typeof item.familySummary === 'string' && item.familySummary) ||
+                '',
+            familyId: familyId || undefined,
+            serieSummary:
+                (typeof item.serieSummary === 'string' && item.serieSummary) ||
+                '',
+            widthSummary:
+                (typeof item.widthSummary === 'string' && item.widthSummary) ||
+                '',
+            heightSummary:
+                (typeof item.heightSummary === 'string' && item.heightSummary) ||
+                '',
+            colorSummary:
+                (typeof item.colorSummary === 'string' && item.colorSummary) ||
+                '',
+            glassSummary:
+                (typeof item.glassSummary === 'string' && item.glassSummary) ||
+                '',
+            mosquiteroAvailable: Boolean(item.mosquiteroAvailable),
+            monoblockAvailable: Boolean(item.monoblockAvailable),
+            shutterMaterialSummary:
+                (typeof item.shutterMaterialSummary === 'string' &&
+                    item.shutterMaterialSummary) ||
+                '',
+            parametricSku:
+                (typeof item.parametricSku === 'string' && item.parametricSku) ||
+                '',
+            parametricPricing: item.parametricPricing ?? null,
         }
     }, [])
 
@@ -1578,11 +1606,16 @@ const AberturasQuote = () => {
                 }
                 return [value as MatrixMatch]
             }
+            const normalizeList = (list: MatrixMatch[] | null | undefined): MatrixMatch[] =>
+                list ? [...list].sort((a, b) => (a.row.priceBase ?? a.row.price) - (b.row.priceBase ?? b.row.price)) : []
+
             const normalized: MatrixSearchResultPayload = data
                 ? {
                       exact: data.exact,
-                      nearest: toArray((data as any).nearest),
-                      suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+                      nearest: normalizeList(dedupeMatches(toArray((data as any).nearest))),
+                      suggestions: normalizeList(
+                          dedupeMatches(Array.isArray(data.suggestions) ? data.suggestions : []),
+                      ),
                   }
                 : { nearest: [], suggestions: [] }
             setSearchResult(normalized)
@@ -1609,23 +1642,6 @@ const AberturasQuote = () => {
                     }),
                 )
                 .join(' • '),
-        [t],
-    )
-
-    const renderAvailabilityBadge = useCallback(
-        (available: boolean) => (
-            <span
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    available
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
-                        : 'bg-gray-100 text-gray-500 dark:bg-gray-700/40 dark:text-gray-300'
-                }`}
-            >
-                {available
-                    ? t('sales.aberturasQuote.badges.available', { defaultValue: 'Sí' })
-                    : t('sales.aberturasQuote.badges.unavailable', { defaultValue: 'No' })}
-            </span>
-        ),
         [t],
     )
 
@@ -1666,6 +1682,16 @@ const AberturasQuote = () => {
         [t],
     )
 
+    const formatAdjustmentDelta = useCallback((factor: number) => {
+        const delta = (factor - 1) * 100
+        const absDelta = Math.abs(delta)
+        const formatted =
+            absDelta < 0.05
+                ? '0%'
+                : `${delta > 0 ? '+' : ''}${absDelta >= 10 ? delta.toFixed(0) : delta.toFixed(1)}%`
+        return formatted
+    }, [])
+
     const renderMatchInsights = useCallback(
         (match: MatrixMatch) => {
             const blocks: JSX.Element[] = []
@@ -1694,12 +1720,14 @@ const AberturasQuote = () => {
             }
             const adjustment = match.suggestedAdjustment ?? metadata?.suggestedAdjustment
             if (adjustment) {
+                const minPercent = formatAdjustmentDelta(adjustment.priceRangeFactor[0])
+                const maxPercent = formatAdjustmentDelta(adjustment.priceRangeFactor[1])
                 blocks.push(
                     <div key="adjustment" className="text-amber-600 dark:text-amber-400">
                         {t('sales.aberturasQuote.match.adjustmentRange', {
-                            defaultValue: 'Rango sugerido: {{min}}× – {{max}}×',
-                            min: adjustment.priceRangeFactor[0].toFixed(2),
-                            max: adjustment.priceRangeFactor[1].toFixed(2),
+                            defaultValue: 'Ajuste sugerido: {{min}} – {{max}}',
+                            min: minPercent,
+                            max: maxPercent,
                         })}
                         {adjustment.note && <div>{adjustment.note}</div>}
                     </div>,
@@ -1714,37 +1742,115 @@ const AberturasQuote = () => {
                 </div>
             )
         },
-        [describeAttributeMatches, t],
+        [describeAttributeMatches, formatAdjustmentDelta, t],
     )
 
     const renderMatchCard = useCallback(
         (match: MatrixMatch) => {
             const similarityValue = match.metadata?.dimensionDistance ?? match.similarity
             const matchLevel = match.matchLevel ?? match.metadata?.matchLevel
-            const priceEntries = [
+            const baseEntries = [
                 {
                     key: 'priceBase',
                     label: t('sales.aberturasQuote.match.priceLabels.base', { defaultValue: 'Precio base' }),
                     value: typeof match.row.priceBase === 'number' ? match.row.priceBase : match.row.price ?? null,
+                    highlight: match.resolution.components.includes('base'),
                 },
                 {
                     key: 'priceMosquitero',
                     label: t('sales.aberturasQuote.match.priceLabels.mosquitero', { defaultValue: 'Mosquitero' }),
                     value: match.row.priceMosquitero,
-                },
-                {
-                    key: 'priceMonoblock',
-                    label: t('sales.aberturasQuote.match.priceLabels.monoblock', { defaultValue: 'Monoblock' }),
-                    value: match.row.priceMonoblock,
-                },
-                {
-                    key: 'priceMonoblockMosquitero',
-                    label: t('sales.aberturasQuote.match.priceLabels.monoblockMosq', {
-                        defaultValue: 'Monoblock + mosquitero',
-                    }),
-                    value: match.row.priceMonoblockMosquitero,
+                    highlight: match.resolution.components.includes('mosquitero'),
                 },
             ].filter((entry) => typeof entry.value === 'number' && entry.value > 0)
+
+            const shutterSnapshot = match.row.shutterOptionsSnapshot ?? undefined
+            const snapshotEntries: Array<{
+                key: string
+                label: string
+                value: number | null | undefined
+                highlight: boolean
+            }> = []
+            const snapshotKeys = shutterSnapshot ? Object.keys(shutterSnapshot) : []
+            const normalizedSelectedMaterial = (match.row.shutterMaterial ?? '').trim().toUpperCase()
+            const matchesSelectedMaterial = (materialKey: string) => {
+                const normalized = materialKey.trim().toUpperCase()
+                if (normalizedSelectedMaterial) {
+                    return normalizedSelectedMaterial === normalized
+                }
+                return snapshotKeys.length <= 1
+            }
+            const formatMaterialLabel = (material: string) => {
+                const normalized = material.trim().toUpperCase()
+                if (!normalized || normalized === 'GENERICA') {
+                    return t('sales.aberturasQuote.match.priceLabels.shutterGeneric', {
+                        defaultValue: 'Genérico',
+                    })
+                }
+                return normalized
+            }
+
+            if (snapshotKeys.length) {
+                snapshotKeys.forEach((materialKey) => {
+                    const option = shutterSnapshot?.[materialKey]
+                    if (!option) {
+                        return
+                    }
+                    if (typeof option.price === 'number' && option.price > 0) {
+                        snapshotEntries.push({
+                            key: `monoblock-${materialKey}`,
+                            label: t('sales.aberturasQuote.match.priceLabels.monoblockMaterial', {
+                                defaultValue: 'Monoblock {{material}}',
+                                material: formatMaterialLabel(materialKey),
+                            }),
+                            value: option.price,
+                            highlight: match.resolution.components.includes('shutter') && matchesSelectedMaterial(materialKey),
+                        })
+                    }
+                    if (typeof option.priceMosq === 'number' && option.priceMosq > 0) {
+                        snapshotEntries.push({
+                            key: `monoblock-mosq-${materialKey}`,
+                            label: t('sales.aberturasQuote.match.priceLabels.monoblockMosqMaterial', {
+                                defaultValue: 'Monoblock {{material}} + mosquitero',
+                                material: formatMaterialLabel(materialKey),
+                            }),
+                            value: option.priceMosq,
+                            highlight:
+                                match.resolution.components.includes('shutter') &&
+                                match.resolution.components.includes('mosquitero') &&
+                                matchesSelectedMaterial(materialKey),
+                        })
+                    }
+                })
+            } else {
+                if (typeof match.row.priceMonoblock === 'number' && match.row.priceMonoblock > 0) {
+                    snapshotEntries.push({
+                        key: 'priceMonoblock',
+                        label: t('sales.aberturasQuote.match.priceLabels.monoblock', { defaultValue: 'Monoblock' }),
+                        value: match.row.priceMonoblock,
+                        highlight: match.resolution.components.includes('shutter'),
+                    })
+                }
+                if (
+                    typeof match.row.priceMonoblockMosquitero === 'number' &&
+                    match.row.priceMonoblockMosquitero > 0
+                ) {
+                    snapshotEntries.push({
+                        key: 'priceMonoblockMosquitero',
+                        label: t('sales.aberturasQuote.match.priceLabels.monoblockMosq', {
+                            defaultValue: 'Monoblock + mosquitero',
+                        }),
+                        value: match.row.priceMonoblockMosquitero,
+                        highlight:
+                            match.resolution.components.includes('shutter') &&
+                            match.resolution.components.includes('mosquitero'),
+                    })
+                }
+            }
+
+            const priceEntries = [...baseEntries, ...snapshotEntries].filter(
+                (entry) => typeof entry.value === 'number' && entry.value > 0,
+            )
             return (
                 <div
                     key={`${match.row.id}-${match.similarity}`}
@@ -1803,6 +1909,12 @@ const AberturasQuote = () => {
                         {match.row.vidrio}
                     </div>
                     <div className="text-xs text-gray-500">
+                        {t('sales.aberturasQuote.summary.color', {
+                            defaultValue: 'Color:',
+                        })}{' '}
+                        {match.row.color || t('sales.aberturasQuote.summary.colorUnknown', { defaultValue: 'Sin especificar' })}
+                    </div>
+                    <div className="text-xs text-gray-500">
                         {match.resolution.available
                             ? t('sales.aberturasQuote.result.components', {
                                   defaultValue: 'Componentes considerados: {{components}}',
@@ -1831,17 +1943,26 @@ const AberturasQuote = () => {
                         </div>
                     )}
                     {priceEntries.length ? (
-                        <div className="text-[11px] text-gray-600 dark:text-gray-300 space-y-1">
-                            <div className="font-semibold">
+                        <div className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
+                            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                 {t('sales.aberturasQuote.match.priceBreakdownTitle', {
                                     defaultValue: 'Precios configurados',
                                 })}
                             </div>
-                            <div className="grid gap-1 sm:grid-cols-2">
+                            <div className="grid gap-2 sm:grid-cols-2">
                                 {priceEntries.map((entry) => (
-                                    <div key={`${match.row.id}-${entry.key}`} className="flex justify-between gap-2">
-                                        <span>{entry.label}</span>
-                                        <span className="font-medium text-gray-900 dark:text-gray-100">
+                                    <div
+                                        key={`${match.row.id}-${entry.key}`}
+                                        className={`border rounded-md px-2 py-1.5 flex items-center justify-between gap-3 ${
+                                            entry.highlight
+                                                ? 'border-emerald-200 bg-emerald-50/60 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200'
+                                                : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/40'
+                                        }`}
+                                    >
+                                        <span className="font-medium text-gray-700 dark:text-gray-200">
+                                            {entry.label}
+                                        </span>
+                                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-50">
                                             {toCurrency(match.row.currency, entry.value as number)}
                                         </span>
                                     </div>
@@ -2179,89 +2300,13 @@ const AberturasQuote = () => {
                             </Badge>
                         </div>
                         {productResults.length ? (
-                            <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-md">
-                                <table className="min-w-full text-sm">
-                                    <thead className="bg-gray-50/70 dark:bg-gray-800/40">
-                                        <tr className="text-left text-xs uppercase tracking-wide text-gray-600 dark:text-gray-300">
-                                            <th className="py-3 pl-4 pr-3">
-                                                {t('sales.aberturasQuote.productResults.columns.product', {
-                                                    defaultValue: 'Producto',
-                                                })}
-                                            </th>
-                                            <th className="py-3 px-3">
-                                                {t('sales.aberturasQuote.productResults.columns.family', {
-                                                    defaultValue: 'Tipo de abertura',
-                                                })}
-                                            </th>
-                                            <th className="py-3 px-3">
-                                                {t('sales.aberturasQuote.productResults.columns.serie', {
-                                                    defaultValue: 'Serie',
-                                                })}
-                                            </th>
-                                            <th className="py-3 px-3">
-                                                {t('sales.aberturasQuote.productResults.columns.color', {
-                                                    defaultValue: 'Color',
-                                                })}
-                                            </th>
-                                            <th className="py-3 px-3">
-                                                {t('sales.aberturasQuote.productResults.columns.glass', {
-                                                    defaultValue: 'Vidrio',
-                                                })}
-                                            </th>
-                                            <th className="py-3 px-3">
-                                                {t('sales.aberturasQuote.productResults.columns.mosquitero', {
-                                                    defaultValue: 'Mosquitero',
-                                                })}
-                                            </th>
-                                            <th className="py-3 px-3">
-                                                {t('sales.aberturasQuote.productResults.columns.monoblock', {
-                                                    defaultValue: 'Monoblock',
-                                                })}
-                                            </th>
-                                            <th className="py-3 px-3 pr-4 text-right">
-                                                {t('sales.aberturasQuote.productResults.columns.price', {
-                                                    defaultValue: 'Precio',
-                                                })}
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                        {productResults.map((product) => (
-                                            <tr
-                                                key={product.id}
-                                                className={`hover:bg-gray-50 dark:hover:bg-gray-800/40 ${
-                                                    selectedProductId === product.id
-                                                        ? 'bg-emerald-50/80 dark:bg-emerald-900/20'
-                                                        : 'bg-white dark:bg-gray-900/40'
-                                                }`}
-                                            >
-                                                <td className="py-3 pl-4 pr-3 align-top">
-                                                    <span className="font-semibold text-gray-900 dark:text-gray-100">
-                                                        {product.name || '—'}
-                                                    </span>
-                                                </td>
-                                                <td className="py-3 px-3 align-top text-gray-700 dark:text-gray-200">
-                                                    {product.familySummary || product.category || '—'}
-                                                </td>
-                                                <td className="py-3 px-3 align-top text-gray-700 dark:text-gray-200">
-                                                    {product.serieSummary || '—'}
-                                                </td>
-                                                <td className="py-3 px-3 align-top text-gray-700 dark:text-gray-200">
-                                                    {product.colorSummary || '—'}
-                                                </td>
-                                                <td className="py-3 px-3 align-top text-gray-700 dark:text-gray-200">
-                                                    {product.glassSummary || '—'}
-                                                </td>
-                                                <td className="py-3 px-3 align-top">{renderAvailabilityBadge(Boolean(product.mosquiteroAvailable))}</td>
-                                                <td className="py-3 px-3 align-top">{renderAvailabilityBadge(Boolean(product.monoblockAvailable))}</td>
-                                                <td className="py-3 px-3 pr-4 align-top text-right text-gray-900 dark:text-gray-100 font-semibold">
-                                                    {formatProductPrice(product)}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                            <ProductTable
+                                dataOverride={productResults}
+                                loadingOverride={loadingProducts}
+                                hiddenColumns={productTableHiddenColumns}
+                                disableAutoFetch
+                                forceParametricMode
+                            />
                         ) : (
                             <p className="text-sm text-gray-600 dark:text-gray-300">
                                 {t('sales.aberturasQuote.productResults.empty', {
