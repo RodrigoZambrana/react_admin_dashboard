@@ -112,9 +112,14 @@ export async function apiGetParametricSelectors<T>(productId: number) {
 export async function apiSearchParametricMatrix<
     T,
     U extends Record<string, unknown>,
->(productId: number, data: U) {
+>(productId: number | null, data: U) {
+    const numericId = Number(productId)
+    const hasValidProduct = Number.isFinite(numericId) && numericId > 0
+    const url = hasValidProduct
+        ? `/pricing/products/${numericId}/search`
+        : `/pricing/products/search`
     return ApiService.fetchData<T>({
-        url: `/pricing/products/${productId}/search`,
+        url,
         method: 'post',
         data,
     })

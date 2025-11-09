@@ -17,7 +17,9 @@ import {
     apiCreateAberturasGlossaryItem,
     apiDeleteAberturasGlossaryItem,
     apiGetAberturasGlossary,
+    apiGetAberturasConfig,
     apiUpdateAberturasGlossaryItem,
+    apiUpdateAberturasConfig,
 } from '@/services/SettingsService'
 import glossarySeed from '../../../../../docs/glosario_normalizado.json'
 
@@ -109,16 +111,49 @@ const normalizeSeedItems = (seed: GlossarySeedFile | undefined): SeedItem[] => {
 
 const defaultSeedItems = normalizeSeedItems(glossarySeed as GlossarySeedFile)
 
+type ConfigFormValues = {
+    nearestMaxResults: number
+    dimensionTolerancePercent: number
+    dimensionMinToleranceMm: number
+}
+
+type AberturasConfigResponse = {
+    nearest: {
+        maxResults: number
+        dimensionTolerancePercent: number
+        dimensionMinToleranceMm: number
+    }
+}
+
+const defaultConfigValues: ConfigFormValues = {
+    nearestMaxResults: 3,
+    dimensionTolerancePercent: 12,
+    dimensionMinToleranceMm: 40,
+}
+
 const AberturasGlossary = () => {
     const { t } = useTranslation()
     const confirm = useConfirmation()
 
     const [loading, setLoading] = useState(false)
-    const [seeding, setSeeding] = useState(false)
+    const [, setSeeding] = useState(false)
     const [data, setData] = useState<GlossaryResponse>({})
     const [activeTab, setActiveTab] = useState<GlossaryCategory>('tipo')
     const [drawerOpen, setDrawerOpen] = useState(false)
     const [editingItem, setEditingItem] = useState<GlossaryItem | undefined>(undefined)
+    const [configValues, setConfigValues] = useState<ConfigFormValues | null>(null)
+    const [configLoading, setConfigLoading] = useState(true)
+    const [configSaving, setConfigSaving] = useState(false)
+
+    const mapConfigResponse = useCallback((payload?: AberturasConfigResponse | null): ConfigFormValues => {
+        return {
+            nearestMaxResults: Number(payload?.nearest?.maxResults) || defaultConfigValues.nearestMaxResults,
+            dimensionTolerancePercent:
+                Number(payload?.nearest?.dimensionTolerancePercent) || defaultConfigValues.dimensionTolerancePercent,
+            dimensionMinToleranceMm:
+                Number(payload?.nearest?.dimensionMinToleranceMm) || defaultConfigValues.dimensionMinToleranceMm,
+        }
+    }, [])
 
     const validationSchema = useMemo(
         () =>
@@ -159,6 +194,52 @@ const AberturasGlossary = () => {
                     : Yup.mixed().nullable().optional(),
             }),
         [activeTab, t],
+    )
+
+    const configValidationSchema = useMemo(
+        () =>
+            Yup.object().shape({
+                nearestMaxResults: Yup.number()
+                    .typeError(
+                        t('settings.aberturas.config.errors.number', {
+                            defaultValue: 'Enter a valid number',
+                        }),
+                    )
+                    .min(1)
+                    .max(10)
+                    .required(
+                        t('settings.aberturas.config.errors.required', {
+                            defaultValue: 'Required field',
+                        }),
+                    ),
+                dimensionTolerancePercent: Yup.number()
+                    .typeError(
+                        t('settings.aberturas.config.errors.number', {
+                            defaultValue: 'Enter a valid number',
+                        }),
+                    )
+                    .min(1)
+                    .max(100)
+                    .required(
+                        t('settings.aberturas.config.errors.required', {
+                            defaultValue: 'Required field',
+                        }),
+                    ),
+                dimensionMinToleranceMm: Yup.number()
+                    .typeError(
+                        t('settings.aberturas.config.errors.number', {
+                            defaultValue: 'Enter a valid number',
+                        }),
+                    )
+                    .min(1)
+                    .max(2000)
+                    .required(
+                        t('settings.aberturas.config.errors.required', {
+                            defaultValue: 'Required field',
+                        }),
+                    ),
+            }),
+        [t],
     )
 
     const seedFromLocalGlossary = useCallback(async () => {
@@ -203,6 +284,30 @@ const AberturasGlossary = () => {
         }
     }, [t])
 
+    const fetchConfig = useCallback(async () => {
+        setConfigLoading(true)
+        try {
+            const response = await apiGetAberturasConfig<AberturasConfigResponse>()
+            const payload = (response?.data ?? response ?? null) as AberturasConfigResponse | null
+            setConfigValues(mapConfigResponse(payload))
+        } catch (error) {
+            console.error('[aberturas] failed to load config', error)
+            toast.push(
+                <Notification
+                    title={t('settings.aberturas.config.loadErrorTitle', { defaultValue: 'Unable to load configuration' })}
+                    type="danger"
+                >
+                    {t('settings.aberturas.config.loadErrorDescription', {
+                        defaultValue: 'Revisá tu conexión e intentá nuevamente.',
+                    })}
+                </Notification>,
+            )
+            setConfigValues(defaultConfigValues)
+        } finally {
+            setConfigLoading(false)
+        }
+    }, [mapConfigResponse, t])
+
     const fetchGlossary = useCallback(
         async (attemptSeed = true) => {
             setLoading(true)
@@ -245,7 +350,9 @@ const AberturasGlossary = () => {
         fetchGlossary()
     }, [fetchGlossary])
 
-    const items = useMemo(() => data[activeTab] ?? [], [activeTab, data])
+    useEffect(() => {
+        fetchConfig()
+    }, [fetchConfig])
 
     const handleOpenCreate = () => {
         setEditingItem(undefined)
@@ -344,96 +451,247 @@ const AberturasGlossary = () => {
     }
 
     return (
-        <AdaptableCard bodyClass="p-0">
-            <div className="p-4 flex items-center justify-between gap-3 border-b">
-                <div>
-                    <h3 className="text-lg font-semibold">
-                        {t('settings.aberturas.title', { defaultValue: 'Aberturas glossary' })}
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">
-                        {t('settings.aberturas.description', {
-                            defaultValue: 'Manage the normalized values used by the openings parametric matrix.',
-                        })}
-                    </p>
-                </div>
-                <Button size="sm" variant="solid" onClick={handleOpenCreate}>
-                    {t('settings.aberturas.actions.add', { defaultValue: 'Add item' })}
-                </Button>
-            </div>
-            <Tabs value={activeTab} onChange={(value) => setActiveTab(value as GlossaryCategory)}>
-                <TabList>
-                    {categories.map((category) => (
-                        <TabNav key={category.key} value={category.key}>
-                            {t(category.translation, {
-                                defaultValue: category.key,
+        <div className="space-y-6">
+            <AdaptableCard>
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-lg font-semibold">
+                            {t('settings.aberturas.config.title', { defaultValue: 'Nearest match configuration' })}
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                            {t('settings.aberturas.config.description', {
+                                defaultValue: 'Control how many alternatives are shown and how tolerant the search is around the requested dimensions.',
                             })}
-                        </TabNav>
-                    ))}
-                </TabList>
-                <div className="p-4">
-                    {categories.map((category) => (
-                        <TabContent key={category.key} value={category.key}>
-                            {loading ? (
-                                <div className="flex items-center justify-center py-10">
-                                    <Spinner size={24} />
-                                </div>
-                            ) : (
-                                <Table>
-                                    <THead>
-                                        <Tr>
-                                            <Th>{t('settings.aberturas.table.label', { defaultValue: 'Label' })}</Th>
-                                            <Th>{t('settings.aberturas.table.value', { defaultValue: 'Normalized value' })}</Th>
-                                            {category.key === 'color' && (
-                                                <Th>{t('settings.aberturas.table.adjust', { defaultValue: 'Adjust %' })}</Th>
+                        </p>
+                    </div>
+                    {configLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <Spinner size={24} />
+                        </div>
+                    ) : (
+                        <Formik
+                            initialValues={configValues ?? defaultConfigValues}
+                            enableReinitialize
+                            validationSchema={configValidationSchema}
+                            onSubmit={async (values, helpers) => {
+                                setConfigSaving(true)
+                                try {
+                                    const payload = {
+                                        nearest: {
+                                            maxResults: Number(values.nearestMaxResults),
+                                            dimensionTolerancePercent: Number(values.dimensionTolerancePercent),
+                                            dimensionMinToleranceMm: Number(values.dimensionMinToleranceMm),
+                                        },
+                                    }
+                                    const response = await apiUpdateAberturasConfig<AberturasConfigResponse, typeof payload>(payload)
+                                    const saved = (response?.data ?? response ?? null) as AberturasConfigResponse | null
+                                    const mapped = mapConfigResponse(saved)
+                                    setConfigValues(mapped)
+                                    toast.push(
+                                        <Notification
+                                            title={t('settings.aberturas.config.saveSuccess', {
+                                                defaultValue: 'Configuration updated',
+                                            })}
+                                            type="success"
+                                        />,
+                                    )
+                                    helpers.setValues(mapped)
+                                } catch (error) {
+                                    console.error('[aberturas] update config error', error)
+                                    toast.push(
+                                        <Notification
+                                            title={t('settings.aberturas.config.saveErrorTitle', {
+                                                defaultValue: 'Unable to update configuration',
+                                            })}
+                                            type="danger"
+                                        >
+                                            {t('settings.aberturas.config.saveErrorDescription', {
+                                                defaultValue: 'Revisá tu conexión e intentá nuevamente.',
+                                            })}
+                                        </Notification>,
+                                    )
+                                } finally {
+                                    setConfigSaving(false)
+                                    helpers.setSubmitting(false)
+                                }
+                            }}
+                        >
+                            {({ values, errors, touched, handleChange, handleBlur, isSubmitting, resetForm }) => (
+                                <Form className="space-y-4">
+                                    <div className="grid gap-4 md:grid-cols-3">
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="nearestMaxResults">
+                                                {t('settings.aberturas.config.fields.nearestMax', {
+                                                    defaultValue: 'Nearest results to show',
+                                                })}
+                                            </label>
+                                            <Input
+                                                id="nearestMaxResults"
+                                                type="number"
+                                                min={1}
+                                                max={10}
+                                                name="nearestMaxResults"
+                                                value={values.nearestMaxResults}
+                                                onChange={handleChange}
+                                                onBlur={handleBlur}
+                                            />
+                                            {touched.nearestMaxResults && errors.nearestMaxResults && (
+                                                <div className="mt-1 text-xs text-red-500">{errors.nearestMaxResults}</div>
                                             )}
-                                            <Th className="w-32 text-right">
-                                                {t('settings.aberturas.table.actions', { defaultValue: 'Actions' })}
-                                            </Th>
-                                        </Tr>
-                                    </THead>
-                                    <TBody>
-                                        {(data[category.key] ?? []).map((item) => (
-                                            <Tr key={item.id}>
-                                                <Td>{item.label}</Td>
-                                                <Td>{item.value}</Td>
-                                                {category.key === 'color' && (
-                                                    <Td>{item.adjustPct !== null ? `${item.adjustPct}%` : '—'}</Td>
-                                                )}
-                                                <Td className="text-right space-x-2">
-                                                    <Button
-                                                        size="xs"
-                                                        variant="plain"
-                                                        icon={<HiOutlinePencil />}
-                                                        onClick={() => handleOpenEdit(item)}
-                                                    />
-                                                    <Button
-                                                        size="xs"
-                                                        variant="plain"
-                                                        tone="danger"
-                                                        icon={<HiOutlineTrash />}
-                                                        onClick={() => handleDelete(item)}
-                                                    />
-                                                </Td>
-                                            </Tr>
-                                        ))}
-                                        {(data[category.key] ?? []).length === 0 && (
-                                            <Tr>
-                                                <Td colSpan={category.key === 'color' ? 4 : 3}>
-                                                    <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-6">
-                                                        {t('settings.aberturas.table.empty', {
-                                                            defaultValue: 'No items yet. Add the first entry to get started.',
-                                                        })}
-                                                    </div>
-                                                </Td>
-                                            </Tr>
-                                        )}
-                                    </TBody>
-                                </Table>
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="dimensionTolerancePercent">
+                                                {t('settings.aberturas.config.fields.tolerancePercent', {
+                                                    defaultValue: 'Dimension tolerance (%)',
+                                                })}
+                                            </label>
+                                            <Input
+                                                id="dimensionTolerancePercent"
+                                                type="number"
+                                                min={1}
+                                                max={100}
+                                                name="dimensionTolerancePercent"
+                                                value={values.dimensionTolerancePercent}
+                                                onChange={handleChange}
+                                                onBlur={handleBlur}
+                                            />
+                                            {touched.dimensionTolerancePercent && errors.dimensionTolerancePercent && (
+                                                <div className="mt-1 text-xs text-red-500">{errors.dimensionTolerancePercent}</div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="dimensionMinToleranceMm">
+                                                {t('settings.aberturas.config.fields.minTolerance', {
+                                                    defaultValue: 'Minimum tolerance (mm)',
+                                                })}
+                                            </label>
+                                            <Input
+                                                id="dimensionMinToleranceMm"
+                                                type="number"
+                                                min={1}
+                                                max={2000}
+                                                name="dimensionMinToleranceMm"
+                                                value={values.dimensionMinToleranceMm}
+                                                onChange={handleChange}
+                                                onBlur={handleBlur}
+                                            />
+                                            {touched.dimensionMinToleranceMm && errors.dimensionMinToleranceMm && (
+                                                <div className="mt-1 text-xs text-red-500">{errors.dimensionMinToleranceMm}</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button type="submit" variant="solid" disabled={isSubmitting} loading={configSaving || isSubmitting}>
+                                            {t('common.save', { defaultValue: 'Save' })}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="plain"
+                                            disabled={configSaving || isSubmitting}
+                                            onClick={() => resetForm({ values: configValues ?? defaultConfigValues })}
+                                        >
+                                            {t('common.reset', { defaultValue: 'Reset' })}
+                                        </Button>
+                                    </div>
+                                </Form>
                             )}
-                        </TabContent>
-                    ))}
+                        </Formik>
+                    )}
                 </div>
-            </Tabs>
+            </AdaptableCard>
+
+            <AdaptableCard bodyClass="p-0">
+                <div className="p-4 flex items-center justify-between gap-3 border-b">
+                    <div>
+                        <h3 className="text-lg font-semibold">
+                            {t('settings.aberturas.title', { defaultValue: 'Aberturas glossary' })}
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                            {t('settings.aberturas.description', {
+                                defaultValue: 'Manage the normalized values used by the openings parametric matrix.',
+                            })}
+                        </p>
+                    </div>
+                    <Button size="sm" variant="solid" onClick={handleOpenCreate}>
+                        {t('settings.aberturas.actions.add', { defaultValue: 'Add item' })}
+                    </Button>
+                </div>
+                <Tabs value={activeTab} onChange={(value) => setActiveTab(value as GlossaryCategory)}>
+                    <TabList>
+                        {categories.map((category) => (
+                            <TabNav key={category.key} value={category.key}>
+                                {t(category.translation, {
+                                    defaultValue: category.key,
+                                })}
+                            </TabNav>
+                        ))}
+                    </TabList>
+                    <div className="p-4">
+                        {categories.map((category) => (
+                            <TabContent key={category.key} value={category.key}>
+                                {loading ? (
+                                    <div className="flex items-center justify-center py-10">
+                                        <Spinner size={24} />
+                                    </div>
+                                ) : (
+                                    <Table>
+                                        <THead>
+                                            <Tr>
+                                                <Th>{t('settings.aberturas.table.label', { defaultValue: 'Label' })}</Th>
+                                                <Th>{t('settings.aberturas.table.value', { defaultValue: 'Normalized value' })}</Th>
+                                                {category.key === 'color' && (
+                                                    <Th>{t('settings.aberturas.table.adjust', { defaultValue: 'Adjust %' })}</Th>
+                                                )}
+                                                <Th className="w-32 text-right">
+                                                    {t('settings.aberturas.table.actions', { defaultValue: 'Actions' })}
+                                                </Th>
+                                            </Tr>
+                                        </THead>
+                                        <TBody>
+                                            {(data[category.key] ?? []).map((item) => (
+                                                <Tr key={item.id}>
+                                                    <Td>{item.label}</Td>
+                                                    <Td>{item.value}</Td>
+                                                    {category.key === 'color' && (
+                                                        <Td>{item.adjustPct !== null ? `${item.adjustPct}%` : '—'}</Td>
+                                                    )}
+                                                    <Td className="text-right space-x-2">
+                                                        <Button
+                                                            size="xs"
+                                                            variant="plain"
+                                                            icon={<HiOutlinePencil />}
+                                                            onClick={() => handleOpenEdit(item)}
+                                                        />
+                                                        <Button
+                                                            size="xs"
+                                                            variant="plain"
+                                                            tone="danger"
+                                                            icon={<HiOutlineTrash />}
+                                                            onClick={() => handleDelete(item)}
+                                                        />
+                                                    </Td>
+                                                </Tr>
+                                            ))}
+                                            {(data[category.key] ?? []).length === 0 && (
+                                                <Tr>
+                                                    <Td colSpan={category.key === 'color' ? 4 : 3}>
+                                                        <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-6">
+                                                            {t('settings.aberturas.table.empty', {
+                                                                defaultValue: 'No items yet. Add the first entry to get started.',
+                                                            })}
+                                                        </div>
+                                                    </Td>
+                                                </Tr>
+                                            )}
+                                        </TBody>
+                                    </Table>
+                                )}
+                            </TabContent>
+                        ))}
+                    </div>
+                </Tabs>
+            </AdaptableCard>
+
             <Drawer
                 isOpen={drawerOpen}
                 width={420}
@@ -442,12 +700,8 @@ const AberturasGlossary = () => {
                 onRequestClose={() => setDrawerOpen(false)}
                 title={
                     editingItem
-                        ? t('settings.aberturas.drawer.editTitle', {
-                              defaultValue: 'Edit item',
-                          })
-                        : t('settings.aberturas.drawer.addTitle', {
-                              defaultValue: 'Add item',
-                          })
+                        ? t('settings.aberturas.drawer.editTitle', { defaultValue: 'Edit item' })
+                        : t('settings.aberturas.drawer.addTitle', { defaultValue: 'Add item' })
                 }
             >
                 <div className="p-6">
@@ -520,7 +774,7 @@ const AberturasGlossary = () => {
                     </Formik>
                 </div>
             </Drawer>
-        </AdaptableCard>
+        </div>
     )
 }
 

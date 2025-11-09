@@ -214,6 +214,24 @@ export async function apiDeleteAberturasGlossaryItem<T>(id: number) {
     })
 }
 
+export async function apiGetAberturasConfig<T>() {
+    return ApiService.fetchData<T>({
+        url: '/aberturas/glossary/config',
+        method: 'get',
+    })
+}
+
+export async function apiUpdateAberturasConfig<
+    T,
+    U extends Record<string, unknown>,
+>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/aberturas/glossary/config',
+        method: 'put',
+        data,
+    })
+}
+
 export async function apiGetEmailRoleRules<T>() {
     return ApiService.fetchData<T>({
         url: '/settings/email/rules',

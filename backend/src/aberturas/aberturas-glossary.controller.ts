@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
-import { AberturasGlossaryService } from './aberturas-glossary.service'
+import { AberturasGlossaryService, UpdateAberturasConfigInput } from './aberturas-glossary.service'
 
 @Controller('aberturas/glossary')
 @UseGuards(JwtAuthGuard)
@@ -25,6 +25,16 @@ export class AberturasGlossaryController {
   @Get('selectors')
   getSelectors() {
     return this.service.getSelectorSummary()
+  }
+
+  @Get('config')
+  getConfig() {
+    return this.service.getConfig()
+  }
+
+  @Put('config')
+  updateConfig(@Body() payload: UpdateAberturasConfigInput) {
+    return this.service.updateConfig(payload)
   }
 
   @Get(':category')

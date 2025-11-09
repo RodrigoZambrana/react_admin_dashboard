@@ -1167,7 +1167,14 @@
         },
         "attributeMatch": "Sí",
         "attributeMismatch": "No",
-        "adjustmentRange": "Rango sugerido: {{min}}× – {{max}}×"
+        "adjustmentRange": "Rango sugerido: {{min}}× – {{max}}×",
+        "priceBreakdownTitle": "Precios configurados",
+        "priceLabels": {
+          "base": "Precio base",
+          "mosquitero": "Mosquitero",
+          "monoblock": "Monoblock",
+          "monoblockMosq": "Monoblock + mosquitero"
+        }
       },
       "components": {
         "base": "Precio base",
@@ -2108,6 +2115,24 @@
         "saveErrorDescription": "Revisá los datos e intentá nuevamente.",
         "updateSuccess": "Valor actualizado",
         "createSuccess": "Valor creado"
+      },
+      "config": {
+        "title": "Configuración de coincidencias",
+        "description": "Ajustá cuántas alternativas se muestran y qué tan flexibles son las medidas buscadas.",
+        "fields": {
+          "nearestMax": "Cantidad máxima de coincidencias cercanas",
+          "tolerancePercent": "Tolerancia porcentual (%)",
+          "minTolerance": "Tolerancia mínima (mm)"
+        },
+        "errors": {
+          "number": "Ingresá un número válido",
+          "required": "Este campo es obligatorio"
+        },
+        "loadErrorTitle": "No pudimos cargar la configuración",
+        "loadErrorDescription": "Revisá tu conexión e intentá nuevamente.",
+        "saveSuccess": "Configuración actualizada",
+        "saveErrorTitle": "No pudimos actualizar la configuración",
+        "saveErrorDescription": "Intentá nuevamente en unos segundos."
       }
     },
     "productCategories": {
