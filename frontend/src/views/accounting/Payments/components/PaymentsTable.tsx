@@ -19,18 +19,12 @@ import {
     toggleDeleteDialog,
     togglePaymentDialog,
 } from '../store'
-import type { Payment, PaymentStatus, PaymentType, PaymentsTableState } from '../store/paymentsSlice'
+import type { Payment, PaymentStatus, PaymentsTableState } from '../store/paymentsSlice'
 
 const statusColor: Record<PaymentStatus, string> = {
     CONFIRMED: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200',
     REGISTERED: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200',
     FAILED: 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200',
-}
-
-const typeColor: Record<PaymentType, string> = {
-    DEPOSIT: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-200',
-    BALANCE: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200',
-    REFUND: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200',
 }
 
 const PaymentsTable = () => {
@@ -166,23 +160,6 @@ const PaymentsTable = () => {
                 header: t('text.columns.currency'),
                 accessorKey: 'currency',
                 cell: (props) => props.row.original.currency,
-            },
-            {
-                header: t('text.columns.type'),
-                accessorKey: 'type',
-                cell: (props) => {
-                    const row = props.row.original
-                    return (
-                        <Tag
-                            className={classNames(
-                                'rounded-full px-3 py-1 text-xs font-semibold',
-                                typeColor[row.type],
-                            )}
-                        >
-                            {t(`accounting.payments.type.${row.type.toLowerCase()}`)}
-                        </Tag>
-                    )
-                },
             },
             {
                 header: t('text.columns.status'),

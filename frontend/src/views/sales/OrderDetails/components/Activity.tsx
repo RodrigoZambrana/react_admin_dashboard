@@ -63,6 +63,8 @@ const DEFAULT_EVENT_LABELS: Record<string, string> = {
     CANCELLED: 'Order cancelled',
     STATUS_CHANGED: 'Status changed',
     NOTE: 'Note added',
+    ACTIVITY_LINKED: 'Activity linked',
+    ACTIVITY_UNLINKED: 'Activity unlinked',
     OTHER: 'Activity',
 }
 
@@ -81,6 +83,8 @@ const EVENT_BADGE_COLORS: Record<string, string> = {
     CANCELLED: 'bg-red-500',
     STATUS_CHANGED: 'bg-slate-500',
     NOTE: 'bg-slate-400',
+    ACTIVITY_LINKED: 'bg-violet-500',
+    ACTIVITY_UNLINKED: 'bg-violet-300',
     OTHER: 'bg-slate-400',
 }
 
@@ -146,6 +150,14 @@ const formatDateOnly = (value?: string | null) => {
     }
     const date = dayjs(value)
     return date.isValid() ? date.format('DD MMM YYYY') : null
+}
+
+const formatTimeOnly = (value?: string | null) => {
+    if (!value) {
+        return null
+    }
+    const date = dayjs(value)
+    return date.isValid() ? date.format('HH:mm') : null
 }
 
 const formatAmount = (
@@ -462,6 +474,62 @@ const getEventDescription = (
         })
     }
 
+    if (type === 'ACTIVITY_LINKED') {
+        const rawTitle = metadata.activityTitle
+        const title =
+            typeof rawTitle === 'string' && rawTitle.trim().length > 0
+                ? rawTitle.trim()
+                : ''
+        const scheduleParts: string[] = []
+        const startValue =
+            typeof metadata.activityStart === 'string' ? metadata.activityStart : null
+        const endValue =
+            typeof metadata.activityEnd === 'string' ? metadata.activityEnd : null
+        const dateLabel = formatDateOnly(startValue) ?? formatDateOnly(endValue)
+        if (dateLabel) {
+            scheduleParts.push(dateLabel)
+        }
+        if (metadata.activityAllDay === true) {
+            scheduleParts.push(
+                translate('text.labels.allDay', { defaultValue: 'All day' }),
+            )
+        } else {
+            const startTime = formatTimeOnly(startValue)
+            const endTime = formatTimeOnly(endValue)
+            if (startTime && endTime) {
+                scheduleParts.push(`${startTime} - ${endTime}`)
+            } else if (startTime || endTime) {
+                scheduleParts.push(startTime ?? endTime ?? '')
+            }
+        }
+        const location =
+            typeof metadata.activityLocation === 'string' &&
+            metadata.activityLocation.trim().length > 0
+                ? metadata.activityLocation.trim()
+                : null
+        if (location) {
+            scheduleParts.push(location)
+        }
+        const baseDetail = translate('sales.orderDetails.timeline.activity.linkedDetail', {
+            defaultValue: 'Linked activity: {{title}}',
+            title:
+                title ||
+                translate('text.labels.untitledActivity', {
+                    defaultValue: 'Untitled activity',
+                }),
+        })
+        if (!scheduleParts.length) {
+            return baseDetail
+        }
+        return `${baseDetail} (${scheduleParts.join(' · ')})`
+    }
+
+    if (type === 'ACTIVITY_UNLINKED') {
+        return translate('sales.orderDetails.timeline.activity.unlinkedDetail', {
+            defaultValue: 'Activity link removed',
+        })
+    }
+
     if (event.message) {
         return event.message
     }
@@ -482,6 +550,32 @@ const dedupeByEventId = (events: OrderTimelineEvent[]) => {
     return result
 }
 
+const resolveEventTime = (event: OrderTimelineEvent) => {
+    const type = (event.type || '').toUpperCase()
+    const metadata = getEventMetadata(event)
+    if (type === 'ACTIVITY_LINKED') {
+        const activityStart = metadata.activityStart
+        if (typeof activityStart === 'string' && dayjs(activityStart).isValid()) {
+            return dayjs(activityStart)
+        }
+    }
+    const isPaymentEvent =
+        type === 'PAYMENT_WAITING' ||
+        type === 'PAYMENT_PARTIAL' ||
+        type === 'PAYMENT_FULL' ||
+        type === 'PAYMENT_FULL_SUMMARY'
+    if (isPaymentEvent) {
+        const paymentTimestamp = metadata.paymentTimestamp
+        if (typeof paymentTimestamp === 'string' && dayjs(paymentTimestamp).isValid()) {
+            return dayjs(paymentTimestamp)
+        }
+    }
+    const estimateSource = event.estimateDate && dayjs(event.estimateDate).isValid()
+        ? dayjs(event.estimateDate)
+        : null
+    return estimateSource ?? dayjs(event.timestamp)
+}
+
 const compareTimelineEvents = (a: OrderTimelineEvent, b: OrderTimelineEvent) => {
     const typeA = (a.type || '').toUpperCase()
     const typeB = (b.type || '').toUpperCase()
@@ -493,8 +587,8 @@ const compareTimelineEvents = (a: OrderTimelineEvent, b: OrderTimelineEvent) => 
     if (!aCancelled && bCancelled) {
         return -1
     }
-    const timeA = dayjs(a.estimateDate ?? a.timestamp).valueOf()
-    const timeB = dayjs(b.estimateDate ?? b.timestamp).valueOf()
+    const timeA = resolveEventTime(a).valueOf()
+    const timeB = resolveEventTime(b).valueOf()
     return timeA - timeB
 }
 
@@ -646,7 +740,15 @@ const buildTimelineSummary = (
         const badgeClassName = isCompleted
             ? 'bg-emerald-600'
             : EVENT_BADGE_COLORS[normalizedType] ?? 'bg-slate-400'
-        const timestampSource = event.estimateDate ?? event.timestamp
+        const timestampSource = (() => {
+            if (normalizedType === 'ACTIVITY_LINKED') {
+                const activityStart = metadata.activityStart
+                if (typeof activityStart === 'string' && dayjs(activityStart).isValid()) {
+                    return activityStart
+                }
+            }
+            return event.estimateDate ?? event.timestamp
+        })()
         return {
             id: event.eventId,
             event,

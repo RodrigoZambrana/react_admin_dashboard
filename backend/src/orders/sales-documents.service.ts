@@ -23,6 +23,7 @@ import {
   divideDecimals,
 } from '../common/currency/money.util'
 import { OrderFinanceService } from './order-finance.service'
+import type { OrderPaymentSummary } from './order-finance.service'
 import { OrderTimelineService } from './order-timeline.service'
 import { NotificationOrchestratorService } from '../notifications/notification-orchestrator.service'
 import { EmailService } from '../email/email.service'
@@ -94,6 +95,20 @@ type StaticPaymentMethodRecord = {
   name: string
 }
 
+type LinkedActivitySummary = {
+  id: number
+  title: string
+  startAt: string | null
+  endAt: string | null
+  allDay: boolean
+  type: string | null
+  location: string | null
+}
+
+type CalendarEventWithType = Prisma.CalendarEventGetPayload<{
+  include: { eventType: true }
+}>
+
 @Injectable()
 export class SalesDocumentsService {
   constructor(
@@ -116,6 +131,139 @@ export class SalesDocumentsService {
       ...where,
       documentType,
     }
+  }
+
+  private decimalToNumber(
+    value?: Prisma.Decimal | number | string | null,
+  ): number | null {
+    if (value === null || value === undefined) {
+      return null
+    }
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value)
+      return Number.isFinite(parsed) ? parsed : null
+    }
+    return Number((value as Prisma.Decimal).toString())
+  }
+
+  private resolvePaymentAwareStatus(
+    documentType: DocumentType,
+    baseStatusId: number | null | undefined,
+    outstanding: number | null,
+  ): number {
+    const normalizedBase = Number(baseStatusId ?? 0)
+    if (documentType !== DocumentType.ORDER) {
+      return normalizedBase
+    }
+    if (
+      normalizedBase === ORDER_STATUS_CODES.CANCELLED ||
+      normalizedBase === ORDER_STATUS_CODES.DELIVERED
+    ) {
+      return normalizedBase
+    }
+    if (outstanding === null || outstanding === undefined) {
+      return normalizedBase || ORDER_STATUS_CODES.PENDING
+    }
+    return outstanding > 0.01 ? ORDER_STATUS_CODES.PENDING : ORDER_STATUS_CODES.PAID
+  }
+
+  private normalizeActivityId(value?: string | number | null): number | null {
+    if (value === undefined || value === null) {
+      return null
+    }
+    const numeric = Number(value)
+    if (!Number.isFinite(numeric)) {
+      return null
+    }
+    const normalized = Math.trunc(numeric)
+    return normalized > 0 ? normalized : null
+  }
+
+  private hasActivityInput(value?: string | number | null): boolean {
+    if (value === undefined || value === null) {
+      return false
+    }
+    if (typeof value === 'number') {
+      return true
+    }
+    return value.trim().length > 0
+  }
+
+  private normalizeActivityMetadata(
+    metadata: Prisma.JsonValue | null | undefined,
+  ): Record<string, unknown> | null {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return null
+    }
+    return metadata as Record<string, unknown>
+  }
+
+  private formatActivityAddress(metadata: Record<string, unknown> | null): string | null {
+    if (!metadata) {
+      return null
+    }
+    const addressRaw = metadata.address
+    if (!addressRaw || typeof addressRaw !== 'object' || Array.isArray(addressRaw)) {
+      return null
+    }
+    const address = addressRaw as Record<string, unknown>
+    const extract = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
+    const line1 = [extract(address.street), extract(address.number)]
+      .filter((segment) => segment.length)
+      .join(' ')
+      .trim()
+    const line2 = [extract(address.city), extract(address.country)]
+      .filter((segment) => segment.length)
+      .join(', ')
+      .trim()
+    const label = [line1, line2].filter((segment) => segment.length).join(', ')
+    return label.length ? label : null
+  }
+
+  private toActivitySummary(activity?: CalendarEventWithType | null): LinkedActivitySummary | null {
+    if (!activity) {
+      return null
+    }
+    const metadata = this.normalizeActivityMetadata(activity.metadata)
+    const extractString = (value: unknown): string | null => {
+      if (typeof value !== 'string') {
+        return null
+      }
+      const trimmed = value.trim()
+      return trimmed.length ? trimmed : null
+    }
+    const location =
+      extractString(activity.location) ??
+      extractString(metadata?.location) ??
+      this.formatActivityAddress(metadata) ??
+      null
+    const typeLabel =
+      extractString(metadata?.eventTypeName) ??
+      extractString(metadata?.eventType) ??
+      extractString(metadata?.type) ??
+      extractString(activity.eventType?.name) ??
+      extractString(activity.type) ??
+      null
+    return {
+      id: activity.id,
+      title: activity.title,
+      startAt: activity.startAt ? activity.startAt.toISOString() : null,
+      endAt: activity.endAt ? activity.endAt.toISOString() : null,
+      allDay: Boolean(activity.allDay),
+      type: typeLabel,
+      location,
+    }
+  }
+
+  private async fetchActivitySummary(activityId: number): Promise<LinkedActivitySummary | null> {
+    const activity = await this.prisma.calendarEvent.findUnique({
+      where: { id: activityId },
+      include: { eventType: true },
+    })
+    return this.toActivitySummary(activity as CalendarEventWithType | null)
   }
 
   private async getBudgetStatusId(key: BudgetStatusKey) {
@@ -1120,6 +1268,28 @@ export class SalesDocumentsService {
       },
     })
 
+    let paymentSummaryByOrderId: Map<number, OrderPaymentSummary> | null = null
+    if (documentType === DocumentType.ORDER && orders.length) {
+      const summaries = await Promise.all(
+        orders.map(async (order) => {
+          try {
+            return await this.orderFinance.getOrderPaymentSummary(order.id)
+          } catch (error) {
+            this.logger.warn(
+              `Failed to compute payment summary for order ${order.id}: ${(error as Error).message}`,
+            )
+            return null
+          }
+        }),
+      )
+      paymentSummaryByOrderId = new Map<number, OrderPaymentSummary>()
+      summaries.forEach((summary) => {
+        if (summary) {
+          paymentSummaryByOrderId?.set(summary.orderId, summary)
+        }
+      })
+    }
+
     const defaultStatus = documentType === DocumentType.BUDGET
       ? this.getDefaultStatusRecord(DocumentType.BUDGET, ORDER_STATUS_CODES.BUDGET_DRAFT)
       : await this.getDefaultOrderStatus()
@@ -1128,17 +1298,34 @@ export class SalesDocumentsService {
       const validity = o.validUntil ? new Date(o.validUntil).toISOString() : null
       const statusRecord = this.getStatusRecordById(o.statusId ?? null, documentType) ?? defaultStatus
       const paymentMethodRecord = this.getPaymentMethodRecordById(o.paymentMethodId ?? null)
+      const paymentSummary = paymentSummaryByOrderId?.get(o.id) ?? null
+      const outstandingNumber = paymentSummary ? this.decimalToNumber(paymentSummary.outstanding) : null
+      const totalPaidNumber = paymentSummary ? this.decimalToNumber(paymentSummary.totalPaidConfirmed) : null
+      const normalizedStatusId = this.resolvePaymentAwareStatus(
+        documentType,
+        statusRecord?.id ?? null,
+        outstandingNumber,
+      )
       return {
         id: String(o.id),
         date: Math.floor(new Date(o.date).getTime() / 1000),
         validUntilDate: validity,
         validityDate: validity,
         customer: o.customer?.name || '',
-        status: statusRecord?.id ?? 0,
+        status: normalizedStatusId,
         paymentMehod: paymentMethodRecord?.name ?? '',
         paymentIdendifier: '',
         totalAmount: Number(o.grandTotal?.toString?.() ?? o.grandTotal ?? 0),
         orderCurrency: o.orderCurrency,
+        payments: paymentSummary
+          ? {
+              summary: {
+                currency: paymentSummary.currency,
+                totalPaidConfirmed: totalPaidNumber ?? 0,
+                outstanding: outstandingNumber ?? 0,
+              },
+            }
+          : undefined,
       }
     })
     return { data, total }
@@ -1434,6 +1621,11 @@ export class SalesDocumentsService {
           },
           orderBy: { date: 'asc' },
         },
+        activity: {
+          include: {
+            eventType: true,
+          },
+        },
       },
     })
     if (!order) return null
@@ -1565,6 +1757,8 @@ export class SalesDocumentsService {
       })),
       paymentMethod: paymentMethodRecord,
       status: statusRecord,
+      activity: this.toActivitySummary(order.activity as CalendarEventWithType | null),
+      activityId: order.activityId ?? null,
       subTotal: Number(order.subTotal?.toString?.() ?? order.subTotal ?? 0),
       tax: Number(order.tax?.toString?.() ?? order.tax ?? 0),
       deliveryFees: order.deliveryFees === null ? null : Number(order.deliveryFees.toString()),
@@ -1747,6 +1941,18 @@ export class SalesDocumentsService {
     }
 
     const rawValidUntil = dto.validUntil ?? dto.validUntilDate ?? null
+    const activityInputProvided = this.hasActivityInput(dto.activityId ?? null)
+    const normalizedActivityId = this.normalizeActivityId(dto.activityId ?? null)
+    if (activityInputProvided && normalizedActivityId === null) {
+      throw new BadRequestException('sales.orders.validation.activityInvalid')
+    }
+    let linkedActivity: LinkedActivitySummary | null = null
+    if (normalizedActivityId !== null) {
+      linkedActivity = await this.fetchActivitySummary(normalizedActivityId)
+      if (!linkedActivity) {
+        throw new BadRequestException('sales.orders.validation.activityNotFound')
+      }
+    }
 
     const created = await this.prisma.order.create({
       data: {
@@ -1795,6 +2001,7 @@ export class SalesDocumentsService {
         taxRateSnapshot: decimal(taxRate).toFixed(4),
         exchangeRateSnapshot: this.serializeFxSnapshot(monetary.snapshot),
         validUntil: rawValidUntil ? new Date(rawValidUntil) : null,
+        activityId: linkedActivity?.id ?? null,
         disclaimer,
         items: { create: monetary.items },
       },
@@ -1831,6 +2038,23 @@ export class SalesDocumentsService {
             metadata: Object.keys(metadata).length ? metadata : undefined,
           })
         }
+        if (linkedActivity) {
+          await this.timeline.recordActivityLink(
+            {
+              orderId: created.id,
+              activityId: linkedActivity.id,
+              activityTitle: linkedActivity.title,
+              activityStart: linkedActivity.startAt,
+              activityEnd: linkedActivity.endAt,
+              activityAllDay: linkedActivity.allDay,
+              activityType: linkedActivity.type,
+              activityLocation: linkedActivity.location,
+              actor: 'admin',
+              timestamp: created.createdAt,
+              action: 'linked',
+            },
+          )
+        }
       } catch (error) {
         this.logger.warn(
           `Failed to initialize timeline for order ${created.id}: ${(error as Error).message}`,
@@ -1854,7 +2078,16 @@ export class SalesDocumentsService {
     id: number,
     dto: CreateOrderDto,
   ) {
-    const existing = await this.prisma.order.findFirst({ where: { id, documentType } })
+    const existing = await this.prisma.order.findFirst({
+      where: { id, documentType },
+      include: {
+        activity: {
+          include: {
+            eventType: true,
+          },
+        },
+      },
+    })
     if (!existing) {
       throw new BadRequestException('sales.orders.validation.notFound')
     }
@@ -1904,6 +2137,35 @@ export class SalesDocumentsService {
       : composeAddress(dto.billingAddress)
 
     const rawValidUntil = dto.validUntil ?? dto.validUntilDate ?? null
+    const activityFieldProvided = Object.prototype.hasOwnProperty.call(dto, 'activityId')
+    const previousActivityId = existing.activityId ?? null
+    const previousActivitySummary = this.toActivitySummary(existing.activity as CalendarEventWithType | null)
+    const activityInputProvided = this.hasActivityInput(dto.activityId ?? null)
+    let nextActivitySummary: LinkedActivitySummary | null = previousActivitySummary
+    let nextActivityId = previousActivityId
+    if (activityFieldProvided) {
+      const normalizedActivityId = this.normalizeActivityId(dto.activityId ?? null)
+      if (activityInputProvided && normalizedActivityId === null) {
+        throw new BadRequestException('sales.orders.validation.activityInvalid')
+      }
+      if (normalizedActivityId !== null) {
+        if (normalizedActivityId === previousActivityId && previousActivitySummary) {
+          nextActivitySummary = previousActivitySummary
+          nextActivityId = previousActivitySummary.id
+        } else {
+          const resolved = await this.fetchActivitySummary(normalizedActivityId)
+          if (!resolved) {
+            throw new BadRequestException('sales.orders.validation.activityNotFound')
+          }
+          nextActivitySummary = resolved
+          nextActivityId = resolved.id
+        }
+      } else {
+        nextActivitySummary = null
+        nextActivityId = null
+      }
+    }
+    const activityChanged = activityFieldProvided && previousActivityId !== nextActivityId
 
     let depositRequirement:
       | {
@@ -1959,6 +2221,7 @@ export class SalesDocumentsService {
         documentFileMime: null,
         documentFileSize: null,
         documentGeneratedAt: null,
+        ...(activityFieldProvided ? { activityId: nextActivityId } : {}),
         disclaimer,
         items: {
           deleteMany: {},
@@ -2021,6 +2284,31 @@ export class SalesDocumentsService {
             timestamp: updated.updatedAt ?? new Date(),
             metadata,
           })
+        }
+        if (activityChanged) {
+          if (nextActivitySummary) {
+            await this.timeline.recordActivityLink({
+              orderId: existing.id,
+              activityId: nextActivitySummary.id,
+              activityTitle: nextActivitySummary.title,
+              activityStart: nextActivitySummary.startAt,
+              activityEnd: nextActivitySummary.endAt,
+              activityAllDay: nextActivitySummary.allDay,
+              activityType: nextActivitySummary.type,
+              activityLocation: nextActivitySummary.location,
+              actor: 'admin',
+              timestamp: updated.updatedAt ?? new Date(),
+              action: previousActivityId ? 'updated' : 'linked',
+            })
+          } else if (previousActivityId !== null) {
+            await this.timeline.recordActivityUnlink({
+              orderId: existing.id,
+              activityId: previousActivityId,
+              activityTitle: previousActivitySummary?.title ?? null,
+              actor: 'admin',
+              timestamp: updated.updatedAt ?? new Date(),
+            })
+          }
         }
       } catch (error) {
         this.logger.warn(

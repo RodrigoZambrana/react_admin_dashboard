@@ -220,6 +220,7 @@
       "allDay": "Evento de todo el día",
       "internal": "Evento interno",
       "customer": "Cliente asociado (opcional)",
+      "addressSelect": "Dirección del cliente",
       "eventType": "Tipo de evento",
       "address": {
         "street": "Calle",
@@ -257,6 +258,7 @@
       "corner": "Esquina",
       "apartment": "Apartamento / Unidad",
       "location": "Sala, enlace o referencia",
+      "addressSelect": "Seleccioná una dirección",
       "description": "Detalles, objetivos o agenda",
       "search": "Buscar por título, fecha, cliente o contenido"
     },
@@ -731,7 +733,8 @@
       "offerPrice": "Precio oferta",
       "ticketTitle": "Título del ticket",
       "untitledBoard": "Tablero sin título",
-      "untitledCard": "Tarjeta sin título"
+      "untitledCard": "Tarjeta sin título",
+      "untitledActivity": "Actividad sin título"
     },
     "specs": {
       "width": "Ancho",
@@ -1258,6 +1261,11 @@
       "invoiceAction": "Ver factura",
       "validUntilLabel": "Válido hasta",
       "disclaimerLabel": "Condiciones",
+      "activityLabel": "Actividad vinculada",
+      "activityPlaceholder": "Buscar actividad del calendario",
+      "activityHelper": "Asociá una actividad del calendario para mostrarla en la línea de tiempo del pedido.",
+      "activityEmpty": "No hay actividades disponibles.",
+      "activityView": "Ver actividad",
       "editAction": "Editar pedido",
       "delete": {
         "title": "Eliminar orden",
@@ -1287,7 +1295,9 @@
         "customerRequired": "El cliente es obligatorio",
         "itemsRequired": "Agregue al menos un producto",
         "customerAddressRequired": "El cliente debe tener una dirección principal",
-        "quantityPositive": "La cantidad debe ser mayor que 0"
+        "quantityPositive": "La cantidad debe ser mayor que 0",
+        "activityNotFound": "No encontramos la actividad seleccionada.",
+        "activityInvalid": "Ingresá una actividad válida o dejá el campo vacío."
       },
       "summary": {
         "purchaseSummaryTitle": "Resumen de la compra",
@@ -1602,7 +1612,13 @@
           "cancelled": "Pedido cancelado",
           "status_changed": "Estado actualizado",
           "note": "Nota agregada",
+          "activity_linked": "Actividad vinculada",
+          "activity_unlinked": "Actividad desvinculada",
           "other": "Actividad"
+        },
+        "activity": {
+          "linkedDetail": "Actividad vinculada: {{title}}",
+          "unlinkedDetail": "Se quitó la actividad vinculada"
         },
         "status": {
           "cancelledShort": "Cancelado"
@@ -1641,6 +1657,11 @@
       "invoiceAction": "Descargar presupuesto",
       "validUntilLabel": "Válido hasta",
       "disclaimerLabel": "Condiciones",
+      "activityLabel": "Actividad vinculada",
+      "activityPlaceholder": "Buscar actividad del calendario",
+      "activityHelper": "Asociá una actividad del calendario para mostrarla en la línea de tiempo del presupuesto.",
+      "activityEmpty": "No hay actividades disponibles.",
+      "activityView": "Ver actividad",
       "editAction": "Editar presupuesto",
       "importSuccess": "Se importaron {{imported}} presupuestos.",
       "importSuccessWithErrors": "Presupuestos importados: {{imported}}. Registros con error: {{failed}}.",

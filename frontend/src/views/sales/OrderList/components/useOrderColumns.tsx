@@ -24,6 +24,13 @@ export type Order = {
         currency?: string
     }
     computedSummary?: SalesDocumentSummaryComputation
+    payments?: {
+        summary?: {
+            currency?: string
+            totalPaidConfirmed?: number
+            outstanding?: number
+        } | null
+    }
 }
 
 type Params = {

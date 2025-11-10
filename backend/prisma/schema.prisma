@@ -647,6 +647,8 @@ model Order {
   priceListIdSnapshot   Int?
   exchangeRateSnapshot  Json?
   validUntil            DateTime?
+  activityId            Int?
+  activity              CalendarEvent?            @relation(fields: [activityId], references: [id], onDelete: SetNull)
   originId              Int?
   origin                Order?                    @relation("OrderOrigin", fields: [originId], references: [id], onDelete: SetNull)
   convertedOrderId      Int?
@@ -676,6 +678,7 @@ model Order {
 
   @@unique([originId])
   @@unique([convertedOrderId])
+  @@index([activityId])
   @@index([documentType, statusId, customerId, createdAt])
   @@index([documentType, createdAt])
   @@index([validUntil])
@@ -1083,6 +1086,7 @@ model CalendarEvent {
   task        Task?                     @relation(fields: [taskId], references: [id], onDelete: SetNull)
   eventTypeId Int?
   eventType   CalendarEventType?        @relation(fields: [eventTypeId], references: [id], onDelete: SetNull)
+  orders      Order[]
   attachments CalendarEventAttachment[]
   comments    CalendarEventComment[]
   createdAt   DateTime                  @default(now())

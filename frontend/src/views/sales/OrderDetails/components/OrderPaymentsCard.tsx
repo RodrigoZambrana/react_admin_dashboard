@@ -134,12 +134,6 @@ const OrderPaymentsCard = ({
             {payments?.records?.length ? (
                 <div className="space-y-3">
                     {payments.records.map((payment) => {
-                        const typeLabel = t(`accounting.payments.type.${payment.type.toLowerCase()}`, {
-                            defaultValue: payment.type,
-                        })
-                        const statusLabel = t(`accounting.payments.status.${payment.status.toLowerCase()}`, {
-                            defaultValue: payment.status,
-                        })
                         return (
                             <div
                                 key={payment.id}
@@ -158,14 +152,6 @@ const OrderPaymentsCard = ({
                                         {t('sales.orders.payments.idLabel', { defaultValue: 'Payment ID' })}{' '}
                                         #{payment.id}
                                     </div>
-                                </div>
-                                <div className="flex flex-wrap gap-2 text-xs uppercase tracking-wide">
-                                    <span className="px-2 py-1 rounded-md bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-200">
-                                        {typeLabel}
-                                    </span>
-                                    <span className="px-2 py-1 rounded-md bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-200">
-                                        {statusLabel}
-                                    </span>
                                 </div>
                             </div>
                             <div className="mt-3 grid gap-1 text-sm text-gray-600 dark:text-gray-300">
