@@ -11,6 +11,7 @@ ARG VITE_CLIENT_SLUG=core
 ENV VITE_CLIENT_SLUG=${VITE_CLIENT_SLUG}
 COPY frontend/. ./
 # Provide shared source for alias imports during the build
+COPY docs /docs
 COPY src /src
 RUN npm run build
 

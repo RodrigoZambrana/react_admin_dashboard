@@ -464,26 +464,6 @@ const appsNavigationConfig: NavigationTree[] = [
                         subMenu: [],
                     },
                     {
-                        key: 'appsSettings.mercadoPago',
-                        path: `${APP_PREFIX_PATH}/settings/mercado-pago`,
-                        title: 'Mercado Pago',
-                        translateKey: 'nav.appsSettings.mercadoPago',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.SETTINGS),
-                        subMenu: [],
-                    },
-                    {
-                        key: 'appsSettings.google',
-                        path: `${APP_PREFIX_PATH}/settings/google`,
-                        title: 'Google & reCAPTCHA',
-                        translateKey: 'nav.appsSettings.google',
-                        icon: '',
-                        type: NAV_ITEM_TYPE_ITEM,
-                        authority: getRolesForFeature(FEATURES.SETTINGS),
-                        subMenu: [],
-                    },
-                    {
                         key: 'appsSettings.systemConfig',
                         path: `${APP_PREFIX_PATH}/settings/system-config`,
                         title: 'System Config',
@@ -493,24 +473,10 @@ const appsNavigationConfig: NavigationTree[] = [
                         authority: getRolesForFeature(FEATURES.SETTINGS),
                         subMenu: [],
                     },
-                    ...(isUrucortinas
-                        ? [
-                              {
-                                  key: 'appsSettings.aberturasGlossary',
-                                  path: `${APP_PREFIX_PATH}/settings/aberturas`,
-                                  title: 'Aberturas',
-                                  translateKey: 'nav.appsSettings.aberturas',
-                                  icon: '',
-                                  type: NAV_ITEM_TYPE_ITEM,
-                                  authority: getRolesForFeature(FEATURES.SETTINGS),
-                                  subMenu: [],
-                              },
-                          ]
-                        : []),
                     {
                         key: 'appsSettings.email',
                         path: `${APP_PREFIX_PATH}/settings/email/config`,
-                        title: 'Email',
+                        title: 'Email & Integrations',
                         translateKey: 'nav.appsSettings.email',
                         icon: '',
                         type: NAV_ITEM_TYPE_ITEM,

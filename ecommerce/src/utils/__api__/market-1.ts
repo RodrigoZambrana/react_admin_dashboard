@@ -19,7 +19,35 @@ const fallbackEnvValue =
   process.env.ENABLE_STOREFRONT_FALLBACKS ??
   "true";
 
+const failFastEnvValue =
+  process.env.NEXT_PUBLIC_STOREFRONT_FAIL_FAST ??
+  process.env.STOREFRONT_FAIL_FAST ??
+  "false";
+
 const ALLOW_MOCK_FALLBACKS = fallbackEnvValue !== "false" && fallbackEnvValue !== "0";
+const ENFORCE_FAIL_FAST = failFastEnvValue === "true" || failFastEnvValue === "1";
+
+const handleFallbackDisabled = <T>(context: string, error: unknown, emptyValue: T): T => {
+  if (ENFORCE_FAIL_FAST) {
+    throw toError(error, context);
+  }
+
+  if (isApiError(error)) {
+    console.warn(
+      `[storefront] ${context} (status ${error.status}). Returning empty dataset because fallbacks are disabled.`,
+    );
+  } else if (error instanceof Error) {
+    console.warn(
+      `[storefront] ${context}: ${error.message}. Returning empty dataset because fallbacks are disabled.`,
+    );
+  } else {
+    console.warn(
+      `[storefront] ${context}. Returning empty dataset because fallbacks are disabled.`,
+    );
+  }
+
+  return emptyValue;
+};
 
 type Market1DataModule = typeof import("@/__server__/__db__/market-1/data");
 
@@ -200,7 +228,11 @@ const fetchProductsWithFallback = async (
       }
     } catch (error) {
       if (!ALLOW_MOCK_FALLBACKS) {
-        throw toError(error, "Failed to load storefront products");
+        return handleFallbackDisabled<Product[]>(
+          "Failed to load storefront products",
+          error,
+          [],
+        );
       }
       logFallbackWarning("Falling back to mock products", error);
     }
@@ -240,7 +272,11 @@ const fetchCategoriesWithFallback = async (
       }
     } catch (error) {
       if (!ALLOW_MOCK_FALLBACKS) {
-        throw toError(error, "Failed to load storefront categories");
+        return handleFallbackDisabled<Category[]>(
+          "Failed to load storefront categories",
+          error,
+          [],
+        );
       }
       logFallbackWarning("Falling back to mock categories", error);
     }
@@ -282,7 +318,7 @@ const getTopRatedBrand = async (): Promise<Brand[]> => {
     }
   } catch (error) {
     if (!ALLOW_MOCK_FALLBACKS) {
-      throw toError(error, "Failed to load top rated brands");
+      return handleFallbackDisabled<Brand[]>("Failed to load top rated brands", error, []);
     }
     logFallbackWarning("Falling back to mock featured brands", error);
   }
@@ -312,7 +348,7 @@ const getCarBrands = async (): Promise<Brand[]> => {
     }
   } catch (error) {
     if (!ALLOW_MOCK_FALLBACKS) {
-      throw toError(error, "Failed to load car brands");
+      return handleFallbackDisabled<Brand[]>("Failed to load car brands", error, []);
     }
     logFallbackWarning("Falling back to mock car brands", error);
   }
@@ -335,7 +371,7 @@ const getCarList = async (): Promise<Product[]> => {
     }
   } catch (error) {
     if (!ALLOW_MOCK_FALLBACKS) {
-      throw toError(error, "Failed to load car products");
+      return handleFallbackDisabled<Product[]>("Failed to load car products", error, []);
     }
     logFallbackWarning("Falling back to mock car products", error);
   }
@@ -358,7 +394,7 @@ const getMobileBrands = async (): Promise<Brand[]> => {
     }
   } catch (error) {
     if (!ALLOW_MOCK_FALLBACKS) {
-      throw toError(error, "Failed to load mobile brands");
+      return handleFallbackDisabled<Brand[]>("Failed to load mobile brands", error, []);
     }
     logFallbackWarning("Falling back to mock mobile brands", error);
   }
@@ -381,7 +417,7 @@ const getMobileShops = async (): Promise<Shop[]> => {
     }
   } catch (error) {
     if (!ALLOW_MOCK_FALLBACKS) {
-      throw toError(error, "Failed to load mobile shops");
+      return handleFallbackDisabled<Shop[]>("Failed to load mobile shops", error, []);
     }
     logFallbackWarning("Falling back to mock mobile shops", error);
   }
@@ -404,7 +440,7 @@ const getMobileList = async (): Promise<Product[]> => {
     }
   } catch (error) {
     if (!ALLOW_MOCK_FALLBACKS) {
-      throw toError(error, "Failed to load mobile products");
+      return handleFallbackDisabled<Product[]>("Failed to load mobile products", error, []);
     }
     logFallbackWarning("Falling back to mock mobile products", error);
   }
@@ -427,7 +463,7 @@ const getOpticsBrands = async (): Promise<Brand[]> => {
     }
   } catch (error) {
     if (!ALLOW_MOCK_FALLBACKS) {
-      throw toError(error, "Failed to load optics brands");
+      return handleFallbackDisabled<Brand[]>("Failed to load optics brands", error, []);
     }
     logFallbackWarning("Falling back to mock optics brands", error);
   }
@@ -450,7 +486,7 @@ const getOpticsShops = async (): Promise<Shop[]> => {
     }
   } catch (error) {
     if (!ALLOW_MOCK_FALLBACKS) {
-      throw toError(error, "Failed to load optics shops");
+      return handleFallbackDisabled<Shop[]>("Failed to load optics shops", error, []);
     }
     logFallbackWarning("Falling back to mock optics shops", error);
   }
@@ -473,7 +509,7 @@ const getOpticsList = async (): Promise<Product[]> => {
     }
   } catch (error) {
     if (!ALLOW_MOCK_FALLBACKS) {
-      throw toError(error, "Failed to load optics products");
+      return handleFallbackDisabled<Product[]>("Failed to load optics products", error, []);
     }
     logFallbackWarning("Falling back to mock optics products", error);
   }
@@ -514,7 +550,7 @@ const getServiceList = async (): Promise<Service[]> => {
     }
   } catch (error) {
     if (!ALLOW_MOCK_FALLBACKS) {
-      throw toError(error, "Failed to load service list");
+      return handleFallbackDisabled<Service[]>("Failed to load service list", error, []);
     }
     logFallbackWarning("Falling back to mock service list", error);
   }
@@ -544,7 +580,11 @@ const getMainCarousel = async (): Promise<MainCarouselItem[]> => {
     }
   } catch (error) {
     if (!ALLOW_MOCK_FALLBACKS) {
-      throw toError(error, "Failed to load main carousel");
+      return handleFallbackDisabled<MainCarouselItem[]>(
+        "Failed to load main carousel",
+        error,
+        [],
+      );
     }
     logFallbackWarning("Falling back to mock main carousel data", error);
   }

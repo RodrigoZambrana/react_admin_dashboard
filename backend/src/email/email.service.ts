@@ -112,53 +112,57 @@ export class EmailService {
     const extras = { ...company }
 
     if (options.sendToCustomer !== false && customer?.email) {
-      const customerLocalePreference =
-        (customer as { preferredLocale?: string | null })?.preferredLocale ?? options.localeOverride
-      const customerLocale = this.resolveLocale(customerLocalePreference)
-      const customerPayload = this.buildOrderPayload(order, customerLocale, { event: 'order.received' })
-      const recipients: EmailRecipient[] = [
-        {
-          email: customer.email,
-          name: this.sanitizeName(customer.name ?? `${customer.firstName ?? ''} ${customer.lastName ?? ''}`),
+      if (await this.canSendToRecipient(EmailRecipientType.CUSTOMER, `Order ${order.id} customer confirmation`)) {
+        const customerLocalePreference =
+          (customer as { preferredLocale?: string | null })?.preferredLocale ?? options.localeOverride
+        const customerLocale = this.resolveLocale(customerLocalePreference)
+        const customerPayload = this.buildOrderPayload(order, customerLocale, { event: 'order.received' })
+        const recipients: EmailRecipient[] = [
+          {
+            email: customer.email,
+            name: this.sanitizeName(customer.name ?? `${customer.firstName ?? ''} ${customer.lastName ?? ''}`),
+            locale: customerLocale,
+          },
+        ]
+        const message = await this.buildMessage<OrderEmailContext>({
+          category: EmailCategory.ORDERS,
+          variant: EmailTemplateVariant.CUSTOMER,
           locale: customerLocale,
-        },
-      ]
-      const message = await this.buildMessage<OrderEmailContext>({
-        category: EmailCategory.ORDERS,
-        variant: EmailTemplateVariant.CUSTOMER,
-        locale: customerLocale,
-        recipientType: EmailRecipientType.CUSTOMER,
-        recipients,
-        payload: customerPayload,
-        extras,
-      })
-      await this.queue.enqueue(message)
+          recipientType: EmailRecipientType.CUSTOMER,
+          recipients,
+          payload: customerPayload,
+          extras,
+        })
+        await this.queue.enqueue(message)
+      }
     }
 
     if (options.sendToAdmin !== false) {
-      const adminLocale = this.resolveLocale('es')
-      const adminPayload = this.buildOrderPayload(order, adminLocale, { event: 'order.received_admin' })
-      const recipientsConfig = await this.settings.resolveAdminRecipients(EmailCategory.ORDERS)
-      if (recipientsConfig.to.length) {
-        const recipients: EmailRecipient[] = recipientsConfig.to.map((email) => ({
-          email,
-          name: null,
-          locale: adminLocale,
-        }))
-        const message = await this.buildMessage<OrderEmailContext>({
-          category: EmailCategory.ORDERS,
-          variant: EmailTemplateVariant.ADMIN,
-          locale: adminLocale,
-          recipientType: EmailRecipientType.ADMIN,
-          recipients,
-          payload: adminPayload,
-          extras,
-          cc: recipientsConfig.cc,
-          bcc: recipientsConfig.bcc,
-        })
-        await this.queue.enqueue(message)
-      } else {
-        this.logger.debug('No admin recipients configured for order emails.')
+      if (await this.canSendToRecipient(EmailRecipientType.ADMIN, `Order ${order.id} admin notification`)) {
+        const adminLocale = this.resolveLocale('es')
+        const adminPayload = this.buildOrderPayload(order, adminLocale, { event: 'order.received_admin' })
+        const recipientsConfig = await this.settings.resolveAdminRecipients(EmailCategory.ORDERS)
+        if (recipientsConfig.to.length) {
+          const recipients: EmailRecipient[] = recipientsConfig.to.map((email) => ({
+            email,
+            name: null,
+            locale: adminLocale,
+          }))
+          const message = await this.buildMessage<OrderEmailContext>({
+            category: EmailCategory.ORDERS,
+            variant: EmailTemplateVariant.ADMIN,
+            locale: adminLocale,
+            recipientType: EmailRecipientType.ADMIN,
+            recipients,
+            payload: adminPayload,
+            extras,
+            cc: recipientsConfig.cc,
+            bcc: recipientsConfig.bcc,
+          })
+          await this.queue.enqueue(message)
+        } else {
+          this.logger.debug('No admin recipients configured for order emails.')
+        }
       }
     }
   }
@@ -194,43 +198,47 @@ export class EmailService {
     const extras = { ...company }
 
     if (options.sendToCustomer !== false && customer?.email) {
-      const recipients: EmailRecipient[] = [
-        {
-          email: customer.email,
-          name: this.sanitizeName(customer.name ?? `${customer.firstName ?? ''} ${customer.lastName ?? ''}`),
-          locale,
-        },
-      ]
-      const message = await this.buildMessage<PaymentEmailContext>({
-        category: EmailCategory.PAYMENTS,
-        variant: EmailTemplateVariant.CUSTOMER,
-        locale,
-        recipientType: EmailRecipientType.CUSTOMER,
-        recipients,
-        payload,
-        extras,
-      })
-      await this.queue.enqueue(message)
-    }
-
-    if (options.sendToAdmin !== false) {
-      const recipientsConfig = await this.settings.resolveAdminRecipients(EmailCategory.PAYMENTS)
-      if (recipientsConfig.to.length) {
-        const recipients: EmailRecipient[] = recipientsConfig.to.map((email) => ({ email, name: null, locale }))
+      if (await this.canSendToRecipient(EmailRecipientType.CUSTOMER, `Payment ${payment.id} customer notification`)) {
+        const recipients: EmailRecipient[] = [
+          {
+            email: customer.email,
+            name: this.sanitizeName(customer.name ?? `${customer.firstName ?? ''} ${customer.lastName ?? ''}`),
+            locale,
+          },
+        ]
         const message = await this.buildMessage<PaymentEmailContext>({
           category: EmailCategory.PAYMENTS,
-          variant: EmailTemplateVariant.ADMIN,
+          variant: EmailTemplateVariant.CUSTOMER,
           locale,
-          recipientType: EmailRecipientType.ADMIN,
+          recipientType: EmailRecipientType.CUSTOMER,
           recipients,
           payload,
           extras,
-          cc: recipientsConfig.cc,
-          bcc: recipientsConfig.bcc,
         })
         await this.queue.enqueue(message)
-      } else {
-        this.logger.debug('No admin recipients configured for payment emails.')
+      }
+    }
+
+    if (options.sendToAdmin !== false) {
+      if (await this.canSendToRecipient(EmailRecipientType.ADMIN, `Payment ${payment.id} admin notification`)) {
+        const recipientsConfig = await this.settings.resolveAdminRecipients(EmailCategory.PAYMENTS)
+        if (recipientsConfig.to.length) {
+          const recipients: EmailRecipient[] = recipientsConfig.to.map((email) => ({ email, name: null, locale }))
+          const message = await this.buildMessage<PaymentEmailContext>({
+            category: EmailCategory.PAYMENTS,
+            variant: EmailTemplateVariant.ADMIN,
+            locale,
+            recipientType: EmailRecipientType.ADMIN,
+            recipients,
+            payload,
+            extras,
+            cc: recipientsConfig.cc,
+            bcc: recipientsConfig.bcc,
+          })
+          await this.queue.enqueue(message)
+        } else {
+          this.logger.debug('No admin recipients configured for payment emails.')
+        }
       }
     }
   }
@@ -299,46 +307,60 @@ export class EmailService {
     if (options.sendToCustomer !== false) {
       const customerEmail = payload.customer.email
       if (customerEmail) {
-        const recipients: EmailRecipient[] = [
-          {
-            email: customerEmail,
-            name: payload.customer.name,
+        if (
+          await this.canSendToRecipient(
+            EmailRecipientType.CUSTOMER,
+            `${documentType.toLowerCase()} ${order.id} customer status email`,
+          )
+        ) {
+          const recipients: EmailRecipient[] = [
+            {
+              email: customerEmail,
+              name: payload.customer.name,
+              locale,
+            },
+          ]
+          const message = await this.buildMessage<OrderEmailContext>({
+            category: EmailCategory.ORDERS,
+            variant: EmailTemplateVariant.CUSTOMER,
             locale,
-          },
-        ]
-        const message = await this.buildMessage<OrderEmailContext>({
-          category: EmailCategory.ORDERS,
-          variant: EmailTemplateVariant.CUSTOMER,
-          locale,
-          recipientType: EmailRecipientType.CUSTOMER,
-          recipients,
-          payload,
-          extras,
-        })
-        await this.queue.enqueue(message)
+            recipientType: EmailRecipientType.CUSTOMER,
+            recipients,
+            payload,
+            extras,
+          })
+          await this.queue.enqueue(message)
+        }
       } else {
         this.logger.debug(`Sales document ${order.id} has no customer email; skipping customer status email.`)
       }
     }
 
     if (options.sendToAdmin !== false) {
-      const recipientsConfig = await this.settings.resolveAdminRecipients(EmailCategory.ORDERS)
-      if (recipientsConfig.to.length) {
-        const recipients: EmailRecipient[] = recipientsConfig.to.map((email) => ({ email, name: null, locale }))
-        const message = await this.buildMessage<OrderEmailContext>({
-          category: EmailCategory.ORDERS,
-          variant: EmailTemplateVariant.ADMIN,
-          locale,
-          recipientType: EmailRecipientType.ADMIN,
-          recipients,
-          payload,
-          extras,
-          cc: recipientsConfig.cc,
-          bcc: recipientsConfig.bcc,
-        })
-        await this.queue.enqueue(message)
-      } else {
-        this.logger.debug(`No admin recipients configured for ${documentType.toLowerCase()} status emails.`)
+      if (
+        await this.canSendToRecipient(
+          EmailRecipientType.ADMIN,
+          `${documentType.toLowerCase()} ${order.id} admin status email`,
+        )
+      ) {
+        const recipientsConfig = await this.settings.resolveAdminRecipients(EmailCategory.ORDERS)
+        if (recipientsConfig.to.length) {
+          const recipients: EmailRecipient[] = recipientsConfig.to.map((email) => ({ email, name: null, locale }))
+          const message = await this.buildMessage<OrderEmailContext>({
+            category: EmailCategory.ORDERS,
+            variant: EmailTemplateVariant.ADMIN,
+            locale,
+            recipientType: EmailRecipientType.ADMIN,
+            recipients,
+            payload,
+            extras,
+            cc: recipientsConfig.cc,
+            bcc: recipientsConfig.bcc,
+          })
+          await this.queue.enqueue(message)
+        } else {
+          this.logger.debug(`No admin recipients configured for ${documentType.toLowerCase()} status emails.`)
+        }
       }
     }
   }
@@ -373,12 +395,16 @@ export class EmailService {
       isAdmin: Boolean(options.isAdmin),
     }
     const variant = options.isAdmin ? EmailTemplateVariant.ADMIN : EmailTemplateVariant.CUSTOMER
+    const recipientType = options.isAdmin ? EmailRecipientType.ADMIN : EmailRecipientType.CUSTOMER
+    if (!(await this.canSendToRecipient(recipientType, 'Password reset email'))) {
+      return
+    }
     const recipients: EmailRecipient[] = [{ email, name: displayName, locale }]
     const message = await this.buildMessage<PasswordResetEmailContext>({
       category: EmailCategory.AUTH,
       variant,
       locale,
-      recipientType: options.isAdmin ? EmailRecipientType.ADMIN : EmailRecipientType.CUSTOMER,
+      recipientType,
       recipients,
       payload,
       extras: company,
@@ -396,6 +422,9 @@ export class EmailService {
     const samplePayload = this.buildSamplePayload(options.category, locale, options.scenarioKey)
     const variant = options.variant ?? EmailTemplateVariant.CUSTOMER
     const recipientType = variant === EmailTemplateVariant.ADMIN ? EmailRecipientType.ADMIN : EmailRecipientType.CUSTOMER
+    if (!(await this.canSendToRecipient(recipientType, 'Test email'))) {
+      return
+    }
     const message = await this.buildMessage<any>({
       category: options.category,
       variant,
@@ -406,6 +435,14 @@ export class EmailService {
       extras: company,
     })
     await this.queue.enqueue(message)
+  }
+
+  private async canSendToRecipient(recipientType: EmailRecipientType, context: string) {
+    const enabled = await this.settings.isRecipientDeliveryEnabled(recipientType)
+    if (!enabled) {
+      this.logger.debug(`${context} skipped because ${recipientType.toLowerCase()} email delivery is disabled.`)
+    }
+    return enabled
   }
 
   private resolveLocale(locale?: string | null) {

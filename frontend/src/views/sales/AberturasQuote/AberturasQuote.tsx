@@ -322,6 +322,32 @@ const extractDimensionPairs = (value?: string | null): Array<{ width: number; he
     return pairs
 }
 
+const matchesDimensionAxis = (
+    fields: Array<string | null | undefined>,
+    axis: 'width' | 'height',
+    target?: number,
+) => {
+    if (!target || target <= 0) {
+        return true
+    }
+    let hasPairs = false
+    const matches = fields.some((field) => {
+        if (!field) {
+            return false
+        }
+        const pairs = extractDimensionPairs(field)
+        if (!pairs.length) {
+            return false
+        }
+        hasPairs = true
+        return pairs.some((pair) => (axis === 'width' ? pair.width === target : pair.height === target))
+    })
+    if (hasPairs) {
+        return matches
+    }
+    return matchesDimensionToken(fields, target)
+}
+
 const matchesExactDimensionPair = (
     fields: Array<string | null | undefined>,
     width?: number,
@@ -374,10 +400,10 @@ const productMatchesFilters = (product: ProductSummary, filters: ProductFilterCr
             return false
         }
     } else {
-        if (!matchesDimensionToken(dimensionFields, filters.widthMm)) {
+        if (!matchesDimensionAxis(dimensionFields, 'width', filters.widthMm)) {
             return false
         }
-        if (!matchesDimensionToken(dimensionFields, filters.heightMm)) {
+        if (!matchesDimensionAxis(dimensionFields, 'height', filters.heightMm)) {
             return false
         }
     }
@@ -1421,7 +1447,36 @@ const AberturasQuote = () => {
         return Boolean(formState.sizeKey)
     }, [formState, manualSizeMode])
 
-    const canSearchProducts = useMemo(() => Boolean(formState), [formState])
+    const hasActiveFilters = useMemo(() => {
+        if (!formState) {
+            return false
+        }
+        const {
+            familyId,
+            color,
+            serie,
+            vidrio,
+            widthMm,
+            heightMm,
+            mosquitero,
+            monoblock,
+        } = formState
+        return Boolean(
+            familyId.trim() ||
+                color.trim() ||
+                serie.trim() ||
+                vidrio.trim() ||
+                (widthMm && widthMm > 0) ||
+                (heightMm && heightMm > 0) ||
+                mosquitero ||
+                monoblock,
+        )
+    }, [formState])
+
+    const canSearchProducts = useMemo(
+        () => Boolean(formState) && hasActiveFilters,
+        [formState, hasActiveFilters],
+    )
 
     const productFilterSummary = useMemo(() => {
         if (!formState) {
@@ -1475,6 +1530,80 @@ const AberturasQuote = () => {
         }
         return summary
     }, [colorOptions, familyOptions, formState, serieOptions, t, vidrioOptions])
+
+    const filtersRequirementMessage = useMemo(
+        () =>
+            t('sales.aberturasQuote.filters.requirement', {
+                defaultValue: 'Seleccioná al menos un filtro para buscar combinaciones.',
+            }),
+        [t],
+    )
+
+    const dimensionFilteredSearchResult = useMemo(() => {
+        if (!searchResult || !formState) {
+            return searchResult
+        }
+        const requiredWidth = formState.widthMm > 0 ? formState.widthMm : null
+        const requiredHeight = formState.heightMm > 0 ? formState.heightMm : null
+        if (!requiredWidth && !requiredHeight) {
+            return searchResult
+        }
+        const enforceWidth = requiredWidth !== null
+        const enforceHeight = requiredHeight !== null
+        const adjustMatch = (input?: MatrixMatch | null): MatrixMatch | null => {
+            if (!input) {
+                return null
+            }
+            const widthMatches = !enforceWidth || input.row.widthMm === requiredWidth
+            const heightMatches = !enforceHeight || input.row.heightMm === requiredHeight
+            if (widthMatches && heightMatches) {
+                return input
+            }
+            const patchedMetadata = input.metadata
+                ? {
+                      ...input.metadata,
+                      matchLevel: input.metadata.matchLevel === 'exact' ? 'near' : input.metadata.matchLevel,
+                      attributeMatches: {
+                          ...input.metadata.attributeMatches,
+                          width: enforceWidth ? false : input.metadata.attributeMatches.width,
+                          height: enforceHeight ? false : input.metadata.attributeMatches.height,
+                      },
+                  }
+                : undefined
+            return {
+                ...input,
+                matchLevel: input.matchLevel === 'exact' ? 'near' : input.matchLevel,
+                metadata: patchedMetadata,
+            }
+        }
+        const normalizeList = (list?: MatrixMatch[] | null) =>
+            (list ?? [])
+                .map((item) => adjustMatch(item))
+                .filter((item): item is MatrixMatch => Boolean(item))
+
+        const prioritized = [
+            ...(searchResult.exact ? [adjustMatch(searchResult.exact)] : []),
+            ...normalizeList(searchResult.nearest),
+        ].filter((item): item is MatrixMatch => Boolean(item))
+
+        let promotedExact: MatrixMatch | undefined
+        const normalizedNearest: MatrixMatch[] = []
+        prioritized.forEach((match) => {
+            if (!promotedExact && match.matchLevel === 'exact') {
+                promotedExact = match
+            } else {
+                normalizedNearest.push(match)
+            }
+        })
+
+        const normalizedSuggestions = normalizeList(searchResult.suggestions)
+
+        return {
+            exact: promotedExact,
+            nearest: normalizedNearest,
+            suggestions: normalizedSuggestions,
+        }
+    }, [formState, searchResult])
 
     const handleCalculate = useCallback(() => {
         if (!formState) {
@@ -1539,6 +1668,13 @@ const AberturasQuote = () => {
 
     const handleSearch = useCallback(async () => {
         if (!formState) {
+            return
+        }
+        if (!hasActiveFilters) {
+            toast.push(
+                <Notification title={filtersRequirementMessage} type="warning" />,
+                { placement: 'top-center' },
+            )
             return
         }
         const criteria: ProductFilterCriteria = {
@@ -1631,7 +1767,7 @@ const AberturasQuote = () => {
             setSearchPerformed(true)
             setSearchLoading(false)
         }
-    }, [activeProductId, formState, products, selectedProduct, t])
+    }, [activeProductId, filtersRequirementMessage, formState, hasActiveFilters, products, selectedProduct, t])
 
     const renderComponents = useCallback(
         (components: string[]) =>
@@ -2248,16 +2384,37 @@ const AberturasQuote = () => {
                                         })}
                                     </p>
                                 )}
-                                <div className="flex flex-wrap justify-end gap-2">
-                                    <Button
-                                        variant="twoTone"
-                                        disabled={!canSearchProducts}
-                                        onClick={handleSearch}
-                                    >
-                                        {t('sales.aberturasQuote.filters.searchButton', {
-                                            defaultValue: 'Buscar combinaciones',
-                                        })}
-                                    </Button>
+                                <div className="flex flex-wrap items-center justify-end gap-2">
+                                    {!hasActiveFilters && (
+                                        <p className="w-full text-right text-xs text-amber-600 sm:w-auto sm:flex-1 sm:text-left">
+                                            {filtersRequirementMessage}
+                                        </p>
+                                    )}
+                                    {canSearchProducts ? (
+                                        <Button
+                                            variant="twoTone"
+                                            disabled={!canSearchProducts}
+                                            onClick={handleSearch}
+                                        >
+                                            {t('sales.aberturasQuote.filters.searchButton', {
+                                                defaultValue: 'Buscar combinaciones',
+                                            })}
+                                        </Button>
+                                    ) : (
+                                        <Tooltip title={filtersRequirementMessage}>
+                                            <span className="inline-flex">
+                                                <Button
+                                                    variant="twoTone"
+                                                    disabled
+                                                    onClick={handleSearch}
+                                                >
+                                                    {t('sales.aberturasQuote.filters.searchButton', {
+                                                        defaultValue: 'Buscar combinaciones',
+                                                    })}
+                                                </Button>
+                                            </span>
+                                        </Tooltip>
+                                    )}
                                     <Button onClick={handleCalculate} disabled={!canCalculate}>
                                         {t('sales.aberturasQuote.actions.calculate', {
                                             defaultValue: 'Calcular precio',
@@ -2356,7 +2513,7 @@ const AberturasQuote = () => {
                         )}
                         {!searchLoading && !searchError && (
                             <>
-                                {searchResult?.exact && (
+                                {dimensionFilteredSearchResult?.exact && (
                                     <div className="rounded-md border border-emerald-200 dark:border-emerald-500/30 p-4 space-y-3 bg-emerald-50/50 dark:bg-emerald-500/5">
                                         <div className="flex items-start justify-between gap-2">
                                             <div>
@@ -2377,12 +2534,12 @@ const AberturasQuote = () => {
                                                 })}
                                             </Badge>
                                         </div>
-                                        {renderMatchCard(searchResult.exact)}
+                                        {renderMatchCard(dimensionFilteredSearchResult.exact)}
                                     </div>
                                 )}
                                 {(() => {
-                                    const exactId = searchResult?.exact?.row.id
-                                    const nearestList = (searchResult?.nearest ?? []).filter(
+                                    const exactId = dimensionFilteredSearchResult?.exact?.row.id
+                                    const nearestList = (dimensionFilteredSearchResult?.nearest ?? []).filter(
                                         (match) => !exactId || match.row.id !== exactId,
                                     )
                                     if (!nearestList.length) {
@@ -2416,7 +2573,7 @@ const AberturasQuote = () => {
                                         </div>
                                     )
                                 })()}
-                                {searchResult?.suggestions?.length ? (
+                                {dimensionFilteredSearchResult?.suggestions?.length ? (
                                     <div className="flex flex-col gap-3">
                                         <h4 className="text-sm font-semibold">
                                             {t('sales.aberturasQuote.match.suggestionsTitle', {
@@ -2424,13 +2581,13 @@ const AberturasQuote = () => {
                                             })}
                                         </h4>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {searchResult.suggestions.map((suggestion) => renderMatchCard(suggestion))}
+                                            {dimensionFilteredSearchResult.suggestions.map((suggestion) => renderMatchCard(suggestion))}
                                         </div>
                                     </div>
                                 ) : null}
-                                {!searchResult?.exact &&
-                                    !(searchResult?.nearest?.length) &&
-                                    !(searchResult?.suggestions?.length) && (
+                                {!dimensionFilteredSearchResult?.exact &&
+                                    !(dimensionFilteredSearchResult?.nearest?.length) &&
+                                    !(dimensionFilteredSearchResult?.suggestions?.length) && (
                                         <p className="text-sm text-gray-600 dark:text-gray-300">
                                             {t('sales.aberturasQuote.match.empty', {
                                                 defaultValue:

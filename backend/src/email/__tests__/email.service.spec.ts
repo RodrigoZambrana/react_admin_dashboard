@@ -14,11 +14,11 @@ const createService = () => {
   } as any
 
   const templateService = {
-    render: vi.fn(async () => ({
+    render: vi.fn(async (params: any) => ({
       subject: 'Test Subject',
       html: '<p>Body</p>',
       text: 'Body',
-      locale: 'en',
+      locale: params?.payload?.locale ?? 'en',
       templateId: 1,
     })),
   }
@@ -29,6 +29,7 @@ const createService = () => {
 
   const settings = {
     isEnabled: vi.fn(async () => true),
+    isRecipientDeliveryEnabled: vi.fn(async () => true),
     resolveAdminRecipients: vi.fn(async () => ({ to: ['admin@example.com'], cc: [], bcc: [] })),
     getCategorySettings: vi.fn(async () => ({ fromAddress: 'no-reply@example.com', fromName: 'Acme', enabled: true })),
     getCompanyProfile: vi.fn(async () => ({
@@ -103,6 +104,38 @@ describe('EmailService', () => {
     expect(adminMessage.payload.event).toBe('order.received_admin')
 
     expect(settings.resolveAdminRecipients).toHaveBeenCalledWith(EmailCategory.ORDERS)
+  })
+
+  it('skips customer emails when delivery disabled', async () => {
+    const { service, prisma, queue, settings } = createService()
+
+    settings.isRecipientDeliveryEnabled.mockImplementation(async (recipientType: EmailRecipientType) => {
+      return recipientType === EmailRecipientType.ADMIN
+    })
+
+    prisma.order.findUnique.mockResolvedValue({
+      id: 7,
+      uuid: 'ORD-7',
+      date: new Date('2024-05-05T10:00:00Z'),
+      status: { name: 'Pending' },
+      customer: {
+        id: 10,
+        name: 'Sam Customer',
+        email: 'sam@example.com',
+      },
+      items: [{ name: 'Widget', qty: 1, price: 20 }],
+      subTotal: 20,
+      tax: 0,
+      grandTotal: 20,
+      orderCurrency: 'USD',
+    })
+
+    await service.sendOrderReceived({ orderId: 7 })
+
+    expect(queue.enqueue).toHaveBeenCalledTimes(1)
+    const adminMessage = extractMessage(queue.enqueue, 0)
+    expect(adminMessage.recipientType).toBe(EmailRecipientType.ADMIN)
+    expect(adminMessage.recipients[0].email).toBe('admin@example.com')
   })
 
   it('skips sending when category disabled', async () => {

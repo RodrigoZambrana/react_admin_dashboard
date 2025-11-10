@@ -30,6 +30,7 @@ const MERCADO_PAGO_PROVIDER = 'mercadopago'
 export const MERCADO_PAGO_SECURE_CONFIG_KEY = 'payments.mercadopago'
 
 type StoredMercadoPagoConfig = {
+  provider?: string | null
   accessToken?: string | null
   publicKey?: string | null
   integratorId?: string | null
@@ -39,6 +40,7 @@ type StoredMercadoPagoConfig = {
 }
 
 type ResolvedMercadoPagoConfig = {
+  provider: 'mercadopago' | 'none'
   accessToken?: string
   publicKey?: string
   integratorId?: string
@@ -60,9 +62,10 @@ const sanitizeString = (value?: string | null): string | undefined => {
 @Injectable()
 export class MercadoPagoService {
   private readonly logger = new Logger(MercadoPagoService.name)
-  private readonly enabled: boolean
+  private readonly envProvider: 'mercadopago' | 'none'
+  private provider: 'mercadopago' | 'none'
   private readonly envDefaults: Required<Pick<ResolvedMercadoPagoConfig, 'timeoutMs'>> &
-    Omit<StoredMercadoPagoConfig, 'timeoutMs'>
+    Omit<StoredMercadoPagoConfig, 'timeoutMs' | 'provider'>
   private paymentClient: Payment | null = null
   private paymentMethodIdCache?: number
   private clientSignature: string | null = null
@@ -73,8 +76,9 @@ export class MercadoPagoService {
     private readonly prisma: PrismaService,
     private readonly secureConfig: SecureConfigService,
   ) {
-    const provider = (config.get<string>('PAYMENTS_PROVIDER') ?? '').toLowerCase().trim()
-    this.enabled = provider === MERCADO_PAGO_PROVIDER
+    const envProviderConfig = (config.get<string>('PAYMENTS_PROVIDER') ?? MERCADO_PAGO_PROVIDER).toLowerCase().trim()
+    this.envProvider = envProviderConfig === MERCADO_PAGO_PROVIDER ? MERCADO_PAGO_PROVIDER : 'none'
+    this.provider = this.envProvider
 
     const timeout = Number.parseInt(String(config.get('MP_TIMEOUT_MS') ?? DEFAULT_TIMEOUT_MS), 10)
 
@@ -89,9 +93,9 @@ export class MercadoPagoService {
 
     this.lastKnownAccessToken = this.envDefaults.accessToken ?? null
 
-    if (!this.enabled) {
-      if (provider && provider !== MERCADO_PAGO_PROVIDER) {
-        this.logger.log(`Payments provider "${provider}" configured. Mercado Pago service is disabled.`)
+    if (!this.providerEnabled()) {
+      if (this.envProvider !== MERCADO_PAGO_PROVIDER && envProviderConfig) {
+        this.logger.log(`Payments provider "${envProviderConfig}" configured. Mercado Pago service is disabled.`)
       }
       return
     }
@@ -114,8 +118,12 @@ export class MercadoPagoService {
     }
   }
 
+  private providerEnabled(): boolean {
+    return this.provider === MERCADO_PAGO_PROVIDER
+  }
+
   isEnabled(): boolean {
-    return this.enabled && Boolean(this.lastKnownAccessToken)
+    return this.providerEnabled() && Boolean(this.lastKnownAccessToken)
   }
 
   async createCardPayment(
@@ -435,13 +443,10 @@ export class MercadoPagoService {
   }
 
   async refreshConfig(): Promise<void> {
-    if (!this.enabled) {
-      return
-    }
     this.clientSignature = null
     this.paymentClient = null
     await this.resolveRuntimeConfig().then((config) => {
-      if (config.accessToken) {
+      if (this.providerEnabled() && config.accessToken) {
         this.ensureClientWithConfig(config)
       }
     })
@@ -462,7 +467,7 @@ export class MercadoPagoService {
   }
 
   private async acquireClient(): Promise<{ client: Payment; config: ResolvedMercadoPagoConfig }> {
-    if (!this.enabled) {
+    if (!this.providerEnabled()) {
       throw new ServiceUnavailableException('Mercado Pago integration is disabled.')
     }
     const config = await this.resolveRuntimeConfig()
@@ -491,6 +496,7 @@ export class MercadoPagoService {
       this.logger.error(`Failed to load Mercado Pago secure config: ${message}`)
     }
 
+    const resolvedProvider = this.resolveProvider(stored?.provider)
     const accessToken = sanitizeString(stored?.accessToken) ?? sanitizeString(this.envDefaults.accessToken)
     const publicKey = sanitizeString(stored?.publicKey) ?? sanitizeString(this.envDefaults.publicKey)
     const integratorId = sanitizeString(stored?.integratorId) ?? sanitizeString(this.envDefaults.integratorId)
@@ -500,7 +506,10 @@ export class MercadoPagoService {
       stored?.timeoutMs !== undefined && stored?.timeoutMs !== null ? stored.timeoutMs : this.envDefaults.timeoutMs,
     )
 
+    this.provider = resolvedProvider
+
     const resolved: ResolvedMercadoPagoConfig = {
+      provider: resolvedProvider,
       accessToken,
       publicKey,
       integratorId,
@@ -511,7 +520,7 @@ export class MercadoPagoService {
       updatedAt,
     }
 
-    this.lastKnownAccessToken = resolved.accessToken ?? null
+    this.lastKnownAccessToken = this.providerEnabled() ? resolved.accessToken ?? null : null
 
     return resolved
   }
@@ -551,6 +560,20 @@ export class MercadoPagoService {
 
   private buildClientSignature(config: ResolvedMercadoPagoConfig): string {
     return `${config.accessToken ?? ''}::${config.integratorId ?? ''}::${config.timeoutMs}`
+  }
+
+  private resolveProvider(candidate?: string | null): 'mercadopago' | 'none' {
+    if (!candidate) {
+      return this.envProvider
+    }
+    const normalized = candidate.trim().toLowerCase()
+    if (normalized === MERCADO_PAGO_PROVIDER) {
+      return MERCADO_PAGO_PROVIDER
+    }
+    if (normalized === 'disabled' || normalized === 'none') {
+      return 'none'
+    }
+    return this.envProvider
   }
 
   private normalizeMercadoPagoError(error: unknown, throwOnNotFound = true) {

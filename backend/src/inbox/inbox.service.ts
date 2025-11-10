@@ -1618,7 +1618,7 @@ export class InboxService implements OnModuleInit {
   }
 
   private async ensureConfiguredEmailAccount() {
-    this.emailAdapter.refreshConfig()
+    await this.emailAdapter.refreshConfig()
     const sanitized = this.emailAdapter.getSanitizedConfig()
     const emailAddress =
       sanitized.defaults.fromAddress ||

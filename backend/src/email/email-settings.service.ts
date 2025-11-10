@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { EmailCategory, Prisma, RoleNotificationRule, Role } from '@prisma/client'
+import { EmailCategory, EmailRecipientType, Prisma, RoleNotificationRule, Role } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { RoleRuleInput } from './email.types'
 import { SecureConfigService } from '../common/security/secure-config.service'
@@ -22,6 +22,8 @@ export type EmailProviderConfig = {
   provider: EmailProviderType
   fromAddress: string
   fromName: string
+  customerEmailsEnabled: boolean
+  adminEmailsEnabled: boolean
   smtp: {
     host: string
     port: number
@@ -51,6 +53,18 @@ export class EmailSettingsService {
     return this.config.get<string>('EMAIL_FROM_NAME_DEFAULT') ?? 'Sistema Administrativo'
   }
 
+  private parseEnvBoolean(key: string, defaultValue: boolean) {
+    const value = this.config.get<string>(key)
+    if (value === undefined || value === null) {
+      return defaultValue
+    }
+    const normalized = value.toString().trim().toLowerCase()
+    if (!normalized.length) {
+      return defaultValue
+    }
+    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'y'
+  }
+
   private async loadStoredProviderConfig(): Promise<EmailProviderConfig | null> {
     const stored = await this.secureConfig.getJson<EmailProviderConfig>(EmailSettingsService.EMAIL_PROVIDER_CONFIG_KEY)
     if (!stored) {
@@ -64,12 +78,18 @@ export class EmailSettingsService {
     const provider = (stored?.provider ?? (this.config.get<string>('EMAIL_PROVIDER') ?? 'DEV')).toUpperCase() as EmailProviderType
     const fromAddress = stored?.fromAddress ?? this.config.get<string>('EMAIL_FROM_DEFAULT') ?? 'no-reply@example.com'
     const fromName = stored?.fromName ?? this.config.get<string>('EMAIL_FROM_NAME_DEFAULT') ?? 'Sistema Administrativo'
+    const customerEmailsEnabled =
+      stored?.customerEmailsEnabled ?? this.parseEnvBoolean('EMAIL_CUSTOMER_DELIVERY_ENABLED', true)
+    const adminEmailsEnabled =
+      stored?.adminEmailsEnabled ?? this.parseEnvBoolean('EMAIL_ADMIN_DELIVERY_ENABLED', true)
 
     if (provider !== 'SMTP') {
       return {
         provider,
         fromAddress,
         fromName,
+        customerEmailsEnabled,
+        adminEmailsEnabled,
         smtp: null,
       }
     }
@@ -85,6 +105,8 @@ export class EmailSettingsService {
       provider,
       fromAddress,
       fromName,
+      customerEmailsEnabled,
+      adminEmailsEnabled,
       smtp: {
         host,
         port,
@@ -116,6 +138,10 @@ export class EmailSettingsService {
       provider,
       fromAddress: payload.fromAddress.trim(),
       fromName: payload.fromName.trim(),
+      customerEmailsEnabled:
+        payload.customerEmailsEnabled ?? current?.customerEmailsEnabled ?? true,
+      adminEmailsEnabled:
+        payload.adminEmailsEnabled ?? current?.adminEmailsEnabled ?? true,
       smtp:
         provider === 'SMTP'
           ? {
@@ -331,6 +357,17 @@ export class EmailSettingsService {
   async isEnabled(category: EmailCategory): Promise<boolean> {
     const setting = await this.ensureSetting(category)
     return setting.enabled
+  }
+
+  async isRecipientDeliveryEnabled(recipientType: EmailRecipientType): Promise<boolean> {
+    const config = await this.resolveEmailProviderConfig()
+    if (recipientType === EmailRecipientType.ADMIN) {
+      return config.adminEmailsEnabled
+    }
+    if (recipientType === EmailRecipientType.CUSTOMER) {
+      return config.customerEmailsEnabled
+    }
+    return true
   }
 
   async getCompanyProfile() {

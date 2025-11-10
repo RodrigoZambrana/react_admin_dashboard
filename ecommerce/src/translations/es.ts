@@ -323,7 +323,6 @@ const esTranslations: Record<string, string> = {
   "View product": "Ver producto",
   "Remove": "Eliminar",
   "Refresh": "Actualizar",
-  "Cart": "Carrito",
   "Details": "Detalles",
   "Payment": "Pago",
   "Review": "Revisión",
