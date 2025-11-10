@@ -125,6 +125,17 @@ export class PaymentsService {
     }
   }
 
+  private isSameCalendarDay(a?: Date | null, b?: Date | null) {
+    if (!a || !b) {
+      return false
+    }
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    )
+  }
+
   private decodeAttachmentContent(content?: string | null) {
     if (!content) {
       return null
@@ -374,6 +385,10 @@ export class PaymentsService {
         ? totalConfirmed.minus(decimal(payment.amount))
         : totalConfirmed
       const hasPriorConfirmedPayments = confirmedBefore.greaterThan(0)
+      const now = new Date()
+      const captureTimestamp = payment.date && !this.isSameCalendarDay(payment.date, now)
+        ? payment.date
+        : now
       await this.timeline.recordPaymentCapture(
         {
           orderId: order.id,
@@ -385,7 +400,7 @@ export class PaymentsService {
           hasPriorConfirmedPayments,
           paymentStatus: payment.status,
           paymentType: payment.type,
-          timestamp: payment.date,
+          timestamp: captureTimestamp,
         },
         tx,
       )
@@ -485,12 +500,25 @@ export class PaymentsService {
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.payment.findUnique({
         where: { id },
+        select: {
+          id: true,
+          orderId: true,
+          currency: true,
+        },
       })
       if (!existing) {
         throw new NotFoundException('accounting.payments.validation.notFound')
       }
+      await tx.paymentAttachment.deleteMany({ where: { paymentId: id } })
       await tx.payment.delete({ where: { id } })
-      await this.orderFinance.recalculateOrderFinancials(existing.orderId, tx)
+      const summary = await this.orderFinance.recalculateOrderFinancials(existing.orderId, tx)
+      await this.timeline.removePaymentEvents(existing.orderId, existing.id, tx)
+      await this.timeline.ensurePaymentWaiting(
+        existing.orderId,
+        summary.outstanding,
+        summary.currency ?? existing.currency ?? 'UYU',
+        tx,
+      )
       return true
     })
   }

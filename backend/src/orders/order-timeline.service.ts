@@ -20,6 +20,8 @@ export type OrderTimelineEventType =
   | 'DELIVERED'
   | 'NOTE'
   | 'STATUS_CHANGED'
+  | 'ACTIVITY_LINKED'
+  | 'ACTIVITY_UNLINKED'
   | 'OTHER'
 
 export type OrderTimelineEventRecord = {
@@ -88,6 +90,28 @@ export type StatusTransitionSnapshot = {
   metadata?: Record<string, unknown> | string | null
 }
 
+export type ActivityLinkSnapshot = {
+  orderId: number
+  activityId: number
+  activityTitle: string
+  activityStart?: Date | string | null
+  activityEnd?: Date | string | null
+  activityAllDay?: boolean
+  activityType?: string | null
+  activityLocation?: string | null
+  actor?: string | null
+  timestamp?: Date
+  action?: 'linked' | 'updated'
+}
+
+export type ActivityUnlinkSnapshot = {
+  orderId: number
+  activityId: number
+  activityTitle?: string | null
+  actor?: string | null
+  timestamp?: Date
+}
+
 const normalizeStatusCode = (value?: string | null): string => {
   return typeof value === 'string' ? value.trim().toLowerCase() : ''
 }
@@ -126,11 +150,26 @@ export class OrderTimelineService {
   private readonly logger = new Logger(OrderTimelineService.name)
 
   private toDto(event: OrderTimelineEvent) {
+    let timestamp = event.timestamp.toISOString()
+    const metadataValue = event.metadata ?? null
+    if ((event.type || '').toUpperCase() === 'ACTIVITY_LINKED') {
+      let metadata: Record<string, unknown> | null = null
+      if (metadataValue && typeof metadataValue === 'object' && !Array.isArray(metadataValue)) {
+        metadata = metadataValue as Record<string, unknown>
+      }
+      const activityStart = metadata?.activityStart
+      if (activityStart && typeof activityStart === 'string') {
+        const parsed = this.toDate(activityStart)
+        if (parsed) {
+          timestamp = parsed.toISOString()
+        }
+      }
+    }
     return {
       eventId: event.eventId,
       orderId: event.orderId,
       type: event.type,
-      timestamp: event.timestamp.toISOString(),
+      timestamp,
       actor: event.actor ?? null,
       amount: event.amount ? Number(event.amount.toString()) : null,
       currency: event.currency ?? null,
@@ -230,22 +269,36 @@ export class OrderTimelineService {
     client?: PrismaClientOrTx,
     timestamp: Date = new Date(),
   ) {
-    if (decimal(outstanding).lessThanOrEqualTo(0)) {
+    const store = client ?? this.prisma
+    const waitingEventId = `order:${orderId}:payment_waiting`
+    const remaining = decimal(outstanding)
+    if (remaining.lessThanOrEqualTo(0)) {
+      await store.orderTimelineEvent.deleteMany({
+        where: { orderId, eventId: waitingEventId },
+      })
       return
     }
-    await this.persist(
-      orderId,
-      {
-        eventId: `order:${orderId}:payment_waiting`,
+    const normalizedCurrency = currency?.trim()?.toUpperCase() || null
+    const created = await store.orderTimelineEvent.upsert({
+      where: { eventId: waitingEventId },
+      update: {
+        timestamp,
+        remainingAmount: remaining.toFixed(2),
+        currency: normalizedCurrency,
+      },
+      create: {
+        eventId: waitingEventId,
         type: 'PAYMENT_WAITING',
         timestamp,
         actor: 'system',
-        remainingAmount: outstanding,
-        currency,
+        remainingAmount: remaining.toFixed(2),
+        currency: normalizedCurrency,
         message: 'Waiting for payment',
+        order: { connect: { id: orderId } },
+        metadata: { synthetic: true },
       },
-      client,
-    )
+    })
+    return this.toDto(created)
   }
 
   async recordPaymentCapture(
@@ -278,6 +331,7 @@ export class OrderTimelineService {
             paymentId: context.paymentId,
             paymentType: context.paymentType,
             paymentStatus: context.paymentStatus,
+            paymentTimestamp: (context.timestamp ?? new Date()).toISOString(),
           },
         },
         store,
@@ -302,6 +356,7 @@ export class OrderTimelineService {
             paymentId: context.paymentId,
             paymentType: context.paymentType,
             paymentStatus: context.paymentStatus,
+            paymentTimestamp: (context.timestamp ?? new Date()).toISOString(),
           },
         },
         store,
@@ -685,5 +740,92 @@ export class OrderTimelineService {
     }
 
     return events.slice().sort(compareTimelineEvents)
+  }
+
+  private toIsoString(value?: Date | string | null): string | null {
+    if (!value) {
+      return null
+    }
+    const date = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return null
+    }
+    return date.toISOString()
+  }
+
+  private toDate(value?: Date | string | null): Date | null {
+    if (!value) {
+      return null
+    }
+    const date = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return null
+    }
+    return date
+  }
+
+  async recordActivityLink(snapshot: ActivityLinkSnapshot, client?: PrismaClientOrTx) {
+    const store = client ?? this.prisma
+    const activityStartDate = this.toDate(snapshot.activityStart)
+    const timestamp = activityStartDate ?? snapshot.timestamp ?? new Date()
+    const linkedAt = this.toIsoString(snapshot.timestamp ?? new Date())
+    const metadata: Record<string, unknown> = {
+      activityId: snapshot.activityId,
+      activityTitle: snapshot.activityTitle,
+      activityStart: this.toIsoString(snapshot.activityStart),
+      activityEnd: this.toIsoString(snapshot.activityEnd),
+      activityAllDay: snapshot.activityAllDay ?? false,
+      activityType: snapshot.activityType ?? null,
+      activityLocation: snapshot.activityLocation ?? null,
+      action: snapshot.action ?? 'linked',
+      linkedAt,
+    }
+    await this.persist(
+      snapshot.orderId,
+      {
+        eventId: `order:${snapshot.orderId}:activity:${snapshot.activityId}:${timestamp.toISOString()}`,
+        type: 'ACTIVITY_LINKED',
+        timestamp,
+        actor: snapshot.actor ?? 'system',
+        message: snapshot.action === 'updated' ? 'Activity link updated' : 'Activity linked',
+        metadata,
+      },
+      store,
+    )
+  }
+
+  async recordActivityUnlink(snapshot: ActivityUnlinkSnapshot, client?: PrismaClientOrTx) {
+    const store = client ?? this.prisma
+    const timestamp = snapshot.timestamp ?? new Date()
+    await this.persist(
+      snapshot.orderId,
+      {
+        eventId: `order:${snapshot.orderId}:activity:${snapshot.activityId}:unlinked:${timestamp.toISOString()}`,
+        type: 'ACTIVITY_UNLINKED',
+        timestamp,
+        actor: snapshot.actor ?? 'system',
+        message: 'Activity link removed',
+        metadata: {
+          activityId: snapshot.activityId,
+          activityTitle: snapshot.activityTitle ?? null,
+          action: 'unlinked',
+        },
+      },
+      store,
+    )
+  }
+
+  async removePaymentEvents(orderId: number, paymentId: number, client?: PrismaClientOrTx) {
+    const store = client ?? this.prisma
+    const eventIds = [
+      `order:${orderId}:payment:${paymentId}:partial`,
+      `order:${orderId}:payment:${paymentId}:full`,
+    ]
+    await store.orderTimelineEvent.deleteMany({
+      where: {
+        orderId,
+        eventId: { in: eventIds },
+      },
+    })
   }
 }

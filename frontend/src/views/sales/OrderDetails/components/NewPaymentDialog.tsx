@@ -90,6 +90,22 @@ const NewPaymentDialog = ({ open, onClose, onCreated, orderId, orderCurrency }: 
         fetchMethods()
     }, [])
 
+    const resolvedPaymentMethodId = useMemo(() => {
+        if (methods.length > 0) {
+            return methods[0]?.value ?? null
+        }
+        return null
+    }, [methods])
+
+    const resolvedPaymentMethodName = useMemo(() => {
+        const defaultMethodName = t('accounting.payments.defaultMethod', { defaultValue: 'Transferencia' })
+        if (!resolvedPaymentMethodId) {
+            return defaultMethodName
+        }
+        const option = methods.find((method) => method.value === resolvedPaymentMethodId)
+        return option?.label ?? defaultMethodName
+    }, [methods, resolvedPaymentMethodId, t])
+
     const initialValues = useMemo<PaymentFormValues>(
         () => ({
             orderId: orderId ? String(orderId) : '',
@@ -98,23 +114,30 @@ const NewPaymentDialog = ({ open, onClose, onCreated, orderId, orderCurrency }: 
             date: new Date(),
             type: 'BALANCE',
             status: 'CONFIRMED',
-            paymentMethodId: null,
-            method: t('accounting.payments.defaultMethod', { defaultValue: 'Transferencia' }),
+            paymentMethodId: resolvedPaymentMethodId,
+            method: resolvedPaymentMethodName,
             reference: '',
             notes: '',
             attachments: [],
         }),
-        [orderCurrency, orderId, storeCurrency, t],
+        [orderCurrency, orderId, resolvedPaymentMethodId, resolvedPaymentMethodName, storeCurrency],
     )
+
+    const isSameDay = (a: Date, b: Date) =>
+        a.getFullYear() === b.getFullYear() &&
+        a.getMonth() === b.getMonth() &&
+        a.getDate() === b.getDate()
 
     const onSubmit = async (values: PaymentFormValues) => {
         setLoading(true)
         try {
+            const now = new Date()
+            const effectiveDate = values.date ? (isSameDay(values.date, now) ? now : values.date) : now
             const payload = {
                 orderId: Number(values.orderId),
                 amount: Number(values.amount),
                 currency: values.currency ? values.currency.toUpperCase() : 'UYU',
-                date: values.date ? values.date.toISOString() : new Date().toISOString(),
+                date: effectiveDate.toISOString(),
                 type: values.type,
                 status: values.status,
                 paymentMethodId: values.paymentMethodId ? Number(values.paymentMethodId) : null,
@@ -216,24 +239,44 @@ const NewPaymentDialog = ({ open, onClose, onCreated, orderId, orderCurrency }: 
                                 </FormItem>
                             </div>
                             <FormItem label={t('text.columns.date')}>
-                                <DatePicker value={values.date} onChange={(val) => setFieldValue('date', val)} />
+                                <DatePicker.DateTimepicker
+                                    value={values.date ?? undefined}
+                                    onChange={(val) => setFieldValue('date', val)}
+                                    clearable={false}
+                                    amPm={false}
+                                    inputFormat="DD-MMM-YYYY HH:mm"
+                                />
                             </FormItem>
                             <input type="hidden" name="type" value={values.type} />
                             <input type="hidden" name="status" value={values.status} />
-                            <FormItem label={t('accounting.payments.form.paymentMethod')}>
-                                <Select
-                                    isClearable
-                                    value={
-                                        values.paymentMethodId
-                                            ? methods.find((method) => method.value === values.paymentMethodId) ?? null
-                                            : null
-                                    }
-                                    options={methods}
-                                    onChange={(option) =>
-                                        setFieldValue('paymentMethodId', option ? (option as any).value : null)
-                                    }
-                                />
-                            </FormItem>
+                                <FormItem label={t('accounting.payments.form.paymentMethod')}>
+                                    <Select
+                                        isClearable
+                                        value={
+                                            values.paymentMethodId
+                                                ? methods.find((method) => method.value === values.paymentMethodId) ?? null
+                                                : null
+                                        }
+                                        options={methods}
+                                        onChange={(option) =>
+                                            (() => {
+                                                const nextValue = option ? (option as any).value : null
+                                                setFieldValue('paymentMethodId', nextValue)
+                                                if (nextValue) {
+                                                    const selected = methods.find((method) => method.value === nextValue)
+                                                    setFieldValue('method', selected?.label ?? values.method)
+                                                } else {
+                                                    setFieldValue(
+                                                        'method',
+                                                        t('accounting.payments.defaultMethod', {
+                                                            defaultValue: 'Transferencia',
+                                                        }),
+                                                    )
+                                                }
+                                            })()
+                                        }
+                                    />
+                                </FormItem>
                             <input type="hidden" name="method" value={values.method} />
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <FormItem label={t('accounting.payments.form.reference')}>

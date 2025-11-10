@@ -200,4 +200,9 @@ export class CreateOrderDto {
   @IsOptional()
   @IsNumber()
   minimumDepositValue?: number
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  activityId?: string
 }

@@ -221,6 +221,7 @@
       "allDay": "All day event",
       "internal": "Internal event",
       "customer": "Linked customer (optional)",
+      "addressSelect": "Customer address",
       "eventType": "Event type",
       "address": {
         "street": "Street",
@@ -258,6 +259,7 @@
       "corner": "Cross street",
       "apartment": "Apartment / Unit",
       "location": "Room, link or reference",
+      "addressSelect": "Select an address",
       "description": "Details, goals or agenda",
       "search": "Search by title, date, customer or content"
     },
@@ -586,7 +588,8 @@
       "offerPrice": "Offer price",
       "ticketTitle": "Ticket title",
       "untitledBoard": "Untitled Board",
-      "untitledCard": "Untitled Card"
+      "untitledCard": "Untitled Card",
+      "untitledActivity": "Untitled activity"
     },
     "columns": {
       "order": "Order",
@@ -1257,6 +1260,11 @@
       "invoiceAction": "View invoice",
       "validUntilLabel": "Valid until",
       "disclaimerLabel": "Disclaimer",
+      "activityLabel": "Linked activity",
+      "activityPlaceholder": "Search calendar activity",
+      "activityHelper": "Associate a calendar activity so it appears on the order timeline.",
+      "activityEmpty": "No activities found.",
+      "activityView": "View activity",
       "editAction": "Edit order",
       "delete": {
         "title": "Delete order",
@@ -1286,7 +1294,9 @@
         "customerRequired": "Customer is required",
         "itemsRequired": "Please add at least one product",
         "customerAddressRequired": "Customer must have a primary address",
-        "quantityPositive": "Quantity must be greater than 0"
+        "quantityPositive": "Quantity must be greater than 0",
+        "activityNotFound": "The selected activity could not be found.",
+        "activityInvalid": "Provide a valid activity or leave the field empty."
       },
       "summary": {
         "purchaseSummaryTitle": "Purchase summary",
@@ -1357,6 +1367,11 @@
       "invoiceAction": "Download budget",
       "validUntilLabel": "Valid until",
       "disclaimerLabel": "Disclaimer",
+      "activityLabel": "Linked activity",
+      "activityPlaceholder": "Search calendar activity",
+      "activityHelper": "Associate a calendar activity so it appears on the order timeline.",
+      "activityEmpty": "No activities found.",
+      "activityView": "View activity",
       "editAction": "Edit budget",
       "importSuccess": "Successfully imported {{imported}} budgets.",
       "importSuccessWithErrors": "Budgets imported: {{imported}}. {{failed}} rows returned errors.",
@@ -1633,7 +1648,13 @@
           "cancelled": "Order cancelled",
           "status_changed": "Status changed",
           "note": "Note added",
+          "activity_linked": "Activity linked",
+          "activity_unlinked": "Activity unlinked",
           "other": "Activity"
+        },
+        "activity": {
+          "linkedDetail": "Linked activity: {{title}}",
+          "unlinkedDetail": "Activity link removed"
         },
         "status": {
           "cancelledShort": "Cancelled"

@@ -14,6 +14,7 @@ import OrderNew, {
     type SalesDocumentFormValues,
     type SalesDocumentSubmitPayload,
     type AddressFormValue,
+    type LinkedActivitySummary,
 } from '../OrderNew/OrderNew'
 import { useSalesDocumentI18n } from '../context/useSalesDocumentI18n'
 import { useAppSelector } from '@/store'
@@ -416,6 +417,7 @@ const OrderEdit = () => {
     const [loading, setLoading] = useState(true)
     const [initialValues, setInitialValues] = useState<SalesDocumentFormValues | null>(null)
     const [initialCustomerDetail, setInitialCustomerDetail] = useState<any | null>(null)
+    const [initialActivity, setInitialActivity] = useState<LinkedActivitySummary | null>(null)
     const [documentId, setDocumentId] = useState<string | number | null>(null)
     const [disclaimer, setDisclaimer] = useState<string | null>(null)
 
@@ -604,6 +606,16 @@ const OrderEdit = () => {
                             : typeof orderData?.comments === 'string'
                             ? orderData.comments
                             : '',
+                    activityId: (() => {
+                        const rawActivityId =
+                            orderData?.activityId ??
+                            (orderData as any)?.activity_id ??
+                            orderData?.activity?.id
+                        if (rawActivityId === undefined || rawActivityId === null) {
+                            return ''
+                        }
+                        return String(rawActivityId)
+                    })(),
                 }
 
                 setInitialValues(formValues)
@@ -611,6 +623,28 @@ const OrderEdit = () => {
                 setDisclaimer(
                     typeof orderData?.disclaimer === 'string' ? orderData.disclaimer : null,
                 )
+                if (orderData?.activity) {
+                    setInitialActivity({
+                        id: String(orderData.activity.id),
+                        title: orderData.activity.title || '',
+                        startAt:
+                            orderData.activity.startAt ??
+                            (orderData.activity as any)?.start_at ??
+                            null,
+                        endAt:
+                            orderData.activity.endAt ??
+                            (orderData.activity as any)?.end_at ??
+                            null,
+                        allDay: Boolean(
+                            orderData.activity.allDay ??
+                                (orderData.activity as any)?.all_day,
+                        ),
+                        type: orderData.activity.type ?? null,
+                        location: orderData.activity.location ?? null,
+                    })
+                } else {
+                    setInitialActivity(null)
+                }
 
                 if (resolvedCustomerId) {
                     const fallbackDetail = (orderData?.customer as any) ?? null
@@ -731,6 +765,7 @@ const OrderEdit = () => {
                     isEditing
                     documentId={documentId}
                     disclaimer={disclaimer}
+                    initialActivity={initialActivity}
                 />
             ) : null}
         </Loading>

@@ -469,22 +469,26 @@ export class EmailService {
     const isSpanish = locale.toLowerCase().startsWith('es')
     const normalizedMin = typeof minHours === 'number' && Number.isFinite(minHours) ? Math.trunc(minHours) : null
     const normalizedMax = typeof maxHours === 'number' && Number.isFinite(maxHours) ? Math.trunc(maxHours) : null
+    const formatDays = (value: number) => {
+      const unit = isSpanish ? (value === 1 ? 'día' : 'días') : value === 1 ? 'day' : 'days'
+      return `${value} ${unit}`
+    }
     if (normalizedMin === null && normalizedMax === null) {
       return null
     }
     if (normalizedMin !== null && normalizedMax !== null) {
       if (normalizedMin === normalizedMax) {
-        return isSpanish ? `Dentro de ${normalizedMin} horas` : `Within ${normalizedMin} hours`
+        return isSpanish ? `Dentro de ${formatDays(normalizedMin)}` : `Within ${formatDays(normalizedMin)}`
       }
       return isSpanish
-        ? `Entre ${normalizedMin} y ${normalizedMax} horas`
-        : `Between ${normalizedMin} and ${normalizedMax} hours`
+        ? `Entre ${formatDays(normalizedMin)} y ${formatDays(normalizedMax)}`
+        : `Between ${formatDays(normalizedMin)} and ${formatDays(normalizedMax)}`
     }
     if (normalizedMin !== null) {
-      return isSpanish ? `Desde ${normalizedMin} horas` : `From ${normalizedMin} hours`
+      return isSpanish ? `Desde ${formatDays(normalizedMin)}` : `From ${formatDays(normalizedMin)}`
     }
     if (normalizedMax !== null) {
-      return isSpanish ? `Hasta ${normalizedMax} horas` : `Up to ${normalizedMax} hours`
+      return isSpanish ? `Hasta ${formatDays(normalizedMax)}` : `Up to ${formatDays(normalizedMax)}`
     }
     return null
   }

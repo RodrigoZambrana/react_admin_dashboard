@@ -21,7 +21,9 @@ import Drawer from '@/components/ui/Drawer'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { apiGetCustomers, apiGetCustomerDetails } from '@/services/CustomersService'
+import type { CalendarEventDto } from '@/services/CustomersService'
 import { apiGetSalesProducts, apiCreateSalesOrder, apiCreateSalesProduct } from '@/services/SalesService'
+import { apiSearchCalendarActivities } from '@/services/CalendarService'
 import * as Yup from 'yup'
 import {
     apiGetPaymentMethods,
@@ -67,6 +69,42 @@ import { createSalesItemLineId } from '../utils/itemIdentity'
 
 type Item = EditableItem
 
+export type LinkedActivitySummary = {
+    id: string
+    title: string
+    startAt?: string | null
+    endAt?: string | null
+    allDay?: boolean
+    type?: string | null
+    location?: string | null
+}
+
+type ActivityOption = {
+    value: string
+    label: string
+    meta?: {
+        dateLabel?: string
+        timeLabel?: string
+        typeLabel?: string | null
+        location?: string | null
+    }
+    raw?: {
+        startAt?: string
+        endAt?: string
+        allDay?: boolean
+    }
+}
+
+type ActivityLike = {
+    id: string
+    title: string
+    start?: string | null
+    end?: string | null
+    allDay?: boolean
+    type?: string | null
+    location?: string | null
+}
+
 export type AddressFormValue = {
     street: string
     number: string
@@ -96,6 +134,7 @@ export type SalesDocumentFormValues = {
     billingSameAsShipping: boolean
     shipping: ShippingFormValue
     comment: string
+    activityId: string
 }
 
 export type SalesDocumentSubmitPayload = {
@@ -127,6 +166,7 @@ export type SalesDocumentSubmitPayload = {
     billingSameAsShipping: boolean
     shipping: ShippingFormValue
     comment?: string
+    activityId?: string
 }
 
 export interface OrderNewProps {
@@ -140,6 +180,7 @@ export interface OrderNewProps {
     isEditing?: boolean
     documentId?: string | number | null
     disclaimer?: string | null
+    initialActivity?: LinkedActivitySummary | null
 }
 
 const cloneDeep = <T>(value: T): T => {
@@ -233,6 +274,7 @@ const OrderNew = ({
     isEditing = false,
     documentId = null,
     disclaimer,
+    initialActivity = null,
 }: OrderNewProps) => {
     const { i18n } = useTranslation()
     const {
@@ -316,6 +358,91 @@ const OrderNew = ({
             })),
         [fallbackCurrencyList],
     )
+    const activityEmptyLabel = docMessage(
+        'activityEmpty',
+        'sales.orders.activityEmpty',
+        'No activities found',
+    )
+    const activityViewLabel = docMessage(
+        'activityView',
+        'sales.orders.activityView',
+        'View activity',
+    )
+    const allDayLabel = t('text.labels.allDay', { defaultValue: 'All day' })
+    const mapActivityLikeToOption = useCallback(
+        (activity: ActivityLike): ActivityOption => {
+            const start = activity.start ? dayjs(activity.start) : null
+            const end = activity.end ? dayjs(activity.end) : null
+            const dateLabel = start?.isValid() ? start.format('DD/MM/YYYY') : undefined
+            let timeLabel: string | undefined
+            if (activity.allDay) {
+                timeLabel = allDayLabel
+            } else if (start?.isValid()) {
+                timeLabel = end?.isValid()
+                    ? `${start.format('HH:mm')} - ${end.format('HH:mm')}`
+                    : start.format('HH:mm')
+            }
+            return {
+                value: activity.id,
+                label:
+                    activity.title ||
+                    t('text.labels.untitledActivity', {
+                        defaultValue: 'Untitled activity',
+                    }),
+                meta: {
+                    dateLabel,
+                    timeLabel,
+                    typeLabel: activity.type ?? null,
+                    location: activity.location ?? undefined,
+                },
+                raw: {
+                    startAt: start?.isValid() ? start.toISOString() : undefined,
+                    endAt: end?.isValid() ? end.toISOString() : undefined,
+                    allDay: Boolean(activity.allDay),
+                },
+            }
+        },
+        [allDayLabel, t],
+    )
+    const activityFromEvent = useCallback((event: CalendarEventDto): ActivityLike => {
+        const eventType =
+            event.extendedProps?.eventTypeName ||
+            event.extendedProps?.eventType ||
+            event.extendedProps?.type ||
+            null
+        const location =
+            event.extendedProps?.location ||
+            event.extendedProps?.detail ||
+            null
+        return {
+            id: String(event.id),
+            title: event.title || '',
+            start: event.start,
+            end: event.end,
+            allDay: Boolean(event.allDay),
+            type: eventType,
+            location,
+        }
+    }, [])
+    const activityFromSummary = useCallback(
+        (summary: LinkedActivitySummary): ActivityLike => ({
+            id: String(summary.id),
+            title: summary.title,
+            start: summary.startAt ?? undefined,
+            end: summary.endAt ?? undefined,
+            allDay: summary.allDay,
+            type: summary.type ?? null,
+            location: summary.location ?? null,
+        }),
+        [],
+    )
+    const initialActivityOption = useMemo(
+        () =>
+            initialActivity
+                ? mapActivityLikeToOption(activityFromSummary(initialActivity))
+                : null,
+        [activityFromSummary, initialActivity, mapActivityLikeToOption],
+    )
     const [customers, setCustomers] = useState<{ value: string; label: string }[]>([])
     const [products, setProducts] = useState<
         {
@@ -342,6 +469,20 @@ const OrderNew = ({
     const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle')
     const [documentDisclaimer, setDocumentDisclaimer] = useState<string>('')
     const [disclaimerLoading, setDisclaimerLoading] = useState(false)
+    const [activityOptions, setActivityOptions] = useState<ActivityOption[]>([])
+    const [selectedActivityOption, setSelectedActivityOption] = useState<ActivityOption | null>(initialActivityOption)
+    const [activityLoading, setActivityLoading] = useState(false)
+    const [activityError, setActivityError] = useState<string | null>(null)
+    const [activityReloadToken, setActivityReloadToken] = useState(0)
+    const mergedActivityOptions = useMemo(() => {
+        if (!selectedActivityOption) {
+            return activityOptions
+        }
+        const exists = activityOptions.some(
+            (option) => option.value === selectedActivityOption.value,
+        )
+        return exists ? activityOptions : [selectedActivityOption, ...activityOptions]
+    }, [activityOptions, selectedActivityOption])
     const formikRef = useRef<FormikProps<SalesDocumentFormValues>>(null)
     const initialDataLoadKeyRef = useRef<string | null>(null)
     const quickMessageRef = useRef<HTMLDivElement | null>(null)
@@ -376,7 +517,6 @@ const OrderNew = ({
         validUntil.setDate(validUntil.getDate() + 15)
         return validUntil
     }, [mode])
-
     useEffect(() => {
         setCustomerDetail(initialCustomerDetail)
     }, [initialCustomerDetail])
@@ -419,6 +559,41 @@ const OrderNew = ({
             cancelled = true
         }
     }, [disclaimer, mode])
+
+    useEffect(() => {
+        let active = true
+        const fetchActivities = async () => {
+            setActivityLoading(true)
+            try {
+                const events = await apiSearchCalendarActivities()
+                if (!active) {
+                    return
+                }
+                const mapped = events.map((event) =>
+                    mapActivityLikeToOption(activityFromEvent(event)),
+                )
+                setActivityOptions(mapped)
+                setActivityError(null)
+            } catch (error) {
+                if (!active) {
+                    return
+                }
+                const message =
+                    (error as any)?.response?.data?.message ??
+                    (error instanceof Error ? error.message : String(error))
+                setActivityError(message)
+            } finally {
+                if (active) {
+                    setActivityLoading(false)
+                }
+            }
+        }
+        fetchActivities()
+        return () => {
+            active = false
+        }
+    }, [activityFromEvent, activityReloadToken, mapActivityLikeToOption])
+
 
     useEffect(() => {
         if (!quickMessage || !quickMessageRef.current) {
@@ -800,6 +975,9 @@ const OrderNew = ({
         },
         [convert, exchangeSnapshot, roundCurrencyValue],
     )
+    const handleActivityReload = useCallback(() => {
+        setActivityReloadToken((token) => token + 1)
+    }, [])
 
     const resolvedCurrencyOptions = useMemo(
         () => (currencyOptions.length ? currencyOptions : fallbackCurrencyOptions),
@@ -834,6 +1012,21 @@ const OrderNew = ({
         'orderCurrencyPlaceholder',
         'sales.orders.orderCurrencyPlaceholder',
         'Select order currency',
+    )
+    const activityLabel = docMessage(
+        'activityLabel',
+        'sales.orders.activityLabel',
+        'Linked activity',
+    )
+    const activityPlaceholder = docMessage(
+        'activityPlaceholder',
+        'sales.orders.activityPlaceholder',
+        'Search calendar activity',
+    )
+    const activityHelper = docMessage(
+        'activityHelper',
+        'sales.orders.activityHelper',
+        'Link a calendar activity so it appears on the order timeline.',
     )
     const recipientLabel = customerRequired
         ? t('text.labels.recipient')
@@ -1221,19 +1414,48 @@ const OrderNew = ({
                 estimatedMax: 0,
             },
             comment: '',
+            activityId: '',
         }),
         [defaultCurrency, defaultValidUntil],
     )
-    const formInitialValues = useMemo(() => {
-        const merged = mergeDeep(defaultInitialValues, initialValues) as SalesDocumentFormValues
-        const initialItems = Array.isArray(merged.items)
-            ? ((merged.items as unknown as Item[]) || []).filter(Boolean)
-            : []
+const formInitialValues = useMemo(() => {
+    const merged = mergeDeep(defaultInitialValues, initialValues) as SalesDocumentFormValues
+    const initialItems = Array.isArray(merged.items)
+        ? ((merged.items as unknown as Item[]) || []).filter(Boolean)
+        : []
         return {
             ...merged,
             items: normalizeItems(initialItems),
         }
     }, [defaultInitialValues, initialValues, normalizeItems])
+
+    useEffect(() => {
+        if (
+            selectedActivityOption &&
+            selectedActivityOption.value !== formInitialValues.activityId
+        ) {
+            return
+        }
+        if (initialActivityOption) {
+            setSelectedActivityOption(initialActivityOption)
+            return
+        }
+        if (!formInitialValues.activityId) {
+            setSelectedActivityOption(null)
+            return
+        }
+        const match = activityOptions.find(
+            (option) => option.value === formInitialValues.activityId,
+        )
+        if (match) {
+            setSelectedActivityOption(match)
+        }
+    }, [
+        activityOptions,
+        formInitialValues.activityId,
+        initialActivityOption,
+        selectedActivityOption,
+    ])
 
     useEffect(() => {
         if (!initialCustomerId) {
@@ -1489,6 +1711,9 @@ const OrderNew = ({
                             estimatedMax: Number(values.shipping?.estimatedMax ?? 0),
                         },
                         comment: values.comment,
+                        activityId: values.activityId
+                            ? String(values.activityId)
+                            : undefined,
                     }
                     if (documentId !== null && documentId !== undefined) {
                         payload.id = documentId
@@ -3041,6 +3266,108 @@ const OrderNew = ({
                                                         )}
                                                     </div>
                                                 )}
+                                            </FormItem>
+                                            <FormItem
+                                                label={activityLabel}
+                                                extra={activityHelper}
+                                            >
+                                                <div className="flex flex-col gap-2">
+                                                    <Select<ActivityOption>
+                                                        className="w-full md:w-96"
+                                                        options={mergedActivityOptions}
+                                                        value={selectedActivityOption}
+                                                        isClearable
+                                                        isSearchable
+                                                        isLoading={activityLoading}
+                                                        placeholder={activityPlaceholder}
+                                                        noOptionsMessage={() => activityEmptyLabel}
+                                                        onChange={(option) => {
+                                                            const nextOption =
+                                                                (option as ActivityOption | null) ?? null
+                                                            setSelectedActivityOption(nextOption)
+                                                            setFieldValue(
+                                                                'activityId',
+                                                                nextOption ? nextOption.value : '',
+                                                            )
+                                                        }}
+                                                        formatOptionLabel={(option) => (
+                                                            <div className="flex flex-col">
+                                                                <span className="font-medium">
+                                                                    {option.label}
+                                                                </span>
+                                                                {(option.meta?.dateLabel ||
+                                                                    option.meta?.timeLabel) && (
+                                                                    <span className="text-xs text-gray-500">
+                                                                        {option.meta?.dateLabel}
+                                                                        {option.meta?.timeLabel
+                                                                            ? ` · ${option.meta?.timeLabel}`
+                                                                            : ''}
+                                                                    </span>
+                                                                )}
+                                                                {option.meta?.typeLabel && (
+                                                                    <span className="text-xs text-gray-400">
+                                                                        {option.meta.typeLabel}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    />
+                                                    {activityError && (
+                                                        <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400">
+                                                            <span>{activityError}</span>
+                                                            <Button
+                                                                type="button"
+                                                                size="xs"
+                                                                onClick={handleActivityReload}
+                                                            >
+                                                                {t('text.actions.retry', {
+                                                                    defaultValue: 'Retry',
+                                                                })}
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                    {selectedActivityOption && (
+                                                        <div className="rounded border border-dashed border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/40 p-3 text-sm text-gray-600 dark:text-gray-200">
+                                                            <div className="font-medium text-gray-700 dark:text-gray-100">
+                                                                {selectedActivityOption.label}
+                                                            </div>
+                                                            {(selectedActivityOption.meta?.dateLabel ||
+                                                                selectedActivityOption.meta?.timeLabel) && (
+                                                                <div className="text-xs">
+                                                                    {selectedActivityOption.meta?.dateLabel}
+                                                                    {selectedActivityOption.meta?.timeLabel
+                                                                        ? ` · ${selectedActivityOption.meta?.timeLabel}`
+                                                                        : ''}
+                                                                </div>
+                                                            )}
+                                                            {selectedActivityOption.meta?.location && (
+                                                                <div className="text-xs">
+                                                                    {selectedActivityOption.meta.location}
+                                                                </div>
+                                                            )}
+                                                            {selectedActivityOption.meta?.typeLabel && (
+                                                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                                    {selectedActivityOption.meta.typeLabel}
+                                                                </div>
+                                                            )}
+                                                            <Button
+                                                                className="mt-3 w-full md:w-auto"
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="twoTone"
+                                                                onClick={() =>
+                                                                    navigate(
+                                                                        `/app/calendar/activities/details?id=${encodeURIComponent(
+                                                                            selectedActivityOption.value,
+                                                                        )}`,
+                                                                    )
+                                                                }
+                                                            >
+                                                                {activityViewLabel}
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </FormItem>
                                         </FormContainer>
                                     </Card>

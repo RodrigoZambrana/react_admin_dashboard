@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import Select from '@/components/ui/Select'
@@ -46,6 +46,13 @@ type EventTypeOption = {
     value: string
     label: string
     color: string
+}
+
+type CustomerAddressOption = CalendarEventAddress & {
+    id: string
+    value: string
+    label: string
+    isPrimary?: boolean
 }
 
 type FormModel = {
@@ -221,14 +228,124 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
     >(selected.extendedProps?.attachments || [])
     const [files, setFiles] = useState<File[]>([])
     const [customerAddressesCache, setCustomerAddressesCache] = useState<
-        Record<string, CalendarEventAddress | undefined>
+        Record<string, CustomerAddressOption[]>
     >({})
+    const [selectedCustomerAddressId, setSelectedCustomerAddressId] = useState<string | null>(null)
     const [loadingAddress, setLoadingAddress] = useState(false)
     const [deleting, setDeleting] = useState(false)
     const defaultEventType = useMemo(
         () => eventTypeOptions[0],
         [eventTypeOptions],
     )
+
+    const buildAddressOptionLabel = (
+        address: CalendarEventAddress,
+        index: number,
+        isPrimary?: boolean,
+    ) => {
+        const baseLabel = formatAddressLabel(address)
+        let label =
+            baseLabel && baseLabel.trim().length
+                ? baseLabel.trim()
+                : `${t('text.labels.address', { defaultValue: 'Address' })} #${index + 1}`
+        if (isPrimary) {
+            label = `${label} · ${t('text.labels.primary', { defaultValue: 'Primary' })}`
+        }
+        return label
+    }
+
+    const mapAddressesToOptions = (
+        addresses: Array<
+            CalendarEventAddress & {
+                id?: string | number
+                isPrimary?: boolean
+            }
+        >,
+    ): CustomerAddressOption[] => {
+        return addresses.map((addr, index) => {
+            const normalized: CustomerAddressOption = {
+                ...emptyAddress,
+                street: addr.street || '',
+                number: addr.number || '',
+                corner: addr.corner || '',
+                apartment: addr.apartment || '',
+                city: addr.city || '',
+                country: addr.country || '',
+                countryCode: addr.countryCode || '',
+                id: String(addr.id ?? index),
+                value: String(addr.id ?? index),
+                isPrimary: Boolean(addr.isPrimary),
+                label: '',
+            }
+            normalized.label = buildAddressOptionLabel(normalized, index, normalized.isPrimary)
+            return normalized
+        })
+    }
+
+    const isSameAddress = (
+        source: CalendarEventAddress,
+        target: CalendarEventAddress,
+    ) => {
+        const normalize = (value?: string | null) =>
+            (value ?? '').trim().toLowerCase()
+        return (
+            normalize(source.street) === normalize(target.street) &&
+            normalize(source.number) === normalize(target.number) &&
+            normalize(source.corner) === normalize(target.corner) &&
+            normalize(source.apartment) === normalize(target.apartment) &&
+            normalize(source.city) === normalize(target.city) &&
+            normalize(source.country) === normalize(target.country) &&
+            normalize(source.countryCode) === normalize(target.countryCode)
+        )
+    }
+
+    const fetchCustomerAddresses = useCallback(async (
+        customerId: string,
+        options?: { suppressToast?: boolean },
+    ): Promise<CustomerAddressOption[]> => {
+        setLoadingAddress(true)
+        try {
+            const response = await apiGetCustomerDetails<
+                {
+                    addresses?: Array<
+                        CalendarEventAddress & {
+                            id?: number | string
+                            isPrimary?: boolean
+                        }
+                    >
+                },
+                { id: string }
+            >({ id: customerId })
+
+            const addresses = response.data.addresses || []
+            const mapped = mapAddressesToOptions(addresses)
+            setCustomerAddressesCache((prev) => ({
+                ...prev,
+                [customerId]: mapped,
+            }))
+            return mapped
+        } catch (error) {
+            if (!options?.suppressToast) {
+                toast.push(
+                    <Notification
+                        type="warning"
+                        title={t('common.warning', { defaultValue: 'Aviso' })}
+                    >
+                        {t('calendar.errors.customerAddress', {
+                            defaultValue: 'No fue posible cargar la dirección del cliente.',
+                        })}
+                    </Notification>,
+                )
+            }
+            setCustomerAddressesCache((prev) => ({
+                ...prev,
+                [customerId]: [],
+            }))
+            return []
+        } finally {
+            setLoadingAddress(false)
+        }
+    }, [t])
 
     useEffect(() => {
         const loadCustomers = async () => {
@@ -327,6 +444,26 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
     }, [t])
 
     useEffect(() => {
+        if (!open) {
+            return
+        }
+        const customerId = selected.extendedProps?.customerId
+        if (!customerId || selected.extendedProps?.isInternal) {
+            return
+        }
+        if (customerAddressesCache[customerId]) {
+            return
+        }
+        void fetchCustomerAddresses(String(customerId), { suppressToast: true })
+    }, [
+        customerAddressesCache,
+        fetchCustomerAddresses,
+        open,
+        selected.extendedProps?.customerId,
+        selected.extendedProps?.isInternal,
+    ])
+
+    useEffect(() => {
         setExistingAttachments(selected.extendedProps?.attachments || [])
         setFiles([])
     }, [selected])
@@ -393,6 +530,36 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
         eventTypeId: resolvedEventTypeId,
         attachments: [],
     }
+
+    const initialAddressSignature = useMemo(
+        () => JSON.stringify(initialAddress),
+        [initialAddress],
+    )
+
+    useEffect(() => {
+        if (!open) {
+            setSelectedCustomerAddressId(null)
+            return
+        }
+        const initialCustomerId = initialValues.customerId
+        if (!initialCustomerId) {
+            return
+        }
+        const cached = customerAddressesCache[initialCustomerId]
+        if (!cached || !cached.length) {
+            return
+        }
+        const target = JSON.parse(initialAddressSignature) as CalendarEventAddress
+        const match = cached.find((option) => isSameAddress(option, target))
+        if (match) {
+            setSelectedCustomerAddressId(match.value)
+        }
+    }, [
+        customerAddressesCache,
+        initialAddressSignature,
+        initialValues.customerId,
+        open,
+    ])
 
     const handleSubmit = async (
         values: FormModel,
@@ -705,6 +872,7 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                     const handleAddressLocationChange = (
                         next: CountryCityValue,
                     ) => {
+                        setSelectedCustomerAddressId(null)
                         const countryName = next.countryName ?? ''
                         const cityValue = next.city ?? ''
                         const countryCode = next.countryCode ?? ''
@@ -830,89 +998,72 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                         setFieldValue('endDate', normalizedEnd.toDate())
                     }
 
+                    const applyAddressSelection = (
+                        option: CustomerAddressOption | null,
+                    ) => {
+                        if (!option) {
+                            setSelectedCustomerAddressId(null)
+                            setFieldValue('address', { ...emptyAddress })
+                            return
+                        }
+                        const {
+                            value: optionValue,
+                            label: _label,
+                            isPrimary: _isPrimary,
+                            id: _id,
+                            ...addressData
+                        } = option
+                        setSelectedCustomerAddressId(optionValue)
+                        setFieldValue('address', {
+                            ...emptyAddress,
+                            ...addressData,
+                        })
+                    }
+
                     const handleCustomerChange = async (
                         option: CustomerOption | null,
                     ) => {
                         const customerId = option ? option.value : null
                         setFieldValue('customerId', customerId)
+                        setSelectedCustomerAddressId(null)
 
                         if (!customerId || values.isInternal) {
+                            setFieldValue('address', { ...emptyAddress })
                             return
                         }
 
                         const cached = customerAddressesCache[customerId]
-                        if (cached) {
-                            setFieldValue('address', {
-                                ...emptyAddress,
-                                ...cached,
-                            })
+                        if (cached && cached.length) {
+                            const nextAddress =
+                                cached.find((addr) => addr.isPrimary) ||
+                                cached[0]
+                            applyAddressSelection(nextAddress || null)
                             return
                         }
 
-                        setLoadingAddress(true)
-                        try {
-                            const response = await apiGetCustomerDetails<
-                                {
-                                    addresses?: Array<
-                                        (CalendarEventAddress & {
-                                            id?: number | string
-                                            isPrimary?: boolean
-                                        })
-                                    >
-                                },
-                                { id: string }
-                            >({ id: customerId })
-
-                            const addresses =
-                                response.data.addresses || ([] as Array<
-                                    CalendarEventAddress & {
-                                        isPrimary?: boolean
-                                    }
-                                >)
-
-                            const primary =
-                                addresses.find((addr) => addr.isPrimary) ||
-                                addresses[0]
-
-                            if (primary) {
-                                const addressData: CalendarEventAddress = {
-                                    street: primary.street || '',
-                                    number: primary.number || '',
-                                    corner: primary.corner || '',
-                                    apartment: primary.apartment || '',
-                                    city: primary.city || '',
-                                    country: primary.country || '',
-                                    countryCode: primary.countryCode || '',
-                                }
-
-                                setCustomerAddressesCache((prev) => ({
-                                    ...prev,
-                                    [customerId]: addressData,
-                                }))
-
-                                setFieldValue('address', {
-                                    ...emptyAddress,
-                                    ...addressData,
-                                })
-                            }
-                        } catch (error) {
-                            toast.push(
-                                <Notification
-                                    type="warning"
-                                    title={t('common.warning', {
-                                        defaultValue: 'Aviso',
-                                    })}
-                                >
-                                    {t('calendar.errors.customerAddress', {
-                                        defaultValue:
-                                            'No fue posible cargar la dirección del cliente.',
-                                    })}
-                                </Notification>,
-                            )
-                        } finally {
-                            setLoadingAddress(false)
+                        const fetched = await fetchCustomerAddresses(
+                            customerId,
+                        )
+                        if (fetched.length) {
+                            const nextAddress =
+                                fetched.find((addr) => addr.isPrimary) ||
+                                fetched[0]
+                            applyAddressSelection(nextAddress || null)
+                            return
                         }
+                        setFieldValue('address', { ...emptyAddress })
                     }
+
+                    const availableAddressOptions =
+                        values.customerId && !values.isInternal
+                            ? customerAddressesCache[values.customerId] || []
+                            : []
+
+                    const selectedAddressOption =
+                        availableAddressOptions.find(
+                            (option) =>
+                                option.value === selectedCustomerAddressId,
+                        ) || null
 
                     const handleDeleteEvent = async () => {
                         if (!selected.id || !onDelete) {
@@ -1056,6 +1207,7 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                                                         setFieldValue('address', {
                                                             ...emptyAddress,
                                                         })
+                                                        setSelectedCustomerAddressId(null)
                                                     }
                                                 }}
                                             />
@@ -1134,6 +1286,48 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                                             />
                                         </FormItem>
                                     )}
+                                    {!values.isInternal &&
+                                        values.customerId &&
+                                        availableAddressOptions.length > 1 && (
+                                            <FormItem
+                                                label={t('calendar.fields.addressSelect', {
+                                                    defaultValue: 'Dirección del cliente',
+                                                })}
+                                            >
+                                                <Select
+                                                    value={selectedAddressOption}
+                                                    options={availableAddressOptions}
+                                                    isClearable
+                                                    isLoading={loadingAddress && !availableAddressOptions.length}
+                                                    onChange={(option) =>
+                                                        applyAddressSelection(
+                                                            option
+                                                                ? (option as CustomerAddressOption)
+                                                                : null,
+                                                        )
+                                                    }
+                                                    placeholder={t(
+                                                        'calendar.placeholders.addressSelect',
+                                                        {
+                                                            defaultValue:
+                                                                'Selecciona una dirección',
+                                                        },
+                                                    )}
+                                                    formatOptionLabel={(option) => (
+                                                        <div className="flex flex-col leading-tight">
+                                                            <span className="font-medium">
+                                                                {option.label}
+                                                            </span>
+                                                            {formatAddressLabel(option) && (
+                                                                <span className="text-xs text-gray-500">
+                                                                    {formatAddressLabel(option)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                />
+                                            </FormItem>
+                                        )}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <FormItem
                                             label={t('calendar.fields.address.street', {

@@ -12,6 +12,7 @@ import {
   type SalesDocumentMode,
   type SalesDocumentSummaryComputation,
 } from '@/utils/salesDocumentCalculations'
+import { ORDER_STATUS_IDS } from '@/constants/orderStatus'
 
 const coerceDocumentNumber = (value: unknown, fallback = 0) => {
   const numeric = Number(value)
@@ -89,6 +90,47 @@ export const parseValidityRecord = (value: unknown): ValidityRecord | null => {
   }
 
   return assignValidityAliases(value)
+}
+
+const PAYMENT_STATUS_EPSILON = 0.01
+
+const toNumericValue = (value: unknown): number | null => {
+  if (value === null || value === undefined) {
+    return null
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  if (typeof value === 'object' && value !== null && typeof (value as any).toString === 'function') {
+    const parsed = Number((value as any).toString())
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+const derivePaymentAwareStatusId = (
+  baseStatusId: number | null | undefined,
+  outstanding: number | null | undefined,
+  mode: SalesDocumentMode,
+) => {
+  const normalizedBase = Number(baseStatusId ?? 0)
+  if (mode === 'budget') {
+    return normalizedBase
+  }
+  if (
+    normalizedBase === ORDER_STATUS_IDS.CANCELLED ||
+    normalizedBase === ORDER_STATUS_IDS.DELIVERED
+  ) {
+    return normalizedBase
+  }
+  if (outstanding === null || outstanding === undefined) {
+    return normalizedBase || ORDER_STATUS_IDS.PENDING
+  }
+  return outstanding > PAYMENT_STATUS_EPSILON ? ORDER_STATUS_IDS.PENDING : ORDER_STATUS_IDS.PAID
 }
 
 const toNullableStatusId = (value: unknown): number | null => {
@@ -491,6 +533,7 @@ export function adaptOrderToDetailsView(
       records,
     }
   })()
+  const outstandingAmount = toNumericValue(normalizedPayments?.summary?.outstanding)
   const normalizedShipping = {
     ...shipping,
     deliveryFees: summaryComputation.deliveryFees,
@@ -557,9 +600,14 @@ export function adaptOrderToDetailsView(
     return ''
   })()
   const resolvedStatusId = resolveStatusIdFromSource(o)
+  const paymentAwareStatusId = derivePaymentAwareStatusId(
+    resolvedStatusId,
+    outstandingAmount,
+    resolvedMode,
+  )
   return {
     id: String(o.id),
-    progressStatus: resolvedStatusId ?? 0,
+    progressStatus: paymentAwareStatusId ?? 0,
     payementStatus,
     dateTime,
     validUntil,

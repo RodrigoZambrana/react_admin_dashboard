@@ -11,6 +11,8 @@ export type OrderTimelineEventType =
     | 'DELIVERED'
     | 'NOTE'
     | 'STATUS_CHANGED'
+    | 'ACTIVITY_LINKED'
+    | 'ACTIVITY_UNLINKED'
     | 'OTHER'
 
 export type OrderTimelineEvent = {
