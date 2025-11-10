@@ -10,9 +10,10 @@ import { EmailLogService } from './email-log.service'
 import { EmailAdminController } from './email-admin.controller'
 import { EmailController } from './email.controller'
 import { SecureConfigModule } from '../common/security/secure-config.module'
+import { InboxModule } from '../inbox/inbox.module'
 
 @Module({
-  imports: [ConfigModule, PrismaModule, SecureConfigModule],
+  imports: [ConfigModule, PrismaModule, SecureConfigModule, InboxModule],
   controllers: [EmailAdminController, EmailController],
   providers: [
     EmailService,

@@ -42,6 +42,14 @@ export class UpdateEmailConfigDto {
   fromName!: string
 
   @IsOptional()
+  @IsBoolean()
+  customerEmailsEnabled?: boolean
+
+  @IsOptional()
+  @IsBoolean()
+  adminEmailsEnabled?: boolean
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => SmtpConfigDto)
   smtp?: SmtpConfigDto | null

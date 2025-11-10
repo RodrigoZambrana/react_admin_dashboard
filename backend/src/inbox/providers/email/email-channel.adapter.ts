@@ -18,6 +18,8 @@ import {
 import { ChannelRegistry } from '../../registry/channel-registry'
 import { buildEmailChannelConfig } from './email-channel.config'
 import { EmailChannelConfig } from './email-channel.types'
+import { SecureConfigService } from '../../../common/security/secure-config.service'
+import { INBOX_EMAIL_CONFIG_SECURE_KEY, type StoredInboxEmailConfig } from './inbox-email-config.types'
 import { ImapFlow, type FetchMessageObject, type MailboxObject, type ListResponse, type AppendResponseObject } from 'imapflow'
 import * as nodemailer from 'nodemailer'
 import type { SentMessageInfo } from 'nodemailer'
@@ -47,13 +49,19 @@ export class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
   constructor(
     private readonly configService: ConfigService,
     private readonly registry: ChannelRegistry,
+    private readonly secureConfig: SecureConfigService,
   ) {
     this.config = buildEmailChannelConfig(this.configService, {
       logger: this.logger,
     })
   }
 
-  onModuleInit() {
+  async onModuleInit() {
+    await this.refreshConfig().catch((error) => {
+      this.logger.error(
+        `Failed to load inbox email configuration: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    })
     this.registry.register(this)
     this.logger.log('Email channel adapter registered')
   }
@@ -295,10 +303,15 @@ export class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
     throw new Error('Email channel markAsSpam not implemented yet')
   }
 
-  refreshConfig() {
-    this.config = buildEmailChannelConfig(this.configService, {
-      logger: this.logger,
-    })
+  async refreshConfig() {
+    const overrides = await this.loadStoredConfig()
+    this.config = buildEmailChannelConfig(
+      this.configService,
+      {
+        logger: this.logger,
+      },
+      overrides,
+    )
   }
 
   getSanitizedConfig(): Omit<EmailChannelConfig, 'credentials'> & {
@@ -307,6 +320,17 @@ export class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
     return {
       ...this.config,
       credentials: { user: this.config.credentials.user },
+    }
+  }
+
+  private async loadStoredConfig(): Promise<StoredInboxEmailConfig | null> {
+    try {
+      const record = await this.secureConfig.getJson<StoredInboxEmailConfig>(INBOX_EMAIL_CONFIG_SECURE_KEY)
+      return record?.value ?? null
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.logger.error(`Unable to read inbox email secure config: ${message}`)
+      return null
     }
   }
 

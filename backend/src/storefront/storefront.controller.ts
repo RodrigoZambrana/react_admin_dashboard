@@ -260,7 +260,7 @@ export class StorefrontController {
       error_description: errorDescription,
     })
 
-    const redirectUrl = this.googleAuth.buildCompletionRedirect(result)
+    const redirectUrl = await this.googleAuth.buildCompletionRedirect(result)
 
     if (result.status === 'success') {
       if (result.session) {
@@ -276,7 +276,7 @@ export class StorefrontController {
     }
 
     reply.header('Content-Type', 'text/html; charset=utf-8')
-    reply.status(200).send(this.googleAuth.renderCallbackPage(result))
+    reply.status(200).send(await this.googleAuth.renderCallbackPage(result))
   }
 
   @Get('auth/session')

@@ -30,8 +30,9 @@ const formatSummary = (notification: CustomerNotification, t: TranslateFn): stri
   if (metadata.orderId) {
     return `#${metadata.orderId}`;
   }
-  if (metadata.paymentId) {
-    return t("notifications.summary.payment", { values: { paymentId: metadata.paymentId } });
+  const paymentId = metadata.paymentId;
+  if (hasEntityId(paymentId)) {
+    return t("notifications.summary.payment", { values: { paymentId } });
   }
   return null;
 };

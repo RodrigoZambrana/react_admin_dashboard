@@ -470,13 +470,13 @@ const baseAppsRoute: Routes = [
     {
         key: 'appsSettings.google',
         path: `${APP_PREFIX_PATH}/settings/google`,
-        component: lazy(() => import('@/views/settings/GoogleSettings')),
+        component: lazy(() => import('@/views/settings/EmailSettings/GoogleSettingsRedirect')),
         authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
         key: 'appsSettings.mercadoPago',
         path: `${APP_PREFIX_PATH}/settings/mercado-pago`,
-        component: lazy(() => import('@/views/settings/MercadoPagoSettings')),
+        component: lazy(() => import('@/views/settings/EmailSettings/MercadoPagoSettingsRedirect')),
         authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {

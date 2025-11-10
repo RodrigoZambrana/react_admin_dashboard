@@ -84,7 +84,6 @@ export type GoogleOAuthResult =
 export class StorefrontGoogleOAuthService {
   private readonly logger = new Logger(StorefrontGoogleOAuthService.name)
   private readonly defaultScopes = DEFAULT_SCOPE
-  private frontendOrigin: string | null
 
   constructor(
     private readonly config: ConfigService,
@@ -92,9 +91,7 @@ export class StorefrontGoogleOAuthService {
     private readonly storefront: StorefrontService,
     private readonly googleConfig: GoogleConfigService,
     private readonly security: StorefrontSecurityService,
-  ) {
-    this.frontendOrigin = this.resolveFrontendOrigin()
-  }
+  ) {}
 
   async start(
     returnPath: string | undefined,
@@ -341,8 +338,8 @@ export class StorefrontGoogleOAuthService {
     }
   }
 
-  renderCallbackPage(result: GoogleOAuthResult): string {
-    const targetOrigin = this.frontendOrigin ?? '*'
+  async renderCallbackPage(result: GoogleOAuthResult): Promise<string> {
+    const targetOrigin = (await this.getFrontendOrigin()) ?? '*'
     const payload = JSON.stringify({
       type: 'storefront:google-auth',
       ...result,
@@ -451,13 +448,14 @@ export class StorefrontGoogleOAuthService {
 </html>`
   }
 
-  buildCompletionRedirect(result: GoogleOAuthResult): string | null {
-    if (!this.frontendOrigin) {
+  async buildCompletionRedirect(result: GoogleOAuthResult): Promise<string | null> {
+    const frontendOrigin = await this.getFrontendOrigin()
+    if (!frontendOrigin) {
       return null
     }
 
     try {
-      const target = new URL('/auth/complete', this.frontendOrigin)
+      const target = new URL('/auth/complete', frontendOrigin)
       target.searchParams.set('status', result.status)
       if (result.state) {
         target.searchParams.set('state', result.state)
@@ -516,11 +514,13 @@ export class StorefrontGoogleOAuthService {
     return { clientId, clientSecret, redirectUri }
   }
 
-  private resolveFrontendOrigin(): string | null {
+  private async getFrontendOrigin(): Promise<string | null> {
+    const config = await this.googleConfig.getEffectiveConfig()
     const candidates = [
+      config.storefrontSiteUrl,
       this.config.get<string>('STOREFRONT_BASE_URL'),
-      this.config.get<string>('NEXT_PUBLIC_SITE_URL'),
       this.config.get<string>('NEXT_PUBLIC_STOREFRONT_SITE_URL'),
+      this.config.get<string>('NEXT_PUBLIC_SITE_URL'),
     ]
 
     for (const candidate of candidates) {

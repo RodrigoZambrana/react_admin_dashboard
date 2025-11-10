@@ -11,6 +11,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { RolesGuard } from '../auth/roles.guard'
 import { Roles, ROLES } from '../auth/roles.decorator'
@@ -27,6 +28,47 @@ import { PreviewEmailTemplateDto } from './dto/preview-email-template.dto'
 import { UpdateEmailConfigDto, EmailConfigTestDto } from './dto/update-email-config.dto'
 import { EmailProviderFactory } from './email-provider.factory'
 import type { EmailProviderConfig } from './email-settings.service'
+import { SecureConfigService } from '../common/security/secure-config.service'
+import { EmailChannelAdapter } from '../inbox/providers/email/email-channel.adapter'
+import { buildEmailChannelConfig } from '../inbox/providers/email/email-channel.config'
+import { EmailChannelSecurityOption } from '../inbox/providers/email/email-channel.types'
+import { INBOX_EMAIL_CONFIG_SECURE_KEY, type StoredInboxEmailConfig } from '../inbox/providers/email/inbox-email-config.types'
+
+type InboxEmailConfigPayload = {
+  imapHost?: unknown
+  imapPort?: unknown
+  imapSecurity?: unknown
+  smtpHost?: unknown
+  smtpPort?: unknown
+  smtpSecurity?: unknown
+  username?: unknown
+  password?: unknown
+  fromAddress?: unknown
+  fromName?: unknown
+  maxAttachmentSizeMb?: unknown
+  ratePerMinute?: unknown
+  pollIntervalMs?: unknown
+  pollBatchSize?: unknown
+}
+
+type InboxEmailConfigResponse = {
+  source: 'environment' | 'database'
+  updatedAt: Date | null
+  imapHost: string
+  imapPort: number
+  imapSecurity: EmailChannelSecurityOption
+  smtpHost: string
+  smtpPort: number
+  smtpSecurity: EmailChannelSecurityOption
+  username: string
+  fromAddress: string
+  fromName: string | null
+  maxAttachmentSizeMb: number
+  ratePerMinute: number
+  pollIntervalMs: number
+  pollBatchSize: number
+  passwordSet: boolean
+}
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
@@ -39,6 +81,9 @@ export class EmailAdminController {
     private readonly emailService: EmailService,
     private readonly queue: EmailQueueService,
     private readonly providerFactory: EmailProviderFactory,
+    private readonly secureConfig: SecureConfigService,
+    private readonly configService: ConfigService,
+    private readonly emailChannel: EmailChannelAdapter,
   ) {}
 
   @Get('config')
@@ -52,6 +97,8 @@ export class EmailAdminController {
       provider: body.provider,
       fromAddress: body.fromAddress,
       fromName: body.fromName,
+      customerEmailsEnabled: body.customerEmailsEnabled ?? true,
+      adminEmailsEnabled: body.adminEmailsEnabled ?? true,
       smtp:
         body.provider === 'SMTP'
           ? {
@@ -71,15 +118,57 @@ export class EmailAdminController {
 
   @Post('config/test')
   async sendConfigTest(@Body() body: EmailConfigTestDto) {
+    const variant = EmailTemplateVariant.ADMIN
+    const recipientType = variant === EmailTemplateVariant.ADMIN ? EmailRecipientType.ADMIN : EmailRecipientType.CUSTOMER
+    const deliveryEnabled = await this.settings.isRecipientDeliveryEnabled(recipientType)
+    if (!deliveryEnabled) {
+      throw new BadRequestException('Admin email delivery is disabled. Enable it before sending test emails.')
+    }
     this.providerFactory.reset()
     await this.emailService.sendTestEmail({
       category: EmailCategory.ORDERS,
-      variant: EmailTemplateVariant.ADMIN,
+      variant,
       to: body.to,
       locale: 'en',
       scenarioKey: 'order.received',
     })
     return { ok: true }
+  }
+
+  @Get('inbox-config')
+  async getInboxEmailConfig() {
+    return this.buildInboxEmailConfigResponse()
+  }
+
+  @Put('inbox-config')
+  async updateInboxEmailConfig(@Body() body: InboxEmailConfigPayload) {
+    const current = await this.secureConfig
+      .getJson<StoredInboxEmailConfig>(INBOX_EMAIL_CONFIG_SECURE_KEY)
+      .catch(() => null)
+
+    const payload: StoredInboxEmailConfig = {
+      imapHost: this.sanitizeOptionalString(body.imapHost),
+      imapPort: this.sanitizePositiveInteger(body.imapPort),
+      imapSecurity: this.sanitizeSecurityOption(body.imapSecurity),
+      smtpHost: this.sanitizeOptionalString(body.smtpHost),
+      smtpPort: this.sanitizePositiveInteger(body.smtpPort),
+      smtpSecurity: this.sanitizeSecurityOption(body.smtpSecurity),
+      username: this.sanitizeOptionalString(body.username),
+      password:
+        body.password === undefined
+          ? current?.value.password ?? null
+          : this.sanitizeOptionalString(body.password),
+      fromAddress: this.sanitizeOptionalString(body.fromAddress),
+      fromName: this.sanitizeOptionalString(body.fromName),
+      maxAttachmentSizeMb: this.sanitizePositiveInteger(body.maxAttachmentSizeMb),
+      ratePerMinute: this.sanitizePositiveInteger(body.ratePerMinute),
+      pollIntervalMs: this.sanitizePositiveInteger(body.pollIntervalMs),
+      pollBatchSize: this.sanitizePositiveInteger(body.pollBatchSize),
+    }
+
+    await this.secureConfig.setJson(INBOX_EMAIL_CONFIG_SECURE_KEY, payload)
+    await this.emailChannel.refreshConfig()
+    return this.buildInboxEmailConfigResponse()
   }
 
   @Get('categories')
@@ -223,6 +312,66 @@ export class EmailAdminController {
   @Get('metrics')
   async getMetrics() {
     return this.queue.getMetricsSnapshot()
+  }
+
+  private sanitizeOptionalString(value: unknown): string | null {
+    if (typeof value !== 'string') {
+      return null
+    }
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
+  }
+
+  private sanitizePositiveInteger(value: unknown): number | null {
+    if (value === null || value === undefined || value === '') {
+      return null
+    }
+    const numeric = Number(value)
+    if (!Number.isFinite(numeric)) {
+      return null
+    }
+    const rounded = Math.round(numeric)
+    return rounded > 0 ? rounded : null
+  }
+
+  private sanitizeSecurityOption(value: unknown): EmailChannelSecurityOption | null {
+    if (typeof value !== 'string') {
+      return null
+    }
+    const normalized = value.trim().toUpperCase()
+    if (normalized === 'SSL_TLS' || normalized === 'STARTTLS' || normalized === 'NONE') {
+      return normalized as EmailChannelSecurityOption
+    }
+    return null
+  }
+
+  private async buildInboxEmailConfigResponse(): Promise<InboxEmailConfigResponse> {
+    const stored = await this.secureConfig
+      .getJson<StoredInboxEmailConfig>(INBOX_EMAIL_CONFIG_SECURE_KEY)
+      .catch(() => null)
+    const overrides = stored?.value ?? null
+    const resolved = buildEmailChannelConfig(this.configService, undefined, overrides ?? undefined)
+    const envPassword = this.configService.get<string>('INBOX_EMAIL_PASSWORD') ?? ''
+    const passwordCandidate = (overrides?.password ?? envPassword).trim()
+
+    return {
+      source: overrides ? 'database' : 'environment',
+      updatedAt: stored?.updatedAt ?? null,
+      imapHost: resolved.imap.host,
+      imapPort: resolved.imap.port,
+      imapSecurity: resolved.imap.security,
+      smtpHost: resolved.smtp.host,
+      smtpPort: resolved.smtp.port,
+      smtpSecurity: resolved.smtp.security,
+      username: resolved.credentials.user,
+      fromAddress: resolved.defaults.fromAddress,
+      fromName: resolved.defaults.fromName ?? null,
+      maxAttachmentSizeMb: resolved.limits.maxAttachmentSizeMb,
+      ratePerMinute: resolved.limits.outgoingRatePerMinute,
+      pollIntervalMs: resolved.polling.intervalMs,
+      pollBatchSize: resolved.polling.batchSize,
+      passwordSet: passwordCandidate.length > 0,
+    }
   }
 
   private parseCategory(value: string): EmailCategory {

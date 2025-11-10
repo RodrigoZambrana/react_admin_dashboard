@@ -8,6 +8,7 @@ import Badge from '@/components/ui/Badge'
 import Loading from '@/components/shared/Loading'
 import toast from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
+import Switcher from '@/components/ui/Switcher'
 import { HiClipboardCopy, HiEye, HiEyeOff } from 'react-icons/hi'
 import type { AxiosResponse } from 'axios'
 import {
@@ -19,6 +20,7 @@ type MercadoPagoSettingsResponse = {
     enabled: boolean
     source: 'environment' | 'database'
     updatedAt: string | null
+    provider: 'mercadopago' | 'none'
     publicKey: string | null
     accessToken: string | null
     country: string | null
@@ -28,16 +30,19 @@ type MercadoPagoSettingsResponse = {
 }
 
 type FormValues = {
+    provider: 'mercadopago' | 'none'
     publicKey: string
     accessToken: string
     country: string
 }
 
 const initialFormState: FormValues = {
+    provider: 'mercadopago',
     publicKey: '',
     accessToken: '',
     country: '',
 }
+
 
 const formatDateTime = (value: string | null) => {
     if (!value) {
@@ -98,6 +103,7 @@ const MercadoPagoSettings = () => {
                 await apiGetMercadoPagoSettings()
             const data = response.data
             setInitialValues({
+                provider: data.provider ?? 'mercadopago',
                 publicKey: data.publicKey ?? '',
                 accessToken: data.accessToken ?? '',
                 country: data.country ?? '',
@@ -193,6 +199,7 @@ const MercadoPagoSettings = () => {
                         setSubmitting(true)
                         try {
                             const payload = {
+                                provider: values.provider,
                                 publicKey: values.publicKey.trim() || null,
                                 accessToken: values.accessToken.trim() || null,
                                 country: values.country.trim().toUpperCase() || null,
@@ -201,6 +208,7 @@ const MercadoPagoSettings = () => {
                                 await apiUpdateMercadoPagoSettings(payload)
                             const data = response.data
                             setValues({
+                                provider: data.provider ?? 'mercadopago',
                                 publicKey: data.publicKey ?? '',
                                 accessToken: data.accessToken ?? '',
                                 country: data.country ?? '',
@@ -212,7 +220,7 @@ const MercadoPagoSettings = () => {
                             })
                             toast.push(
                                 <Notification title="Mercado Pago settings saved" type="success">
-                                    The credentials were updated successfully.
+                                    The configuration was updated successfully.
                                 </Notification>,
                                 { placement: 'top-end' },
                             )
@@ -228,73 +236,97 @@ const MercadoPagoSettings = () => {
                         }
                     }}
                 >
-                    {({ values, isSubmitting, dirty, handleReset }) => (
-                        <Form>
-                            <FormContainer>
-                                <FormItem label="Public key">
-                                    <Field name="publicKey">
-                                        {({ field, form }) => (
-                                            <Input
-                                                autoComplete="off"
-                                                placeholder="TEST-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                                                type={showPublicKey ? 'text' : 'password'}
-                                                field={field}
-                                                form={form}
-                                                suffix={buildSecretSuffix(
-                                                    showPublicKey,
-                                                    () => setShowPublicKey((prev) => !prev),
-                                                    () => {
-                                                        void handleCopy(
-                                                            values.publicKey,
-                                                            'public key',
-                                                        )
-                                                    },
-                                                )}
+                    {({ values, isSubmitting, dirty, handleReset, setFieldValue }) => {
+                        const providerEnabled = values.provider === 'mercadopago'
+                        return (
+                            <Form>
+                                <FormContainer>
+                                    <FormItem
+                                        label="Enable Mercado Pago"
+                                        extra="Turn off the integration without deleting stored credentials."
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <Switcher
+                                                checked={providerEnabled}
+                                                onChange={(checked) =>
+                                                    setFieldValue('provider', checked ? 'mercadopago' : 'none')
+                                                }
                                             />
-                                        )}
-                                    </Field>
-                                </FormItem>
+                                            <span className="text-sm text-gray-600">
+                                                {providerEnabled
+                                                    ? 'Customers will be able to pay through Mercado Pago.'
+                                                    : 'Mercado Pago checkout is disabled.'}
+                                            </span>
+                                        </div>
+                                    </FormItem>
 
-                                <FormItem label="Access token">
-                                    <Field name="accessToken">
-                                        {({ field, form }) => (
-                                            <Input
-                                                autoComplete="off"
-                                                placeholder="TEST-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                                                type={showAccessToken ? 'text' : 'password'}
-                                                field={field}
-                                                form={form}
-                                                suffix={buildSecretSuffix(
-                                                    showAccessToken,
-                                                    () => setShowAccessToken((prev) => !prev),
-                                                    () => {
-                                                        void handleCopy(
-                                                            values.accessToken,
-                                                            'access token',
-                                                        )
-                                                    },
-                                                )}
-                                            />
-                                        )}
-                                    </Field>
-                                </FormItem>
+                                    <FormItem label="Public key">
+                                        <Field name="publicKey">
+                                            {({ field, form }) => (
+                                                <Input
+                                                    autoComplete="off"
+                                                    placeholder="TEST-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                                                    type={showPublicKey ? 'text' : 'password'}
+                                                    disabled={!providerEnabled}
+                                                    field={field}
+                                                    form={form}
+                                                    suffix={buildSecretSuffix(
+                                                        showPublicKey,
+                                                        () => setShowPublicKey((prev) => !prev),
+                                                        () => {
+                                                            void handleCopy(
+                                                                values.publicKey,
+                                                                'public key',
+                                                            )
+                                                        },
+                                                    )}
+                                                />
+                                            )}
+                                        </Field>
+                                    </FormItem>
 
-                                <FormItem
-                                    label="Country (optional)"
-                                    extra="Two-letter country code used to localise the Mercado Pago checkout."
-                                >
-                                    <Field name="country">
-                                        {({ field, form }) => (
-                                            <Input
-                                                autoComplete="off"
-                                                placeholder="AR"
-                                                field={field}
-                                                form={form}
-                                                maxLength={4}
-                                            />
-                                        )}
-                                    </Field>
-                                </FormItem>
+                                    <FormItem label="Access token">
+                                        <Field name="accessToken">
+                                            {({ field, form }) => (
+                                                <Input
+                                                    autoComplete="off"
+                                                    placeholder="TEST-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                                                    type={showAccessToken ? 'text' : 'password'}
+                                                    disabled={!providerEnabled}
+                                                    field={field}
+                                                    form={form}
+                                                    suffix={buildSecretSuffix(
+                                                        showAccessToken,
+                                                        () => setShowAccessToken((prev) => !prev),
+                                                        () => {
+                                                            void handleCopy(
+                                                                values.accessToken,
+                                                                'access token',
+                                                            )
+                                                        },
+                                                    )}
+                                                />
+                                            )}
+                                        </Field>
+                                    </FormItem>
+
+                                    <FormItem
+                                        label="Country (optional)"
+                                        extra="Two-letter country code used to localise the Mercado Pago checkout."
+                                    >
+                                        <Field name="country">
+                                            {({ field, form }) => (
+                                                <Input
+                                                    autoComplete="off"
+                                                    placeholder="AR"
+                                                    disabled={!providerEnabled}
+                                                    field={field}
+                                                    form={form}
+                                                    maxLength={4}
+                                                />
+                                            )}
+                                        </Field>
+                                    </FormItem>
 
                                 <div className="flex justify-end gap-2 pt-4">
                                     <Button
@@ -321,7 +353,8 @@ const MercadoPagoSettings = () => {
                                 </div>
                             </FormContainer>
                         </Form>
-                    )}
+                        )
+                    }}
                 </Formik>
             </Card>
         </div>

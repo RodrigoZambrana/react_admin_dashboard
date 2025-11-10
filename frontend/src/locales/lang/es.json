@@ -99,7 +99,7 @@
       "google": "Google y reCAPTCHA",
       "systemConfig": "Configuración del sistema",
       "aberturas": "Aberturas",
-      "email": "Correo electrónico",
+      "email": "Email e Integraciones",
       "emailTemplates": "Plantillas de correo",
       "emailConfig": "Configuración de correo",
       "calendarEventTypes": "Tipos de evento"
@@ -1205,7 +1205,8 @@
         "optional": "Opcional",
         "exact": "Coincidencia exacta",
         "results": "Combinaciones sugeridas",
-        "similarity": "Δ {{value}} mm"
+        "similarity": "Δ {{value}} mm",
+        "requirement": "Seleccioná al menos un filtro para buscar combinaciones."
       }
     },
     "dashboard": {
@@ -2300,6 +2301,11 @@
     },
     "email": {
       "title": "Correo electrónico",
+      "sections": {
+        "email": "Correo electrónico",
+        "mercadoPago": "Mercado Pago",
+        "google": "Google y reCAPTCHA"
+      },
       "categories": {
         "orders": "Pedidos",
         "payments": "Pagos",
@@ -2444,7 +2450,114 @@
         "allowInvalidCerts": "Permitir certificados no válidos",
         "testRecipient": "Correo del destinatario de prueba",
         "saveSuccess": "Configuración guardada correctamente.",
-        "testSuccess": "Correo de prueba encolado correctamente."
+        "testSuccess": "Correo de prueba encolado correctamente.",
+        "delivery": {
+          "customerLabel": "Envíos a clientes",
+          "customerDescription": "Envía correos transaccionales a los compradores del ecommerce. Si está deshabilitado, los clientes no recibirán confirmaciones ni recuperaciones.",
+          "adminLabel": "Envíos a administradores y superadministradores",
+          "adminDescription": "Envía notificaciones a administradores internos, superadministradores y reglas por rol. Desactiva para silenciar los correos internos."
+        }
+      },
+      "inbox": {
+        "title": "Cuenta de inbox (IMAP/SMTP)",
+        "description": "Configurá el buzón compartido utilizado por el módulo de inbox. Las credenciales se cifran antes de guardarse.",
+        "badge": {
+          "custom": "Configuración personalizada",
+          "environment": "Valores del entorno"
+        },
+        "fields": {
+          "imapHost": "Host IMAP",
+          "imapPort": "Puerto IMAP",
+          "imapSecurity": "Seguridad IMAP",
+          "smtpHost": "Host SMTP",
+          "smtpPort": "Puerto SMTP",
+          "smtpSecurity": "Seguridad SMTP",
+          "username": "Usuario",
+          "password": "Contraseña",
+          "maxAttachmentSizeMb": "Adjuntos máx. (MB)",
+          "ratePerMinute": "Envíos por minuto",
+          "pollIntervalMs": "Intervalo de lectura (ms)",
+          "pollBatchSize": "Tamaño de lote"
+        },
+        "actions": {
+          "save": "Guardar inbox"
+        },
+        "saveSuccess": "La configuración del inbox se guardó correctamente.",
+        "passwordPlaceholder": "Dejá en blanco para mantener la contraseña almacenada",
+        "passwordHint": "Las contraseñas se cifran; dejá el campo vacío para conservar el valor actual."
+      }
+    },
+    "google": {
+      "title": "Google y reCAPTCHA",
+      "description": "Administra las credenciales de Google OAuth y las claves de reCAPTCHA tanto para el panel como para el storefront. Los valores sensibles se cifran antes de guardarse en la base de datos.",
+      "badge": {
+        "custom": "Configuración personalizada",
+        "environment": "Valores del entorno"
+      },
+      "updatedAtLabel": "Última actualización {{value}}",
+      "notifications": {
+        "loadErrorTitle": "No se pudieron cargar los ajustes de Google",
+        "loadErrorDescription": "Verifica tus permisos e intenta nuevamente.",
+        "copyEmptyTitle": "Nada para copiar",
+        "copyEmptyDescription": "El campo {{label}} está vacío.",
+        "copySuccessTitle": "Copiado al portapapeles",
+        "copySuccessDescription": "{{label}} se copió correctamente.",
+        "copyErrorTitle": "Error al copiar",
+        "copyErrorDescription": "El navegador bloqueó el acceso al portapapeles. Copia el valor manualmente.",
+        "saveSuccessTitle": "Configuración de Google guardada",
+        "saveSuccessDescription": "La configuración se actualizó correctamente.",
+        "saveErrorTitle": "No se pudieron guardar los cambios",
+        "saveErrorDescription": "Revisá los valores e intentá nuevamente."
+      },
+      "fields": {
+        "googleEnabled": {
+          "label": "Habilitar acceso con Google (backend)",
+          "help": "Controla si el backend acepta OAuth de Google. Deshabilitalo para apagar el flujo por completo."
+        },
+        "storefrontGoogleEnabled": {
+          "label": "Mostrar botón de Google (storefront)",
+          "help": "Activa la opción de inicio de sesión con Google en el storefront. Requiere tener el flujo habilitado arriba."
+        },
+        "storefrontSiteUrl": {
+          "label": "URL pública del storefront",
+          "placeholder": "https://storefront.ejemplo.com",
+          "help": "URL pública utilizada para las redirecciones de OAuth. Reemplaza la variable de entorno NEXT_PUBLIC_SITE_URL."
+        },
+        "clientId": {
+          "label": "ID de cliente de Google",
+          "placeholder": "xxxxxxxx.apps.googleusercontent.com"
+        },
+        "clientSecret": {
+          "label": "Secreto de cliente de Google",
+          "placeholder": "GOCSPX-..."
+        },
+        "redirectUri": {
+          "label": "URI de redirección autorizada",
+          "placeholder": "https://example.com/api/storefront/auth/google/callback"
+        },
+        "recaptchaEnabled": {
+          "label": "Habilitar validación reCAPTCHA (backend)",
+          "help": "Cuando está activo, los inicios de sesión del panel deben incluir un token de reCAPTCHA."
+        },
+        "recaptchaSecretKey": {
+          "label": "Clave secreta de reCAPTCHA",
+          "placeholder": "6Lc..."
+        },
+        "adminRecaptcha": {
+          "label": "reCAPTCHA del panel",
+          "help": "Activa la carga del script en la pantalla de inicio de sesión del panel.",
+          "siteKeyPlaceholder": "Clave del sitio para el panel",
+          "siteKeyLabel": "Clave de sitio del panel"
+        },
+        "storefrontRecaptcha": {
+          "label": "reCAPTCHA del storefront",
+          "help": "Expone la clave en la configuración del storefront para habilitar los widgets.",
+          "siteKeyPlaceholder": "Clave del sitio para el storefront",
+          "siteKeyLabel": "Clave de sitio del storefront"
+        }
+      },
+      "actions": {
+        "save": "Guardar cambios"
       }
     },
     "companyProfile": {

@@ -123,6 +123,7 @@ type CompanyProfilePayload = {
   logo?: unknown
 }
 type MercadoPagoSettingsDraft = {
+  provider: 'mercadopago' | 'none' | null
   publicKey: string | null
   accessToken: string | null
   integratorId: string | null
@@ -142,6 +143,7 @@ type GoogleIntegrationSettingsDraft = {
   adminRecaptchaSiteKey: string | null
   storefrontRecaptchaEnabled: boolean
   storefrontRecaptchaSiteKey: string | null
+  storefrontSiteUrl: string | null
 }
 import type { FastifyRequest } from 'fastify'
 import { parseSingleFileMultipart } from '../common/uploads/multipart'
@@ -247,6 +249,24 @@ export class SettingsController {
     }
     return fallback
   }
+
+  private sanitizeProvider(value: unknown): 'mercadopago' | 'none' | null {
+    if (typeof value !== 'string') {
+      return null
+    }
+    const normalized = value.trim().toLowerCase()
+    if (!normalized) {
+      return null
+    }
+    if (normalized === 'mercadopago') {
+      return 'mercadopago'
+    }
+    if (normalized === 'none' || normalized === 'disabled') {
+      return 'none'
+    }
+    return null
+  }
+
 
   private mapCompanyProfile(record?: CompanyProfile | null): CompanyProfileResponse {
     if (!record) {
@@ -1817,6 +1837,7 @@ export class SettingsController {
     const config = await this.mercadoPago.getEffectiveConfig()
     return {
       enabled: this.mercadoPago.isEnabled(),
+      provider: config.provider,
       source: config.source,
       updatedAt: config.updatedAt,
       publicKey: config.publicKey ?? null,
@@ -1834,6 +1855,7 @@ export class SettingsController {
   async updateMercadoPagoSettings(
     @Body()
     body: {
+      provider?: unknown
       publicKey?: unknown
       accessToken?: unknown
       integratorId?: unknown
@@ -1843,6 +1865,7 @@ export class SettingsController {
     },
   ) {
     const payload: MercadoPagoSettingsDraft = {
+      provider: this.sanitizeProvider(body.provider),
       publicKey: this.sanitizeOptionalString(body.publicKey),
       accessToken: this.sanitizeOptionalString(body.accessToken),
       integratorId: this.sanitizeOptionalString(body.integratorId),
@@ -1857,6 +1880,7 @@ export class SettingsController {
     const updated = await this.mercadoPago.getEffectiveConfig()
     return {
       enabled: this.mercadoPago.isEnabled(),
+      provider: updated.provider,
       source: updated.source,
       updatedAt: updated.updatedAt,
       publicKey: updated.publicKey ?? null,
@@ -1876,6 +1900,7 @@ export class SettingsController {
     return {
       source: config.source,
       updatedAt: config.updatedAt,
+      storefrontSiteUrl: config.storefrontSiteUrl,
       googleEnabled: config.google.enabled,
       storefrontGoogleEnabled: config.google.storefrontEnabled,
       clientId: config.google.clientId,
@@ -1907,6 +1932,7 @@ export class SettingsController {
       adminRecaptchaSiteKey?: unknown
       storefrontRecaptchaEnabled?: unknown
       storefrontRecaptchaSiteKey?: unknown
+      storefrontSiteUrl?: unknown
     },
   ) {
     const payload: GoogleIntegrationSettingsDraft = {
@@ -1921,6 +1947,7 @@ export class SettingsController {
       adminRecaptchaSiteKey: this.sanitizeOptionalString(body.adminRecaptchaSiteKey),
       storefrontRecaptchaEnabled: this.sanitizeOptionalBoolean(body.storefrontRecaptchaEnabled, false),
       storefrontRecaptchaSiteKey: this.sanitizeOptionalString(body.storefrontRecaptchaSiteKey),
+      storefrontSiteUrl: this.sanitizeOptionalString(body.storefrontSiteUrl),
     }
 
     await this.secureConfig.setJson(GOOGLE_INTEGRATION_SECURE_CONFIG_KEY, payload)

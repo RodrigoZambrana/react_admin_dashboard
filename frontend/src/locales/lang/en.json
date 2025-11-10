@@ -100,7 +100,7 @@
       "google": "Google & reCAPTCHA",
       "systemConfig": "System Config",
       "aberturas": "Openings",
-      "email": "Email",
+      "email": "Email & Integrations",
       "emailTemplates": "Email Templates",
       "emailConfig": "Email Configuration",
       "calendarEventTypes": "Calendar Event Types"
@@ -1206,7 +1206,8 @@
         "optional": "Optional",
         "exact": "Exact match",
         "results": "Suggested combinations",
-        "similarity": "Δ {{value}} mm"
+        "similarity": "Δ {{value}} mm",
+        "requirement": "Select at least one filter to search combinations."
       }
     },
     "dashboard": {
@@ -2299,6 +2300,11 @@
     },
     "email": {
       "title": "Email",
+      "sections": {
+        "email": "Email",
+        "mercadoPago": "Mercado Pago",
+        "google": "Google & reCAPTCHA"
+      },
       "categories": {
         "orders": "Orders",
         "payments": "Payments",
@@ -2443,7 +2449,114 @@
         "allowInvalidCerts": "Allow invalid certificates",
         "testRecipient": "Test recipient email",
         "saveSuccess": "Configuration saved successfully.",
-        "testSuccess": "Test email queued successfully."
+        "testSuccess": "Test email queued successfully.",
+        "delivery": {
+          "customerLabel": "Customer deliveries",
+          "customerDescription": "Send transactional emails to ecommerce shoppers. When disabled, customers won't receive confirmations or resets.",
+          "adminLabel": "Admin & superadmin deliveries",
+          "adminDescription": "Send notifications to internal admins, superadmins, and role-based rules. Disable to silence internal emails."
+        }
+      },
+      "inbox": {
+        "title": "Inbox account (IMAP/SMTP)",
+        "description": "Configure the shared mailbox used by the inbox module. Credentials are encrypted before being stored.",
+        "badge": {
+          "custom": "Custom configuration",
+          "environment": "Environment defaults"
+        },
+        "fields": {
+          "imapHost": "IMAP host",
+          "imapPort": "IMAP port",
+          "imapSecurity": "IMAP security",
+          "smtpHost": "SMTP host",
+          "smtpPort": "SMTP port",
+          "smtpSecurity": "SMTP security",
+          "username": "Username",
+          "password": "Password",
+          "maxAttachmentSizeMb": "Max attachment size (MB)",
+          "ratePerMinute": "Send rate per minute",
+          "pollIntervalMs": "Polling interval (ms)",
+          "pollBatchSize": "Polling batch size"
+        },
+        "actions": {
+          "save": "Save inbox settings"
+        },
+        "saveSuccess": "Inbox configuration saved successfully.",
+        "passwordPlaceholder": "Leave blank to keep the stored password",
+        "passwordHint": "Passwords are encrypted; leave blank to keep the stored value."
+      }
+    },
+    "google": {
+      "title": "Google & reCAPTCHA",
+      "description": "Manage Google OAuth credentials and reCAPTCHA keys for both the admin panel and the storefront. Sensitive values are encrypted before being stored in the database.",
+      "badge": {
+        "custom": "Custom configuration",
+        "environment": "Environment defaults"
+      },
+      "updatedAtLabel": "Last updated {{value}}",
+      "notifications": {
+        "loadErrorTitle": "Unable to load Google settings",
+        "loadErrorDescription": "Please verify your permissions and try again.",
+        "copyEmptyTitle": "Nothing to copy",
+        "copyEmptyDescription": "The {{label}} field is empty.",
+        "copySuccessTitle": "Copied to clipboard",
+        "copySuccessDescription": "{{label}} was copied successfully.",
+        "copyErrorTitle": "Copy failed",
+        "copyErrorDescription": "Your browser blocked clipboard access. Copy the value manually.",
+        "saveSuccessTitle": "Google settings saved",
+        "saveSuccessDescription": "The configuration was updated successfully.",
+        "saveErrorTitle": "Unable to save settings",
+        "saveErrorDescription": "Please review the values and try again."
+      },
+      "fields": {
+        "googleEnabled": {
+          "label": "Enable Google sign-in (backend)",
+          "help": "Controls whether Google OAuth is accepted by the backend. Disable this to turn off the flow entirely."
+        },
+        "storefrontGoogleEnabled": {
+          "label": "Enable Google button (storefront)",
+          "help": "Toggles the Google sign-in option in the storefront UI. Requires Google OAuth to be enabled above."
+        },
+        "storefrontSiteUrl": {
+          "label": "Storefront site URL",
+          "placeholder": "https://storefront.example.com",
+          "help": "Public storefront URL used for OAuth redirects. Overrides the NEXT_PUBLIC_SITE_URL environment variable."
+        },
+        "clientId": {
+          "label": "Google client ID",
+          "placeholder": "xxxxxxxx.apps.googleusercontent.com"
+        },
+        "clientSecret": {
+          "label": "Google client secret",
+          "placeholder": "GOCSPX-..."
+        },
+        "redirectUri": {
+          "label": "Authorized redirect URI",
+          "placeholder": "https://example.com/api/storefront/auth/google/callback"
+        },
+        "recaptchaEnabled": {
+          "label": "Enable reCAPTCHA validation (backend)",
+          "help": "When enabled, admin sign-in requests must include a reCAPTCHA token."
+        },
+        "recaptchaSecretKey": {
+          "label": "reCAPTCHA secret key",
+          "placeholder": "6Lc..."
+        },
+        "adminRecaptcha": {
+          "label": "Admin panel reCAPTCHA",
+          "help": "Toggle loading the script on the admin login page.",
+          "siteKeyPlaceholder": "Site key for the admin panel",
+          "siteKeyLabel": "Admin reCAPTCHA site key"
+        },
+        "storefrontRecaptcha": {
+          "label": "Storefront reCAPTCHA",
+          "help": "Expose the site key in the storefront config to enable reCAPTCHA widgets.",
+          "siteKeyPlaceholder": "Site key for the storefront",
+          "siteKeyLabel": "Storefront reCAPTCHA site key"
+        }
+      },
+      "actions": {
+        "save": "Save changes"
       }
     },
     "companyProfile": {

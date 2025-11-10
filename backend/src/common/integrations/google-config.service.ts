@@ -16,11 +16,13 @@ type StoredGoogleIntegrationConfig = {
   adminRecaptchaSiteKey?: string | null
   storefrontRecaptchaEnabled?: boolean | null
   storefrontRecaptchaSiteKey?: string | null
+  storefrontSiteUrl?: string | null
 }
 
 export type ResolvedGoogleIntegrationConfig = {
   source: 'environment' | 'database'
   updatedAt: Date | null
+  storefrontSiteUrl: string | null
   google: {
     enabled: boolean
     storefrontEnabled: boolean
@@ -106,11 +108,16 @@ export class GoogleConfigService {
     const storefrontRecaptchaSiteEnv = sanitizeString(
       this.config.get<string>('STOREFRONT_RECAPTCHA_SITE_KEY'),
     )
+    const storefrontSiteUrlEnv =
+      sanitizeString(this.config.get<string>('STOREFRONT_BASE_URL')) ||
+      sanitizeString(this.config.get<string>('NEXT_PUBLIC_STOREFRONT_SITE_URL')) ||
+      sanitizeString(this.config.get<string>('NEXT_PUBLIC_SITE_URL'))
 
     const useStored = Boolean(stored)
     const resolved: ResolvedGoogleIntegrationConfig = {
       source: useStored ? 'database' : 'environment',
       updatedAt: stored?.updatedAt ?? null,
+      storefrontSiteUrl: sanitizeString(stored?.storefrontSiteUrl) ?? storefrontSiteUrlEnv ?? null,
       google: {
         enabled:
           stored?.googleEnabled !== undefined && stored?.googleEnabled !== null

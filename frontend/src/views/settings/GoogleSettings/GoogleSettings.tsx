@@ -15,6 +15,7 @@ import {
     apiGetGoogleIntegrationSettings,
     apiUpdateGoogleIntegrationSettings,
 } from '@/services/SettingsService'
+import { useTranslation } from 'react-i18next'
 
 type GoogleIntegrationSettingsResponse = {
     source: 'environment' | 'database'
@@ -30,6 +31,7 @@ type GoogleIntegrationSettingsResponse = {
     adminRecaptchaSiteKey: string | null
     storefrontRecaptchaEnabled: boolean
     storefrontRecaptchaSiteKey: string | null
+    storefrontSiteUrl: string | null
 }
 
 type FormValues = {
@@ -44,6 +46,7 @@ type FormValues = {
     adminRecaptchaSiteKey: string
     storefrontRecaptchaEnabled: boolean
     storefrontRecaptchaSiteKey: string
+    storefrontSiteUrl: string
 }
 
 const initialFormState: FormValues = {
@@ -58,6 +61,7 @@ const initialFormState: FormValues = {
     adminRecaptchaSiteKey: '',
     storefrontRecaptchaEnabled: false,
     storefrontRecaptchaSiteKey: '',
+    storefrontSiteUrl: '',
 }
 
 const formatTimestamp = (value: string | null) => {
@@ -100,6 +104,7 @@ const buildSecretSuffix = (
 )
 
 const GoogleSettings = () => {
+    const { t } = useTranslation()
     const [loading, setLoading] = useState(true)
     const [initialValues, setInitialValues] = useState<FormValues>(initialFormState)
     const [meta, setMeta] = useState<{ source: 'environment' | 'database'; updatedAt: string | null }>(
@@ -126,12 +131,20 @@ const GoogleSettings = () => {
                 adminRecaptchaSiteKey: data.adminRecaptchaSiteKey ?? '',
                 storefrontRecaptchaEnabled: Boolean(data.storefrontRecaptchaEnabled),
                 storefrontRecaptchaSiteKey: data.storefrontRecaptchaSiteKey ?? '',
+                storefrontSiteUrl: data.storefrontSiteUrl ?? '',
             })
             setMeta({ source: data.source, updatedAt: data.updatedAt })
         } catch (error) {
             toast.push(
-                <Notification title="Unable to load Google settings" type="danger">
-                    Please verify your permissions and try again.
+                <Notification
+                    title={t('settings.google.notifications.loadErrorTitle', {
+                        defaultValue: 'Unable to load Google settings',
+                    })}
+                    type="danger"
+                >
+                    {t('settings.google.notifications.loadErrorDescription', {
+                        defaultValue: 'Please verify your permissions and try again.',
+                    })}
                 </Notification>,
                 { placement: 'top-end' },
             )
@@ -149,8 +162,16 @@ const GoogleSettings = () => {
     const handleCopy = useCallback(async (value: string, label: string) => {
         if (!value) {
             toast.push(
-                <Notification title="Nothing to copy" type="warning">
-                    {`The ${label} field is empty.`}
+                <Notification
+                    title={t('settings.google.notifications.copyEmptyTitle', {
+                        defaultValue: 'Nothing to copy',
+                    })}
+                    type="warning"
+                >
+                    {t('settings.google.notifications.copyEmptyDescription', {
+                        defaultValue: 'The {{label}} field is empty.',
+                        label,
+                    })}
                 </Notification>,
                 { placement: 'top-end' },
             )
@@ -159,15 +180,30 @@ const GoogleSettings = () => {
         try {
             await navigator.clipboard.writeText(value)
             toast.push(
-                <Notification title="Copied to clipboard" type="success">
-                    {`${label} was copied successfully.`}
+                <Notification
+                    title={t('settings.google.notifications.copySuccessTitle', {
+                        defaultValue: 'Copied to clipboard',
+                    })}
+                    type="success"
+                >
+                    {t('settings.google.notifications.copySuccessDescription', {
+                        defaultValue: '{{label}} was copied successfully.',
+                        label,
+                    })}
                 </Notification>,
                 { placement: 'top-end' },
             )
         } catch (error) {
             toast.push(
-                <Notification title="Copy failed" type="danger">
-                    Your browser blocked clipboard access. Copy the value manually.
+                <Notification
+                    title={t('settings.google.notifications.copyErrorTitle', {
+                        defaultValue: 'Copy failed',
+                    })}
+                    type="danger"
+                >
+                    {t('settings.google.notifications.copyErrorDescription', {
+                        defaultValue: 'Your browser blocked clipboard access. Copy the value manually.',
+                    })}
                 </Notification>,
                 { placement: 'top-end' },
             )
@@ -190,15 +226,24 @@ const GoogleSettings = () => {
                                     : 'bg-gray-100 text-gray-600'
                             }
                         >
-                            {meta.source === 'database' ? 'Custom configuration' : 'Environment defaults'}
+                            {meta.source === 'database'
+                                ? t('settings.google.badge.custom', { defaultValue: 'Custom configuration' })
+                                : t('settings.google.badge.environment', { defaultValue: 'Environment defaults' })}
                         </Badge>
                         {updatedLabel ? (
-                            <span className="text-xs text-gray-500">Last updated {updatedLabel}</span>
+                            <span className="text-xs text-gray-500">
+                                {t('settings.google.updatedAtLabel', {
+                                    defaultValue: 'Last updated {{value}}',
+                                    value: updatedLabel,
+                                })}
+                            </span>
                         ) : null}
                     </div>
                     <p className="text-sm text-gray-600">
-                        Manage Google OAuth credentials and reCAPTCHA keys for both the admin panel and the storefront.
-                        Sensitive values are encrypted before being stored in the database.
+                        {t('settings.google.description', {
+                            defaultValue:
+                                'Manage Google OAuth credentials and reCAPTCHA keys for both the admin panel and the storefront. Sensitive values are encrypted before being stored in the database.',
+                        })}
                     </p>
                 </div>
 
@@ -221,6 +266,7 @@ const GoogleSettings = () => {
                                 storefrontRecaptchaEnabled: values.storefrontRecaptchaEnabled,
                                 storefrontRecaptchaSiteKey:
                                     values.storefrontRecaptchaSiteKey.trim() || null,
+                                storefrontSiteUrl: values.storefrontSiteUrl.trim() || null,
                             }
 
                             const response: AxiosResponse<GoogleIntegrationSettingsResponse> =
@@ -238,20 +284,35 @@ const GoogleSettings = () => {
                                 adminRecaptchaSiteKey: data.adminRecaptchaSiteKey ?? '',
                                 storefrontRecaptchaEnabled: Boolean(data.storefrontRecaptchaEnabled),
                                 storefrontRecaptchaSiteKey: data.storefrontRecaptchaSiteKey ?? '',
+                                storefrontSiteUrl: data.storefrontSiteUrl ?? '',
                             }
                             setValues(nextValues)
                             setInitialValues(nextValues)
                             setMeta({ source: data.source, updatedAt: data.updatedAt })
                             toast.push(
-                                <Notification title="Google settings saved" type="success">
-                                    The configuration was updated successfully.
+                                <Notification
+                                    title={t('settings.google.notifications.saveSuccessTitle', {
+                                        defaultValue: 'Google settings saved',
+                                    })}
+                                    type="success"
+                                >
+                                    {t('settings.google.notifications.saveSuccessDescription', {
+                                        defaultValue: 'The configuration was updated successfully.',
+                                    })}
                                 </Notification>,
                                 { placement: 'top-end' },
                             )
                         } catch (error) {
                             toast.push(
-                                <Notification title="Unable to save settings" type="danger">
-                                    Please review the values and try again.
+                                <Notification
+                                    title={t('settings.google.notifications.saveErrorTitle', {
+                                        defaultValue: 'Unable to save settings',
+                                    })}
+                                    type="danger"
+                                >
+                                    {t('settings.google.notifications.saveErrorDescription', {
+                                        defaultValue: 'Please review the values and try again.',
+                                    })}
                                 </Notification>,
                                 { placement: 'top-end' },
                             )
@@ -264,16 +325,27 @@ const GoogleSettings = () => {
                         <Form>
                             <FormContainer>
                                 <div className="grid gap-6 md:grid-cols-2">
-                                    <FormItem label="Enable Google sign-in (backend)">
+                                    <FormItem
+                                        label={t('settings.google.fields.googleEnabled.label', {
+                                            defaultValue: 'Enable Google sign-in (backend)',
+                                        })}
+                                    >
                                         <Switcher
                                             checked={values.googleEnabled}
                                             onChange={(checked) => setFieldValue('googleEnabled', checked)}
                                         />
                                         <p className="text-xs text-gray-500 mt-2">
-                                            Controls whether Google OAuth is accepted by the backend. Disable this to turn off the flow entirely.
+                                            {t('settings.google.fields.googleEnabled.help', {
+                                                defaultValue:
+                                                    'Controls whether Google OAuth is accepted by the backend. Disable this to turn off the flow entirely.',
+                                            })}
                                         </p>
                                     </FormItem>
-                                    <FormItem label="Enable Google button (storefront)">
+                                    <FormItem
+                                        label={t('settings.google.fields.storefrontGoogleEnabled.label', {
+                                            defaultValue: 'Enable Google button (storefront)',
+                                        })}
+                                    >
                                         <Switcher
                                             checked={values.storefrontGoogleEnabled}
                                             onChange={(checked) =>
@@ -281,31 +353,73 @@ const GoogleSettings = () => {
                                             }
                                         />
                                         <p className="text-xs text-gray-500 mt-2">
-                                            Toggles the Google sign-in option in the storefront UI. Requires Google OAuth to be enabled above.
+                                            {t('settings.google.fields.storefrontGoogleEnabled.help', {
+                                                defaultValue:
+                                                    'Toggles the Google sign-in option in the storefront UI. Requires Google OAuth to be enabled above.',
+                                            })}
                                         </p>
                                     </FormItem>
                                 </div>
 
                                 <div className="grid gap-6 md:grid-cols-2">
-                                    <FormItem label="Google client ID">
+                                    <FormItem
+                                        label={t('settings.google.fields.storefrontSiteUrl.label', {
+                                            defaultValue: 'Storefront site URL',
+                                        })}
+                                    >
+                                        <Field name="storefrontSiteUrl">
+                                            {({ field, form }) => (
+                                                <Input
+                                                    autoComplete="off"
+                                                    placeholder={t('settings.google.fields.storefrontSiteUrl.placeholder', {
+                                                        defaultValue: 'https://storefront.example.com',
+                                                    })}
+                                                    field={field}
+                                                    form={form}
+                                                />
+                                            )}
+                                        </Field>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            {t('settings.google.fields.storefrontSiteUrl.help', {
+                                                defaultValue:
+                                                    'Provide the public URL of the storefront used for OAuth redirections. Overrides the NEXT_PUBLIC_SITE_URL environment variable.',
+                                            })}
+                                        </p>
+                                    </FormItem>
+                                </div>
+
+                                <div className="grid gap-6 md:grid-cols-2">
+                                    <FormItem
+                                        label={t('settings.google.fields.clientId.label', {
+                                            defaultValue: 'Google client ID',
+                                        })}
+                                    >
                                         <Field name="clientId">
                                             {({ field, form }) => (
                                                 <Input
                                                     autoComplete="off"
-                                                    placeholder="xxxxxxxx.apps.googleusercontent.com"
+                                                    placeholder={t('settings.google.fields.clientId.placeholder', {
+                                                        defaultValue: 'xxxxxxxx.apps.googleusercontent.com',
+                                                    })}
                                                     field={field}
                                                     form={form}
                                                 />
                                             )}
                                         </Field>
                                     </FormItem>
-                                    <FormItem label="Google client secret">
+                                    <FormItem
+                                        label={t('settings.google.fields.clientSecret.label', {
+                                            defaultValue: 'Google client secret',
+                                        })}
+                                    >
                                         <Field name="clientSecret">
                                             {({ field, form }) => (
                                                 <Input
                                                     autoComplete="off"
                                                     type={showClientSecret ? 'text' : 'password'}
-                                                    placeholder="GOCSPX-..."
+                                                    placeholder={t('settings.google.fields.clientSecret.placeholder', {
+                                                        defaultValue: 'GOCSPX-...',
+                                                    })}
                                                     field={field}
                                                     form={form}
                                                     suffix={buildSecretSuffix(
@@ -314,7 +428,9 @@ const GoogleSettings = () => {
                                                         () =>
                                                             handleCopy(
                                                                 values.clientSecret,
-                                                                'Google client secret',
+                                                                t('settings.google.fields.clientSecret.label', {
+                                                                    defaultValue: 'Google client secret',
+                                                                }),
                                                             ),
                                                     )}
                                                 />
@@ -323,12 +439,19 @@ const GoogleSettings = () => {
                                     </FormItem>
                                 </div>
 
-                                <FormItem label="Authorized redirect URI">
+                                <FormItem
+                                    label={t('settings.google.fields.redirectUri.label', {
+                                        defaultValue: 'Authorized redirect URI',
+                                    })}
+                                >
                                     <Field name="redirectUri">
                                         {({ field, form }) => (
                                             <Input
                                                 autoComplete="off"
-                                                placeholder="https://example.com/api/storefront/auth/google/callback"
+                                                placeholder={t('settings.google.fields.redirectUri.placeholder', {
+                                                    defaultValue:
+                                                        'https://example.com/api/storefront/auth/google/callback',
+                                                })}
                                                 field={field}
                                                 form={form}
                                             />
@@ -339,22 +462,34 @@ const GoogleSettings = () => {
                                 <hr className="my-6" />
 
                                 <div className="grid gap-6 md:grid-cols-2">
-                                    <FormItem label="Enable reCAPTCHA validation (backend)">
+                                    <FormItem
+                                        label={t('settings.google.fields.recaptchaEnabled.label', {
+                                            defaultValue: 'Enable reCAPTCHA validation (backend)',
+                                        })}
+                                    >
                                         <Switcher
                                             checked={values.recaptchaEnabled}
                                             onChange={(checked) => setFieldValue('recaptchaEnabled', checked)}
                                         />
                                         <p className="text-xs text-gray-500 mt-2">
-                                            When enabled, admin sign-in requests must include a reCAPTCHA token.
+                                            {t('settings.google.fields.recaptchaEnabled.help', {
+                                                defaultValue: 'When enabled, admin sign-in requests must include a reCAPTCHA token.',
+                                            })}
                                         </p>
                                     </FormItem>
-                                    <FormItem label="reCAPTCHA secret key">
+                                    <FormItem
+                                        label={t('settings.google.fields.recaptchaSecretKey.label', {
+                                            defaultValue: 'reCAPTCHA secret key',
+                                        })}
+                                    >
                                         <Field name="recaptchaSecretKey">
                                             {({ field, form }) => (
                                                 <Input
                                                     autoComplete="off"
                                                     type={showRecaptchaSecret ? 'text' : 'password'}
-                                                    placeholder="6Lc..."
+                                                    placeholder={t('settings.google.fields.recaptchaSecretKey.placeholder', {
+                                                        defaultValue: '6Lc...',
+                                                    })}
                                                     field={field}
                                                     form={form}
                                                     suffix={buildSecretSuffix(
@@ -363,7 +498,9 @@ const GoogleSettings = () => {
                                                         () =>
                                                             handleCopy(
                                                                 values.recaptchaSecretKey,
-                                                                'reCAPTCHA secret key',
+                                                                t('settings.google.fields.recaptchaSecretKey.label', {
+                                                                    defaultValue: 'reCAPTCHA secret key',
+                                                                }),
                                                             ),
                                                     )}
                                                 />
@@ -373,7 +510,11 @@ const GoogleSettings = () => {
                                 </div>
 
                                 <div className="grid gap-6 md:grid-cols-2">
-                                    <FormItem label="Admin panel reCAPTCHA">
+                                    <FormItem
+                                        label={t('settings.google.fields.adminRecaptcha.label', {
+                                            defaultValue: 'Admin panel reCAPTCHA',
+                                        })}
+                                    >
                                         <div className="flex items-center gap-4">
                                             <Switcher
                                                 checked={values.adminRecaptchaEnabled}
@@ -382,7 +523,9 @@ const GoogleSettings = () => {
                                                 }
                                             />
                                             <span className="text-sm text-gray-600">
-                                                Toggle loading the script on the admin login page.
+                                                {t('settings.google.fields.adminRecaptcha.help', {
+                                                    defaultValue: 'Toggle loading the script on the admin login page.',
+                                                })}
                                             </span>
                                         </div>
                                         <Field name="adminRecaptchaSiteKey">
@@ -390,7 +533,9 @@ const GoogleSettings = () => {
                                                 <Input
                                                     autoComplete="off"
                                                     className="mt-4"
-                                                    placeholder="Site key for the admin panel"
+                                                    placeholder={t('settings.google.fields.adminRecaptcha.siteKeyPlaceholder', {
+                                                        defaultValue: 'Site key for the admin panel',
+                                                    })}
                                                     field={field}
                                                     form={form}
                                                     suffix={
@@ -402,7 +547,9 @@ const GoogleSettings = () => {
                                                             onClick={() =>
                                                                 handleCopy(
                                                                     values.adminRecaptchaSiteKey,
-                                                                    'Admin reCAPTCHA site key',
+                                                                    t('settings.google.fields.adminRecaptcha.siteKeyLabel', {
+                                                                        defaultValue: 'Admin reCAPTCHA site key',
+                                                                    }),
                                                                 )
                                                             }
                                                         >
@@ -413,7 +560,11 @@ const GoogleSettings = () => {
                                             )}
                                         </Field>
                                     </FormItem>
-                                    <FormItem label="Storefront reCAPTCHA">
+                                    <FormItem
+                                        label={t('settings.google.fields.storefrontRecaptcha.label', {
+                                            defaultValue: 'Storefront reCAPTCHA',
+                                        })}
+                                    >
                                         <div className="flex items-center gap-4">
                                             <Switcher
                                                 checked={values.storefrontRecaptchaEnabled}
@@ -422,7 +573,9 @@ const GoogleSettings = () => {
                                                 }
                                             />
                                             <span className="text-sm text-gray-600">
-                                                Expose the site key in the storefront config to enable reCAPTCHA widgets.
+                                                {t('settings.google.fields.storefrontRecaptcha.help', {
+                                                    defaultValue: 'Expose the site key in the storefront config to enable reCAPTCHA widgets.',
+                                                })}
                                             </span>
                                         </div>
                                         <Field name="storefrontRecaptchaSiteKey">
@@ -430,7 +583,9 @@ const GoogleSettings = () => {
                                                 <Input
                                                     autoComplete="off"
                                                     className="mt-4"
-                                                    placeholder="Site key for the storefront"
+                                                    placeholder={t('settings.google.fields.storefrontRecaptcha.siteKeyPlaceholder', {
+                                                        defaultValue: 'Site key for the storefront',
+                                                    })}
                                                     field={field}
                                                     form={form}
                                                     suffix={
@@ -442,7 +597,9 @@ const GoogleSettings = () => {
                                                             onClick={() =>
                                                                 handleCopy(
                                                                     values.storefrontRecaptchaSiteKey,
-                                                                    'Storefront reCAPTCHA site key',
+                                                                    t('settings.google.fields.storefrontRecaptcha.siteKeyLabel', {
+                                                                        defaultValue: 'Storefront reCAPTCHA site key',
+                                                                    }),
                                                                 )
                                                             }
                                                         >
@@ -466,7 +623,7 @@ const GoogleSettings = () => {
                                         }}
                                         disabled={isSubmitting || !dirty}
                                     >
-                                        Reset
+                                        {t('common.reset', { defaultValue: 'Reset' })}
                                     </Button>
                                     <Button
                                         type="submit"
@@ -475,7 +632,7 @@ const GoogleSettings = () => {
                                         loading={isSubmitting}
                                         disabled={!dirty}
                                     >
-                                        Save changes
+                                        {t('settings.google.actions.save', { defaultValue: 'Save changes' })}
                                     </Button>
                                 </div>
                             </FormContainer>
