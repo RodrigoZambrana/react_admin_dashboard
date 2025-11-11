@@ -25,6 +25,8 @@ COPY package*.json ./
 COPY --from=build /app/dist ./dist
 COPY prisma ./prisma
 COPY --from=build /app/scripts ./scripts
+COPY entrypoint.sh ./entrypoint.sh
 RUN npm prune --omit=dev
+RUN chmod +x ./entrypoint.sh
 EXPOSE 3000
-CMD ["node", "dist/src/main.js"]
+ENTRYPOINT ["./entrypoint.sh"]
