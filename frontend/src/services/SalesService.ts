@@ -1,5 +1,13 @@
 import ApiService from './ApiService'
 
+const DEFAULT_PARAMETRIC_IMPORT_TIMEOUT_MS = 2 * 60 * 1000
+const PARAMETRIC_IMPORT_TIMEOUT_MS = (() => {
+    const parsed = Number(import.meta.env.VITE_PARAMETRIC_IMPORT_TIMEOUT_MS)
+    return Number.isFinite(parsed) && parsed > 0
+        ? parsed
+        : DEFAULT_PARAMETRIC_IMPORT_TIMEOUT_MS
+})()
+
 export type SalesDocumentResource = 'orders' | 'budgets'
 
 const documentEndpoint = (resource: SalesDocumentResource) =>
@@ -134,11 +142,16 @@ export async function apiImportParametricReferences<T>(productId: number, data: 
 }
 
 export async function apiImportParametricProducts<T>(data: FormData) {
-    return ApiService.fetchData<T>({
-        url: '/pricing/products/import-full',
-        method: 'post',
-        data,
-    })
+    return ApiService.fetchData<T>(
+        {
+            url: '/pricing/products/import-full',
+            method: 'post',
+            data,
+        },
+        {
+            timeoutMs: PARAMETRIC_IMPORT_TIMEOUT_MS,
+        },
+    )
 }
 
 export async function apiExportParametricMatrix(productId: number) {

@@ -457,6 +457,30 @@ export class ParametricPricingService {
     )
   }
 
+  private async resolveMarkupMultiplier(): Promise<number> {
+    let markupPercent = 25
+    try {
+      const pricingConfig = await this.aberturasGlossary.getPricingConfig()
+      if (pricingConfig && Number.isFinite(pricingConfig.markupPercent)) {
+        markupPercent = Number(pricingConfig.markupPercent)
+      }
+    } catch (error) {
+      this.logger.warn(
+        'Failed to load aberturas pricing config, falling back to default markup (25%)',
+        error as Error,
+      )
+    }
+    return 1 + Math.max(0, markupPercent) / 100
+  }
+
+  private applyMarkupToPrice(value: number, multiplier: number): number {
+    if (!Number.isFinite(value) || value <= 0) {
+      return 0
+    }
+    const safeMultiplier = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1
+    return this.normalizePriceValue(value * safeMultiplier)
+  }
+
   private decimalToNumber(value: Prisma.Decimal | number | null | undefined): number | null {
     if (value === null || value === undefined) {
       return null
@@ -560,6 +584,7 @@ export class ParametricPricingService {
     legacyPrice: number,
     legacyMosqPrice: number,
     hasShutterLegacy: boolean,
+    priceTransform?: (value: number) => number,
   ) {
     const options = new Map<string, { price?: number; priceMosq?: number }>()
 
@@ -622,7 +647,8 @@ export class ParametricPricingService {
         return
       }
       const parsed = this.parsePrice(rawValue)
-      registerOption(column.token, parsed, column.isMosq)
+      const adjusted = typeof priceTransform === 'function' ? priceTransform(parsed) : parsed
+      registerOption(column.token, adjusted, column.isMosq)
     })
 
     if (!options.size && (legacyPrice > 0 || legacyMosqPrice > 0 || hasShutterLegacy)) {
@@ -659,6 +685,7 @@ export class ParametricPricingService {
     source: string | null
     referenceDate: Date | null
     sourceSystem: string
+    priceTransform?: (value: number) => number
   }): ParametricMatrixRow[] {
     const shutterOptions = this.collectShutterPricingOptions(
       params.normalizedRow,
@@ -666,6 +693,7 @@ export class ParametricPricingService {
       params.priceMonoblock,
       params.priceMonoblockMosquitero,
       params.hasShutterLegacy,
+      params.priceTransform,
     )
     const hasMosqOption = params.priceMosquitero > 0 || params.hasMosquiteroLegacy
     const rows: ParametricMatrixRow[] = []
@@ -806,6 +834,10 @@ export class ParametricPricingService {
     if (!rows.length) {
       throw new BadRequestException('No rows detected in the provided file')
     }
+    const markupMultiplier = await this.resolveMarkupMultiplier()
+    const applyMarkup = (value: number) => this.applyMarkupToPrice(value, markupMultiplier)
+    const markupMultiplier = await this.resolveMarkupMultiplier()
+    const applyMarkup = (value: number) => this.applyMarkupToPrice(value, markupMultiplier)
 
     const parsedRows: ParametricMatrixRow[] = []
     const warnings: string[] = []
@@ -848,13 +880,17 @@ export class ParametricPricingService {
           normalizeKeyed['monoblock_system'] ??
           normalizeKeyed['shuttersystem']
         const shutterMaterial = this.normalizeString(shutterMaterialRaw) || ''
-        const priceBase = this.parsePrice(normalizeKeyed['price_base'] ?? normalizeKeyed['price'])
-        const priceMosquitero = this.parsePrice(
+        const rawPriceBase = this.parsePrice(normalizeKeyed['price_base'] ?? normalizeKeyed['price'])
+        const rawPriceMosquitero = this.parsePrice(
           normalizeKeyed['price_c_mosq'] ?? normalizeKeyed['price_mosquitero'],
           'price_mosquitero',
         )
-        const priceMonoblock = this.parsePrice(normalizeKeyed['price_mb'])
-        const priceMonoblockMosquitero = this.parsePrice(normalizeKeyed['price_mb_c_mosq'])
+        const rawPriceMonoblock = this.parsePrice(normalizeKeyed['price_mb'])
+        const rawPriceMonoblockMosquitero = this.parsePrice(normalizeKeyed['price_mb_c_mosq'])
+        const priceBase = applyMarkup(rawPriceBase)
+        const priceMosquitero = applyMarkup(rawPriceMosquitero)
+        const priceMonoblock = applyMarkup(rawPriceMonoblock)
+        const priceMonoblockMosquitero = applyMarkup(rawPriceMonoblockMosquitero)
         const hasMosquiteroOption =
           this.parseBoolean(
             normalizeKeyed['has_mosq_option'] ??
@@ -909,6 +945,7 @@ export class ParametricPricingService {
             source: sourceValue || null,
             referenceDate,
             sourceSystem,
+            priceTransform: applyMarkup,
           })
           parsedRows.push(
             ...variants.filter((variant) => Number(variant.price ?? 0) > 0 || Number(variant.priceBase ?? 0) > 0),
@@ -1061,7 +1098,17 @@ export class ParametricPricingService {
         const hasMosquitero = this.parseBoolean(normalizeKeyed['has_mosquitero'])
         const hasShutter = this.parseBoolean(normalizeKeyed['has_shutter_monoblock'])
         const shutterSystem = this.normalizeString(normalizeKeyed['shutter_system'])
-        const price = this.parsePrice(normalizeKeyed['price_base'] ?? normalizeKeyed['price'])
+        const rawPrice = this.parsePrice(normalizeKeyed['price_base'] ?? normalizeKeyed['price'])
+        const rawPriceMosquitero = this.parsePrice(
+          normalizeKeyed['price_c_mosq'] ?? normalizeKeyed['price_mosquitero'],
+          'price_mosquitero',
+        )
+        const rawPriceMonoblock = this.parsePrice(normalizeKeyed['price_mb'])
+        const rawPriceMonoblockMosquitero = this.parsePrice(normalizeKeyed['price_mb_c_mosq'])
+        const price = applyMarkup(rawPrice)
+        const priceMosquiteroValue = applyMarkup(rawPriceMosquitero)
+        const priceMonoblockValue = applyMarkup(rawPriceMonoblock)
+        const priceMonoblockMosqValue = applyMarkup(rawPriceMonoblockMosquitero)
         const currency = this.normalizeString(normalizeKeyed['currency']) || 'USD'
         const detailSnapshot =
           this.normalizeString(
@@ -1097,12 +1144,9 @@ export class ParametricPricingService {
               widthMm,
               heightMm,
               priceBase: price,
-              priceMosquitero: this.parsePrice(
-                normalizeKeyed['price_c_mosq'] ?? normalizeKeyed['price_mosquitero'],
-                'price_mosquitero',
-              ),
-              priceMonoblock: this.parsePrice(normalizeKeyed['price_mb']),
-              priceMonoblockMosquitero: this.parsePrice(normalizeKeyed['price_mb_c_mosq']),
+              priceMosquitero: priceMosquiteroValue,
+              priceMonoblock: priceMonoblockValue,
+              priceMonoblockMosquitero: priceMonoblockMosqValue,
               hasMosquiteroLegacy: hasMosquitero,
               hasShutterLegacy: hasShutter,
               shutterMaterial: shutterSystem,
@@ -1111,6 +1155,7 @@ export class ParametricPricingService {
               source: sourceValue || null,
               referenceDate,
               sourceSystem,
+              priceTransform: applyMarkup,
             })
           : [
               this.enrichMatrixRow(
@@ -1122,13 +1167,13 @@ export class ParametricPricingService {
                   vidrio,
                 widthMm,
                 heightMm,
-                hasMosquitero,
-                hasShutterMonoblock: hasShutter,
-                shutterMaterial: shutterSystem,
-                price,
-                priceBase: !hasMosquitero && !hasShutter ? price : null,
-                priceMosquitero: hasMosquitero && !hasShutter ? price : null,
-                priceMonoblock: hasShutter && !hasMosquitero ? price : null,
+                  hasMosquitero,
+                  hasShutterMonoblock: hasShutter,
+                  shutterMaterial: shutterSystem,
+                  price,
+                  priceBase: !hasMosquitero && !hasShutter ? price : null,
+                  priceMosquitero: hasMosquitero && !hasShutter ? price : null,
+                  priceMonoblock: hasShutter && !hasMosquitero ? price : null,
                   priceMonoblockMosquitero: hasShutter && hasMosquitero ? price : null,
                   hasMosquiteroOption: hasMosquitero,
                   hasMonoblockOption: hasShutter,
@@ -1266,7 +1311,7 @@ export class ParametricPricingService {
       }
       try {
         const created = await this.prisma.$transaction(async (tx) => {
-          const product = await this.upsertParametricProduct(tx, group.product, matrices)
+          const product = await this.upsertParametricProduct(tx, group.product, matrices, markupMultiplier)
           await tx.dimensionPriceMatrix.deleteMany({ where: { productId: product.id } })
           for (const row of matrices) {
             const priceValues: Record<PriceField, number | null> = {
@@ -1353,6 +1398,7 @@ export class ParametricPricingService {
       priceMonoblock?: number | null
       priceMonoblockMosquitero?: number | null
     }>,
+    markupMultiplier: number,
   ): Promise<{ id: number; created: boolean }> {
     const firstPriceCandidate = matrices.find(
       (row) => row.priceBase || row.priceMosquitero || row.priceMonoblock || row.priceMonoblockMosquitero,
@@ -1366,16 +1412,7 @@ export class ParametricPricingService {
     const currency = matrices.find((row) => row.currency)?.currency ?? 'USD'
     const productCode = payload.code || null
 
-    let markupPercent = 25
-    try {
-      const pricingConfig = await this.aberturasGlossary.getPricingConfig()
-      if (pricingConfig && Number.isFinite(pricingConfig.markupPercent)) {
-        markupPercent = Number(pricingConfig.markupPercent)
-      }
-    } catch (error) {
-      this.logger.warn('Failed to load aberturas pricing config, falling back to default markup (25%)', error as Error)
-    }
-    const markupMultiplier = 1 + markupPercent / 100
+    const effectiveMultiplier = Number.isFinite(markupMultiplier) && markupMultiplier > 0 ? markupMultiplier : 1
 
     let existing: { id: number } | null = null
     if (productCode) {
@@ -1398,7 +1435,7 @@ export class ParametricPricingService {
     }
 
     const costAmount = Number(numericPrice).toFixed(4)
-    const saleAmount = Number(numericPrice * markupMultiplier).toFixed(4)
+    const saleAmount = Number(numericPrice * effectiveMultiplier).toFixed(4)
 
     const baseData = {
       name: payload.name,
