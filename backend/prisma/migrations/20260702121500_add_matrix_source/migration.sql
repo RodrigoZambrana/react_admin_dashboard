@@ -1,2 +1,2 @@
 ALTER TABLE "dimension_price_matrix"
-ADD COLUMN "source" TEXT;
+ADD COLUMN IF NOT EXISTS "source" TEXT;

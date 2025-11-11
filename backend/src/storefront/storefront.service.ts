@@ -418,15 +418,25 @@ export class StorefrontService implements OnModuleInit {
   async onModuleInit() {
     await this.ensureDefaultPasswordHash()
 
-    await this.prisma.customer.updateMany({
-      where: {
-        passwordHash: null,
-        storefrontDefaultPasswordHash: null,
-      },
-      data: {
-        storefrontDefaultPasswordHash: this.defaultCustomerPasswordHash,
-      },
-    })
+    try {
+      await this.prisma.customer.updateMany({
+        where: {
+          passwordHash: null,
+          storefrontDefaultPasswordHash: null,
+        },
+        data: {
+          storefrontDefaultPasswordHash: this.defaultCustomerPasswordHash,
+        },
+      })
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2022') {
+        this.logger.warn(
+          'Customer.passwordHash column missing; skipped storefront default password bootstrap. Run latest migrations to enable this feature.',
+        )
+      } else {
+        throw error
+      }
+    }
   }
 
   async getConfig(): Promise<StorefrontConfig> {

@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { promises as fs } from 'fs'
-import path from 'path'
+import * as path from 'path'
 import { PrismaService } from '../prisma/prisma.service'
 
 type GlossaryCategory = 'tipo' | 'serie' | 'color' | 'vidrio'
