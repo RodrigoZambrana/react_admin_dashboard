@@ -836,8 +836,6 @@ export class ParametricPricingService {
     }
     const markupMultiplier = await this.resolveMarkupMultiplier()
     const applyMarkup = (value: number) => this.applyMarkupToPrice(value, markupMultiplier)
-    const markupMultiplier = await this.resolveMarkupMultiplier()
-    const applyMarkup = (value: number) => this.applyMarkupToPrice(value, markupMultiplier)
 
     const parsedRows: ParametricMatrixRow[] = []
     const warnings: string[] = []
@@ -1020,6 +1018,8 @@ export class ParametricPricingService {
     if (!rows.length) {
       throw new BadRequestException('No rows detected in the provided file')
     }
+    const markupMultiplier = await this.resolveMarkupMultiplier()
+    const applyMarkup = (value: number) => this.applyMarkupToPrice(value, markupMultiplier)
 
     type ProductGroup = {
       product: {
