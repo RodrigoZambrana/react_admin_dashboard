@@ -65,6 +65,12 @@ export class AberturasGlossaryService implements OnModuleInit {
 
   async seedFromGlossaryFile() {
     const glossaryPath = path.resolve(__dirname, '../../../../docs/glosario_normalizado.json')
+    try {
+      await fs.access(glossaryPath)
+    } catch {
+      this.logger.warn(`Glossary seed file missing at ${glossaryPath}. Skipping seed.`)
+      return
+    }
     const raw = await fs.readFile(glossaryPath, 'utf8')
     const parsed = JSON.parse(raw) as {
       maps: {
