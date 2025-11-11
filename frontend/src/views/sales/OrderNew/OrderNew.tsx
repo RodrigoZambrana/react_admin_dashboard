@@ -183,7 +183,7 @@ export interface OrderNewProps {
     initialActivity?: LinkedActivitySummary | null
 }
 
-const cloneDeep = <T>(value: T): T => {
+const cloneDeep = <T,>(value: T): T => {
     if (Array.isArray(value)) {
         return value.map((item) => cloneDeep(item)) as unknown as T
     }
@@ -201,7 +201,7 @@ const cloneDeep = <T>(value: T): T => {
     return value
 }
 
-const mergeDeep = <T>(base: T, override?: Partial<T>): T => {
+const mergeDeep = <T,>(base: T, override?: Partial<T>): T => {
     const baseClone = cloneDeep(base)
     if (!override) {
         return baseClone
