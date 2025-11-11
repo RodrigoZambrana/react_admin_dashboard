@@ -14,12 +14,19 @@ import {
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { ParametricPricingService } from './parametric-pricing.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { RequestTimeout } from '../common/decorators/request-timeout.decorator'
 import type {
   ParametricCompatibilityConfig,
   ParametricMatrixSearchDto,
   ParametricQuoteInput,
 } from './types'
 import { ParametricFeatureGuard } from './pricing.guard'
+
+const DEFAULT_PARAMETRIC_IMPORT_TIMEOUT_MS = 2 * 60 * 1000
+const PARAMETRIC_IMPORT_TIMEOUT_MS = (() => {
+  const parsed = Number(process.env.PARAMETRIC_IMPORT_TIMEOUT_MS)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PARAMETRIC_IMPORT_TIMEOUT_MS
+})()
 
 @Controller('pricing')
 @UseGuards(JwtAuthGuard, ParametricFeatureGuard)
@@ -98,6 +105,7 @@ export class PricingController {
     res.send(buffer)
   }
 
+  @RequestTimeout(PARAMETRIC_IMPORT_TIMEOUT_MS)
   @Post('products/import-full')
   async importParametricProducts(@Req() req: FastifyRequest) {
     const file = await (req as any)?.file?.()

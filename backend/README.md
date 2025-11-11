@@ -35,6 +35,9 @@ Environment Configuration & Deployment Notes
   - Set `VITE_STATE_SIGNATURE_KEY=<random secret>` so Redux Persist signatures remain environment-specific.
   - After sign-in, verify that requests keep `withCredentials: true` and that the `Authorization: Bearer <token>` header is present to avoid 401 responses.
   - The frontend loads reCAPTCHA Enterprise in every environment and requests a token for the `LOGIN` action before sign-in; provide `RECAPTCHA_SECRET_KEY` (backend) and `VITE_RECAPTCHA_SITE_KEY` (frontend) so validation succeeds.
+- Parametric CSV imports:
+  - The `/pricing/products/import-full` endpoint can run for several minutes when uploading large price matrices; tweak `PARAMETRIC_IMPORT_TIMEOUT_MS` (backend, default 120000ms) to raise or disable the server timeout.
+  - Match the client-side timeout with `VITE_PARAMETRIC_IMPORT_TIMEOUT_MS` so Axios waits long enough before aborting the upload.
 - Storefront Google OAuth:
   - Populate `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_OAUTH_REDIRECT_URI` in every environment (dev redirect typically `http://localhost:4000/api/storefront/auth/google/callback`).
   - Optional cookie tuning: `STOREFRONT_COOKIE_SECURE`, `STOREFRONT_COOKIE_SAMESITE`, `STOREFRONT_COOKIE_DOMAIN`.

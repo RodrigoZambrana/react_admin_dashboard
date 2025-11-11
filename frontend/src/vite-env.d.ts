@@ -4,6 +4,7 @@ interface ImportMetaEnv {
     readonly VITE_CLIENT_SLUG?: string
     readonly VITE_STATE_SIGNATURE_KEY?: string
     readonly VITE_RECAPTCHA_SITE_KEY?: string
+    readonly VITE_PARAMETRIC_IMPORT_TIMEOUT_MS?: string
     readonly CLIENT_SLUG?: string
 }
 
