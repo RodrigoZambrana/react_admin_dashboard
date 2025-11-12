@@ -202,6 +202,8 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
         allowedModes,
     } = props
 
+    const modeSelectionLocked = type === 'edit'
+
     // Keep a stable fallback payload so mode toggles are not reset on every render.
     const defaultInitialDataRef = useRef<InitialData>({
         id: 0,
@@ -437,12 +439,15 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
 
     const handleModeChange = useCallback(
         (nextMode: ProductMode) => {
+            if (modeSelectionLocked) {
+                return
+            }
             if (!availableModes.includes(nextMode)) {
                 return
             }
             setMode(nextMode)
         },
-        [availableModes],
+        [availableModes, modeSelectionLocked],
     )
 
     const handleAttributesUpdate = useCallback((nextAttributes: ProductAttribute[]) => {
@@ -699,6 +704,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                             parametricDraft={parametricDraft}
                                             onParametricDraftChange={handleParametricDraftChange}
                                             allowedModes={availableModes}
+                                            modeSwitchDisabled={modeSelectionLocked}
                                         />
                                         <PublicationFields
                                             touched={touched as any}

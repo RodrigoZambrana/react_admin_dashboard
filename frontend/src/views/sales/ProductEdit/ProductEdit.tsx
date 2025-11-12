@@ -19,6 +19,7 @@ import ProductForm, {
     SetSubmitting,
     OnDeleteCallback,
 } from '@/views/sales/ProductForm'
+import type { ProductMode } from '@/views/sales/ProductForm/types'
 import { apiSaveParametricManualConfig } from '@/services/SalesService'
 import { hasManualConfigValues, mapDraftToManualPayload } from '@/views/sales/ProductForm/parametricTypes'
 import isEmpty from 'lodash/isEmpty'
@@ -209,6 +210,7 @@ const ProductEdit = () => {
               unitOfMeasure: (
                   (productData as any).unitOfMeasure ?? DEFAULT_SALES_UNIT
               ) as SalesUnit,
+              mode: ((productData as any).mode ?? 'simple') as ProductMode,
               parametricDraft: (productData as any).parametricDraft ?? null,
           }
         : undefined

@@ -1391,6 +1391,7 @@
       "variants": {
         "title": "Variantes del producto",
         "description": "Configurá productos variables combinando color, talle y material.",
+        "modeLockedHint": "Solo podés cambiar el tipo al crear un producto.",
         "mode": {
           "simple": "Producto simple",
           "variable": "Producto variable",
@@ -1499,13 +1500,10 @@
         "quoteErrorDescription": "Verificá los parámetros e intentá nuevamente.",
         "quoteSource": "Fuente: {{source}}.",
         "manualSection": {
-          "title": "Costos manuales",
+          "title": "Costos",
           "description": "Usá estos costos para replicar la matriz CSV de este producto sin subir un archivo.",
-          "note": "Los valores se guardan como costos en {{currency}}. El margen global se aplica para calcular el precio de venta.",
+          "note": "Los valores se guardan como costos en USD. El margen global se aplica para calcular el precio de venta.",
           "uploadWarning": "Si adjuntás o importás una matriz, estos valores manuales se ignorarán.",
-          "save": "Guardar costos manuales",
-          "saveDisabled": "Guardá el producto para habilitar los costos manuales.",
-          "clear": "Limpiar costos",
           "summary": "Costos manuales listos para importar.",
           "empty": "Cargá los costos de esta combinación para crear la fila de matriz."
         },

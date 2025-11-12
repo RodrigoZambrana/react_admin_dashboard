@@ -227,6 +227,9 @@ export const updateProduct = async <T, U extends Record<string, unknown>>(
     const payload: any = { ...data }
     // Ensure id is number for backend validation
     if (payload.id !== undefined) payload.id = Number(payload.id)
+    if (typeof payload.mode === 'string') {
+        payload.mode = payload.mode.toUpperCase()
+    }
     // Normalize numeric fields if present
     const numericKeys = [
         'salePrice',
