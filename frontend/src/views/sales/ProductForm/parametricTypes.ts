@@ -138,6 +138,8 @@ export const mapDraftToManualPayload = (
     }
 }
 
+const trimValue = (value?: string | null) => (typeof value === 'string' ? value.trim() : '')
+
 export const mapManualConfigResponseToDraft = (
     snapshot: ParametricManualConfigResponse,
 ): ParametricManualConfigDraft => {
@@ -145,10 +147,10 @@ export const mapManualConfigResponseToDraft = (
         typeof value === 'number' && Number.isFinite(value) ? value.toString() : ''
 
     return {
-        familyId: snapshot.familyId ?? '',
-        serie: snapshot.serie ?? '',
-        color: snapshot.color ?? '',
-        vidrio: snapshot.vidrio ?? '',
+        familyId: trimValue(snapshot.familyId),
+        serie: trimValue(snapshot.serie),
+        color: trimValue(snapshot.color),
+        vidrio: trimValue(snapshot.vidrio),
         widthMm: String(snapshot.widthMm ?? ''),
         heightMm: String(snapshot.heightMm ?? ''),
         hasMosquitero: Boolean(snapshot.hasMosquitero),

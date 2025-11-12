@@ -37,6 +37,7 @@ type VariantConfiguratorProps = {
     parametricDraft?: ParametricConfiguratorDraft | null
     onParametricDraftChange?: (draft: ParametricConfiguratorDraft | null) => void
     allowedModes?: ProductMode[]
+    modeSwitchDisabled?: boolean
 }
 
 type VariantImagesDialogProps = {
@@ -431,6 +432,7 @@ const VariantConfigurator = (props: VariantConfiguratorProps) => {
         parametricDraft,
         onParametricDraftChange,
         allowedModes,
+        modeSwitchDisabled = false,
     } = props
     const { t } = useTranslation()
 
@@ -461,12 +463,15 @@ const VariantConfigurator = (props: VariantConfiguratorProps) => {
 
     const handleModeSelect = useCallback(
         (nextMode: ProductMode) => {
+            if (modeSwitchDisabled) {
+                return
+            }
             if (!availableModes.includes(nextMode) || nextMode === currentMode) {
                 return
             }
             onModeChange(nextMode)
         },
-        [availableModes, currentMode, onModeChange],
+        [availableModes, currentMode, modeSwitchDisabled, onModeChange],
     )
 
     const attributeText = useMemo(
@@ -700,6 +705,10 @@ const VariantConfigurator = (props: VariantConfiguratorProps) => {
     }))
 
     const activeAttributes = sortAttributes(attributes)
+    const modeLockHint = t('sales.productForm.variants.modeLockedHint', {
+        defaultValue: 'Only editable while creating a product.',
+    })
+
     const modeButtons = useMemo(
         () =>
             [
@@ -745,17 +754,22 @@ const VariantConfigurator = (props: VariantConfiguratorProps) => {
                 {modeButtons.length > 1 && (
                     <div>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                            {modeButtons.map((button) => (
-                                <Button
-                                    key={button.value}
-                                    type="button"
-                                    variant={currentMode === button.value ? 'solid' : 'plain'}
-                                    onClick={() => handleModeSelect(button.value)}
-                                    size="sm"
-                                >
-                                    {button.label}
-                                </Button>
-                            ))}
+                            {modeButtons.map((button) => {
+                                const disabled = modeSwitchDisabled && button.value !== currentMode
+                                return (
+                                    <Button
+                                        key={button.value}
+                                        type="button"
+                                        variant={currentMode === button.value ? 'solid' : 'plain'}
+                                        onClick={() => handleModeSelect(button.value)}
+                                        size="sm"
+                                        disabled={disabled}
+                                        title={disabled ? modeLockHint : undefined}
+                                    >
+                                        {button.label}
+                                    </Button>
+                                )
+                            })}
                         </div>
                     </div>
                 )}

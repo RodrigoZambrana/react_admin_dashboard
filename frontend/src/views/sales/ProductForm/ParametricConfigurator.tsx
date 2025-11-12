@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Button from '@/components/ui/Button'
@@ -15,8 +15,6 @@ import {
     apiGetParametricConfig,
     apiGetParametricManualConfig,
     apiImportParametricReferences,
-    apiQuoteParametricProduct,
-    apiSaveParametricManualConfig,
 } from '@/services/SalesService'
 import { apiGetAberturasSelectors } from '@/services/SettingsService'
 import { clientConfig } from '@/configs/clientConfig'
@@ -25,7 +23,6 @@ import { SUPERADMIN } from '@/constants/roles.constant'
 import {
     createUrucortinasDefaultMatrixFile,
     getUrucortinasDefaultSnapshot,
-    quoteUrucortinasMatrix,
 } from './urucortinasParametricDefaults'
 import type {
     ParametricConfiguratorDraft,
@@ -43,7 +40,8 @@ import {
     mergeSelectorValues,
     toSelectorOption,
 } from '@/views/sales/parametric/selectorUtils'
-import type { AberturasSelectorSummary } from '@/views/sales/parametric/selectorUtils'
+import type { AberturasSelectorSummary, SelectorOption } from '@/views/sales/parametric/selectorUtils'
+import isEqual from 'lodash/isEqual'
 
 type QuoteState = {
     familyId: string
@@ -57,16 +55,6 @@ type QuoteState = {
     shutterMaterial: string
 }
 
-type QuoteResult = {
-    available: boolean
-    price?: number
-    currency?: string
-    specifications?: string | null
-    detailSnapshot?: string | null
-    referenceDate?: string | null
-    source?: string | null
-}
-
 type ManualPriceFieldKey =
     | 'priceBase'
     | 'priceMosquitero'
@@ -74,22 +62,6 @@ type ManualPriceFieldKey =
     | 'pricePvcShutterMosq'
     | 'priceAluminioShutter'
     | 'priceAluminioShutterMosq'
-
-export type ParametricQuoteResult = QuoteResult & {
-    productId: number
-    requested: {
-        familyId?: string | null
-        serie: string
-        material: string
-        color: string
-        vidrio: string
-        widthMm: number
-        heightMm: number
-        hasMosquitero: boolean
-        hasShutterMonoblock: boolean
-        shutterMaterial: string
-    }
-}
 
 export type ParametricConfigSnapshot = {
     selectors: {
@@ -150,12 +122,94 @@ const createDefaultState = (snapshot: ParametricConfigSnapshot): QuoteState => {
     }
 }
 
-const asNumber = (value: string) => {
-    const parsed = Number(value)
-    if (!Number.isFinite(parsed)) {
-        return 0
+const normalizeSelectors = (
+    selectors?: ParametricConfigSnapshot['selectors'] | null,
+): ParametricConfigSnapshot['selectors'] => ({
+    families: selectors?.families ?? [],
+    series: selectors?.series ?? [],
+    materials: selectors?.materials ?? [],
+    colors: selectors?.colors ?? [],
+    glass: selectors?.glass ?? [],
+    widths: selectors?.widths ?? [],
+    heights: selectors?.heights ?? [],
+    shutterMaterials: selectors?.shutterMaterials ?? [],
+    hasMosquiteroOption: Boolean(selectors?.hasMosquiteroOption),
+    hasMonoblockOption: Boolean(selectors?.hasMonoblockOption),
+})
+
+const normalizeCompatibility = (
+    compatibility?: ParametricConfigSnapshot['compatibility'] | null,
+): ParametricConfigSnapshot['compatibility'] => ({
+    glassBySeries: compatibility?.glassBySeries ?? {},
+    monoblockBySeries: compatibility?.monoblockBySeries ?? {},
+    sizeLimits: compatibility?.sizeLimits ?? {},
+})
+
+const normalizeSelectorInput = (value?: string | null): string => (value ?? '').toString().trim()
+
+const hasManualConfigSelectors = (manual?: ParametricManualConfigDraft | null): boolean => {
+    if (!manual) {
+        return false
     }
-    return Math.trunc(parsed)
+    return Boolean(
+        normalizeSelectorInput(manual.familyId) ||
+            normalizeSelectorInput(manual.serie) ||
+            normalizeSelectorInput(manual.color) ||
+            normalizeSelectorInput(manual.vidrio) ||
+            normalizeSelectorInput(manual.widthMm) ||
+            normalizeSelectorInput(manual.heightMm),
+    )
+}
+
+const mapManualConfigToQuoteState = (
+    manual: ParametricManualConfigDraft,
+    snapshot: ParametricConfigSnapshot,
+    current?: QuoteState | null,
+): QuoteState => {
+    const base = current ?? createDefaultState(snapshot)
+    const manualFamily = normalizeSelectorInput(manual.familyId)
+    const manualSerie = normalizeSelectorInput(manual.serie)
+    const manualColor = normalizeSelectorInput(manual.color)
+    const manualGlass = normalizeSelectorInput(manual.vidrio)
+    const manualWidth = normalizeSelectorInput(manual.widthMm)
+    const manualHeight = normalizeSelectorInput(manual.heightMm)
+    return {
+        ...base,
+        familyId: manualFamily || base.familyId,
+        serie: manualSerie || base.serie,
+        color: manualColor || base.color,
+        vidrio: manualGlass || base.vidrio,
+        widthMm: manualWidth || base.widthMm,
+        heightMm: manualHeight || base.heightMm,
+        hasMosquitero: manual.hasMosquitero ?? base.hasMosquitero,
+        hasShutterMonoblock: manual.hasMonoblock ?? base.hasShutterMonoblock,
+        shutterMaterial: manual.hasMonoblock ? base.shutterMaterial : '',
+    }
+}
+
+const quoteStateMatchesManualConfig = (
+    quoteState: QuoteState | null,
+    manual?: ParametricManualConfigDraft | null,
+): boolean => {
+    if (!quoteState || !manual) {
+        return false
+    }
+    const manualFamily = normalizeSelectorInput(manual.familyId)
+    const manualSerie = normalizeSelectorInput(manual.serie)
+    const manualColor = normalizeSelectorInput(manual.color)
+    const manualGlass = normalizeSelectorInput(manual.vidrio)
+    const manualWidth = normalizeSelectorInput(manual.widthMm)
+    const manualHeight = normalizeSelectorInput(manual.heightMm)
+    return (
+        manualFamily === normalizeSelectorInput(quoteState.familyId) &&
+        manualSerie === normalizeSelectorInput(quoteState.serie) &&
+        manualColor === normalizeSelectorInput(quoteState.color) &&
+        manualGlass === normalizeSelectorInput(quoteState.vidrio) &&
+        manualWidth === normalizeSelectorInput(quoteState.widthMm) &&
+        manualHeight === normalizeSelectorInput(quoteState.heightMm) &&
+        Boolean(manual.hasMosquitero) === Boolean(quoteState.hasMosquitero) &&
+        Boolean(manual.hasMonoblock) === Boolean(quoteState.hasShutterMonoblock)
+    )
 }
 
 type ParametricConfiguratorProps = {
@@ -190,17 +244,15 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
     const [loadingConfig, setLoadingConfig] = useState(false)
     const [configSnapshot, setConfigSnapshot] = useState<ParametricConfigSnapshot | null>(null)
     const [quoteState, setQuoteState] = useState<QuoteState | null>(null)
-    const [quoteResult, setQuoteResult] = useState<QuoteResult | null>(null)
+    const [quoteStateReady, setQuoteStateReady] = useState(false)
     const [importing, setImporting] = useState(false)
     const [importSummary, setImportSummary] = useState<ParametricImportSummary | null>(null)
     const [configError, setConfigError] = useState<string | null>(null)
     const [draftInfo, setDraftInfo] = useState<ParametricConfiguratorDraft>(() => draft ?? {})
-    const [draftNoticeShown, setDraftNoticeShown] = useState(false)
     const [showAdminTools, setShowAdminTools] = useState(false)
     const [selectorSummary, setSelectorSummary] = useState<AberturasSelectorSummary | null>(null)
-    const [manualRefreshToken, setManualRefreshToken] = useState(0)
     const [manualLoading, setManualLoading] = useState(false)
-    const [savingManual, setSavingManual] = useState(false)
+    const lastSyncedDraftRef = useRef<ParametricConfiguratorDraft | null>(draft ?? null)
     const manualConfig = useMemo(
         () => draftInfo.manualConfig ?? createEmptyManualConfigDraft(),
         [draftInfo.manualConfig],
@@ -214,12 +266,10 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                 if (nextConfig === currentConfig) {
                     return prev
                 }
-                const nextDraft = { ...prev, manualConfig: nextConfig }
-                onDraftChange?.(nextDraft)
-                return nextDraft
+                return { ...prev, manualConfig: nextConfig }
             })
         },
-        [onDraftChange],
+        [],
     )
 
     useEffect(() => {
@@ -232,16 +282,19 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
         } else {
             setDraftInfo({ manualConfig: createEmptyManualConfigDraft() })
         }
+        lastSyncedDraftRef.current = draft ?? null
     }, [draft])
 
     useEffect(() => {
-        if (!hasProductId || !isSuperAdmin) {
+        if (!hasProductId) {
             setManualLoading(false)
             return
         }
         let cancelled = false
         const fetchManualConfig = async () => {
-            setManualLoading(true)
+            if (isSuperAdmin) {
+                setManualLoading(true)
+            }
             try {
                 const response = await apiGetParametricManualConfig<ParametricManualConfigResponse | null>(
                     numericProductId,
@@ -252,16 +305,14 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                 const snapshot = (response?.data ?? response ?? null) as ParametricManualConfigResponse | null
                 setDraftInfo((prev) => {
                     const manualDraft = snapshot ? mapManualConfigResponseToDraft(snapshot) : createEmptyManualConfigDraft()
-                    const next = { ...prev, manualConfig: manualDraft }
-                    onDraftChange?.(next)
-                    return next
+                    return { ...prev, manualConfig: manualDraft }
                 })
             } catch (error) {
                 if (!cancelled) {
                     console.error('[parametric] manual config fetch failed', error)
                 }
             } finally {
-                if (!cancelled) {
+                if (!cancelled && isSuperAdmin) {
                     setManualLoading(false)
                 }
             }
@@ -270,13 +321,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
         return () => {
             cancelled = true
         }
-    }, [hasProductId, isSuperAdmin, manualRefreshToken, numericProductId, onDraftChange])
-
-    useEffect(() => {
-        if (hasProductId) {
-            setDraftNoticeShown(false)
-        }
-    }, [hasProductId])
+    }, [hasProductId, isSuperAdmin, numericProductId])
 
     useEffect(() => {
         if (!isSuperAdmin) {
@@ -285,7 +330,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
     }, [isSuperAdmin])
 
     useEffect(() => {
-        if (!quoteState) {
+        if (!quoteState || !quoteStateReady) {
             return
         }
         updateManualConfig((current) => {
@@ -311,10 +356,10 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                 current.hasMonoblock !== patch.hasMonoblock
             return differs ? patch : current
         })
-    }, [quoteState, updateManualConfig])
+    }, [quoteState, quoteStateReady, updateManualConfig])
 
     const matrixReferenceInfo = useMemo(() => {
-        const latest = configSnapshot?.stats.newestReferenceDate
+        const latest = configSnapshot?.stats?.newestReferenceDate
         if (!latest) {
             return null
         }
@@ -322,7 +367,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
         if (Number.isNaN(latestDate.getTime())) {
             return null
         }
-        const oldestRaw = configSnapshot?.stats.oldestReferenceDate
+        const oldestRaw = configSnapshot?.stats?.oldestReferenceDate
         let oldestFormatted: string | null = null
         if (oldestRaw) {
             const parsed = new Date(oldestRaw)
@@ -334,18 +379,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
             newest: latestDate.toLocaleDateString(),
             oldest: oldestFormatted,
         }
-    }, [configSnapshot?.stats.newestReferenceDate, configSnapshot?.stats.oldestReferenceDate])
-
-    const formattedQuoteReferenceDate = useMemo(() => {
-        if (!quoteResult?.referenceDate) {
-            return null
-        }
-        const parsed = new Date(quoteResult.referenceDate)
-        if (Number.isNaN(parsed.getTime())) {
-            return null
-        }
-        return parsed.toLocaleDateString()
-    }, [quoteResult?.referenceDate])
+    }, [configSnapshot?.stats?.newestReferenceDate, configSnapshot?.stats?.oldestReferenceDate])
 
     const fetchAberturasSelectors = useCallback(async (): Promise<AberturasSelectorSummary | null> => {
         try {
@@ -363,18 +397,21 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
 
     const applySummaryToSnapshot = useCallback(
         (snapshot: ParametricConfigSnapshot, summary?: AberturasSelectorSummary | null) => {
-            if (!summary) {
-                return snapshot
-            }
+            const normalizedSelectors = normalizeSelectors(snapshot?.selectors)
+            const normalizedCompatibility = normalizeCompatibility(snapshot?.compatibility)
+            const selectorsWithSummary = summary
+                ? {
+                      ...normalizedSelectors,
+                      families: mergeSelectorValues(normalizedSelectors.families, summary.families),
+                      series: mergeSelectorValues(normalizedSelectors.series, summary.series),
+                      colors: mergeSelectorValues(normalizedSelectors.colors, summary.colors),
+                      glass: mergeSelectorValues(normalizedSelectors.glass, summary.glass),
+                  }
+                : normalizedSelectors
             return {
                 ...snapshot,
-                selectors: {
-                    ...snapshot.selectors,
-                    families: mergeSelectorValues(snapshot.selectors.families, summary.families),
-                    series: mergeSelectorValues(snapshot.selectors.series, summary.series),
-                    colors: mergeSelectorValues(snapshot.selectors.colors, summary.colors),
-                    glass: mergeSelectorValues(snapshot.selectors.glass, summary.glass),
-                },
+                selectors: selectorsWithSummary,
+                compatibility: normalizedCompatibility,
             }
         },
         [],
@@ -438,6 +475,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
             const summary = selectorSummary ?? (await fetchAberturasSelectors())
             const enriched = applySummaryToSnapshot(snapshot, summary)
             setConfigSnapshot(enriched)
+            setQuoteStateReady(false)
             setQuoteState((prev) => prev ?? createDefaultState(enriched))
         } catch (error) {
             console.error('[parametric] failed to load configuration', error)
@@ -448,6 +486,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
             )
             setConfigSnapshot(null)
             setQuoteState(null)
+            setQuoteStateReady(false)
         } finally {
             setLoadingConfig(false)
         }
@@ -466,10 +505,9 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                 return prev
             }
             const payload = { ...prev, matrixFile: file }
-            onDraftChange?.(payload)
             return payload
         })
-    }, [draftInfo.matrixFile, isDraftMode, isUrucortinas, onDraftChange])
+    }, [draftInfo.matrixFile, isDraftMode, isUrucortinas])
 
     useEffect(() => {
         if (!isUrucortinas || hasProductId) {
@@ -484,6 +522,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                 return
             }
             setConfigSnapshot(snapshot)
+            setQuoteStateReady(false)
             setQuoteState((prev) => prev ?? createDefaultState(snapshot))
             setLoadingConfig(false)
         }
@@ -494,10 +533,38 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
     }, [buildSnapshotFromSummary, fetchAberturasSelectors, hasProductId, isUrucortinas, selectorSummary])
 
     useEffect(() => {
-        if (isUrucortinas && isDraftMode && draftInfo.matrixFile) {
-            onDraftChange?.(draftInfo)
+        if (!onDraftChange) {
+            return
         }
-    }, [draftInfo, isDraftMode, isUrucortinas, onDraftChange])
+        if (isEqual(lastSyncedDraftRef.current, draftInfo)) {
+            return
+        }
+        lastSyncedDraftRef.current = draftInfo
+        onDraftChange(draftInfo)
+    }, [draftInfo, onDraftChange])
+
+    useEffect(() => {
+        if (!configSnapshot) {
+            return
+        }
+        const manual = draftInfo.manualConfig
+        if (hasManualConfigSelectors(manual)) {
+            if (!quoteState || !quoteStateMatchesManualConfig(quoteState, manual)) {
+                setQuoteStateReady(false)
+                setQuoteState((prev) => mapManualConfigToQuoteState(manual, configSnapshot, prev))
+            } else if (!quoteStateReady) {
+                setQuoteStateReady(true)
+            }
+            return
+        }
+        if (!quoteState) {
+            setQuoteState((prev) => prev ?? createDefaultState(configSnapshot))
+            return
+        }
+        if (!quoteStateReady) {
+            setQuoteStateReady(true)
+        }
+    }, [configSnapshot, draftInfo.manualConfig, quoteState, quoteStateReady])
 
     const selectors = configSnapshot?.selectors
 
@@ -652,129 +719,6 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
         [defaultShutterMaterial, monoblockAllowed],
     )
 
-    const handleQuote = useCallback(async () => {
-        if (!quoteState) {
-            return
-        }
-        const widthMm = asNumber(quoteState.widthMm)
-        const heightMm = asNumber(quoteState.heightMm)
-
-        if (!hasProductId) {
-            if (isUrucortinas) {
-                const localQuote = quoteUrucortinasMatrix({
-                    familyId: quoteState.familyId,
-                    serie: quoteState.serie,
-                    color: quoteState.color,
-                    vidrio: quoteState.vidrio,
-                    widthMm,
-                    heightMm,
-                    hasMosquitero: quoteState.hasMosquitero,
-                    hasShutterMonoblock: quoteState.hasShutterMonoblock,
-                })
-                setQuoteResult(localQuote)
-                if (!localQuote.available) {
-                    toast.push(
-                        <Notification
-                            title={t('sales.productForm.parametric.quoteUnavailableTitle', {
-                                defaultValue: 'Configuration not available',
-                            })}
-                            type="warning"
-                        >
-                            {t('sales.productForm.parametric.quoteUnavailableDescription', {
-                                defaultValue:
-                                    'There is no price registered for the selected parameters. Try a different combination.',
-                            })}
-                        </Notification>,
-                    )
-                } else {
-                    toast.push(
-                        <Notification
-                            title={t('sales.productForm.parametric.quoteSuccessTitle', {
-                                defaultValue: 'Price calculated',
-                            })}
-                            type="success"
-                        >
-                            {t('sales.productForm.parametric.quoteSuccessDescription', {
-                                defaultValue: 'The price matrix returned a valid price for this configuration.',
-                            })}
-                        </Notification>,
-                    )
-                }
-            } else if (!draftNoticeShown) {
-                toast.push(
-                    <Notification
-                        title={t('sales.productForm.parametric.requiresProduct', {
-                            defaultValue: 'Guardá el producto para configurar precios paramétricos.',
-                        })}
-                        type="warning"
-                    >
-                        {t('sales.productForm.parametric.requiresProductDetail', {
-                            defaultValue: 'Cargá la matriz y guardá el producto para poder simular precios.',
-                        })}
-                    </Notification>,
-                )
-                setDraftNoticeShown(true)
-            }
-            return
-        }
-        const materialValue = configSnapshot?.selectors.materials?.[0] ?? 'ALUMINIO'
-        try {
-            const payload = {
-                productId: numericProductId,
-                familyId: quoteState.familyId || undefined,
-                serie: quoteState.serie,
-                material: materialValue,
-                color: quoteState.color,
-                vidrio: quoteState.vidrio,
-                widthMm,
-                heightMm,
-                hasMosquitero: quoteState.hasMosquitero,
-                hasShutterMonoblock: quoteState.hasShutterMonoblock,
-                shutterMaterial: quoteState.hasShutterMonoblock ? quoteState.shutterMaterial : '',
-            }
-            const result = await apiQuoteParametricProduct<ParametricQuoteResult>(payload)
-            const parsed = result as unknown as ParametricQuoteResult
-            setQuoteResult(parsed)
-            if (!parsed.available) {
-                toast.push(
-                    <Notification
-                        title={t('sales.productForm.parametric.quoteUnavailableTitle', {
-                            defaultValue: 'Configuration not available',
-                        })}
-                        type="warning"
-                    >
-                        {t('sales.productForm.parametric.quoteUnavailableDescription', {
-                            defaultValue:
-                                'There is no price registered for the selected parameters. Try a different combination.',
-                        })}
-                    </Notification>,
-                )
-            } else {
-                toast.push(
-                    <Notification
-                        title={t('sales.productForm.parametric.quoteSuccessTitle', { defaultValue: 'Price calculated' })}
-                        type="success"
-                    >
-                        {t('sales.productForm.parametric.quoteSuccessDescription', {
-                            defaultValue: 'The price matrix returned a valid price for this configuration.',
-                        })}
-                    </Notification>,
-                )
-            }
-        } catch (error) {
-            console.error('[parametric] quote failed', error)
-            toast.push(
-                <Notification
-                    title={t('sales.productForm.parametric.quoteError', { defaultValue: 'Unable to generate price' })}
-                    type="danger"
-                >
-                    {t('sales.productForm.parametric.quoteErrorDescription', {
-                        defaultValue: 'Verify the entered parameters and try again.',
-                    })}
-                </Notification>,
-            )
-        }
-    }, [configSnapshot, draftNoticeShown, hasProductId, isUrucortinas, numericProductId, quoteState, t])
 
     const handleFileUpload = useCallback(
         async (files: File[]) => {
@@ -789,7 +733,6 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                     manualConfig,
                 }
                 setDraftInfo(draftPayload)
-                onDraftChange?.(draftPayload)
                 setImportSummary(null)
                 toast.push(
                     <Notification
@@ -844,7 +787,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                 setImporting(false)
             }
         },
-        [fetchConfig, hasProductId, numericProductId, onDraftChange, t],
+        [fetchConfig, hasProductId, numericProductId, t],
     )
 
     const handleExport = useCallback(async () => {
@@ -895,15 +838,66 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
         }
     }, [hasProductId, numericProductId, t])
 
-    const selectorOptionGroups = useMemo(
-        () => mapSelectorsToOptions(selectors, t),
-        [selectors, t],
-    )
+    const selectorOptionGroups = useMemo(() => {
+        const baseGroups = mapSelectorsToOptions(selectors, t)
+        const ensureOption = (list: SelectorOption[], value?: string | null) => {
+            if (!value) {
+                return list
+            }
+            const normalized = normalizeSelectorInput(value)
+            if (!normalized) {
+                return list
+            }
+            if (list.some((option) => option.value === normalized)) {
+                return list
+            }
+            return [...list, toSelectorOption(normalized, value)]
+        }
+        const manual = draftInfo.manualConfig
+        let families = baseGroups.families
+        let series = baseGroups.series
+        let colors = baseGroups.colors
+        let glass = baseGroups.glass
+        const familyCandidates = [manual?.familyId, quoteState?.familyId]
+        const seriesCandidates = [manual?.serie, quoteState?.serie]
+        const colorCandidates = [manual?.color, quoteState?.color]
+        const glassCandidates = [manual?.vidrio, quoteState?.vidrio]
+        familyCandidates.forEach((value) => {
+            families = ensureOption(families, value)
+        })
+        seriesCandidates.forEach((value) => {
+            series = ensureOption(series, value)
+        })
+        colorCandidates.forEach((value) => {
+            colors = ensureOption(colors, value)
+        })
+        glassCandidates.forEach((value) => {
+            glass = ensureOption(glass, value)
+        })
+        return {
+            families,
+            series,
+            colors,
+            glass,
+            shutterMaterials: baseGroups.shutterMaterials,
+        }
+    }, [
+        draftInfo.manualConfig,
+        quoteState?.color,
+        quoteState?.familyId,
+        quoteState?.serie,
+        quoteState?.vidrio,
+        selectors,
+        t,
+    ])
 
     const glassOptions = useMemo(() => {
         if (!selectors || !quoteState) return []
         const allowed = configSnapshot?.compatibility.glassBySeries?.[quoteState.serie]
-        const list = selectors.glass.filter((item) => !allowed || !allowed.length || allowed.includes(item))
+        let list = selectors.glass.filter((item) => !allowed || !allowed.length || allowed.includes(item))
+        if (quoteState.vidrio && !list.includes(quoteState.vidrio)) {
+            list = [...list, quoteState.vidrio]
+        }
         return list.map((value) => toSelectorOption(value))
     }, [configSnapshot, quoteState, selectors])
 
@@ -911,6 +905,30 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
     const serieOptions = selectorOptionGroups.series
     const colorOptions = selectorOptionGroups.colors
     const shutterMaterialOptions = selectorOptionGroups.shutterMaterials
+
+    const selectedFamilyOption = useMemo(
+        () => familyOptions.find((option) => option.value === normalizeSelectorInput(quoteState?.familyId)) ?? null,
+        [familyOptions, quoteState?.familyId],
+    )
+    const selectedSerieOption = useMemo(
+        () => serieOptions.find((option) => option.value === normalizeSelectorInput(quoteState?.serie)) ?? null,
+        [quoteState?.serie, serieOptions],
+    )
+    const selectedColorOption = useMemo(
+        () => colorOptions.find((option) => option.value === normalizeSelectorInput(quoteState?.color)) ?? null,
+        [colorOptions, quoteState?.color],
+    )
+    const selectedGlassOption = useMemo(
+        () => glassOptions.find((option) => option.value === normalizeSelectorInput(quoteState?.vidrio)) ?? null,
+        [glassOptions, quoteState?.vidrio],
+    )
+    const selectedShutterMaterial = useMemo(
+        () =>
+            shutterMaterialOptions.find(
+                (option) => option.value === normalizeSelectorInput(quoteState?.shutterMaterial),
+            ) ?? null,
+        [quoteState?.shutterMaterial, shutterMaterialOptions],
+    )
     const manualPriceFields = useMemo(
         () => [
             {
@@ -988,13 +1006,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
             ),
         [manualPayloadPreview],
     )
-    const canSaveManual = hasProductId && hasManualValues && manualFieldsReady
-    const manualInputsDisabled = manualLoading || savingManual
-    const manualSaveDisabledMessage = !hasProductId
-        ? t('sales.productForm.parametric.manualSection.saveDisabled', {
-              defaultValue: 'Save the product first to enable manual costs.',
-          })
-        : undefined
+    const manualInputsDisabled = manualLoading
     const handleManualPriceChange = useCallback(
         (field: ManualPriceFieldKey, value: string) => {
             updateManualConfig((current) => {
@@ -1006,53 +1018,6 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
         },
         [updateManualConfig],
     )
-    const handleManualClear = useCallback(() => {
-        updateManualConfig(() => createEmptyManualConfigDraft())
-    }, [updateManualConfig])
-
-    const handleManualSave = useCallback(async () => {
-        if (!hasProductId || !canSaveManual || savingManual) {
-            return
-        }
-        setSavingManual(true)
-        try {
-            await apiSaveParametricManualConfig(numericProductId, manualPayloadPreview)
-            toast.push(
-                <Notification
-                    title={t('sales.productForm.parametric.manualSaveSuccess', {
-                        defaultValue: 'Manual costs saved',
-                    })}
-                    type="success"
-                    duration={3200}
-                >
-                    {t('sales.productForm.parametric.manualSaveSuccessDescription', {
-                        defaultValue: 'The manual matrix row was updated successfully.',
-                    })}
-                </Notification>,
-                { placement: 'top-center' },
-            )
-            setManualRefreshToken((token) => token + 1)
-        } catch (error) {
-            console.error('[parametric] manual save failed', error)
-            toast.push(
-                <Notification
-                    title={t('sales.productForm.parametric.manualSaveError', {
-                        defaultValue: 'Manual pricing could not be saved',
-                    })}
-                    type="warning"
-                    duration={4000}
-                >
-                    {t('sales.productForm.parametric.manualSaveErrorDescription', {
-                        defaultValue: 'Try saving the product again to push the manual costs.',
-                    })}
-                </Notification>,
-                { placement: 'top-center' },
-            )
-        } finally {
-            setSavingManual(false)
-        }
-    }, [canSaveManual, hasProductId, manualPayloadPreview, numericProductId, savingManual, t])
-
     return (
         <AdaptableCard className="mb-4">
             <div className="flex flex-col gap-4">
@@ -1189,7 +1154,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                                         type="button"
                                         variant="plain"
                                         size="sm"
-                                        disabled={loadingConfig || !configSnapshot?.stats.rowCount}
+                                        disabled={loadingConfig || !configSnapshot?.stats?.rowCount}
                                         onClick={handleExport}
                                     >
                                         {t('sales.productForm.parametric.export', { defaultValue: 'Export matrix' })}
@@ -1220,7 +1185,6 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                                                     ...prev,
                                                 }
                                                 delete nextDraft.matrixFile
-                                                onDraftChange?.(nextDraft)
                                                 return nextDraft
                                             })
                                         }
@@ -1251,32 +1215,38 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                             <Select
                                 options={familyOptions}
-                                value={quoteState.familyId}
+                                value={selectedFamilyOption}
                                 placeholder={t('sales.productForm.parametric.family', { defaultValue: 'Family' })}
-                                onChange={(value) => handleSelectChange('familyId')(value as string)}
+                                onChange={(option) =>
+                                    handleSelectChange('familyId')((option as SelectorOption | null)?.value ?? '')
+                                }
                                 isDisabled={(!hasProductId && !isUrucortinas) || !familyOptions.length}
                             />
                             <Select
                                 options={serieOptions}
-                                value={quoteState.serie}
+                                value={selectedSerieOption}
                                 placeholder={t('sales.productForm.parametric.series', { defaultValue: 'Series' })}
-                                onChange={(value) => {
-                                    handleSelectChange('serie')(value as string)
-                                }}
+                                onChange={(option) =>
+                                    handleSelectChange('serie')((option as SelectorOption | null)?.value ?? '')
+                                }
                                 isDisabled={(!hasProductId && !isUrucortinas) || !serieOptions.length}
                             />
                             <Select
                                 options={colorOptions}
-                                value={quoteState.color}
+                                value={selectedColorOption}
                                 placeholder={t('sales.productForm.parametric.color', { defaultValue: 'Color' })}
-                                onChange={(value) => handleSelectChange('color')(value as string)}
+                                onChange={(option) =>
+                                    handleSelectChange('color')((option as SelectorOption | null)?.value ?? '')
+                                }
                                 isDisabled={(!hasProductId && !isUrucortinas) || !colorOptions.length}
                             />
                             <Select
                                 options={glassOptions}
-                                value={quoteState.vidrio}
+                                value={selectedGlassOption}
                                 placeholder={t('sales.productForm.parametric.glass', { defaultValue: 'Glass' })}
-                                onChange={(value) => handleSelectChange('vidrio')(value as string)}
+                                onChange={(option) =>
+                                    handleSelectChange('vidrio')((option as SelectorOption | null)?.value ?? '')
+                                }
                                 isDisabled={(!hasProductId && !isUrucortinas) || !glassOptions.length}
                             />
                             <Input
@@ -1321,11 +1291,15 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                                 {quoteState.hasShutterMonoblock && (
                                     <Select
                                         options={shutterMaterialOptions}
-                                        value={quoteState.shutterMaterial}
+                                        value={selectedShutterMaterial}
                                         placeholder={t('sales.productForm.parametric.shutterMaterial', {
                                             defaultValue: 'Shutter material',
                                         })}
-                                        onChange={(value) => handleSelectChange('shutterMaterial')(value as string)}
+                                        onChange={(option) =>
+                                            handleSelectChange('shutterMaterial')(
+                                                (option as SelectorOption | null)?.value ?? '',
+                                            )
+                                        }
                                         isDisabled={(!hasProductId && !isUrucortinas) || !shutterMaterialOptions.length}
                                     />
                                 )}
@@ -1354,32 +1328,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                                             })}
                                         </p>
                                     </div>
-                                    <div className="flex items-center gap-2 flex-wrap justify-end">
-                                        <Button
-                                            size="xs"
-                                            type="button"
-                                            variant="solid"
-                                            onClick={handleManualSave}
-                                            loading={savingManual}
-                                            disabled={!canSaveManual || manualInputsDisabled}
-                                            title={!canSaveManual ? manualSaveDisabledMessage : undefined}
-                                        >
-                                            {t('sales.productForm.parametric.manualSection.save', {
-                                                defaultValue: 'Save manual costs',
-                                            })}
-                                        </Button>
-                                        {hasManualValues && (
-                                            <Button size="xs" type="button" onClick={handleManualClear}>
-                                                {t('sales.productForm.parametric.manualSection.clear', {
-                                                    defaultValue: 'Clear costs',
-                                                })}
-                                            </Button>
-                                        )}
-                                    </div>
                                 </div>
-                                {!hasProductId && manualSaveDisabledMessage && (
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">{manualSaveDisabledMessage}</p>
-                                )}
                             </div>
                             {draftInfo.matrixFile && (
                                 <Alert type="warning" showIcon>
@@ -1422,73 +1371,6 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                                       })}
                             </div>
                         </div>
-                        {hasProductId && (
-                            <div className="flex justify-end">
-                                <Button
-                                    type="button"
-                                    variant="solid"
-                                    onClick={handleQuote}
-                                    loading={loadingConfig}
-                                    disabled={(!hasProductId && !isUrucortinas) || loadingConfig}
-                                >
-                                    {t('sales.productForm.parametric.calculate', { defaultValue: 'Calculate price' })}
-                                </Button>
-                            </div>
-                        )}
-                        {quoteResult && (
-                            <div
-                                className={`border rounded-md p-3 ${
-                                    quoteResult.available
-                                        ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-500/10'
-                                        : 'border-amber-300 bg-amber-50 dark:bg-amber-500/10'
-                                }`}
-                            >
-                                <h6 className="font-semibold text-sm mb-2">
-                                    {quoteResult.available
-                                        ? t('sales.productForm.parametric.quoteResultTitle', {
-                                              defaultValue: 'Price available',
-                                          })
-                                        : t('sales.productForm.parametric.quoteUnavailableTitle', {
-                                              defaultValue: 'Configuration not available',
-                                          })}
-                                </h6>
-                                <p className="text-sm text-gray-700 dark:text-gray-200">
-                                    {quoteResult.available && quoteResult.price !== undefined
-                                        ? `${quoteResult.price.toFixed(2)} ${quoteResult.currency ?? currency}`
-                                        : t('sales.productForm.parametric.quoteUnavailableDescription', {
-                                              defaultValue:
-                                                  'There is no price for the selected parameters. Adjust the combination and try again.',
-                                          })}
-                                </p>
-                                {formattedQuoteReferenceDate && (
-                                    <p className="text-xs text-gray-500 dark:text-gray-300 mt-2">
-                                        {t('sales.productForm.parametric.quoteReferenceDate', {
-                                            defaultValue: 'Reference date: {{date}}.',
-                                            date: formattedQuoteReferenceDate,
-                                        })}
-                                    </p>
-                                )}
-                                {quoteResult.source && (
-                                    <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">
-                                        {t('sales.productForm.parametric.quoteSource', {
-                                            defaultValue: 'Source: {{source}}.',
-                                            source: quoteResult.source,
-                                        })}
-                                    </p>
-                                )}
-                                {(() => {
-                                    const specs = quoteResult.specifications ?? quoteResult.detailSnapshot ?? ''
-                                    if (!specs) {
-                                        return null
-                                    }
-                                    return (
-                                        <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">
-                                            {specs}
-                                        </p>
-                                    )
-                                })()}
-                            </div>
-                        )}
                     </div>
                 )}
             </div>
