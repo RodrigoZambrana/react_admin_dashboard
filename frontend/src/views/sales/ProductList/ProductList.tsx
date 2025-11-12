@@ -17,6 +17,7 @@ import ProductForm, {
     type SetSubmitting,
 } from '@/views/sales/ProductForm'
 import { apiCreateSalesProduct, apiImportParametricReferences } from '@/services/SalesService'
+import { apiGetAberturasConfig } from '@/services/SettingsService'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
 import { useLocation } from 'react-router-dom'
@@ -53,6 +54,8 @@ const ProductList = () => {
             !location.pathname.includes('/products/parametric'),
         [location.pathname],
     )
+
+    const [aberturasMarginPercent, setAberturasMarginPercent] = useState<number | undefined>(undefined)
 
     const tableData = useAppSelector(
         (state) => state.salesProductList.data.tableData,
@@ -135,6 +138,28 @@ const ProductList = () => {
         tableData,
         normalizeModeValue,
     ])
+
+    const loadAberturasPricingConfig = useCallback(async () => {
+        try {
+            const response = await apiGetAberturasConfig<{ pricing?: { markupPercent?: number } }>()
+            const payload = (response?.data ?? response ?? null) as { pricing?: { markupPercent?: number } } | null
+            const margin = Number(payload?.pricing?.markupPercent)
+            setAberturasMarginPercent(Number.isFinite(margin) ? margin : 0)
+        } catch (error) {
+            console.error('aberturas/config', error)
+            setAberturasMarginPercent(0)
+        }
+    }, [])
+
+    useEffect(() => {
+        if (!isParametricView) {
+            setAberturasMarginPercent(undefined)
+            return
+        }
+        if (aberturasMarginPercent === undefined) {
+            loadAberturasPricingConfig()
+        }
+    }, [aberturasMarginPercent, isParametricView, loadAberturasPricingConfig])
 
     const handleCreateProduct = useCallback(
         async (formData: FormModel, setSubmitting: SetSubmitting) => {
@@ -275,7 +300,7 @@ const ProductList = () => {
                 <h3 className="mb-4 lg:mb-0">{t('text.titles.products')}</h3>
                 <ProductTableTools onAddProduct={handleAddProductClick} isParametricView={isParametricView} />
             </div>
-            <ProductTable />
+            <ProductTable marginPercent={aberturasMarginPercent} />
         </AdaptableCard>
     )
 

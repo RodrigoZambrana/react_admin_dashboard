@@ -834,9 +834,6 @@ export class ParametricPricingService {
     if (!rows.length) {
       throw new BadRequestException('No rows detected in the provided file')
     }
-    const markupMultiplier = await this.resolveMarkupMultiplier()
-    const applyMarkup = (value: number) => this.applyMarkupToPrice(value, markupMultiplier)
-
     const parsedRows: ParametricMatrixRow[] = []
     const warnings: string[] = []
     const defaultSourceLabel = this.normalizeString(options?.filename ?? '') || 'UPLOAD'
@@ -885,10 +882,10 @@ export class ParametricPricingService {
         )
         const rawPriceMonoblock = this.parsePrice(normalizeKeyed['price_mb'])
         const rawPriceMonoblockMosquitero = this.parsePrice(normalizeKeyed['price_mb_c_mosq'])
-        const priceBase = applyMarkup(rawPriceBase)
-        const priceMosquitero = applyMarkup(rawPriceMosquitero)
-        const priceMonoblock = applyMarkup(rawPriceMonoblock)
-        const priceMonoblockMosquitero = applyMarkup(rawPriceMonoblockMosquitero)
+        const priceBase = rawPriceBase
+        const priceMosquitero = rawPriceMosquitero
+        const priceMonoblock = rawPriceMonoblock
+        const priceMonoblockMosquitero = rawPriceMonoblockMosquitero
         const hasMosquiteroOption =
           this.parseBoolean(
             normalizeKeyed['has_mosq_option'] ??
@@ -943,7 +940,6 @@ export class ParametricPricingService {
             source: sourceValue || null,
             referenceDate,
             sourceSystem,
-            priceTransform: applyMarkup,
           })
           parsedRows.push(
             ...variants.filter((variant) => Number(variant.price ?? 0) > 0 || Number(variant.priceBase ?? 0) > 0),
@@ -1019,7 +1015,6 @@ export class ParametricPricingService {
       throw new BadRequestException('No rows detected in the provided file')
     }
     const markupMultiplier = await this.resolveMarkupMultiplier()
-    const applyMarkup = (value: number) => this.applyMarkupToPrice(value, markupMultiplier)
 
     type ProductGroup = {
       product: {
@@ -1105,10 +1100,10 @@ export class ParametricPricingService {
         )
         const rawPriceMonoblock = this.parsePrice(normalizeKeyed['price_mb'])
         const rawPriceMonoblockMosquitero = this.parsePrice(normalizeKeyed['price_mb_c_mosq'])
-        const price = applyMarkup(rawPrice)
-        const priceMosquiteroValue = applyMarkup(rawPriceMosquitero)
-        const priceMonoblockValue = applyMarkup(rawPriceMonoblock)
-        const priceMonoblockMosqValue = applyMarkup(rawPriceMonoblockMosquitero)
+        const price = rawPrice
+        const priceMosquiteroValue = rawPriceMosquitero
+        const priceMonoblockValue = rawPriceMonoblock
+        const priceMonoblockMosqValue = rawPriceMonoblockMosquitero
         const currency = this.normalizeString(normalizeKeyed['currency']) || 'USD'
         const detailSnapshot =
           this.normalizeString(
@@ -1155,7 +1150,6 @@ export class ParametricPricingService {
               source: sourceValue || null,
               referenceDate,
               sourceSystem,
-              priceTransform: applyMarkup,
             })
           : [
               this.enrichMatrixRow(
@@ -1661,20 +1655,26 @@ export class ParametricPricingService {
     await this.ensureProduct(productId)
 
     const limit = Math.min(Math.max(criteria.limit ?? 10, 1), 50)
-    const config = await this.aberturasGlossary.getConfig()
+    const [config, marginMultiplier] = await Promise.all([
+      this.aberturasGlossary.getConfig(),
+      this.resolveMarkupMultiplier(),
+    ])
     const mapped = await this.fetchSearchRows(criteria, { productId, nearestConfig: config.nearest })
     const request = {
       hasMosquitero: Boolean(criteria.hasMosquitero),
       hasShutterMonoblock: Boolean(criteria.hasShutterMonoblock),
       shutterMaterial: criteria.shutterMaterial?.trim() || undefined,
     }
-    return this.buildSearchResult(mapped, criteria, request, limit, config.nearest)
+    return this.buildSearchResult(mapped, criteria, request, limit, config.nearest, marginMultiplier)
   }
 
   async searchMatrixDefault(criteria: ParametricMatrixSearchDto): Promise<ParametricMatrixSearchResult> {
     this.assertFeatureEnabled()
     const limit = Math.min(Math.max(criteria.limit ?? 10, 1), 50)
-    const config = await this.aberturasGlossary.getConfig()
+    const [config, marginMultiplier] = await Promise.all([
+      this.aberturasGlossary.getConfig(),
+      this.resolveMarkupMultiplier(),
+    ])
     const request = {
       hasMosquitero: Boolean(criteria.hasMosquitero),
       hasShutterMonoblock: Boolean(criteria.hasShutterMonoblock),
@@ -1685,7 +1685,7 @@ export class ParametricPricingService {
       const productId = await this.resolveDefaultParametricProductId()
       mapped = await this.fetchSearchRows(criteria, { productId, nearestConfig: config.nearest })
     }
-    return this.buildSearchResult(mapped, criteria, request, limit, config.nearest)
+    return this.buildSearchResult(mapped, criteria, request, limit, config.nearest, marginMultiplier)
   }
 
   private async fetchSearchRows(
@@ -1734,9 +1734,10 @@ export class ParametricPricingService {
     criteria: ParametricMatrixSearchDto,
     request: { hasMosquitero: boolean; hasShutterMonoblock: boolean; shutterMaterial?: string },
     limit: number,
-    nearestConfig?: AberturasConfig['nearest'],
+    nearestConfig: AberturasConfig['nearest'] | undefined,
+    marginMultiplier: number,
   ): ParametricMatrixSearchResult {
-    const rankedMatches = this.rankMatrixMatches(rows, criteria, request)
+    const rankedMatches = this.rankMatrixMatches(rows, criteria, request, undefined, marginMultiplier)
     const exactMatch = rankedMatches.find((match) => match.matchLevel === 'exact')
     const nearestPool = rankedMatches.filter((match) => !exactMatch || match.row.id !== exactMatch.row.id)
     const configuredNearestLimit = nearestConfig?.maxResults ?? 3
@@ -1936,7 +1937,8 @@ export class ParametricPricingService {
     rows: ParametricMatrixEntry[],
     criteria: ParametricMatrixSearchDto,
     request: { hasMosquitero: boolean; hasShutterMonoblock: boolean; shutterMaterial?: string },
-    excludeId?: number,
+    excludeId: number | undefined,
+    marginMultiplier: number,
   ): ParametricMatrixMatch[] {
     const evaluated: ParametricMatrixMatch[] = []
     for (const row of rows) {
@@ -1946,7 +1948,7 @@ export class ParametricPricingService {
       if (excludeId && row.id === excludeId) {
         continue
       }
-      const match = this.evaluateMatrixRow(row, criteria, request)
+      const match = this.evaluateMatrixRow(row, criteria, request, marginMultiplier)
       if (match) {
         evaluated.push(match)
       }
@@ -2168,8 +2170,9 @@ export class ParametricPricingService {
     row: ParametricMatrixEntry,
     criteria: ParametricMatrixSearchDto,
     request: { hasMosquitero: boolean; hasShutterMonoblock: boolean; shutterMaterial?: string },
+    marginMultiplier: number,
   ): ParametricMatrixMatch | null {
-    const resolution = this.resolvePriceForRequest(row, request)
+    const resolution = this.resolvePriceForRequest(row, request, marginMultiplier)
     if (!resolution.available) {
       return null
     }
@@ -2286,15 +2289,17 @@ export class ParametricPricingService {
   private resolvePriceForRequest(
     row: ParametricMatrixEntry,
     request: { hasMosquitero: boolean; hasShutterMonoblock: boolean; shutterMaterial?: string },
+    marginMultiplier: number,
   ): ParametricPriceResolution {
     const base = row.priceBase ?? row.price
     if (!request.hasMosquitero && !request.hasShutterMonoblock) {
       if (!base || base <= 0) {
         return { available: false, reason: 'missing_base' }
       }
+      const price = this.applyMarkupToPrice(base, marginMultiplier)
       return {
         available: true,
-        price: base,
+        price,
         currency: row.currency,
         estimated: false,
         components: ['base'],
@@ -2315,9 +2320,10 @@ export class ParametricPricingService {
         if (!row.priceMonoblockMosquitero || row.priceMonoblockMosquitero <= 0) {
           return { available: false, reason: 'missing_price_mbm' }
         }
+        const price = this.applyMarkupToPrice(row.priceMonoblockMosquitero, marginMultiplier)
         return {
           available: true,
-          price: row.priceMonoblockMosquitero,
+          price,
           currency: row.currency,
           estimated: false,
           components: ['base', 'shutter', 'mosquitero'],
@@ -2326,9 +2332,10 @@ export class ParametricPricingService {
       if (!row.priceMonoblock || row.priceMonoblock <= 0) {
         return { available: false, reason: 'missing_price_mb' }
       }
+      const price = this.applyMarkupToPrice(row.priceMonoblock, marginMultiplier)
       return {
         available: true,
-        price: row.priceMonoblock,
+        price,
         currency: row.currency,
         estimated: false,
         components: ['base', 'shutter'],
@@ -2339,9 +2346,10 @@ export class ParametricPricingService {
       if (!row.hasMosquiteroOption || !row.priceMosquitero || row.priceMosquitero <= 0) {
         return { available: false, reason: 'missing_price_mosq' }
       }
+      const price = this.applyMarkupToPrice(row.priceMosquitero, marginMultiplier)
       return {
         available: true,
-        price: row.priceMosquitero,
+        price,
         currency: row.currency,
         estimated: false,
         components: ['base', 'mosquitero'],
@@ -2351,9 +2359,10 @@ export class ParametricPricingService {
     if (!base || base <= 0) {
       return { available: false, reason: 'missing_base' }
     }
+    const price = this.applyMarkupToPrice(base, marginMultiplier)
     return {
       available: true,
-      price: base,
+      price,
       currency: row.currency,
       estimated: false,
       components: ['base'],
@@ -2405,6 +2414,7 @@ export class ParametricPricingService {
       referenceRange,
       mosquiteroOptionCount,
       monoblockOptionCount,
+      marginMultiplier,
     ] = await Promise.all([
       this.prisma.dimensionPriceMatrix.count({ where: { productId } }),
       this.prisma.dimensionPriceMatrix.findFirst({
@@ -2433,6 +2443,7 @@ export class ParametricPricingService {
       this.prisma.dimensionPriceMatrix.count({
         where: { productId, hasMonoblockOption: true },
       }),
+      this.resolveMarkupMultiplier(),
     ])
 
     let compatibility: ParametricCompatibilityConfig = {}
@@ -2463,7 +2474,9 @@ export class ParametricPricingService {
       selectors: mergedSelectors,
       stats: {
         rowCount,
-        minimumPrice: minPriceRow ? Number(minPriceRow.price.toFixed(4)) : undefined,
+        minimumPrice: minPriceRow
+          ? this.applyMarkupToPrice(Number(minPriceRow.price.toFixed(4)), marginMultiplier)
+          : undefined,
         currency: minPriceRow?.currency,
         newestReferenceDate:
           referenceRange && referenceRange._max?.referenceDate
@@ -2528,7 +2541,10 @@ export class ParametricPricingService {
 
     await this.ensureProduct(productId)
 
-    const compatibility = await this.getCompatibilityConfig(productId)
+    const [compatibility, marginMultiplier] = await Promise.all([
+      this.getCompatibilityConfig(productId),
+      this.resolveMarkupMultiplier(),
+    ])
     const compatibilityError = this.isCombinationAllowed(compatibility, input)
     const requested = {
       familyId: input.familyId ?? null,
@@ -2569,7 +2585,7 @@ export class ParametricPricingService {
     })
 
     if (baseRow) {
-      const resolved = this.resolveQuoteFromBaseRow(baseRow, requested, productId)
+      const resolved = this.resolveQuoteFromBaseRow(baseRow, requested, productId, marginMultiplier)
       if (resolved) {
         return resolved
       }
@@ -2646,14 +2662,14 @@ export class ParametricPricingService {
       }
     }
 
-    let finalPrice = priceBase
+    let finalCost = priceBase
     if (requested.hasShutterMonoblock) {
-      finalPrice = requested.hasMosquitero ? priceMonoblockMosquitero : priceMonoblock
+      finalCost = requested.hasMosquitero ? priceMonoblockMosquitero : priceMonoblock
     } else if (requested.hasMosquitero) {
-      finalPrice = priceMosquitero
+      finalCost = priceMosquitero
     }
 
-    if (!Number.isFinite(finalPrice) || finalPrice <= 0) {
+    if (!Number.isFinite(finalCost) || finalCost <= 0) {
       return {
         productId,
         available: false,
@@ -2667,7 +2683,7 @@ export class ParametricPricingService {
     return {
       productId,
       available: true,
-      price: finalPrice,
+      price: this.applyMarkupToPrice(finalCost, marginMultiplier),
       currency: matrixRow.currency,
       detailSnapshot: specifications,
       specifications,
@@ -2682,6 +2698,7 @@ export class ParametricPricingService {
     matrixRow: DimensionPriceMatrix,
     requested: ParametricQuoteResult['requested'],
     productId: number,
+    marginMultiplier: number,
   ): ParametricQuoteResult | null {
     const priceBase = Number((matrixRow.priceBase ?? matrixRow.price ?? 0).toFixed(4))
     const priceMosquitero =
@@ -2716,14 +2733,14 @@ export class ParametricPricingService {
       }
     }
 
-    let finalPrice = priceBase
+    let finalCost = priceBase
     if (requested.hasShutterMonoblock) {
-      finalPrice = requested.hasMosquitero ? priceMonoblockMosquitero : priceMonoblock
+      finalCost = requested.hasMosquitero ? priceMonoblockMosquitero : priceMonoblock
     } else if (requested.hasMosquitero) {
-      finalPrice = priceMosquitero
+      finalCost = priceMosquitero
     }
 
-    if (!Number.isFinite(finalPrice) || finalPrice <= 0) {
+    if (!Number.isFinite(finalCost) || finalCost <= 0) {
       return {
         productId,
         available: false,
@@ -2736,7 +2753,7 @@ export class ParametricPricingService {
     return {
       productId,
       available: true,
-      price: finalPrice,
+      price: this.applyMarkupToPrice(finalCost, marginMultiplier),
       currency: matrixRow.currency,
       detailSnapshot: matrixRow.detailSnapshot ?? null,
       source: matrixRow.source ?? null,

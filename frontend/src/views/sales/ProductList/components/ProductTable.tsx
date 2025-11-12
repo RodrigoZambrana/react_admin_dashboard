@@ -37,6 +37,13 @@ import {
     getSalesUnitLabel,
     type SalesUnit,
 } from '@/constants/product.constant'
+import {
+    computePrice as computeAberturasPrice,
+    normalizeSelectionByAvailability,
+    type ProductRow as AberturasProductRow,
+    type Selection as AberturasSelection,
+    type ShutterKind,
+} from '@/views/sales/parametric/pricingHelpers'
 
 type ParametricShutterOption = {
     price?: number | null
@@ -92,6 +99,7 @@ type ProductTableProps = {
     hiddenColumns?: ProductTableHiddenColumn[]
     disableAutoFetch?: boolean
     forceParametricMode?: boolean
+    marginPercent?: number
 }
 
 type RowOptionState = {
@@ -106,6 +114,91 @@ type AvailabilityInfo = {
     mosqAvailable: boolean
     standaloneShutterMaterials: string[]
     requiresSelection: boolean
+}
+
+type ComputedPricing = {
+    cost: number
+    sale: number
+    currency?: string
+    available: boolean
+}
+
+const roundTwo = (value: number) => Math.round(value * 100) / 100
+
+const normalizePrice = (value?: number | null): number => {
+    const numeric = Number(value ?? 0)
+    return Number.isFinite(numeric) && numeric > 0 ? roundTwo(numeric) : 0
+}
+
+const resolveShutterKindFromLabel = (label?: string | null): ShutterKind => {
+    const normalized = label?.toString().trim().toLowerCase() ?? ''
+    if (!normalized) {
+        return 'none'
+    }
+    if (normalized.includes('pvc')) {
+        return 'pvc'
+    }
+    if (normalized.includes('alu')) {
+        return 'aluminio'
+    }
+    if (normalized.includes('gen')) {
+        return 'aluminio'
+    }
+    return 'none'
+}
+
+const buildPricingRowFromSummary = (pricing?: ParametricPricing | null): AberturasProductRow | null => {
+    if (!pricing) {
+        return null
+    }
+    const row: AberturasProductRow = {
+        price_base: normalizePrice(pricing.basePrice),
+        price_mosquitero: normalizePrice(pricing.mosquiteroPrice),
+        price_pvc_shutter: 0,
+        price_pvc_shutter_mosq: 0,
+        price_aluminio_shutter: 0,
+        price_aluminio_shutter_mosq: 0,
+    }
+    Object.entries(pricing.shutterOptions ?? {}).forEach(([material, option]) => {
+        const kind = resolveShutterKindFromLabel(material)
+        if (kind === 'pvc') {
+            row.price_pvc_shutter = Math.max(row.price_pvc_shutter, normalizePrice(option?.price))
+            row.price_pvc_shutter_mosq = Math.max(
+                row.price_pvc_shutter_mosq,
+                normalizePrice(option?.priceMosq),
+            )
+        } else if (kind === 'aluminio') {
+            row.price_aluminio_shutter = Math.max(row.price_aluminio_shutter, normalizePrice(option?.price))
+            row.price_aluminio_shutter_mosq = Math.max(
+                row.price_aluminio_shutter_mosq,
+                normalizePrice(option?.priceMosq),
+            )
+        }
+    })
+    const hasValues = Object.values(row).some((value) => value > 0)
+    return hasValues ? row : null
+}
+
+const convertOptionStateToSelection = (state: RowOptionState): { selection: AberturasSelection; kind: ShutterKind } => {
+    const kind = resolveShutterKindFromLabel(state.shutterMaterial)
+    if (kind === 'none') {
+        return {
+            selection: {
+                shutter: 'none',
+                mosquitero: Boolean(state.mosquitero),
+                shutterMosquitero: false,
+            },
+            kind,
+        }
+    }
+    return {
+        selection: {
+            shutter: kind,
+            mosquitero: false,
+            shutterMosquitero: Boolean(state.mosquitero),
+        },
+        kind,
+    }
 }
 
 const ActionColumn = ({ row }: { row: Product }) => {
@@ -161,6 +254,7 @@ const ProductTable = ({
     hiddenColumns = [],
     disableAutoFetch = false,
     forceParametricMode,
+    marginPercent,
 }: ProductTableProps = {}) => {
     const { t, i18n } = useTranslation()
     const tableRef = useRef<DataTableResetHandle>(null)
@@ -374,39 +468,57 @@ const ProductTable = ({
     )
 
     const computeEffectivePrices = useCallback(
-        (row: Product) => {
-            const selection = getSelectionForRow(row)
+        (row: Product): ComputedPricing => {
+            const selectionState = getSelectionForRow(row)
             const pricing = row.parametricPricing
-            let targetSale = Number(row.salePrice ?? 0)
-            let referenceSale = typeof pricing?.basePrice === 'number' ? pricing.basePrice ?? row.salePrice ?? 0 : row.salePrice ?? 0
-            if (pricing) {
-                if (selection.shutterMaterial) {
-                    const option = pricing.shutterOptions?.[selection.shutterMaterial]
-                    if (selection.mosquitero && option?.priceMosq) {
-                        targetSale = Number(option.priceMosq)
-                    } else if (!selection.mosquitero && option?.price) {
-                        targetSale = Number(option.price)
-                    }
-                } else if (selection.mosquitero && pricing.mosquiteroPrice) {
-                    targetSale = Number(pricing.mosquiteroPrice)
-                } else if (pricing.basePrice) {
-                    targetSale = Number(pricing.basePrice)
-                }
-                if (!referenceSale || referenceSale <= 0) {
-                    referenceSale = pricing.basePrice ?? row.salePrice ?? 0
+            const currency = pricing?.currency || row.currency
+            if (!pricing) {
+                return {
+                    sale: Number(row.salePrice ?? 0),
+                    cost: Number(row.costPrice ?? 0),
+                    currency,
+                    available: true,
                 }
             }
-            const baseCost = Number(row.costPrice ?? 0)
-            const saleDelta = targetSale - Number(referenceSale ?? 0)
-            const targetCost = baseCost + (Number.isFinite(saleDelta) ? saleDelta : 0)
-            const currency = pricing?.currency || row.currency
+            const kind = resolveShutterKindFromLabel(selectionState.shutterMaterial)
+            const pricingRow = buildPricingRowFromSummary(pricing)
+            if (pricingRow) {
+                const normalized = normalizeSelectionForRow(row, selectionState)
+                const normalizedSelection = convertOptionStateToSelection(normalized).selection
+                const result = computeAberturasPrice(
+                    pricingRow,
+                    normalizeSelectionByAvailability(pricingRow, normalizedSelection),
+                    marginPercent ?? 0,
+                )
+                if (result.available || kind !== 'none' || !selectionState.shutterMaterial) {
+                    return {
+                        sale: result.sale,
+                        cost: result.cost,
+                        currency,
+                        available: result.available,
+                    }
+                }
+            }
+            const option = selectionState.shutterMaterial
+                ? pricing.shutterOptions?.[selectionState.shutterMaterial]
+                : undefined
+            let rawCost = 0
+            if (selectionState.shutterMaterial && option) {
+                rawCost = selectionState.mosquitero ? Number(option?.priceMosq ?? 0) : Number(option?.price ?? 0)
+            } else {
+                rawCost = selectionState.mosquitero ? Number(pricing.mosquiteroPrice ?? 0) : Number(pricing.basePrice ?? 0)
+            }
+            const cost = normalizePrice(rawCost)
+            const factor = 1 + (marginPercent || 0) / 100
+            const sale = cost > 0 ? roundTwo(cost * factor) : 0
             return {
-                sale: targetSale,
-                cost: targetCost,
+                sale,
+                cost,
                 currency,
+                available: cost > 0,
             }
         },
-        [getSelectionForRow],
+        [getSelectionForRow, marginPercent, normalizeSelectionForRow],
     )
 
     const renderMosquiteroControl = useCallback(
@@ -982,6 +1094,15 @@ const ProductTable = ({
                 cell: (props) => {
                     const pricingValues = computeEffectivePrices(props.row.original)
                     const currencyCode = pricingValues.currency || props.row.original.currency
+                    if (!pricingValues.available) {
+                        return (
+                            <span className="text-gray-500 dark:text-gray-400">
+                                {t('sales.productList.messages.notAvailable', {
+                                    defaultValue: 'No disponible',
+                                })}
+                            </span>
+                        )
+                    }
                     return <span>{formatCurrencyValue(pricingValues.cost, currencyCode)}</span>
                 },
             })
@@ -994,6 +1115,15 @@ const ProductTable = ({
                 cell: (props) => {
                     const pricingValues = computeEffectivePrices(props.row.original)
                     const currencyCode = pricingValues.currency || props.row.original.currency
+                    if (!pricingValues.available) {
+                        return (
+                            <span className="text-gray-500 dark:text-gray-400">
+                                {t('sales.productList.messages.notAvailable', {
+                                    defaultValue: 'No disponible',
+                                })}
+                            </span>
+                        )
+                    }
                     return <span>{formatCurrencyValue(pricingValues.sale, currencyCode)}</span>
                 },
             },
