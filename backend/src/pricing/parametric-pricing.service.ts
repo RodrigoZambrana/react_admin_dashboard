@@ -478,7 +478,9 @@ export class ParametricPricingService {
       return 0
     }
     const safeMultiplier = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1
-    return this.normalizePriceValue(value * safeMultiplier)
+    const result = value * safeMultiplier
+    const roundedUp = Math.ceil(result - 1e-9)
+    return this.normalizePriceValue(roundedUp)
   }
 
   private decimalToNumber(value: Prisma.Decimal | number | null | undefined): number | null {
@@ -1429,7 +1431,7 @@ export class ParametricPricingService {
     }
 
     const costAmount = Number(numericPrice).toFixed(4)
-    const saleAmount = Number(numericPrice * effectiveMultiplier).toFixed(4)
+    const saleAmount = this.applyMarkupToPrice(numericPrice, effectiveMultiplier).toFixed(2)
 
     const baseData = {
       name: payload.name,

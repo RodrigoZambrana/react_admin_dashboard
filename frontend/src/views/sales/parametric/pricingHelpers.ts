@@ -54,7 +54,7 @@ export function computePrice(row: ProductRow, sel: Selection, marginPercent: num
     const cost = available ? Math.round(costRaw * 100) / 100 : 0
     const factor = 1 + (marginPercent || 0) / 100
     const saleRaw = available ? cost * factor : 0
-    const sale = available ? Math.round(saleRaw * 100) / 100 : 0
+    const sale = available ? Math.ceil(saleRaw - 1e-9) : 0
 
     return { available, cost, sale, usedColumn: col }
 }
