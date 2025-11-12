@@ -1596,6 +1596,9 @@
           "requiresMosquitero": "Disable the mosquito net to use this shutter option.",
           "comboLocked": "This product only has shutter + mosquito net combos."
         }
+      },
+      "messages": {
+        "notAvailable": "Not available for this combination"
       }
     },
     "orderDetails": {
