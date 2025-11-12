@@ -3,13 +3,21 @@ import { useTranslation } from 'react-i18next'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import InputGroup from '@/components/ui/InputGroup'
 import Select from '@/components/ui/Select'
 import Switcher from '@/components/ui/Switcher'
 import Notification from '@/components/ui/Notification'
 import Alert from '@/components/ui/Alert'
 import Upload from '@/components/ui/Upload'
 import { toast } from '@/components/ui/toast'
-import { apiExportParametricMatrix, apiGetParametricConfig, apiImportParametricReferences, apiQuoteParametricProduct } from '@/services/SalesService'
+import {
+    apiExportParametricMatrix,
+    apiGetParametricConfig,
+    apiGetParametricManualConfig,
+    apiImportParametricReferences,
+    apiQuoteParametricProduct,
+    apiSaveParametricManualConfig,
+} from '@/services/SalesService'
 import { apiGetAberturasSelectors } from '@/services/SettingsService'
 import { clientConfig } from '@/configs/clientConfig'
 import { useAppSelector } from '@/store'
@@ -19,6 +27,17 @@ import {
     getUrucortinasDefaultSnapshot,
     quoteUrucortinasMatrix,
 } from './urucortinasParametricDefaults'
+import type {
+    ParametricConfiguratorDraft,
+    ParametricManualConfigDraft,
+    ParametricManualConfigResponse,
+} from './parametricTypes'
+import {
+    createEmptyManualConfigDraft,
+    hasManualConfigValues,
+    mapDraftToManualPayload,
+    mapManualConfigResponseToDraft,
+} from './parametricTypes'
 import {
     mapSelectorsToOptions,
     mergeSelectorValues,
@@ -47,6 +66,14 @@ type QuoteResult = {
     referenceDate?: string | null
     source?: string | null
 }
+
+type ManualPriceFieldKey =
+    | 'priceBase'
+    | 'priceMosquitero'
+    | 'pricePvcShutter'
+    | 'pricePvcShutterMosq'
+    | 'priceAluminioShutter'
+    | 'priceAluminioShutterMosq'
 
 export type ParametricQuoteResult = QuoteResult & {
     productId: number
@@ -103,10 +130,6 @@ export type ParametricImportSummary = {
     rowsInserted: number
     rowsUpdated: number
     warnings: string[]
-}
-
-export type ParametricConfiguratorDraft = {
-    matrixFile?: File | Blob | null
 }
 
 const createDefaultState = (snapshot: ParametricConfigSnapshot): QuoteState => {
@@ -175,12 +198,79 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
     const [draftNoticeShown, setDraftNoticeShown] = useState(false)
     const [showAdminTools, setShowAdminTools] = useState(false)
     const [selectorSummary, setSelectorSummary] = useState<AberturasSelectorSummary | null>(null)
+    const [manualRefreshToken, setManualRefreshToken] = useState(0)
+    const [manualLoading, setManualLoading] = useState(false)
+    const [savingManual, setSavingManual] = useState(false)
+    const manualConfig = useMemo(
+        () => draftInfo.manualConfig ?? createEmptyManualConfigDraft(),
+        [draftInfo.manualConfig],
+    )
+
+    const updateManualConfig = useCallback(
+        (updater: (current: ParametricManualConfigDraft) => ParametricManualConfigDraft) => {
+            setDraftInfo((prev) => {
+                const currentConfig = prev.manualConfig ?? createEmptyManualConfigDraft()
+                const nextConfig = updater(currentConfig)
+                if (nextConfig === currentConfig) {
+                    return prev
+                }
+                const nextDraft = { ...prev, manualConfig: nextConfig }
+                onDraftChange?.(nextDraft)
+                return nextDraft
+            })
+        },
+        [onDraftChange],
+    )
 
     useEffect(() => {
         if (draft) {
-            setDraftInfo(draft)
+            if (draft.manualConfig) {
+                setDraftInfo(draft)
+            } else {
+                setDraftInfo({ ...draft, manualConfig: createEmptyManualConfigDraft() })
+            }
+        } else {
+            setDraftInfo({ manualConfig: createEmptyManualConfigDraft() })
         }
     }, [draft])
+
+    useEffect(() => {
+        if (!hasProductId || !isSuperAdmin) {
+            setManualLoading(false)
+            return
+        }
+        let cancelled = false
+        const fetchManualConfig = async () => {
+            setManualLoading(true)
+            try {
+                const response = await apiGetParametricManualConfig<ParametricManualConfigResponse | null>(
+                    numericProductId,
+                )
+                if (cancelled) {
+                    return
+                }
+                const snapshot = (response?.data ?? response ?? null) as ParametricManualConfigResponse | null
+                setDraftInfo((prev) => {
+                    const manualDraft = snapshot ? mapManualConfigResponseToDraft(snapshot) : createEmptyManualConfigDraft()
+                    const next = { ...prev, manualConfig: manualDraft }
+                    onDraftChange?.(next)
+                    return next
+                })
+            } catch (error) {
+                if (!cancelled) {
+                    console.error('[parametric] manual config fetch failed', error)
+                }
+            } finally {
+                if (!cancelled) {
+                    setManualLoading(false)
+                }
+            }
+        }
+        fetchManualConfig()
+        return () => {
+            cancelled = true
+        }
+    }, [hasProductId, isSuperAdmin, manualRefreshToken, numericProductId, onDraftChange])
 
     useEffect(() => {
         if (hasProductId) {
@@ -193,6 +283,35 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
             setShowAdminTools(false)
         }
     }, [isSuperAdmin])
+
+    useEffect(() => {
+        if (!quoteState) {
+            return
+        }
+        updateManualConfig((current) => {
+            const patch: ParametricManualConfigDraft = {
+                ...current,
+                familyId: quoteState.familyId,
+                serie: quoteState.serie,
+                color: quoteState.color,
+                vidrio: quoteState.vidrio,
+                widthMm: quoteState.widthMm,
+                heightMm: quoteState.heightMm,
+                hasMosquitero: quoteState.hasMosquitero,
+                hasMonoblock: quoteState.hasShutterMonoblock,
+            }
+            const differs =
+                current.familyId !== patch.familyId ||
+                current.serie !== patch.serie ||
+                current.color !== patch.color ||
+                current.vidrio !== patch.vidrio ||
+                current.widthMm !== patch.widthMm ||
+                current.heightMm !== patch.heightMm ||
+                current.hasMosquitero !== patch.hasMosquitero ||
+                current.hasMonoblock !== patch.hasMonoblock
+            return differs ? patch : current
+        })
+    }, [quoteState, updateManualConfig])
 
     const matrixReferenceInfo = useMemo(() => {
         const latest = configSnapshot?.stats.newestReferenceDate
@@ -664,7 +783,11 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
             }
             const file = files[0]
             if (!hasProductId) {
-                const draftPayload: ParametricConfiguratorDraft = { matrixFile: file }
+                const draftPayload: ParametricConfiguratorDraft = {
+                    ...draftInfo,
+                    matrixFile: file,
+                    manualConfig,
+                }
                 setDraftInfo(draftPayload)
                 onDraftChange?.(draftPayload)
                 setImportSummary(null)
@@ -788,6 +911,147 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
     const serieOptions = selectorOptionGroups.series
     const colorOptions = selectorOptionGroups.colors
     const shutterMaterialOptions = selectorOptionGroups.shutterMaterials
+    const manualPriceFields = useMemo(
+        () => [
+            {
+                key: 'priceBase' as ManualPriceFieldKey,
+                label: t('sales.productForm.parametric.manualPrice.baseLabel', {
+                    defaultValue: 'Base cost (no mosquito net / shutter)',
+                }),
+                description: t('sales.productForm.parametric.manualPrice.baseDescription', {
+                    defaultValue: 'Total cost without mosquito net or shutters.',
+                }),
+            },
+            {
+                key: 'priceMosquitero' as ManualPriceFieldKey,
+                label: t('sales.productForm.parametric.manualPrice.mosquiteroLabel', {
+                    defaultValue: 'Cost with mosquito net',
+                }),
+                description: t('sales.productForm.parametric.manualPrice.mosquiteroDescription', {
+                    defaultValue: 'Cost of the same opening adding only the mosquito net.',
+                }),
+            },
+            {
+                key: 'pricePvcShutter' as ManualPriceFieldKey,
+                label: t('sales.productForm.parametric.manualPrice.pvcLabel', {
+                    defaultValue: 'Cost with PVC shutter',
+                }),
+                description: t('sales.productForm.parametric.manualPrice.pvcDescription', {
+                    defaultValue: 'Mosquito net disabled. Includes the PVC shutter.',
+                }),
+            },
+            {
+                key: 'pricePvcShutterMosq' as ManualPriceFieldKey,
+                label: t('sales.productForm.parametric.manualPrice.pvcMosqLabel', {
+                    defaultValue: 'Cost with PVC shutter + mosquito net',
+                }),
+                description: t('sales.productForm.parametric.manualPrice.pvcMosqDescription', {
+                    defaultValue: 'Full combo: PVC shutter plus mosquito net.',
+                }),
+            },
+            {
+                key: 'priceAluminioShutter' as ManualPriceFieldKey,
+                label: t('sales.productForm.parametric.manualPrice.aluLabel', {
+                    defaultValue: 'Cost with aluminium shutter',
+                }),
+                description: t('sales.productForm.parametric.manualPrice.aluDescription', {
+                    defaultValue: 'Mosquito net disabled. Includes the aluminium shutter.',
+                }),
+            },
+            {
+                key: 'priceAluminioShutterMosq' as ManualPriceFieldKey,
+                label: t('sales.productForm.parametric.manualPrice.aluMosqLabel', {
+                    defaultValue: 'Cost with aluminium shutter + mosquito net',
+                }),
+                description: t('sales.productForm.parametric.manualPrice.aluMosqDescription', {
+                    defaultValue: 'Full combo: aluminium shutter plus mosquito net.',
+                }),
+            },
+        ],
+        [t],
+    )
+    const hasManualValues = hasManualConfigValues(draftInfo.manualConfig)
+    const manualCurrency = currency || 'USD'
+    const manualPayloadPreview = useMemo(
+        () => mapDraftToManualPayload(manualConfig, manualCurrency),
+        [manualConfig, manualCurrency],
+    )
+    const manualFieldsReady = useMemo(
+        () =>
+            Boolean(
+                manualPayloadPreview.familyId &&
+                    manualPayloadPreview.serie &&
+                    manualPayloadPreview.color &&
+                    manualPayloadPreview.vidrio &&
+                    Number(manualPayloadPreview.widthMm ?? 0) > 0 &&
+                    Number(manualPayloadPreview.heightMm ?? 0) > 0,
+            ),
+        [manualPayloadPreview],
+    )
+    const canSaveManual = hasProductId && hasManualValues && manualFieldsReady
+    const manualInputsDisabled = manualLoading || savingManual
+    const manualSaveDisabledMessage = !hasProductId
+        ? t('sales.productForm.parametric.manualSection.saveDisabled', {
+              defaultValue: 'Save the product first to enable manual costs.',
+          })
+        : undefined
+    const handleManualPriceChange = useCallback(
+        (field: ManualPriceFieldKey, value: string) => {
+            updateManualConfig((current) => {
+                if (current[field] === value) {
+                    return current
+                }
+                return { ...current, [field]: value }
+            })
+        },
+        [updateManualConfig],
+    )
+    const handleManualClear = useCallback(() => {
+        updateManualConfig(() => createEmptyManualConfigDraft())
+    }, [updateManualConfig])
+
+    const handleManualSave = useCallback(async () => {
+        if (!hasProductId || !canSaveManual || savingManual) {
+            return
+        }
+        setSavingManual(true)
+        try {
+            await apiSaveParametricManualConfig(numericProductId, manualPayloadPreview)
+            toast.push(
+                <Notification
+                    title={t('sales.productForm.parametric.manualSaveSuccess', {
+                        defaultValue: 'Manual costs saved',
+                    })}
+                    type="success"
+                    duration={3200}
+                >
+                    {t('sales.productForm.parametric.manualSaveSuccessDescription', {
+                        defaultValue: 'The manual matrix row was updated successfully.',
+                    })}
+                </Notification>,
+                { placement: 'top-center' },
+            )
+            setManualRefreshToken((token) => token + 1)
+        } catch (error) {
+            console.error('[parametric] manual save failed', error)
+            toast.push(
+                <Notification
+                    title={t('sales.productForm.parametric.manualSaveError', {
+                        defaultValue: 'Manual pricing could not be saved',
+                    })}
+                    type="warning"
+                    duration={4000}
+                >
+                    {t('sales.productForm.parametric.manualSaveErrorDescription', {
+                        defaultValue: 'Try saving the product again to push the manual costs.',
+                    })}
+                </Notification>,
+                { placement: 'top-center' },
+            )
+        } finally {
+            setSavingManual(false)
+        }
+    }, [canSaveManual, hasProductId, manualPayloadPreview, numericProductId, savingManual, t])
 
     return (
         <AdaptableCard className="mb-4">
@@ -948,8 +1212,17 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                                     onChange={handleFileUpload}
                                     onFileRemove={() => {
                                         if (!hasProductId) {
-                                            setDraftInfo({})
-                                            onDraftChange?.(null)
+                                            setDraftInfo((prev) => {
+                                                if (!prev.matrixFile) {
+                                                    return prev
+                                                }
+                                                const nextDraft: ParametricConfiguratorDraft = {
+                                                    ...prev,
+                                                }
+                                                delete nextDraft.matrixFile
+                                                onDraftChange?.(nextDraft)
+                                                return nextDraft
+                                            })
                                         }
                                     }}
                                 >
@@ -1056,6 +1329,97 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                                         isDisabled={(!hasProductId && !isUrucortinas) || !shutterMaterialOptions.length}
                                     />
                                 )}
+                            </div>
+                        </div>
+                        <div className="border rounded-md p-4 space-y-3 bg-white dark:bg-transparent">
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex flex-col gap-1">
+                                        <h6 className="text-sm font-semibold">
+                                            {t('sales.productForm.parametric.manualSection.title', {
+                                                defaultValue: 'Manual pricing',
+                                            })}
+                                        </h6>
+                                        <p className="text-xs text-gray-600 dark:text-gray-300">
+                                            {t('sales.productForm.parametric.manualSection.description', {
+                                                defaultValue:
+                                                    'Use these costs to replicate the CSV matrix for this product without uploading a file.',
+                                            })}
+                                        </p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            {t('sales.productForm.parametric.manualSection.note', {
+                                                defaultValue:
+                                                    'Values are stored as costs in {{currency}}. The global margin is applied to calculate the sale price.',
+                                                currency: manualCurrency,
+                                            })}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                                        <Button
+                                            size="xs"
+                                            type="button"
+                                            variant="solid"
+                                            onClick={handleManualSave}
+                                            loading={savingManual}
+                                            disabled={!canSaveManual || manualInputsDisabled}
+                                            title={!canSaveManual ? manualSaveDisabledMessage : undefined}
+                                        >
+                                            {t('sales.productForm.parametric.manualSection.save', {
+                                                defaultValue: 'Save manual costs',
+                                            })}
+                                        </Button>
+                                        {hasManualValues && (
+                                            <Button size="xs" type="button" onClick={handleManualClear}>
+                                                {t('sales.productForm.parametric.manualSection.clear', {
+                                                    defaultValue: 'Clear costs',
+                                                })}
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                                {!hasProductId && manualSaveDisabledMessage && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">{manualSaveDisabledMessage}</p>
+                                )}
+                            </div>
+                            {draftInfo.matrixFile && (
+                                <Alert type="warning" showIcon>
+                                    {t('sales.productForm.parametric.manualSection.uploadWarning', {
+                                        defaultValue:
+                                            'If you attach or import a matrix file, these manual values will be ignored.',
+                                    })}
+                                </Alert>
+                            )}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {manualPriceFields.map((field) => (
+                                    <div key={field.key} className="flex flex-col gap-2">
+                                        <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                                            {field.label}
+                                        </div>
+                                        <InputGroup>
+                                            <InputGroup.Addon className="font-semibold text-xs uppercase">
+                                                {manualCurrency}
+                                            </InputGroup.Addon>
+                                            <Input
+                                                type="text"
+                                                inputMode="decimal"
+                                                value={manualConfig[field.key]}
+                                                placeholder="0.00"
+                                                disabled={manualInputsDisabled}
+                                                onChange={(event) => handleManualPriceChange(field.key, event.target.value)}
+                                            />
+                                        </InputGroup>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">{field.description}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {hasManualValues
+                                    ? t('sales.productForm.parametric.manualSection.summary', {
+                                          defaultValue: 'Manual costs ready to import.',
+                                      })
+                                    : t('sales.productForm.parametric.manualSection.empty', {
+                                          defaultValue: 'Add the costs for this configuration to build the parametric matrix.',
+                                      })}
                             </div>
                         </div>
                         {hasProductId && (

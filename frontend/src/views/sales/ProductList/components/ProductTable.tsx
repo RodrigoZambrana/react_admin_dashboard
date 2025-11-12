@@ -44,6 +44,7 @@ import {
     type Selection as AberturasSelection,
     type ShutterKind,
 } from '@/views/sales/parametric/pricingHelpers'
+import { applyMarginToCost } from '@/views/sales/parametric/priceUtils'
 
 type ParametricShutterOption = {
     price?: number | null
@@ -509,8 +510,7 @@ const ProductTable = ({
                 rawCost = selectionState.mosquitero ? Number(pricing.mosquiteroPrice ?? 0) : Number(pricing.basePrice ?? 0)
             }
             const cost = normalizePrice(rawCost)
-            const factor = 1 + (marginPercent || 0) / 100
-            const sale = cost > 0 ? roundTwo(cost * factor) : 0
+            const sale = applyMarginToCost(cost, marginPercent ?? 0)
             return {
                 sale,
                 cost,

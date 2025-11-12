@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Post,
   Put,
   Query,
@@ -13,6 +14,7 @@ import {
 } from '@nestjs/common'
 import { DocumentType, Prisma, ProductAttributeType, ProductMode, SalesUnit } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { ParametricPricingService } from '../pricing/parametric-pricing.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { UpsertProductDto, UpdateProductDto, TableQueryDto as ProductQuery } from './dto/product.dto'
 import { calculateOrderLineTotals, costPriceFromSale, decimalToNumber, roundCurrency, salePriceFromCost } from './utils/pricing'
@@ -130,7 +132,7 @@ const SALES_UNIT_KEYWORDS: Record<SalesUnit, string[]> = {
 @UseGuards(JwtAuthGuard)
 @Controller('sales')
 export class SalesController {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private readonly parametricPricing: ParametricPricingService) {}
 
   private async getTaxRate() {
     const cfg = await this.prisma.systemConfig.findUnique({ where: { key: 'taxRate' } })
@@ -2142,6 +2144,17 @@ export class SalesController {
       img: image.img,
     }))
 
+    let parametricManualConfig: unknown = null
+    if (rest.mode === ProductMode.PARAMETRIC) {
+      try {
+        parametricManualConfig = await this.parametricPricing.getManualConfigSnapshot(rest.id)
+      } catch (error) {
+        if (!(error instanceof NotFoundException)) {
+          throw error
+        }
+      }
+    }
+
     return {
       ...rest,
       salePrice: decimalToNumber(data.salePrice),
@@ -2150,6 +2163,7 @@ export class SalesController {
       imgList,
       attributes,
       variants,
+      parametricManualConfig,
     }
   }
 

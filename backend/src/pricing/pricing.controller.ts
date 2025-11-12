@@ -11,6 +11,8 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common'
+import { Type } from 'class-transformer'
+import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator'
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import { ParametricPricingService } from './parametric-pricing.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
@@ -18,6 +20,7 @@ import { RequestTimeout } from '../common/decorators/request-timeout.decorator'
 import type {
   ParametricCompatibilityConfig,
   ParametricMatrixSearchDto,
+  ParametricManualMatrixInput,
   ParametricQuoteInput,
 } from './types'
 import { ParametricFeatureGuard } from './pricing.guard'
@@ -27,6 +30,70 @@ const PARAMETRIC_IMPORT_TIMEOUT_MS = (() => {
   const parsed = Number(process.env.PARAMETRIC_IMPORT_TIMEOUT_MS)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PARAMETRIC_IMPORT_TIMEOUT_MS
 })()
+
+class ManualMatrixDto implements ParametricManualMatrixInput {
+  @IsString()
+  familyId!: string
+
+  @IsString()
+  serie!: string
+
+  @IsString()
+  color!: string
+
+  @IsString()
+  vidrio!: string
+
+  @IsNumber()
+  @Type(() => Number)
+  widthMm!: number
+
+  @IsNumber()
+  @Type(() => Number)
+  heightMm!: number
+
+  @IsOptional()
+  @IsBoolean()
+  hasMosquitero?: boolean
+
+  @IsOptional()
+  @IsBoolean()
+  hasMonoblock?: boolean
+
+  @IsOptional()
+  @IsString()
+  currency?: string
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  priceBase?: number | null
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  priceMosquitero?: number | null
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  pricePvcShutter?: number | null
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  pricePvcShutterMosq?: number | null
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  priceAluminioShutter?: number | null
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  priceAluminioShutterMosq?: number | null
+}
 
 @Controller('pricing')
 @UseGuards(JwtAuthGuard, ParametricFeatureGuard)
@@ -41,6 +108,11 @@ export class PricingController {
   @Get('products/:productId/matrix')
   getMatrix(@Param('productId', ParseIntPipe) productId: number) {
     return this.pricing.getProductMatrixEntries(productId)
+  }
+
+  @Get('products/:productId/manual-config')
+  getManualConfig(@Param('productId', ParseIntPipe) productId: number) {
+    return this.pricing.getManualConfigSnapshot(productId)
   }
 
   @Get('products/:productId/selectors')
@@ -72,6 +144,14 @@ export class PricingController {
     @Body() payload: ParametricCompatibilityConfig,
   ) {
     return this.pricing.updateCompatibilityConfig(productId, payload)
+  }
+
+  @Put('products/:productId/manual-config')
+  upsertManualConfig(
+    @Param('productId', ParseIntPipe) productId: number,
+    @Body() payload: ManualMatrixDto,
+  ) {
+    return this.pricing.saveManualConfig(productId, payload)
   }
 
   @Post('quote')

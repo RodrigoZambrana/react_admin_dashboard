@@ -1,3 +1,5 @@
+import { applyMarginToCost } from './priceUtils'
+
 export type ShutterKind = 'none' | 'pvc' | 'aluminio'
 
 export interface ProductRow {
@@ -52,9 +54,7 @@ export function computePrice(row: ProductRow, sel: Selection, marginPercent: num
     const available = costRaw > 0
 
     const cost = available ? Math.round(costRaw * 100) / 100 : 0
-    const factor = 1 + (marginPercent || 0) / 100
-    const saleRaw = available ? cost * factor : 0
-    const sale = available ? Math.ceil(saleRaw - 1e-9) : 0
+    const sale = available ? applyMarginToCost(cost, marginPercent ?? 0) : 0
 
     return { available, cost, sale, usedColumn: col }
 }

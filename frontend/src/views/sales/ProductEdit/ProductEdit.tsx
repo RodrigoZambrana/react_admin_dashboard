@@ -19,6 +19,8 @@ import ProductForm, {
     SetSubmitting,
     OnDeleteCallback,
 } from '@/views/sales/ProductForm'
+import { apiSaveParametricManualConfig } from '@/services/SalesService'
+import { hasManualConfigValues, mapDraftToManualPayload } from '@/views/sales/ProductForm/parametricTypes'
 import isEmpty from 'lodash/isEmpty'
 import {
     DEFAULT_SALES_UNIT,
@@ -52,6 +54,50 @@ const ProductEdit = () => {
         try {
             const success = await updateProduct(values)
             if (success) {
+                if (
+                    values.mode === 'parametric' &&
+                    values.parametricDraft?.manualConfig &&
+                    hasManualConfigValues(values.parametricDraft.manualConfig) &&
+                    values.id
+                ) {
+                    try {
+                        const manualPayload = mapDraftToManualPayload(
+                            values.parametricDraft.manualConfig,
+                            (values.currency as string) || 'USD',
+                        )
+                        await apiSaveParametricManualConfig(Number(values.id), manualPayload)
+                        toast.push(
+                            <Notification
+                                title={t('sales.productForm.parametric.manualSaveSuccess', {
+                                    defaultValue: 'Manual costs saved',
+                                })}
+                                type="success"
+                                duration={3200}
+                            >
+                                {t('sales.productForm.parametric.manualSaveSuccessDescription', {
+                                    defaultValue: 'The manual matrix row was updated successfully.',
+                                })}
+                            </Notification>,
+                            { placement: 'top-center' },
+                        )
+                    } catch (error) {
+                        console.error('parametric/manual-config', error)
+                        toast.push(
+                            <Notification
+                                title={t('sales.productForm.parametric.manualSaveError', {
+                                    defaultValue: 'Manual pricing could not be saved',
+                                })}
+                                type="warning"
+                                duration={4000}
+                            >
+                                {t('sales.productForm.parametric.manualSaveErrorDescription', {
+                                    defaultValue: 'Try saving the product again to push the manual costs.',
+                                })}
+                            </Notification>,
+                            { placement: 'top-center' },
+                        )
+                    }
+                }
                 popNotification('updated')
             }
         } catch (e: any) {
@@ -163,6 +209,7 @@ const ProductEdit = () => {
               unitOfMeasure: (
                   (productData as any).unitOfMeasure ?? DEFAULT_SALES_UNIT
               ) as SalesUnit,
+              parametricDraft: (productData as any).parametricDraft ?? null,
           }
         : undefined
 
