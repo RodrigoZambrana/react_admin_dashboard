@@ -36,7 +36,7 @@ import { formatCurrencyOptionLabel } from '@/utils/currency'
 import { toast } from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
 import VariantConfigurator from './VariantConfigurator'
-import type { ParametricConfiguratorDraft } from './ParametricConfigurator'
+import type { ParametricConfiguratorDraft } from './parametricTypes'
 import type { ProductMode, ProductAttribute, ProductVariant } from './types'
 import { clientConfig } from '@/configs/clientConfig'
 
@@ -283,7 +283,9 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
     const [attributeDefinitions, setAttributeDefinitions] = useState<ProductAttribute[]>
         (initialData.attributes ?? [])
     const [variantRows, setVariantRows] = useState<ProductVariant[]>(initialData.variants ?? [])
-    const [parametricDraft, setParametricDraft] = useState<ParametricConfiguratorDraft | null>(null)
+    const [parametricDraft, setParametricDraft] = useState<ParametricConfiguratorDraft | null>(
+        initialData.parametricDraft ?? null,
+    )
 
     const formRef = useRef<FormikRef | null>(null)
 
@@ -381,6 +383,10 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
         },
         [allowedCurrencyCodes, configCurrencyOptions, storeCurrencyInfo.base],
     )
+
+    useEffect(() => {
+        setParametricDraft(initialData.parametricDraft ?? null)
+    }, [initialData.id, initialData.parametricDraft])
 
     useEffect(() => {
         setMode((current) => {

@@ -29,12 +29,31 @@ import type {
   ParametricQuoteInput,
   ParametricQuoteResult,
   ParametricSelectors,
+  ParametricManualMatrixInput,
+  ParametricManualMatrixSnapshot,
 } from './types'
 import type { PrismaClientOrTransaction } from './types'
 
 const BOOLEAN_TRUE_VALUES = new Set(['1', 'TRUE', 'YES', 'SI', 'SÍ', 'Y'])
 const PRICE_FIELDS = ['priceBase', 'priceMosquitero', 'priceMonoblock', 'priceMonoblockMosquitero'] as const
 type PriceField = (typeof PRICE_FIELDS)[number]
+type NormalizedManualMatrixInput = {
+  familyId: string
+  serie: string
+  color: string
+  vidrio: string
+  widthMm: number
+  heightMm: number
+  hasMosquitero: boolean
+  hasMonoblock: boolean
+  currency: string
+  priceBase: number
+  priceMosquitero: number
+  pricePvcShutter: number
+  pricePvcShutterMosq: number
+  priceAluminioShutter: number
+  priceAluminioShutterMosq: number
+}
 const PRICE_CONFLICT_THRESHOLD = 0.015
 const SOURCE_PRIORITY: Record<string, number> = {
   ERP_GESTION: 400,
@@ -69,7 +88,11 @@ export class ParametricPricingService {
     return isUrucortinas && Boolean(this.clientConfig?.featureFlags?.PARAMETRIC_PRODUCTS)
   }
 
-  private async stageMatrixRows(productId: number, rows: ParametricMatrixRow[]) {
+  private async stageMatrixRows(
+    productId: number,
+    rows: ParametricMatrixRow[],
+    tx: PrismaClientOrTransaction = this.prisma,
+  ) {
     if (!rows.length) {
       return
     }
@@ -107,41 +130,49 @@ export class ParametricPricingService {
         payload: this.serializeRowPayload(row),
       }
     })
-    await this.prisma.parametricMatrixStaging.createMany({ data: stagePayload })
+    await tx.parametricMatrixStaging.createMany({ data: stagePayload })
   }
 
-  private async mergeStagedMatrixRows(productId: number) {
-    const stagedRows = await this.prisma.parametricMatrixStaging.findMany({
-      where: { productId, processedAt: null },
+  private async mergeStagedMatrixRows(
+    productId: number,
+    tx: PrismaClientOrTransaction = this.prisma,
+    options?: { sourceSystem?: string },
+  ) {
+    const stagedRows = await tx.parametricMatrixStaging.findMany({
+      where: {
+        productId,
+        processedAt: null,
+        ...(options?.sourceSystem ? { sourceSystem: options.sourceSystem } : {}),
+      },
       orderBy: [{ referenceDate: 'desc' }, { ingestedAt: 'desc' }, { id: 'asc' }],
     })
     if (!stagedRows.length) {
       return { inserted: 0, updated: 0 }
     }
-    await this.ensureProduct(productId)
+    await this.ensureProduct(productId, tx)
     let inserted = 0
     let updated = 0
 
     for (const row of stagedRows) {
-      const existing = await this.prisma.dimensionPriceMatrix.findFirst({
+      const existing = await tx.dimensionPriceMatrix.findFirst({
         where: { productId, fingerprint: row.fingerprint, optionState: row.optionState },
       })
       if (!existing) {
-        await this.prisma.dimensionPriceMatrix.create({
+        await tx.dimensionPriceMatrix.create({
           data: this.buildMatrixInsertPayload(productId, row),
         })
         inserted += 1
       } else {
         const mergeResult = this.applyColumnWiseMerge(existing, row)
         if (mergeResult.changed) {
-          await this.prisma.dimensionPriceMatrix.update({
+          await tx.dimensionPriceMatrix.update({
             where: { id: existing.id },
             data: mergeResult.data,
           })
           updated += 1
         }
       }
-      await this.prisma.parametricMatrixStaging.update({
+      await tx.parametricMatrixStaging.update({
         where: { id: row.id },
         data: { processedAt: new Date() },
       })
@@ -754,6 +785,176 @@ export class ParametricPricingService {
     })
 
     return rows
+  }
+
+  private normalizeManualMatrixInput(payload: ParametricManualMatrixInput, productCurrency: string): NormalizedManualMatrixInput {
+    const requireString = (value: unknown, field: string) => {
+      const normalized = this.normalizeString(value)
+      if (!normalized) {
+        throw new BadRequestException(`${field} is required`)
+      }
+      return normalized
+    }
+    const parseDimension = (value: unknown, field: string) => {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return Math.max(0, Math.round(value))
+      }
+      if (typeof value === 'string') {
+        const parsed = Number(value)
+        if (Number.isFinite(parsed)) {
+          return Math.max(0, Math.round(parsed))
+        }
+      }
+      throw new BadRequestException(`${field} must be a valid number`)
+    }
+    const parsePriceValue = (value: unknown): number => {
+      if (value === null || value === undefined || value === '') {
+        return 0
+      }
+      if (typeof value === 'number') {
+        if (!Number.isFinite(value)) {
+          throw new BadRequestException('Price values must be numeric')
+        }
+        return this.normalizePriceValue(value)
+      }
+      if (typeof value === 'string') {
+        const parsed = Number(value)
+        if (Number.isFinite(parsed)) {
+          return this.normalizePriceValue(parsed)
+        }
+      }
+      throw new BadRequestException('Price values must be numeric')
+    }
+
+    const familyId = requireString(payload.familyId, 'familyId')
+    const serie = requireString(payload.serie, 'serie')
+    const color = requireString(payload.color, 'color')
+    const vidrio = requireString(payload.vidrio, 'vidrio')
+    const widthMm = parseDimension(payload.widthMm, 'widthMm')
+    const heightMm = parseDimension(payload.heightMm, 'heightMm')
+    if (widthMm <= 0 || heightMm <= 0) {
+      throw new BadRequestException('widthMm and heightMm must be greater than 0')
+    }
+    const priceBase = parsePriceValue(payload.priceBase)
+    const priceMosquitero = parsePriceValue(payload.priceMosquitero)
+    const pricePvcShutter = parsePriceValue(payload.pricePvcShutter)
+    const pricePvcShutterMosq = parsePriceValue(payload.pricePvcShutterMosq)
+    const priceAluminioShutter = parsePriceValue(payload.priceAluminioShutter)
+    const priceAluminioShutterMosq = parsePriceValue(payload.priceAluminioShutterMosq)
+    if (
+      priceBase <= 0 &&
+      priceMosquitero <= 0 &&
+      pricePvcShutter <= 0 &&
+      pricePvcShutterMosq <= 0 &&
+      priceAluminioShutter <= 0 &&
+      priceAluminioShutterMosq <= 0
+    ) {
+      throw new BadRequestException('At least one price value must be greater than zero')
+    }
+    const currency = this.normalizeString(payload.currency) || productCurrency || 'USD'
+    return {
+      familyId,
+      serie,
+      color,
+      vidrio,
+      widthMm,
+      heightMm,
+      hasMosquitero: Boolean(payload.hasMosquitero) || priceMosquitero > 0,
+      hasMonoblock:
+        Boolean(payload.hasMonoblock) ||
+        pricePvcShutter > 0 ||
+        pricePvcShutterMosq > 0 ||
+        priceAluminioShutter > 0 ||
+        priceAluminioShutterMosq > 0,
+      currency,
+      priceBase,
+      priceMosquitero,
+      pricePvcShutter,
+      pricePvcShutterMosq,
+      priceAluminioShutter,
+      priceAluminioShutterMosq,
+    }
+  }
+
+  private detectShutterMaterialKind(label: string): 'PVC' | 'ALUMINIO' | 'GENERIC' {
+    const normalized = this.normalizeShutterMaterialLabel(label)
+    if (normalized.includes('PVC')) {
+      return 'PVC'
+    }
+    if (normalized.includes('ALU')) {
+      return 'ALUMINIO'
+    }
+    return 'GENERIC'
+  }
+
+  private buildManualConfigSnapshot(rows: DimensionPriceMatrix[]): ParametricManualMatrixSnapshot | null {
+    if (!rows.length) {
+      return null
+    }
+    const baseRow =
+      rows.find((row) => !row.hasMosquitero && !row.hasShutterMonoblock) ??
+      rows[0]
+    if (!baseRow) {
+      return null
+    }
+    const matchesBase = (row: DimensionPriceMatrix) =>
+      row.familyId === baseRow.familyId &&
+      row.serie === baseRow.serie &&
+      row.color === baseRow.color &&
+      row.vidrio === baseRow.vidrio &&
+      row.widthMm === baseRow.widthMm &&
+      row.heightMm === baseRow.heightMm
+
+    const shutterRows = rows.filter((row) => row.hasShutterMonoblock && matchesBase(row))
+    const basePriceValue = this.normalizeDecimal(baseRow.priceBase ?? baseRow.price)
+    const baseMosqValue = this.normalizeDecimal(baseRow.priceMosquitero)
+    const snapshot: ParametricManualMatrixSnapshot = {
+      familyId: baseRow.familyId,
+      serie: baseRow.serie,
+      color: baseRow.color,
+      vidrio: baseRow.vidrio,
+      widthMm: baseRow.widthMm,
+      heightMm: baseRow.heightMm,
+      hasMosquitero: Boolean(baseMosqValue && baseMosqValue > 0),
+      hasMonoblock: shutterRows.length > 0,
+      currency: baseRow.currency || 'USD',
+      priceBase: basePriceValue,
+      priceMosquitero: baseMosqValue,
+      pricePvcShutter: null,
+      pricePvcShutterMosq: null,
+      priceAluminioShutter: null,
+      priceAluminioShutterMosq: null,
+    }
+
+    shutterRows.forEach((row) => {
+      const kind = this.detectShutterMaterialKind(row.shutterSystem ?? '')
+      const standalone = this.normalizeDecimal(row.priceMonoblock ?? row.price)
+      const withMosq = this.normalizeDecimal(row.priceMonoblockMosquitero)
+      if (kind === 'PVC') {
+        if (standalone !== null && standalone > 0) {
+          snapshot.pricePvcShutter = standalone
+        }
+        if (withMosq !== null && withMosq > 0) {
+          snapshot.pricePvcShutterMosq = withMosq
+        }
+      } else {
+        if (standalone !== null && standalone > 0) {
+          snapshot.priceAluminioShutter = standalone
+        }
+        if (withMosq !== null && withMosq > 0) {
+          snapshot.priceAluminioShutterMosq = withMosq
+        }
+      }
+    })
+
+    snapshot.hasMonoblock = Boolean(
+      snapshot.pricePvcShutter ||
+        snapshot.pricePvcShutterMosq ||
+        snapshot.priceAluminioShutter ||
+        snapshot.priceAluminioShutterMosq,
+    )
+
+    return snapshot
   }
 
   private parseOptionalDate(value: unknown, field: string): Date | null {
@@ -1624,6 +1825,90 @@ export class ParametricPricingService {
       ],
     })
     return rows.map((row) => this.mapMatrixEntry(row))
+  }
+
+  async getManualConfigSnapshot(productId: number): Promise<ParametricManualMatrixSnapshot | null> {
+    this.assertFeatureEnabled()
+    await this.ensureProduct(productId)
+    const rows = await this.prisma.dimensionPriceMatrix.findMany({
+      where: { productId },
+      orderBy: [
+        { hasShutterMonoblock: 'asc' },
+        { serie: 'asc' },
+        { widthMm: 'asc' },
+        { heightMm: 'asc' },
+      ],
+    })
+    if (!rows.length) {
+      return null
+    }
+    return this.buildManualConfigSnapshot(rows)
+  }
+
+  async saveManualConfig(productId: number, payload: ParametricManualMatrixInput): Promise<ParametricManualMatrixSnapshot | null> {
+    this.assertFeatureEnabled()
+    const product = await this.ensureProduct(productId)
+    const normalized = this.normalizeManualMatrixInput(payload, product.currency || 'USD')
+    const normalizedRowRecord: Record<string, unknown> = {
+      price_base: normalized.priceBase,
+      price_mosquitero: normalized.priceMosquitero,
+      price_pvc_shutter: normalized.pricePvcShutter,
+      price_pvc_shutter_mosq: normalized.pricePvcShutterMosq,
+      price_aluminio_shutter: normalized.priceAluminioShutter,
+      price_aluminio_shutter_mosq: normalized.priceAluminioShutterMosq,
+    }
+
+    const variants = this.composeAggregatedMatrixRowVariants({
+      normalizedRow: normalizedRowRecord,
+      familyId: normalized.familyId,
+      serie: normalized.serie,
+      material: 'ALUMINIO',
+      color: normalized.color,
+      vidrio: normalized.vidrio,
+      widthMm: normalized.widthMm,
+      heightMm: normalized.heightMm,
+      priceBase: normalized.priceBase,
+      priceMosquitero: normalized.priceMosquitero,
+      priceMonoblock: 0,
+      priceMonoblockMosquitero: 0,
+      hasMosquiteroLegacy: normalized.hasMosquitero,
+      hasShutterLegacy: normalized.hasMonoblock,
+      shutterMaterial: '',
+      currency: normalized.currency,
+      detailSnapshot: null,
+      source: 'MANUAL',
+      referenceDate: new Date(),
+      sourceSystem: 'MANUAL',
+    })
+
+    if (!variants.length) {
+      throw new BadRequestException('Unable to build parametric matrix rows from the provided data.')
+    }
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.dimensionPriceMatrix.deleteMany({ where: { productId } })
+        await tx.parametricMatrixStaging.deleteMany({
+          where: { productId, processedAt: null, sourceSystem: 'MANUAL' },
+        })
+        await this.stageMatrixRows(productId, variants, tx)
+        const mergeSummary = await this.mergeStagedMatrixRows(productId, tx, { sourceSystem: 'MANUAL' })
+        if ((mergeSummary.inserted ?? 0) + (mergeSummary.updated ?? 0) === 0) {
+          const warning = `[parametric-manual] No matrix rows merged for product ${productId}`
+          this.logger.warn(warning)
+          throw new BadRequestException('Unable to persist the manual configuration. Please review the costs and try again.')
+        }
+      })
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : typeof error === 'string' ? error : 'unexpected error'
+      if (!(error instanceof BadRequestException)) {
+        this.logger.error(`[parametric-manual] Failed to save manual config for product ${productId}: ${message}`)
+      }
+      throw error
+    }
+
+    return this.getManualConfigSnapshot(productId)
   }
 
   async getProductSelectors(productId: number): Promise<ParametricSelectors> {

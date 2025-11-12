@@ -10,6 +10,11 @@ import type {
     ProductVariant,
     ProductMode,
 } from '@/views/sales/ProductForm/types'
+import type {
+    ParametricConfiguratorDraft,
+    ParametricManualConfigResponse,
+} from '@/views/sales/ProductForm/parametricTypes'
+import { mapManualConfigResponseToDraft } from '@/views/sales/ProductForm/parametricTypes'
 
 type ProductData = {
     id?: number
@@ -39,6 +44,7 @@ type ProductData = {
     mode?: ProductMode
     attributes?: ProductAttribute[]
     variants?: ProductVariant[]
+    parametricDraft?: ParametricConfiguratorDraft | null
 }
 
 export type SalesProductEditState = {
@@ -164,6 +170,10 @@ const mapApiProductToState = (payload: Record<string, unknown>): ProductData => 
               img: typeof img.img === 'string' ? img.img : '',
           }))
         : []
+    const manualConfigResponse = payload.parametricManualConfig as ParametricManualConfigResponse | undefined
+    const parametricDraft = manualConfigResponse
+        ? { manualConfig: mapManualConfigResponseToDraft(manualConfigResponse) }
+        : undefined
 
     return {
         id: typeof payload.id === 'number' ? payload.id : undefined,
@@ -196,6 +206,7 @@ const mapApiProductToState = (payload: Record<string, unknown>): ProductData => 
         mode,
         attributes,
         variants,
+        parametricDraft,
     }
 }
 

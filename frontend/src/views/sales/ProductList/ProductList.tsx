@@ -16,7 +16,7 @@ import ProductForm, {
     type FormModel,
     type SetSubmitting,
 } from '@/views/sales/ProductForm'
-import { apiCreateSalesProduct, apiImportParametricReferences } from '@/services/SalesService'
+import { apiCreateSalesProduct, apiImportParametricReferences, apiSaveParametricManualConfig } from '@/services/SalesService'
 import { apiGetAberturasConfig } from '@/services/SettingsService'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
@@ -24,6 +24,7 @@ import { useLocation } from 'react-router-dom'
 import type { ProductMode } from '@/views/sales/ProductForm/types'
 import type { ParametricImportSummary } from '@/views/sales/ProductForm/ParametricConfigurator'
 import { clientConfig } from '@/configs/clientConfig'
+import { hasManualConfigValues, mapDraftToManualPayload } from '@/views/sales/ProductForm/parametricTypes'
 
 injectReducer('salesProductList', reducer)
 
@@ -245,6 +246,50 @@ const ProductList = () => {
                         </Notification>,
                         { placement: 'top-center' },
                     )
+                }
+                if (
+                    formData.mode === 'parametric' &&
+                    productId &&
+                    parametricDraft?.manualConfig &&
+                    hasManualConfigValues(parametricDraft.manualConfig)
+                ) {
+                    try {
+                        const manualPayload = mapDraftToManualPayload(
+                            parametricDraft.manualConfig,
+                            (formData.currency as string) || 'USD',
+                        )
+                        await apiSaveParametricManualConfig(productId, manualPayload)
+                        toast.push(
+                            <Notification
+                                title={t('sales.productForm.parametric.manualSaveSuccess', {
+                                    defaultValue: 'Manual costs saved',
+                                })}
+                                type="success"
+                                duration={3200}
+                            >
+                                {t('sales.productForm.parametric.manualSaveSuccessDescription', {
+                                    defaultValue: 'The manual matrix row was updated successfully.',
+                                })}
+                            </Notification>,
+                            { placement: 'top-center' },
+                        )
+                    } catch (error) {
+                        console.error('parametric/manual-config', error)
+                        toast.push(
+                            <Notification
+                                title={t('sales.productForm.parametric.manualSaveError', {
+                                    defaultValue: 'Manual pricing could not be saved',
+                                })}
+                                type="warning"
+                                duration={4000}
+                            >
+                                {t('sales.productForm.parametric.manualSaveErrorDescription', {
+                                    defaultValue: 'Try saving the product again to push the manual costs.',
+                                })}
+                            </Notification>,
+                            { placement: 'top-center' },
+                        )
+                    }
                 }
                 toast.push(
                     <Notification

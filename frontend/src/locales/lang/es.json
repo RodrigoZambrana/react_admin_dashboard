@@ -1497,7 +1497,36 @@
         "importProductsWarnings": "Advertencias ({{count}}):",
         "quoteError": "No se pudo generar la cotización",
         "quoteErrorDescription": "Verificá los parámetros e intentá nuevamente.",
-        "quoteSource": "Fuente: {{source}}."
+        "quoteSource": "Fuente: {{source}}.",
+        "manualSection": {
+          "title": "Costos manuales",
+          "description": "Usá estos costos para replicar la matriz CSV de este producto sin subir un archivo.",
+          "note": "Los valores se guardan como costos en {{currency}}. El margen global se aplica para calcular el precio de venta.",
+          "uploadWarning": "Si adjuntás o importás una matriz, estos valores manuales se ignorarán.",
+          "save": "Guardar costos manuales",
+          "saveDisabled": "Guardá el producto para habilitar los costos manuales.",
+          "clear": "Limpiar costos",
+          "summary": "Costos manuales listos para importar.",
+          "empty": "Cargá los costos de esta combinación para crear la fila de matriz."
+        },
+        "manualPrice": {
+          "baseLabel": "Costo base (sin mosquitero ni persiana)",
+          "baseDescription": "Costo total sin mosquitero ni persianas.",
+          "mosquiteroLabel": "Costo con mosquitero",
+          "mosquiteroDescription": "La misma abertura sumando únicamente el mosquitero.",
+          "pvcLabel": "Costo con persiana PVC",
+          "pvcDescription": "Mosquitero desactivado. Incluye la persiana PVC.",
+          "pvcMosqLabel": "Costo con persiana PVC + mosquitero",
+          "pvcMosqDescription": "Combo completo: persiana PVC más mosquitero.",
+          "aluLabel": "Costo con persiana de aluminio",
+          "aluDescription": "Mosquitero desactivado. Incluye la persiana de aluminio.",
+          "aluMosqLabel": "Costo con persiana de aluminio + mosquitero",
+          "aluMosqDescription": "Combo completo: persiana de aluminio más mosquitero."
+        },
+        "manualSaveError": "No se pudieron guardar los costos manuales",
+        "manualSaveErrorDescription": "Intentá guardar el producto nuevamente para enviar los costos.",
+        "manualSaveSuccess": "Costos manuales guardados",
+        "manualSaveSuccessDescription": "La fila manual de la matriz se actualizó correctamente."
       }
     },
     "productList": {

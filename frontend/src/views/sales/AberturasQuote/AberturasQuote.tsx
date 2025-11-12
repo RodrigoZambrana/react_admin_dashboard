@@ -16,7 +16,7 @@ import ProductTable, {
     type ProductTableRow,
 } from '@/views/sales/ProductList/components/ProductTable'
 import productListReducer from '@/views/sales/ProductList/store'
-import { injectReducer } from '@/store'
+import { injectReducer, useAppSelector } from '@/store'
 import { DEFAULT_SALES_UNIT, type SalesUnit } from '@/constants/product.constant'
 
 injectReducer('salesProductList', productListReducer)
@@ -26,12 +26,14 @@ import {
     apiGetSalesProducts,
     apiSearchParametricMatrix,
 } from '@/services/SalesService'
-import { apiGetAberturasSelectors } from '@/services/SettingsService'
+import { apiGetAberturasConfig, apiGetAberturasSelectors } from '@/services/SettingsService'
 import type { TableQueries } from '@/@types/common'
 import { clientConfig } from '@/configs/clientConfig'
 import type { ParametricConfigSnapshot } from '@/views/sales/ProductForm/ParametricConfigurator'
 import { mapSelectorsToOptions, mergeSelectorValues, normalizeSelectorValue } from '@/views/sales/parametric/selectorUtils'
 import type { AberturasSelectorSummary, SelectorOption } from '@/views/sales/parametric/selectorUtils'
+import { applyMarginToCost } from '@/views/sales/parametric/priceUtils'
+import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
 
 type ProductSummary = ProductTableRow
 
@@ -439,17 +441,6 @@ const ensureUniqueProducts = (list: ProductSummary[]): ProductSummary[] => {
     })
 }
 
-const toCurrency = (currency: string, amount: number) => {
-    try {
-        return new Intl.NumberFormat(undefined, {
-            style: 'currency',
-            currency,
-        }).format(amount)
-    } catch {
-        return `${amount.toFixed(2)} ${currency}`
-    }
-}
-
 const formatReferenceDate = (value: string | null) => {
     if (!value) {
         return null
@@ -671,7 +662,7 @@ const componentLabels: Record<string, string> = {
 }
 
 const AberturasQuote = () => {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
     const isUrucortinas = clientConfig.slug === 'urucortinas'
 
     const defaultTableQuery = useMemo<TableQueries>(
@@ -696,6 +687,12 @@ const AberturasQuote = () => {
     const [selectorSummary, setSelectorSummary] = useState<AberturasSelectorSummary | null>(null)
     const [productResults, setProductResults] = useState<ProductSummary[]>([])
     const [productSearchPerformed, setProductSearchPerformed] = useState(false)
+    const [marginPercent, setMarginPercent] = useState<number>(0)
+    const defaultCurrency = useAppSelector((state) => state.currency.code)
+    const fallbackCurrency = useMemo(
+        () => normalizeCurrencyCode(defaultCurrency, 'UYU') || 'UYU',
+        [defaultCurrency],
+    )
 
     const summarySelectors = useMemo(() => {
         if (!selectorSummary) {
@@ -745,6 +742,35 @@ const AberturasQuote = () => {
     const selectorOptionGroups = useMemo(
         () => mapSelectorsToOptions(mergedSelectors, t),
         [mergedSelectors, t],
+    )
+
+    const loadPricingConfig = useCallback(async () => {
+        if (!isUrucortinas) {
+            setMarginPercent(0)
+            return
+        }
+        try {
+            const response = await apiGetAberturasConfig<{ pricing?: { markupPercent?: number } }>()
+            const payload = (response?.data ?? response ?? null) as { pricing?: { markupPercent?: number } } | null
+            const margin = Number(payload?.pricing?.markupPercent)
+            setMarginPercent(Number.isFinite(margin) ? margin : 0)
+        } catch (error) {
+            console.error('[aberturas] failed to load pricing config', error)
+            setMarginPercent(0)
+        }
+    }, [isUrucortinas])
+
+    const salePriceFromCost = useCallback(
+        (cost?: number | null) => applyMarginToCost(cost, marginPercent),
+        [marginPercent],
+    )
+
+    const formatSaleCurrency = useCallback(
+        (amount: number, currency?: string) =>
+            formatCurrency(amount, currency, i18n.language, {
+                fallbackCurrency,
+            }),
+        [fallbackCurrency, i18n.language],
     )
 
     const emptyOptionLabel = useMemo(
@@ -1012,6 +1038,10 @@ const AberturasQuote = () => {
             mounted = false
         }
     }, [isUrucortinas, selectorSummary])
+
+    useEffect(() => {
+        loadPricingConfig()
+    }, [loadPricingConfig])
 
     const fetchMatrix = useCallback(
         async (productId: string) => {
@@ -1995,7 +2025,10 @@ const AberturasQuote = () => {
                     <div className="flex items-center justify-between gap-2">
                         <span className="text-base font-semibold">
                             {match.resolution.available
-                                ? toCurrency(match.row.currency, match.resolution.price)
+                                ? formatSaleCurrency(
+                                      salePriceFromCost(match.resolution.price),
+                                      match.row.currency,
+                                  )
                                 : t('sales.aberturasQuote.result.unavailable', {
                                       defaultValue: 'Sin precio',
                                   })}
@@ -2099,7 +2132,10 @@ const AberturasQuote = () => {
                                             {entry.label}
                                         </span>
                                         <span className="text-sm font-semibold text-gray-900 dark:text-gray-50">
-                                            {toCurrency(match.row.currency, entry.value as number)}
+                                            {formatSaleCurrency(
+                                                salePriceFromCost(entry.value ?? 0),
+                                                match.row.currency,
+                                            )}
                                         </span>
                                     </div>
                                 ))}
@@ -2110,7 +2146,7 @@ const AberturasQuote = () => {
                 </div>
             )
         },
-        [renderComponents, renderMatchInsights, t],
+        [formatSaleCurrency, renderComponents, renderMatchInsights, salePriceFromCost, t],
     )
 
     if (!isUrucortinas) {
@@ -2463,6 +2499,7 @@ const AberturasQuote = () => {
                                 hiddenColumns={productTableHiddenColumns}
                                 disableAutoFetch
                                 forceParametricMode
+                                marginPercent={marginPercent}
                             />
                         ) : (
                             <p className="text-sm text-gray-600 dark:text-gray-300">
@@ -2625,7 +2662,10 @@ const AberturasQuote = () => {
                             )}
                         </div>
                         <div className="text-3xl font-semibold">
-                            {toCurrency(analysis.resolution.currency, analysis.resolution.price)}
+                            {formatSaleCurrency(
+                                salePriceFromCost(analysis.resolution.price),
+                                analysis.resolution.currency,
+                            )}
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-300">
                             {t('sales.aberturasQuote.result.components', {

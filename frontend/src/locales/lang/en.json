@@ -1533,7 +1533,36 @@
         "importProductsWarnings": "Warnings ({{count}}):",
         "quoteError": "Unable to generate quote",
         "quoteErrorDescription": "Verify the parameters and try again.",
-        "quoteSource": "Source: {{source}}."
+        "quoteSource": "Source: {{source}}.",
+        "manualSection": {
+          "title": "Manual pricing",
+          "description": "Use these costs to replicate the CSV matrix for this product.",
+          "note": "Values are stored as costs in {{currency}}. The global margin is applied to obtain the sale price.",
+          "uploadWarning": "If you attach or import a matrix file, these manual values will be ignored.",
+          "save": "Save manual costs",
+          "saveDisabled": "Save the product first to enable manual costs.",
+          "clear": "Clear costs",
+          "summary": "Manual costs ready to import.",
+          "empty": "Add the costs for this configuration to build the matrix row."
+        },
+        "manualPrice": {
+          "baseLabel": "Base cost (no mosquito net / shutter)",
+          "baseDescription": "Total cost without mosquito net or shutters.",
+          "mosquiteroLabel": "Cost with mosquito net",
+          "mosquiteroDescription": "Same opening adding only the mosquito net.",
+          "pvcLabel": "Cost with PVC shutter",
+          "pvcDescription": "Mosquito net disabled. Includes the PVC shutter.",
+          "pvcMosqLabel": "Cost with PVC shutter + mosquito net",
+          "pvcMosqDescription": "Full combo: PVC shutter plus mosquito net.",
+          "aluLabel": "Cost with aluminium shutter",
+          "aluDescription": "Mosquito net disabled. Includes the aluminium shutter.",
+          "aluMosqLabel": "Cost with aluminium shutter + mosquito net",
+          "aluMosqDescription": "Full combo: aluminium shutter plus mosquito net."
+        },
+        "manualSaveError": "Manual pricing could not be saved",
+        "manualSaveErrorDescription": "Try saving the product again to push the manual costs.",
+        "manualSaveSuccess": "Manual costs saved",
+        "manualSaveSuccessDescription": "The manual matrix row was updated successfully."
       }
     },
     "productList": {

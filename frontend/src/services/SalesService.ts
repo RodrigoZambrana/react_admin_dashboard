@@ -103,6 +103,13 @@ export async function apiGetParametricConfig<T>(productId: number) {
     })
 }
 
+export async function apiGetParametricManualConfig<T>(productId: number) {
+    return ApiService.fetchData<T>({
+        url: `/pricing/products/${productId}/manual-config`,
+        method: 'get',
+    })
+}
+
 export async function apiGetParametricMatrix<T>(productId: number) {
     return ApiService.fetchData<T>({
         url: `/pricing/products/${productId}/matrix`,
@@ -172,6 +179,17 @@ export async function apiGetParametricCompatibility<T>(productId: number) {
 export async function apiUpdateParametricCompatibility<T>(productId: number, data: Record<string, unknown>) {
     return ApiService.fetchData<T>({
         url: `/pricing/products/${productId}/compatibility`,
+        method: 'put',
+        data,
+    })
+}
+
+export async function apiSaveParametricManualConfig<T, U extends Record<string, unknown>>(
+    productId: number,
+    data: U,
+) {
+    return ApiService.fetchData<T>({
+        url: `/pricing/products/${productId}/manual-config`,
         method: 'put',
         data,
     })

@@ -247,3 +247,39 @@ export type ParametricConfigSnapshot = {
   }
   compatibility: ParametricCompatibilityConfig
 }
+
+export type ParametricManualMatrixInput = {
+  familyId: string
+  serie: string
+  color: string
+  vidrio: string
+  widthMm: number
+  heightMm: number
+  hasMosquitero?: boolean
+  hasMonoblock?: boolean
+  currency?: string
+  priceBase?: number | null
+  priceMosquitero?: number | null
+  pricePvcShutter?: number | null
+  pricePvcShutterMosq?: number | null
+  priceAluminioShutter?: number | null
+  priceAluminioShutterMosq?: number | null
+}
+
+export type ParametricManualMatrixSnapshot = {
+  familyId: string
+  serie: string
+  color: string
+  vidrio: string
+  widthMm: number
+  heightMm: number
+  hasMosquitero: boolean
+  hasMonoblock: boolean
+  currency: string
+  priceBase?: number | null
+  priceMosquitero?: number | null
+  pricePvcShutter?: number | null
+  pricePvcShutterMosq?: number | null
+  priceAluminioShutter?: number | null
+  priceAluminioShutterMosq?: number | null
+}

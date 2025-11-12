@@ -9,7 +9,8 @@ import Switcher from '@/components/ui/Switcher'
 import Upload from '@/components/ui/Upload'
 import Dialog from '@/components/ui/Dialog'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
-import ParametricConfigurator, { ParametricConfiguratorDraft } from './ParametricConfigurator'
+import ParametricConfigurator from './ParametricConfigurator'
+import type { ParametricConfiguratorDraft } from './parametricTypes'
 import { HiOutlinePlus, HiOutlinePhotograph, HiOutlineTrash } from 'react-icons/hi'
 import type {
     ProductMode,
