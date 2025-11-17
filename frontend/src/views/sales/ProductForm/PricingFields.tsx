@@ -15,6 +15,7 @@ import {
 import type { ComponentType } from 'react'
 import type { InputProps } from '@/components/ui/Input'
 import type { CurrencyCode } from '@/store'
+import type { ProductMode } from './types'
 import { useTranslation } from 'react-i18next'
 
 type FormFieldsName = {
@@ -30,6 +31,7 @@ type PricingFieldsProps = {
     currency: CurrencyCode
     onCurrencyChange: (code: CurrencyCode) => void
     currencyOptions: { value: CurrencyCode; label: string }[]
+    mode: ProductMode
 }
 
 type PriceInputProps = InputProps & {
@@ -75,9 +77,13 @@ const NumericFormatInput = ({
 }
 
 const PricingFields = (props: PricingFieldsProps) => {
-    const { touched, errors, currency, onCurrencyChange, currencyOptions } = props
+    const { touched, errors, currency, onCurrencyChange, currencyOptions, mode } = props
     const { t } = useTranslation()
     const [salePriceManuallyEdited, setSalePriceManuallyEdited] = useState(false)
+
+    if (mode === 'parametric') {
+        return null
+    }
 
     const renderCostPriceField = () => (
         <FormItem

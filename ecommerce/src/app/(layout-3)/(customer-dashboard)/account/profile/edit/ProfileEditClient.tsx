@@ -11,17 +11,13 @@ import Spinner from "@component/Spinner";
 import Typography from "@component/Typography";
 
 import { useAccountProfile } from "@/hooks/useAccountProfile";
+import { useTranslation } from "@/state/i18n-context";
 
 import { ProfileEditForm } from "@sections/customer-dashboard/profile";
 
-const HEADER_LINK = (
-  <Link href="/account/profile">
-    <Button color="primary">Back</Button>
-  </Link>
-);
-
 export default function ProfileEditClient() {
   const { profile, loading, error, refresh, updateLocalProfile } = useAccountProfile();
+  const t = useTranslation();
 
   if (loading && !profile) {
     return (
@@ -43,7 +39,7 @@ export default function ProfileEditClient() {
           {error}
         </Typography>
         <Button color="primary" variant="contained" onClick={() => refresh()}>
-          Try again
+          {t("Try again")}
         </Button>
       </FlexBox>
     );
@@ -53,9 +49,21 @@ export default function ProfileEditClient() {
     return null;
   }
 
+  const headerLink = (
+    <Link href="/account/profile">
+      <Button color="primary">
+        {t("account.profile.actions.back", { defaultMessage: "Back" })}
+      </Button>
+    </Link>
+  );
+
   return (
     <>
-      <DashboardPageHeader Icon={<IconUserFilled size={27} />} title="Edit Profile" button={HEADER_LINK} />
+      <DashboardPageHeader
+        Icon={<IconUserFilled size={27} />}
+        title={t("account.profile.actions.edit", { defaultMessage: "Edit Profile" })}
+        button={headerLink}
+      />
 
       <Card1 borderRadius={12}>
         <ProfileEditForm profile={profile} onUpdated={updateLocalProfile} />

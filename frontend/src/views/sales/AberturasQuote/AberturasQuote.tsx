@@ -30,7 +30,12 @@ import { apiGetAberturasConfig, apiGetAberturasSelectors } from '@/services/Sett
 import type { TableQueries } from '@/@types/common'
 import { clientConfig } from '@/configs/clientConfig'
 import type { ParametricConfigSnapshot } from '@/views/sales/ProductForm/ParametricConfigurator'
-import { mapSelectorsToOptions, mergeSelectorValues, normalizeSelectorValue } from '@/views/sales/parametric/selectorUtils'
+import {
+    mapSelectorsToOptions,
+    mergeSelectorValues,
+    normalizeSelectorValue,
+    toSelectorOption,
+} from '@/views/sales/parametric/selectorUtils'
 import type { AberturasSelectorSummary, SelectorOption } from '@/views/sales/parametric/selectorUtils'
 import { applyMarginToCost } from '@/views/sales/parametric/priceUtils'
 import { formatCurrency, normalizeCurrencyCode } from '@/utils/currency'
@@ -91,6 +96,7 @@ type FormState = {
     vidrio: string
     mosquitero: boolean
     monoblock: boolean
+    shutterMaterial: string
 }
 
 const buildDefaultFormState = (
@@ -120,6 +126,7 @@ const buildDefaultFormState = (
         vidrio: '',
         mosquitero: false,
         monoblock: false,
+        shutterMaterial: '',
     }
 }
 
@@ -130,6 +137,7 @@ type PriceResolution =
           currency: string
           estimated: boolean
           components: string[]
+          shutterMaterial?: string
       }
     | {
           available: false
@@ -140,6 +148,7 @@ type PriceResolution =
               | 'missing_price_mosq'
               | 'missing_price_mb'
               | 'missing_price_mbm'
+              | 'shutter_material_mismatch'
       }
 
 type MatchAdjustment = {
@@ -415,6 +424,7 @@ const productMatchesFilters = (product: ProductSummary, filters: ProductFilterCr
 const productMatchesExtras = (
     product: ProductSummary,
     extras: { mosquitero: boolean; monoblock: boolean },
+    shutterMaterial?: string,
 ) => {
     const mosq = Boolean(product.mosquiteroAvailable)
     const mono = Boolean(product.monoblockAvailable)
@@ -425,7 +435,19 @@ const productMatchesExtras = (
         return mosq
     }
     if (extras.monoblock) {
-        return mono
+        if (!mono) {
+            return false
+        }
+        const selection = normalizeSelectorValue(shutterMaterial)
+        if (selection && product.shutterMaterialSummary) {
+            const summaryTokens = product.shutterMaterialSummary
+                .split(',')
+                .map((entry) => normalizeSelectorValue(entry))
+            if (!summaryTokens.some((token) => token === selection)) {
+                return false
+            }
+        }
+        return true
     }
     return true
 }
@@ -510,18 +532,56 @@ const buildStringOptions = (values: string[]): Option[] => {
     })
 }
 
+const normalizeShutterMaterial = (value?: string | null) => {
+    if (!value) {
+        return ''
+    }
+    return value.toString().trim().toUpperCase()
+}
+
+type ShutterOptionSnapshot = {
+    material: string
+    normalized: string
+    price?: number | null
+    priceMosq?: number | null
+}
+
+const collectShutterOptions = (row: MatrixRow): ShutterOptionSnapshot[] => {
+    const entries: ShutterOptionSnapshot[] = []
+    if (row.shutterOptionsSnapshot) {
+        Object.entries(row.shutterOptionsSnapshot).forEach(([material, payload]) => {
+            const normalized = normalizeShutterMaterial(material) || 'GENERICA'
+            entries.push({
+                material,
+                normalized,
+                price: typeof payload?.price === 'number' ? payload.price : null,
+                priceMosq: typeof payload?.priceMosq === 'number' ? payload.priceMosq : null,
+            })
+        })
+    }
+    if (!entries.length && ((row.priceMonoblock ?? 0) > 0 || (row.priceMonoblockMosquitero ?? 0) > 0)) {
+        const material = row.shutterMaterial?.trim() || 'GENERICA'
+        entries.push({
+            material,
+            normalized: normalizeShutterMaterial(material) || 'GENERICA',
+            price: row.priceMonoblock ?? null,
+            priceMosq: row.priceMonoblockMosquitero ?? null,
+        })
+    }
+    return entries
+}
+
 const resolvePrice = (
     row: MatrixRow,
-    options: { mosquitero: boolean; monoblock: boolean },
+    options: { mosquitero: boolean; monoblock: boolean; shutterMaterial?: string },
 ): PriceResolution => {
-    const base = row.priceBase ?? row.price
-    if (!base || base <= 0) {
-        return { available: false, reason: 'missing_base' }
-    }
-
-    const basePrice = Number(base.toFixed(4))
+    const baseCandidate = typeof row.priceBase === 'number' && row.priceBase > 0 ? row.priceBase : row.price
+    const basePrice = typeof baseCandidate === 'number' && baseCandidate > 0 ? Number(baseCandidate.toFixed(4)) : null
 
     if (!options.mosquitero && !options.monoblock) {
+        if (!basePrice) {
+            return { available: false, reason: 'missing_base' }
+        }
         return {
             available: true,
             price: basePrice,
@@ -540,8 +600,30 @@ const resolvePrice = (
     }
 
     const mosqPrice = row.priceMosquitero ?? null
-    const mbPrice = row.priceMonoblock ?? null
-    const mbMosqPrice = row.priceMonoblockMosquitero ?? null
+    let mbPrice = row.priceMonoblock ?? null
+    let mbMosqPrice = row.priceMonoblockMosquitero ?? null
+    let resolvedShutterMaterial = row.shutterMaterial?.trim() || ''
+
+    if (options.monoblock) {
+        const snapshots = collectShutterOptions(row)
+        const normalizedRequested = normalizeShutterMaterial(options.shutterMaterial)
+        let selected: ShutterOptionSnapshot | undefined
+        if (normalizedRequested) {
+            selected = snapshots.find((entry) => entry.normalized === normalizedRequested)
+            if (!selected && snapshots.length) {
+                return { available: false, reason: 'shutter_material_mismatch' }
+            }
+        }
+        if (!selected && snapshots.length) {
+            const normalizedDefault = normalizeShutterMaterial(row.shutterMaterial)
+            selected = snapshots.find((entry) => entry.normalized === normalizedDefault) ?? snapshots[0]
+        }
+        if (selected) {
+            resolvedShutterMaterial = selected.material
+            mbPrice = typeof selected.price === 'number' ? selected.price : mbPrice
+            mbMosqPrice = typeof selected.priceMosq === 'number' ? selected.priceMosq : mbMosqPrice
+        }
+    }
 
     if (options.mosquitero && options.monoblock) {
         if (mbMosqPrice && mbMosqPrice > 0) {
@@ -551,9 +633,10 @@ const resolvePrice = (
                 currency: row.currency,
                 estimated: false,
                 components: ['monoblock_mosq'],
+                shutterMaterial: resolvedShutterMaterial || options.shutterMaterial,
             }
         }
-        if (mosqPrice && mosqPrice > 0 && mbPrice && mbPrice > 0) {
+        if (mosqPrice && mosqPrice > 0 && mbPrice && mbPrice > 0 && basePrice) {
             const deltaMosq = mosqPrice - basePrice
             const deltaMb = mbPrice - basePrice
             const price = basePrice + deltaMosq + deltaMb
@@ -563,6 +646,7 @@ const resolvePrice = (
                 currency: row.currency,
                 estimated: true,
                 components: ['base', 'delta_mosq', 'delta_mb'],
+                shutterMaterial: resolvedShutterMaterial || options.shutterMaterial,
             }
         }
         return { available: false, reason: 'missing_price_mbm' }
@@ -589,6 +673,7 @@ const resolvePrice = (
                 currency: row.currency,
                 estimated: false,
                 components: ['monoblock'],
+                shutterMaterial: resolvedShutterMaterial || options.shutterMaterial,
             }
         }
         return { available: false, reason: 'missing_price_mb' }
@@ -607,7 +692,7 @@ const buildSuggestions = (
         serie: string
         vidrio: string
     },
-    toggles: { mosquitero: boolean; monoblock: boolean },
+    toggles: { mosquitero: boolean; monoblock: boolean; shutterMaterial?: string },
 ): MatrixMatch[] => {
     const evaluated = rows
         .map((row) => {
@@ -1226,6 +1311,7 @@ const AberturasQuote = () => {
         if (payload) {
             payload.mosquitero = false
             payload.monoblock = false
+            payload.shutterMaterial = ''
             setFormState((prev) => (prev ? { ...prev, ...payload } : prev))
         }
     }, [colorOptions, familyOptions, formState, manualSizeMode, matrix, serieOptions, vidrioOptions])
@@ -1278,6 +1364,96 @@ const AberturasQuote = () => {
         return mergedSelectors?.hasMonoblockOption ?? false
     }, [activeRow, mergedSelectors])
 
+    const availableShutterMaterials = useMemo(() => {
+        if (activeRow) {
+            const options = collectShutterOptions(activeRow)
+            if (options.length) {
+                const seen = new Set<string>()
+                return options
+                    .map((option) => option.material?.trim())
+                    .filter((material): material is string => {
+                        if (!material) {
+                            return false
+                        }
+                        const key = normalizeShutterMaterial(material)
+                        if (seen.has(key)) {
+                            return false
+                        }
+                        seen.add(key)
+                        return true
+                    })
+            }
+            if (activeRow.shutterMaterial?.trim()) {
+                return [activeRow.shutterMaterial.trim()]
+            }
+        }
+        return (mergedSelectors?.shutterMaterials ?? []).filter((value) => Boolean(value && value.trim()))
+    }, [activeRow, mergedSelectors])
+
+    const shutterMaterialOptions = useMemo(
+        () => availableShutterMaterials.map((material) => toSelectorOption(material, material)),
+        [availableShutterMaterials],
+    )
+
+    const defaultShutterMaterial = useMemo(
+        () => availableShutterMaterials.find((value) => value && value.trim()) ?? '',
+        [availableShutterMaterials],
+    )
+
+    const requiresMonoblock = useMemo(() => {
+        if (!activeRow) {
+            return false
+        }
+        const basePrice = typeof activeRow.priceBase === 'number' && activeRow.priceBase > 0
+        return !basePrice && activeRow.hasMonoblockOption && availableShutterMaterials.length > 0
+    }, [activeRow, availableShutterMaterials])
+
+    useEffect(() => {
+        if (!formState) {
+            return
+        }
+        if (requiresMonoblock && !formState.monoblock) {
+            setFormState((prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          monoblock: true,
+                      }
+                    : prev,
+            )
+        }
+    }, [formState, requiresMonoblock])
+
+    useEffect(() => {
+        if (!formState) {
+            return
+        }
+        if (!formState.monoblock) {
+            if (formState.shutterMaterial) {
+                setFormState((prev) => (prev ? { ...prev, shutterMaterial: '' } : prev))
+            }
+            return
+        }
+        if (!availableShutterMaterials.length) {
+            if (formState.shutterMaterial) {
+                setFormState((prev) => (prev ? { ...prev, shutterMaterial: '' } : prev))
+            }
+            return
+        }
+        const normalizedSelection = normalizeShutterMaterial(formState.shutterMaterial)
+        const normalizedList = availableShutterMaterials.map((value) => normalizeShutterMaterial(value))
+        if (!normalizedSelection || !normalizedList.includes(normalizedSelection)) {
+            setFormState((prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          shutterMaterial: defaultShutterMaterial,
+                      }
+                    : prev,
+            )
+        }
+    }, [availableShutterMaterials, defaultShutterMaterial, formState])
+
     useEffect(() => {
         if (!formState || !activeRow) {
             return
@@ -1288,6 +1464,7 @@ const AberturasQuote = () => {
         }
         if (formState.monoblock && !activeRow.hasMonoblockOption) {
             updated.monoblock = false
+            updated.shutterMaterial = ''
         }
         if (Object.keys(updated).length) {
             setFormState((prev) => (prev ? { ...prev, ...updated } : prev))
@@ -1342,6 +1519,7 @@ const AberturasQuote = () => {
                             vidrio: fallbackRow.vidrio,
                             mosquitero: false,
                             monoblock: false,
+                            shutterMaterial: '',
                         }
                       : prev,
             )
@@ -1360,6 +1538,7 @@ const AberturasQuote = () => {
                           color: value,
                           mosquitero: false,
                           monoblock: false,
+                          shutterMaterial: '',
                       }
                     : prev,
             )
@@ -1378,6 +1557,7 @@ const AberturasQuote = () => {
                           serie: value,
                           mosquitero: false,
                           monoblock: false,
+                          shutterMaterial: '',
                       }
                     : prev,
             )
@@ -1396,6 +1576,24 @@ const AberturasQuote = () => {
                           vidrio: value,
                           mosquitero: false,
                           monoblock: false,
+                          shutterMaterial: '',
+                      }
+                    : prev,
+            )
+            setAnalysis({ status: 'idle' })
+            resetAllResults()
+        },
+        [resetAllResults],
+    )
+
+    const handleShutterMaterialChange = useCallback(
+        (value: string) => {
+            const nextValue = value?.trim() ?? ''
+            setFormState((prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          shutterMaterial: nextValue,
                       }
                     : prev,
             )
@@ -1407,14 +1605,23 @@ const AberturasQuote = () => {
 
     const handleToggleChange = useCallback(
         (field: 'mosquitero' | 'monoblock') => {
-            setFormState((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          [field]: !prev[field],
-                      }
-                    : prev,
-            )
+            setFormState((prev) => {
+                if (!prev) {
+                    return prev
+                }
+                if (field === 'monoblock') {
+                    const nextValue = !prev.monoblock
+                    return {
+                        ...prev,
+                        monoblock: nextValue,
+                        shutterMaterial: nextValue ? prev.shutterMaterial : '',
+                    }
+                }
+                return {
+                    ...prev,
+                    [field]: !prev[field],
+                }
+            })
             setAnalysis({ status: 'idle' })
             resetAllResults()
         },
@@ -1432,6 +1639,7 @@ const AberturasQuote = () => {
                       heightMm: 0,
                       mosquitero: false,
                       monoblock: false,
+                      shutterMaterial: '',
                   }
                 : prev,
         )
@@ -1653,6 +1861,7 @@ const AberturasQuote = () => {
                 {
                     mosquitero: formState.mosquitero,
                     monoblock: formState.monoblock,
+                    shutterMaterial: formState.shutterMaterial,
                 },
             )
             setAnalysis({
@@ -1665,6 +1874,7 @@ const AberturasQuote = () => {
         const resolution = resolvePrice(activeRow, {
             mosquitero: formState.mosquitero,
             monoblock: formState.monoblock,
+            shutterMaterial: formState.shutterMaterial,
         })
         if (resolution.available) {
             setAnalysis({
@@ -1687,6 +1897,7 @@ const AberturasQuote = () => {
             {
                 mosquitero: formState.mosquitero,
                 monoblock: formState.monoblock,
+                shutterMaterial: formState.shutterMaterial,
             },
         )
         setAnalysis({
@@ -1721,7 +1932,7 @@ const AberturasQuote = () => {
                 productMatchesExtras(product, {
                     mosquitero: formState.mosquitero,
                     monoblock: formState.monoblock,
-                }),
+                }, formState.shutterMaterial),
         )
         const merged = selectedProduct
             ? ensureUniqueProducts([selectedProduct, ...matches.filter((product) => product.id !== selectedProduct.id)])
@@ -1753,6 +1964,9 @@ const AberturasQuote = () => {
         if (formState.heightMm > 0) payload.heightMm = formState.heightMm
         if (formState.mosquitero) payload.hasMosquitero = true
         if (formState.monoblock) payload.hasShutterMonoblock = true
+        if (formState.monoblock && formState.shutterMaterial) {
+            payload.shutterMaterial = formState.shutterMaterial.trim()
+        }
 
         setSearchLoading(true)
         setSearchError(null)
@@ -2397,28 +2611,63 @@ const AberturasQuote = () => {
                                                 defaultValue: 'Monoblock',
                                             })}
                                         </span>
-                                        {!monoblockAvailable && (
+                                        {requiresMonoblock ? (
                                             <p className="text-xs text-gray-500">
-                                                {t('sales.aberturasQuote.helpers.mbUnavailable', {
-                                                    defaultValue:
-                                                        'No disponible para esta combinación.',
+                                                {t('sales.aberturasQuote.helpers.mbRequired', {
+                                                    defaultValue: 'Esta medida solo se ofrece como conjunto con persiana.',
                                                 })}
                                             </p>
+                                        ) : (
+                                            !monoblockAvailable && (
+                                                <p className="text-xs text-gray-500">
+                                                    {t('sales.aberturasQuote.helpers.mbUnavailable', {
+                                                        defaultValue:
+                                                            'No disponible para esta combinación.',
+                                                    })}
+                                                </p>
+                                            )
                                         )}
                                     </div>
                                     <Switcher
                                         checked={formState.monoblock}
                                         onChange={() => handleToggleChange('monoblock')}
-                                        disabled={!monoblockAvailable}
+                                        disabled={!monoblockAvailable || requiresMonoblock}
                                     />
                                 </div>
-                                {formState.monoblock && activeRow?.shutterMaterial && (
-                                    <p className="text-xs text-gray-500">
-                                        {t('sales.aberturasQuote.helpers.shutterMaterial', {
-                                            defaultValue: 'Material recomendado: {{material}}',
-                                            material: activeRow.shutterMaterial,
-                                        })}
-                                    </p>
+                                {formState.monoblock && (
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-xs uppercase text-gray-500">
+                                            {t('sales.aberturasQuote.labels.monoblockMaterial', {
+                                                defaultValue: 'Material de persiana',
+                                            })}
+                                        </span>
+                                        <Select
+                                            options={shutterMaterialOptions}
+                                            value={findOptionByValue(
+                                                shutterMaterialOptions,
+                                                formState.shutterMaterial,
+                                            )}
+                                            placeholder={t(
+                                                'sales.aberturasQuote.labels.monoblockMaterialPlaceholder',
+                                                {
+                                                    defaultValue: 'Elegí un material',
+                                                },
+                                            )}
+                                            isDisabled={!shutterMaterialOptions.length}
+                                            onChange={(option) =>
+                                                handleShutterMaterialChange(
+                                                    (option as Option)?.value ?? '',
+                                                )
+                                            }
+                                        />
+                                        {!shutterMaterialOptions.length && (
+                                            <p className="text-xs text-amber-600">
+                                                {t('sales.aberturasQuote.helpers.shutterMaterialUnavailable', {
+                                                    defaultValue: 'Cargá un material de persiana para habilitar esta opción.',
+                                                })}
+                                            </p>
+                                        )}
+                                    </div>
                                 )}
                                 <div className="flex flex-wrap items-center justify-end gap-2">
                                     {!hasActiveFilters && (
@@ -2712,21 +2961,42 @@ const AberturasQuote = () => {
                                         defaultValue: 'Extras seleccionados:',
                                     })}
                                 </span>{' '}
-                                {formState?.mosquitero && formState?.monoblock
-                                    ? t('sales.aberturasQuote.summary.extrasBoth', {
-                                          defaultValue: 'Mosquitero + Persiana',
-                                      })
-                                    : formState?.mosquitero
-                                    ? t('sales.aberturasQuote.summary.extrasMosq', {
-                                          defaultValue: 'Mosquitero',
-                                      })
-                                    : formState?.monoblock
-                                    ? t('sales.aberturasQuote.summary.extrasMb', {
-                                          defaultValue: 'Monoblock',
-                                      })
-                                    : t('sales.aberturasQuote.summary.extrasNone', {
-                                          defaultValue: 'Sin extras',
-                                      })}
+                                {(() => {
+                                    const materialLabel = (
+                                        formState?.shutterMaterial?.trim() ||
+                                        analysis.resolution.shutterMaterial ||
+                                        analysis.row.shutterMaterial ||
+                                        ''
+                                    ).trim()
+                                    if (formState?.mosquitero && formState?.monoblock) {
+                                        return materialLabel
+                                            ? t('sales.aberturasQuote.summary.extrasBothMaterial', {
+                                                  defaultValue: 'Mosquitero + Persiana ({{material}})',
+                                                  material: materialLabel,
+                                              })
+                                            : t('sales.aberturasQuote.summary.extrasBoth', {
+                                                  defaultValue: 'Mosquitero + Persiana',
+                                              })
+                                    }
+                                    if (formState?.mosquitero) {
+                                        return t('sales.aberturasQuote.summary.extrasMosq', {
+                                            defaultValue: 'Mosquitero',
+                                        })
+                                    }
+                                    if (formState?.monoblock) {
+                                        return materialLabel
+                                            ? t('sales.aberturasQuote.summary.extrasMbMaterial', {
+                                                  defaultValue: 'Monoblock ({{material}})',
+                                                  material: materialLabel,
+                                              })
+                                            : t('sales.aberturasQuote.summary.extrasMb', {
+                                                  defaultValue: 'Monoblock',
+                                              })
+                                    }
+                                    return t('sales.aberturasQuote.summary.extrasNone', {
+                                        defaultValue: 'Sin extras',
+                                    })
+                                })()}
                             </div>
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">

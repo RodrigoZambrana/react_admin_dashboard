@@ -40,6 +40,7 @@ interface MercadoPagoCardBrickProps {
   locale: string;
   amount: number;
   currency: string;
+  minInstallments?: number;
   payer: {
     email: string;
     firstName?: string;
@@ -152,15 +153,34 @@ const ensureIdentification = (
   };
 };
 
-const sanitizeInstallments = (value: number | string | undefined): number => {
-  if (typeof value === "number") {
-    return Number.isFinite(value) && value > 0 ? value : 1;
+const parseInstallmentBound = (value?: number): number | null => {
+  if (typeof value !== "number") {
+    return null;
   }
-  if (typeof value === "string") {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
   }
-  return 1;
+  return Math.floor(value);
+};
+
+const sanitizeInstallments = (value: number | string | undefined, min: number, max: number): number => {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number.parseInt(value, 10)
+        : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return min;
+  }
+  const normalized = Math.floor(parsed);
+  if (normalized < min) {
+    return min;
+  }
+  if (normalized > max) {
+    return max;
+  }
+  return normalized;
 };
 
 const isValidEmail = (value: string) => /\S+@\S+\.\S+/.test(value.trim());
@@ -210,6 +230,7 @@ export default function MercadoPagoCardBrick({
   currency,
   payer,
   description,
+  minInstallments = 1,
   maxInstallments = 12,
   onSubmit,
   onProcessingChange,
@@ -219,6 +240,10 @@ export default function MercadoPagoCardBrick({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const controllerRef = useRef<MercadoPagoBrickController | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const normalizedMinInstallments = parseInstallmentBound(minInstallments) ?? 1;
+  const normalizedMaxInstallments =
+    Math.max(normalizedMinInstallments, parseInstallmentBound(maxInstallments) ?? normalizedMinInstallments);
 
   useEffect(() => {
     let cancelled = false;
@@ -257,11 +282,11 @@ export default function MercadoPagoCardBrick({
               }
             },
             paymentMethods: {
-              minInstallments: 1,
-              maxInstallments,
+              minInstallments: normalizedMinInstallments,
+              maxInstallments: normalizedMaxInstallments,
               installments: {
-                min: 1,
-                max: maxInstallments
+                min: normalizedMinInstallments,
+                max: normalizedMaxInstallments
               }
             }
           },
@@ -313,7 +338,11 @@ export default function MercadoPagoCardBrick({
               const payload: MercadoPagoCardSubmitPayload = {
                 token: formData.token,
                 paymentMethodId: formData.payment_method_id,
-                installments: sanitizeInstallments(formData.installments),
+                installments: sanitizeInstallments(
+                  formData.installments,
+                  normalizedMinInstallments,
+                  normalizedMaxInstallments
+                ),
                 issuerId: formData.issuer_id ?? undefined,
                 payer: {
                   email,
@@ -410,7 +439,8 @@ export default function MercadoPagoCardBrick({
     amount,
     description,
     locale,
-    maxInstallments,
+    normalizedMaxInstallments,
+    normalizedMinInstallments,
     onError,
     onProcessingChange,
     onReady,

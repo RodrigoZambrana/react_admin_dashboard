@@ -235,7 +235,9 @@
     "labels": {
       "address": "Address",
       "duration": "Duration",
-      "unknownDate": "Date not specified"
+      "unknownDate": "Date not specified",
+      "category": "Category",
+      "subcategory": "Subcategory"
     },
     "address": {
       "cornerFormat": "Corner {{corner}}"
@@ -1076,6 +1078,8 @@
         "vidrioPlaceholder": "Select a glass type",
         "mosquitero": "Mosquito net",
         "monoblock": "Shutter / Monoblock",
+        "monoblockMaterial": "Shutter material",
+        "monoblockMaterialPlaceholder": "Select a material",
         "manualSizeToggle": "Enter custom size",
         "manualWidth": "Width (mm)",
         "manualHeight": "Height (mm)",
@@ -1084,7 +1088,8 @@
       "helpers": {
         "mosqUnavailable": "Not available for this combination.",
         "mbUnavailable": "Not available for this combination.",
-        "shutterMaterial": "Recommended shutter material: {{material}}",
+        "mbRequired": "This size is only sold together with a shutter.",
+        "shutterMaterialUnavailable": "Load a shutter material to enable this option.",
         "sizeHint": "Pick a catalog size to auto-fill the fields.",
         "manualSizeHint": "Fine-tune the dimensions whenever you need."
       },
@@ -1127,8 +1132,10 @@
         "dimensions": "Size:",
         "extras": "Selected extras:",
         "extrasBoth": "Mosquito net + Shutter",
+        "extrasBothMaterial": "Mosquito net + Shutter ({{material}})",
         "extrasMosq": "Mosquito net",
         "extrasMb": "Shutter / Monoblock",
+        "extrasMbMaterial": "Shutter / Monoblock ({{material}})",
         "extrasNone": "No extras",
         "reference": "Reference date: {{date}}",
         "source": "Source: {{source}}",
@@ -1402,7 +1409,32 @@
     "productForm": {
       "organizations": {
         "title": "Organizations",
-        "desc": "Section to config the product attribute"
+        "desc": "Section to config the product attribute",
+        "manageCategories": "Manage categories",
+        "loadError": "We couldn’t load the categories.",
+        "noParent": "No parent category",
+        "managerTitle": "Categories and subcategories",
+        "managerDescription": "Create or edit categories without leaving this form.",
+        "nameRequired": "Enter a name for the category.",
+        "saveSuccess": "Category saved",
+        "saveSuccessDescription": "The category was saved successfully.",
+        "saveError": "We couldn’t save the category",
+        "deleteBlocked": "Move or remove the subcategories before deleting this category.",
+        "deleteConfirm": "Delete the “{{name}}” category?",
+        "deleteSuccess": "Category deleted",
+        "deleteSuccessDescription": "The category was deleted successfully.",
+        "deleteError": "We couldn’t delete the category",
+        "emptyCategories": "No categories created yet.",
+        "editCategory": "Edit category",
+        "newCategory": "New category",
+        "nameLabel": "Name",
+        "parentLabel": "Parent category",
+        "resetCategory": "Clear",
+        "saveCategory": "Save",
+        "managerHint": "Select a category to edit it or assign a parent to create a subcategory.",
+        "tableName": "Name",
+        "tableParent": "Parent",
+        "tableActions": "Actions"
       },
       "categories": {
         "bags": "Bags",

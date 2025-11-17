@@ -121,17 +121,33 @@ type ProductForm = {
     allowedModes?: ProductMode[]
 }
 
+const normalizeNumberInput = (schema: Yup.NumberSchema) =>
+    schema.transform((value, originalValue) => {
+        if (originalValue === null || originalValue === undefined || originalValue === '') {
+            return undefined
+        }
+        return value
+    })
+
 const validationSchema = (t: (k: string) => string) =>
     Yup.object().shape({
         name: Yup.string().required(t('text.validation.productNameRequired')),
-        costPrice: Yup.number()
-            .typeError(t('text.validation.costPriceRequired'))
-            .required(t('text.validation.costPriceRequired'))
-            .min(0, t('text.validation.costPriceMin')), 
-        salePrice: Yup.number()
-            .typeError(t('text.validation.salePriceRequired'))
-            .required(t('text.validation.salePriceRequired'))
-            .min(0, t('text.validation.salePriceMin')),
+        costPrice: normalizeNumberInput(
+            Yup.number().typeError(t('text.validation.costPriceRequired')),
+        ).when('mode', {
+            is: (mode: ProductMode) => mode === 'parametric',
+            then: (schema) => schema.notRequired(),
+            otherwise: (schema) =>
+                schema.required(t('text.validation.costPriceRequired')).min(0, t('text.validation.costPriceMin')),
+        }),
+        salePrice: normalizeNumberInput(
+            Yup.number().typeError(t('text.validation.salePriceRequired')),
+        ).when('mode', {
+            is: (mode: ProductMode) => mode === 'parametric',
+            then: (schema) => schema.notRequired(),
+            otherwise: (schema) =>
+                schema.required(t('text.validation.salePriceRequired')).min(0, t('text.validation.salePriceMin')),
+        }),
         stock: Yup.number()
             .typeError(t('text.validation.stockNumber') || 'Stock must be a number')
             .required(t('text.validation.stockRequired') || 'Stock is required')
@@ -524,6 +540,12 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                         baseData.specifications = sanitizeString(baseData.specifications)
                     }
 
+                    if (baseData.mode === 'parametric') {
+                        baseData.costPrice = undefined
+                        baseData.salePrice = undefined
+                        baseData.bulkDiscountPrice = undefined
+                    }
+
                     ;(['salePrice', 'costPrice', 'stock', 'status', 'bulkDiscountPrice', 'categoryId'] as const).forEach(
                         (key) => {
                             const value = (baseData as Record<string, unknown>)[key]
@@ -689,6 +711,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                             currency={values.currency as CurrencyCode}
                                             currencyOptions={currencyOptionsForSelect}
                                             onCurrencyChange={(code) => setFieldValue('currency', code)}
+                                            mode={mode}
                                         />
                                         <VariantConfigurator
                                             mode={mode}
