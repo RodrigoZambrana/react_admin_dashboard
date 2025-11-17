@@ -27,7 +27,9 @@ import {
     HiOutlineVariable,
     HiOutlineCode,
     HiOutlineShoppingBag,
+    HiOutlineViewBoards,
 } from 'react-icons/hi'
+import { MdOutlineWindow } from 'react-icons/md'
 import type { JSX } from 'react'
 
 export type NavigationIcons = Record<string, JSX.Element>
@@ -66,6 +68,7 @@ const navigationIcon: NavigationIcons = {
     changeLog: <HiOutlineCode />,
     settings: <HiOutlineAdjustments />,
     products: <HiOutlineShoppingBag />,
+    aberturas: <MdOutlineWindow size={24} />,
     signOut: (
         <span className="text-xl opacity-50">
             <svg

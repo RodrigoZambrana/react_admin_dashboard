@@ -10,7 +10,7 @@ export const TRANSLATIONS: Record<SupportedLocale, TranslationDictionary> = {
   es: esTranslations
 };
 
-export const DEFAULT_LOCALE: SupportedLocale = "en";
+export const DEFAULT_LOCALE: SupportedLocale = "es";
 
 export const INITIAL_LOCALE: SupportedLocale = "es";
 

@@ -19,22 +19,30 @@ import Spinner from "@component/Spinner";
 
 import { useAccountProfile } from "@/hooks/useAccountProfile";
 import { useAccountOrders } from "@/hooks/useAccountOrders";
-
-const HEADER_LINK = (
-  <Link href="/account/profile/edit">
-    <Button color="primary">Edit Profile</Button>
-  </Link>
-);
+import { useTranslation } from "@/state/i18n-context";
 
 const FALLBACK_AVATAR = "/assets/images/faces/ralph.png";
 
 export default function ProfileClient() {
   const { profile, loading, error, refresh } = useAccountProfile();
   const { orders, loading: ordersLoading } = useAccountOrders();
+  const t = useTranslation();
+
+  const headerLink = useMemo(
+    () => (
+      <Link href="/account/profile/edit">
+        <Button color="primary">
+          {t("account.profile.actions.edit", { defaultMessage: "Edit Profile" })}
+        </Button>
+      </Link>
+    ),
+    [t]
+  );
 
   const fullName = profile ? `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim() : "";
-  const displayName = fullName || profile?.email || "Customer";
-  const phoneDisplay = profile?.phone || "Not provided";
+  const displayName =
+    fullName || profile?.email || t("account.profile.fallbackName", { defaultMessage: "Customer" });
+  const phoneDisplay = profile?.phone || t("account.profile.phoneMissing", { defaultMessage: "Not provided" });
   const birthDate = profile?.dateOfBirth
     ? format(new Date(profile.dateOfBirth), "dd MMM, yyyy")
     : "—";
@@ -54,12 +62,28 @@ export default function ProfileClient() {
     const savedAddresses = profile?.addresses?.length ?? 0;
 
     return [
-      { value: totalOrders, label: "All Orders", ordersMetric: true },
-      { value: awaitingPaymentCount, label: "Awaiting Payments", ordersMetric: true },
-      { value: awaitingShipmentCount, label: "Awaiting Shipment", ordersMetric: true },
-      { value: savedAddresses, label: "Saved Addresses", ordersMetric: false }
+      {
+        value: totalOrders,
+        label: t("account.profile.stats.allOrders", { defaultMessage: "All Orders" }),
+        ordersMetric: true
+      },
+      {
+        value: awaitingPaymentCount,
+        label: t("account.profile.stats.awaitingPayments", { defaultMessage: "Awaiting Payments" }),
+        ordersMetric: true
+      },
+      {
+        value: awaitingShipmentCount,
+        label: t("account.profile.stats.awaitingShipment", { defaultMessage: "Awaiting Shipment" }),
+        ordersMetric: true
+      },
+      {
+        value: savedAddresses,
+        label: t("account.profile.stats.savedAddresses", { defaultMessage: "Saved Addresses" }),
+        ordersMetric: false
+      }
     ];
-  }, [orders, profile?.addresses]);
+  }, [orders, profile?.addresses, t]);
 
   if (loading && !profile) {
     return (
@@ -81,7 +105,7 @@ export default function ProfileClient() {
           {error}
         </Typography>
         <Button color="primary" variant="contained" onClick={() => refresh()}>
-          Try again
+          {t("Try again")}
         </Button>
       </FlexBox>
     );
@@ -89,7 +113,11 @@ export default function ProfileClient() {
 
   return (
     <Fragment>
-      <DashboardPageHeader title="My Profile" button={HEADER_LINK} Icon={<IconUserFilled size={27} />} />
+      <DashboardPageHeader
+        title={t("account.profile.title", { defaultMessage: "My Profile" })}
+        button={headerLink}
+        Icon={<IconUserFilled size={27} />}
+      />
 
       <Box mb="30px">
         <Grid container spacing={6}>
@@ -114,7 +142,7 @@ export default function ProfileClient() {
 
                     <FlexBox alignItems="center">
                       <Typography fontSize="14px" color="text.hint">
-                        Balance:
+                        {t("account.profile.balanceLabel", { defaultMessage: "Balance:" })}
                       </Typography>
 
                       <Typography ml="4px" fontSize="14px" color="primary.main">
@@ -124,7 +152,7 @@ export default function ProfileClient() {
                   </div>
 
                   <Typography fontSize="14px" color="text.hint" letterSpacing="0.2em">
-                    SILVER USER
+                    {t("account.profile.tier.silver", { defaultMessage: "SILVER USER" })}
                   </Typography>
                 </FlexBox>
               </Box>
@@ -171,7 +199,7 @@ export default function ProfileClient() {
         borderColor="gray.200">
         <FlexBox flexDirection="column" p="0.5rem">
           <Small color="text.muted" mb="4px">
-            First Name
+            {t("First name")}
           </Small>
 
           <span>{profile?.firstName ?? "—"}</span>
@@ -179,7 +207,7 @@ export default function ProfileClient() {
 
         <FlexBox flexDirection="column" p="0.5rem">
           <Small color="text.muted" mb="4px">
-            Last Name
+            {t("Last name")}
           </Small>
 
           <span>{profile?.lastName ?? "—"}</span>
@@ -187,7 +215,7 @@ export default function ProfileClient() {
 
         <FlexBox flexDirection="column" p="0.5rem">
           <Small color="text.muted" mb="4px">
-            Email
+            {t("account.profile.details.email", { defaultMessage: "Email" })}
           </Small>
 
           <span>{profile?.email ?? "—"}</span>
@@ -195,7 +223,7 @@ export default function ProfileClient() {
 
         <FlexBox flexDirection="column" p="0.5rem">
           <Small color="text.muted" mb="4px" textAlign="left">
-            Phone
+            {t("account.profile.details.phone", { defaultMessage: "Phone" })}
           </Small>
 
           <span>{phoneDisplay}</span>
@@ -203,7 +231,7 @@ export default function ProfileClient() {
 
         <FlexBox flexDirection="column" p="0.5rem">
           <Small color="text.muted" mb="4px">
-            Birth date
+            {t("account.profile.details.birthDate", { defaultMessage: "Birth date" })}
           </Small>
 
           <span className="pre">{birthDate}</span>

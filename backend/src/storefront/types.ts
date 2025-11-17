@@ -68,6 +68,8 @@ export interface StorefrontConfig {
       enabled: boolean
       publicKey: string | null
       country: string | null
+      minInstallments?: number | null
+      maxInstallments?: number | null
       updatedAt: string | null
     } | null
   }

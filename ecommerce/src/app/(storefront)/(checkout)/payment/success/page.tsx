@@ -16,7 +16,7 @@ import { useCurrency } from "@/state/currency-context";
 import { useStorefrontCart } from "@/state/cart-context";
 import type { CreateOrderPayload } from "@/types/storefront";
 import { readActiveOrderLock, writeOrderLock } from "@/utils/orderLock";
-import { useI18n } from "@/state/i18n-context";
+import { useTranslation } from "@/state/i18n-context";
 
 const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
   UY: "11000"
@@ -25,6 +25,15 @@ const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
 const POSTAL_CODE_FALLBACK = "00000";
 
 type OrderCreationState = "idle" | "processing" | "success" | "error";
+
+const PAYMENT_STATUS_KEYS: Record<string, string> = {
+  approved: "checkout.review.paymentStatus.approved",
+  authorized: "checkout.review.paymentStatus.authorized",
+  in_process: "checkout.review.paymentStatus.in_process",
+  pending: "checkout.review.paymentStatus.pending",
+  processing: "checkout.review.paymentStatus.processing",
+  rejected: "checkout.review.paymentStatus.rejected"
+};
 
 export default function PaymentSuccessPage() {
   return (
@@ -39,6 +48,7 @@ function PaymentSuccessContent() {
   const paymentId = searchParams?.get("paymentId") ?? "unknown";
   const status = searchParams?.get("status") ?? "approved";
   const detail = searchParams?.get("detail");
+  const t = useTranslation();
 
   const {
     contact,
@@ -51,10 +61,21 @@ function PaymentSuccessContent() {
   } = useCheckout();
   const { state: cartState, clearCart } = useStorefrontCart();
   const { currency: activeCurrency } = useCurrency();
-  const { locale } = useI18n();
 
   const [orderState, setOrderState] = useState<OrderCreationState>("idle");
   const [orderError, setOrderError] = useState<string | null>(null);
+
+  const translateStatus = useCallback(
+    (value: string | null | undefined) => {
+      const normalized = (value ?? "").toLowerCase();
+      const key = PAYMENT_STATUS_KEYS[normalized];
+      if (key) {
+        return t(key);
+      }
+      return (value && value.length > 0 ? value : null) ?? t("checkout.payment.shared.status", { defaultMessage: "Status" });
+    },
+    [t]
+  );
 
   const orderItems = useMemo(
     () =>
@@ -174,11 +195,14 @@ function PaymentSuccessContent() {
       reset();
       setOrderState("success");
     } catch (cause) {
+      const fallbackMessage = t("checkout.payment.success.orderError", {
+        defaultMessage: "We couldn't confirm your order. Please try again."
+      });
       const message = isApiError(cause)
         ? cause.message
         : cause instanceof Error
           ? cause.message
-          : "We couldn't confirm your order. Please try again.";
+          : fallbackMessage;
       setOrderError(message);
       setOrderState("error");
     }
@@ -202,7 +226,7 @@ function PaymentSuccessContent() {
     shippingAddress.zip,
     checkoutToken,
     activeCurrency,
-    locale
+    t
   ]);
 
   useEffect(() => {
@@ -222,10 +246,13 @@ function PaymentSuccessContent() {
       <FlexBox flexDirection="column" alignItems="center" justifyContent="center" px="1.5rem">
         <Card1 maxWidth="540px" width="100%" textAlign="center" p="2.5rem">
           <H3 fontWeight="700" mb="0.5rem" color="primary.main">
-            Your payment is confirmed
+            {t("checkout.payment.success.title", { defaultMessage: "Your payment is confirmed" })}
           </H3>
           <Typography color="text.muted" mb="2rem">
-            Thank you for completing your purchase with Mercado Pago. You can review the payment details below.
+            {t("checkout.payment.success.subtitle", {
+              defaultMessage:
+                "Thank you for completing your purchase with Mercado Pago. You can review the payment details below."
+            })}
           </Typography>
 
           {canAttemptOrderCreation ? (
@@ -238,28 +265,35 @@ function PaymentSuccessContent() {
               mb="2rem"
             >
               <Typography fontWeight="600" mb="0.5rem">
-                Order status
+                {t("checkout.payment.success.orderStatus", { defaultMessage: "Order status" })}
               </Typography>
               {orderState === "success" ? (
                 <Typography color="success.main" mb="1rem">
-                  Your order was registered successfully.
+                  {t("checkout.payment.success.orderRegistered", {
+                    defaultMessage: "Your order was registered successfully."
+                  })}
                 </Typography>
               ) : orderState === "processing" ? (
                 <Typography color="text.muted" mb="1rem">
-                  Confirming your order...
+                  {t("checkout.payment.success.orderConfirming", { defaultMessage: "Confirming your order..." })}
                 </Typography>
               ) : orderState === "error" ? (
                 <>
                   <Typography color="error.main" mb="1rem">
-                    {orderError ?? "We couldn't confirm your order. Please try again."}
+                    {orderError ??
+                      t("checkout.payment.success.orderError", {
+                        defaultMessage: "We couldn't confirm your order. Please try again."
+                      })}
                   </Typography>
                   <Button variant="outlined" color="primary" onClick={handleRetry}>
-                    Retry confirmation
+                    {t("checkout.payment.success.orderRetry", { defaultMessage: "Retry confirmation" })}
                   </Button>
                 </>
               ) : (
                 <Typography color="text.muted" mb="1rem">
-                  Preparing to confirm your order...
+                  {t("checkout.payment.success.orderPreparing", {
+                    defaultMessage: "Preparing to confirm your order..."
+                  })}
                 </Typography>
               )}
             </Box>
@@ -275,14 +309,14 @@ function PaymentSuccessContent() {
             maxWidth="100%"
           >
             <Typography fontWeight="600" mb="0.5rem">
-              Status
+              {t("checkout.payment.shared.status", { defaultMessage: "Status" })}
             </Typography>
             <Typography color="success.main" mb="1rem">
-              {status}
+              {translateStatus(status)}
             </Typography>
 
             <Typography fontWeight="600" mb="0.5rem">
-              Payment reference
+              {t("checkout.payment.shared.reference", { defaultMessage: "Payment reference" })}
             </Typography>
             <Typography color="text.muted" mb="1rem">
               {paymentId}
@@ -291,9 +325,9 @@ function PaymentSuccessContent() {
             {detail ? (
               <>
                 <Typography fontWeight="600" mb="0.5rem">
-                  Mercado Pago detail
+                  {t("checkout.payment.shared.mercadoPagoDetail", { defaultMessage: "Mercado Pago detail" })}
                 </Typography>
-                <Typography color="text.muted">{detail}</Typography>
+                <Typography color="text.muted">{t(detail, { defaultMessage: detail })}</Typography>
               </>
             ) : null}
           </Box>
@@ -301,12 +335,12 @@ function PaymentSuccessContent() {
           <FlexBox justifyContent="center" flexWrap="wrap" style={{ gap: "1rem" }}>
             <Link href="/account/orders" style={{ textDecoration: "none" }}>
               <Button color="primary" variant="contained">
-                View my orders
+                {t("checkout.payment.success.actions.viewOrders", { defaultMessage: "View my orders" })}
               </Button>
             </Link>
             <Link href="/shop" style={{ textDecoration: "none" }}>
               <Button color="primary" variant="outlined">
-                Continue shopping
+                {t("checkout.payment.success.actions.continue", { defaultMessage: "Continue shopping" })}
               </Button>
             </Link>
           </FlexBox>
@@ -317,15 +351,18 @@ function PaymentSuccessContent() {
 }
 
 function PaymentSuccessSkeleton() {
+  const t = useTranslation();
   return (
     <Box py="6rem">
       <FlexBox flexDirection="column" alignItems="center" justifyContent="center" px="1.5rem">
         <Card1 maxWidth="540px" width="100%" textAlign="center" p="2.5rem">
           <H3 fontWeight="700" mb="0.5rem" color="primary.main">
-            Finalizing your payment...
+            {t("checkout.payment.success.processingTitle", { defaultMessage: "Finalizing your payment..." })}
           </H3>
           <Typography color="text.muted">
-            Hang tight while we load the confirmation details.
+            {t("checkout.payment.success.processingSubtitle", {
+              defaultMessage: "Hang tight while we load the confirmation details."
+            })}
           </Typography>
         </Card1>
       </FlexBox>

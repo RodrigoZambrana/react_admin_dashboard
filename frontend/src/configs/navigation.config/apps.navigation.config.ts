@@ -203,7 +203,7 @@ if (isUrucortinas && hasParametricProducts) {
         path: '',
         title: 'Aberturas',
         translateKey: 'nav.appsAberturas.title',
-        icon: 'products',
+        icon: 'aberturas',
         type: NAV_ITEM_TYPE_COLLAPSE,
         authority: getRolesForFeature(FEATURES.PRODUCTS),
         subMenu: [

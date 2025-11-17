@@ -30,6 +30,8 @@ import {
 import { useCurrency } from "@/state/currency-context";
 
 const MERCADO_PAGO_CURRENCY = "UYU";
+const DEFAULT_MIN_INSTALLMENTS = 1;
+const DEFAULT_MAX_INSTALLMENTS = 12;
 
 const COUNTRY_LOCALE_MAP: Record<string, string> = {
   AR: "es-AR",
@@ -46,6 +48,22 @@ const mapCountryToLocale = (country?: string) => {
   if (!country) return COUNTRY_LOCALE_MAP.AR;
   const normalized = country.trim().toUpperCase();
   return COUNTRY_LOCALE_MAP[normalized] ?? COUNTRY_LOCALE_MAP.AR;
+};
+
+const parseInstallmentsBound = (value?: number | string | null) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const numeric =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number.parseInt(value, 10)
+        : Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+  return Math.floor(numeric);
 };
 
 const generateIdempotencyKey = () => {
@@ -162,6 +180,17 @@ export default function PaymentForm() {
   );
   const isMercadoPagoEnabled =
     mercadopagoConfig?.enabled ?? (publicKey.trim().length > 0);
+  const minInstallments = useMemo(() => {
+    const configured = parseInstallmentsBound(mercadopagoConfig?.minInstallments ?? null);
+    const fromEnv = parseInstallmentsBound(process.env.NEXT_PUBLIC_MP_MIN_INSTALLMENTS ?? null);
+    return configured ?? fromEnv ?? DEFAULT_MIN_INSTALLMENTS;
+  }, [mercadopagoConfig?.minInstallments]);
+  const maxInstallments = useMemo(() => {
+    const configured = parseInstallmentsBound(mercadopagoConfig?.maxInstallments ?? null);
+    const fromEnv = parseInstallmentsBound(process.env.NEXT_PUBLIC_MP_MAX_INSTALLMENTS ?? null);
+    const resolved = configured ?? fromEnv ?? DEFAULT_MAX_INSTALLMENTS;
+    return Math.max(resolved, minInstallments);
+  }, [mercadopagoConfig?.maxInstallments, minInstallments]);
 
   const companyName = useMemo(() => {
     const profile = storefrontConfig?.companyProfile;
@@ -461,6 +490,8 @@ export default function PaymentForm() {
                 locale={locale}
                 amount={amount}
                 currency={currency}
+                minInstallments={minInstallments}
+                maxInstallments={maxInstallments}
                 payer={payerInfo}
                 description={description}
                 onSubmit={handleMercadoPagoSubmit}

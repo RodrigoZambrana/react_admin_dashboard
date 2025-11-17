@@ -234,7 +234,9 @@
     "labels": {
       "address": "Dirección",
       "duration": "Duración",
-      "unknownDate": "Fecha sin determinar"
+      "unknownDate": "Fecha sin determinar",
+      "category": "Categoría",
+      "subcategory": "Subcategoría"
     },
     "address": {
       "cornerFormat": "Esquina {{corner}}"
@@ -1075,6 +1077,8 @@
         "vidrioPlaceholder": "Seleccioná un vidrio",
         "mosquitero": "Mosquitero",
         "monoblock": "Persiana / Monoblock",
+        "monoblockMaterial": "Material de persiana",
+        "monoblockMaterialPlaceholder": "Seleccioná un material",
         "manualSizeToggle": "Ingresar manualmente",
         "manualWidth": "Ancho (mm)",
         "manualHeight": "Alto (mm)",
@@ -1083,7 +1087,8 @@
       "helpers": {
         "mosqUnavailable": "No disponible para esta combinación.",
         "mbUnavailable": "No disponible para esta combinación.",
-        "shutterMaterial": "Material recomendado: {{material}}",
+        "mbRequired": "Esta medida solo se ofrece como conjunto con persiana.",
+        "shutterMaterialUnavailable": "Cargá un material de persiana para habilitar esta opción.",
         "sizeHint": "Elegí una medida para completar los campos automáticamente.",
         "manualSizeHint": "Podés ajustar las medidas manualmente cuando quieras."
       },
@@ -1126,8 +1131,10 @@
         "dimensions": "Medida:",
         "extras": "Extras seleccionados:",
         "extrasBoth": "Mosquitero + Persiana",
+        "extrasBothMaterial": "Mosquitero + Persiana ({{material}})",
         "extrasMosq": "Mosquitero",
         "extrasMb": "Persiana / Monoblock",
+        "extrasMbMaterial": "Persiana / Monoblock ({{material}})",
         "extrasNone": "Sin extras",
         "reference": "Fecha de referencia: {{date}}",
         "source": "Fuente: {{source}}",
@@ -1366,7 +1373,32 @@
     "productForm": {
       "organizations": {
         "title": "Organizaciones",
-        "desc": "Sección para configurar los atributos del producto"
+        "desc": "Sección para configurar los atributos del producto",
+        "manageCategories": "Gestionar categorías",
+        "loadError": "No se pudieron cargar las categorías.",
+        "noParent": "Sin categoría superior",
+        "managerTitle": "Categorías y subcategorías",
+        "managerDescription": "Creá o editá categorías sin salir de este formulario.",
+        "nameRequired": "Ingresá un nombre para la categoría.",
+        "saveSuccess": "Categoría guardada",
+        "saveSuccessDescription": "Los cambios se guardaron correctamente.",
+        "saveError": "No se pudo guardar la categoría",
+        "deleteBlocked": "Eliminá o mové las subcategorías antes de borrar esta categoría.",
+        "deleteConfirm": "¿Eliminar la categoría \"{{name}}\"?",
+        "deleteSuccess": "Categoría eliminada",
+        "deleteSuccessDescription": "La categoría se eliminó correctamente.",
+        "deleteError": "No se pudo eliminar la categoría",
+        "emptyCategories": "Todavía no hay categorías creadas.",
+        "editCategory": "Editar categoría",
+        "newCategory": "Nueva categoría",
+        "nameLabel": "Nombre",
+        "parentLabel": "Categoría superior",
+        "resetCategory": "Limpiar",
+        "saveCategory": "Guardar",
+        "managerHint": "Seleccioná una categoría para editarla o asigná una superior para crear una subcategoría.",
+        "tableName": "Nombre",
+        "tableParent": "Superior",
+        "tableActions": "Acciones"
       },
       "categories": {
         "bags": "Bolsos",
