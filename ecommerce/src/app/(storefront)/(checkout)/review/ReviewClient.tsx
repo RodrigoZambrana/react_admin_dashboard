@@ -30,6 +30,8 @@ import {
 } from "@/utils/orderLock";
 import type { MercadoPagoNormalizedStatus } from "@/utils/mercadopago";
 import { useI18n, useTranslation } from "@/state/i18n-context";
+import type { CartLineItem } from "@/state/cart-context";
+import type { CartLineItem } from "@/state/cart-context";
 
 const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
   UY: "11000"
@@ -92,6 +94,18 @@ const mapOrderPaymentToCheckoutPayment = (
   return null;
 };
 
+const normalizeParametricConfiguration = (
+  item: CartLineItem
+): { config?: Record<string, unknown>; error?: string } => {
+  const raw = item.product.configuration;
+  if (!raw || typeof raw !== "object") {
+    return {
+      error: `Un artículo (“${item.product.name}”) necesita reconfiguración. Actualizá tu carrito y volvé a intentar.`
+    };
+  }
+  return { config: raw as Record<string, unknown> };
+};
+
 const formatAddress = (address: {
   line1?: string;
   line2?: string | null;
@@ -138,6 +152,67 @@ export default function ReviewClient() {
   } = useCheckout();
   const { locale } = useI18n();
   const t = useTranslation();
+  const normalizeParametricConfiguration = useCallback(
+    (item: CartLineItem): Record<string, unknown> | undefined => {
+      const raw = item.product.configuration;
+      if (!raw || typeof raw !== "object") {
+        return undefined;
+      }
+      const config = raw as Record<string, unknown>;
+
+      const coerceNumber = (value: unknown): number | undefined => {
+        if (typeof value === "number" && Number.isFinite(value)) {
+          return value;
+        }
+        if (typeof value === "string") {
+          const parsed = Number.parseFloat(value.replace(",", "."));
+          return Number.isFinite(parsed) ? parsed : undefined;
+        }
+        return undefined;
+      };
+
+      const maybeWidth = coerceNumber(config.widthMm ?? config.width_mm ?? config.width);
+      const maybeHeight = coerceNumber(config.heightMm ?? config.height_mm ?? config.height);
+      const widthMm =
+        maybeWidth !== undefined ? Math.round(maybeWidth > 10 ? maybeWidth : maybeWidth * 1000) : undefined;
+      const heightMm =
+        maybeHeight !== undefined ? Math.round(maybeHeight > 10 ? maybeHeight : maybeHeight * 1000) : undefined;
+
+      const monoblock = (config.monoblock as Record<string, unknown> | undefined) ?? {};
+
+      const normalized: Record<string, unknown> = {
+        ...config,
+        familyId: config.familyId ?? config.family_id ?? String(item.product.productId ?? item.product.id),
+        serie: config.series ?? config.serie ?? config.seriesId ?? "DEFAULT",
+        material: config.material ?? "ALUMINIO",
+        color: config.color ?? "NATURAL",
+        vidrio: config.glass ?? config.vidrio ?? "4 MM",
+        widthMm,
+        heightMm,
+        hasMosquitero: config.mosquitoNet ?? config.hasMosquitero ?? false,
+        hasShutterMonoblock:
+          config.hasShutterMonoblock ??
+          config.monoblockEnabled ??
+          monoblock.enabled ??
+          false,
+        shutterMaterial: monoblock.material ?? config.shutterMaterial ?? undefined,
+        shutterColor: monoblock.color ?? config.shutterColor ?? undefined,
+        currency: config.currency,
+        referenceDate: config.referenceDate,
+        dataVersion: config.dataVersion,
+        breakdown: config.breakdown
+      };
+
+      Object.keys(normalized).forEach((key) => {
+        if (normalized[key] === undefined) {
+          delete normalized[key];
+        }
+      });
+
+      return normalized;
+    },
+    []
+  );
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -177,6 +252,38 @@ export default function ReviewClient() {
       router.replace("/payment");
     }
   }, [hasPayment, lastOrder, router]);
+
+  const orderItemsData = useMemo(() => {
+    const items = cartState.items
+      .map((item) => {
+        const productIdValue = item.product.productId ?? item.product.id;
+        const productId = Number(productIdValue);
+        if (!Number.isFinite(productId)) {
+          return null;
+        }
+        const rawVariantId = item.product.variantId;
+        const variantId =
+          typeof rawVariantId === "number" && Number.isFinite(rawVariantId)
+            ? rawVariantId
+            : undefined;
+
+        const hasConfigObject = item.product.configuration && typeof item.product.configuration === "object";
+        const configuration =
+          item.product.mode === "parametric" || hasConfigObject
+            ? normalizeParametricConfiguration(item)
+            : item.product.configuration ?? undefined;
+
+        return {
+          productId,
+          quantity: Math.max(1, item.quantity),
+          variantId,
+          configuration
+        };
+      })
+      .filter(Boolean) as Array<{ productId: number; quantity: number; variantId?: number; configuration?: Record<string, unknown> }>;
+
+    return { items, error: null as string | null };
+  }, [cartState.items]);
 
   const handlePlaceOrder = useCallback(async () => {
     if (isSubmitting) return;
@@ -223,26 +330,7 @@ export default function ReviewClient() {
       return;
     }
 
-    const orderItems = cartState.items
-      .map((item) => {
-        const productIdValue = item.product.productId ?? item.product.id;
-        const productId = Number(productIdValue);
-        if (!Number.isFinite(productId)) {
-          return null;
-        }
-        const rawVariantId = item.product.variantId;
-        const variantId =
-          typeof rawVariantId === "number" && Number.isFinite(rawVariantId)
-            ? rawVariantId
-            : undefined;
-        return {
-          productId,
-          quantity: Math.max(1, item.quantity),
-          variantId,
-          configuration: item.product.configuration ?? undefined
-        };
-      })
-      .filter(Boolean) as Array<{ productId: number; quantity: number; variantId?: number; configuration?: Record<string, unknown> }>;
+    const orderItems = orderItemsData.items;
 
     if (orderItems.length === 0) {
       const message = t("checkout.review.errors.emptyCartMessage");
@@ -342,6 +430,7 @@ export default function ReviewClient() {
     contact.firstName,
     contact.lastName,
     contact.phone,
+    orderItemsData,
     isSubmitting,
     notes,
     payment,

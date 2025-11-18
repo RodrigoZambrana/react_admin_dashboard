@@ -13,9 +13,9 @@ const SDK_URL = "https://sdk.mercadopago.com/js/v2";
 const SECURITY_SCRIPT_URL = "https://www.mercadopago.com/v2/security.js";
 const SCRIPT_ID = "mercado-pago-sdk";
 const SECURITY_SCRIPT_ID = "mercado-pago-security";
-const BRICK_CONTAINER_ID = "mp-card-payment-brick";
+const BRICK_CONTAINER_ID = "mp-payment-brick";
 
-export type MercadoPagoCardSubmitPayload = {
+export type MercadoPagoPaymentSubmitPayload = {
   token: string;
   paymentMethodId: string;
   installments: number;
@@ -35,20 +35,21 @@ type BrickSubmitResult = {
   errorMessage?: string | null;
 };
 
-interface MercadoPagoCardBrickProps {
+interface MercadoPagoPaymentBrickProps {
   publicKey: string;
   locale: string;
   amount: number;
   currency: string;
+  preferenceId: string;
   minInstallments?: number;
+  maxInstallments?: number;
   payer: {
     email: string;
     firstName?: string;
     lastName?: string;
   };
   description?: string;
-  maxInstallments?: number;
-  onSubmit: (payload: MercadoPagoCardSubmitPayload) => Promise<BrickSubmitResult>;
+  onSubmit: (payload: MercadoPagoPaymentSubmitPayload) => Promise<BrickSubmitResult>;
   onProcessingChange?: (processing: boolean) => void;
   onReady?: () => void;
   onError?: (message: string) => void;
@@ -223,11 +224,12 @@ const notifyActions = (result: BrickSubmitResult, actions?: SubmitActions, error
   }
 };
 
-export default function MercadoPagoCardBrick({
+export default function MercadoPagoPaymentBrick({
   publicKey,
   locale,
   amount,
   currency,
+  preferenceId,
   payer,
   description,
   minInstallments = 1,
@@ -236,8 +238,7 @@ export default function MercadoPagoCardBrick({
   onProcessingChange,
   onReady,
   onError
-}: MercadoPagoCardBrickProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+}: MercadoPagoPaymentBrickProps) {
   const controllerRef = useRef<MercadoPagoBrickController | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -256,6 +257,12 @@ export default function MercadoPagoCardBrick({
           return;
         }
 
+        if (!preferenceId) {
+          setLoading(false);
+          onError?.("Missing Mercado Pago preference to initialize the payment brick.");
+          return;
+        }
+
         setLoading(true);
         const sdk = await initializeMercadoPago(publicKey, locale);
         await ensureSecurityScript();
@@ -268,6 +275,7 @@ export default function MercadoPagoCardBrick({
         const settings = {
           initialization: {
             amount,
+            preferenceId,
             payer: {
               email: payer.email,
               firstName: payer.firstName,
@@ -279,9 +287,17 @@ export default function MercadoPagoCardBrick({
             visual: {
               style: {
                 theme: "default"
+              },
+              defaultPaymentOption: {
+                walletForm: true
               }
             },
             paymentMethods: {
+              creditCard: "all",
+              debitCard: "all",
+              bankTransfer: "all",
+              ticket: "all",
+              mercadoPago: "all",
               minInstallments: normalizedMinInstallments,
               maxInstallments: normalizedMaxInstallments,
               installments: {
@@ -301,26 +317,24 @@ export default function MercadoPagoCardBrick({
             onSubmit: async (event: SubmitEventArg) => {
               const formData = extractFormData(event);
               const actions = extractActions(event);
+              const hasCardToken = Boolean(formData?.token && formData.payment_method_id);
 
-              if (!formData) {
-                const message =
-                  "Mercado Pago did not provide the form data required to process the payment.";
-                onError?.(message);
-                const fallback: BrickSubmitResult = {
-                  status: "error",
-                  paymentId: null,
+              if (!hasCardToken) {
+                const success: BrickSubmitResult = {
+                  status: "success",
+                  paymentId: formData?.payment_id ?? null,
                   statusDetail: null,
-                  errorMessage: message
+                  errorMessage: null
                 };
-                notifyActions(fallback, actions, new Error(message));
-                throw new Error(message);
+                notifyActions(success, actions);
+                return success;
               }
 
-              const identification = ensureIdentification(formData.payer, {
+              const identification = ensureIdentification(formData?.payer, {
                 firstName: payer.firstName,
                 lastName: payer.lastName
               });
-              const email = (formData.payer?.email ?? payer.email).trim();
+              const email = (formData?.payer?.email ?? payer.email).trim();
 
               if (!email || !isValidEmail(email)) {
                 const message = "Enter a valid email address to continue with Mercado Pago.";
@@ -335,15 +349,15 @@ export default function MercadoPagoCardBrick({
                 throw new Error(message);
               }
 
-              const payload: MercadoPagoCardSubmitPayload = {
-                token: formData.token,
-                paymentMethodId: formData.payment_method_id,
+              const payload: MercadoPagoPaymentSubmitPayload = {
+                token: formData!.token,
+                paymentMethodId: formData!.payment_method_id,
                 installments: sanitizeInstallments(
-                  formData.installments,
+                  formData!.installments,
                   normalizedMinInstallments,
                   normalizedMaxInstallments
                 ),
-                issuerId: formData.issuer_id ?? undefined,
+                issuerId: formData!.issuer_id ?? undefined,
                 payer: {
                   email,
                   identification: {
@@ -413,7 +427,7 @@ export default function MercadoPagoCardBrick({
           }
         };
 
-        const controller = await bricksBuilder.create("cardPayment", BRICK_CONTAINER_ID, settings);
+        const controller = await bricksBuilder.create("payment", BRICK_CONTAINER_ID, settings);
         if (cancelled) {
           destroyController(controller);
           return;
@@ -448,6 +462,7 @@ export default function MercadoPagoCardBrick({
     payer.email,
     payer.firstName,
     payer.lastName,
+    preferenceId,
     publicKey
   ]);
 
@@ -455,7 +470,6 @@ export default function MercadoPagoCardBrick({
     <Box>
       <Box
         id={BRICK_CONTAINER_ID}
-        ref={containerRef}
         border="1px solid"
         borderColor="gray.200"
         borderRadius="8px"

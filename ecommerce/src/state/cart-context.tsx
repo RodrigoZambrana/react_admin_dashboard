@@ -10,13 +10,14 @@ import {
   useRef
 } from "react";
 
-import type { Money, ProductSummary, ProductVariantAttribute } from "@/types/storefront";
+import type { Money, ProductMode, ProductSummary, ProductVariantAttribute } from "@/types/storefront";
 import { normalizeMoney } from "@/lib/utils/format";
 import { useToast } from "@/contexts/ToastContext";
 
 export interface CartProductSnapshot {
   id: string;
   productId: number | string;
+  mode?: ProductMode;
   variantId?: number;
   variantKey?: string;
   variantLabel?: string | null;
@@ -54,6 +55,24 @@ const initialState: CartState = {
 
 const STORAGE_KEY = "storefront.cart.v1";
 
+const coerceCartConfiguration = (value: unknown): Record<string, unknown> | undefined => {
+  if (!value) return undefined;
+  if (typeof value === "object") {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object") {
+        return parsed as Record<string, unknown>;
+      }
+    } catch (error) {
+      console.warn("[cart] Failed to parse configuration", error);
+    }
+  }
+  return undefined;
+};
+
 const upgradeCartState = (state: CartState | null | undefined): CartState => {
   if (!state || !Array.isArray(state.items)) {
     return { items: [], updatedAt: Date.now() };
@@ -76,6 +95,11 @@ const upgradeCartState = (state: CartState | null | undefined): CartState => {
       typeof variantIdValue === "number" && Number.isFinite(variantIdValue)
         ? variantIdValue
         : undefined;
+    const rawConfiguration =
+      (product as { configuration?: unknown }).configuration ??
+      (product as { parametricConfiguration?: unknown }).parametricConfiguration ??
+      (product as { config?: unknown }).config;
+    const configuration = coerceCartConfiguration(rawConfiguration);
 
     return {
       ...item,
@@ -83,13 +107,12 @@ const upgradeCartState = (state: CartState | null | undefined): CartState => {
         ...product,
         id: normalizedLineId,
         productId: normalizedProductId,
+        mode: product.mode ?? (configuration ? "parametric" : undefined),
         variantId,
+        variantKey: typeof product.variantKey === "string" ? product.variantKey : undefined,
         variantLabel: product.variantLabel ?? null,
         attributes: Array.isArray(product.attributes) ? product.attributes : undefined,
-        configuration:
-          product.configuration && typeof product.configuration === "object"
-            ? (product.configuration as Record<string, unknown>)
-            : undefined
+        configuration
       }
     };
   });
@@ -161,19 +184,39 @@ const CartContext = createContext<{
 
 const snapshotProduct = (product: ProductSummary): CartProductSnapshot => {
   const productId = product.id;
+  const variantIdValue =
+    product.variantId !== undefined && product.variantId !== null
+      ? Number(product.variantId)
+      : undefined;
+  const variantId =
+    typeof variantIdValue === "number" && Number.isFinite(variantIdValue)
+      ? variantIdValue
+      : undefined;
+  const variantKey =
+    typeof product.variantKey === "string" && product.variantKey.trim().length > 0
+      ? product.variantKey
+      : undefined;
+  const configuration = coerceCartConfiguration(
+    (product as { configuration?: unknown }).configuration ??
+      (product as { parametricConfiguration?: unknown }).parametricConfiguration ??
+      (product as { config?: unknown }).config
+  );
+
   return {
     id: String(productId),
     productId,
-    variantId: undefined,
-    variantKey: undefined,
-    variantLabel: null,
+    mode: product.mode ?? (configuration ? "parametric" : undefined),
+    variantId,
+    variantKey,
+    variantLabel: product.variantLabel ?? null,
     slug: product.slug,
     name: product.name,
     price: normalizeMoney(product.price),
     salePrice: product.salePrice ? normalizeMoney(product.salePrice) : null,
     thumbnail: product.thumbnail,
     inventoryStatus: product.inventoryStatus,
-    attributes: undefined
+    attributes: Array.isArray(product.attributes) ? product.attributes : undefined,
+    configuration
   };
 };
 

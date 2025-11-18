@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { MercadoPagoConfig, Payment } from 'mercadopago'
+import { MercadoPagoConfig, Payment, Preference } from 'mercadopago'
 import type { PaymentCreateResponse } from 'mercadopago/dist/clients/payment/create/types'
 import type { PaymentGetResponse } from 'mercadopago/dist/clients/payment/get/types'
 import { Prisma, PaymentStatus, PaymentType, StorefrontPaymentIntent } from '@prisma/client'
@@ -59,6 +59,26 @@ const sanitizeString = (value?: string | null): string | undefined => {
   return trimmed.length > 0 ? trimmed : undefined
 }
 
+const safeStringify = (input: unknown): string => {
+  try {
+    return JSON.stringify(input)
+  } catch {
+    return '[unserializable]'
+  }
+}
+
+const normalizeAmount = (raw: unknown): number => {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return raw
+  }
+  const normalized = String(raw ?? '')
+    .trim()
+    .replace(/\./g, '')
+    .replace(/,/g, '.')
+  const parsed = Number.parseFloat(normalized)
+  return parsed
+}
+
 @Injectable()
 export class MercadoPagoService {
   private readonly logger = new Logger(MercadoPagoService.name)
@@ -67,6 +87,7 @@ export class MercadoPagoService {
   private readonly envDefaults: Required<Pick<ResolvedMercadoPagoConfig, 'timeoutMs'>> &
     Omit<StoredMercadoPagoConfig, 'timeoutMs' | 'provider'>
   private paymentClient: Payment | null = null
+  private preferenceClient: Preference | null = null
   private paymentMethodIdCache?: number
   private clientSignature: string | null = null
   private lastKnownAccessToken: string | null = null
@@ -252,6 +273,119 @@ export class MercadoPagoService {
     })
 
     return record
+  }
+
+  async createPreference(dto: {
+    amount: number
+    currency: string
+    description?: string | null
+    cartId?: string | null
+    orderId?: string | null
+    statementDescriptor?: string | null
+    payerEmail?: string | null
+    backUrls?: { success?: string | null; failure?: string | null; pending?: string | null }
+  }): Promise<{ preferenceId: string }> {
+    if (!this.providerEnabled()) {
+      throw new ServiceUnavailableException('Mercado Pago integration is disabled.')
+    }
+
+    const config = await this.resolveRuntimeConfig()
+    const preferenceClient = this.ensurePreferenceClientWithConfig(config)
+
+    if (!preferenceClient || !config.accessToken) {
+      throw new ServiceUnavailableException('Mercado Pago credentials are not configured.')
+    }
+
+    const amountRaw = dto.amount as unknown
+    const amount = normalizeAmount(amountRaw)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      const rawLabel = String(amountRaw ?? 'undefined')
+      this.logger.warn(`Mercado Pago preference rejected: invalid amount "${rawLabel}"`)
+      throw new BadRequestException(`Monto inválido para crear la preferencia de Mercado Pago. Valor recibido: "${rawLabel}".`)
+    }
+    const amountRounded = Math.round(amount * 100) / 100
+
+    const currency = (dto.currency ?? '').trim().toUpperCase()
+    if (!currency) {
+      throw new BadRequestException('La moneda es obligatoria para crear la preferencia de Mercado Pago.')
+    }
+
+    const description = sanitizeString(dto.description) ?? 'Order payment'
+    const statementDescriptor = sanitizeString(dto.statementDescriptor)
+    const payerEmail = sanitizeString(dto.payerEmail)
+    const sanitizeBackUrl = (value?: string | null) =>
+      value && /^https?:\/\//i.test(value.trim()) ? value.trim() : undefined
+    const backUrlsRaw = dto.backUrls && (dto.backUrls.success || dto.backUrls.failure || dto.backUrls.pending)
+    const backUrls = backUrlsRaw
+      ? {
+          success: sanitizeBackUrl(dto.backUrls.success),
+          failure: sanitizeBackUrl(dto.backUrls.failure),
+          pending: sanitizeBackUrl(dto.backUrls.pending),
+        }
+      : undefined
+
+    const body: Record<string, unknown> = {
+      items: [
+        {
+          id: dto.orderId ?? dto.cartId ?? 'order',
+          title: description,
+          quantity: 1,
+          unit_price: amountRounded,
+          currency_id: currency,
+        },
+      ],
+      metadata: {
+        cartId: dto.cartId ?? null,
+        orderId: dto.orderId ?? null,
+      },
+    }
+
+    if (statementDescriptor) {
+      body.statement_descriptor = statementDescriptor
+    }
+
+    if (payerEmail) {
+      body.payer = { email: payerEmail }
+    }
+
+    const hasSuccessUrl = Boolean(backUrls?.success)
+    const hasFailureUrl = Boolean(backUrls?.failure)
+    const hasPendingUrl = Boolean(backUrls?.pending)
+    if (hasSuccessUrl || hasFailureUrl || hasPendingUrl) {
+      const filteredBackUrls: Record<string, string> = {}
+      if (hasSuccessUrl && backUrls?.success) filteredBackUrls.success = backUrls.success
+      if (hasFailureUrl && backUrls?.failure) filteredBackUrls.failure = backUrls.failure
+      if (hasPendingUrl && backUrls?.pending) filteredBackUrls.pending = backUrls.pending
+      if (Object.keys(filteredBackUrls).length > 0) {
+        body.back_urls = filteredBackUrls
+      }
+      // auto_return se omite mientras las URLs no sean absolutas y confirmadas
+    }
+
+    this.logger.debug(
+      `Mercado Pago preference payload: amountRaw=${String(amountRaw)}, parsed=${amountRounded}, currency=${currency}, cartId=${dto.cartId}, orderId=${dto.orderId}`,
+    )
+
+    let preference: Record<string, any>
+    try {
+      preference = await preferenceClient.create({ body })
+    } catch (error) {
+      this.logger.warn(`Mercado Pago preference create failed | error=${safeStringify(error)}`)
+      throw this.normalizeMercadoPagoError(error)
+    }
+
+    const preferenceId =
+      preference?.id ??
+      preference?.body?.id ??
+      preference?.response?.id ??
+      preference?.response?.data?.id ??
+      null
+
+    if (!preferenceId) {
+      throw new ServiceUnavailableException('Failed to create Mercado Pago preference.')
+    }
+
+    return { preferenceId: String(preferenceId) }
   }
 
   async getPayment(externalId: string): Promise<PaymentGetResponse | null> {
@@ -445,6 +579,7 @@ export class MercadoPagoService {
   async refreshConfig(): Promise<void> {
     this.clientSignature = null
     this.paymentClient = null
+    this.preferenceClient = null
     await this.resolveRuntimeConfig().then((config) => {
       if (this.providerEnabled() && config.accessToken) {
         this.ensureClientWithConfig(config)
@@ -528,13 +663,14 @@ export class MercadoPagoService {
   private ensureClientWithConfig(config: ResolvedMercadoPagoConfig): Payment | null {
     if (!config.accessToken) {
       this.paymentClient = null
+      this.preferenceClient = null
       this.clientSignature = null
       this.lastKnownAccessToken = null
       return null
     }
 
     const signature = this.buildClientSignature(config)
-    if (this.paymentClient && this.clientSignature === signature) {
+    if (this.paymentClient && this.preferenceClient && this.clientSignature === signature) {
       this.lastKnownAccessToken = config.accessToken
       return this.paymentClient
     }
@@ -546,6 +682,7 @@ export class MercadoPagoService {
         integratorId: config.integratorId,
       })
       this.paymentClient = new Payment(clientConfig)
+      this.preferenceClient = new Preference(clientConfig)
       this.clientSignature = signature
       this.lastKnownAccessToken = config.accessToken
       return this.paymentClient
@@ -553,6 +690,7 @@ export class MercadoPagoService {
       const message = error instanceof Error ? error.message : String(error)
       this.logger.error(`Failed to initialize Mercado Pago client: ${message}`)
       this.paymentClient = null
+      this.preferenceClient = null
       this.clientSignature = null
       throw new ServiceUnavailableException('Unable to initialize Mercado Pago client.')
     }
@@ -560,6 +698,40 @@ export class MercadoPagoService {
 
   private buildClientSignature(config: ResolvedMercadoPagoConfig): string {
     return `${config.accessToken ?? ''}::${config.integratorId ?? ''}::${config.timeoutMs}`
+  }
+
+  private ensurePreferenceClientWithConfig(config: ResolvedMercadoPagoConfig): Preference | null {
+    if (!config.accessToken) {
+      this.preferenceClient = null
+      this.clientSignature = null
+      this.lastKnownAccessToken = null
+      return null
+    }
+
+    const signature = this.buildClientSignature(config)
+    if (this.preferenceClient && this.clientSignature === signature) {
+      this.lastKnownAccessToken = config.accessToken
+      return this.preferenceClient
+    }
+
+    try {
+      const clientConfig = new MercadoPagoConfig({
+        accessToken: config.accessToken,
+        options: { timeout: config.timeoutMs },
+        integratorId: config.integratorId,
+      })
+      this.preferenceClient = new Preference(clientConfig)
+      this.clientSignature = signature
+      this.lastKnownAccessToken = config.accessToken
+      return this.preferenceClient
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.logger.error(`Failed to initialize Mercado Pago preference client: ${message}`)
+      this.paymentClient = null
+      this.preferenceClient = null
+      this.clientSignature = null
+      throw new ServiceUnavailableException('Unable to initialize Mercado Pago client.')
+    }
   }
 
   private resolveProvider(candidate?: string | null): 'mercadopago' | 'none' {
@@ -586,20 +758,38 @@ export class MercadoPagoService {
     const baseMessage =
       payload.cause && payload.cause.length > 0
         ? payload.cause.map((item) => item.description).filter(Boolean).join('. ')
-        : payload.message ?? payload.error ?? 'No pudimos procesar el pago. Revisa los datos e intenta nuevamente.'
+        : payload.message ?? payload.error ?? null
+    const rawErrorMessage = error instanceof Error ? error.message : String(error)
+    const resolvedMessage =
+      baseMessage && baseMessage.trim().length > 0
+        ? baseMessage
+        : rawErrorMessage || 'No pudimos procesar el pago. Revisa los datos e intenta nuevamente.'
+
+    const responsePayload = {
+      message: resolvedMessage,
+      mp: payload,
+      raw: safeStringify(error),
+    }
 
     if (!throwOnNotFound && statusCode === 404) {
-      return new BadRequestException(baseMessage)
+      return new BadRequestException(responsePayload)
     }
 
     if (statusCode >= 500) {
       this.logger.error(`Mercado Pago error ${statusCode}: ${baseMessage}`)
       return new ServiceUnavailableException(
-        'Mercado Pago no está disponible en este momento. Intenta nuevamente en unos instantes.',
+        {
+          message: 'Mercado Pago no está disponible en este momento. Intenta nuevamente en unos instantes.',
+          mp: payload,
+          raw: rawErrorMessage,
+        },
       )
     }
 
-    return new BadRequestException(baseMessage)
+    this.logger.warn(
+      `Mercado Pago error ${statusCode}: ${resolvedMessage} | payload=${safeStringify(payload)} | raw=${rawErrorMessage}`,
+    )
+    return new BadRequestException(responsePayload)
   }
 
   private extractErrorPayload(error: unknown): MercadoPagoErrorPayload {

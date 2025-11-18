@@ -127,6 +127,23 @@ export interface MercadoPagoChargeResponse {
   createdAt: string;
 }
 
+export interface MercadoPagoPreferenceRequest {
+  amount: number;
+  currency: string;
+  description?: string;
+  cartId?: string;
+  orderId?: string;
+  statementDescriptor?: string;
+  payerEmail?: string;
+  successUrl?: string;
+  failureUrl?: string;
+  pendingUrl?: string;
+}
+
+export interface MercadoPagoPreferenceResponse {
+  preferenceId: string;
+}
+
 export interface GoogleAuthStartResponse {
   url: string;
   state: string;
@@ -346,6 +363,19 @@ export const StorefrontApi = {
         method: "POST",
         body: JSON.stringify(payload),
         headers,
+        cache: "no-store"
+      }
+    );
+  },
+
+  async createMercadoPagoPreference(
+    payload: MercadoPagoPreferenceRequest
+  ): Promise<MercadoPagoPreferenceResponse> {
+    return apiFetch(
+      "payments/mercadopago/preference",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
         cache: "no-store"
       }
     );

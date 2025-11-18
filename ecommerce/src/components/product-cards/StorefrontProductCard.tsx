@@ -13,6 +13,7 @@ import { H4, Paragraph, Small } from "@component/Typography";
 import useCart from "@hook/useCart";
 import ProductQuickActions from "./ProductQuickActions";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
+import type { InventoryStatus, ProductMode, ProductVariantAttribute } from "@/types/storefront";
 
 const Wrapper = styled(Box)({
   position: "relative",
@@ -53,6 +54,13 @@ export type StorefrontProductCardProps = {
   rating?: number | null;
   reviewCount?: number | null;
   currencyCode?: string;
+  inventoryStatus?: InventoryStatus;
+  mode?: ProductMode;
+  attributes?: ProductVariantAttribute[];
+  variantId?: number | null;
+  variantKey?: string | null;
+  variantLabel?: string | null;
+  configuration?: Record<string, unknown> | null;
 };
 
 export default function StorefrontProductCard({
@@ -65,7 +73,14 @@ export default function StorefrontProductCard({
   category,
   rating,
   reviewCount,
-  currencyCode
+  currencyCode,
+  inventoryStatus,
+  mode,
+  attributes,
+  variantId,
+  variantKey,
+  variantLabel,
+  configuration
 }: StorefrontProductCardProps) {
   const { state, dispatch } = useCart();
   const { formatAmount, baseCurrency } = useMoneyFormatter();
@@ -75,7 +90,7 @@ export default function StorefrontProductCard({
   const gallery = useMemo(() => {
     const list =
       Array.isArray(images) && images.length > 0
-      ? images.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        ? images.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
         : [];
     if (primaryImage) {
       list.unshift(primaryImage);
@@ -93,10 +108,34 @@ export default function StorefrontProductCard({
         currency: currencyCode ?? baseCurrency,
         imgUrl: primaryImage,
         name: title,
-        qty: (cartItem?.qty ?? 0) + 1
+        qty: (cartItem?.qty ?? 0) + 1,
+        inventoryStatus,
+        mode,
+        attributes,
+        variantId,
+        variantKey,
+        variantLabel,
+        configuration: configuration ?? undefined
       }
     });
-  }, [baseCurrency, cartItem?.qty, currencyCode, dispatch, id, primaryImage, price, slug, title]);
+  }, [
+    attributes,
+    baseCurrency,
+    cartItem?.qty,
+    configuration,
+    currencyCode,
+    dispatch,
+    id,
+    inventoryStatus,
+    mode,
+    primaryImage,
+    price,
+    slug,
+    title,
+    variantId,
+    variantKey,
+    variantLabel
+  ]);
 
   const normalizedRating = typeof rating === "number" ? rating : null;
   const normalizedReviews = typeof reviewCount === "number" ? reviewCount : null;

@@ -115,12 +115,18 @@ export class ParametricPricingService {
         hasMosquitero: Boolean(row.hasMosquitero),
         hasShutterMonoblock: Boolean(row.hasShutterMonoblock),
         shutterSystem: this.normalizeString(row.shutterMaterial ?? ''),
-        hasMosquiteroOption: Boolean(row.hasMosquiteroOption),
-        hasMonoblockOption: Boolean(row.hasMonoblockOption),
         priceBase: this.roundPrice(row.priceBase ?? null),
         priceMosquitero: this.roundPrice(row.priceMosquitero ?? null),
         priceMonoblock: this.roundPrice(row.priceMonoblock ?? null),
         priceMonoblockMosquitero: this.roundPrice(row.priceMonoblockMosquitero ?? null),
+        hasMosquiteroOption: Boolean(
+          (row.priceMosquitero && row.priceMosquitero > 0) ||
+            (row.priceMonoblockMosquitero && row.priceMonoblockMosquitero > 0),
+        ),
+        hasMonoblockOption: Boolean(
+          (row.priceMonoblock && row.priceMonoblock > 0) ||
+            (row.priceMonoblockMosquitero && row.priceMonoblockMosquitero > 0),
+        ),
         currency: row.currency || 'USD',
         specifications,
         sourceSystem,
@@ -192,6 +198,15 @@ export class ParametricPricingService {
     const detailSnapshot = row.specifications ?? null
 
     const lineagePayload = this.serializePriceLineage(lineage)
+    const mosqAvailable = Boolean(
+      (priceValues.priceMosquitero && priceValues.priceMosquitero > 0) ||
+        (priceValues.priceMonoblockMosquitero && priceValues.priceMonoblockMosquitero > 0),
+    )
+    const monoblockAvailable = Boolean(
+      (priceValues.priceMonoblock && priceValues.priceMonoblock > 0) ||
+        (priceValues.priceMonoblockMosquitero && priceValues.priceMonoblockMosquitero > 0),
+    )
+
     return {
       productId,
       fingerprint: row.fingerprint,
@@ -211,13 +226,8 @@ export class ParametricPricingService {
       priceMosquitero: priceValues.priceMosquitero,
       priceMonoblock: priceValues.priceMonoblock,
       priceMonoblockMosquitero: priceValues.priceMonoblockMosquitero,
-      hasMosquiteroOption: row.hasMosquiteroOption || Boolean(priceValues.priceMosquitero && priceValues.priceMosquitero > 0),
-      hasMonoblockOption:
-        row.hasMonoblockOption ||
-        Boolean(
-          (priceValues.priceMonoblock && priceValues.priceMonoblock > 0) ||
-            (priceValues.priceMonoblockMosquitero && priceValues.priceMonoblockMosquitero > 0),
-        ),
+      hasMosquiteroOption: mosqAvailable,
+      hasMonoblockOption: monoblockAvailable,
       currency: row.currency || 'USD',
       detailSnapshot,
       source: row.source ?? row.sourceSystem ?? null,
@@ -267,20 +277,29 @@ export class ParametricPricingService {
       }
     })
 
+    const nextHasMosq = Boolean(
+      (nextValues.priceMosquitero && nextValues.priceMosquitero > 0) ||
+        (nextValues.priceMonoblockMosquitero && nextValues.priceMonoblockMosquitero > 0),
+    )
+    const nextHasMonoblock = Boolean(
+      (nextValues.priceMonoblock && nextValues.priceMonoblock > 0) ||
+        (nextValues.priceMonoblockMosquitero && nextValues.priceMonoblockMosquitero > 0),
+    )
+
     if (changed) {
       updateData.priceBase = nextValues.priceBase
       updateData.priceMosquitero = nextValues.priceMosquitero
       updateData.priceMonoblock = nextValues.priceMonoblock
       updateData.priceMonoblockMosquitero = nextValues.priceMonoblockMosquitero
       updateData.price = this.computeEffectivePrice(nextValues)
-      updateData.hasMosquiteroOption =
-        existing.hasMosquiteroOption || Boolean(nextValues.priceMosquitero && nextValues.priceMosquitero > 0)
-      updateData.hasMonoblockOption =
-        existing.hasMonoblockOption ||
-        Boolean(
-          (nextValues.priceMonoblock && nextValues.priceMonoblock > 0) ||
-            (nextValues.priceMonoblockMosquitero && nextValues.priceMonoblockMosquitero > 0),
-        )
+    }
+    if (existing.hasMosquiteroOption !== nextHasMosq) {
+      updateData.hasMosquiteroOption = nextHasMosq
+      changed = true
+    }
+    if (existing.hasMonoblockOption !== nextHasMonoblock) {
+      updateData.hasMonoblockOption = nextHasMonoblock
+      changed = true
     }
 
     const lineagePayload = this.serializePriceLineage(nextLineage)
@@ -684,7 +703,7 @@ export class ParametricPricingService {
       registerOption(column.token, adjusted, column.isMosq)
     })
 
-    if (!options.size && (legacyPrice > 0 || legacyMosqPrice > 0 || hasShutterLegacy)) {
+    if (!options.size && (legacyPrice > 0 || legacyMosqPrice > 0)) {
       const token = fallbackMaterial || 'GENERIC'
       if (legacyPrice > 0) {
         registerOption(token, legacyPrice, false)
@@ -728,7 +747,7 @@ export class ParametricPricingService {
       params.hasShutterLegacy,
       params.priceTransform,
     )
-    const hasMosqOption = params.priceMosquitero > 0 || params.hasMosquiteroLegacy
+    const hasMosqOption = params.priceMosquitero > 0
     const rows: ParametricMatrixRow[] = []
     const basePrice = params.priceBase > 0 ? params.priceBase : 0
     if (basePrice <= 0 && !hasMosqOption && !shutterOptions.size) {
@@ -746,8 +765,8 @@ export class ParametricPricingService {
       hasMosquitero: false,
       hasShutterMonoblock: false,
       shutterMaterial: '',
-      price: basePrice || params.priceMosquitero || 0,
-      priceBase: basePrice || null,
+      price: Number.isFinite(basePrice) ? basePrice : 0,
+      priceBase: basePrice ?? null,
       priceMosquitero: hasMosqOption ? params.priceMosquitero || null : null,
       priceMonoblock: null,
       priceMonoblockMosquitero: null,
@@ -778,8 +797,8 @@ export class ParametricPricingService {
         priceMonoblock: optionPrice,
         priceMonoblockMosquitero: optionMosqPrice,
         hasMonoblockOption: true,
-        hasMosquiteroOption: baseRow.hasMosquiteroOption || Boolean(optionMosqPrice && optionMosqPrice > 0),
-        hasMosquitero: Boolean(optionMosqPrice && optionMosqPrice > 0),
+      hasMosquiteroOption: Boolean(baseRow.hasMosquiteroOption || (optionMosqPrice && optionMosqPrice > 0)),
+      hasMosquitero: Boolean(optionMosqPrice && optionMosqPrice > 0),
       }
       rows.push(this.enrichMatrixRow(optionRow, params.sourceSystem))
     })
@@ -859,9 +878,8 @@ export class ParametricPricingService {
       vidrio,
       widthMm,
       heightMm,
-      hasMosquitero: Boolean(payload.hasMosquitero) || priceMosquitero > 0,
+      hasMosquitero: priceMosquitero > 0,
       hasMonoblock:
-        Boolean(payload.hasMonoblock) ||
         pricePvcShutter > 0 ||
         pricePvcShutterMosq > 0 ||
         priceAluminioShutter > 0 ||
@@ -1089,18 +1107,8 @@ export class ParametricPricingService {
         const priceMosquitero = rawPriceMosquitero
         const priceMonoblock = rawPriceMonoblock
         const priceMonoblockMosquitero = rawPriceMonoblockMosquitero
-        const hasMosquiteroOption =
-          this.parseBoolean(
-            normalizeKeyed['has_mosq_option'] ??
-              normalizeKeyed['has_mosquitero_option'] ??
-              normalizeKeyed['mosquitero_option'],
-          ) || priceMosquitero > 0
-        const hasMonoblockOption =
-          this.parseBoolean(
-            normalizeKeyed['has_mb_option'] ??
-              normalizeKeyed['has_monoblock_option'] ??
-              normalizeKeyed['monoblock_option'],
-          ) || priceMonoblock > 0 || priceMonoblockMosquitero > 0
+        const hasMosquiteroOption = priceMosquitero > 0 || priceMonoblockMosquitero > 0
+        const hasMonoblockOption = priceMonoblock > 0 || priceMonoblockMosquitero > 0
         const currency = this.normalizeString(normalizeKeyed['currency']) || 'USD'
         const specifications = this.normalizeString(
           normalizeKeyed['detalle_snapshot'] ??
@@ -2270,8 +2278,8 @@ export class ParametricPricingService {
   }
 
   private hasValidPrice(row: ParametricMatrixEntry): boolean {
-    const priceCandidates = [row.priceBase ?? row.price ?? null, row.priceMosquitero, row.priceMonoblock, row.priceMonoblockMosquitero]
-    return priceCandidates.some((value) => typeof value === 'number' && Number(value) > 0)
+    const priceCandidates = [row.priceBase, row.priceMosquitero, row.priceMonoblock, row.priceMonoblockMosquitero]
+    return priceCandidates.some((value) => typeof value === 'number' && Number.isFinite(value))
   }
 
   private compareMatches(a: ParametricMatrixMatch, b: ParametricMatrixMatch): number {
@@ -2578,12 +2586,12 @@ export class ParametricPricingService {
     request: { hasMosquitero: boolean; hasShutterMonoblock: boolean; shutterMaterial?: string },
     marginMultiplier: number,
   ): ParametricPriceResolution {
-    const base = row.priceBase ?? row.price
+    const base = typeof row.priceBase === 'number' ? row.priceBase : null
     if (!request.hasMosquitero && !request.hasShutterMonoblock) {
-      if (!base || base <= 0) {
+      if (base === null || base === undefined || Number.isNaN(base)) {
         return { available: false, reason: 'missing_base' }
       }
-      const price = this.applyMarkupToPrice(base, marginMultiplier)
+      const price = base > 0 ? this.applyMarkupToPrice(base, marginMultiplier) : 0
       return {
         available: true,
         price,
@@ -2916,7 +2924,10 @@ export class ParametricPricingService {
       }
     }
 
-    const priceBase = Number((matrixRow.priceBase ?? matrixRow.price ?? 0).toFixed(4))
+    const priceBase =
+      matrixRow.priceBase !== null && matrixRow.priceBase !== undefined
+        ? Number(matrixRow.priceBase.toFixed(4))
+        : 0
     const priceMosquitero =
       matrixRow.priceMosquitero !== null && matrixRow.priceMosquitero !== undefined
         ? Number(matrixRow.priceMosquitero.toFixed(4))
@@ -2956,7 +2967,9 @@ export class ParametricPricingService {
       finalCost = priceMosquitero
     }
 
-    if (!Number.isFinite(finalCost) || finalCost <= 0) {
+    const isBaseRequest = !requested.hasMosquitero && !requested.hasShutterMonoblock
+    const allowZero = isBaseRequest && finalCost === 0
+    if (!Number.isFinite(finalCost) || finalCost < 0 || (finalCost === 0 && !allowZero)) {
       return {
         productId,
         available: false,
@@ -2987,7 +3000,10 @@ export class ParametricPricingService {
     productId: number,
     marginMultiplier: number,
   ): ParametricQuoteResult | null {
-    const priceBase = Number((matrixRow.priceBase ?? matrixRow.price ?? 0).toFixed(4))
+    const priceBase =
+      matrixRow.priceBase !== null && matrixRow.priceBase !== undefined
+        ? Number(matrixRow.priceBase.toFixed(4))
+        : 0
     const priceMosquitero =
       matrixRow.priceMosquitero !== null && matrixRow.priceMosquitero !== undefined
         ? Number(matrixRow.priceMosquitero.toFixed(4))
@@ -3027,7 +3043,9 @@ export class ParametricPricingService {
       finalCost = priceMosquitero
     }
 
-    if (!Number.isFinite(finalCost) || finalCost <= 0) {
+    const isBaseRequest = !requested.hasMosquitero && !requested.hasShutterMonoblock
+    const allowZero = isBaseRequest && finalCost === 0
+    if (!Number.isFinite(finalCost) || finalCost < 0 || (finalCost === 0 && !allowZero)) {
       return {
         productId,
         available: false,
