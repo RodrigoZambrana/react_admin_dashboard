@@ -192,6 +192,11 @@ export interface ProductSummary {
   mode?: ProductMode;
   images?: ProductImage[];
   gallery?: ProductImage[];
+  attributes?: ProductVariantAttribute[];
+  variantId?: number | null;
+  variantKey?: string | null;
+  variantLabel?: string | null;
+  configuration?: Record<string, unknown> | null;
 }
 
 export interface ProductDetail extends ProductSummary {

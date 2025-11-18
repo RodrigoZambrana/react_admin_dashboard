@@ -1352,7 +1352,9 @@ const AberturasQuote = () => {
 
     const mosquiteroAvailable = useMemo(() => {
         if (activeRow) {
-            return activeRow.hasMosquiteroOption
+            const baseMosq = Number(activeRow.priceMosquitero ?? 0) > 0
+            const comboMosq = Number(activeRow.priceMonoblockMosquitero ?? 0) > 0
+            return baseMosq || comboMosq || Boolean(activeRow.hasMosquiteroOption)
         }
         return mergedSelectors?.hasMosquiteroOption ?? false
     }, [activeRow, mergedSelectors])
@@ -2239,10 +2241,7 @@ const AberturasQuote = () => {
                     <div className="flex items-center justify-between gap-2">
                         <span className="text-base font-semibold">
                             {match.resolution.available
-                                ? formatSaleCurrency(
-                                      salePriceFromCost(match.resolution.price),
-                                      match.row.currency,
-                                  )
+                                ? formatSaleCurrency(match.resolution.price, match.row.currency)
                                 : t('sales.aberturasQuote.result.unavailable', {
                                       defaultValue: 'Sin precio',
                                   })}
@@ -2911,10 +2910,7 @@ const AberturasQuote = () => {
                             )}
                         </div>
                         <div className="text-3xl font-semibold">
-                            {formatSaleCurrency(
-                                salePriceFromCost(analysis.resolution.price),
-                                analysis.resolution.currency,
-                            )}
+                            {formatSaleCurrency(analysis.resolution.price, analysis.resolution.currency)}
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-300">
                             {t('sales.aberturasQuote.result.components', {

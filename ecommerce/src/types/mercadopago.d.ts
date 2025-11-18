@@ -6,7 +6,7 @@ interface MercadoPagoBricksController {
 
 interface MercadoPagoBricksBuilder {
   create(
-    brick: "cardPayment",
+    brick: "cardPayment" | "payment",
     containerId: string,
     settings: Record<string, unknown>
   ): Promise<MercadoPagoBricksController>;

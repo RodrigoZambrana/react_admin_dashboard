@@ -880,38 +880,42 @@ export class SalesController {
       if (Number.isFinite(height) && height > 0) {
         entry.heights.add(height)
       }
-      if (row.hasMosquitero || row.hasMosquiteroOption) {
-        entry.mosquitero = true
-      }
       const priceBase =
         !row.hasShutterMonoblock && !row.hasMosquitero
           ? decimalToNumber(row.priceBase ?? row.price)
           : 0
       const priceMosq =
-        row.hasMosquitero && !row.hasShutterMonoblock
+        !row.hasShutterMonoblock && row.priceMosquitero !== null && row.priceMosquitero !== undefined
           ? decimalToNumber(row.priceMosquitero)
           : 0
       const priceMonoblock = decimalToNumber(row.priceMonoblock)
       const priceMonoblockMosq = decimalToNumber(row.priceMonoblockMosquitero)
-      if (!entry.pricing) {
-        entry.pricing = {
-          currency: row.currency || 'USD',
-          basePrice: priceBase > 0 ? priceBase : undefined,
-          mosquiteroPrice: priceMosq > 0 ? priceMosq : undefined,
-          shutterOptions: {},
-        }
-      } else {
-        if (!entry.pricing.currency && row.currency) {
+      const hasMosqPrice = priceMosq > 0 || priceMonoblockMosq > 0
+      if (hasMosqPrice) {
+        entry.mosquitero = true
+      }
+      const ensurePricing = () => {
+        if (!entry.pricing) {
+          entry.pricing = {
+            currency: row.currency || 'USD',
+            basePrice: undefined,
+            mosquiteroPrice: undefined,
+            shutterOptions: {},
+          }
+        } else if (!entry.pricing.currency && row.currency) {
           entry.pricing.currency = row.currency
         }
-        if (priceBase > 0) {
-          entry.pricing.basePrice = priceBase
-        }
-        if (priceMosq > 0) {
-          entry.pricing.mosquiteroPrice = priceMosq
-        }
       }
-      if (row.hasMonoblockOption) {
+
+      if (priceBase > 0) {
+        ensurePricing()
+        entry.pricing!.basePrice = priceBase
+      }
+      if (priceMosq > 0) {
+        ensurePricing()
+        entry.pricing!.mosquiteroPrice = priceMosq
+      }
+      if (priceMonoblock > 0 || priceMonoblockMosq > 0) {
         entry.monoblock = true
       }
       const shutter = this.safeTrim(row.shutterSystem) || 'GENERIC'
@@ -922,13 +926,8 @@ export class SalesController {
         if (shutter) {
           entry.shutterMaterials.add(shutter)
         }
-        entry.pricing = entry.pricing ?? {
-          currency: row.currency || 'USD',
-          basePrice: priceBase > 0 ? priceBase : undefined,
-          mosquiteroPrice: priceMosq > 0 ? priceMosq : undefined,
-          shutterOptions: {},
-        }
-        entry.pricing.shutterOptions[shutter || 'GENERIC'] = {
+        ensurePricing()
+        entry.pricing!.shutterOptions[shutter || 'GENERIC'] = {
           price: priceMonoblock > 0 ? priceMonoblock : null,
           priceMosq: priceMonoblockMosq > 0 ? priceMonoblockMosq : null,
         }

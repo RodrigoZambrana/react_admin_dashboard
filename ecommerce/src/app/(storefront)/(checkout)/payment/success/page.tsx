@@ -17,6 +17,7 @@ import { useStorefrontCart } from "@/state/cart-context";
 import type { CreateOrderPayload } from "@/types/storefront";
 import { readActiveOrderLock, writeOrderLock } from "@/utils/orderLock";
 import { useTranslation } from "@/state/i18n-context";
+import type { CartLineItem } from "@/state/cart-context";
 
 const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
   UY: "11000"
@@ -61,9 +62,70 @@ function PaymentSuccessContent() {
   } = useCheckout();
   const { state: cartState, clearCart } = useStorefrontCart();
   const { currency: activeCurrency } = useCurrency();
+  const localeValue = typeof navigator !== "undefined" ? navigator.language : undefined;
 
   const [orderState, setOrderState] = useState<OrderCreationState>("idle");
   const [orderError, setOrderError] = useState<string | null>(null);
+
+  const normalizeParametricConfiguration = (item: CartLineItem): { config?: Record<string, unknown>; error?: string } => {
+    const raw = item.product.configuration;
+    if (!raw || typeof raw !== "object") {
+      return { error: `Falta la configuración paramétrica para ${item.product.name}.` };
+    }
+    const config = raw as Record<string, unknown>;
+
+    const coerceNumber = (value: unknown): number | undefined => {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+      }
+      if (typeof value === "string") {
+        const parsed = Number.parseFloat(value.replace(",", "."));
+        return Number.isFinite(parsed) ? parsed : undefined;
+      }
+      return undefined;
+    };
+
+    const maybeWidth = coerceNumber(config.widthMm ?? config.width_mm ?? config.width);
+    const maybeHeight = coerceNumber(config.heightMm ?? config.height_mm ?? config.height);
+    if (maybeWidth === undefined || maybeHeight === undefined || maybeWidth <= 0 || maybeHeight <= 0) {
+      return { error: `Medidas inválidas para ${item.product.name}. Completa ancho y alto.` };
+    }
+    const widthMm = maybeWidth !== undefined ? Math.round(maybeWidth > 10 ? maybeWidth : maybeWidth * 1000) : undefined;
+    const heightMm = maybeHeight !== undefined ? Math.round(maybeHeight > 10 ? maybeHeight : maybeHeight * 1000) : undefined;
+
+    const monoblock = (config.monoblock as Record<string, unknown> | undefined) ?? {};
+
+    const normalized: Record<string, unknown> = {
+      ...config,
+      familyId: config.familyId ?? config.family_id ?? String(item.product.productId ?? item.product.id),
+      serie: config.series ?? config.serie ?? config.seriesId ?? "DEFAULT",
+      material: config.material ?? "ALUMINIO",
+      color: config.color ?? "NATURAL",
+      vidrio: config.glass ?? config.vidrio ?? "4 MM",
+      widthMm,
+      heightMm,
+      hasMosquitero: config.mosquitoNet ?? config.hasMosquitero ?? false,
+      hasShutterMonoblock:
+        config.hasShutterMonoblock ??
+        config.monoblockEnabled ??
+        monoblock.enabled ??
+        false,
+      shutterMaterial: monoblock.material ?? config.shutterMaterial ?? undefined,
+      shutterColor: monoblock.color ?? config.shutterColor ?? undefined,
+      currency: config.currency,
+      referenceDate: config.referenceDate,
+      dataVersion: config.dataVersion,
+      breakdown: config.breakdown
+    };
+
+    Object.keys(normalized).forEach((key) => {
+      if (normalized[key] === undefined) {
+        delete normalized[key];
+      }
+    });
+
+    return { config: normalized };
+  };
 
   const translateStatus = useCallback(
     (value: string | null | undefined) => {
@@ -77,35 +139,48 @@ function PaymentSuccessContent() {
     [t]
   );
 
-  const orderItems = useMemo(
-    () =>
-      cartState.items
-        .map((item) => {
-          const productIdValue = item.product.productId ?? item.product.id;
-          const productId = Number(productIdValue);
-          if (!Number.isFinite(productId)) {
+  const orderItemsData = useMemo(() => {
+    let configError: string | null = null;
+    const items = cartState.items
+      .map((item) => {
+        const productIdValue = item.product.productId ?? item.product.id;
+        const productId = Number(productIdValue);
+        if (!Number.isFinite(productId)) {
+          return null;
+        }
+        const rawVariantId = item.product.variantId;
+        const variantId =
+          typeof rawVariantId === "number" && Number.isFinite(rawVariantId)
+            ? rawVariantId
+            : undefined;
+
+        const hasConfigObject = item.product.configuration && typeof item.product.configuration === "object";
+
+        if (item.product.mode === "parametric" || hasConfigObject) {
+          const { config, error } = normalizeParametricConfiguration(item);
+          if (error) {
+            configError = error;
             return null;
           }
-          const rawVariantId = item.product.variantId;
-          const variantId =
-            typeof rawVariantId === "number" && Number.isFinite(rawVariantId)
-              ? rawVariantId
-              : undefined;
           return {
             productId,
             quantity: Math.max(1, item.quantity),
             variantId,
-            configuration: item.product.configuration ?? undefined
+            configuration: config
           };
-        })
-        .filter(Boolean) as Array<{
-        productId: number;
-        quantity: number;
-        variantId?: number;
-        configuration?: Record<string, unknown>;
-      }>,
-    [cartState.items]
-  );
+        }
+
+        configError = configError ?? `Falta configuración para el producto "${item.product.name}". Reconfigúralo antes de continuar.`;
+        return null;
+      })
+      .filter(Boolean) as Array<{
+      productId: number;
+      quantity: number;
+      variantId?: number;
+      configuration?: Record<string, unknown>;
+    }>;
+    return { items, error: configError };
+  }, [cartState.items]);
 
   const canAttemptOrderCreation = useMemo(() => {
     if (!payment || payment.method !== "mercadopago") {
@@ -114,14 +189,17 @@ function PaymentSuccessContent() {
     if (!["approved", "authorized"].includes(payment.status)) {
       return false;
     }
-    if (orderItems.length === 0) {
+    if (orderItemsData.error) {
+      return false;
+    }
+    if (orderItemsData.items.length === 0) {
       return false;
     }
     if (!contact.email || !shippingAddress?.line1 || !shippingAddress?.city || !shippingAddress?.country) {
       return false;
     }
     return true;
-  }, [contact.email, orderItems.length, payment, shippingAddress]);
+  }, [contact.email, orderItemsData.error, orderItemsData.items.length, payment, shippingAddress]);
 
   const finalizeOrder = useCallback(async () => {
     if (!canAttemptOrderCreation || !payment || payment.method !== "mercadopago") {
@@ -170,10 +248,10 @@ function PaymentSuccessContent() {
           firstName: contact.firstName,
           lastName: contact.lastName,
           phone: contact.phone && contact.phone.length > 0 ? contact.phone : undefined,
-          locale
+          locale: localeValue
         },
         shippingAddress: shippingAddressPayload,
-        items: orderItems,
+        items: orderItemsData.items,
         notes: notes && notes.trim().length > 0 ? notes.trim() : undefined,
         paymentIntentId: payment.paymentIntentId,
         checkoutToken,
@@ -214,7 +292,7 @@ function PaymentSuccessContent() {
     contact.lastName,
     contact.phone,
     notes,
-    orderItems,
+    orderItemsData,
     payment,
     reset,
     setLastOrder,
@@ -234,6 +312,13 @@ function PaymentSuccessContent() {
       void finalizeOrder();
     }
   }, [canAttemptOrderCreation, finalizeOrder, orderState]);
+
+  useEffect(() => {
+    if (orderItemsData.error) {
+      setOrderError(orderItemsData.error);
+      setOrderState("error");
+    }
+  }, [orderItemsData.error]);
 
   const handleRetry = useCallback(() => {
     setOrderState("idle");

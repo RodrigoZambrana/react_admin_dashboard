@@ -15,6 +15,7 @@ import {
   Req,
   Res,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common'
 import { StorefrontService } from './storefront.service'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
@@ -32,6 +33,7 @@ import { StorefrontJwtGuard } from './storefront-jwt.guard'
 import type { StorefrontJwtPayload } from './storefront-jwt.strategy'
 import type { StorefrontCategoryTree } from './types'
 import { MercadoPagoChargeDto, MercadoPagoWebhookDto } from './dto/mercadopago-charge.dto'
+import { MercadoPagoPreferenceDto } from './dto/mercadopago-preference.dto'
 import { MercadoPagoService } from './payments/mercadopago.service'
 import { decimalToNumber } from '../common/currency/money.util'
 import { Throttle } from '@nestjs/throttler'
@@ -293,6 +295,29 @@ export class StorefrontController {
     return this.storefront.createOrder(dto)
   }
 
+  @Post('payments/mercadopago/preference')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async createMercadoPagoPreference(@Body() dto: MercadoPagoPreferenceDto, @Req() req: FastifyRequest) {
+    this.logger.log(
+      `Mercado Pago preference request | amount=${String(dto.amount)} currency=${String(dto.currency)} body=${JSON.stringify(dto)}`,
+    )
+    if (dto.amount === undefined || dto.amount === null) {
+      this.logger.warn(`Mercado Pago preference request missing amount | body=${JSON.stringify(dto)}`)
+      throw new BadRequestException({ message: 'amount es obligatorio', mp: dto })
+    }
+    const backUrls = this.buildBackUrls(dto, req)
+    return this.mercadoPago.createPreference({
+      amount: dto.amount,
+      currency: dto.currency,
+      description: dto.description,
+      cartId: dto.cartId,
+      orderId: dto.orderId,
+      statementDescriptor: dto.statementDescriptor,
+      payerEmail: dto.payerEmail,
+      backUrls,
+    })
+  }
+
   @Post('payments/mercadopago/charge')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async createMercadoPagoCharge(
@@ -465,5 +490,46 @@ export class StorefrontController {
   ) {
     const user = req.user
     return this.storefront.removeProductFromWishlist(user.sub, productId)
+  }
+
+  private resolveAbsoluteUrl(candidate: string | undefined, req: FastifyRequest): string | null {
+    if (!candidate) {
+      return null
+    }
+    const trimmed = candidate.trim()
+    if (!trimmed) {
+      return null
+    }
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed
+    }
+    if (trimmed.startsWith('/')) {
+      const protocolHeader = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim()
+      const protocol = protocolHeader || req.protocol || 'https'
+      const host =
+        (req.headers['x-forwarded-host'] as string | undefined)?.split(',')[0]?.trim() ||
+        (req.headers.host as string | undefined)
+      if (!host) {
+        return null
+      }
+      return `${protocol}://${host}${trimmed}`
+    }
+    return null
+  }
+
+  private buildBackUrls(dto: MercadoPagoPreferenceDto, req: FastifyRequest) {
+    const success = this.resolveAbsoluteUrl(dto.successUrl, req)
+    const failure = this.resolveAbsoluteUrl(dto.failureUrl, req)
+    const pending = this.resolveAbsoluteUrl(dto.pendingUrl, req)
+
+    if (!success && !failure && !pending) {
+      return undefined
+    }
+
+    return {
+      success: success ?? undefined,
+      failure: failure ?? undefined,
+      pending: pending ?? undefined,
+    }
   }
 }

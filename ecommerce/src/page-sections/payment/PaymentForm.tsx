@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -19,9 +19,9 @@ import { useStorefrontCart } from "@/state/cart-context";
 import { useCheckoutTotals } from "@/hooks/useCheckoutTotals";
 import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
 import { useToast } from "@/contexts/ToastContext";
-import MercadoPagoCardBrick, {
-  type MercadoPagoCardSubmitPayload
-} from "./MercadoPagoCardBrick";
+import MercadoPagoPaymentBrick, {
+  type MercadoPagoPaymentSubmitPayload
+} from "./MercadoPagoPaymentBrick";
 import {
   buildMercadoPagoStatusMessage,
   MERCADO_PAGO_STATUS_DETAIL_MESSAGES,
@@ -64,6 +64,17 @@ const parseInstallmentsBound = (value?: number | string | null) => {
     return null;
   }
   return Math.floor(numeric);
+};
+
+const normalizeMessage = (value: unknown, fallback: string) => {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+  const text = String(value).trim();
+  if (!text || text === "[object Object]") {
+    return fallback;
+  }
+  return text;
 };
 
 const generateIdempotencyKey = () => {
@@ -109,6 +120,13 @@ const appendQueryParams = (target: string, params: Record<string, string | null 
   return `${target}${separator}${queryString}`;
 };
 
+const formatAmountForPreference = (value: number): number => {
+  if (!Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+  return Math.round(value * 100) / 100;
+};
+
 const redirectWithParams = (
   target: string,
   params: Record<string, string | null | undefined>,
@@ -139,11 +157,14 @@ export default function PaymentForm() {
   } = useCheckout();
 
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(() =>
-    payment?.method === "cod" ? "cod" : "mercadopago"
+    payment?.method === "mercadopago" ? "mercadopago" : "cod"
   );
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [isLoadingPreference, setIsLoadingPreference] = useState(false);
+  const [preferenceId, setPreferenceId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const lastPreferenceKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (cartState.items.length === 0) {
@@ -222,7 +243,9 @@ export default function PaymentForm() {
   const cartId = useMemo(() => `cart-${cartState.updatedAt}`, [cartState.updatedAt]);
   const { amount, currency } = useMemo(() => {
     const converted = convertMoney(totals.total, MERCADO_PAGO_CURRENCY);
-    const roundedAmount = Math.round(converted.amount * 100) / 100;
+    const roundedAmount = Number.isFinite(converted.amount)
+      ? Math.round(converted.amount * 100) / 100
+      : 0;
     const resolvedCurrency = converted.currency ?? MERCADO_PAGO_CURRENCY;
     return {
       amount: roundedAmount,
@@ -254,9 +277,108 @@ export default function PaymentForm() {
     return normalizeRedirectTarget(process.env.NEXT_PUBLIC_MP_FAILURE_URL ?? null, fallback);
   }, []);
 
+  useEffect(() => {
+    if (!canRenderBrick || selectedMethod !== "mercadopago") {
+      setPreferenceId(null);
+      lastPreferenceKeyRef.current = null;
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setErrorMessage("Invalid amount to initialize Mercado Pago.");
+      setPreferenceId(null);
+      lastPreferenceKeyRef.current = null;
+      return;
+    }
+
+    const normalizedAmount = formatAmountForPreference(amount);
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+      setErrorMessage("Invalid amount to initialize Mercado Pago.");
+      setPreferenceId(null);
+      lastPreferenceKeyRef.current = null;
+      return;
+    }
+
+    // Debug: verify what we send to preference endpoint
+    // eslint-disable-next-line no-console
+    console.log("MP pref request", {
+      amount,
+      currency,
+      normalized: normalizedAmount,
+      totals: totals.total
+    });
+
+    const preferenceKey = [
+      amount,
+      currency,
+      description,
+      cartId,
+      contact.email,
+      statementDescriptor,
+      successRedirectTarget,
+      failureRedirectTarget
+    ].join("|");
+
+    if (preferenceId && lastPreferenceKeyRef.current === preferenceKey) {
+      return;
+    }
+
+    let cancelled = false;
+    const fetchPreference = async () => {
+      setIsLoadingPreference(true);
+      try {
+        const response = await StorefrontApi.createMercadoPagoPreference({
+          amount: normalizedAmount,
+          currency,
+          description,
+          cartId,
+          statementDescriptor,
+          payerEmail: contact.email,
+          successUrl: successRedirectTarget,
+          failureUrl: failureRedirectTarget,
+          pendingUrl: failureRedirectTarget
+        });
+        if (cancelled) return;
+        setPreferenceId(response.preferenceId);
+        lastPreferenceKeyRef.current = preferenceKey;
+        setErrorMessage(null);
+      } catch (cause) {
+        if (cancelled) return;
+        const message = isApiError(cause)
+          ? `Mercado Pago error: ${normalizeMessage(extractApiErrorMessage(cause), "unknown")}`
+          : cause instanceof Error
+            ? cause.message
+            : "We couldn't initialize Mercado Pago. Please try again.";
+        setPreferenceId(null);
+        lastPreferenceKeyRef.current = null;
+        setErrorMessage(normalizeMessage(message, "We couldn't initialize Mercado Pago. Please try again."));
+      } finally {
+        if (!cancelled) {
+          setIsLoadingPreference(false);
+        }
+      }
+    };
+    void fetchPreference();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    amount,
+    canRenderBrick,
+    cartId,
+    contact.email,
+    currency,
+    description,
+    failureRedirectTarget,
+    preferenceId,
+    selectedMethod,
+    successRedirectTarget,
+    statementDescriptor
+  ]);
+
   const handleMercadoPagoSubmit = useCallback(
     async (
-      cardData: MercadoPagoCardSubmitPayload
+      cardData: MercadoPagoPaymentSubmitPayload
     ): Promise<{ status: "success" | "pending" | "error"; paymentId?: string | null; statusDetail?: string | null }> => {
       setErrorMessage(null);
       setStatusMessage("Processing payment with Mercado Pago...");
@@ -353,12 +475,12 @@ export default function PaymentForm() {
           : cause instanceof Error
             ? cause.message
             : "We couldn't process your payment. Please try again.";
-        setErrorMessage(message);
+        setErrorMessage(normalizeMessage(message, "We couldn't process your payment. Please try again."));
         setStatusMessage(null);
         clearPayment();
         toast.error({
           title: "We couldn't process the payment",
-          description: message
+          description: normalizeMessage(message, "We couldn't process your payment. Please try again.")
         });
         redirectWithParams(
           failureRedirectTarget,
@@ -456,6 +578,9 @@ export default function PaymentForm() {
     : amount <= 0
       ? "Add products to your cart to enable Mercado Pago payments."
       : null;
+  const paymentButtonBlocked =
+    selectedMethod === "mercadopago" &&
+    (Boolean(mpUnavailableMessage) || isLoadingPreference || !preferenceId);
 
   return (
     <Box>
@@ -484,12 +609,21 @@ export default function PaymentForm() {
               <Typography color="error.main" fontSize="14px">
                 {mpUnavailableMessage}
               </Typography>
+            ) : isLoadingPreference ? (
+              <Typography color="text.muted" fontSize="14px">
+                Preparing Mercado Pago checkout...
+              </Typography>
+            ) : !preferenceId ? (
+              <Typography color="error.main" fontSize="14px">
+                {errorMessage ?? "We couldn't initialize Mercado Pago. Please try again."}
+              </Typography>
             ) : (
-              <MercadoPagoCardBrick
+              <MercadoPagoPaymentBrick
                 publicKey={publicKey}
                 locale={locale}
                 amount={amount}
                 currency={currency}
+                preferenceId={preferenceId}
                 minInstallments={minInstallments}
                 maxInstallments={maxInstallments}
                 payer={payerInfo}
@@ -547,7 +681,7 @@ export default function PaymentForm() {
             color="primary"
             type="button"
             fullWidth
-            disabled={isProcessingPayment || !canProceedToReview || Boolean(mpUnavailableMessage && selectedMethod === "mercadopago")}
+            disabled={isProcessingPayment || !canProceedToReview || paymentButtonBlocked}
             onClick={handleContinue}
           >
             {selectedMethod === "cod"
