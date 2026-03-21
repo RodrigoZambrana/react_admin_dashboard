@@ -51,7 +51,6 @@
     "miragejs": "^0.1.48",
     "papaparse": "^5.5.3",
     "react": "19.0.0",
-    "react-apexcharts": "^1.4.0",
     "react-custom-scrollbars-4": "^4.5.1",
     "react-dom": "19.0.0",
     "react-highlight-words": "^0.21.0",
