@@ -5,7 +5,7 @@ import type {
   ParametricMatrixStaging as ParametricMatrixStagingModel,
 } from '@prisma/client'
 import { createHash } from 'crypto'
-import * as XLSX from 'xlsx'
+import { parse as parseCsv } from 'csv-parse/sync'
 import { PrismaService } from '../prisma/prisma.service'
 import { CLIENT_CONFIG_TOKEN } from '../config/client-config.constants'
 import type { ClientVariantConfig } from '../config/client-config.types'
@@ -63,19 +63,10 @@ const SOURCE_PRIORITY: Record<string, number> = {
   CHAT: 120,
   UPLOAD: 100,
 }
-const MAX_XLSX_IMPORT_BYTES = 5 * 1024 * 1024
-const MAX_XLSX_IMPORT_SHEETS = 5
-const MAX_XLSX_IMPORT_ROWS = 5_000
-const xlsxUtils = XLSX.utils as unknown as {
-  sheet_to_json<T>(worksheet: unknown, options?: Record<string, unknown>): T[]
-  json_to_sheet(data: unknown[], options?: Record<string, unknown>): unknown
-  book_new(): unknown
-  book_append_sheet(workbook: unknown, worksheet: unknown, name?: string): unknown
-}
-type XlsxWorkbook = {
-  SheetNames: string[]
-  Sheets: Record<string, unknown>
-}
+const MAX_CSV_IMPORT_BYTES = 5 * 1024 * 1024
+const MAX_CSV_IMPORT_ROWS = 5_000
+const DANGEROUS_CSV_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
+const SUPPORTED_PARAMETRIC_IMPORT_EXTENSIONS = new Set(['.csv'])
 
 @Injectable()
 export class ParametricPricingService {
@@ -90,50 +81,114 @@ export class ParametricPricingService {
 
   private static readonly GLASS_PRIORITY = ['3MM', '4MM', '5MM', '6MM', 'DVH (4/9/5)', 'DVH (5/9/6)']
 
-  private readWorkbookFromBuffer(buffer: Buffer): XlsxWorkbook {
-    if (buffer.length > MAX_XLSX_IMPORT_BYTES) {
+  private readCsvRowsFromBuffer(
+    buffer: Buffer,
+    options?: { filename?: string | null },
+  ): Record<string, unknown>[] {
+    if (buffer.length > MAX_CSV_IMPORT_BYTES) {
       throw new BadRequestException(
-        `Uploaded spreadsheet exceeds the ${Math.round(MAX_XLSX_IMPORT_BYTES / (1024 * 1024))}MB limit`,
+        `Uploaded CSV exceeds the ${Math.round(MAX_CSV_IMPORT_BYTES / (1024 * 1024))}MB limit`,
       )
     }
 
-    const workbook = XLSX.read(buffer, { type: 'buffer', dense: true }) as unknown as XlsxWorkbook
-
-    if (!Array.isArray(workbook.SheetNames) || workbook.SheetNames.length === 0) {
-      throw new BadRequestException('No sheets found in the provided file')
-    }
-
-    if (workbook.SheetNames.length > MAX_XLSX_IMPORT_SHEETS) {
-      throw new BadRequestException(`Too many sheets in the provided file (max ${MAX_XLSX_IMPORT_SHEETS})`)
-    }
-
-    return workbook
-  }
-
-  private readFirstWorksheetRows(workbook: XlsxWorkbook): Record<string, unknown>[] {
-    const firstSheetName = workbook.SheetNames[0]
-    const worksheet = workbook.Sheets[firstSheetName]
-
-    if (!worksheet) {
-      throw new BadRequestException('The first worksheet could not be read from the provided file')
-    }
-
-    const rows = xlsxUtils.sheet_to_json<Record<string, unknown>>(worksheet, {
-      defval: '',
-      blankrows: false,
-      raw: false,
-      cellDates: true,
-    })
+    this.assertSupportedCsvFilename(options?.filename)
+    const source = buffer.toString('utf8').replace(/^\uFEFF/, '')
+    const delimiter = this.detectCsvDelimiter(source)
+    const rows = parseCsv(source, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+      bom: true,
+      relax_column_count: true,
+      delimiter,
+    }) as Record<string, unknown>[]
 
     if (!rows.length) {
-      throw new BadRequestException('No rows detected in the provided file')
+      throw new BadRequestException('No rows detected in the provided CSV file')
     }
 
-    if (rows.length > MAX_XLSX_IMPORT_ROWS) {
-      throw new BadRequestException(`The provided file exceeds the ${MAX_XLSX_IMPORT_ROWS} row import limit`)
+    if (rows.length > MAX_CSV_IMPORT_ROWS) {
+      throw new BadRequestException(`The provided file exceeds the ${MAX_CSV_IMPORT_ROWS} row import limit`)
     }
 
-    return rows
+    return rows.map((row, index) => this.sanitizeCsvRecord(row, `row ${index + 1}`))
+  }
+
+  private detectCsvDelimiter(source: string): ',' | ';' | '\t' {
+    const firstContentLine = source
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0)
+
+    if (!firstContentLine) {
+      return ','
+    }
+
+    const candidates: Array<',' | ';' | '\t'> = [',', ';', '\t']
+    return candidates.reduce(
+      (best, candidate) => {
+        const occurrences = firstContentLine.split(candidate).length - 1
+        if (occurrences > best.count) {
+          return { delimiter: candidate, count: occurrences }
+        }
+        return best
+      },
+      { delimiter: ',' as const, count: -1 },
+    ).delimiter
+  }
+
+  private assertSupportedCsvFilename(filename?: string | null) {
+    const normalized = this.normalizeString(filename ?? '')
+    if (!normalized) {
+      return
+    }
+    const lastDot = normalized.lastIndexOf('.')
+    const extension = lastDot >= 0 ? normalized.slice(lastDot).toLowerCase() : ''
+
+    if (!SUPPORTED_PARAMETRIC_IMPORT_EXTENSIONS.has(extension)) {
+      throw new BadRequestException('Only CSV files are supported for parametric imports')
+    }
+  }
+
+  private sanitizeCsvRecord(
+    value: unknown,
+    path: string,
+  ): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new BadRequestException(`Invalid spreadsheet structure detected at ${path}`)
+    }
+
+    const sanitized = Object.create(null) as Record<string, unknown>
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      if (DANGEROUS_CSV_KEYS.has(key)) {
+        throw new BadRequestException(`Unsupported CSV column detected at ${path}`)
+      }
+      sanitized[key] = this.sanitizeCsvValue(entry, `${path}.${key}`)
+    }
+
+    return sanitized
+  }
+
+  private sanitizeCsvValue(value: unknown, path: string): unknown {
+    if (Array.isArray(value)) {
+      return value.map((entry, index) =>
+        this.sanitizeCsvValue(entry, `${path}[${index}]`),
+      )
+    }
+
+    if (!value || typeof value !== 'object') {
+      return value
+    }
+
+    const sanitized = Object.create(null) as Record<string, unknown>
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      if (DANGEROUS_CSV_KEYS.has(key)) {
+        throw new BadRequestException(`Unsupported CSV payload detected at ${path}`)
+      }
+      sanitized[key] = this.sanitizeCsvValue(entry, `${path}.${key}`)
+    }
+
+    return sanitized
   }
 
   private isFeatureEnabled(): boolean {
@@ -1093,8 +1148,7 @@ export class ParametricPricingService {
     if (!buffer.length) {
       throw new BadRequestException('Uploaded file is empty')
     }
-    const workbook = this.readWorkbookFromBuffer(buffer)
-    const rows = this.readFirstWorksheetRows(workbook)
+    const rows = this.readCsvRowsFromBuffer(buffer, { filename: options?.filename ?? null })
     const parsedRows: ParametricMatrixRow[] = []
     const warnings: string[] = []
     const defaultSourceLabel = this.normalizeString(options?.filename ?? '') || 'UPLOAD'
@@ -1245,13 +1299,15 @@ export class ParametricPricingService {
     }
   }
 
-  async importParametricProductsFromCsv(buffer: Buffer): Promise<ParametricProductImportSummary> {
+  async importParametricProductsFromCsv(
+    buffer: Buffer,
+    options?: { filename?: string | null },
+  ): Promise<ParametricProductImportSummary> {
     this.assertFeatureEnabled()
     if (!buffer.length) {
       throw new BadRequestException('Uploaded file is empty')
     }
-    const workbook = this.readWorkbookFromBuffer(buffer)
-    const rows = this.readFirstWorksheetRows(workbook)
+    const rows = this.readCsvRowsFromBuffer(buffer, { filename: options?.filename ?? null })
     const markupMultiplier = await this.resolveMarkupMultiplier()
 
     type ProductGroup = {
@@ -1832,17 +1888,46 @@ export class ParametricPricingService {
       reference_date: row.referenceDate ? row.referenceDate.toISOString().split('T')[0] : '',
       specifications: row.detailSnapshot ?? '',
     }))
-    const worksheet = xlsxUtils.json_to_sheet(dataset)
-    const workbook = xlsxUtils.book_new()
-    xlsxUtils.book_append_sheet(workbook, worksheet, 'Matrix')
-    const buffer = (XLSX as unknown as { write: (wb: unknown, opts: { type: string; bookType: string }) => unknown }).write(
-      workbook,
-      { type: 'buffer', bookType: 'xlsx' },
-    ) as Buffer
+    const buffer = this.serializeRowsToCsvBuffer(dataset)
     return {
-      filename: `parametric-matrix-${productId}.xlsx`,
+      filename: `parametric-matrix-${productId}.csv`,
       buffer,
     }
+  }
+
+  private serializeRowsToCsvBuffer(rows: Array<Record<string, unknown>>): Buffer {
+    if (!rows.length) {
+      return Buffer.from('', 'utf8')
+    }
+
+    const headers = Object.keys(rows[0])
+    const lines = [
+      headers.map((header) => this.escapeCsvCell(header)).join(','),
+      ...rows.map((row) =>
+        headers.map((header) => this.escapeCsvCell(row[header])).join(','),
+      ),
+    ]
+
+    return Buffer.from(lines.join('\n'), 'utf8')
+  }
+
+  private escapeCsvCell(value: unknown): string {
+    if (value === null || value === undefined) {
+      return ''
+    }
+
+    const normalized =
+      typeof value === 'string'
+        ? value
+        : typeof value === 'object'
+        ? JSON.stringify(value)
+        : String(value)
+
+    if (/["\n\r,]/.test(normalized)) {
+      return `"${normalized.replace(/"/g, '""')}"`
+    }
+
+    return normalized
   }
 
   async getProductMatrixEntries(productId: number): Promise<ParametricMatrixEntry[]> {

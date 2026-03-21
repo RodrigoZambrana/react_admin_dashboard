@@ -272,7 +272,7 @@ const ExpenseEdit = () => {
                                         try {
                                             const response = await apiFetchExpenseAttachment(id, { mode })
                                             return response.data
-                                        } catch (error) {
+                                        } catch {
                                             return null
                                         }
                                     }}

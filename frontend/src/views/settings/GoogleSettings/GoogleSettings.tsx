@@ -134,7 +134,7 @@ const GoogleSettings = () => {
                 storefrontSiteUrl: data.storefrontSiteUrl ?? '',
             })
             setMeta({ source: data.source, updatedAt: data.updatedAt })
-        } catch (error) {
+        } catch {
             toast.push(
                 <Notification
                     title={t('settings.google.notifications.loadErrorTitle', {
@@ -151,7 +151,7 @@ const GoogleSettings = () => {
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [t])
 
     useEffect(() => {
         void loadSettings()
@@ -193,7 +193,7 @@ const GoogleSettings = () => {
                 </Notification>,
                 { placement: 'top-end' },
             )
-        } catch (error) {
+        } catch {
             toast.push(
                 <Notification
                     title={t('settings.google.notifications.copyErrorTitle', {
@@ -208,7 +208,7 @@ const GoogleSettings = () => {
                 { placement: 'top-end' },
             )
         }
-    }, [])
+    }, [t])
 
     if (loading) {
         return <Loading loading />
@@ -302,7 +302,7 @@ const GoogleSettings = () => {
                                 </Notification>,
                                 { placement: 'top-end' },
                             )
-                        } catch (error) {
+                        } catch {
                             toast.push(
                                 <Notification
                                     title={t('settings.google.notifications.saveErrorTitle', {

@@ -5,8 +5,6 @@ import { EmailCategory, EmailTemplate, EmailTemplateVariant } from '@prisma/clie
 import { TEMPLATE_DEFINITIONS, TemplateDefinition } from './templates/definitions'
 import { EmailRenderContext } from './email.types'
 import Handlebars from 'handlebars'
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-import mjml2html = require('mjml')
 import { htmlToText } from 'html-to-text'
 
 type CompiledTemplate = {
@@ -27,8 +25,11 @@ type RenderResult = {
   templateId?: number
 }
 
-const MJML_INCLUDE_PATTERN = /<\s*mj-include\b/i
-const MAX_MJML_TEMPLATE_CHARS = 120_000
+const LEGACY_MJML_TAG_PATTERN = /<\s*\/?\s*mj-[a-z0-9-]+\b/i
+const HTML_SCRIPT_PATTERN = /<\s*script\b/i
+const HTML_EVENT_HANDLER_PATTERN = /\son[a-z]+\s*=/i
+const HTML_JAVASCRIPT_URL_PATTERN = /\b(?:href|src)\s*=\s*["']\s*javascript:/i
+const MAX_TEMPLATE_MARKUP_CHARS = 120_000
 
 const EVENT_LABELS: Record<string, Record<string, string>> = {
   en: {
@@ -70,7 +71,6 @@ export class EmailTemplateService implements OnModuleInit {
   private readonly logger = new Logger(EmailTemplateService.name)
   private readonly hbs = Handlebars.create()
   private templateCache = new Map<string, CompiledTemplate>()
-  private readonly compileMjml = (markup: string, options?: Record<string, unknown>) => mjml2html(markup, options)
 
   constructor(
     private readonly prisma: PrismaService,
@@ -461,20 +461,21 @@ export class EmailTemplateService implements OnModuleInit {
   private async synchronizeStaticTemplates() {
     const existing = await this.prisma.emailTemplate.findMany()
     const existingMap = new Map<string, EmailTemplate>()
+    const staleIds: number[] = []
     for (const template of existing) {
-      existingMap.set(
-        this.makeTemplateKey(template.category, template.variant, template.locale, template.version),
-        template,
-      )
+      const key = this.makeTemplateKey(template.category, template.variant, template.locale, template.version)
+      existingMap.set(key, template)
     }
 
     const latestTarget = new Map<
       string,
       { category: EmailCategory; variant: EmailTemplateVariant; locale: string; version: number }
     >()
+    const expectedKeys = new Set<string>()
 
     for (const def of TEMPLATE_DEFINITIONS) {
       const key = this.makeTemplateKey(def.category, def.variant, def.locale, def.version)
+      expectedKeys.add(key)
       const familyKey = this.makeTemplateFamilyKey(def.category, def.variant, def.locale)
       const tracked = latestTarget.get(familyKey)
       if (!tracked || def.version > tracked.version) {
@@ -499,7 +500,31 @@ export class EmailTemplateService implements OnModuleInit {
           },
         })
         existingMap.set(key, created)
+      } else {
+        await this.prisma.emailTemplate.update({
+          where: { id: existingMap.get(key)!.id },
+          data: { active: true },
+        })
       }
+    }
+
+    for (const template of existing) {
+      const key = this.makeTemplateKey(template.category, template.variant, template.locale, template.version)
+      const familyKey = this.makeTemplateFamilyKey(template.category, template.variant, template.locale)
+      const latest = latestTarget.get(familyKey)
+      const isLegacyBody = LEGACY_MJML_TAG_PATTERN.test(template.body)
+      const isObsoleteVersion = Boolean(latest && template.version < latest.version)
+      const isUnexpectedTemplate = !expectedKeys.has(key)
+
+      if (isLegacyBody || isObsoleteVersion || isUnexpectedTemplate) {
+        staleIds.push(template.id)
+      }
+    }
+
+    if (staleIds.length > 0) {
+      await this.prisma.emailTemplate.deleteMany({
+        where: { id: { in: staleIds } },
+      })
     }
 
     for (const { category, variant, locale, version } of latestTarget.values()) {
@@ -547,7 +572,7 @@ export class EmailTemplateService implements OnModuleInit {
   }
 
   private compileTemplate(template: EmailTemplate): CompiledTemplate {
-    this.assertSafeMjmlMarkup(template.body, { templateId: template.id, phase: 'compile' })
+    this.assertSafeHtmlMarkup(template.body, { templateId: template.id, phase: 'compile' })
     const subjectCompiler = this.hbs.compile(template.subject, { noEscape: false })
     const bodyCompiler = this.hbs.compile(template.body, { noEscape: false })
     return {
@@ -597,25 +622,12 @@ export class EmailTemplateService implements OnModuleInit {
     }
 
     const subject = template.subjectCompiler(baseContext)
-    const mjmlMarkup = template.bodyCompiler(baseContext)
-    this.assertSafeMjmlMarkup(mjmlMarkup, { templateId: template.id, phase: 'render' })
-    const result = this.compileMjml(mjmlMarkup, {
-      validationLevel: 'soft',
-      fonts: {
-        Inter: 'https://fonts.googleapis.com/css?family=Inter',
-      },
+    const compiledMarkup = template.bodyCompiler(baseContext)
+    const html = this.renderTemplateMarkup(compiledMarkup, {
+      templateId: template.id,
+      phase: 'render',
     })
-    if (result.errors && result.errors.length) {
-      this.logger.warn(
-        `MJML compilation for template ${template.id} produced warnings: ${result.errors
-          .map((error) => error.formattedMessage ?? error.message)
-          .join('; ')}`,
-      )
-    }
-    if (!result.html) {
-      throw new Error(`Failed to compile MJML template ${template.id}`)
-    }
-    const text = htmlToText(result.html, {
+    const text = htmlToText(html, {
       wordwrap: 80,
       selectors: [
         { selector: 'a', options: { ignoreHref: false } },
@@ -625,25 +637,43 @@ export class EmailTemplateService implements OnModuleInit {
 
     return {
       subject,
-      html: result.html,
+      html,
       text,
       locale: template.locale,
       templateId: template.id,
     }
   }
 
-  private assertSafeMjmlMarkup(
+  private renderTemplateMarkup(
     markup: string,
     context: { templateId?: number; phase: 'compile' | 'render' },
   ) {
-    if (markup.length > MAX_MJML_TEMPLATE_CHARS) {
+    this.assertSafeHtmlMarkup(markup, context)
+    return markup
+  }
+
+  private assertSafeHtmlMarkup(
+    markup: string,
+    context: { templateId?: number; phase: 'compile' | 'render' },
+  ) {
+    if (markup.length > MAX_TEMPLATE_MARKUP_CHARS) {
       throw new Error(
-        `MJML template ${context.templateId ?? 'unknown'} exceeds the maximum allowed size during ${context.phase}`,
+        `Template ${context.templateId ?? 'unknown'} exceeds the maximum allowed size during ${context.phase}`,
       )
     }
-    if (MJML_INCLUDE_PATTERN.test(markup)) {
+    if (HTML_SCRIPT_PATTERN.test(markup) || HTML_EVENT_HANDLER_PATTERN.test(markup)) {
       throw new Error(
-        `MJML template ${context.templateId ?? 'unknown'} uses mj-include, which is disabled for security reasons`,
+        `Template ${context.templateId ?? 'unknown'} contains executable HTML that is not allowed`,
+      )
+    }
+    if (LEGACY_MJML_TAG_PATTERN.test(markup)) {
+      throw new Error(
+        `Template ${context.templateId ?? 'unknown'} uses deprecated MJML markup. Only HTML templates are supported`,
+      )
+    }
+    if (HTML_JAVASCRIPT_URL_PATTERN.test(markup)) {
+      throw new Error(
+        `Template ${context.templateId ?? 'unknown'} contains javascript: URLs, which are not allowed`,
       )
     }
   }
@@ -679,6 +709,18 @@ export class EmailTemplateService implements OnModuleInit {
     id: number,
     data: { subject?: string; body?: string; active?: boolean },
   ) {
+    const current = await this.prisma.emailTemplate.findUnique({ where: { id } })
+    if (!current) {
+      throw new Error(`Email template ${id} not found`)
+    }
+
+    this.compileTemplate({
+      ...current,
+      subject: data.subject ?? current.subject,
+      body: data.body ?? current.body,
+      active: data.active ?? current.active,
+    })
+
     const updated = await this.prisma.emailTemplate.update({
       where: { id },
       data: {

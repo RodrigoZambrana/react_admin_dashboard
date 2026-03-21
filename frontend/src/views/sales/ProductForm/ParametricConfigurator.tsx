@@ -32,7 +32,6 @@ import type {
 import {
     createEmptyManualConfigDraft,
     hasManualConfigValues,
-    mapDraftToManualPayload,
     mapManualConfigResponseToDraft,
 } from './parametricTypes'
 import {
@@ -715,12 +714,11 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
             }
             const file = files[0]
             if (!hasProductId) {
-                const draftPayload: ParametricConfiguratorDraft = {
-                    ...draftInfo,
+                setDraftInfo((prev) => ({
+                    ...prev,
                     matrixFile: file,
-                    manualConfig,
-                }
-                setDraftInfo(draftPayload)
+                    manualConfig: prev.manualConfig ?? createEmptyManualConfigDraft(),
+                }))
                 setImportSummary(null)
                 toast.push(
                     <Notification
@@ -801,12 +799,12 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                 data instanceof Blob
                     ? data
                     : new Blob([data], {
-                          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                          type: 'text/csv;charset=utf-8',
                       })
             const url = window.URL.createObjectURL(blob)
             const link = document.createElement('a')
             link.href = url
-            link.download = `parametric-matrix-${numericProductId}.xlsx`
+            link.download = `parametric-matrix-${numericProductId}.csv`
             document.body.appendChild(link)
             link.click()
             link.remove()
@@ -978,10 +976,6 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
     )
     const hasManualValues = hasManualConfigValues(draftInfo.manualConfig)
     const manualCurrency = currency || 'USD'
-    const manualPayloadPreview = useMemo(
-        () => mapDraftToManualPayload(manualConfig, manualCurrency),
-        [manualConfig, manualCurrency],
-    )
     const manualInputsDisabled = manualLoading
     const handleManualPriceChange = useCallback(
         (field: ManualPriceFieldKey, value: string) => {
@@ -1158,7 +1152,7 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
                                     {t('sales.productForm.parametric.uploadLabel', { defaultValue: 'Matrix file' })}
                                 </span>
                                 <Upload
-                                    accept=".csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                    accept=".csv,text/csv"
                                     multiple={false}
                                     uploadLimit={1}
                                     showList={false}

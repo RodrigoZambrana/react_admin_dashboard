@@ -588,26 +588,29 @@ const VariantConfigurator = (props: VariantConfiguratorProps) => {
         onVariantsChange(rebuildVariants(nextAttributes, variants))
     }
 
-    const updateAttributeValue = (
-        type: ProductAttributeType,
-        valueKey: string,
-        patch: Partial<ProductAttributeValue>,
-    ) => {
-        const nextAttributes = attributes.map((attribute) => {
-            if (attribute.type !== type) {
-                return attribute
-            }
-            const nextValues = attribute.values.map((value) =>
-                value.key === valueKey ? { ...value, ...patch } : value,
-            )
-            return {
-                ...attribute,
-                values: nextValues,
-            }
-        })
-        onAttributesChange(nextAttributes)
-        onVariantsChange(rebuildVariants(nextAttributes, variants))
-    }
+    const updateAttributeValue = useCallback(
+        (
+            type: ProductAttributeType,
+            valueKey: string,
+            patch: Partial<ProductAttributeValue>,
+        ) => {
+            const nextAttributes = attributes.map((attribute) => {
+                if (attribute.type !== type) {
+                    return attribute
+                }
+                const nextValues = attribute.values.map((value) =>
+                    value.key === valueKey ? { ...value, ...patch } : value,
+                )
+                return {
+                    ...attribute,
+                    values: nextValues,
+                }
+            })
+            onAttributesChange(nextAttributes)
+            onVariantsChange(rebuildVariants(nextAttributes, variants))
+        },
+        [attributes, onAttributesChange, onVariantsChange, variants],
+    )
 
     const handleAttributeImageUpload = useCallback(
         async (type: ProductAttributeType, valueKey: string, files: File[]) => {

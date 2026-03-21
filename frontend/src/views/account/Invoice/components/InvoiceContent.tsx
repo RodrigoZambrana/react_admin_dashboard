@@ -806,7 +806,7 @@ const InvoiceContent = ({ resource = 'orders' }: InvoiceContentProps) => {
         } finally {
             setLoading(false)
         }
-    }, [location.pathname, resource])
+    }, [isBudgetDocument, location.pathname, resource])
 
     useEffect(() => {
         loadInvoice()

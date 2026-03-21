@@ -1517,7 +1517,7 @@
         "monoblockModifier": "Monoblock",
         "mosquitoModifier": "Mosquitero",
         "importTitle": "Importación masiva",
-        "importDescription": "Subí un archivo Excel o CSV con las columnas requeridas (FECHA COTIZACION, PRODUCTO, MOSQUITERO, ANCHO, ALTO, SERIE, COLOR, VIDRIO, PRECIO, DETALLE).",
+        "importDescription": "Subí un archivo CSV con las columnas requeridas (FECHA COTIZACION, PRODUCTO, MOSQUITERO, ANCHO, ALTO, SERIE, COLOR, VIDRIO, PRECIO, DETALLE).",
         "importing": "Importando…",
         "importCta": "Soltá el archivo aquí o hacé clic para buscarlo",
         "loadingConfig": "Cargando configuración…",
@@ -2462,13 +2462,13 @@
       },
       "templates": {
         "title": "Plantillas activas",
-        "description": "Resumen de las plantillas MJML activas por categoría, idioma y variante.",
+        "description": "Resumen de las plantillas activas por categoría, idioma y variante.",
         "saveSuccess": "La plantilla se guardó correctamente.",
         "editorTitle": "Editor de plantillas",
-        "editorDescription": "Revisa y ajusta el asunto y el cuerpo MJML. Los cambios se aplican a futuros correos una vez guardados.",
+        "editorDescription": "Revisa y ajusta el asunto y el cuerpo de la plantilla. Los cambios se aplican a futuros correos una vez guardados.",
         "fields": {
           "subject": "Asunto",
-          "body": "Cuerpo (MJML)"
+          "body": "Cuerpo de la plantilla"
         },
         "unsaved": "Cambios sin guardar",
         "previewSettings": "Configuración de vista previa",

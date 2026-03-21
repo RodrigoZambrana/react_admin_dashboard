@@ -149,7 +149,7 @@ const ExpenseAttachmentsField = ({
                         size: file.size,
                         content,
                     } satisfies ExpenseAttachment
-                } catch (error) {
+                } catch {
                     return {
                         id: `file-${timestamp}-${index}`,
                         name: file.name,
@@ -234,7 +234,7 @@ const ExpenseAttachmentsField = ({
             try {
                 const blob = await fetchAttachment(attachment.id, mode)
                 return blob ?? null
-            } catch (error) {
+            } catch {
                 return null
             }
         }
@@ -242,7 +242,7 @@ const ExpenseAttachmentsField = ({
             try {
                 const response = await apiFetchExpenseAttachment(attachment.id, { mode })
                 return response.data ?? null
-            } catch (error) {
+            } catch {
                 return null
             }
         }
@@ -251,7 +251,7 @@ const ExpenseAttachmentsField = ({
                 const response = await fetch(attachment.url)
                 const blob = await response.blob()
                 return blob
-            } catch (error) {
+            } catch {
                 return null
             }
         }

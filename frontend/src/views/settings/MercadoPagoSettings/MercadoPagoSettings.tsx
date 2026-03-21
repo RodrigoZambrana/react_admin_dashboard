@@ -113,7 +113,7 @@ const MercadoPagoSettings = () => {
                 source: data.source,
                 updatedAt: data.updatedAt,
             })
-        } catch (error) {
+        } catch {
             toast.push(
                 <Notification title="Unable to load Mercado Pago settings" type="danger">
                     Please verify your permissions and try again.
@@ -149,7 +149,7 @@ const MercadoPagoSettings = () => {
                 </Notification>,
                 { placement: 'top-end' },
             )
-        } catch (error) {
+        } catch {
             toast.push(
                 <Notification title="Copy failed" type="danger">
                     Your browser blocked clipboard access. Copy the value manually.
@@ -224,7 +224,7 @@ const MercadoPagoSettings = () => {
                                 </Notification>,
                                 { placement: 'top-end' },
                             )
-                        } catch (error) {
+                        } catch {
                             toast.push(
                                 <Notification title="Unable to save settings" type="danger">
                                     Please double-check the values and try again.

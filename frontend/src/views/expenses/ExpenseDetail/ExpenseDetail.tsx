@@ -86,7 +86,7 @@ const ExpenseDetail = () => {
             }
             setData(normalized)
             setAttachments(Array.isArray(payload.attachments) ? payload.attachments : [])
-        } catch (err) {
+        } catch {
             setError('expenses.detail.loadError')
             setData(null)
             setAttachments([])
