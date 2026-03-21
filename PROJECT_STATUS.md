@@ -206,7 +206,7 @@ root/
 | crítico | Storefront con superficie vulnerable heredada del template | ecommerce | Hallazgo parcialmente mitigado. `next` fue actualizado a `15.5.14` y `images.remotePatterns` ya no acepta cualquier host. El riesgo residual ya no es la versión vulnerable base, sino la gran superficie pública heredada: rutas demo, snapshots públicos y prerender innecesario de secciones no oficiales. | Pasar de hardening de dependencias a hardening de superficie pública. | Mantener `next` actualizado, conservar la allowlist de imágenes y avanzar luego con el recorte explícito de rutas públicas/demo. |
 | alto | Tokens admin persistidos en navegador | frontend | Hallazgo parcialmente mitigado. El admin ya no persiste `auth` en `redux-persist`, por lo que el JWT dejó de sobrevivir reloads vía storage. Sigue pendiente la mejora estructural: migrar a cookie-only auth o bootstrap explícito desde cookie segura. | Completar transición a auth basada en cookies. | Mantener `auth` fuera del estado persistido y planificar endpoint/me o bootstrap server-side para no depender de bearer en memoria. |
 | alto | Access y refresh token del storefront persistidos en `localStorage` | ecommerce/backend | Hallazgo parcialmente mitigado. El storefront ya no persiste sesión en `localStorage` y el backend dejó de exponer `refreshToken` al cliente web. Sigue existiendo `accessToken` en memoria mientras la UI todavía lo usa para algunos llamados protegidos. | Terminar convergencia a cookie-only auth. | Mantener `session-context` basado en `/auth/session` + cookies y, en una iteración posterior, eliminar la necesidad de `Authorization: Bearer` desde la UI. |
-| alto | Dependencias vulnerables relevantes en backend | backend | La segunda ola redujo el audit a 46 vulnerabilidades (38 altas, 7 moderadas, 1 baja), pero siguen quedando frentes importantes y algunos sin fix sencillo (`xlsx`, `mjml`, `prisma`, toolchain ligada a `@nestjs/cli`). | Seguir por grupos, priorizando paquetes directos explotables o sin aislamiento claro. | Abrir una tercera subronda enfocada en `xlsx`, `mjml`, evaluación de `prisma` y reducción de dependencias de toolchain no esenciales. |
+| bajo | Reimplementación limpia de importación paramétrica y templates de email | backend | El frente crítico quedó cerrado de forma estructural: `xlsx` fue reemplazado por import/export CSV y `mjml` fue removido en favor de HTML + React Email. También se eliminaron los templates legacy persistidos en la base local para dejar un único formato soportado. | Mantener formato único y evitar reintroducir compatibilidades innecesarias. | Considerar como contrato vigente: CSV-only para matrices paramétricas y HTML-only para templates de email; rechazar cualquier intento de volver a formatos heredados. |
 | medio | Dependencias vulnerables relevantes en frontend | frontend | La segunda ola redujo el audit a 8 vulnerabilidades (3 altas, 4 moderadas, 1 baja). El remanente quedó concentrado en toolchain (`rollup`, `minimatch`, `ajv`) y librerías UI/editor (`quill`). | Tratar esta ronda como mitigación parcial y aislar una siguiente pasada de toolchain/UI. | Evaluar actualización adicional de ESLint/tooling transitivo y revisar si `quill` sigue siendo imprescindible o puede encapsularse/reemplazarse. |
 | alto | Validación de entornos rota y documentación de envs inconsistente | repo completo | Hallazgo mitigado en esta etapa. Se reconciliaron `env.schema.json`, `.env`, `.env.example` y `deploy/env/*` hasta recuperar `make env-check` en verde. Persiste deuda de fondo: todavía hay duplicación documental entre manifests y varios archivos de entorno. | Mantener una única fuente de verdad por módulo. | Tomar el schema actual reconciliado como baseline, evitar nuevas variables fuera de ese circuito y revisar más adelante si conviene generar examples automáticamente. |
 | medio | La baseline de calidad volvió a estar operativa, pero queda ruido de build | repo completo | El bloqueo duro ya quedó resuelto: `backend lint/test/build`, `frontend lint/test/build` y `ecommerce lint/build` pasan. El riesgo remanente es de mantenibilidad y señal: `frontend build` todavía emite warnings CSS/chunks y `ecommerce build` sigue generando logs de degradación controlada y prerender sobre rutas demo/heredadas. | Tratar la baseline actual como piso mínimo y bajar el ruido por prioridad. | Mantener estos comandos como gate obligatorio y abrir una subfase de cleanup enfocada en build noise de `frontend` y reducción de rutas demo/SSG innecesario del storefront. |
@@ -226,7 +226,7 @@ root/
 
 | Módulo | Resumen |
 | --- | --- |
-| backend | 46 vulnerabilidades: 38 altas, 7 moderadas, 1 baja |
+| backend | 0 vulnerabilidades productivas tras remover `xlsx` y `mjml` del grafo de dependencias |
 | frontend | 8 vulnerabilidades: 3 altas, 4 moderadas, 1 baja |
 | ecommerce | 1 vulnerabilidad moderada (`lodash-es`) |
 
@@ -243,7 +243,8 @@ root/
 - `mercadopago` `2.9.0 -> 2.12.0`
 - `imapflow` `1.0.200 -> 1.2.16`
 - `mailparser` `3.7.5 -> 3.9.4`
-- `mjml` `4.16.1 -> 4.18.0`
+- `mjml` removido; reemplazado por React Email + HTML como único formato soportado
+- `xlsx` removido; reemplazado por import/export CSV con `csv-parse`
 - `nodemailer` `6.10.1 -> 8.0.3` mayor
 - `bullmq` `4.18.3 -> 5.71.0` mayor
 
@@ -1129,6 +1130,51 @@ Cuando se retome:
       - se agregó `GET /auth/session` en backend para reconstruir la sesión admin desde la cookie y devolver `null` cuando no exista sesión válida,
       - el frontend ahora ejecuta ese bootstrap al iniciar, repuebla `auth.session` y `auth.user`, y espera a que la verificación termine antes de resolver `ProtectedRoute` o `PublicRoute`,
       - se mantiene el criterio de seguridad: no vuelve la persistencia de `auth` a `localStorage`/`sessionStorage`; la continuidad de sesión depende de la cookie HTTP-only del backend.
+    - Subbloque actual cerrado: seguridad residual de backend + warnings de frontend:
+      - `frontend npm run lint`: verde, ya sin warnings,
+      - el remanente del admin quedó resuelto en `ProductForm/ParametricConfigurator` y `ProductForm/VariantConfigurator`,
+      - `frontend npm run build`: verde; persiste solo el warning de chunks grandes (`Chart` e `index`) como ruido de bundle no bloqueante,
+      - `backend/package.json` agregó overrides para `ajv` y `effect`, eliminando del audit productivo el remanente moderado y el frente ligado a `prisma/@prisma-config`,
+      - `backend/src/pricing/parametric-pricing.service.ts` ahora sanea recursivamente objetos parseados desde `xlsx` y rechaza claves peligrosas como `__proto__`, `prototype` y `constructor`,
+      - `backend/src/email/email-template.service.ts` endureció aún más MJML: además de bloquear `mj-include`, ahora rechaza `mj-raw`, `<script>`, handlers inline y URLs `javascript:`,
+      - `backend npm audit --omit=dev --json` queda reducido a `32` vulnerabilidades altas, todas concentradas en `mjml` y `xlsx`,
+      - validación local final del bloque:
+        - `backend npm run lint`: verde,
+        - `backend npm run build`: verde,
+        - `frontend npm run lint`: verde,
+        - `frontend npm run build`: verde,
+        - `docker compose -f deploy/docker-compose.dev.yml build backend frontend`: verde,
+        - `docker compose -f deploy/docker-compose.dev.yml up -d backend frontend`: verde,
+        - `docker compose -f deploy/docker-compose.dev.yml ps backend frontend`: ambos `Up`,
+        - `http://127.0.0.1:4000/api/health`: `200`,
+        - `http://127.0.0.1:8080`: `200`.
+    - Cierre estructural del frente `xlsx` + `mjml`:
+      - `backend`
+      - se removió `xlsx` del backend y de la importación paramétrica; el flujo ahora acepta únicamente CSV y exporta CSV,
+      - `backend/src/pricing/parametric-pricing.service.ts` pasó a parsear con `csv-parse/sync`, con límites explícitos de tamaño y filas, detección de delimitador y saneamiento de claves peligrosas,
+      - `backend/src/pricing/pricing.controller.ts` expone export/import paramétrico como `text/csv`,
+      - `backend/package.json` ya no depende de `xlsx` ni `mjml`,
+      - se incorporó `@react-email/components` + `@react-email/render` como base nueva de emails,
+      - `backend/src/email/templates/shared.tsx` ahora envuelve contenido con una shell React Email,
+      - `backend/src/email/email-template.service.ts` ya no compila con `mjml` ni acepta markup legado; valida y renderiza HTML como único formato permitido,
+      - `backend/src/email/templates/definitions.ts` fue reescrito a HTML y subió versiones para forzar un corte limpio,
+      - la sincronización de `EmailTemplate` ahora elimina registros legacy/obsoletos y deja solo el set nuevo soportado,
+      - validación del bloque:
+        - `backend npm install`: verde,
+        - `backend npm audit --omit=dev --json`: 0 vulnerabilidades,
+        - `backend npm run lint`: verde,
+        - `backend npm test`: verde,
+        - `backend npm run build`: verde,
+        - `frontend npm run lint`: verde,
+        - `frontend npm test`: verde,
+        - `frontend npm run build`: verde,
+        - `docker compose -f deploy/docker-compose.dev.yml build backend frontend`: verde,
+        - `docker compose -f deploy/docker-compose.dev.yml up -d --force-recreate backend frontend`: verde,
+        - `docker compose -f deploy/docker-compose.dev.yml ps backend frontend`: ambos `Up`,
+        - `http://127.0.0.1:4000/api/health`: `200`,
+        - `http://127.0.0.1:8080`: `200`,
+        - logs de backend: `EmailTemplateService` carga 12 templates sin errores de runtime,
+        - verificación SQL local: `EmailTemplate` queda con `0` rows legacy y `12` templates activos (`versiones 2 y 6`).
   - Nuevo foco arquitectónico registrado para etapas posteriores:
     - definir cómo debe operar el storefront cuando no haya backend disponible,
     - establecer reglas claras sobre uso de snapshots,
@@ -1150,10 +1196,8 @@ Cuando se retome:
 
 - Rotación operativa de secretos ya expuestos históricamente.
 - Cookie-only auth aún no completada al 100% en admin/storefront.
-- Remanente de seguridad todavía abierto, especialmente en `backend` (`xlsx`, `mjml`, `prisma`, toolchain Nest) y en toolchain/UI del `frontend`.
 - Política definitiva para `CONFIG_ENCRYPTION_KEY` local y `SecureConfig`.
-- Warnings y ruido de build todavía abiertos en `frontend` y durante el prerender del `ecommerce`.
-- El remanente de `frontend` ya no está en `calendar/crm` sino en `invoice`, `expenses`, `settings` y `sales/ProductForm`.
+- Ruido de build todavía abierto en `frontend` por chunks grandes y durante el prerender del `ecommerce`.
 - Storefront con superficie demo y estrategia de degradación aún por consolidar.
 - La navegación de categorías sigue resolviendo hoy a `/shop?query=<slug>`; funcionalmente ya no rompe, pero conviene revisar más adelante si debe migrarse a un filtro explícito por categoría.
 - `react-apexcharts` queda como dependencia heredada candidata a remoción completa si no reaparece uso real fuera de documentación legacy.
@@ -1161,8 +1205,8 @@ Cuando se retome:
 ### Próximos focos de trabajo
 
 - Seguridad operativa.
-- Siguiente subronda de updates de seguridad.
-- Cleanup de warnings/build noise con foco desplazado a `invoice`, `expenses`, `settings` y `sales/ProductForm`.
+- Cierre de seguridad operativa remanente fuera de `xlsx`/`mjml`.
+- Cleanup de build noise con foco en chunks grandes del admin y prerender/rutas demo del storefront.
 - Actualización de dependencias.
 - Pasada dedicada de refactor/mantenibilidad después de estabilizar la etapa 1.
 - Definición controlada de superficie pública del storefront.

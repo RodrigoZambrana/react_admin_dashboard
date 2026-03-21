@@ -180,7 +180,7 @@ export class PricingController {
     @Res() res: FastifyReply,
   ) {
     const { filename, buffer } = await this.pricing.exportToBuffer(productId)
-    res.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.header('Content-Type', 'text/csv; charset=utf-8')
     res.header('Content-Disposition', `attachment; filename="${filename}"`)
     res.send(buffer)
   }
@@ -193,6 +193,8 @@ export class PricingController {
       throw new BadRequestException('File is required')
     }
     const buffer = await file.toBuffer()
-    return this.pricing.importParametricProductsFromCsv(buffer)
+    return this.pricing.importParametricProductsFromCsv(buffer, {
+      filename: file.filename,
+    })
   }
 }

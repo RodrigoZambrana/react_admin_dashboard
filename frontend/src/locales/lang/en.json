@@ -1553,7 +1553,7 @@
         "monoblockModifier": "Monoblock",
         "mosquitoModifier": "Mosquito net",
         "importTitle": "Bulk import",
-        "importDescription": "Upload an Excel or CSV file with the required columns (FECHA COTIZACION, PRODUCTO, MOSQUITERO, ANCHO, ALTO, SERIE, COLOR, VIDRIO, PRECIO, DETALLE).",
+        "importDescription": "Upload a CSV file with the required columns (FECHA COTIZACION, PRODUCTO, MOSQUITERO, ANCHO, ALTO, SERIE, COLOR, VIDRIO, PRECIO, DETALLE).",
         "importing": "Importing…",
         "importCta": "Drop file here or click to browse",
         "loadingConfig": "Loading configuration…",
@@ -2461,13 +2461,13 @@
       },
       "templates": {
         "title": "Active templates",
-        "description": "Overview of active MJML templates per category, locale, and variant.",
+        "description": "Overview of active templates per category, locale, and variant.",
         "saveSuccess": "Template saved successfully.",
         "editorTitle": "Template editor",
-        "editorDescription": "Review and adjust the subject and MJML body. Changes apply to future emails once saved.",
+        "editorDescription": "Review and adjust the subject and template body. Changes apply to future emails once saved.",
         "fields": {
           "subject": "Subject",
-          "body": "Body (MJML)"
+          "body": "Template body"
         },
         "unsaved": "Unsaved changes",
         "previewSettings": "Preview settings",

@@ -93,7 +93,25 @@ Plan operativo para ejecutar el saneamiento y la evolución del proyecto sin per
   - `frontend npm audit --package-lock-only --json`: 8 vulnerabilidades,
   - `ecommerce npm audit --package-lock-only --json`: 1 vulnerabilidad moderada,
   - storefront con `next@15.5.14` y `images.remotePatterns` endurecido,
-  - storefront sin warnings de ESLint; el ruido residual ya viene del prerender de rutas demo/heredadas.
+  - storefront sin warnings de ESLint; el ruido residual ya viene del prerender de rutas demo/heredadas,
+  - subbloque adicional ya cerrado:
+    - `frontend npm run lint`: verde y sin warnings,
+    - `frontend npm run build`: verde; el remanente quedó solo en chunks grandes no bloqueantes,
+    - `backend npm audit --omit=dev --json`: 32 vulnerabilidades altas, ya concentradas exclusivamente en `mjml` y `xlsx`,
+    - `backend` endurecido con sanitización recursiva de payloads `xlsx` y con validaciones adicionales sobre MJML (`mj-raw`, `script`, handlers inline y `javascript:`),
+    - validación Docker local renovada para `backend` y `frontend`.
+  - subbloque estructural ya cerrado:
+    - `backend` migró import/export paramétrico a CSV y removió `xlsx`,
+    - `backend` migró generación/render de emails a React Email y removió `mjml`,
+    - `backend npm audit --omit=dev --json`: 0 vulnerabilidades productivas,
+    - `backend npm run lint`: verde,
+    - `backend npm test`: verde,
+    - `backend npm run build`: verde,
+    - `frontend npm run lint`: verde,
+    - `frontend npm test`: verde,
+    - `frontend npm run build`: verde,
+    - validación Docker local renovada para `backend` y `frontend`,
+    - limpieza final aplicada: `EmailTemplate` quedó purgada de registros legacy y el backend ahora acepta solo HTML para templates de email.
 - Fase 5: iniciada parcialmente dentro del hardening del storefront.
   - existe inventario explícito de rutas en `public-route-policy`,
   - las rutas demo quedaron despublicadas sin borrar código reutilizable,
@@ -252,7 +270,7 @@ Reducir superficie vulnerable sin generar regresiones evitables.
   - `frontend npm run lint && npm test && npm run build`: verde
   - `ecommerce npm run lint && npm run build`: verde
 - Resultado:
-  - `backend` mejora, pero sigue siendo el frente más riesgoso por `xlsx`, `mjml`, `nodemailer`, `prisma` y dependencias transitivas de toolchain;
+  - `backend` mejoró de forma sustancial y cerró el frente crítico de `xlsx`/`mjml`; el remanente real quedó en seguridad operativa, drift local de secretos/configuración y compatibilidad de plantillas heredadas;
   - `frontend` queda sin críticos, con remanente concentrado en toolchain y librerías UI;
   - `ecommerce` queda prácticamente saneado a nivel dependencias, pero mantiene deuda de superficie pública heredada.
 
@@ -295,7 +313,6 @@ Reducir superficie vulnerable sin generar regresiones evitables.
 ### Subfase 3.3. Upgrades delicados
 
 - Backend
-  - `mjml`
   - `nodemailer`
   - `bullmq`
   - `prisma` si el advisory aplica realmente al árbol final
@@ -615,6 +632,11 @@ Entrar en una fase sostenible para nuevas features.
     - `/shop` vuelve a formar parte de la superficie pública oficial,
     - la verificación de sesión anónima deja de ensuciar consola con `401` porque `/api/storefront/auth/session` ahora responde `200 null`,
     - Docker local validado nuevamente con `/shop` en `200` y `/product/search/cortinas` redirigiendo al catálogo.
+ - Nuevo cierre del bloque actual:
+ - `frontend` quedó sin warnings de lint; el remanente del admin se cerró en `sales/ProductForm`,
+  - el frente crítico de `backend` sobre `xlsx` y `mjml` quedó cerrado en la subronda siguiente, con audit productivo en `0` tras la migración estructural,
+  - los remanentes previos ligados a `prisma/@prisma-config`, `effect` y `ajv` quedaron mitigados con overrides conservadores,
+  - Docker local se reconstruyó y validó otra vez para `backend` y `frontend`.
 
 ### Riesgos abiertos
 
@@ -622,19 +644,15 @@ Entrar en una fase sostenible para nuevas features.
 - Docker runtime local ya quedó validado; el riesgo abierto es cómo resolver el drift de `CONFIG_ENCRYPTION_KEY` sin depender indefinidamente de una clave histórica.
 - La base local depende hoy de una clave histórica conocida; conviene decidir entre compatibilidad temporal en local o regeneración/re-cifrado de `SecureConfig`.
 - Cookie-only auth aún no completada al 100% en admin/storefront.
-- Remanente relevante de seguridad todavía abierto en `backend` (`xlsx`, `mjml`, `prisma`, toolchain Nest) y en algunas dependencias/tooling del `frontend`.
+- Remanente de seguridad operativo: secretos históricos, deriva local de `CONFIG_ENCRYPTION_KEY` y superficie pública/degradación del storefront.
 - Storefront con mezcla de template y producto real.
 - Estrategia de procedencia de datos y operación degradada del storefront todavía no definida.
 - La clave histórica compatible de la base local quedó identificada en el historial del repo; sigue pendiente decidir si se reutiliza temporalmente o si se limpia/re-cifra `SecureConfig`.
 
 ### Próxima sesión sugerida
 
-- Ejecutar la siguiente subronda de seguridad remanente y luego profundizar el recorte de superficie pública del storefront.
+- Profundizar el recorte de superficie pública del storefront y la política de fallbacks controlados.
 - Al volver sobre storefront, revisar si las URLs de categoría deben seguir aterrizando en `/shop?query=<slug>` o migrar a un filtro explícito por categoría.
 - Próximo objetivo recomendado:
-  - seguir bajando warnings del admin, ahora priorizando `invoice`, `expenses`, `settings` y `sales/ProductForm`,
-  - evaluar la decisión estructural para `xlsx` y `mjml`:
-    - reemplazo,
-    - aislamiento adicional,
-    - o aceptación temporal con hardening y riesgo explícito,
-  - mantener `vendor-pdf` y `vendor-charts` como únicos bundles grandes aceptados salvo evidencia de impacto real.
+  - mantener `vendor-pdf` y `vendor-charts` como únicos bundles grandes aceptados salvo evidencia de impacto real,
+  - seguir luego con el recorte de superficie pública del storefront y la política de fallbacks controlados.

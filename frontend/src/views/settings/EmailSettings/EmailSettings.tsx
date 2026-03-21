@@ -1433,7 +1433,7 @@ const EmailSettings = () => {
                         </h5>
                         <p className="text-sm text-gray-500">
                             {t('settings.email.templates.editorDescription', {
-                                defaultValue: 'Adjust subject and MJML body, then preview with sample data before saving.',
+                                defaultValue: 'Adjust subject and template body, then preview with sample data before saving.',
                             })}
                         </p>
                     </div>
@@ -1450,7 +1450,7 @@ const EmailSettings = () => {
                             </div>
                             <div className="flex flex-col gap-2">
                                 <span className="text-sm font-semibold text-gray-600">
-                                    {t('settings.email.templates.fields.body', { defaultValue: 'Body (MJML)' })}
+                                    {t('settings.email.templates.fields.body', { defaultValue: 'Template body' })}
                                 </span>
                                 <Textarea
                                     className="min-h-[280px]"

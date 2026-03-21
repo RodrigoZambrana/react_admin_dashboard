@@ -52,7 +52,7 @@ const CustomerEditDialog = () => {
                 const detail = (response.data as unknown as Customer) ||
                     ((response as unknown) as Customer)
                 setCustomerDetail(detail)
-            } catch (error) {
+            } catch {
                 setCustomerDetail(selectedCustomer)
             }
         }

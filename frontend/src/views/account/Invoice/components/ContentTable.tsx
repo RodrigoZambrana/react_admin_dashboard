@@ -168,7 +168,6 @@ const resolveSpecifications = (
         parts.push(sanitized)
     }
     const attrs = row.customAttributes
-    let hasCustomAttributes = false
     if (attrs && typeof attrs === 'object' && !Array.isArray(attrs)) {
         const entries = Object.entries(attrs)
             .map(([key, value], index) => ({
@@ -218,7 +217,6 @@ const resolveSpecifications = (
             if (!formatted) {
                 continue
             }
-            hasCustomAttributes = true
             const label = translateKey(entry.key)
             pushUnique(`${label}: ${formatted}`)
         }
