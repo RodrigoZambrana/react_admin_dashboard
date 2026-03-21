@@ -1,3 +1,4 @@
+import Image from "next/image";
 import styled from "styled-components";
 // GLOBAL CUSTOM COMPONENTS
 import { Button } from "@component/buttons";
@@ -77,7 +78,7 @@ export default function CarouselCard1({ title, image, buttonText, description }:
       </div>
 
       <div className="image-holder">
-        <img src={image} alt="apple-watch-1" />
+        <Image src={image} alt="apple-watch-1" width={300} height={300} style={{ width: "100%", height: "auto" }} />
       </div>
     </StyledCarouselCard1>
   );

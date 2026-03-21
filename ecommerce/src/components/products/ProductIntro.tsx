@@ -379,30 +379,6 @@ export default function ProductIntro({
   const variantId = selectedVariant?.id;
   const lineId = buildLineId(id, variantId);
 
-  if (isParametricProduct) {
-    const productIdForConfigurator = parametricProductId ?? productNumericId;
-
-    return (
-      <ParametricConfigurator
-        product={{
-          id: String(productIdForConfigurator ?? id),
-          slug: productSlug,
-          title,
-          shortDescription,
-          brand: productBrand,
-          rating: rating ?? 0,
-          ratingCount: ratingCount ?? 0,
-          currency: currency ?? baseCurrency,
-          status
-        }}
-        gallery={gallery}
-        hasGallery={hasGallery}
-        selectedImage={selectedImage}
-        onSelectImage={(index) => setSelectedImage(index)}
-      />
-    );
-  }
-
   const currentLineItem = useMemo(
     () => items.find((item) => item.product.id === lineId) ?? null,
     [items, lineId]
@@ -548,6 +524,30 @@ export default function ProductIntro({
     updateQuantity(lineId, Math.max(0, currentQuantity - 1));
   }, [currentQuantity, lineId, updateQuantity]);
 
+  if (isParametricProduct) {
+    const productIdForConfigurator = parametricProductId ?? productNumericId;
+
+    return (
+      <ParametricConfigurator
+        product={{
+          id: String(productIdForConfigurator ?? id),
+          slug: productSlug,
+          title,
+          shortDescription,
+          brand: productBrand,
+          rating: rating ?? 0,
+          ratingCount: ratingCount ?? 0,
+          currency: currency ?? baseCurrency,
+          status
+        }}
+        gallery={gallery}
+        hasGallery={hasGallery}
+        selectedImage={selectedImage}
+        onSelectImage={(index) => setSelectedImage(index)}
+      />
+    );
+  }
+
   const productRating = rating ?? 4;
   const productRatingCount = ratingCount ?? 0;
 
@@ -562,6 +562,7 @@ export default function ProductIntro({
                   width={300}
                   height={300}
                   src={gallery[Math.min(selectedImage, gallery.length - 1)]}
+                  alt={title}
                   style={{ display: "block", width: "100%", height: "auto" }}
                 />
               ) : (

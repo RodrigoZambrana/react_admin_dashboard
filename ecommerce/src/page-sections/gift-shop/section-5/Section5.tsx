@@ -36,10 +36,9 @@ export default function Section5({ products, title }: Props) {
       <Wrapper>
         <Carousel slidesToShow={4} responsive={responsive}>
           {products.map((item) => (
-            <Box pb=".5rem">
+            <Box key={item.id} pb=".5rem">
               <ProductCard15
                 id={item.id}
-                key={item.id}
                 slug={item.slug}
                 title={item.title}
                 price={item.price}

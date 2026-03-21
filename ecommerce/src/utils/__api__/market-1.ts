@@ -17,7 +17,7 @@ import {
 const fallbackEnvValue =
   process.env.NEXT_PUBLIC_ENABLE_STOREFRONT_FALLBACKS ??
   process.env.ENABLE_STOREFRONT_FALLBACKS ??
-  "true";
+  "false";
 
 const failFastEnvValue =
   process.env.NEXT_PUBLIC_STOREFRONT_FAIL_FAST ??
@@ -80,8 +80,8 @@ const loadMarket1Shops = async () => {
   if (!shopDataPromise) {
     shopDataPromise = import("@/__server__/__db__/shop/data");
   }
-  const module = await shopDataPromise;
-  return module.default;
+  const dataModule = await shopDataPromise;
+  return dataModule.default;
 };
 
 const toError = (error: unknown, fallbackMessage: string) =>
@@ -672,7 +672,7 @@ const getFlashDeals = async (): Promise<Product[]> => {
   return products.map(normalizeProductPricing);
 };
 
-export default {
+const market1Api = {
   getCarList,
   getCarBrands,
   getMoreItems,
@@ -692,3 +692,5 @@ export default {
   getBigDiscountList,
   getTopRatedProduct,
 };
+
+export default market1Api;

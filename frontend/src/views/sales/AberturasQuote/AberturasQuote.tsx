@@ -320,7 +320,7 @@ const extractDimensionPairs = (value?: string | null): Array<{ width: number; he
         return []
     }
     const normalized = value.toLowerCase()
-    const pattern = /(\d{2,5})(?:\s*(?:x|×|\*|por|⁄|\/|\\|\-|–|—|\s+por\s+)\s*)(\d{2,5})/gi
+    const pattern = /(\d{2,5})(?:\s*(?:x|×|\*|por|⁄|\/|\\|-|–|—|\s+por\s+)\s*)(\d{2,5})/gi
     const pairs: Array<{ width: number; height: number }> = []
     let match: RegExpExecArray | null
     while ((match = pattern.exec(normalized)) !== null) {
@@ -495,18 +495,6 @@ const extractSizeOptions = (rows: MatrixRow[]): SizeOption[] => {
         }
         return a.width - b.width
     })
-}
-
-const extractOptions = (rows: MatrixRow[], key: keyof MatrixRow): Option[] => {
-    const unique = Array.from(new Set(rows.map((row) => row[key] as string))).filter(Boolean)
-    unique.sort((a, b) => a.localeCompare(b))
-    return unique.map((value) => ({ value, label: value }))
-}
-
-const buildNumericOptions = (values: number[]): Option[] => {
-    const unique = Array.from(new Set(values)).filter((value) => Number.isFinite(value))
-    unique.sort((a, b) => a - b)
-    return unique.map((value) => ({ value: String(value), label: `${value}` }))
 }
 
 const buildStringOptions = (values: string[]): Option[] => {

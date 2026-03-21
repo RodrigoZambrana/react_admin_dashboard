@@ -48,7 +48,9 @@ export const defaultMarket1ServiceList: Service[] = [
   }
 ];
 
-export default {
+const market1Defaults = {
   carousel: defaultMarket1MainCarousel,
   services: defaultMarket1ServiceList
 };
+
+export default market1Defaults;

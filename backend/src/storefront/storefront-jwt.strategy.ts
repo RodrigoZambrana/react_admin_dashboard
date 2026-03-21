@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { PassportStrategy } from '@nestjs/passport'
 import { ExtractJwt, Strategy } from 'passport-jwt'
 import type { FastifyRequest } from 'fastify'
+import { resolveRequiredEnv } from '../common/config/runtime-env'
 
 export interface StorefrontJwtPayload {
   sub: number
@@ -25,7 +26,9 @@ export class StorefrontJwtStrategy extends PassportStrategy(Strategy, 'storefron
         ExtractJwt.fromAuthHeaderAsBearerToken(),
       ]),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || 'dev-secret',
+      secretOrKey: resolveRequiredEnv('JWT_SECRET', {
+        developmentFallback: 'local-dev-jwt-secret-change-me',
+      }),
     })
   }
 
@@ -37,4 +40,3 @@ export class StorefrontJwtStrategy extends PassportStrategy(Strategy, 'storefron
     return payload as StorefrontJwtPayload
   }
 }
-

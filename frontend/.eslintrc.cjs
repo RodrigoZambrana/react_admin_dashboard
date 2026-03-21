@@ -65,6 +65,12 @@ module.exports = {
       'warn',
       { argsIgnorePattern: '^_', ignoreRestSiblings: true },
     ],
+    '@typescript-eslint/no-unused-expressions': [
+      'error',
+      { allowShortCircuit: true, allowTernary: true },
+    ],
+    '@typescript-eslint/ban-types': 'off',
+    '@typescript-eslint/no-empty-object-type': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     'import/order': 'off',
     'import/no-named-as-default': 'off',

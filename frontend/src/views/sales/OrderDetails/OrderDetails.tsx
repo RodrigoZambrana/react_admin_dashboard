@@ -187,7 +187,7 @@ const OrderDetails = () => {
             try {
                 const response = await apiGetSalesOrderTimeline<OrderTimelineResponse>(orderId)
                 setTimeline(response?.data ?? null)
-            } catch (error) {
+            } catch {
                 setTimeline(null)
                 setTimelineError(
                     error instanceof Error
@@ -395,7 +395,7 @@ const OrderDetails = () => {
                     </Notification>,
                 )
                 fetchData()
-            } catch (error) {
+            } catch {
                 toast.push(
                     <Notification
                         title={t('sales.orders.payments.attachmentDeleteFailedTitle', {
@@ -480,7 +480,7 @@ const OrderDetails = () => {
         }
 
         return latestEstimatedDate
-    }, [data.shipping?.estimatedMax, data.shipping?.estimatedMin, data.dateTime, latestEstimatedDate])
+    }, [data.shipping, data.dateTime, latestEstimatedDate])
 
     const handleDeliverySaved = useCallback(() => {
         setDeliveryDialogOpen(false)

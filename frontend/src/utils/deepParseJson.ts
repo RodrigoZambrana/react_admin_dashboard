@@ -11,7 +11,7 @@ function deepParseJson(jsonString: Json): Json {
         }
         try {
             return deepParseJson(JSON.parse(jsonString))
-        } catch (err) {
+        } catch {
             return jsonString
         }
     } else if (Array.isArray(jsonString)) {

@@ -32,7 +32,7 @@ const getHotDealList = async () => {
   return response.data;
 };
 
-export default {
+const fashion1Api = {
   getFlashDeals,
   getNewArrivals,
   getServiceList,
@@ -40,3 +40,5 @@ export default {
   getTrendingItems,
   getDealOfTheWeekList
 };
+
+export default fashion1Api;

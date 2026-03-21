@@ -31,7 +31,6 @@ import {
 import type { MercadoPagoNormalizedStatus } from "@/utils/mercadopago";
 import { useI18n, useTranslation } from "@/state/i18n-context";
 import type { CartLineItem } from "@/state/cart-context";
-import type { CartLineItem } from "@/state/cart-context";
 
 const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
   UY: "11000"
@@ -283,7 +282,7 @@ export default function ReviewClient() {
       .filter(Boolean) as Array<{ productId: number; quantity: number; variantId?: number; configuration?: Record<string, unknown> }>;
 
     return { items, error: null as string | null };
-  }, [cartState.items]);
+  }, [cartState.items, normalizeParametricConfiguration]);
 
   const handlePlaceOrder = useCallback(async () => {
     if (isSubmitting) return;
@@ -423,7 +422,6 @@ export default function ReviewClient() {
     }
   }, [
     activeCurrency,
-    cartState.items,
     checkoutToken,
     clearCart,
     contact.email,

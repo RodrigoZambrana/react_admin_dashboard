@@ -77,7 +77,7 @@ const ActivityComments = ({ activityId }: ActivityCommentsProps) => {
         try {
             await dispatch(addComment({ id: activityId, message: trimmed })).unwrap()
             setMessage('')
-        } catch (error) {
+        } catch {
             toast.push(
                 <Notification type="danger" title={t('common.error', { defaultValue: 'Error' })}>
                     {t('calendar.comments.createFailed', {
@@ -125,7 +125,7 @@ const ActivityComments = ({ activityId }: ActivityCommentsProps) => {
                 }),
             ).unwrap()
             cancelEdit()
-        } catch (error) {
+        } catch {
             toast.push(
                 <Notification type="danger" title={t('common.error', { defaultValue: 'Error' })}>
                     {t('calendar.comments.updateFailed', {
@@ -156,7 +156,7 @@ const ActivityComments = ({ activityId }: ActivityCommentsProps) => {
             if (editingCommentId === commentId) {
                 cancelEdit()
             }
-        } catch (error) {
+        } catch {
             toast.push(
                 <Notification type="danger" title={t('common.error', { defaultValue: 'Error' })}>
                     {t('calendar.comments.deleteFailed', {

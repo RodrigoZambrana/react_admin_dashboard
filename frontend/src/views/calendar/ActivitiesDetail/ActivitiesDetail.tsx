@@ -157,7 +157,7 @@ const ActivitiesDetail = () => {
                         if (data?.id) {
                             await dispatch(getActivity({ id: String(data.id) }))
                         }
-                    } catch (error) {
+                    } catch {
                         // Notification handled inside slices
                     }
                 }}
@@ -167,7 +167,7 @@ const ActivitiesDetail = () => {
                         if (data?.id) {
                             await dispatch(getActivity({ id: String(data.id) }))
                         }
-                    } catch (error) {
+                    } catch {
                         // handled by slice notifications
                     }
                 }}

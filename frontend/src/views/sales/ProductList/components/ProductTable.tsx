@@ -630,7 +630,7 @@ const ProductTable = ({
                 </div>
             )
         },
-        [evaluateAvailability, getSelectionForRow, optionSelections, setOptionSelections, t],
+        [evaluateAvailability, getSelectionForRow, t],
     )
 
     const renderShutterControls = useCallback(
@@ -745,7 +745,6 @@ const ProductTable = ({
                                 defaultValue: 'Only shutter + mosquito net combos are available.',
                             })
                         }
-                        const active = selection.shutterMaterial === material
                         const isActive = effectiveShutter === material
                         const button = (
                             <Button
@@ -774,7 +773,7 @@ const ProductTable = ({
                 </div>
             )
         },
-        [evaluateAvailability, getSelectionForRow, optionSelections, setOptionSelections, t],
+        [evaluateAvailability, getSelectionForRow, t],
     )
 
     const resolveStockStatus = useMemo(() => {

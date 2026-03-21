@@ -15,4 +15,6 @@ const getSales = async () => {
   return response.data;
 };
 
-export default { getSummeryCards, getCountryBasedSales, getSales };
+const dashboardApi = { getSummeryCards, getCountryBasedSales, getSales };
+
+export default dashboardApi;

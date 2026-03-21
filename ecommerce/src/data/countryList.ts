@@ -1,4 +1,4 @@
-export default [
+const countryList = [
   { label: "Afghanistan", value: "AF" },
   { label: "Åland Islands", value: "AX" },
   { label: "Albania", value: "AL" },
@@ -243,3 +243,5 @@ export default [
   { label: "Zambia", value: "ZM" },
   { label: "Zimbabwe", value: "ZW" }
 ];
+
+export default countryList;

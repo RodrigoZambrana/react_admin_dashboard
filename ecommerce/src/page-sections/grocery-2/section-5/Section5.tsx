@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import Box from "@component/Box";
 import Card from "@component/Card";
@@ -37,7 +38,13 @@ export default async function Section5() {
                     </Link>
                   </Box>
 
-                  <img src={item.imgUrl} alt="vegetable" />
+                  <Image
+                    src={item.imgUrl}
+                    alt="vegetable"
+                    width={240}
+                    height={240}
+                    style={{ maxWidth: "100%", height: "auto" }}
+                  />
                 </FlexBox>
               </Card>
             </Box>

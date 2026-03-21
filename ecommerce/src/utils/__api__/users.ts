@@ -11,4 +11,6 @@ export const getUserIds = async (): Promise<{ id: string }[]> => {
   return response.data;
 };
 
-export default { getUser, getUserIds };
+const usersApi = { getUser, getUserIds };
+
+export default usersApi;

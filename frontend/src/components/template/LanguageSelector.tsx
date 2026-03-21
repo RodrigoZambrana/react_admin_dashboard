@@ -82,7 +82,7 @@ const _LanguageSelector = ({ className }: CommonProps) => {
 
         try {
             await apiUpdateAccountLanguage({ lang })
-        } catch (error) {
+        } catch {
             applyLocale(previousLocale)
             await ensureDateLocale(previousFormatted)
             toast.push(

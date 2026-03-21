@@ -45,18 +45,6 @@ type NewPaymentDialogProps = {
     orderCurrency?: string
 }
 
-const statusOptions = [
-    { value: 'CONFIRMED', label: 'accounting.payments.status.confirmed' },
-    { value: 'REGISTERED', label: 'accounting.payments.status.registered' },
-    { value: 'FAILED', label: 'accounting.payments.status.failed' },
-]
-
-const typeOptions = [
-    { value: 'DEPOSIT', label: 'accounting.payments.type.deposit' },
-    { value: 'BALANCE', label: 'accounting.payments.type.balance' },
-    { value: 'REFUND', label: 'accounting.payments.type.refund' },
-]
-
 const validationSchema = (t: (key: string) => string) =>
     Yup.object().shape({
         amount: Yup.number()
@@ -83,7 +71,7 @@ const NewPaymentDialog = ({ open, onClose, onCreated, orderId, orderCurrency }: 
                     label: item.label || String(item.id),
                 }))
                 setMethods(options)
-            } catch (error) {
+            } catch {
                 setMethods([])
             }
         }
@@ -159,7 +147,7 @@ const NewPaymentDialog = ({ open, onClose, onCreated, orderId, orderCurrency }: 
                 </Notification>,
             )
             onCreated()
-        } catch (error) {
+        } catch {
             toast.push(
                 <Notification title={t('accounting.payments.feedback.saveFailedTitle')} type="danger">
                     {t('accounting.payments.feedback.saveFailedDesc')}

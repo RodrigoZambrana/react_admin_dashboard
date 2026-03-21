@@ -16,4 +16,6 @@ export const getShopBySlug = async (slug: string): Promise<Shop> => {
   return response.data;
 };
 
-export default { getShopList, getSlugs, getShopBySlug };
+const shopsApi = { getShopList, getSlugs, getShopBySlug };
+
+export default shopsApi;

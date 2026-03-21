@@ -64,7 +64,7 @@ const CurrencySelector = ({
                 if (!ignore && Array.isArray(res.data)) {
                     dispatch(setAvailableCurrencies(res.data))
                 }
-            } catch (error) {
+            } catch {
                 if (!ignore) {
                     dispatch(setAvailableCurrencies([]))
                 }

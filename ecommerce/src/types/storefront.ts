@@ -199,7 +199,7 @@ export interface ProductSummary {
   configuration?: Record<string, unknown> | null;
 }
 
-export interface ProductDetail extends ProductSummary {
+export interface ProductDetail extends Omit<ProductSummary, "attributes"> {
   description?: string | null;
   descriptionHtml?: string | null;
   specifications?: Array<{ label: string; value: string }>;
@@ -432,7 +432,6 @@ export interface CustomerProfile {
 
 export interface AuthSession {
   accessToken: string;
-  refreshToken?: string;
   expiresAt: string;
   customer: CustomerProfile;
 }

@@ -103,7 +103,7 @@ export default function ProductUpdateForm({ product, categories }: Props) {
                 <FlexBox flexDirection="row" mt={2} flexWrap="wrap">
                   {product?.images?.map((item, i) => (
                     <UploadImageBox key={i}>
-                      <Image src={item} width="100%" />
+                      <Image src={item} alt={product?.title ?? "Product image"} width="100%" />
                     </UploadImageBox>
                   ))}
                 </FlexBox>

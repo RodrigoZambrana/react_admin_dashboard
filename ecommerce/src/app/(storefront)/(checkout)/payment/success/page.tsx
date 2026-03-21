@@ -290,6 +290,7 @@ function PaymentSuccessContent() {
     contact.email,
     contact.firstName,
     contact.lastName,
+    localeValue,
     contact.phone,
     notes,
     orderItemsData,

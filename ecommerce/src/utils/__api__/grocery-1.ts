@@ -27,10 +27,12 @@ const getServices = async (): Promise<Service[]> => {
   return response.data;
 };
 
-export default {
+const grocery1Api = {
   getServices,
   getProducts,
   getPopularProducts,
   getTrendingProducts,
   getGrocery1Navigation
 };
+
+export default grocery1Api;

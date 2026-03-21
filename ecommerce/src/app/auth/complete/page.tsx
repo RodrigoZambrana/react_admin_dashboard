@@ -12,7 +12,11 @@ const ERROR_MESSAGE =
   "No pudimos completar el inicio de sesión. Puedes cerrar esta ventana e intentarlo nuevamente.";
 
 async function fetchSession(): Promise<AuthSession> {
-  return StorefrontApi.getCurrentSession();
+  const session = await StorefrontApi.getCurrentSession();
+  if (!session) {
+    throw new Error("No pudimos recuperar tu sesión desde el servidor.");
+  }
+  return session;
 }
 
 const normalizeReturnPath = (value: string | null): string | null => {

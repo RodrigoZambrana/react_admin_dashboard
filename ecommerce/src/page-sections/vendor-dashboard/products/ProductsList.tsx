@@ -33,7 +33,7 @@ export default function ProductsList({ meta, products }: Props) {
       push(`/vendor/products?page=${page}`);
       setPage(null);
     }
-  }, [page]);
+  }, [page, push]);
 
   return (
     <Fragment>

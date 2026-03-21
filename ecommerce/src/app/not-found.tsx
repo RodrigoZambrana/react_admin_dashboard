@@ -18,7 +18,13 @@ export default function NotFound() {
       alignItems="center"
       flexDirection="column"
       justifyContent="center">
-      <Image src="/assets/images/illustrations/404.svg" maxWidth="320px" width="100%" mb="2rem" />
+      <Image
+        src="/assets/images/illustrations/404.svg"
+        alt="Page not found"
+        maxWidth="320px"
+        width="100%"
+        mb="2rem"
+      />
 
       <FlexBox flexWrap="wrap">
         <Button variant="outlined" color="primary" m="0.5rem" onClick={handleGoBack}>

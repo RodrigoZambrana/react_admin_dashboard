@@ -4,25 +4,25 @@
     @apply mx-auto w-full;
   }
 
-  @screen sm {
+  @media (min-width: 640px) {
     .dialog {
       @apply max-w-xl;
     }
   }
 
-  @screen md {
+  @media (min-width: 768px) {
     .dialog {
       @apply max-w-2xl;
     }
   }
 
-  @screen lg {
+  @media (min-width: 1024px) {
     .dialog {
       @apply max-w-4xl;
     }
   }
 
-  @screen xl {
+  @media (min-width: 1280px) {
     .dialog {
       @apply max-w-6xl;
     }

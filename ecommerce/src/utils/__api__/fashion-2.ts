@@ -78,7 +78,7 @@ const getBrands = async (): Promise<Brand[]> => {
   }
 };
 
-export default {
+const fashion2Api = {
   getBlogs,
   getBrands,
   getProducts,
@@ -91,3 +91,5 @@ export default {
   getBestWeekProducts,
   getMainCarouselData
 };
+
+export default fashion2Api;

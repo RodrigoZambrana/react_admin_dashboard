@@ -33,17 +33,16 @@ const extractSpacingProps = (props: Record<string, unknown>) => {
   return { spacingProps, otherProps };
 };
 
-const TextArea = memo(
-  ({
-    label,
-    errorText,
-    fullWidth,
-    labelColor,
-    placeholder,
-    id = "textArea",
-    color = "default",
-    ...props
-  }: TextAreaProps) => {
+const TextAreaBase = ({
+  label,
+  errorText,
+  fullWidth,
+  labelColor,
+  placeholder,
+  id = "textArea",
+  color = "default",
+  ...props
+}: TextAreaProps) => {
     const { spacingProps, otherProps } = extractSpacingProps(props);
 
     const textColor = color || (labelColor && `${labelColor}.main`);
@@ -57,7 +56,11 @@ const TextArea = memo(
         {errorText && <small role="alert">{errorText}</small>}
       </TextAreaWrapper>
     );
-  }
-);
+  };
+
+TextAreaBase.displayName = "TextArea";
+
+const TextArea = memo(TextAreaBase);
+TextArea.displayName = "TextArea";
 
 export default TextArea;

@@ -174,7 +174,7 @@ export default function Signup() {
 
       <FlexBox justifyContent="center" bg="gray.200" py="19px">
         <SemiSpan>Already have account?</SemiSpan>
-        <Link href="/login">
+        <Link href="/account/login">
           <H6 ml="0.5rem" borderBottom="1px solid" borderColor="gray.900">
             Log in
           </H6>

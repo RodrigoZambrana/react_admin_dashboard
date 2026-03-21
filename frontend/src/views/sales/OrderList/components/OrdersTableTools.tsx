@@ -233,7 +233,7 @@ const OrdersTableTools = () => {
                 </Notification>,
                 { placement: 'top-center' },
             )
-        } catch (error) {
+        } catch {
             toast.push(
                 <Notification
                     title={t('text.actions.export')}

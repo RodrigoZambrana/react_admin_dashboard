@@ -25,9 +25,18 @@ const middlewares: any[] = [RtkQueryService.middleware]
 
 const persistConfig = {
     key: PERSIST_STORE_NAME,
+    version: 2,
     keyPrefix: '',
     storage: secureStorage,
-    whitelist: ['auth', 'theme', 'locale', 'currency'],
+    whitelist: ['theme', 'locale', 'currency'],
+    migrate: async (state: Record<string, unknown> | undefined) => {
+        if (!state) {
+            return state
+        }
+
+        const { auth: _auth, ...safeState } = state
+        return safeState
+    },
 }
 
 interface CustomStore extends Store<RootState, AnyAction> {

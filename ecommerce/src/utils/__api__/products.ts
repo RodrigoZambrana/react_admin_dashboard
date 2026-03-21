@@ -29,4 +29,12 @@ const getAvailableShop = async (): Promise<Shop[]> => {
   return response.data;
 };
 
-export default { getSlugs, getProduct, getFrequentlyBought, getRelatedProducts, getAvailableShop };
+const productsApi = {
+  getSlugs,
+  getProduct,
+  getFrequentlyBought,
+  getRelatedProducts,
+  getAvailableShop
+};
+
+export default productsApi;

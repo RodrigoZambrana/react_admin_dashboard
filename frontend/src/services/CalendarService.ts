@@ -129,7 +129,7 @@ const mapActivityDetail = (event: any): CalendarActivityDetail => {
                             undefined
                         )
                     }
-                } catch (_error) {
+                } catch {
                     return undefined
                 }
                 return undefined

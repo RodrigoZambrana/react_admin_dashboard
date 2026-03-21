@@ -110,6 +110,31 @@ export class AuthController {
     }
   }
 
+  @Get('/auth/session')
+  async getSession(
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const token = req.cookies?.access_token
+    if (!token) {
+      return null
+    }
+
+    const result = await this.auth.resolveSession(token)
+    if (!result) {
+      reply.clearCookie('access_token', { path: '/' })
+      return null
+    }
+
+    return {
+      ...result,
+      user: {
+        ...result.user,
+        avatar: resolveAvatarPublicUrl(req, result.user.avatar),
+      },
+    }
+  }
+
   // Stubs to satisfy UI flows
   @Post('/sign-out')
   async signOut(@Res({ passthrough: true }) reply: FastifyReply) {

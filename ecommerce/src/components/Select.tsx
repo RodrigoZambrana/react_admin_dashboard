@@ -40,17 +40,16 @@ const styles = (errorText?: string) =>
     })
   } as Props["styles"]);
 
-const Select = memo(
-  ({
-    options,
-    isMulti = false,
-    id,
-    label,
-    errorText,
-    inputId: providedInputId,
-    instanceId: providedInstanceId,
-    ...restProps
-  }: SelectProps) => {
+const SelectBase = ({
+  options,
+  isMulti = false,
+  id,
+  label,
+  errorText,
+  inputId: providedInputId,
+  instanceId: providedInstanceId,
+  ...restProps
+}: SelectProps) => {
   const { colors } = useTheme();
   const autoId = useId();
   const t = useTranslation();
@@ -187,7 +186,11 @@ const Select = memo(
       )}
     </Box>
   );
-  }
-);
+  };
+
+SelectBase.displayName = "Select";
+
+const Select = memo(SelectBase);
+Select.displayName = "Select";
 
 export default Select;

@@ -44,5 +44,6 @@ const StyledHidden = styled.div.withConfig({
 const Hidden = memo(function ({ children, ...props }: HiddenProps) {
   return <StyledHidden {...props}>{children}</StyledHidden>;
 });
+Hidden.displayName = "Hidden";
 
 export default Hidden;

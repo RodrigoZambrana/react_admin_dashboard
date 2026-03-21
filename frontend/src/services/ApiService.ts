@@ -1,4 +1,4 @@
-import type { AxiosRequestConfig, AxiosResponse } from 'axios'
+import type { AxiosRequestConfig } from 'axios'
 import httpClient, { type HttpRequestOptions } from '@/lib/httpClient'
 
 const ApiService = {

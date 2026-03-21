@@ -4,10 +4,14 @@ import * as bcrypt from 'bcrypt'
 const prisma = new PrismaClient()
 
 const DEFAULT_EMAIL = process.env.DEFAULT_ADMIN_EMAIL || 'admin@example.com'
-const DEFAULT_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD || 'Admin@123!'
 const DEFAULT_NAME = process.env.DEFAULT_ADMIN_NAME || 'Admin'
+const DEFAULT_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD
 
 async function main() {
+  if (!DEFAULT_PASSWORD?.trim()) {
+    throw new Error('DEFAULT_ADMIN_PASSWORD must be provided to reset the admin user.')
+  }
+
   const target = await prisma.user.findUnique({
     where: { email: DEFAULT_EMAIL },
   })

@@ -16,4 +16,6 @@ export const getSlugs = async (): Promise<{ slug: string }[]> => {
   return response.data;
 };
 
-export default { getTicketList, getTicket, getSlugs };
+const ticketApi = { getTicketList, getTicket, getSlugs };
+
+export default ticketApi;

@@ -152,8 +152,8 @@ const fetchStorefrontProducts = async (
 };
 
 const loadMockProducts = async (): Promise<Product[]> => {
-  const module = await import("@/__server__/__db__/products/data");
-  const dataset = module?.uniqueProudcts ?? [];
+  const dataModule = await import("@/__server__/__db__/products/data");
+  const dataset = dataModule?.uniqueProudcts ?? [];
   return Array.isArray(dataset) ? (dataset as Product[]) : [];
 };
 

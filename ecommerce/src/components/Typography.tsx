@@ -70,6 +70,7 @@ const TypographyBase = forwardRef<HTMLDivElement, Props>(({ children, ...props }
 TypographyBase.displayName = "Typography";
 
 const Typography = memo(TypographyBase);
+Typography.displayName = "Typography";
 
 export const H1 = memo(({ children, ...props }: Props) => (
   <Typography as="h1" mb="0" mt="0" fontSize="30px" {...props}>
@@ -136,5 +137,17 @@ export const Tiny = memo(({ children, ...props }: Props) => (
     {children}
   </Typography>
 ));
+
+H1.displayName = "H1";
+H2.displayName = "H2";
+H3.displayName = "H3";
+H4.displayName = "H4";
+H5.displayName = "H5";
+H6.displayName = "H6";
+Paragraph.displayName = "Paragraph";
+Span.displayName = "Span";
+SemiSpan.displayName = "SemiSpan";
+Small.displayName = "Small";
+Tiny.displayName = "Tiny";
 
 export default Typography;

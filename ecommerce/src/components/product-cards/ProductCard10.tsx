@@ -135,7 +135,7 @@ export default function ProductCard10({
   useEffect(() => {
     setDiscountPrice(() => calculateDiscount(price, off));
     setDiscountAmount(() => currency(off));
-  }, []);
+  }, [off, price]);
 
   const cartItem = state.cart.find((item) => item.id === id);
 

@@ -17,7 +17,7 @@ const OrderDeleteConfirmation = () => {
     const salesOrderState = useSalesOrderListData()
     const { selectedRows, selectedRow, deleteMode, tableData } = salesOrderState
 
-    const { t, tDoc, resource } = useSalesDocumentI18n()
+    const { tDoc, resource } = useSalesDocumentI18n()
 
     const onDialogClose = () => {
         dispatch(setDeleteMode(''))

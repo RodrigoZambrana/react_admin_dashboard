@@ -93,6 +93,29 @@ const ProductionOrders = () => {
     const [editingOrder, setEditingOrder] = useState<ProductionOrderRecord | null>(null)
     const [deleteTarget, setDeleteTarget] = useState<ProductionOrderRecord | null>(null)
 
+    const requestTableState = useMemo(
+        () => ({
+            pageIndex: tableState.pageIndex,
+            pageSize: tableState.pageSize,
+            status: tableState.status,
+            assignedToId: tableState.assignedToId,
+            priority: tableState.priority,
+            search: tableState.search,
+            sortKey: tableState.sortKey,
+            sortOrder: tableState.sortOrder,
+        }),
+        [
+            tableState.assignedToId,
+            tableState.pageIndex,
+            tableState.pageSize,
+            tableState.priority,
+            tableState.search,
+            tableState.sortKey,
+            tableState.sortOrder,
+            tableState.status,
+        ],
+    )
+
     const fetchOrders = useCallback(async () => {
         setLoading(true)
         try {
@@ -101,7 +124,7 @@ const ProductionOrders = () => {
                 total: number
                 pageIndex: number
                 pageSize: number
-            }>(tableState)
+            }>(requestTableState)
             const payload = response.data
             setOrders(payload.data)
             setTableState((prev) => ({
@@ -113,7 +136,7 @@ const ProductionOrders = () => {
         } finally {
             setLoading(false)
         }
-    }, [tableState.pageIndex, tableState.pageSize, tableState.status, tableState.assignedToId, tableState.priority, tableState.search, tableState.sortKey, tableState.sortOrder])
+    }, [requestTableState])
 
     const fetchSummary = useCallback(async () => {
         const response = await apiGetProductionOrdersSummary<SummaryResponse>()

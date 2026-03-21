@@ -16,4 +16,6 @@ const getOrder = async (id: string): Promise<Order> => {
   return response.data;
 };
 
-export default { getOrders, getOrder, getIds };
+const ordersApi = { getOrders, getOrder, getIds };
+
+export default ordersApi;

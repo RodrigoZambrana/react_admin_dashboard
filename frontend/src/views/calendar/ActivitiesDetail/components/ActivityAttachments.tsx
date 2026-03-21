@@ -109,7 +109,7 @@ const ActivityAttachments = ({ attachments = [], sourceEvent, onRefresh }: Activ
                 bytes[i] = binaryString.charCodeAt(i)
             }
             return new Blob([bytes], { type: mimeType || 'application/octet-stream' })
-        } catch (error) {
+        } catch {
             return null
         }
     }, [])
@@ -165,7 +165,7 @@ const ActivityAttachments = ({ attachments = [], sourceEvent, onRefresh }: Activ
                 </Notification>,
             )
             await onRefresh?.()
-        } catch (error) {
+        } catch {
             setItems(previous)
             contentCache.current = previousCache
             toast.push(
@@ -198,7 +198,7 @@ const ActivityAttachments = ({ attachments = [], sourceEvent, onRefresh }: Activ
                         'application/octet-stream'
                     return new Blob([data], { type: mimeType })
                 }
-            } catch (error) {
+            } catch {
                 if (cachedContent) {
                     const fallback = decodeBase64ToBlob(cachedContent, inlineCandidate?.type)
                     if (fallback) {

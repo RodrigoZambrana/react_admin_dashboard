@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useMemo } from 'react'
-import ApexChart from 'react-apexcharts'
+import ApexCharts from 'apexcharts'
 import {
     apexLineChartDefaultOption,
     apexBarChartDefaultOption,
@@ -29,6 +29,45 @@ export interface ChartProps {
     className?: string
 }
 
+const cloneChartValue = <T,>(value: T): T => {
+    if (Array.isArray(value)) {
+        return value.map((item) => cloneChartValue(item)) as T
+    }
+    if (value && typeof value === 'object') {
+        const entries = Object.entries(value as Record<string, unknown>).map(
+            ([key, entry]) => [key, cloneChartValue(entry)],
+        )
+        return Object.fromEntries(entries) as T
+    }
+    return value
+}
+
+const mergeChartOptions = (
+    base: Record<string, unknown>,
+    override: Record<string, unknown>,
+): Record<string, unknown> => {
+    const merged = { ...base }
+    Object.entries(override).forEach(([key, value]) => {
+        const current = merged[key]
+        if (
+            current &&
+            value &&
+            typeof current === 'object' &&
+            !Array.isArray(current) &&
+            typeof value === 'object' &&
+            !Array.isArray(value)
+        ) {
+            merged[key] = mergeChartOptions(
+                current as Record<string, unknown>,
+                value as Record<string, unknown>,
+            )
+            return
+        }
+        merged[key] = value
+    })
+    return merged
+}
+
 const Chart = (props: ChartProps) => {
     const {
         series = [],
@@ -45,6 +84,7 @@ const Chart = (props: ChartProps) => {
     } = props
 
     const chartRef = useRef<HTMLDivElement>(null)
+    const chartInstanceRef = useRef<ApexCharts | null>(null)
 
     const chartDefaultOption = useMemo(() => {
         switch (type) {
@@ -61,66 +101,101 @@ const Chart = (props: ChartProps) => {
         }
     }, [type])
 
-    let options = JSON.parse(JSON.stringify(chartDefaultOption))
-    const isMobile = window.innerWidth < 768
-
     const setLegendOffset = useCallback(() => {
-        if (chartRef.current) {
-            const lengend = chartRef.current.querySelectorAll<HTMLDivElement>(
+        if (typeof window === 'undefined' || !chartRef.current) {
+            return
+        }
+        const legend = chartRef.current.querySelectorAll<HTMLDivElement>(
                 'div.apexcharts-legend',
-            )[0]
-            if (direction === DIR_RTL) {
-                lengend.style.right = 'auto'
-                lengend.style.left = '0'
-            }
-            if (isMobile) {
-                lengend.style.position = 'relative'
-                lengend.style.top = '0'
-                lengend.style.justifyContent = 'start'
-                lengend.style.padding = '0'
+        )[0]
+        if (!legend) {
+            return
+        }
+        const isMobile = window.innerWidth < 768
+        if (direction === DIR_RTL) {
+            legend.style.right = 'auto'
+            legend.style.left = '0'
+        }
+        if (isMobile) {
+            legend.style.position = 'relative'
+            legend.style.top = '0'
+            legend.style.justifyContent = 'start'
+            legend.style.padding = '0'
+        }
+    }, [direction])
+
+    const options = useMemo<ApexOptions>(() => {
+        const baseOptions = cloneChartValue(chartDefaultOption)
+        const mergedOptions = customOptions
+            ? (mergeChartOptions(
+                  baseOptions as Record<string, unknown>,
+                  customOptions as unknown as Record<string, unknown>,
+              ) as ApexOptions)
+            : baseOptions
+
+        if (notDonut.includes(type as ChartType)) {
+            mergedOptions.xaxis = {
+                ...(mergedOptions.xaxis || {}),
+                categories: xAxis,
             }
         }
-    }, [direction, isMobile])
+
+        if (type === 'donut') {
+            const pieOptions = mergedOptions.plotOptions?.pie
+            const donutOptions = pieOptions?.donut
+            const donutLabels = donutOptions?.labels
+            const donutTotal = donutLabels?.total
+
+            if (donutTitle && pieOptions && donutOptions && donutLabels && donutTotal) {
+                donutTotal.label = donutTitle
+            }
+            if (donutText && pieOptions && donutOptions && donutLabels && donutTotal) {
+                donutTotal.formatter = () => donutText
+            }
+        }
+
+        return mergedOptions
+    }, [chartDefaultOption, customOptions, donutText, donutTitle, type, xAxis])
 
     useEffect(() => {
-        if (notDonut.includes(type as ChartType)) {
-            setLegendOffset()
+        if (typeof window === 'undefined' || !chartRef.current) {
+            return
         }
-    }, [type, setLegendOffset])
 
-    if (notDonut.includes(type as ChartType)) {
-        options.xaxis.categories = xAxis
-    }
+        const chart = new ApexCharts(chartRef.current, {
+            ...options,
+            chart: {
+                ...(options.chart || {}),
+                type,
+                height,
+                width,
+            },
+            series,
+        })
 
-    if (customOptions) {
-        options = { ...options, ...customOptions }
-    }
+        chartInstanceRef.current = chart
 
-    if (type === 'donut') {
-        if (donutTitle) {
-            options.plotOptions.pie.donut.labels.total.label = donutTitle
+        void chart.render().then(() => {
+            if (notDonut.includes(type as ChartType)) {
+                setLegendOffset()
+            }
+        })
+
+        return () => {
+            chart.destroy()
+            if (chartInstanceRef.current === chart) {
+                chartInstanceRef.current = null
+            }
         }
-        if (donutText) {
-            options.plotOptions.pie.donut.labels.total.formatter = () =>
-                donutText
-        }
-    }
+    }, [height, options, series, setLegendOffset, type, width])
 
     return (
         <div
             ref={chartRef}
             style={direction === DIR_RTL ? { direction: 'ltr' } : {}}
-            className="chartRef"
+            className={className ? `chartRef ${className}` : 'chartRef'}
+            {...rest}
         >
-            <ApexChart
-                options={options}
-                type={type}
-                series={series}
-                width={width}
-                height={height}
-                className={className}
-                {...rest}
-            />
         </div>
     )
 }

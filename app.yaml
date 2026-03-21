@@ -60,19 +60,23 @@ envs:
     value: EV[1:qUQqYQy7CLTtfJhemmKMmLQXDPr+QvgV:IiTJBggj+RWmEVr3B1Fl6kPUG8ic6+NnxFmRldIEwt/KezaB6j864YVMQQBsvMBRcmdo5rU16E1DGv4uFN32lQTT/AzreLA1ntw3GVt2USA4MVJ9gBR64InKzx+huWMOZoCijKiOHU/DVYieNBkOw4Ei4v2LTMeNFydqmMcx8aWV/VZt6Ue79lJMM9VHQCn/9BplYEYEGLNJtQHhXrHY8K3z5KEQrVd48UWLM73uq6Mmu+mBoMkAn99miiJPD1FR]
   - key: JWT_SECRET
     scope: RUN_AND_BUILD_TIME
-    value: __replace_with_unique_secret__
+    type: SECRET
+    value: __set_in_platform_secret_manager__
   - key: COOKIE_SECRET
     scope: RUN_AND_BUILD_TIME
-    value: __replace_with_unique_secret__
+    type: SECRET
+    value: __set_in_platform_secret_manager__
   - key: DEFAULT_USER_TEMP_PASSWORD
     scope: RUN_AND_BUILD_TIME
-    value: TempPass@123!
+    type: SECRET
+    value: __set_if_manual_user_creation_is_used__
   - key: SEED_SUPERADMIN_EMAIL
     scope: RUN_AND_BUILD_TIME
-    value: admin@example.com
+    value: __set_if_seed_bootstrap_is_enabled__
   - key: SEED_SUPERADMIN_PASSWORD
     scope: RUN_AND_BUILD_TIME
-    value: Admin@123!
+    type: SECRET
+    value: __set_if_seed_bootstrap_is_enabled__
   - key: SEED_SUPERADMIN_NAME
     scope: RUN_AND_BUILD_TIME
     value: Prod Admin
@@ -82,7 +86,8 @@ envs:
     scope: RUN_AND_BUILD_TIME
   - key: SEED_USER_PASSWORD
     scope: RUN_AND_BUILD_TIME
-    value: TempPass@123!
+    type: SECRET
+    value: __set_if_seed_bootstrap_is_enabled__
   - key: RECAPTCHA_SECRET_KEY
     scope: RUN_AND_BUILD_TIME
   - key: SENTRY_DSN
@@ -92,10 +97,11 @@ envs:
     value: mercadopago
   - key: MP_PUBLIC_KEY
     scope: RUN_AND_BUILD_TIME
-    value: TEST-632ebe0d-6895-4755-b5f7-22a831e45d27
+    value: __set_if_mercado_pago_is_enabled__
   - key: MP_ACCESS_TOKEN
     scope: RUN_AND_BUILD_TIME
-    value: TEST-6249908203472499-102717-cf8020a9113d8f1574a5c8015683e0ba-670522668
+    type: SECRET
+    value: __set_if_mercado_pago_is_enabled__
   - key: MP_COUNTRY
     scope: RUN_AND_BUILD_TIME
     value: AR
@@ -104,7 +110,8 @@ envs:
     value: "12000"
   - key: CONFIG_ENCRYPTION_KEY
     scope: RUN_AND_BUILD_TIME
-    value: YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=
+    type: SECRET
+    value: __set_in_platform_secret_manager__
   - key: GOOGLE_OAUTH_ENABLED
     scope: RUN_AND_BUILD_TIME
     value: "true"

@@ -140,7 +140,16 @@ const buildConfigurationPayload = (
 
 type ParametricProductInfo = Pick<
   Product,
-  "id" | "slug" | "title" | "shortDescription" | "brand" | "rating" | "ratingCount" | "currency" | "status"
+  | "id"
+  | "slug"
+  | "title"
+  | "shortDescription"
+  | "brand"
+  | "rating"
+  | "ratingCount"
+  | "currency"
+  | "status"
+  | "mode"
 >;
 
 type ParametricConfiguratorProps = {
@@ -369,6 +378,7 @@ const ParametricConfigurator = ({
                   width={300}
                   height={300}
                   src={gallery[Math.min(selectedImage, gallery.length - 1)]}
+                  alt={product.title}
                   style={{ display: "block", width: "100%", height: "auto" }}
                 />
               ) : (

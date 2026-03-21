@@ -149,7 +149,7 @@ const EditDeliveryDialog = ({
             }
         }
 
-        const parseOptionalInt = (input: string, field: 'estimatedMinDays' | 'estimatedMaxDays') => {
+        const parseOptionalInt = (input: string, _field: 'estimatedMinDays' | 'estimatedMaxDays') => {
             const trimmed = input.trim()
             if (!trimmed.length) {
                 return null
@@ -255,7 +255,7 @@ const EditDeliveryDialog = ({
                 </Notification>,
             )
             onSaved()
-        } catch (error) {
+        } catch {
             toast.push(
                 <Notification
                     title={t('sales.orderDetails.delivery.feedback.updateFailedTitle', {

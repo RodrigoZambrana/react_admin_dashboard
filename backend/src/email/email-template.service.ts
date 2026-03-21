@@ -27,6 +27,9 @@ type RenderResult = {
   templateId?: number
 }
 
+const MJML_INCLUDE_PATTERN = /<\s*mj-include\b/i
+const MAX_MJML_TEMPLATE_CHARS = 120_000
+
 const EVENT_LABELS: Record<string, Record<string, string>> = {
   en: {
     'order.received': 'We received your order',
@@ -544,6 +547,7 @@ export class EmailTemplateService implements OnModuleInit {
   }
 
   private compileTemplate(template: EmailTemplate): CompiledTemplate {
+    this.assertSafeMjmlMarkup(template.body, { templateId: template.id, phase: 'compile' })
     const subjectCompiler = this.hbs.compile(template.subject, { noEscape: false })
     const bodyCompiler = this.hbs.compile(template.body, { noEscape: false })
     return {
@@ -594,6 +598,7 @@ export class EmailTemplateService implements OnModuleInit {
 
     const subject = template.subjectCompiler(baseContext)
     const mjmlMarkup = template.bodyCompiler(baseContext)
+    this.assertSafeMjmlMarkup(mjmlMarkup, { templateId: template.id, phase: 'render' })
     const result = this.compileMjml(mjmlMarkup, {
       validationLevel: 'soft',
       fonts: {
@@ -624,6 +629,22 @@ export class EmailTemplateService implements OnModuleInit {
       text,
       locale: template.locale,
       templateId: template.id,
+    }
+  }
+
+  private assertSafeMjmlMarkup(
+    markup: string,
+    context: { templateId?: number; phase: 'compile' | 'render' },
+  ) {
+    if (markup.length > MAX_MJML_TEMPLATE_CHARS) {
+      throw new Error(
+        `MJML template ${context.templateId ?? 'unknown'} exceeds the maximum allowed size during ${context.phase}`,
+      )
+    }
+    if (MJML_INCLUDE_PATTERN.test(markup)) {
+      throw new Error(
+        `MJML template ${context.templateId ?? 'unknown'} uses mj-include, which is disabled for security reasons`,
+      )
     }
   }
 

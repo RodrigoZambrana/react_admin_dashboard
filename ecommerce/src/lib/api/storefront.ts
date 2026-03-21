@@ -291,8 +291,8 @@ export const StorefrontApi = {
     });
   },
 
-  async getCurrentSession(): Promise<AuthSession> {
-    return apiFetch<AuthSession>("auth/session", {
+  async getCurrentSession(): Promise<AuthSession | null> {
+    return apiFetch<AuthSession | null>("auth/session", {
       cache: "no-store"
     });
   },

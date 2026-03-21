@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback } from "react";
 import styled, { CSSProperties } from "styled-components";
 import Rating from "../rating";
@@ -154,7 +155,13 @@ export default function ProductCard3({ ...props }: ProductCard3Props) {
     <Wrapper {...props}>
       <div className="image-holder">
         <div className="sale-chip">50% off</div>
-        <img src={product.images[0]} alt={product.title} />
+        <Image
+          src={product.images[0]}
+          alt={product.title}
+          width={300}
+          height={300}
+          style={{ width: "100%", height: "auto" }}
+        />
       </div>
 
       <div className="details">

@@ -132,7 +132,7 @@ export default function OrderDetails() {
 
           <Card p="20px 30px" borderRadius={12}>
             <H5 mt="0px" mb="14px">
-              Customer's Note
+              Customer&apos;s Note
             </H5>
 
             <TextArea defaultValue="Please deliver ASAP." rows={5} borderRadius={10} fullWidth />

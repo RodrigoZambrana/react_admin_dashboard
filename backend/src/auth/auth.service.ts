@@ -96,6 +96,34 @@ export class AuthService {
     return user
   }
 
+  private buildSessionResponse(
+    user: {
+      id: number
+      email: string
+      role: Role
+      img?: string | null
+      name?: string | null
+      lastName?: string | null
+      lang?: string | null
+    },
+    token: string,
+    expiresAt: string,
+  ) {
+    const lang = normalizeLanguagePreference(user.lang)
+    return {
+      token,
+      expiresAt,
+      user: {
+        authority: [user.role],
+        avatar: user.img || '',
+        email: user.email,
+        name: user.name || '',
+        lastName: user.lastName || '',
+        lang,
+      },
+    }
+  }
+
   signToken(user: {
     id: number
     email: string
@@ -119,17 +147,41 @@ export class AuthService {
     }
     const token = this.jwt.sign(payload)
     const expiresAt = new Date(Date.now() + SESSION_TTL_MILLISECONDS).toISOString()
-    return {
-      token,
-      expiresAt,
-      user: {
-        authority: [user.role],
-        avatar: user.img || '',
-        email: user.email,
-        name: user.name || '',
-        lastName: user.lastName || '',
-        lang,
-      },
+    return this.buildSessionResponse(user, token, expiresAt)
+  }
+
+  async resolveSession(token: string) {
+    try {
+      const payload = (await this.jwt.verifyAsync(token)) as {
+        sub?: number | string
+        scope?: string
+        exp?: number
+      }
+
+      if (!payload?.sub || (payload.scope && payload.scope !== 'admin')) {
+        return null
+      }
+
+      const userId = Number(payload.sub)
+      if (!Number.isInteger(userId) || userId <= 0) {
+        return null
+      }
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+      })
+      if (!user) {
+        return null
+      }
+
+      const expiresAt =
+        typeof payload.exp === 'number'
+          ? new Date(payload.exp * 1000).toISOString()
+          : new Date(Date.now() + SESSION_TTL_MILLISECONDS).toISOString()
+
+      return this.buildSessionResponse(user, token, expiresAt)
+    } catch {
+      return null
     }
   }
 }

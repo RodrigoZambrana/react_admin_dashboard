@@ -511,7 +511,7 @@ const Profile = ({ data = {} }: ProfileProps) => {
                                                     await apiUpdateAccountLanguage({
                                                         lang: selected,
                                                     })
-                                                } catch (error) {
+                                                } catch {
                                                     await applyLocale(previousLang)
                                                     form.setFieldValue(
                                                         field.name,

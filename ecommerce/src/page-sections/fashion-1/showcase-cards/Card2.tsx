@@ -14,7 +14,7 @@ export default function Card2() {
 
         <Box mt="3.5rem">
           <Typography color="text.muted" mb="0.5rem">
-            WOMEN'S HANDBAG
+            WOMEN&apos;S HANDBAG
           </Typography>
 
           <H3 mb="0.5rem" fontSize="30px" lineHeight="1.3">

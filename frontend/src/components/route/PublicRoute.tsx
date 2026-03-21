@@ -1,12 +1,19 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import appConfig from '@/configs/app.config'
 import useAuth from '@/utils/hooks/useAuth'
+import { useAppSelector } from '@/store'
+import Loading from '@/components/shared/Loading'
 
 const { authenticatedEntryPath } = appConfig
 
 const PublicRoute = () => {
     const { authenticated } = useAuth()
+    const initialized = useAppSelector((state) => state.auth.session.initialized)
     const location = useLocation()
+
+    if (!initialized) {
+        return <Loading loading={true} />
+    }
 
     // Allow access to Access Denied page even when authenticated
     if (location.pathname === '/access-denied') {

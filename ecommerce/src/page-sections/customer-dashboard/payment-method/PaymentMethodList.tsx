@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { IconEdit, IconTrash } from "@tabler/icons-react";
 
@@ -38,10 +39,12 @@ export default function PaymentMethodList({ methodList }: Props) {
           borderColor="gray.200">
           <FlexBox alignItems="center" m="6px">
             <Card width="42px" height="28px" mr="10px" elevation={4}>
-              <img
-                width="100%"
+              <Image
                 alt={item.payment_method}
                 src={`/assets/images/payment-methods/${item.payment_method}.svg`}
+                width={42}
+                height={28}
+                style={{ width: "100%", height: "auto" }}
               />
             </Card>
 

@@ -50,7 +50,7 @@ export default function Accordion({ expanded = false, children }: AccordionProps
     return Children.map(children, (child, ind) =>
       ind === 0 ? cloneElement(child, { open, onClick: toggle }) : child
     );
-  }, [children, open]);
+  }, [children, open, toggle]);
 
   return (
     <AccordionWrapper ref={ref} height={open ? parentHeight : headerHeight}>
