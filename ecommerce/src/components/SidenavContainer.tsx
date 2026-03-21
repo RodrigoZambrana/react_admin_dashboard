@@ -75,16 +75,20 @@ export default function SidenavContainer({
 
   const scrollListener = useCallback(() => {
     const element = document.getElementById(navFixedComponentID) as HTMLElement;
+    if (!element) {
+      setSidenavFixed(false);
+      return;
+    }
     const elementBottom = element.getBoundingClientRect().bottom;
 
     const position = elementBottom + window.scrollY - 80;
     setSidenavFixed(window.scrollY > position);
-  }, []);
+  }, [navFixedComponentID]);
 
   useEffect(() => {
     window.addEventListener("scroll", scrollListener);
     return () => window.removeEventListener("scroll", scrollListener);
-  }, []);
+  }, [scrollListener]);
 
   return (
     <StyledContainer>

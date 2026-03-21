@@ -60,6 +60,8 @@ const NumericFormatInput = ({
         field?.value === undefined || field?.value === null
             ? ''
             : field.value
+    const valueIsNumericString =
+        typeof resolvedValue === 'string' && resolvedValue.length > 0
     return (
         <NumericFormat
             {...restProps}
@@ -68,6 +70,7 @@ const NumericFormatInput = ({
                 (Input as ComponentType)
             }
             value={resolvedValue as string | number}
+            valueIsNumericString={valueIsNumericString}
             type="text"
             autoComplete="off"
             allowNegative={false}
@@ -158,16 +161,18 @@ const PricingFields = (props: PricingFieldsProps) => {
                                     field={field}
                                     placeholder={t('text.columns.salePrice')}
                                     customInput={PriceInput as ComponentType}
-                                    onValueChange={(e) => {
+                                    onValueChange={(e, sourceInfo) => {
                                         const nextValue =
                                             typeof e.value === 'string'
                                                 ? e.value
                                                 : ''
                                         form.setFieldValue(field.name, nextValue)
-                                        if (nextValue === '') {
-                                            setSalePriceManuallyEdited(false)
-                                        } else {
-                                            setSalePriceManuallyEdited(true)
+                                        if (sourceInfo.source === 'event') {
+                                            if (nextValue === '') {
+                                                setSalePriceManuallyEdited(false)
+                                            } else {
+                                                setSalePriceManuallyEdited(true)
+                                            }
                                         }
                                     }}
                                 />

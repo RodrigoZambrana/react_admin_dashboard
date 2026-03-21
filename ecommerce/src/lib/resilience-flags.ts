@@ -3,7 +3,7 @@ const deriveEnvDefault = (): boolean => {
     process.env.NEXT_PUBLIC_ENABLE_SNAPSHOT_FALLBACKS ??
     process.env.ENABLE_STOREFRONT_FALLBACKS
   if (raw === undefined) {
-    return true
+    return false
   }
   return !(raw === 'false' || raw === '0')
 }

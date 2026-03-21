@@ -59,6 +59,7 @@ const renderPricingFields = () => {
                 { value: 'USD', label: 'USD' },
               ]}
               onCurrencyChange={(code) => formik.setFieldValue('currency', code)}
+              mode="simple"
             />
           </Form>
         )}

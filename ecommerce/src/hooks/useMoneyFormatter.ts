@@ -4,7 +4,7 @@ import { useCallback, useMemo } from "react";
 
 import { normalizeMoney } from "@/lib/utils/format";
 import type { Money } from "@/types/storefront";
-import { useCurrency, useOptionalCurrency } from "@/state/currency-context";
+import { useOptionalCurrency } from "@/state/currency-context";
 import { resolveCurrencyLocale } from "@/lib/currency/locale";
 import { formatCurrencyAmount } from "@/lib/currency/utils";
 
@@ -19,12 +19,11 @@ export type MoneyFormatter = {
 };
 
 export function useMoneyFormatter(): MoneyFormatter {
-  const optionalContext = useOptionalCurrency();
-  const enforcedContext = optionalContext ?? useCurrency();
-  const baseCurrency = enforcedContext.baseCurrency;
-  const activeCurrency = optionalContext?.currency ?? enforcedContext.currency;
-  const convertMoneyFn = optionalContext?.convertMoney;
-  const formatMoneyFn = optionalContext?.formatMoney;
+  const currencyContext = useOptionalCurrency();
+  const baseCurrency = currencyContext?.baseCurrency ?? "UYU";
+  const activeCurrency = currencyContext?.currency ?? baseCurrency;
+  const convertMoneyFn = currencyContext?.convertMoney;
+  const formatMoneyFn = currencyContext?.formatMoney;
 
   const cachedFormatMoney = useCallback<FormatMoneyFn>(
     (money) => {

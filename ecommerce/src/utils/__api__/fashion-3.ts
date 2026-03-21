@@ -29,4 +29,12 @@ const getBlogs = async (): Promise<Blog[]> => {
   return response.data;
 };
 
-export default { getProducts, getFeatureProducts, getMainCarouselData, getServices, getBlogs };
+const fashion3Api = {
+  getProducts,
+  getFeatureProducts,
+  getMainCarouselData,
+  getServices,
+  getBlogs
+};
+
+export default fashion3Api;

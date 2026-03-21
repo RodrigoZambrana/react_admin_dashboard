@@ -40,7 +40,7 @@ const PaymentDeleteConfirmation = () => {
             )
             const refreshData: PaymentsTableState = { ...tableData }
             dispatch(getPayments(refreshData))
-        } catch (error) {
+        } catch {
             toast.push(
                 <Notification title={t('accounting.payments.feedback.deleteFailedTitle')} type="danger">
                     {t('accounting.payments.feedback.deleteFailedDesc')}

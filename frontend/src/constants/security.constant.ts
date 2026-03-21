@@ -1,5 +1,19 @@
-export const STATE_SIGNATURE_KEY =
-    import.meta.env.VITE_STATE_SIGNATURE_KEY || 'dev-state-signature'
+const resolveStateSignatureKey = () => {
+    const configured = import.meta.env.VITE_STATE_SIGNATURE_KEY?.trim()
+    if (configured) {
+        return configured
+    }
+
+    if (import.meta.env.DEV) {
+        return 'local-dev-state-signature-change-me'
+    }
+
+    throw new Error(
+        'VITE_STATE_SIGNATURE_KEY must be configured before building the admin frontend.',
+    )
+}
+
+export const STATE_SIGNATURE_KEY = resolveStateSignatureKey()
 
 export const INJECTION_PATTERNS = [
     /('|")\s*or\s+(\d+|true|false|null)/i,

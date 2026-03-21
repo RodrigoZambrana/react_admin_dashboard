@@ -17,6 +17,8 @@ export type SignInResponse = {
     }
 }
 
+export type SessionResponse = SignInResponse | null
+
 export type SignUpResponse = SignInResponse
 
 export type SignUpCredential = {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import CalendarView from '@/components/shared/CalendarView'
 import Container from '@/components/shared/Container'
 import EventDialog from './components/EventDialog'
@@ -43,7 +43,10 @@ const Calendar = () => {
     const eventsState = useAppSelector(
         (state) => state.crmCalendar.data.eventList,
     )
-    const events = Array.isArray(eventsState) ? eventsState : []
+    const events = useMemo(
+        () => (Array.isArray(eventsState) ? eventsState : []),
+        [eventsState],
+    )
     const { t, i18n } = useTranslation()
     const fcLocale = i18n.language && i18n.language.startsWith('es') ? 'es' : 'en'
     const [isMobile, setIsMobile] = useState(false)

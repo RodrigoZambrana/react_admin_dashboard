@@ -94,6 +94,7 @@ export default function Section5() {
                 <Features variants={featuresVariants} whileInView="visible" initial="hidden">
                   {model.map((item, index) => (
                     <FeatureItem
+                      key={item}
                       initial="hidden"
                       whileInView="visible"
                       variants={featureItemVariants}

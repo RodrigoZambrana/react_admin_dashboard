@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { getStorefrontConfig } from "@/lib/storefront-config";
+import { enforcePublicRoute } from "@/lib/public-route-policy";
 import { StorefrontSessionProvider } from "@/state/session-context";
 import { StorefrontCurrencyProvider } from "@/state/currency-context";
 import { WishlistProvider } from "@/state/wishlist-context";
@@ -14,7 +15,11 @@ type ShopLayoutProps = {
   children: ReactNode;
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function ShopLayout({ children }: ShopLayoutProps) {
+  enforcePublicRoute("shop");
+
   const config = await getStorefrontConfig();
 
   return (

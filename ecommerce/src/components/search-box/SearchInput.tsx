@@ -27,7 +27,7 @@ export default function SearchInput() {
   const handleSearch = useCallback((event: any) => {
     event.persist();
     search(event);
-  }, []);
+  }, [search]);
 
   const handleDocumentClick = () => setResultList([]);
 

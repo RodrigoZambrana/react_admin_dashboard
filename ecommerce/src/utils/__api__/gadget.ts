@@ -39,7 +39,7 @@ const getNewArrival = async (): Promise<Product[]> => {
   return response.data;
 };
 
-export default {
+const gadgetApi = {
   getTwoBanner,
   getBlogLists,
   getNewArrival,
@@ -48,3 +48,5 @@ export default {
   getMostViewedList,
   getFeaturedCategories
 };
+
+export default gadgetApi;

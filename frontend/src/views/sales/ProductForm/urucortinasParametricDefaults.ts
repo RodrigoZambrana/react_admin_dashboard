@@ -1,4 +1,4 @@
-import type { ParametricConfigSnapshot, ParametricQuoteResult } from './ParametricConfigurator'
+import type { ParametricConfigSnapshot } from './ParametricConfigurator'
 
 type UrucortinasMatrixRow = {
     familyId: string

@@ -40,7 +40,7 @@ const getTopCategories = async (): Promise<Partial<Category>[]> => {
   return response.data;
 };
 
-export default {
+const giftApi = {
   getAllProducts,
   getServiceList,
   getTopCategories,
@@ -49,3 +49,5 @@ export default {
   getTopSailedProducts,
   getCategoryNavigation
 };
+
+export default giftApi;

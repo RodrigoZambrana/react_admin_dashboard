@@ -177,7 +177,7 @@ const mapFilesToAttachments = async (
                     size: file.size,
                     content,
                 } satisfies CalendarEventAttachment
-            } catch (error) {
+            } catch {
                 return {
                     id: `file-${timestamp}-${index}`,
                     name: file.name,
@@ -238,7 +238,7 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
         [eventTypeOptions],
     )
 
-    const buildAddressOptionLabel = (
+    const buildAddressOptionLabel = useCallback((
         address: CalendarEventAddress,
         index: number,
         isPrimary?: boolean,
@@ -252,9 +252,9 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
             label = `${label} · ${t('text.labels.primary', { defaultValue: 'Primary' })}`
         }
         return label
-    }
+    }, [t])
 
-    const mapAddressesToOptions = (
+    const mapAddressesToOptions = useCallback((
         addresses: Array<
             CalendarEventAddress & {
                 id?: string | number
@@ -280,7 +280,7 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
             normalized.label = buildAddressOptionLabel(normalized, index, normalized.isPrimary)
             return normalized
         })
-    }
+    }, [buildAddressOptionLabel])
 
     const isSameAddress = (
         source: CalendarEventAddress,
@@ -324,7 +324,7 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                 [customerId]: mapped,
             }))
             return mapped
-        } catch (error) {
+        } catch {
             if (!options?.suppressToast) {
                 toast.push(
                     <Notification
@@ -345,7 +345,7 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
         } finally {
             setLoadingAddress(false)
         }
-    }, [t])
+    }, [mapAddressesToOptions, t])
 
     useEffect(() => {
         const loadCustomers = async () => {
@@ -366,7 +366,7 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                     }),
                 )
                 setCustomerOptions(list)
-            } catch (error) {
+            } catch {
                 toast.push(
                     <Notification type="danger" title={t('common.error', { defaultValue: 'Error' })}>
                         {t('calendar.errors.customers', {
@@ -398,7 +398,7 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                     setEventTypeOptions(list)
                     return
                 }
-            } catch (error) {
+            } catch {
                 toast.push(
                     <Notification type="warning" title={t('common.warning', { defaultValue: 'Aviso' })}>
                         {t('settings.calendarEventTypes.loadError', {
@@ -478,17 +478,20 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
         : startDateTime.add(1, 'hour')
 
     const selectedAddress = selected.extendedProps?.address || emptyAddress
-    const initialAddress: CalendarEventAddress = {
-        ...emptyAddress,
-        ...selectedAddress,
-        country: selectedAddress?.country || '',
-        countryCode: selectedAddress?.countryCode || '',
-        city: selectedAddress?.city || '',
-        street: selectedAddress?.street || '',
-        number: selectedAddress?.number || '',
-        corner: selectedAddress?.corner || '',
-        apartment: selectedAddress?.apartment || '',
-    }
+    const initialAddress = useMemo<CalendarEventAddress>(
+        () => ({
+            ...emptyAddress,
+            ...selectedAddress,
+            country: selectedAddress?.country || '',
+            countryCode: selectedAddress?.countryCode || '',
+            city: selectedAddress?.city || '',
+            street: selectedAddress?.street || '',
+            number: selectedAddress?.number || '',
+            corner: selectedAddress?.corner || '',
+            apartment: selectedAddress?.apartment || '',
+        }),
+        [selectedAddress],
+    )
 
     const resolvedEventTypeId = useMemo(() => {
         const selectedId =
@@ -684,7 +687,7 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
         try {
             const response = await apiFetchCalendarAttachment(String(attachment.id), { mode })
             return response.data
-        } catch (error) {
+        } catch {
             if (attachment.content) {
                 return decodeBase64ToBlob(attachment.content, attachment.type)
             }
@@ -1099,7 +1102,7 @@ const EventDialog = ({ submit, onDelete }: EventDialogProps) => {
                                     })}
                                 </Notification>,
                             )
-                        } catch (error) {
+                        } catch {
                             toast.push(
                                 <Notification
                                     type="danger"

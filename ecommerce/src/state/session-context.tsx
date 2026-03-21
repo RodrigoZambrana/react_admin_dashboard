@@ -92,37 +92,15 @@ const normalizeAuthSession = (session: AuthSession): AuthSession => ({
   customer: normalizeCustomerProfile(session.customer)
 });
 
-const readStoredSession = (): AuthSession | null => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-    const parsed = JSON.parse(raw) as AuthSession;
-    return normalizeAuthSession(parsed);
-  } catch (error) {
-    console.warn("[session] Failed to parse stored session", error);
-    return null;
-  }
-};
-
-const persistSession = (session: AuthSession | null) => {
+const clearLegacySessionStorage = () => {
   if (typeof window === "undefined") {
     return;
   }
   try {
-    if (session) {
-      const normalized = normalizeAuthSession(session);
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-    } else {
-      window.localStorage.removeItem(STORAGE_KEY);
-    }
+    window.localStorage.removeItem(STORAGE_KEY);
     window.sessionStorage.removeItem(GOOGLE_STATE_STORAGE_KEY);
   } catch (error) {
-    console.warn("[session] Failed to persist session", error);
+    console.warn("[session] Failed to clear legacy session storage", error);
   }
 };
 
@@ -175,14 +153,39 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
 
   useEffect(() => {
     if (isBootstrapped.current) return;
-    const stored = readStoredSession();
-    if (stored) {
-      setSession(stored);
-      setStatus("authenticated");
-    } else {
-      setStatus("unauthenticated");
-    }
-    isBootstrapped.current = true;
+
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      clearLegacySessionStorage();
+      try {
+        const currentSession = await StorefrontApi.getCurrentSession();
+        if (cancelled) {
+          return;
+        }
+        if (currentSession) {
+          setSession(normalizeAuthSession(currentSession));
+          setStatus("authenticated");
+          return;
+        }
+        setSession(null);
+        setStatus("unauthenticated");
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setSession(null);
+        setStatus("unauthenticated");
+      } finally {
+        isBootstrapped.current = true;
+      }
+    };
+
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -200,7 +203,6 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       const normalizedSession = normalizeAuthSession(nextSession);
       setSession(normalizedSession);
       setStatus("authenticated");
-      persistSession(normalizedSession);
       setError(null);
 
       const preferredLocale = normalizedSession.customer.preferredLocale;
@@ -420,12 +422,8 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
                   : new Error("No pudimos recuperar tu sesión desde el servidor.");
               }));
 
-            if (sessionPayload?.refreshToken) {
-              try {
-                sessionPayload = await StorefrontApi.refreshSession(sessionPayload.refreshToken);
-              } catch (refreshError) {
-                console.warn("[session] Unable to refresh storefront session after Google login", refreshError);
-              }
+            if (!sessionPayload) {
+              throw new Error("No pudimos recuperar tu sesión desde el servidor.");
             }
 
             cleanup();
@@ -493,7 +491,9 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
             sessionPollAttempts += 1;
             try {
               const session = await StorefrontApi.getCurrentSession();
-              await finishWithSession(session, requestedReturnPath);
+              if (session) {
+                await finishWithSession(session, requestedReturnPath);
+              }
             } catch (error) {
               if (isApiError(error)) {
                 if (error.status !== 401) {
@@ -592,7 +592,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
   );
 
   const logout = useCallback(async () => {
-    persistSession(null);
+    clearLegacySessionStorage();
     setSession(null);
     setStatus("unauthenticated");
     setError(null);
@@ -617,9 +617,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         ...current,
         customer: normalizedProfile
       };
-      const normalizedSession = normalizeAuthSession(nextSession);
-      persistSession(normalizedSession);
-      return normalizedSession;
+      return normalizeAuthSession(nextSession);
     });
   }, []);
 
@@ -641,9 +639,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           wishlistProductIds: normalizedIds
         }
       };
-      const normalizedSession = normalizeAuthSession(nextSession);
-      persistSession(normalizedSession);
-      return normalizedSession;
+      return normalizeAuthSession(nextSession);
     });
   }, []);
 

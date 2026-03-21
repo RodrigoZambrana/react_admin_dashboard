@@ -28,10 +28,12 @@ const getMainCarouselData = async (): Promise<FurnitureCarouselItem[]> => {
   return response.data;
 };
 
-export default {
+const furnitureApi = {
   getTopNewProducts,
   getMainCarouselData,
   getFurnitureProducts,
   getTopSellingProducts,
   getFurnitureShopNavList
 };
+
+export default furnitureApi;

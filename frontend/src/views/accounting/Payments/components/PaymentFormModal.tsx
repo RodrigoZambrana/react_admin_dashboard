@@ -247,7 +247,7 @@ const PaymentFormModal = () => {
             dispatch(togglePaymentDialog({ open: false }))
             const refreshData: PaymentsTableState = { ...tableData }
             dispatch(getPayments(refreshData))
-        } catch (error) {
+        } catch {
             toast.push(
                 <Notification title={t('accounting.payments.feedback.saveFailedTitle')} type="danger">
                     {t('accounting.payments.feedback.saveFailedDesc')}

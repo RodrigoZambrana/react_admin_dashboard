@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AxiosRequestConfig } from 'axios'
-import apiClient, { ApiError, CircuitOpenError } from '@/lib/httpClient'
-import { createCorrelationId } from '@/lib/httpClient'
+import apiClient, { ApiError, CircuitOpenError, createCorrelationId } from '@/lib/httpClient'
 
 interface RequestContext {
     signal: AbortSignal

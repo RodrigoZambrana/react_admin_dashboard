@@ -14,7 +14,7 @@ export interface DropZoneProps {
 export default function DropZone({ onChange }: DropZoneProps) {
   const onDrop = useCallback((acceptedFiles: any) => {
     if (onChange) onChange(acceptedFiles);
-  }, []);
+  }, [onChange]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

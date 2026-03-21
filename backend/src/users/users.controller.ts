@@ -20,9 +20,12 @@ import { Prisma } from '@prisma/client'
 import { parseSingleFileMultipart } from '../common/uploads/multipart'
 import * as bcrypt from 'bcrypt'
 import { assertStrongPassword } from '../common/validation/assert-strong-password'
+import { resolveRequiredEnv } from '../common/config/runtime-env'
 
 const DEFAULT_TEMP_PASSWORD =
-  process.env.DEFAULT_USER_TEMP_PASSWORD || 'TempPass@123!'
+  resolveRequiredEnv('DEFAULT_USER_TEMP_PASSWORD', {
+    developmentFallback: 'LocalDevUserPassword!ChangeMe',
+  })
 
 const normalizeNullableString = (value?: string | null) => {
   if (value === undefined || value === null) {

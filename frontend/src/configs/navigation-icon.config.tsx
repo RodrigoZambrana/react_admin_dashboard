@@ -27,7 +27,6 @@ import {
     HiOutlineVariable,
     HiOutlineCode,
     HiOutlineShoppingBag,
-    HiOutlineViewBoards,
 } from 'react-icons/hi'
 import { MdOutlineWindow } from 'react-icons/md'
 import type { JSX } from 'react'

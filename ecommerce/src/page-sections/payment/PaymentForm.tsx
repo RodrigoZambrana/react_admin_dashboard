@@ -251,7 +251,7 @@ export default function PaymentForm() {
       amount: roundedAmount,
       currency: resolvedCurrency
     };
-  }, [convertMoney, totals.total.amount, totals.total.currency]);
+  }, [convertMoney, totals.total]);
 
   const hasPublicKey = publicKey.trim().length > 0;
   const canRenderBrick = isMercadoPagoEnabled && hasPublicKey && amount > 0;
@@ -373,7 +373,8 @@ export default function PaymentForm() {
     preferenceId,
     selectedMethod,
     successRedirectTarget,
-    statementDescriptor
+    statementDescriptor,
+    totals.total
   ]);
 
   const handleMercadoPagoSubmit = useCallback(

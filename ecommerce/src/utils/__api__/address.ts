@@ -16,4 +16,6 @@ const getAddress = async (id: string): Promise<Address> => {
   return response.data;
 };
 
-export default { getAddressList, getIds, getAddress };
+const addressApi = { getAddressList, getIds, getAddress };
+
+export default addressApi;

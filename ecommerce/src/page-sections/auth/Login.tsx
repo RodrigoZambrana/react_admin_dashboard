@@ -57,7 +57,7 @@ export default function Login({
   onSubmit,
   submitting,
   errorMessage,
-  registerHref = "/signup",
+  registerHref = "/account/register",
   registerLabel = "Sign Up",
   forgotPasswordHref = "/",
   forgotPasswordLabel = "Reset It",

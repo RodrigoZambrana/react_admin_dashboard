@@ -5,12 +5,14 @@ export interface SessionState {
     signedIn: boolean
     token: string | null
     expiresAt: string | null
+    initialized: boolean
 }
 
 const initialState: SessionState = {
     signedIn: false,
     token: null,
     expiresAt: null,
+    initialized: false,
 }
 
 const sessionSlice = createSlice({
@@ -24,11 +26,13 @@ const sessionSlice = createSlice({
             state.signedIn = true
             state.token = action.payload.token
             state.expiresAt = action.payload.expiresAt ?? null
+            state.initialized = true
         },
         signOutSuccess(state) {
             state.signedIn = false
             state.token = null
             state.expiresAt = null
+            state.initialized = true
         },
     },
 })

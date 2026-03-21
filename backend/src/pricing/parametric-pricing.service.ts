@@ -63,11 +63,18 @@ const SOURCE_PRIORITY: Record<string, number> = {
   CHAT: 120,
   UPLOAD: 100,
 }
+const MAX_XLSX_IMPORT_BYTES = 5 * 1024 * 1024
+const MAX_XLSX_IMPORT_SHEETS = 5
+const MAX_XLSX_IMPORT_ROWS = 5_000
 const xlsxUtils = XLSX.utils as unknown as {
   sheet_to_json<T>(worksheet: unknown, options?: Record<string, unknown>): T[]
   json_to_sheet(data: unknown[], options?: Record<string, unknown>): unknown
   book_new(): unknown
   book_append_sheet(workbook: unknown, worksheet: unknown, name?: string): unknown
+}
+type XlsxWorkbook = {
+  SheetNames: string[]
+  Sheets: Record<string, unknown>
 }
 
 @Injectable()
@@ -82,6 +89,52 @@ export class ParametricPricingService {
   ) {}
 
   private static readonly GLASS_PRIORITY = ['3MM', '4MM', '5MM', '6MM', 'DVH (4/9/5)', 'DVH (5/9/6)']
+
+  private readWorkbookFromBuffer(buffer: Buffer): XlsxWorkbook {
+    if (buffer.length > MAX_XLSX_IMPORT_BYTES) {
+      throw new BadRequestException(
+        `Uploaded spreadsheet exceeds the ${Math.round(MAX_XLSX_IMPORT_BYTES / (1024 * 1024))}MB limit`,
+      )
+    }
+
+    const workbook = XLSX.read(buffer, { type: 'buffer', dense: true }) as unknown as XlsxWorkbook
+
+    if (!Array.isArray(workbook.SheetNames) || workbook.SheetNames.length === 0) {
+      throw new BadRequestException('No sheets found in the provided file')
+    }
+
+    if (workbook.SheetNames.length > MAX_XLSX_IMPORT_SHEETS) {
+      throw new BadRequestException(`Too many sheets in the provided file (max ${MAX_XLSX_IMPORT_SHEETS})`)
+    }
+
+    return workbook
+  }
+
+  private readFirstWorksheetRows(workbook: XlsxWorkbook): Record<string, unknown>[] {
+    const firstSheetName = workbook.SheetNames[0]
+    const worksheet = workbook.Sheets[firstSheetName]
+
+    if (!worksheet) {
+      throw new BadRequestException('The first worksheet could not be read from the provided file')
+    }
+
+    const rows = xlsxUtils.sheet_to_json<Record<string, unknown>>(worksheet, {
+      defval: '',
+      blankrows: false,
+      raw: false,
+      cellDates: true,
+    })
+
+    if (!rows.length) {
+      throw new BadRequestException('No rows detected in the provided file')
+    }
+
+    if (rows.length > MAX_XLSX_IMPORT_ROWS) {
+      throw new BadRequestException(`The provided file exceeds the ${MAX_XLSX_IMPORT_ROWS} row import limit`)
+    }
+
+    return rows
+  }
 
   private isFeatureEnabled(): boolean {
     const isUrucortinas = this.clientConfig?.slug === 'urucortinas'
@@ -1040,21 +1093,8 @@ export class ParametricPricingService {
     if (!buffer.length) {
       throw new BadRequestException('Uploaded file is empty')
     }
-    const workbook = XLSX.read(buffer, { type: 'buffer' })
-    const firstSheetName = workbook.SheetNames[0]
-    if (!firstSheetName) {
-      throw new BadRequestException('No sheets found in the provided file')
-    }
-    const worksheet = workbook.Sheets[firstSheetName]
-    const rows = xlsxUtils.sheet_to_json<Record<string, unknown>>(worksheet, {
-      defval: '',
-      blankrows: false,
-      raw: false,
-      cellDates: true,
-    })
-    if (!rows.length) {
-      throw new BadRequestException('No rows detected in the provided file')
-    }
+    const workbook = this.readWorkbookFromBuffer(buffer)
+    const rows = this.readFirstWorksheetRows(workbook)
     const parsedRows: ParametricMatrixRow[] = []
     const warnings: string[] = []
     const defaultSourceLabel = this.normalizeString(options?.filename ?? '') || 'UPLOAD'
@@ -1210,21 +1250,8 @@ export class ParametricPricingService {
     if (!buffer.length) {
       throw new BadRequestException('Uploaded file is empty')
     }
-    const workbook = XLSX.read(buffer, { type: 'buffer' })
-    const firstSheetName = workbook.SheetNames[0]
-    if (!firstSheetName) {
-      throw new BadRequestException('No sheets found in the provided file')
-    }
-    const worksheet = workbook.Sheets[firstSheetName]
-    const rows = xlsxUtils.sheet_to_json<Record<string, unknown>>(worksheet, {
-      defval: '',
-      blankrows: false,
-      raw: false,
-      cellDates: true,
-    })
-    if (!rows.length) {
-      throw new BadRequestException('No rows detected in the provided file')
-    }
+    const workbook = this.readWorkbookFromBuffer(buffer)
+    const rows = this.readFirstWorksheetRows(workbook)
     const markupMultiplier = await this.resolveMarkupMultiplier()
 
     type ProductGroup = {

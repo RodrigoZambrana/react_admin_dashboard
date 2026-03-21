@@ -4,22 +4,119 @@ import useDarkMode from '@/utils/hooks/useDarkmode'
 import type { CommonProps } from '@/@types/common'
 import { themeConfig } from '@/configs/theme.config'
 import appConfig from '@/configs/app.config'
-import { useAppDispatch, useAppSelector, setUser, signOutSuccess } from '@/store'
+import {
+    useAppDispatch,
+    useAppSelector,
+    setUser,
+    signOutSuccess,
+    signInSuccess,
+    setLang,
+} from '@/store'
 import { fetchThemeConfig } from '@/store/slices/theme/themeSlice'
-import { apiSignOut } from '@/services/AuthService'
+import { apiGetSession, apiSignOut } from '@/services/AuthService'
 import { useNavigate } from 'react-router-dom'
+
+const normalizeLanguagePreference = (lang?: string | null) => {
+    if (!lang) {
+        return null
+    }
+    const lowered = lang.trim().toLowerCase()
+    if (lowered.startsWith('es')) {
+        return 'es'
+    }
+    if (lowered.startsWith('en')) {
+        return 'en'
+    }
+    return null
+}
 
 const Theme = (props: CommonProps) => {
     const dispatch = useAppDispatch()
     const navigate = useNavigate()
     const theme = useAppSelector((state) => state.theme)
     const locale = useAppSelector((state) => state.locale.currentLang)
-    const { signedIn: isSignedIn, token, expiresAt } = useAppSelector(
+    const { signedIn: isSignedIn, token, expiresAt, initialized } = useAppSelector(
         (state) => state.auth.session,
     )
 
     useEffect(() => {
-        if (!isSignedIn) {
+        if (initialized) {
+            return
+        }
+
+        let active = true
+
+        const clearLocalAuth = () => {
+            dispatch(signOutSuccess())
+            dispatch(
+                setUser({
+                    avatar: '',
+                    displayName: '',
+                    email: '',
+                    authority: [],
+                    name: '',
+                    lastName: '',
+                }),
+            )
+        }
+
+        void apiGetSession()
+            .then((resp) => {
+                if (!active) {
+                    return
+                }
+
+                if (resp.data?.token) {
+                    dispatch(
+                        signInSuccess({
+                            token: resp.data.token,
+                            expiresAt: resp.data.expiresAt,
+                        }),
+                    )
+
+                    const displayName =
+                        [resp.data.user.name, resp.data.user.lastName]
+                            .filter(Boolean)
+                            .join(' ') ||
+                        resp.data.user.name ||
+                        resp.data.user.email ||
+                        'User'
+
+                    dispatch(
+                        setUser({
+                            avatar: resp.data.user.avatar || '',
+                            authority: resp.data.user.authority || ['USER'],
+                            email: resp.data.user.email || '',
+                            name: resp.data.user.name || '',
+                            lastName: resp.data.user.lastName || '',
+                            displayName,
+                        }),
+                    )
+
+                    const langPreference = normalizeLanguagePreference(
+                        resp.data.user.lang,
+                    )
+                    if (langPreference) {
+                        dispatch(setLang(langPreference))
+                    }
+                    return
+                }
+
+                clearLocalAuth()
+            })
+            .catch(() => {
+                if (active) {
+                    clearLocalAuth()
+                }
+            })
+
+        return () => {
+            active = false
+        }
+    }, [dispatch, initialized])
+
+    useEffect(() => {
+        if (!initialized || !isSignedIn) {
             return
         }
 
@@ -72,7 +169,7 @@ const Theme = (props: CommonProps) => {
         }, remaining)
 
         return () => window.clearTimeout(timer)
-    }, [dispatch, navigate, isSignedIn, token, expiresAt])
+    }, [dispatch, navigate, initialized, isSignedIn, token, expiresAt])
 
     useDarkMode()
 

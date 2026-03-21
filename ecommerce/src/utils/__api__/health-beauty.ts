@@ -27,4 +27,6 @@ const getMainCarousel = async (): Promise<HealthCarouselItem[]> => {
   return response.data;
 };
 
-export default { getProducts, getServices, getNavigation, getTopNewProducts, getMainCarousel };
+const healthBeautyApi = { getProducts, getServices, getNavigation, getTopNewProducts, getMainCarousel };
+
+export default healthBeautyApi;

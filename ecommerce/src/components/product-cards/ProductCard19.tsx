@@ -97,7 +97,7 @@ export default function ProductCard19({
     };
 
     dispatch({ type: "CHANGE_CART_AMOUNT", payload });
-  }, []);
+  }, [cartItem?.qty, dispatch, id, img, name, price, slug]);
 
   return (
     <Fragment>

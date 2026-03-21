@@ -223,18 +223,6 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
     const { t } = useTranslation()
     const isUrucortinas = clientConfig.slug === 'urucortinas'
 
-    if (!isUrucortinas) {
-        return (
-            <AdaptableCard className="mb-4">
-                <Alert type="info" showIcon>
-                    {t('sales.productForm.parametric.notAvailableForClient', {
-                        defaultValue: 'La configuración paramétrica está disponible solo para Urucortinas.',
-                    })}
-                </Alert>
-            </AdaptableCard>
-        )
-    }
-
     const userAuthority = useAppSelector((state) => state.auth.user?.authority ?? [])
     const isSuperAdmin = userAuthority.includes(SUPERADMIN)
 
@@ -994,18 +982,6 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
         () => mapDraftToManualPayload(manualConfig, manualCurrency),
         [manualConfig, manualCurrency],
     )
-    const manualFieldsReady = useMemo(
-        () =>
-            Boolean(
-                manualPayloadPreview.familyId &&
-                    manualPayloadPreview.serie &&
-                    manualPayloadPreview.color &&
-                    manualPayloadPreview.vidrio &&
-                    Number(manualPayloadPreview.widthMm ?? 0) > 0 &&
-                    Number(manualPayloadPreview.heightMm ?? 0) > 0,
-            ),
-        [manualPayloadPreview],
-    )
     const manualInputsDisabled = manualLoading
     const handleManualPriceChange = useCallback(
         (field: ManualPriceFieldKey, value: string) => {
@@ -1018,6 +994,19 @@ const ParametricConfigurator = ({ productId, currency, draft, onDraftChange }: P
         },
         [updateManualConfig],
     )
+
+    if (!isUrucortinas) {
+        return (
+            <AdaptableCard className="mb-4">
+                <Alert type="info" showIcon>
+                    {t('sales.productForm.parametric.notAvailableForClient', {
+                        defaultValue: 'La configuración paramétrica está disponible solo para Urucortinas.',
+                    })}
+                </Alert>
+            </AdaptableCard>
+        )
+    }
+
     return (
         <AdaptableCard className="mb-4">
             <div className="flex flex-col gap-4">

@@ -167,7 +167,7 @@ const ProductionOrderFormDialog = ({ open, onClose, onSubmit, record }: Producti
                     })
                 }
                 setUserOptions(options)
-            } catch (error) {
+            } catch {
                 if (record?.assignedToId) {
                     const fallbackLabel = `${record.assignedTo?.name ?? ''} ${record.assignedTo?.lastName ?? ''}`.trim()
                     setUserOptions([

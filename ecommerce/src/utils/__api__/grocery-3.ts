@@ -22,9 +22,11 @@ const getMainCarousel = async () => {
   return response.data;
 };
 
-export default {
+const grocery3Api = {
   getOfferCards,
   getAllProducts,
   getMainCarousel,
   getTopSailedProducts
 };
+
+export default grocery3Api;

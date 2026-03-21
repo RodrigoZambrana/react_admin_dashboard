@@ -310,7 +310,7 @@ const CalendarActivities = () => {
                 if (!ignore) {
                     setAllActivities(data)
                 }
-            } catch (error) {
+            } catch {
                 if (!ignore) {
                     setAllActivities([])
                 }
@@ -514,7 +514,7 @@ const CalendarActivities = () => {
                     })}
                 </Notification>,
             )
-        } catch (error) {
+        } catch {
             toast.push(
                 <Notification
                     type="danger"
@@ -613,7 +613,7 @@ const CalendarActivities = () => {
                         }
                     }
                 }
-            } catch (error) {
+            } catch {
                 // Notifications handled at slice level
             }
         },
@@ -625,7 +625,7 @@ const CalendarActivities = () => {
             try {
                 await calendarDispatch(deleteCalendarEvent(String(id))).unwrap()
                 setAllActivities((prev) => prev.filter((event) => event.id !== id))
-            } catch (error) {
+            } catch {
                 // Slice handles notifications
             }
         },

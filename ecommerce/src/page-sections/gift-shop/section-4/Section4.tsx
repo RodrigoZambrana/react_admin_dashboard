@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 
 import { H1 } from "components/Typography";

@@ -13,6 +13,7 @@ import fastifyStatic from '@fastify/static'
 import { join } from 'path'
 import cookie from '@fastify/cookie'
 import { SanitizeInputPipe } from './common/pipes/sanitize-input.pipe'
+import { resolveRequiredEnv } from './common/config/runtime-env'
 
 async function bootstrap() {
   const BODY_LIMIT_BYTES = 15 * 1024 * 1024
@@ -70,7 +71,9 @@ const defaultAllowedOrigins = (process.env.DEFAULT_ALLOWED_ORIGINS ?? 'http://lo
   })
 
   await app.register(cookie as any, {
-    secret: process.env.COOKIE_SECRET || 'dev-cookie-secret',
+    secret: resolveRequiredEnv('COOKIE_SECRET', {
+      developmentFallback: 'local-dev-cookie-secret-change-me',
+    }),
   })
 
   await app.register(multipart as any, {

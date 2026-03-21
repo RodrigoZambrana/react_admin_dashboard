@@ -45,7 +45,7 @@ export default function Section7({ shops, brands, title, productList }: Props) {
   };
 
   // INITIALLY SET BRANDS
-  useEffect(() => setList(brands), []);
+  useEffect(() => setList(brands), [brands]);
 
   return (
     <Container mb="70px">

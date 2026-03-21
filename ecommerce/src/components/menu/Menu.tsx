@@ -37,13 +37,13 @@ export default function Menu({
       e.stopPropagation();
       setShow((state) => !state);
     },
-    [show]
+    []
   );
 
   useEffect(() => {
     window.addEventListener("click", handleDocumentClick);
     return () => window.removeEventListener("click", handleDocumentClick);
-  }, []);
+  }, [handleDocumentClick]);
 
   return (
     <StyledMenu direction={direction} className={className} style={style}>

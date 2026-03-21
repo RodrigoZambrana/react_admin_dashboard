@@ -16,6 +16,7 @@ import {
   Res,
   UseGuards,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common'
 import { StorefrontService } from './storefront.service'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
@@ -60,6 +61,11 @@ export class StorefrontController {
     private readonly sessionCookies: StorefrontSessionCookieService,
     private readonly security: StorefrontSecurityService,
   ) {}
+
+  private toClientSession<T extends { refreshToken?: string | null }>(session: T) {
+    const { refreshToken: _refreshToken, ...publicSession } = session
+    return publicSession
+  }
 
   @Get('config')
   getConfig() {
@@ -132,7 +138,7 @@ export class StorefrontController {
   ) {
     const session = await this.storefront.registerCustomer(dto)
     this.sessionCookies.setSessionCookies(reply, session)
-    return session
+    return this.toClientSession(session)
   }
 
   @Post('auth/login')
@@ -142,7 +148,7 @@ export class StorefrontController {
   ) {
     const session = await this.storefront.login(dto)
     this.sessionCookies.setSessionCookies(reply, session)
-    return session
+    return this.toClientSession(session)
   }
 
   @Post('auth/refresh')
@@ -152,7 +158,7 @@ export class StorefrontController {
   ) {
     const session = await this.storefront.refreshSession(dto)
     this.sessionCookies.setSessionCookies(reply, session)
-    return session
+    return this.toClientSession(session)
   }
 
   @Post('auth/logout')
@@ -215,7 +221,7 @@ export class StorefrontController {
     )
     const session = await this.storefront.createSessionForCustomer(customer)
     this.sessionCookies.setSessionCookies(reply, session)
-    return session
+    return this.toClientSession(session)
   }
 
   @Post('auth/google/start')
@@ -283,11 +289,19 @@ export class StorefrontController {
 
   @Get('auth/session')
   async getAuthSession(@Req() req: FastifyRequest, @Res({ passthrough: true }) reply: FastifyReply) {
-    const result = await this.storefront.getSessionFromRequest(req)
-    if (result.refreshed) {
-      this.sessionCookies.setSessionCookies(reply, result.session)
+    try {
+      const result = await this.storefront.getSessionFromRequest(req)
+      if (result.refreshed) {
+        this.sessionCookies.setSessionCookies(reply, result.session)
+      }
+      return this.toClientSession(result.session)
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        this.sessionCookies.clearSessionCookies(reply)
+        return null
+      }
+      throw error
     }
-    return result.session
   }
 
   @Post('orders')

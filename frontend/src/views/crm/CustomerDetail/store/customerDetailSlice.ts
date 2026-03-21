@@ -73,7 +73,6 @@ type GetCrmCustomerDetailsResponse = Customer
 
 type GetCrmCustomerDetailsRequest = { id: string }
 
-// eslint-disable-next-line @typescript-eslint/ban-types
 type DeleteCrmCustomerResponse = {}
 
 type DeleteCrmCustomerRequest = { id: string }

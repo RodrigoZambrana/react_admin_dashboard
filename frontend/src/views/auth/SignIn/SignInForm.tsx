@@ -80,7 +80,7 @@ const SignInForm = (props: SignInFormProps) => {
                     enabled: Boolean(siteKey),
                     siteKey,
                 })
-            } catch (error) {
+            } catch {
                 // fall back to existing env config
             }
         }
@@ -126,7 +126,7 @@ const SignInForm = (props: SignInFormProps) => {
                     'LOGIN',
                 )
                 setMessage('')
-            } catch (error) {
+            } catch {
                 setMessage('Unable to complete reCAPTCHA. Please try again.')
                 setSubmitting(false)
                 return
@@ -155,8 +155,8 @@ const SignInForm = (props: SignInFormProps) => {
             )}
             <Formik
                 initialValues={{
-                    email: 'desarrollo@software-strategy.com',
-                    password: 'Admin@123!',
+                    email: '',
+                    password: '',
                     rememberMe: true,
                 }}
                 validationSchema={validationSchema}

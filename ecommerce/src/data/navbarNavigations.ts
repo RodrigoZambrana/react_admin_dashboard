@@ -10,30 +10,18 @@ const navbarNavigations = [
     child: [
       {
         title: "Shop",
-        child: [{ title: "Catalogue", url: "/shop" }]
-      },
-      {
-        title: "Vendor",
-        child: [
-          { title: "All vendors", url: "/shops" },
-          { title: "Vendor store", url: "/shops/scarlett-beauty" }
-        ]
-      },
-      {
-        title: "Shop",
         child: [
           { title: "Search product", url: "/product/search/mobile phone" },
           { title: "Single product", url: "/product/lord-2019" },
           { title: "Cart", url: "/cart" },
-          { title: "Checkout", url: "/checkout" },
-          { title: "Alternative Checkout", url: "/checkout-alternative" }
+          { title: "Checkout", url: "/checkout" }
         ]
       },
       {
         title: "Auth",
         child: [
-          { title: "Sign In", url: "/login" },
-          { title: "Sign Up", url: "/signup" }
+          { title: "Sign In", url: "/account/login" },
+          { title: "Sign Up", url: "/account/register" }
         ]
       }
     ]
@@ -70,27 +58,6 @@ const navbarNavigations = [
         ]
       },
       { title: "Wishlist", url: "/account/wish-list" }
-    ]
-  },
-  {
-    title: "Vendor Account",
-    child: [
-      { title: "Dashboard", url: "/vendor/dashboard" },
-      {
-        title: "Products",
-        child: [
-          { title: "All products", url: "/vendor/products" },
-          { title: "Add/Edit product", url: "/vendor/products/248104" }
-        ]
-      },
-      {
-        title: "Orders",
-        child: [
-          { title: "All orders", url: "/vendor/orders" },
-          { title: "Order details", url: "/vendor/orders/248104" }
-        ]
-      },
-      { title: "Profile", url: "/vendor/account-settings" }
     ]
   },
   { title: "Track My Orders", url: "/account/orders" },

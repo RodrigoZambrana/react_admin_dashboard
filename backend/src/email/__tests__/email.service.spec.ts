@@ -29,7 +29,7 @@ const createService = () => {
 
   const settings = {
     isEnabled: vi.fn(async () => true),
-    isRecipientDeliveryEnabled: vi.fn(async () => true),
+    isRecipientDeliveryEnabled: vi.fn(async (_recipientType: EmailRecipientType) => true),
     resolveAdminRecipients: vi.fn(async () => ({ to: ['admin@example.com'], cc: [], bcc: [] })),
     getCategorySettings: vi.fn(async () => ({ fromAddress: 'no-reply@example.com', fromName: 'Acme', enabled: true })),
     getCompanyProfile: vi.fn(async () => ({

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import useAuth from '@/utils/hooks/useAuth'
-import { Loading } from '@/components/shared'
+import Loading from '@/components/shared/Loading'
 
 const SignOut = () => {
     const { signOut } = useAuth()
@@ -19,4 +19,3 @@ const SignOut = () => {
 }
 
 export default SignOut
-

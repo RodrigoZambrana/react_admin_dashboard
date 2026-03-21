@@ -2,7 +2,9 @@ name: admin-dashboard-dev
 
 x-backend-common: &backend-common
   env_file:
-    - ./env/backend.dev.env
+    - path: ./env/backend.dev.env
+    - path: ./env/.env.backend.dev.local
+      required: false
   environment:
     PORT: ${BACKEND_PORT:-4000}
 
@@ -66,7 +68,13 @@ services:
       dockerfile: frontend/Dockerfile
       # Ajusta VITE_CLIENT_SLUG para construir una variante específica (por ejemplo urucortinas)
       args:
+        VITE_APP_NAME: "React Admin Dashboard (Dev)"
+        VITE_API_URL: "http://localhost:4000/api"
         VITE_CLIENT_SLUG: ${VITE_CLIENT_SLUG:-core}
+        VITE_STATE_SIGNATURE_KEY: ${VITE_STATE_SIGNATURE_KEY:-local-dev-state-signature-change-me}
+        VITE_RECAPTCHA_ENABLED: "false"
+        VITE_RECAPTCHA_SITE_KEY: ""
+        VITE_PARAMETRIC_IMPORT_TIMEOUT_MS: "120000"
       target: runtime
     container_name: dashboard-frontend-dev
     environment:
@@ -83,6 +91,27 @@ services:
     build:
       context: ..
       dockerfile: ecommerce/Dockerfile
+      args:
+        CLIENT_SLUG: core
+        NEXT_PUBLIC_CLIENT_SLUG: core
+        NEXT_PUBLIC_STOREFRONT_API_URL: http://localhost:4000/api/storefront
+        STOREFRONT_API_URL: http://backend:4000/api/storefront
+        NEXT_PUBLIC_SITE_URL: http://localhost:3000
+        NEXT_PUBLIC_STOREFRONT_HOME_PATH: /
+        NEXT_PUBLIC_GOOGLE_BUTTON_ENABLED: "true"
+        NEXT_PUBLIC_ENABLE_STOREFRONT_MOCKS: "false"
+        ENABLE_STOREFRONT_MOCKS: "false"
+        NEXT_PUBLIC_ENABLE_STOREFRONT_FALLBACKS: "false"
+        ENABLE_STOREFRONT_FALLBACKS: "false"
+        NEXT_PUBLIC_ENABLE_SNAPSHOT_FALLBACKS: "false"
+        NEXT_PUBLIC_STOREFRONT_FAIL_FAST: "false"
+        STOREFRONT_FAIL_FAST: "false"
+        NEXT_PUBLIC_STORE_LOCALE: es-UY
+        NEXT_PUBLIC_MP_PUBLIC_KEY: ""
+        NEXT_PUBLIC_MP_COUNTRY: UY
+        NEXT_PUBLIC_MP_SUCCESS_URL: /payment/success
+        NEXT_PUBLIC_MP_FAILURE_URL: /payment/error
+        SNAPSHOT_ACCESS_TOKEN: ""
       target: runtime
     container_name: dashboard-storefront-dev
     ports:

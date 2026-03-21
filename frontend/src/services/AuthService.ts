@@ -6,6 +6,7 @@ import type {
     ResetPassword,
     SignInResponse,
     SignUpResponse,
+    SessionResponse,
 } from '@/@types/auth'
 
 export async function apiSignIn(data: SignInCredential) {
@@ -53,6 +54,13 @@ export async function apiGetAuthConfig() {
         google: { enabled: boolean }
     }>({
         url: '/auth/config',
+        method: 'get',
+    })
+}
+
+export async function apiGetSession() {
+    return ApiService.fetchData<SessionResponse>({
+        url: '/auth/session',
         method: 'get',
     })
 }

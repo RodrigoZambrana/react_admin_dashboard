@@ -54,7 +54,7 @@ const getMainCarousel = async (): Promise<GroceryTwoCarouselItem[]> => {
   return response.data;
 };
 
-export default {
+const grocery2Api = {
   getServices,
   getCategories,
   getTestimonials,
@@ -66,3 +66,5 @@ export default {
   getBestHomeProducts,
   getDiscountBannerList
 };
+
+export default grocery2Api;

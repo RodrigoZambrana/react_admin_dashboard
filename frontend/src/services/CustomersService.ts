@@ -118,7 +118,7 @@ export type CalendarEventDto = {
 const parseJson = (value: string) => {
     try {
         return JSON.parse(value)
-    } catch (error) {
+    } catch {
         return null
     }
 }

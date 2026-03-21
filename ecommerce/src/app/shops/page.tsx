@@ -15,6 +15,9 @@ import type Shop from "models/shop.model";
 const RUNTIME_ENV = process.env.NEXT_PUBLIC_ENV ?? process.env.NODE_ENV ?? "development";
 const IS_LOCAL_ENV = RUNTIME_ENV === "local" || RUNTIME_ENV === "development";
 const RECOVERY_MODE_ENABLED = process.env.NEXT_PUBLIC_RECOVERY_MODE === "snapshot";
+const ALLOW_LOCAL_SHOP_MOCKS =
+  process.env.NEXT_PUBLIC_ENABLE_STOREFRONT_FALLBACKS === "true" ||
+  process.env.ENABLE_STOREFRONT_FALLBACKS === "true";
 
 async function getShopListWithFallback(): Promise<Shop[]> {
   try {
@@ -50,8 +53,13 @@ async function getShopListWithFallback(): Promise<Shop[]> {
       return [];
     }
 
-    console.warn(`[shops] Using local mock fallback (NEXT_PUBLIC_ENV=${RUNTIME_ENV}).`);
-    return shopsFallback as Shop[];
+    if (ALLOW_LOCAL_SHOP_MOCKS) {
+      console.warn(`[shops] Using local mock fallback (NEXT_PUBLIC_ENV=${RUNTIME_ENV}).`);
+      return shopsFallback as Shop[];
+    }
+
+    console.warn("[shops] Local mock fallback disabled. Returning empty list.");
+    return [];
   }
 }
 

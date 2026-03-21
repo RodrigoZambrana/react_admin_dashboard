@@ -1,4 +1,4 @@
-export default [
+const db = [
   {
     id: "847b3a0e-a0db-4179-ba51-9ee601434db8",
     slug: "lord-2019",
@@ -14739,3 +14739,5 @@ export default [
     unit: null
   }
 ];
+
+export default db;

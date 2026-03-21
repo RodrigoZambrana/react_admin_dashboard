@@ -1,5 +1,5 @@
 import Card from '@/components/ui/Card'
-import Chart from 'react-apexcharts'
+import Chart from '@/components/shared/Chart'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 

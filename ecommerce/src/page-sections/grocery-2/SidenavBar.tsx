@@ -53,6 +53,7 @@ const NavItem = memo(({ item, depth = 0 }: NavItemProps) => {
     </NavLink>
   );
 });
+NavItem.displayName = "NavItem";
 
 export default function SidenavBar({ isFixedNave, navList }: Props) {
   const { isFixed } = useScroll();

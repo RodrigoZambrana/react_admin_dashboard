@@ -58,6 +58,7 @@ interface MercadoPagoPaymentBrickProps {
 type CardPaymentFormData = {
   token: string;
   payment_method_id: string;
+  payment_id?: string | null;
   installments?: number | string;
   issuer_id?: string;
   payer?: {

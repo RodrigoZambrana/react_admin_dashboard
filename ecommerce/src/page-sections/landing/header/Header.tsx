@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link as Scroll } from "react-scroll";
 import { IconMenu2 } from "@tabler/icons-react";
 import debounce from "lodash/debounce";
@@ -31,11 +31,12 @@ export default function Header() {
   const handleOpenSidenav = useCallback(() => setOpen(true), []);
   const handleCloseSidenav = useCallback(() => setOpen(false), []);
 
-  const scrollListener = useCallback(
-    debounce(() => {
-      if (window.scrollY >= HEADER_HEIGHT) setFixed(true);
-      else setFixed(false);
-    }, 50),
+  const scrollListener = useMemo(
+    () =>
+      debounce(() => {
+        if (window.scrollY >= HEADER_HEIGHT) setFixed(true);
+        else setFixed(false);
+      }, 50),
     []
   );
 
@@ -44,8 +45,11 @@ export default function Header() {
 
     scrollListener();
     window.addEventListener("scroll", scrollListener);
-    return () => window.removeEventListener("scroll", scrollListener);
-  }, []);
+    return () => {
+      window.removeEventListener("scroll", scrollListener);
+      scrollListener.cancel();
+    };
+  }, [scrollListener]);
 
   return (
     <HeaderWrapper fixed={isFixed}>

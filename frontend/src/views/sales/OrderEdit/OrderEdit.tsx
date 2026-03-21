@@ -57,7 +57,7 @@ const parseAddressLine1 = (
     let street: string | undefined
     for (let i = tokens.length - 1; i >= 0; i -= 1) {
         const token = tokens[i]
-        if (/^\d+[\w\-\/]*$/u.test(token)) {
+        if (/^\d+[\w/-]*$/u.test(token)) {
             number = tokens.slice(i).join(' ')
             street = tokens.slice(0, i).join(' ')
             break

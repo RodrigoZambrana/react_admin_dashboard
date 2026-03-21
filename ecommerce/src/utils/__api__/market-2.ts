@@ -44,7 +44,7 @@ const getWomenFashionProducts = async (): Promise<CategoryBasedProducts> => {
   return response.data;
 };
 
-export default {
+const market2Api = {
   getBrands,
   getProducts,
   getServices,
@@ -54,3 +54,5 @@ export default {
   getElectronicsProducts,
   getWomenFashionProducts
 };
+
+export default market2Api;

@@ -1,4 +1,8 @@
-import reducer from './store'
+import reducer, {
+    setTableData,
+    useAppDispatch,
+    useSalesOrderListData,
+} from './store'
 import { injectReducer } from '@/store'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import OrdersTable from './components/OrdersTable'
@@ -6,11 +10,6 @@ import OrdersTableTools from './components/OrdersTableTools'
 import OrderDeleteConfirmation from './components/OrderDeleteConfirmation'
 import { useEffect } from 'react'
 import { useSalesDocumentI18n } from '../context/useSalesDocumentI18n'
-import {
-    setTableData,
-    useAppDispatch,
-    useSalesOrderListData,
-} from './store'
 
 injectReducer('salesOrderList', reducer)
 
