@@ -11,12 +11,24 @@ import { Button } from "@component/buttons";
 import Typography, { H3 } from "@component/Typography";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { extractApiErrorMessage } from "@/lib/api/errors";
 import { useCheckout } from "@/state/checkout-context";
 import { useCurrency } from "@/state/currency-context";
 import { useStorefrontCart } from "@/state/cart-context";
 import type { CreateOrderPayload } from "@/types/storefront";
+import {
+  isMercadoPagoPaymentConfirmed,
+  normalizeMercadoPagoStatus,
+  type MercadoPagoNormalizedStatus
+} from "@/utils/mercadopago";
 import { readActiveOrderLock, writeOrderLock } from "@/utils/orderLock";
-import { useTranslation } from "@/state/i18n-context";
+import {
+  clearPersistedCheckoutOrderItems,
+  loadPersistedCheckoutOrderItems,
+  loadPersistedCheckoutState
+} from "@/utils/checkoutStorage";
+import { buildCheckoutOrderItems } from "@/lib/checkout/order-items";
+import { useI18n, useTranslation } from "@/state/i18n-context";
 import type { CartLineItem } from "@/state/cart-context";
 
 const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
@@ -26,6 +38,7 @@ const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
 const POSTAL_CODE_FALLBACK = "00000";
 
 type OrderCreationState = "idle" | "processing" | "success" | "error";
+const MAX_ORDER_AUTO_RETRIES = 3;
 
 const PAYMENT_STATUS_KEYS: Record<string, string> = {
   approved: "checkout.review.paymentStatus.approved",
@@ -46,90 +59,133 @@ export default function PaymentSuccessPage() {
 
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
-  const paymentId = searchParams?.get("paymentId") ?? "unknown";
-  const status = searchParams?.get("status") ?? "approved";
-  const detail = searchParams?.get("detail");
+  const rawPaymentId = searchParams?.get("paymentId");
+  const rawStatus = searchParams?.get("status");
+  const rawDetail = searchParams?.get("detail");
   const t = useTranslation();
+  const { locale } = useI18n();
 
   const {
     contact,
     shippingAddress,
+    fulfillmentMode,
+    shippingOption,
     notes,
     payment,
+    setPayment,
     setLastOrder,
     reset,
     checkoutToken
   } = useCheckout();
   const { state: cartState, clearCart } = useStorefrontCart();
   const { currency: activeCurrency } = useCurrency();
-  const localeValue = typeof navigator !== "undefined" ? navigator.language : undefined;
 
   const [orderState, setOrderState] = useState<OrderCreationState>("idle");
   const [orderError, setOrderError] = useState<string | null>(null);
+  const [orderRetryCount, setOrderRetryCount] = useState(0);
+  const persistedCheckout = useMemo(() => loadPersistedCheckoutState(), []);
+  const paymentCheckoutSnapshot =
+    payment?.method === "mercadopago" ? payment.checkoutSnapshot ?? null : null;
 
-  const normalizeParametricConfiguration = (item: CartLineItem): { config?: Record<string, unknown>; error?: string } => {
-    const raw = item.product.configuration;
-    if (!raw || typeof raw !== "object") {
-      return { error: `Falta la configuración paramétrica para ${item.product.name}.` };
+  const resolvedContact = paymentCheckoutSnapshot?.customer ?? persistedCheckout?.contact ?? contact;
+  const resolvedShippingAddress =
+    paymentCheckoutSnapshot?.shippingAddress ?? persistedCheckout?.shippingAddress ?? shippingAddress;
+  const resolvedFulfillmentMode =
+    paymentCheckoutSnapshot?.fulfillmentMode ?? persistedCheckout?.fulfillmentMode ?? fulfillmentMode;
+  const resolvedShippingOption = useMemo(
+    () =>
+      paymentCheckoutSnapshot?.shippingOptionId
+        ? {
+            ...((persistedCheckout?.shippingOption ?? shippingOption ?? {}) as Record<string, unknown>),
+            id: paymentCheckoutSnapshot.shippingOptionId
+          }
+        : persistedCheckout?.shippingOption ?? shippingOption,
+    [paymentCheckoutSnapshot?.shippingOptionId, persistedCheckout?.shippingOption, shippingOption]
+  );
+  const resolvedNotes = paymentCheckoutSnapshot?.notes ?? persistedCheckout?.notes ?? notes;
+  const resolvedCheckoutToken = persistedCheckout?.checkoutToken ?? checkoutToken;
+  const persistedOrderItems = useMemo(
+    () => loadPersistedCheckoutOrderItems(resolvedCheckoutToken),
+    [resolvedCheckoutToken]
+  );
+
+  const paymentStatus = useMemo<MercadoPagoNormalizedStatus>(() => {
+    if (payment?.method === "mercadopago") {
+      return normalizeMercadoPagoStatus(payment.status);
     }
-    const config = raw as Record<string, unknown>;
+    return normalizeMercadoPagoStatus(rawStatus ?? undefined);
+  }, [payment, rawStatus]);
 
-    const coerceNumber = (value: unknown): number | undefined => {
-      if (typeof value === "number" && Number.isFinite(value)) {
-        return value;
+  const paymentId =
+    rawPaymentId ??
+    (payment?.method === "mercadopago" ? payment.paymentId ?? payment.paymentIntentId : null) ??
+    "unknown";
+  const detail =
+    rawDetail ?? (payment?.method === "mercadopago" ? payment.statusDetail ?? null : null);
+  const isConfirmedPayment = isMercadoPagoPaymentConfirmed(paymentStatus);
+  const statusColor =
+    paymentStatus === "rejected"
+      ? "error.main"
+      : isConfirmedPayment
+        ? "success.main"
+        : "primary.main";
+  const heading =
+    paymentStatus === "rejected"
+      ? t("checkout.payment.success.rejectedTitle", {
+          defaultMessage: "Your payment was not approved"
+        })
+      : isConfirmedPayment
+        ? t("checkout.payment.success.title", { defaultMessage: "Your payment is confirmed" })
+        : t("checkout.payment.success.pendingTitle", {
+            defaultMessage: "Your payment is still being reviewed"
+          });
+  const nextStepMessage =
+    paymentStatus === "rejected"
+      ? t("checkout.payment.success.rejectedNextStep", {
+          defaultMessage: "Choose another payment method to continue with checkout."
+        })
+      : isConfirmedPayment
+        ? t("checkout.payment.success.confirmedNextStep", {
+            defaultMessage: "You can follow the status of your purchase from My orders."
+          })
+        : t("checkout.payment.success.pendingNextStep", {
+            defaultMessage: "Wait for approval before reviewing or confirming the order."
+          });
+  const primaryActionHref = isConfirmedPayment ? "/account/orders" : "/payment";
+  const primaryActionLabel =
+    isConfirmedPayment
+      ? t("checkout.payment.success.actions.viewOrders", { defaultMessage: "View my orders" })
+      : t("checkout.payment.success.actions.backToPayment", {
+          defaultMessage: "Back to payment"
+        });
+
+  const resolveOrderConfirmationError = useCallback(
+    (cause: unknown) => {
+      if (!isApiError(cause)) {
+        if (cause instanceof Error && cause.message.trim().length > 0) {
+          return cause.message;
+        }
+        return t("checkout.payment.success.orderError", {
+          defaultMessage: "We couldn't register your purchase. Please try again."
+        });
       }
-      if (typeof value === "string") {
-        const parsed = Number.parseFloat(value.replace(",", "."));
-        return Number.isFinite(parsed) ? parsed : undefined;
+
+      const rawMessage = extractApiErrorMessage(cause);
+      if (rawMessage === "errors.validation") {
+        return t("checkout.payment.success.orderValidationError", {
+          defaultMessage:
+            "Mercado Pago confirmó el pago, pero todavía estamos terminando de registrar la compra."
+        });
       }
-      return undefined;
-    };
 
-    const maybeWidth = coerceNumber(config.widthMm ?? config.width_mm ?? config.width);
-    const maybeHeight = coerceNumber(config.heightMm ?? config.height_mm ?? config.height);
-    if (maybeWidth === undefined || maybeHeight === undefined || maybeWidth <= 0 || maybeHeight <= 0) {
-      return { error: `Medidas inválidas para ${item.product.name}. Completa ancho y alto.` };
-    }
-    const widthMm = maybeWidth !== undefined ? Math.round(maybeWidth > 10 ? maybeWidth : maybeWidth * 1000) : undefined;
-    const heightMm = maybeHeight !== undefined ? Math.round(maybeHeight > 10 ? maybeHeight : maybeHeight * 1000) : undefined;
-
-    const monoblock = (config.monoblock as Record<string, unknown> | undefined) ?? {};
-
-    const normalized: Record<string, unknown> = {
-      ...config,
-      familyId: config.familyId ?? config.family_id ?? String(item.product.productId ?? item.product.id),
-      serie: config.series ?? config.serie ?? config.seriesId ?? "DEFAULT",
-      material: config.material ?? "ALUMINIO",
-      color: config.color ?? "NATURAL",
-      vidrio: config.glass ?? config.vidrio ?? "4 MM",
-      widthMm,
-      heightMm,
-      hasMosquitero: config.mosquitoNet ?? config.hasMosquitero ?? false,
-      hasShutterMonoblock:
-        config.hasShutterMonoblock ??
-        config.monoblockEnabled ??
-        monoblock.enabled ??
-        false,
-      shutterMaterial: monoblock.material ?? config.shutterMaterial ?? undefined,
-      shutterColor: monoblock.color ?? config.shutterColor ?? undefined,
-      currency: config.currency,
-      referenceDate: config.referenceDate,
-      dataVersion: config.dataVersion,
-      breakdown: config.breakdown
-    };
-
-    Object.keys(normalized).forEach((key) => {
-      if (normalized[key] === undefined) {
-        delete normalized[key];
-      }
-    });
-
-    return { config: normalized };
-  };
+      return rawMessage;
+    },
+    [t]
+  );
 
   const translateStatus = useCallback(
     (value: string | null | undefined) => {
-      const normalized = (value ?? "").toLowerCase();
+      const normalized = normalizeMercadoPagoStatus(value ?? undefined);
       const key = PAYMENT_STATUS_KEYS[normalized];
       if (key) {
         return t(key);
@@ -139,80 +195,134 @@ function PaymentSuccessContent() {
     [t]
   );
 
-  const orderItemsData = useMemo(() => {
-    let configError: string | null = null;
-    const items = cartState.items
-      .map((item) => {
-        const productIdValue = item.product.productId ?? item.product.id;
-        const productId = Number(productIdValue);
-        if (!Number.isFinite(productId)) {
-          return null;
-        }
-        const rawVariantId = item.product.variantId;
-        const variantId =
-          typeof rawVariantId === "number" && Number.isFinite(rawVariantId)
-            ? rawVariantId
-            : undefined;
-
-        const hasConfigObject = item.product.configuration && typeof item.product.configuration === "object";
-
-        if (item.product.mode === "parametric" || hasConfigObject) {
-          const { config, error } = normalizeParametricConfiguration(item);
-          if (error) {
-            configError = error;
-            return null;
-          }
-          return {
-            productId,
-            quantity: Math.max(1, item.quantity),
-            variantId,
-            configuration: config
-          };
-        }
-
-        configError = configError ?? `Falta configuración para el producto "${item.product.name}". Reconfigúralo antes de continuar.`;
-        return null;
-      })
-      .filter(Boolean) as Array<{
-      productId: number;
-      quantity: number;
-      variantId?: number;
-      configuration?: Record<string, unknown>;
-    }>;
-    return { items, error: configError };
-  }, [cartState.items]);
+  const orderItemsData = useMemo(() => buildCheckoutOrderItems(cartState.items), [cartState.items]);
+  const resolvedOrderItems = useMemo(() => {
+    if (paymentCheckoutSnapshot?.items && paymentCheckoutSnapshot.items.length > 0) {
+      return paymentCheckoutSnapshot.items;
+    }
+    if (persistedOrderItems && persistedOrderItems.length > 0) {
+      return persistedOrderItems;
+    }
+    if (orderItemsData.items.length > 0 && !orderItemsData.error) {
+      return orderItemsData.items;
+    }
+    return orderItemsData.items;
+  }, [orderItemsData.error, orderItemsData.items, paymentCheckoutSnapshot?.items, persistedOrderItems]);
+  const orderItemsError = useMemo(() => {
+    if (resolvedOrderItems.length > 0) {
+      return null;
+    }
+    return orderItemsData.error;
+  }, [orderItemsData.error, resolvedOrderItems.length]);
 
   const canAttemptOrderCreation = useMemo(() => {
-    if (!payment || payment.method !== "mercadopago") {
+    const hasResolvablePayment =
+      isConfirmedPayment &&
+      ((payment?.method === "mercadopago" && Boolean(payment.paymentIntentId)) || Boolean(rawPaymentId));
+
+    if (!hasResolvablePayment) {
       return false;
     }
-    if (!["approved", "authorized"].includes(payment.status)) {
+    if (orderItemsError) {
       return false;
     }
-    if (orderItemsData.error) {
+    if (resolvedOrderItems.length === 0) {
       return false;
     }
-    if (orderItemsData.items.length === 0) {
+    if (!resolvedContact.email || !resolvedShippingAddress?.line1 || !resolvedShippingAddress?.city || !resolvedShippingAddress?.country) {
       return false;
     }
-    if (!contact.email || !shippingAddress?.line1 || !shippingAddress?.city || !shippingAddress?.country) {
+    if (!resolvedShippingOption?.id) {
       return false;
     }
     return true;
-  }, [contact.email, orderItemsData.error, orderItemsData.items.length, payment, shippingAddress]);
+  }, [
+    isConfirmedPayment,
+    orderItemsError,
+    payment,
+    rawPaymentId,
+    resolvedContact.email,
+    resolvedShippingAddress,
+    resolvedOrderItems.length,
+    resolvedShippingOption?.id
+  ]);
+
+  const subtitle =
+    paymentStatus === "rejected"
+      ? t("checkout.payment.success.rejectedSubtitle", {
+          defaultMessage:
+            "Mercado Pago did not confirm this payment. Review the details and try another method."
+        })
+      : isConfirmedPayment
+        ? canAttemptOrderCreation
+          ? t("checkout.payment.success.subtitleWithOrderRegistration", {
+              defaultMessage:
+                "Mercado Pago confirmó tu pago. Estamos terminando de registrar tu compra y te mostramos el resultado abajo."
+            })
+          : t("checkout.payment.success.subtitle", {
+              defaultMessage:
+                "Mercado Pago confirmed your payment. You can review the payment details below."
+            })
+        : t("checkout.payment.success.pendingSubtitle", {
+            defaultMessage:
+              "Mercado Pago has not confirmed this payment yet. Return to payment to retry later or wait for the final status."
+          });
 
   const finalizeOrder = useCallback(async () => {
-    if (!canAttemptOrderCreation || !payment || payment.method !== "mercadopago") {
+    if (!canAttemptOrderCreation) {
+      return;
+    }
+
+    let resolvedPayment = payment;
+    if ((!resolvedPayment || resolvedPayment.method !== "mercadopago" || !resolvedPayment.paymentIntentId) && rawPaymentId) {
+      try {
+        const paymentRecord = await StorefrontApi.resolveMercadoPagoPayment({
+          externalPaymentId: rawPaymentId,
+          cartId: `cart-${cartState.updatedAt}`,
+          checkoutToken: resolvedCheckoutToken,
+          payerEmail: resolvedContact.email
+        });
+        resolvedPayment = {
+          method: "mercadopago",
+          paymentIntentId: paymentRecord.paymentIntentId,
+          paymentId: paymentRecord.paymentId ?? undefined,
+          status: normalizeMercadoPagoStatus(paymentRecord.status),
+          statusDetail: paymentRecord.statusDetail ?? undefined,
+          currency: paymentRecord.currency,
+          amount: paymentRecord.amount,
+          installments: paymentRecord.installments ?? undefined,
+          cardBrand: paymentRecord.cardBrand ?? undefined,
+          cardLastFour: paymentRecord.cardLastFour ?? undefined,
+          cardholderName: paymentRecord.cardholderName ?? undefined,
+          checkoutSnapshot: paymentRecord.checkoutSnapshot ?? undefined,
+          updatedAt: paymentRecord.createdAt
+        };
+        setPayment(resolvedPayment);
+      } catch (cause) {
+        const message = resolveOrderConfirmationError(cause);
+        setOrderError(message);
+        setOrderState("error");
+        return;
+      }
+    }
+
+    if (!resolvedPayment || resolvedPayment.method !== "mercadopago" || !resolvedPayment.paymentIntentId) {
+      setOrderError(
+        t("checkout.payment.success.orderError", {
+          defaultMessage: "We couldn't confirm your order. Please try again."
+        })
+      );
+      setOrderState("error");
       return;
     }
 
     const checkoutOrderKey =
-      typeof window !== "undefined" && checkoutToken
-        ? `storefront:order:${checkoutToken}`
+      typeof window !== "undefined" && resolvedCheckoutToken
+        ? `storefront:order:${resolvedCheckoutToken}`
         : null;
 
     if (typeof window !== "undefined") {
-      const completionKey = `storefront:order:${payment.paymentIntentId}`;
+      const completionKey = `storefront:order:${resolvedPayment.paymentIntentId}`;
       const completionLock = readActiveOrderLock(completionKey);
       const checkoutLock =
         checkoutOrderKey && typeof checkoutOrderKey === "string"
@@ -228,40 +338,57 @@ function PaymentSuccessContent() {
     setOrderError(null);
 
     try {
+      const resolvedCheckoutSnapshot = resolvedPayment.checkoutSnapshot ?? paymentCheckoutSnapshot ?? null;
+      const checkoutCustomer = resolvedCheckoutSnapshot?.customer ?? resolvedContact;
+      const checkoutCustomerLocale =
+        typeof resolvedCheckoutSnapshot?.customer?.locale === "string"
+          ? resolvedCheckoutSnapshot.customer.locale
+          : locale;
+      const checkoutShippingAddress = resolvedCheckoutSnapshot?.shippingAddress ?? resolvedShippingAddress;
+      const checkoutItems = resolvedCheckoutSnapshot?.items ?? resolvedOrderItems;
+      const checkoutNotes = resolvedCheckoutSnapshot?.notes ?? resolvedNotes;
+      const checkoutShippingOptionId =
+        resolvedCheckoutSnapshot?.shippingOptionId ?? resolvedShippingOption?.id;
+      const checkoutFulfillmentMode =
+        resolvedCheckoutSnapshot?.fulfillmentMode ?? resolvedFulfillmentMode;
+      const checkoutCurrency = resolvedCheckoutSnapshot?.currency ?? activeCurrency;
+
       const resolvedZip =
-        typeof shippingAddress.zip === "string" && shippingAddress.zip.trim().length > 0
-          ? shippingAddress.zip.trim()
-          : DEFAULT_POSTAL_CODE_BY_COUNTRY[shippingAddress.country] ?? POSTAL_CODE_FALLBACK;
+        typeof checkoutShippingAddress.zip === "string" && checkoutShippingAddress.zip.trim().length > 0
+          ? checkoutShippingAddress.zip.trim()
+          : DEFAULT_POSTAL_CODE_BY_COUNTRY[checkoutShippingAddress.country] ?? POSTAL_CODE_FALLBACK;
 
       const shippingAddressPayload: CreateOrderPayload["shippingAddress"] = {
-        line1: shippingAddress.line1,
-        line2: shippingAddress.line2 || undefined,
-        city: shippingAddress.city,
-        state: shippingAddress.state || undefined,
+        line1: checkoutShippingAddress.line1,
+        line2: checkoutShippingAddress.line2 || undefined,
+        city: checkoutShippingAddress.city,
+        state: checkoutShippingAddress.state || undefined,
         zip: resolvedZip,
-        country: shippingAddress.country
+        country: checkoutShippingAddress.country
       };
 
       const payload: CreateOrderPayload = {
         customer: {
-          email: contact.email,
-          firstName: contact.firstName,
-          lastName: contact.lastName,
-          phone: contact.phone && contact.phone.length > 0 ? contact.phone : undefined,
-          locale: localeValue
+          email: checkoutCustomer.email,
+          firstName: checkoutCustomer.firstName,
+          lastName: checkoutCustomer.lastName,
+          phone: checkoutCustomer.phone && checkoutCustomer.phone.length > 0 ? checkoutCustomer.phone : undefined,
+          locale: checkoutCustomerLocale
         },
         shippingAddress: shippingAddressPayload,
-        items: orderItemsData.items,
-        notes: notes && notes.trim().length > 0 ? notes.trim() : undefined,
-        paymentIntentId: payment.paymentIntentId,
-        checkoutToken,
-        currency: activeCurrency
+        items: checkoutItems,
+        notes: checkoutNotes && checkoutNotes.trim().length > 0 ? checkoutNotes.trim() : undefined,
+        paymentIntentId: resolvedPayment.paymentIntentId,
+        checkoutToken: resolvedCheckoutToken,
+        shippingOptionId: checkoutShippingOptionId,
+        fulfillmentMode: checkoutFulfillmentMode,
+        currency: checkoutCurrency
       };
 
       const order = await StorefrontApi.createOrder(payload);
 
       if (typeof window !== "undefined") {
-        const completionKey = `storefront:order:${payment.paymentIntentId}`;
+        const completionKey = `storefront:order:${resolvedPayment.paymentIntentId}`;
         writeOrderLock(completionKey);
         if (checkoutOrderKey) {
           writeOrderLock(checkoutOrderKey);
@@ -270,41 +397,35 @@ function PaymentSuccessContent() {
 
       setLastOrder(order);
       clearCart();
+      clearPersistedCheckoutOrderItems(resolvedCheckoutToken);
       reset();
       setOrderState("success");
+      setOrderRetryCount(0);
     } catch (cause) {
-      const fallbackMessage = t("checkout.payment.success.orderError", {
-        defaultMessage: "We couldn't confirm your order. Please try again."
-      });
-      const message = isApiError(cause)
-        ? cause.message
-        : cause instanceof Error
-          ? cause.message
-          : fallbackMessage;
+      const message = resolveOrderConfirmationError(cause);
       setOrderError(message);
       setOrderState("error");
     }
   }, [
     canAttemptOrderCreation,
     clearCart,
-    contact.email,
-    contact.firstName,
-    contact.lastName,
-    localeValue,
-    contact.phone,
-    notes,
-    orderItemsData,
-    payment,
-    reset,
-    setLastOrder,
-    shippingAddress.city,
-    shippingAddress.country,
-    shippingAddress.line1,
-    shippingAddress.line2,
-    shippingAddress.state,
-    shippingAddress.zip,
-    checkoutToken,
     activeCurrency,
+    resolvedOrderItems,
+    payment,
+    cartState.updatedAt,
+    locale,
+    rawPaymentId,
+    resolvedCheckoutToken,
+    resolvedFulfillmentMode,
+    resolvedNotes,
+    paymentCheckoutSnapshot,
+    resolvedShippingOption,
+    resolvedContact,
+    resolvedShippingAddress,
+    reset,
+    resolveOrderConfirmationError,
+    setPayment,
+    setLastOrder,
     t
   ]);
 
@@ -315,30 +436,37 @@ function PaymentSuccessContent() {
   }, [canAttemptOrderCreation, finalizeOrder, orderState]);
 
   useEffect(() => {
-    if (orderItemsData.error) {
-      setOrderError(orderItemsData.error);
+    if (!canAttemptOrderCreation || orderState !== "error" || orderRetryCount >= MAX_ORDER_AUTO_RETRIES) {
+      return;
+    }
+
+    const delayMs = 2500 * (orderRetryCount + 1);
+    const timer = window.setTimeout(() => {
+      setOrderRetryCount((current) => current + 1);
+      void finalizeOrder();
+    }, delayMs);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [canAttemptOrderCreation, finalizeOrder, orderRetryCount, orderState]);
+
+  useEffect(() => {
+    if (orderItemsError) {
+      setOrderError(orderItemsError);
       setOrderState("error");
     }
-  }, [orderItemsData.error]);
-
-  const handleRetry = useCallback(() => {
-    setOrderState("idle");
-    setOrderError(null);
-    void finalizeOrder();
-  }, [finalizeOrder]);
+  }, [orderItemsError]);
 
   return (
     <Box py="6rem">
       <FlexBox flexDirection="column" alignItems="center" justifyContent="center" px="1.5rem">
         <Card1 maxWidth="540px" width="100%" textAlign="center" p="2.5rem">
           <H3 fontWeight="700" mb="0.5rem" color="primary.main">
-            {t("checkout.payment.success.title", { defaultMessage: "Your payment is confirmed" })}
+            {heading}
           </H3>
           <Typography color="text.muted" mb="2rem">
-            {t("checkout.payment.success.subtitle", {
-              defaultMessage:
-                "Thank you for completing your purchase with Mercado Pago. You can review the payment details below."
-            })}
+            {subtitle}
           </Typography>
 
           {canAttemptOrderCreation ? (
@@ -361,29 +489,53 @@ function PaymentSuccessContent() {
                 </Typography>
               ) : orderState === "processing" ? (
                 <Typography color="text.muted" mb="1rem">
-                  {t("checkout.payment.success.orderConfirming", { defaultMessage: "Confirming your order..." })}
+                  {t("checkout.payment.success.orderConfirming", {
+                    defaultMessage: "We are registering your purchase..."
+                  })}
                 </Typography>
               ) : orderState === "error" ? (
                 <>
                   <Typography color="error.main" mb="1rem">
                     {orderError ??
                       t("checkout.payment.success.orderError", {
-                        defaultMessage: "We couldn't confirm your order. Please try again."
+                        defaultMessage: "We are still finishing the registration of your purchase."
                       })}
                   </Typography>
-                  <Button variant="outlined" color="primary" onClick={handleRetry}>
-                    {t("checkout.payment.success.orderRetry", { defaultMessage: "Retry confirmation" })}
-                  </Button>
+                  <Typography color="text.muted" fontSize="14px">
+                    {orderRetryCount < MAX_ORDER_AUTO_RETRIES
+                      ? t("checkout.payment.success.orderRetryInBackground", {
+                          defaultMessage:
+                            "We will retry automatically in the background. If your purchase does not appear in My orders in a few minutes, contact support."
+                        })
+                      : t("checkout.payment.success.orderRetryExhausted", {
+                          defaultMessage:
+                            "We could not finish registering the purchase automatically. If it does not appear in My orders in a few minutes, contact support."
+                        })}
+                  </Typography>
                 </>
               ) : (
                 <Typography color="text.muted" mb="1rem">
                   {t("checkout.payment.success.orderPreparing", {
-                    defaultMessage: "Preparing to confirm your order..."
+                    defaultMessage: "Preparing the registration of your purchase..."
                   })}
                 </Typography>
               )}
             </Box>
-          ) : null}
+          ) : (
+            <Box
+              border="1px solid"
+              borderColor="gray.200"
+              borderRadius="12px"
+              p="1.25rem"
+              textAlign="left"
+              mb="2rem"
+            >
+              <Typography fontWeight="600" mb="0.5rem">
+                {t("checkout.payment.success.nextStep", { defaultMessage: "Next step" })}
+              </Typography>
+              <Typography color={statusColor}>{nextStepMessage}</Typography>
+            </Box>
+          )}
 
           <Box
             border="1px solid"
@@ -397,8 +549,8 @@ function PaymentSuccessContent() {
             <Typography fontWeight="600" mb="0.5rem">
               {t("checkout.payment.shared.status", { defaultMessage: "Status" })}
             </Typography>
-            <Typography color="success.main" mb="1rem">
-              {translateStatus(status)}
+            <Typography color={statusColor} mb="1rem">
+              {translateStatus(paymentStatus)}
             </Typography>
 
             <Typography fontWeight="600" mb="0.5rem">
@@ -419,9 +571,9 @@ function PaymentSuccessContent() {
           </Box>
 
           <FlexBox justifyContent="center" flexWrap="wrap" style={{ gap: "1rem" }}>
-            <Link href="/account/orders" style={{ textDecoration: "none" }}>
+            <Link href={primaryActionHref} style={{ textDecoration: "none" }}>
               <Button color="primary" variant="contained">
-                {t("checkout.payment.success.actions.viewOrders", { defaultMessage: "View my orders" })}
+                {primaryActionLabel}
               </Button>
             </Link>
             <Link href="/shop" style={{ textDecoration: "none" }}>

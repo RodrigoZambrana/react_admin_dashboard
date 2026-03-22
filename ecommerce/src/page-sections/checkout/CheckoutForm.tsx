@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as yup from "yup";
@@ -13,9 +13,12 @@ import { Button } from "@component/buttons";
 import TextField from "@component/text-field";
 import Typography from "@component/Typography";
 
+import { StorefrontApi } from "@/lib/api/storefront";
 import { useCheckout } from "@/state/checkout-context";
 import { useStorefrontCart } from "@/state/cart-context";
 import { useCountryCityData } from "@/lib/country-city";
+import { useTranslation } from "@/state/i18n-context";
+import type { StorefrontShippingOption } from "@/types/storefront";
 
 type CheckoutDetailsFormValues = {
   firstName: string;
@@ -26,6 +29,7 @@ type CheckoutDetailsFormValues = {
   addressLine2: string;
   department: string;
   country: string;
+  shippingOptionId: string;
 };
 
 const checkoutSchema = yup.object({
@@ -36,7 +40,8 @@ const checkoutSchema = yup.object({
   addressLine1: yup.string().trim().required("Address line 1 is required"),
   addressLine2: yup.string().trim().optional(),
   department: yup.string().trim().required("Department is required"),
-  country: yup.string().trim().required("Country is required")
+  country: yup.string().trim().required("Country is required"),
+  shippingOptionId: yup.string().trim().required("Shipping option is required")
 });
 
 const COUNTRY_BY_CODE: Record<string, string> = {
@@ -79,8 +84,12 @@ const normalizeCountryCode = (value?: string | null) => {
 export default function CheckoutForm() {
   const router = useRouter();
   const { state: cartState } = useStorefrontCart();
-  const { contact, shippingAddress, setDetails } = useCheckout();
+  const { contact, shippingAddress, shippingOption, setDetails } = useCheckout();
   const { getCitiesForCountry, loading: locationLoading, error: locationError } = useCountryCityData();
+  const t = useTranslation();
+  const [shippingOptions, setShippingOptions] = useState<StorefrontShippingOption[]>([]);
+  const [shippingOptionsLoading, setShippingOptionsLoading] = useState(true);
+  const [shippingOptionsError, setShippingOptionsError] = useState<string | null>(null);
 
   const getDefaultDepartment = useCallback(
     (countryCode: string) => {
@@ -123,6 +132,33 @@ export default function CheckoutForm() {
     }
   }, [cartState.items.length, router]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    setShippingOptionsLoading(true);
+    setShippingOptionsError(null);
+
+    (async () => {
+      try {
+        const options = await StorefrontApi.listShippingOptions();
+        if (cancelled) return;
+        setShippingOptions(options);
+      } catch (error) {
+        if (cancelled) return;
+        setShippingOptions([]);
+        setShippingOptionsError("Failed to load shipping options");
+      } finally {
+        if (!cancelled) {
+          setShippingOptionsLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const initialValues = useMemo<CheckoutDetailsFormValues>(() => {
     const initialCountryCode = normalizeCountryCode(shippingAddress.country ?? "UY");
     const initialDepartment =
@@ -140,9 +176,15 @@ export default function CheckoutForm() {
       addressLine1: shippingAddress.line1 ?? "",
       addressLine2: shippingAddress.line2 ?? "",
       department: initialDepartment,
-      country: initialCountryCode
+      country: initialCountryCode,
+      shippingOptionId:
+        shippingOption?.id !== undefined && shippingOption?.id !== null
+          ? String(shippingOption.id)
+          : shippingOptions.length === 1
+            ? String(shippingOptions[0].id)
+            : ""
     };
-  }, [contact, shippingAddress, getDefaultDepartment]);
+  }, [contact, shippingAddress, shippingOption, shippingOptions, getDefaultDepartment]);
 
   const handleFormSubmit = (values: CheckoutDetailsFormValues) => {
     const trimmed: CheckoutDetailsFormValues = Object.entries(values).reduce(
@@ -165,6 +207,13 @@ export default function CheckoutForm() {
       DEFAULT_POSTAL_CODE_BY_COUNTRY[normalizedCountry] ??
       DEFAULT_POSTAL_CODE_BY_COUNTRY.UY ??
       POSTAL_CODE_FALLBACK;
+    const selectedShippingOption = shippingOptions.find(
+      (option) => String(option.id) === trimmed.shippingOptionId
+    );
+
+    if (!selectedShippingOption) {
+      return;
+    }
 
     setDetails(
       {
@@ -180,7 +229,9 @@ export default function CheckoutForm() {
         state: department,
         zip: postalCode,
         country: normalizedCountry
-      }
+      },
+      "home_delivery",
+      selectedShippingOption
     );
 
     router.push("/payment");
@@ -193,6 +244,17 @@ export default function CheckoutForm() {
         label: name
       })),
     []
+  );
+  const shippingOptionChoices = useMemo(
+    () =>
+      shippingOptions.map((option) => ({
+        value: String(option.id),
+        label:
+          option.estimatedMin !== null && option.estimatedMax !== null
+            ? `${option.name} · ${option.estimatedMin}-${option.estimatedMax} ${t("Days")}`
+            : option.name
+      })),
+    [shippingOptions, t]
   );
 
   return (
@@ -230,7 +292,7 @@ export default function CheckoutForm() {
           <form onSubmit={handleSubmit}>
             <Card1 mb="2rem">
               <Typography fontWeight="600" mb="1rem">
-                Contact information
+                {t("Contact information")}
               </Typography>
 
               <Grid container spacing={7}>
@@ -238,9 +300,9 @@ export default function CheckoutForm() {
                   <TextField
                     fullWidth
                     mb="1rem"
-                    label="First name"
+                    label={t("First name")}
                     name="firstName"
-                    placeholder="First name"
+                    placeholder={t("First name")}
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.firstName}
@@ -252,9 +314,9 @@ export default function CheckoutForm() {
                   <TextField
                     fullWidth
                     mb="1rem"
-                    label="Last name"
+                    label={t("Last name")}
                     name="lastName"
-                    placeholder="Last name"
+                    placeholder={t("Last name")}
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.lastName}
@@ -267,9 +329,9 @@ export default function CheckoutForm() {
                     fullWidth
                     mb="1rem"
                     type="email"
-                    label="Email address"
+                    label={t("Email address")}
                     name="email"
-                    placeholder="you@example.com"
+                    placeholder={t("you@example.com")}
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.email}
@@ -281,9 +343,9 @@ export default function CheckoutForm() {
                   <TextField
                     fullWidth
                     mb="1rem"
-                    label="Phone number"
+                    label={t("Phone number")}
                     name="phone"
-                    placeholder="Optional"
+                    placeholder={t("Optional")}
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.phone}
@@ -293,7 +355,7 @@ export default function CheckoutForm() {
               </Grid>
 
               <Typography fontWeight="600" mt="1.5rem" mb="1rem">
-                Shipping address
+                {t("Shipping address")}
               </Typography>
 
               <Grid container spacing={7}>
@@ -352,6 +414,34 @@ export default function CheckoutForm() {
                     errorText={touched.department ? errors.department : undefined}
                     onChange={handleDepartmentChange}
                   />
+                </Grid>
+
+                <Grid item sm={6} xs={12}>
+                  <Typography mb="0.5rem" fontWeight="600">
+                    {t("Delivery option")}
+                  </Typography>
+                  <Select
+                    options={shippingOptionChoices}
+                    placeholder={t("Select a delivery option")}
+                    value={
+                      shippingOptionChoices.find(
+                        (option) => option.value === values.shippingOptionId
+                      ) ?? null
+                    }
+                    isDisabled={shippingOptionsLoading || shippingOptionChoices.length === 0}
+                    errorText={
+                      touched.shippingOptionId ? errors.shippingOptionId : undefined
+                    }
+                    onChange={(option: any) => {
+                      const choice = Array.isArray(option) ? option[0] : option;
+                      setFieldValue("shippingOptionId", choice?.value ?? "");
+                    }}
+                  />
+                  {shippingOptionsError ? (
+                    <Typography color="error.main" fontSize="12px" mt="0.5rem">
+                      {t(shippingOptionsError)}
+                    </Typography>
+                  ) : null}
                 </Grid>
               </Grid>
             </Card1>

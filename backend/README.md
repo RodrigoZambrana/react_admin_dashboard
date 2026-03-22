@@ -8,6 +8,7 @@ Stack
 
 Quick Start
 - Copy `.env.example` to `.env` and adjust `DATABASE_URL`, `JWT_SECRET`, `ALLOWED_ORIGINS`, and `RECAPTCHA_SECRET_KEY` as needed.
+- If an env value contains spaces, wrap it in double quotes. This matters if you ever load the file with `source .env` in a shell.
 - Configure `STOREFRONT_GENERIC_CUSTOMER_PASSWORD` to the shared temporary password you want assigned to storefront customers that do not yet have credentials (defaults to `Storefront@2024` for local development).
 - Install deps: `npm i`
 - Generate Prisma client: `npm run prisma:generate`
@@ -26,6 +27,27 @@ Aplicar nuevas migraciones en un entorno existente
 - Generá el cliente de Prisma para que los tipos reflejen los cambios: `npm run prisma:generate`
 - Aplicá todas las migraciones pendientes contra la base configurada en `DATABASE_URL`: `npm run prisma:migrate`
 - Si necesitás correrlo sin los scripts de npm (por ejemplo en una plataforma en la que sólo tenés acceso al binario), ejecutá `npx prisma migrate deploy`
+
+Flujo recomendado de migraciones
+- Desarrollo local fuera de Docker:
+  - modifica `prisma/schema.prisma`
+  - crea/versiona la migración correspondiente
+  - ejecuta `npm run prisma:generate`
+  - aplica cambios con `npm run prisma:migrate`
+  - recién después arranca la app con `npm run start:dev`
+- Docker local:
+  - versiona primero la migración en `backend/prisma/migrations`
+  - al levantar `backend`, el contenedor ejecuta `npx prisma migrate deploy` automáticamente antes de iniciar Nest
+  - si querés omitirlo temporalmente, usa `SKIP_PRISMA_MIGRATIONS=true`
+- Producción/testing:
+  - no hagas cambios manuales en la base
+  - despliega primero el código con la migración versionada
+  - deja `PRISMA_APPLY_MIGRATIONS=true` para que el entorno aplique `migrate deploy`
+  - usa seed solo cuando corresponda; no mezclar seed demo con migraciones productivas
+
+Notas de higiene Prisma
+- Prisma ahora toma la ubicación del schema desde [prisma.config.ts](/Users/rodrigo/git/personal/react_admin_dashboard/backend/prisma.config.ts).
+- El `seed` sigue ejecutándose vía script (`npm run prisma:seed` / `npx prisma db seed`), sin depender de `package.json#prisma`.
 
 Environment Configuration & Deployment Notes
 - Cookie behaviour: `AuthController.buildAuthCookieOptions()` sets `secure: true` whenever `NODE_ENV !== 'development'`. In testing/production debes servir la API sobre HTTPS (idealmente desde el mismo origen que el frontend) para que el navegador acepte la cookie `access_token`. Para pruebas HTTP temporales fuera de dev, ejecutá el backend con `NODE_ENV=development` o ajustá ese helper para exponer un toggle.

@@ -20,12 +20,17 @@ const STATUS_DETAIL_MESSAGES: Record<string, string> = {
 
 export const normalizeMercadoPagoStatus = (status?: string): MercadoPagoNormalizedStatus => {
   const normalized = (status ?? "").toLowerCase();
-  if (normalized === "approved") return "approved";
+  if (normalized === "approved" || normalized === "captured") return "approved";
   if (normalized === "authorized") return "authorized";
   if (normalized === "rejected" || normalized === "cancelled") return "rejected";
   if (normalized === "in_process" || normalized === "in_mediation") return "in_process";
   if (normalized === "pending") return "pending";
   return "processing";
+};
+
+export const isMercadoPagoPaymentConfirmed = (status?: string | null): boolean => {
+  const normalized = normalizeMercadoPagoStatus(status ?? undefined);
+  return normalized === "approved";
 };
 
 export const resolveMercadoPagoDetailMessage = (detail?: string | null) => {
@@ -40,17 +45,18 @@ export const buildMercadoPagoStatusMessage = (
 ) => {
   switch (status) {
     case "approved":
-    case "authorized":
       return "Payment approved. You can continue to confirm your order.";
+    case "authorized":
+      return "Mercado Pago authorized the payment, but it is still pending final confirmation.";
     case "in_process":
     case "pending":
-      return "Mercado Pago is reviewing your payment. You can continue while the review completes.";
+      return "Mercado Pago is reviewing your payment. Wait for confirmation before placing the order.";
     case "rejected": {
       const specific = resolveMercadoPagoDetailMessage(detail);
       return specific ?? "Your bank declined the transaction. Please verify the details or try another card.";
     }
     case "processing":
-      return "Processing payment with Mercado Pago...";
+      return "Processing payment with Mercado Pago. Wait for confirmation before placing the order.";
     default:
       return null;
   }

@@ -16,9 +16,6 @@
     "test": "vitest run",
     "lint": "tsc --noEmit"
   },
-  "prisma": {
-    "seed": "node -r ts-node/register prisma/seed.ts"
-  },
   "keywords": [],
   "author": "",
   "license": "ISC",

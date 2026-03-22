@@ -22,7 +22,11 @@ import type { CheckoutPayment } from "@/state/checkout-context";
 import type { CreateOrderPayload, Money, OrderSummary } from "@/types/storefront";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import { useToast } from "@/contexts/ToastContext";
-import { normalizeMercadoPagoStatus } from "@/utils/mercadopago";
+import {
+  isMercadoPagoPaymentConfirmed,
+  normalizeMercadoPagoStatus
+} from "@/utils/mercadopago";
+import { buildCheckoutOrderItems } from "@/lib/checkout/order-items";
 import {
   clearOrderLock,
   readActiveOrderLock,
@@ -30,7 +34,6 @@ import {
 } from "@/utils/orderLock";
 import type { MercadoPagoNormalizedStatus } from "@/utils/mercadopago";
 import { useI18n, useTranslation } from "@/state/i18n-context";
-import type { CartLineItem } from "@/state/cart-context";
 
 const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
   UY: "11000"
@@ -52,6 +55,47 @@ const PAYMENT_STATUS_LABEL_KEYS: Record<MercadoPagoNormalizedStatus, string> = {
   pending: "checkout.review.paymentStatus.pending",
   processing: "checkout.review.paymentStatus.processing",
   rejected: "checkout.review.paymentStatus.rejected"
+};
+
+const translateMercadoPagoStatusMessage = (
+  t: ReturnType<typeof useTranslation>,
+  status: string,
+  detail?: string | null
+) => {
+  const normalized = normalizeMercadoPagoStatus(status);
+  switch (normalized) {
+    case "approved":
+      return t("checkout.payment.form.status.approved", {
+        defaultMessage: "Payment approved. You can continue to confirm your order."
+      });
+    case "authorized":
+      return t("checkout.payment.form.status.authorized", {
+        defaultMessage:
+          "Mercado Pago authorized the payment, but it is still pending final confirmation."
+      });
+    case "in_process":
+    case "pending":
+      return t("checkout.payment.form.status.pending", {
+        defaultMessage:
+          "Mercado Pago is reviewing your payment. Wait for confirmation before placing the order."
+      });
+    case "rejected":
+      return detail
+        ? t(detail, {
+            defaultMessage:
+              "Your bank declined the transaction. Please verify the details or try another card."
+          })
+        : t("checkout.payment.form.status.rejected", {
+            defaultMessage:
+              "Your bank declined the transaction. Please verify the details or try another card."
+          });
+    case "processing":
+    default:
+      return t("checkout.payment.form.status.processing", {
+        defaultMessage:
+          "Processing payment with Mercado Pago. Wait for confirmation before placing the order."
+      });
+  }
 };
 
 const mapOrderPaymentToCheckoutPayment = (
@@ -93,18 +137,6 @@ const mapOrderPaymentToCheckoutPayment = (
   return null;
 };
 
-const normalizeParametricConfiguration = (
-  item: CartLineItem
-): { config?: Record<string, unknown>; error?: string } => {
-  const raw = item.product.configuration;
-  if (!raw || typeof raw !== "object") {
-    return {
-      error: `Un artículo (“${item.product.name}”) necesita reconfiguración. Actualizá tu carrito y volvé a intentar.`
-    };
-  }
-  return { config: raw as Record<string, unknown> };
-};
-
 const formatAddress = (address: {
   line1?: string;
   line2?: string | null;
@@ -141,6 +173,8 @@ export default function ReviewClient() {
   const {
     contact,
     shippingAddress,
+    fulfillmentMode,
+    shippingOption,
     payment,
     notes,
     hasPayment,
@@ -151,67 +185,6 @@ export default function ReviewClient() {
   } = useCheckout();
   const { locale } = useI18n();
   const t = useTranslation();
-  const normalizeParametricConfiguration = useCallback(
-    (item: CartLineItem): Record<string, unknown> | undefined => {
-      const raw = item.product.configuration;
-      if (!raw || typeof raw !== "object") {
-        return undefined;
-      }
-      const config = raw as Record<string, unknown>;
-
-      const coerceNumber = (value: unknown): number | undefined => {
-        if (typeof value === "number" && Number.isFinite(value)) {
-          return value;
-        }
-        if (typeof value === "string") {
-          const parsed = Number.parseFloat(value.replace(",", "."));
-          return Number.isFinite(parsed) ? parsed : undefined;
-        }
-        return undefined;
-      };
-
-      const maybeWidth = coerceNumber(config.widthMm ?? config.width_mm ?? config.width);
-      const maybeHeight = coerceNumber(config.heightMm ?? config.height_mm ?? config.height);
-      const widthMm =
-        maybeWidth !== undefined ? Math.round(maybeWidth > 10 ? maybeWidth : maybeWidth * 1000) : undefined;
-      const heightMm =
-        maybeHeight !== undefined ? Math.round(maybeHeight > 10 ? maybeHeight : maybeHeight * 1000) : undefined;
-
-      const monoblock = (config.monoblock as Record<string, unknown> | undefined) ?? {};
-
-      const normalized: Record<string, unknown> = {
-        ...config,
-        familyId: config.familyId ?? config.family_id ?? String(item.product.productId ?? item.product.id),
-        serie: config.series ?? config.serie ?? config.seriesId ?? "DEFAULT",
-        material: config.material ?? "ALUMINIO",
-        color: config.color ?? "NATURAL",
-        vidrio: config.glass ?? config.vidrio ?? "4 MM",
-        widthMm,
-        heightMm,
-        hasMosquitero: config.mosquitoNet ?? config.hasMosquitero ?? false,
-        hasShutterMonoblock:
-          config.hasShutterMonoblock ??
-          config.monoblockEnabled ??
-          monoblock.enabled ??
-          false,
-        shutterMaterial: monoblock.material ?? config.shutterMaterial ?? undefined,
-        shutterColor: monoblock.color ?? config.shutterColor ?? undefined,
-        currency: config.currency,
-        referenceDate: config.referenceDate,
-        dataVersion: config.dataVersion,
-        breakdown: config.breakdown
-      };
-
-      Object.keys(normalized).forEach((key) => {
-        if (normalized[key] === undefined) {
-          delete normalized[key];
-        }
-      });
-
-      return normalized;
-    },
-    []
-  );
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -252,37 +225,7 @@ export default function ReviewClient() {
     }
   }, [hasPayment, lastOrder, router]);
 
-  const orderItemsData = useMemo(() => {
-    const items = cartState.items
-      .map((item) => {
-        const productIdValue = item.product.productId ?? item.product.id;
-        const productId = Number(productIdValue);
-        if (!Number.isFinite(productId)) {
-          return null;
-        }
-        const rawVariantId = item.product.variantId;
-        const variantId =
-          typeof rawVariantId === "number" && Number.isFinite(rawVariantId)
-            ? rawVariantId
-            : undefined;
-
-        const hasConfigObject = item.product.configuration && typeof item.product.configuration === "object";
-        const configuration =
-          item.product.mode === "parametric" || hasConfigObject
-            ? normalizeParametricConfiguration(item)
-            : item.product.configuration ?? undefined;
-
-        return {
-          productId,
-          quantity: Math.max(1, item.quantity),
-          variantId,
-          configuration
-        };
-      })
-      .filter(Boolean) as Array<{ productId: number; quantity: number; variantId?: number; configuration?: Record<string, unknown> }>;
-
-    return { items, error: null as string | null };
-  }, [cartState.items, normalizeParametricConfiguration]);
+  const orderItemsData = useMemo(() => buildCheckoutOrderItems(cartState.items), [cartState.items]);
 
   const handlePlaceOrder = useCallback(async () => {
     if (isSubmitting) return;
@@ -329,7 +272,56 @@ export default function ReviewClient() {
       return;
     }
 
+    if (!shippingOption?.id) {
+      const message = t("checkout.review.errors.shippingOptionIncompleteMessage", {
+        defaultMessage: "Seleccioná una opción de envío antes de confirmar el pedido."
+      });
+      setErrorMessage(message);
+      toast.error({
+        title: t("checkout.review.errors.shippingOptionIncompleteTitle", {
+          defaultMessage: "Opción de envío incompleta"
+        }),
+        description: t("checkout.review.errors.shippingOptionIncompleteDescription", {
+          defaultMessage: "Necesitamos saber cómo entregar tu pedido antes de continuar."
+        })
+      });
+      router.push("/checkout");
+      return;
+    }
+
+    if (
+      payment &&
+      payment.method === "mercadopago" &&
+      (!payment.paymentIntentId || !isMercadoPagoPaymentConfirmed(payment.status))
+    ) {
+      const message =
+        translateMercadoPagoStatusMessage(t, payment.status, payment.statusDetail) ??
+        t("checkout.payment.form.status.pending", {
+          defaultMessage:
+            "Mercado Pago is reviewing your payment. Wait for confirmation before placing the order."
+        });
+      setErrorMessage(message);
+      toast.info({
+        title: t("checkout.review.payment.title"),
+        description: message
+      });
+      router.push("/payment");
+      return;
+    }
+
     const orderItems = orderItemsData.items;
+
+    if (orderItemsData.error) {
+      setErrorMessage(orderItemsData.error);
+      toast.error({
+        title: t("checkout.review.errors.itemsInvalidTitle", {
+          defaultMessage: "Configuración de producto incompleta"
+        }),
+        description: orderItemsData.error
+      });
+      router.push("/cart");
+      return;
+    }
 
     if (orderItems.length === 0) {
       const message = t("checkout.review.errors.emptyCartMessage");
@@ -376,6 +368,8 @@ export default function ReviewClient() {
         paymentIntentId:
           payment && payment.method === "mercadopago" ? payment.paymentIntentId : undefined,
         checkoutToken,
+        shippingOptionId: shippingOption.id,
+        fulfillmentMode,
         currency: activeCurrency
       };
 
@@ -441,6 +435,8 @@ export default function ReviewClient() {
     shippingAddress.line2,
     shippingAddress.state,
     shippingAddress.zip,
+    fulfillmentMode,
+    shippingOption,
     locale,
     toast,
     t
@@ -469,10 +465,42 @@ export default function ReviewClient() {
     return `${brand}${ending} · ${statusLabel}`;
   }, [confirmedPayment, payment, t]);
 
+  const canPlaceOrder = useMemo(() => {
+    if (!shippingOption?.id) {
+      return false;
+    }
+    if (!payment) {
+      return false;
+    }
+    if (payment.method === "cod") {
+      return true;
+    }
+    return Boolean(payment.paymentIntentId) && isMercadoPagoPaymentConfirmed(payment.status);
+  }, [payment, shippingOption?.id]);
+
   const shippingAddressText = useMemo(
     () => formatAddress(lastOrder?.shippingAddress ?? shippingAddress),
     [lastOrder, shippingAddress]
   );
+  const deliverySummary = lastOrder?.delivery;
+  const selectedDeliveryLabel =
+    (deliverySummary?.mode ?? fulfillmentMode) === "home_delivery"
+      ? t("checkout.delivery.mode.homeDelivery")
+      : t("checkout.delivery.mode.notSet");
+  const selectedShippingOptionLabel =
+    deliverySummary?.shippingVendor ?? shippingOption?.name ?? t("checkout.delivery.option.notSet");
+  const selectedDeliveryEstimate =
+    deliverySummary?.estimatedLabel ??
+    (shippingOption?.estimatedMin !== null &&
+    shippingOption?.estimatedMin !== undefined &&
+    shippingOption?.estimatedMax !== null &&
+    shippingOption?.estimatedMax !== undefined
+      ? shippingOption.estimatedMin === shippingOption.estimatedMax
+        ? t("checkout.delivery.estimate.single", { values: { days: shippingOption.estimatedMin } })
+        : t("checkout.delivery.estimate.range", {
+            values: { min: shippingOption.estimatedMin, max: shippingOption.estimatedMax }
+          })
+      : t("checkout.delivery.estimate.pending"));
 
   const hasOrderConfirmation = Boolean(lastOrder);
   const confirmationSummary = lastOrder?.summary;
@@ -526,6 +554,14 @@ export default function ReviewClient() {
             <Typography color="text.muted" style={{ whiteSpace: "pre-line" }}>
               {shippingAddressText || t("checkout.review.confirmation.noShipping")}
             </Typography>
+            <Divider my="0.75rem" />
+            <Typography fontWeight="500" mb="0.25rem">
+              {t("checkout.delivery.title")}
+            </Typography>
+            <Typography color="text.muted">
+              {selectedDeliveryLabel} · {selectedShippingOptionLabel}
+            </Typography>
+            <Typography color="text.muted">{selectedDeliveryEstimate}</Typography>
           </Card1>
 
           <Card1 mb="2rem">
@@ -655,6 +691,14 @@ export default function ReviewClient() {
               <Typography color="text.muted" style={{ whiteSpace: "pre-line" }}>
                 {shippingAddressText || t("checkout.review.contact.noShipping")}
               </Typography>
+              <Divider my="1rem" />
+              <Typography fontWeight="500" mb="0.25rem">
+                {t("checkout.delivery.title")}
+              </Typography>
+              <Typography color="text.muted">
+                {selectedDeliveryLabel} · {selectedShippingOptionLabel}
+              </Typography>
+              <Typography color="text.muted">{selectedDeliveryEstimate}</Typography>
             </Card1>
 
             <Card1>
@@ -686,7 +730,7 @@ export default function ReviewClient() {
               color="primary"
               fullWidth
               mt="1.5rem"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !canPlaceOrder}
               onClick={handlePlaceOrder}>
               {isSubmitting
                 ? t("checkout.review.actions.placingOrder")

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, StreamableFile } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException, StreamableFile } from '@nestjs/common'
 import {
   PaymentStatus,
   PaymentType,
@@ -13,10 +13,10 @@ import {
   UpdatePaymentDto,
 } from './dto/payment.dto'
 import { roundDecimal, decimal } from '../common/currency/money.util'
-import { NotificationOrchestratorService } from '../notifications/notification-orchestrator.service'
 import { findPaymentMethodById, matchPaymentMethod } from '../common/constants/payment-methods'
 import { findOrderStatusById } from '../common/constants/order-statuses'
 import { OrderTimelineService } from '../orders/order-timeline.service'
+import { OrderPaymentSettlementService } from '../orders/order-payment-settlement.service'
 
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient
 
@@ -26,10 +26,8 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly orderFinance: OrderFinanceService,
     private readonly timeline: OrderTimelineService,
-    private readonly notifications: NotificationOrchestratorService,
+    private readonly paymentSettlement: OrderPaymentSettlementService,
   ) {}
-
-  private readonly logger = new Logger(PaymentsService.name)
 
   private resolvePaymentMethod(
     paymentMethodId?: number | null,
@@ -379,35 +377,17 @@ export class PaymentsService {
           })
         }
       }
-      const summary = await this.orderFinance.recalculateOrderFinancials(order.id, tx)
-      const totalConfirmed = decimal(summary.totalPaidConfirmed)
-      const confirmedBefore = payment.status === PaymentStatus.CONFIRMED
-        ? totalConfirmed.minus(decimal(payment.amount))
-        : totalConfirmed
-      const hasPriorConfirmedPayments = confirmedBefore.greaterThan(0)
-      const now = new Date()
-      const captureTimestamp = payment.date && !this.isSameCalendarDay(payment.date, now)
-        ? payment.date
-        : now
-      await this.timeline.recordPaymentCapture(
+      const dispatchPlan = await this.paymentSettlement.apply(
         {
-          orderId: order.id,
           paymentId: payment.id,
-          amount: payment.amount,
-          currency,
-          paymentMethod: payment.method ?? null,
-          remainingOutstanding: summary.outstanding,
-          hasPriorConfirmedPayments,
-          paymentStatus: payment.status,
-          paymentType: payment.type,
-          timestamp: captureTimestamp,
+          previousPaymentStatus: null,
         },
         tx,
       )
-      return { payment }
-    }).then(async ({ payment }) => {
+      return { payment, dispatchPlan }
+    }).then(async ({ payment, dispatchPlan }) => {
+      await this.paymentSettlement.dispatch(dispatchPlan)
       const details = await this.getPayment(payment.id)
-      this.notifyPayment(details.id, details.status as PaymentStatus | string | null | undefined)
       return details
     })
   }
@@ -477,23 +457,19 @@ export class PaymentsService {
           })
         }
       }
-      await this.orderFinance.recalculateOrderFinancials(payment.orderId, tx)
-      return id
-    }).then(async () => {
+      const dispatchPlan = await this.paymentSettlement.apply(
+        {
+          paymentId: payment.id,
+          previousPaymentStatus: payment.status,
+        },
+        tx,
+      )
+      return { id, dispatchPlan }
+    }).then(async ({ id, dispatchPlan }) => {
+      await this.paymentSettlement.dispatch(dispatchPlan)
       const details = await this.getPayment(id)
-      this.notifyPayment(details.id, details.status as PaymentStatus | string | null | undefined)
       return details
     })
-  }
-
-  private notifyPayment(paymentId: number, status: PaymentStatus | string | null | undefined) {
-    const normalizedStatus = typeof status === 'string' ? status : null
-    if (normalizedStatus !== PaymentStatus.CONFIRMED) {
-      return
-    }
-    this.notifications
-      .notifyPaymentReceived(paymentId)
-      .catch((error) => this.logger.error(`Failed to dispatch notifications for payment ${paymentId}: ${(error as Error).message}`))
   }
 
   async deletePayment(id: number) {

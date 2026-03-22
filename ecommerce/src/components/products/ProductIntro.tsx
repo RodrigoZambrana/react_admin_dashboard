@@ -14,7 +14,6 @@ import { Button } from "@component/buttons";
 import { H1, H2, H3, H6, Paragraph, SemiSpan } from "@component/Typography";
 import NoImagePlaceholder from "@component/NoImagePlaceholder";
 import ProductWishlistButton from "@component/product-cards/ProductWishlistButton";
-import ParametricConfigurator from "./ParametricConfigurator";
 
 import useCart from "@hook/useCart";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
@@ -37,38 +36,6 @@ type VariantSummary = NonNullable<Props["variants"]>[number];
 
 const buildLineId = (productId: string | number, variantId?: number) =>
   variantId !== undefined && variantId !== null ? `${String(productId)}:${variantId}` : String(productId);
-
-const sanitizeCode = (value: string) =>
-  value
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '');
-
-const buildParametricLineId = (
-  productId: string | number,
-  config: {
-    width: number;
-    height: number;
-    series: string;
-    color: string;
-    glass: string;
-    mosquitoNet: boolean;
-    monoblock?: { enabled: boolean; material?: string; color?: string };
-  }
-) => {
-  const widthKey = Math.round(config.width * 1000);
-  const heightKey = Math.round(config.height * 1000);
-  const seriesKey = sanitizeCode(config.series);
-  const colorKey = sanitizeCode(config.color);
-  const glassKey = sanitizeCode(config.glass);
-  const mosquitoKey = config.mosquitoNet ? 'MSQ1' : 'MSQ0';
-  const monoblockKey = config.monoblock?.enabled
-    ? `MB-${sanitizeCode(config.monoblock.material ?? 'UNK')}-${sanitizeCode(
-        config.monoblock.color ?? 'UNK'
-      )}`
-    : 'MB-0';
-  return `${productId}:PARAM:${widthKey}x${heightKey}:${seriesKey}:${colorKey}:${glassKey}:${mosquitoKey}:${monoblockKey}`;
-};
 
 const mergeImages = (primary: string[], secondary: string[]): string[] => {
   const merged: string[] = [];
@@ -329,7 +296,6 @@ export default function ProductIntro({
   }, [attributeTypes, normalizedVariants, selectedAttributes]);
 
   const isVariableProduct = mode === "variable" && normalizedAttributes.length > 0 && normalizedVariants.length > 0;
-  const isParametricProduct = mode === "parametric";
   const variantLabel = formatVariantLabel(selectedVariant);
   const variantIsPurchasable = isVariantPurchasable(selectedVariant);
   const inventoryStatus = toInventoryStatus(selectedVariant?.inventoryStatus ?? status);
@@ -370,12 +336,6 @@ export default function ProductIntro({
   }, [id]);
 
   const productBrand = brand ?? t("product.brand.default", { defaultMessage: "Store brand" });
-  const parametricProductId = useMemo(() => {
-    if (typeof id === "number") return id;
-    if (productNumericId) return productNumericId;
-    const parsed = Number(id);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }, [id, productNumericId]);
 
   const variantId = selectedVariant?.id;
   const lineId = buildLineId(id, variantId);
@@ -488,6 +448,7 @@ export default function ProductIntro({
       {
         id: lineId,
         productId: productIdForCart,
+        mode,
         variantId: selectedVariant?.id,
         variantKey: selectedVariant?.key,
         variantLabel: variantLabel,
@@ -514,6 +475,7 @@ export default function ProductIntro({
     resolvedThumbnail,
     selectedVariant,
     title,
+    mode,
     variantLabel
   ]);
 
@@ -524,30 +486,6 @@ export default function ProductIntro({
   const handleDecreaseQuantity = useCallback(() => {
     updateQuantity(lineId, Math.max(0, currentQuantity - 1));
   }, [currentQuantity, lineId, updateQuantity]);
-
-  if (isParametricProduct) {
-    const productIdForConfigurator = parametricProductId ?? productNumericId;
-
-    return (
-      <ParametricConfigurator
-        product={{
-          id: String(productIdForConfigurator ?? id),
-          slug: productSlug,
-          title,
-          shortDescription,
-          brand: productBrand,
-          rating: rating ?? 0,
-          ratingCount: ratingCount ?? 0,
-          currency: currency ?? baseCurrency,
-          status
-        }}
-        gallery={gallery}
-        hasGallery={hasGallery}
-        selectedImage={selectedImage}
-        onSelectImage={(index) => setSelectedImage(index)}
-      />
-    );
-  }
 
   const productRating = rating ?? 4;
   const productRatingCount = ratingCount ?? 0;

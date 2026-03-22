@@ -892,3 +892,285 @@ Entrar en una fase sostenible para nuevas features.
     - se consolidó una única fila base reutilizable para el nav de categorías desktop y los resultados del buscador,
     - esto evita mantener dos implementaciones visuales separadas para categorías/productos dentro del dropdown,
     - la diferenciación entre ambos tipos queda resuelta por jerarquía de contenido sobre el mismo componente compartido.
+- 2026-03-22
+  - Se declara cerrado el bloque actual del storefront:
+    - inventario final y criterio `activo / preservado / despublicado` documentado,
+    - política de fallback y procedencia de datos cerrada,
+    - backlog diferido separado para evitar seguir ampliando el alcance de este frente.
+  - A partir de este cierre, el siguiente frente principal del roadmap pasa a ser `Product Readiness / E2E Commerce`;
+  - cualquier ajuste menor del storefront deja de tratarse como bloque abierto y pasa a modalidad incidencia puntual/backlog.
+
+## Fase 8. Product Readiness / E2E Commerce
+
+### Objetivo
+
+Convertir la base ya estabilizada en un flujo comercial completo, verificable y apto para salida controlada.
+
+### Estado actual de partida
+
+- Catálogo público, navegación, carrito base y checkout existen en código y storefront activo.
+- Mercado Pago, mails y datos de entrega existen parcialmente a nivel técnico, pero no quedaron aún validados como flujo completo punta a punta.
+- No hay todavía una evidencia consolidada de:
+  - compra completa sin intervención manual,
+  - envío de mails transaccionales reales,
+  - conciliación básica entre checkout, pago, notificaciones y estado posterior.
+
+### Estado deseado
+
+- Flujo básico end-to-end operativo y probado:
+  - producto -> carrito -> checkout -> compra -> pago -> confirmación.
+- Mails transaccionales funcionales para:
+  - comprador,
+  - administración/propietario del sitio.
+- Mercado Pago validado con:
+  - creación de preferencia/orden,
+  - retorno/estado,
+  - notificaciones relevantes,
+  - consistencia mínima entre backend y storefront.
+- Datos de envío/entrega relevados e incorporados al flujo con el mínimo necesario para operación real.
+- Checklist funcional y testing exploratorio con incidencias críticas en cero.
+
+### Subfases recomendadas
+
+#### Subfase 8.1. Relevamiento técnico-operativo
+
+- Mapear estado actual y huecos de:
+  - catálogo y stock público,
+  - carrito,
+  - checkout,
+  - Mercado Pago,
+  - mails transaccionales,
+  - datos de envío/entrega,
+  - notificaciones.
+- Identificar:
+  - qué ya existe,
+  - qué está parcial,
+  - qué está desconectado,
+  - qué requiere definición funcional.
+
+Estado relevado:
+
+- documentado en `PRODUCT_READINESS_E2E_ASSESSMENT.md`;
+- `catálogo y stock público`: usable, con gap pendiente sobre reserva/descuento de stock;
+- `carrito`: usable, pero local-only y sin persistencia server-side;
+- `checkout`: mínimo funcional, pero todavía sin fulfillment real cerrado;
+- `Mercado Pago`: implementado, pero con inconsistencias críticas a resolver antes de considerarlo cierre E2E;
+- `mails` y `notificaciones`: infraestructura existente, aún no consolidada como flujo transaccional final del comprador;
+- `envío/entrega`: modelado en backend/admin, no resuelto todavía en storefront público.
+
+Conclusión de la subfase:
+
+- la siguiente prioridad no es abrir nuevas features;
+- es cerrar la semántica de pago y el post-pago real antes de pasar a QA intensiva.
+
+#### Subfase 8.2. Cierre del flujo comercial base
+
+- Dejar operativo el camino mínimo:
+  - agregar producto,
+  - persistir carrito,
+  - completar checkout,
+  - generar orden,
+  - disparar pago,
+  - confirmar resultado,
+  - dejar trazabilidad de post-compra.
+
+Prioridad interna sugerida:
+
+1. corregir tratamiento de estados `pending` / `in_process` / `approved` / `authorized`;
+2. alinear `paymentIntent`, `Payment`, estado de orden y timeline;
+3. asegurar que el pago confirmado dispare notificaciones y mails correctos;
+4. recién después consolidar cierre funcional del pedido.
+
+Delegación operativa:
+
+- documentada en `E2E_DELEGATION_PLAN.md`;
+- workstreams de exploración inicial:
+  - `payments-semantics`,
+  - `post-payment-orchestration`,
+  - `checkout-fulfillment`,
+  - `stock-order-integrity`,
+  - `e2e-test-design`;
+- criterio de implementación:
+  - `payments-semantics` + `post-payment-orchestration` se implementan en un mismo frente (`codex/e2e-payments-core`) para evitar divergencia y conflictos de merge;
+  - `checkout-fulfillment`, `stock-order-integrity` y `e2e-test-design` siguen después como frentes separados.
+
+Estado actual del frente `codex/e2e-payments-core`:
+
+- ya quedó implementado el primer slice seguro:
+  - checkout/storefront deja de considerar `pending` / `in_process` / `authorized` como pago finalizado;
+  - `createOrder` ya no fuerza `PAID` al adjuntar `paymentIntentId`;
+  - `MercadoPagoService` recalcula financieros de la orden tras espejar el pago;
+  - `authorized` deja de tratarse como liquidado.
+- siguiente slice interno del mismo frente:
+  - consolidar post-pago transaccional:
+    - timeline real,
+    - notificaciones,
+    - mails,
+    - y cierre consistente entre webhook, attach y accounting.
+- avance adicional ya aplicado:
+  - se agregó una capa compartida mínima de settlement en `orders` para evitar duplicación entre accounting y Mercado Pago storefront;
+  - attach/webhook/manual payment ahora convergen en:
+    - `recalculateOrderFinancials`,
+    - `ensurePaymentWaiting`,
+    - timeline de captura,
+    - transición de estado,
+    - dispatch post-commit de notificaciones;
+  - el frente ya no está solo en “alineación de estados”, sino también en “orquestación post-pago base”.
+- pendiente dentro del mismo frente:
+  - pruebas más integrales de transición completa `createOrder -> attach/webhook -> paid`,
+  - revisar drift residual de escenarios manuales/ediciones,
+  - luego pasar a `checkout-fulfillment`.
+- refuerzo adicional ya aplicado:
+  - `accounting/payments.service.ts` queda cubierto por tests del flujo de settlement compartido;
+  - el blocker explícito de build en `/account/address/create` queda corregido con `Suspense`.
+- refuerzo adicional posterior:
+  - `storefront.service.spec.ts` agrega una prueba de borde de `createOrder` con `paymentIntentId` adjunto y estado `authorized`, verificando que la orden no se cierre como `PAID`;
+  - se abre la primera capa de `checkout-fulfillment` con `shippingOptionId` público y snapshot de entrega en la orden.
+- lectura actual:
+  - el frente de pagos queda suficientemente estabilizado para seguir profundizando `checkout-fulfillment`,
+  - manteniendo los escenarios de integración E2E de pagos dentro del checklist final de commerce readiness.
+
+#### Subfase 8.3. Integraciones transaccionales
+
+- Validar mails al comprador y al sitio.
+- Validar Mercado Pago real o sandbox con evidencia suficiente.
+- Revisar notificaciones necesarias:
+  - internas,
+  - al cliente,
+  - asociadas a cambios de estado de la compra.
+
+#### Subfase 8.4. Envío y entrega
+
+- Relevar los datos mínimos requeridos para entrega:
+  - dirección,
+  - localidad/departamento,
+  - contacto,
+  - observaciones,
+  - modalidad de entrega o retiro,
+  - cualquier dato adicional que el negocio realmente necesite.
+- Ajustar modelo/checkout solo después del relevamiento, no por intuición.
+
+Observación vigente:
+
+- backend/admin ya soportan `shippingVendor`, `deliveryFees`, `estimatedMin`, `estimatedMax`;
+- storefront ya consume una primera capa operativa del modelo:
+  - expone opciones públicas de entrega,
+  - exige selección en checkout,
+  - suma `deliveryFees` al total público,
+  - y snapshota `shippingVendor` + `estimatedMin/estimatedMax` al crear la orden.
+- capa adicional ya aplicada:
+  - la modalidad pública queda explicitada como `home_delivery`,
+  - backend la valida junto con país (`UY`) y opción de entrega,
+  - review/confirmación ya muestran snapshot real de entrega.
+- pendiente dentro de la subfase:
+  - endurecer reglas futuras si se incorpora retiro u otras modalidades,
+  - y revisar restricciones futuras de moneda/fee si el storefront vuelve a operar multi-currency.
+
+#### Subfase 8.4.a. Stock Integrity MVP
+
+- Slice ya aplicado:
+  - `OrderStockIntegrityService` centraliza commit/release de stock básico;
+  - storefront descuenta stock no permanente dentro de la transacción de creación de orden;
+  - admin libera stock al cancelar una orden.
+- Alcance actual:
+  - producto simple / paramétrico con stock a nivel producto,
+  - variante con stock propio.
+- Política cerrada:
+  - no se soporta reapertura `cancelled -> activo` sobre la misma orden;
+  - `reabrir`, `repetir` y `regenerar` deben crear una nueva orden;
+  - la orden cancelada original permanece cancelada;
+  - la validación ya quedó codificada en `backend/src/orders/order-finance.service.ts`.
+- Pendiente:
+  - verificar manualmente en admin los flujos excepcionales para asegurar que la UI/operativa respete esta política.
+
+#### Subfase 8.5. QA funcional y testing exploratorio
+
+- Ejecutar una pasada integral sobre:
+  - catálogo y stock público,
+  - carrito,
+  - checkout,
+  - pago,
+  - mails,
+  - datos de envío,
+  - estados posteriores a compra.
+- Cerrar incidencias críticas antes de abrir nuevos frentes de experiencia/marketing.
+- Base ya documentada en `E2E_COMMERCE_QA_CHECKLIST.md`.
+- Evidencia mínima ya reunida:
+  - health backend/storefront,
+  - categorías públicas,
+  - producto simple por slug,
+  - config paramétrica,
+  - shipping options,
+  - creación real de orden storefront con snapshot de entrega.
+
+### Validación esperada al cierre
+
+- Compra punta a punta reproducible en entorno controlado.
+- Registro consistente de orden, pago y estado final.
+- Mails transaccionales emitidos correctamente.
+- Datos de entrega capturados con criterio operativo real.
+- Checklist funcional documentado con incidencias críticas en cero.
+
+## Fase 9. Mobile-First + Contenido Dinámico
+
+### Dependencia
+
+- No abrir antes de cerrar la Fase 8.
+
+### Objetivo
+
+Evolucionar el storefront hacia una experiencia mobile-first con contenido dinámico y componentes de alto valor visual/comercial.
+
+### Líneas ya acordadas
+
+- Home más fuerte en mobile.
+- Feed tipo stories con componentes round, fotos y videos por producto.
+- Carousels dinámicos cargados desde CMS interno.
+- Navegabilidad móvil inspirada en patrones tipo Instagram/Spotify.
+- Mantener criterio de contenido dinámico controlado, no volver a templates demo.
+
+### Criterio
+
+- Esta fase es valiosa, pero no debe competir con el cierre del flujo comercial.
+- Abrirla antes de la Fase 8 volvería a mezclar UX avanzada con huecos operativos críticos.
+
+## Fase 10. SEO Dinámico
+
+### Dependencia
+
+- No abrir antes de que:
+  - la Fase 8 esté cerrada,
+  - el modelo de producto/página y el contenido queden suficientemente estables,
+  - la Fase 9 defina el patrón de presentación que realmente va a persistir.
+
+### Objetivo
+
+Implementar SEO dinámico consistente con un ecommerce SaaS real.
+
+### Líneas ya acordadas
+
+- Metadata dinámica por producto/categoría/página.
+- Datos estructurados.
+- Estructuración de páginas.
+- Reacción correcta ante altas, bajas y cambios de productos.
+- Base compatible con multi-dominio y evolución futura por tenant.
+
+### Criterio
+
+- No conviene abrir SEO profundo sobre modelos o layouts todavía inestables.
+- El SEO dinámico depende de una superficie pública ya consolidada y de contratos de contenido más firmes.
+
+## Nota operativa vigente sobre pagos storefront
+
+- `StorefrontPaymentIntent` pasa a ser la fuente canónica de respaldo para el tramo `pago -> confirmación -> creación de orden`.
+- La UX local del checkout puede seguir usando `context/sessionStorage`, pero la consolidación post-pago no debe depender solo del navegador.
+- El `checkoutSnapshot` se conserva únicamente mientras sea útil para reconciliación:
+  - terminal negativo: 1 hora,
+  - intermedio: 24 horas,
+  - aprobado sin orden: 7 días,
+  - desconocido: 48 horas.
+- El intent no se borra por cleanup; se mantiene para auditoría y troubleshooting.
+- La reconciliación automática vigente queda así:
+  - `resolve` y webhook intentan reconciliar `approved/captured` sin `orderId` usando el snapshot ya preparado en backend;
+  - si falta contexto suficiente, el intent se marca para `manual_review_required`;
+  - si el provider no está disponible en el boot, la reconciliación histórica se difiere sin degradar esos intents a error funcional.

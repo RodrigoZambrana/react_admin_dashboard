@@ -54,6 +54,8 @@ import type {
   CustomerWishlistDto,
   StorefrontCategoryTree,
   StorefrontAuthSession,
+  StorefrontShippingOptionDto,
+  OrderDeliverySummary,
 } from './types'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
 import {
@@ -73,6 +75,11 @@ import { findPaymentMethodById, findPaymentMethodByCode } from '../common/consta
 import { ParametricPricingService } from '../pricing/parametric-pricing.service'
 import type { ParametricQuoteInput } from '../pricing/types'
 import { OrderTimelineService } from '../orders/order-timeline.service'
+import { OrderStockIntegrityService } from '../orders/order-stock-integrity.service'
+import {
+  StorefrontPublishedProductResolverService,
+  type PublishedParametricProductDefinition,
+} from './storefront-published-product-resolver.service'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
@@ -329,6 +336,8 @@ export class StorefrontService implements OnModuleInit {
     private readonly googleConfig: GoogleConfigService,
     private readonly parametricPricing: ParametricPricingService,
     private readonly timeline: OrderTimelineService,
+    private readonly stockIntegrity: OrderStockIntegrityService,
+    private readonly publishedProductResolver: StorefrontPublishedProductResolverService,
   ) {}
 
   private defaultCustomerPassword!: string
@@ -378,6 +387,14 @@ export class StorefrontService implements OnModuleInit {
     throw new BadRequestException(`Invalid numeric value for ${field}`)
   }
 
+  private async resolvePublishedParametricConfiguration(
+    productId: number,
+    fallbackCurrency?: string | null,
+  ): Promise<Record<string, unknown> | null> {
+    const definition = await this.publishedProductResolver.resolvePublishedParametricProduct(productId, fallbackCurrency)
+    return definition?.configuration ?? null
+  }
+
   private buildProductTypeCode(familyId?: string | null): string {
     if (!familyId || typeof familyId !== 'string') {
       return ''
@@ -399,6 +416,184 @@ export class StorefrontService implements OnModuleInit {
     }
     const upper = candidate.toUpperCase()
     return upper.length <= 4 ? upper : upper.substring(0, 4)
+  }
+
+  private isApprovedStorefrontPaymentStatus(status?: string | null): boolean {
+    const normalized = (status ?? '').trim().toLowerCase()
+    return normalized === 'approved' || normalized === 'captured'
+  }
+
+  private extractCheckoutSnapshotFromIntent(intent: Pick<StorefrontPaymentIntent, 'metadata'>): StorefrontCreateOrderDto | null {
+    if (!intent.metadata || typeof intent.metadata !== 'object' || Array.isArray(intent.metadata)) {
+      return null
+    }
+
+    const metadata = intent.metadata as Record<string, unknown>
+    const snapshot = metadata.checkoutSnapshot
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+      return null
+    }
+
+    return snapshot as StorefrontCreateOrderDto
+  }
+
+  private extractCheckoutTokenFromIntent(intent: Pick<StorefrontPaymentIntent, 'metadata'>): string | undefined {
+    if (!intent.metadata || typeof intent.metadata !== 'object' || Array.isArray(intent.metadata)) {
+      return undefined
+    }
+
+    const checkoutToken = (intent.metadata as Record<string, unknown>).checkoutToken
+    if (typeof checkoutToken !== 'string') {
+      return undefined
+    }
+
+    const normalized = checkoutToken.trim()
+    return normalized.length > 0 ? normalized : undefined
+  }
+
+  private async loadOrderSummaryById(orderId: number): Promise<OrderSummaryWithReference | null> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: true,
+        payments: true,
+        storefrontPayments: true,
+      },
+    })
+
+    return order ? this.toOrderSummary(order) : null
+  }
+
+  private async updatePaymentIntentReconciliationMetadata(
+    intentId: string,
+    metadataSource: Prisma.JsonValue | null,
+    updates: Record<string, unknown>,
+  ) {
+    const metadata =
+      metadataSource && typeof metadataSource === 'object' && !Array.isArray(metadataSource)
+        ? ({ ...(metadataSource as Record<string, unknown>) } satisfies Record<string, unknown>)
+        : {}
+
+    Object.assign(metadata, updates)
+
+    await this.prisma.storefrontPaymentIntent.update({
+      where: { id: intentId },
+      data: {
+        metadata: metadata as Prisma.InputJsonValue,
+      },
+    })
+  }
+
+  async reconcileApprovedPaymentIntent(intentId: string): Promise<OrderSummaryWithReference | null> {
+    const intent = await this.prisma.storefrontPaymentIntent.findUnique({
+      where: { id: intentId },
+    })
+
+    if (!intent) {
+      return null
+    }
+
+    if (intent.orderId) {
+      return this.loadOrderSummaryById(intent.orderId)
+    }
+
+    if (!this.isApprovedStorefrontPaymentStatus(intent.status)) {
+      return null
+    }
+
+    const checkoutSnapshot = this.extractCheckoutSnapshotFromIntent(intent)
+    if (!checkoutSnapshot) {
+      await this.updatePaymentIntentReconciliationMetadata(intent.id, intent.metadata, {
+        reconciliationStatus: 'manual_review_required',
+        reconciliationReason: 'approved_without_checkout_snapshot',
+        reconciliationUpdatedAt: new Date().toISOString(),
+      })
+      return null
+    }
+
+    const checkoutToken = checkoutSnapshot.checkoutToken ?? this.extractCheckoutTokenFromIntent(intent)
+
+    if (!this.mercadoPago.isEnabled()) {
+      await this.updatePaymentIntentReconciliationMetadata(intent.id, intent.metadata, {
+        reconciliationStatus: 'deferred_provider_unavailable',
+        reconciliationReason: 'payments_provider_disabled',
+        reconciliationUpdatedAt: new Date().toISOString(),
+      })
+      return null
+    }
+
+    try {
+      const order = await this.createOrder({
+        ...checkoutSnapshot,
+        paymentIntentId: intent.id,
+        ...(checkoutToken ? { checkoutToken } : {}),
+      })
+
+      await this.updatePaymentIntentReconciliationMetadata(intent.id, intent.metadata, {
+        reconciliationStatus: 'resolved',
+        reconciliationReason: null,
+        reconciliationUpdatedAt: new Date().toISOString(),
+        reconciliationOrderId: order.id,
+      })
+
+      return order
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.logger.warn(`Failed to reconcile approved payment intent ${intent.id}: ${message}`)
+
+      await this.updatePaymentIntentReconciliationMetadata(intent.id, intent.metadata, {
+        reconciliationStatus: 'auto_reconcile_failed',
+        reconciliationReason: 'order_creation_failed',
+        reconciliationLastError: message,
+        reconciliationUpdatedAt: new Date().toISOString(),
+      })
+
+      return null
+    }
+  }
+
+  async reconcileHistoricalApprovedPaymentIntents(limit = 25): Promise<{
+    processed: number
+    reconciled: number
+    manualReview: number
+  }> {
+    if (!this.mercadoPago.isEnabled()) {
+      return {
+        processed: 0,
+        reconciled: 0,
+        manualReview: 0,
+      }
+    }
+
+    const intents = await this.prisma.storefrontPaymentIntent.findMany({
+      where: {
+        orderId: null,
+        status: { in: ['approved', 'captured'] },
+      },
+      orderBy: [{ statusUpdatedAt: 'desc' }, { updatedAt: 'desc' }, { createdAt: 'desc' }],
+      take: Math.max(1, Math.min(limit, 100)),
+    })
+
+    let reconciled = 0
+    let manualReview = 0
+
+    for (const intent of intents) {
+      const result = await this.reconcileApprovedPaymentIntent(intent.id)
+      if (result) {
+        reconciled += 1
+        continue
+      }
+
+      if (!this.extractCheckoutSnapshotFromIntent(intent)) {
+        manualReview += 1
+      }
+    }
+
+    return {
+      processed: intents.length,
+      reconciled,
+      manualReview,
+    }
   }
 
   private mapCompanyProfile(record?: CompanyProfile | null): StorefrontConfig['companyProfile'] {
@@ -442,6 +637,18 @@ export class StorefrontService implements OnModuleInit {
       } else {
         throw error
       }
+    }
+
+    try {
+      const result = await this.reconcileHistoricalApprovedPaymentIntents()
+      if (result.reconciled > 0 || result.manualReview > 0) {
+        this.logger.log(
+          `Storefront payment reconciliation bootstrap processed ${result.processed} intent(s): ${result.reconciled} reconciled, ${result.manualReview} marked for manual review.`,
+        )
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.logger.warn(`Storefront payment reconciliation bootstrap failed: ${message}`)
     }
   }
 
@@ -528,6 +735,21 @@ export class StorefrontService implements OnModuleInit {
       integrations,
       resilience,
     }
+  }
+
+  async listShippingOptions(): Promise<StorefrontShippingOptionDto[]> {
+    const rows = await this.prisma.shippingOption.findMany({
+      orderBy: { id: 'asc' },
+    })
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      deliveryFees: Number(row.deliveryFees ?? 0),
+      estimatedMin: row.estimatedMin ?? null,
+      estimatedMax: row.estimatedMax ?? null,
+      img: row.img ?? null,
+    }))
   }
 
   async getCurrencySettings() {
@@ -925,7 +1147,11 @@ export class StorefrontService implements OnModuleInit {
       throw new NotFoundException('Product not found')
     }
 
-    const detail = this.toProductDetail(product)
+    const publishedParametricDefinition =
+      product.mode === ProductMode.PARAMETRIC
+        ? await this.publishedProductResolver.resolvePublishedParametricProduct(product.id, product.currency)
+        : null
+    const detail = this.toProductDetail(product, publishedParametricDefinition)
 
     const related = await this.prisma.product.findMany({
       where: {
@@ -1025,6 +1251,215 @@ export class StorefrontService implements OnModuleInit {
       shutterMaterial: this.normalizeConfigString((payload as any).shutterMaterial ?? ''),
     }
     return this.parametricPricing.quote(quoteInput)
+  }
+
+  async prepareCheckoutSnapshot(dto: StorefrontCreateOrderDto): Promise<StorefrontCreateOrderDto> {
+    const fulfillmentMode = dto.fulfillmentMode ?? 'home_delivery'
+
+    if (fulfillmentMode !== 'home_delivery') {
+      throw new BadRequestException('La modalidad de entrega seleccionada no está disponible.')
+    }
+
+    const normalizedCountry = (dto.shippingAddress.country ?? '').trim().toUpperCase()
+    if (!['UY', 'URUGUAY'].includes(normalizedCountry)) {
+      throw new BadRequestException('Actualmente solo se admiten entregas en Uruguay.')
+    }
+
+    if (dto.shippingOptionId === undefined || dto.shippingOptionId === null) {
+      throw new BadRequestException('Debes seleccionar una opción de entrega para continuar.')
+    }
+
+    const shippingOptionId = Number(dto.shippingOptionId)
+    if (!Number.isFinite(shippingOptionId) || shippingOptionId <= 0) {
+      throw new BadRequestException('La opción de envío seleccionada no existe.')
+    }
+
+    const shippingOption = await this.prisma.shippingOption.findUnique({
+      where: { id: shippingOptionId },
+      select: { id: true },
+    })
+
+    if (!shippingOption) {
+      throw new BadRequestException('La opción de envío seleccionada no existe.')
+    }
+
+    const productIds = dto.items.map((item) => item.productId)
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds }, published: true },
+      select: {
+        id: true,
+        name: true,
+        mode: true,
+        currency: true,
+        productCode: true,
+      },
+    })
+
+    if (products.length !== dto.items.length) {
+      throw new BadRequestException('One or more products are unavailable')
+    }
+
+    const productById = new Map(products.map((product) => [product.id, product]))
+
+    const variantIds = dto.items
+      .map((item) => (item.variantId ? Number(item.variantId) : null))
+      .filter((id): id is number => Number.isFinite(id) && id! > 0)
+
+    const variants = variantIds.length
+      ? await this.prisma.productVariant.findMany({
+          where: { id: { in: variantIds } },
+          select: {
+            id: true,
+            productId: true,
+            isActive: true,
+          },
+        })
+      : []
+
+    const variantById = new Map(variants.map((variant) => [variant.id, variant]))
+
+    const normalizedItems = await Promise.all(
+      dto.items.map(async (item) => {
+        const product = productById.get(item.productId)
+        if (!product) {
+          throw new BadRequestException('One or more products are unavailable')
+        }
+
+        const quantity = Math.max(1, Number(item.quantity ?? 1))
+        const variantId =
+          item.variantId !== undefined && item.variantId !== null ? Number(item.variantId) : null
+        const variant = variantId ? variantById.get(variantId) ?? null : null
+
+        if (variantId && !variant) {
+          throw new BadRequestException('Selected product variant is invalid or unavailable.')
+        }
+
+        if (product.mode === ProductMode.VARIABLE && !variant) {
+          throw new BadRequestException('A product variant must be selected for this item.')
+        }
+
+        if (variant) {
+          if (variant.productId !== product.id) {
+            throw new BadRequestException('Invalid product variant selected for this product.')
+          }
+
+          if (!variant.isActive) {
+            throw new BadRequestException('Selected variant is not currently available.')
+          }
+        }
+
+        if (product.mode === ProductMode.PARAMETRIC) {
+          const publishedConfiguration = await this.resolvePublishedParametricConfiguration(product.id, product.currency)
+          if (publishedConfiguration) {
+            return {
+              productId: product.id,
+              quantity,
+              configuration: publishedConfiguration,
+            }
+          }
+
+          if (!item.configuration || typeof item.configuration !== 'object') {
+            throw new BadRequestException('Parametric configuration is required for this product.')
+          }
+
+          const rawConfig = item.configuration as Record<string, unknown>
+          const resolvedProductId = await this.resolveStorefrontParametricProductId(product.id)
+          const quote = await this.parametricPricing.quote({
+            productId: resolvedProductId,
+            familyId: this.normalizeConfigString(
+              rawConfig.familyId ?? rawConfig.family_id ?? product.productCode ?? product.name,
+            ),
+            serie: this.normalizeConfigString(rawConfig.series ?? rawConfig.serie),
+            material: this.normalizeConfigString(rawConfig.material ?? 'ALUMINIO'),
+            color: this.normalizeConfigString(rawConfig.color ?? 'NATURAL'),
+            vidrio: this.normalizeConfigString(rawConfig.vidrio ?? rawConfig.glass ?? '4 MM'),
+            widthMm: this.normalizeConfigNumber(rawConfig.widthMm ?? rawConfig.width_mm ?? rawConfig.width, 'width'),
+            heightMm: this.normalizeConfigNumber(
+              rawConfig.heightMm ?? rawConfig.height_mm ?? rawConfig.height,
+              'height',
+            ),
+            hasMosquitero: this.normalizeConfigBoolean(
+              rawConfig.hasMosquitero ?? rawConfig.mosquitoNet ?? rawConfig.mosquitero,
+            ),
+            hasShutterMonoblock: this.normalizeConfigBoolean(
+              rawConfig.hasShutterMonoblock ??
+                rawConfig.monoblock ??
+                rawConfig.has_monoblock ??
+                rawConfig.monoblockEnabled,
+            ),
+            shutterMaterial: this.normalizeConfigString(
+              rawConfig.shutterMaterial ??
+                rawConfig.shutter_material ??
+                rawConfig.shutterSystem ??
+                rawConfig.shutter_system ??
+                rawConfig.monoblockSystem ??
+                rawConfig.monoblockMaterial ??
+                '',
+            ),
+          })
+
+          if (!quote.available || quote.price === undefined) {
+            throw new BadRequestException('Selected configuration is not available.')
+          }
+
+          return {
+            productId: product.id,
+            quantity,
+            configuration: {
+              familyId: quote.requested.familyId ?? null,
+              serie: quote.requested.serie,
+              material: quote.requested.material,
+              color: quote.requested.color,
+              vidrio: quote.requested.vidrio,
+              widthMm: quote.requested.widthMm,
+              heightMm: quote.requested.heightMm,
+              hasMosquitero: quote.requested.hasMosquitero,
+              hasShutterMonoblock: quote.requested.hasShutterMonoblock,
+              shutterMaterial: quote.requested.shutterMaterial ?? '',
+              currency: quote.currency ?? product.currency ?? null,
+              referenceDate: quote.referenceDate ?? null,
+              source: quote.source ?? null,
+              matrixRowId: quote.matrixRowId ?? null,
+              specifications: quote.specifications ?? null,
+            },
+          }
+        }
+
+        return {
+          productId: product.id,
+          quantity,
+          ...(variant ? { variantId: variant.id } : {}),
+        }
+      }),
+    )
+
+    const normalizeAddress = (address: StorefrontCreateOrderDto['shippingAddress']) => ({
+      line1: this.normalizeConfigString(address.line1),
+      line2: this.normalizeConfigString(address.line2 ?? '') || undefined,
+      city: this.normalizeConfigString(address.city),
+      state: this.normalizeConfigString(address.state ?? '') || undefined,
+      zip: this.normalizeConfigString(address.zip),
+      country: normalizedCountry,
+    })
+
+    return {
+      customer: {
+        email: normalizeEmail(dto.customer.email),
+        firstName: this.normalizeConfigString(dto.customer.firstName),
+        lastName: this.normalizeConfigString(dto.customer.lastName),
+        phone: sanitizePhoneInput(dto.customer.phone) ?? undefined,
+        locale: dto.customer.locale ? normalizeLocalePreference(dto.customer.locale) : undefined,
+      },
+      shippingAddress: normalizeAddress(dto.shippingAddress),
+      ...(dto.billingAddress ? { billingAddress: normalizeAddress(dto.billingAddress) } : {}),
+      items: normalizedItems,
+      notes: this.normalizeConfigString(dto.notes ?? '') || undefined,
+      paymentIntentId: this.normalizeConfigString(dto.paymentIntentId ?? '') || undefined,
+      checkoutToken: this.normalizeConfigString(dto.checkoutToken ?? '') || undefined,
+      shippingOptionId,
+      fulfillmentMode,
+      currency: this.currencyConversion.normalizeCurrency(dto.currency) ?? undefined,
+    }
   }
 
   private async ensureDefaultPasswordHash() {
@@ -1309,6 +1744,16 @@ export class StorefrontService implements OnModuleInit {
 
     let order: OrderWithRelations | null = null
     let isNewOrder = false
+    const fulfillmentMode = dto.fulfillmentMode ?? 'home_delivery'
+
+    if (fulfillmentMode !== 'home_delivery') {
+      throw new BadRequestException('La modalidad de entrega seleccionada no está disponible.')
+    }
+
+    const normalizedCountry = (dto.shippingAddress.country ?? '').trim().toUpperCase()
+    if (!['UY', 'URUGUAY'].includes(normalizedCountry)) {
+      throw new BadRequestException('Actualmente solo se admiten entregas en Uruguay.')
+    }
 
     if (checkoutUuid) {
       order = await this.prisma.order.findUnique({
@@ -1457,78 +1902,98 @@ export class StorefrontService implements OnModuleInit {
         let parametricConfig: Record<string, unknown> | undefined
 
         if (product.mode === ProductMode.PARAMETRIC) {
-          if (!item.configuration || typeof item.configuration !== 'object') {
-            throw new BadRequestException('Parametric configuration is required for this product.')
-          }
-          const rawConfig = item.configuration as Record<string, unknown>
-          const quoteInput: ParametricQuoteInput = {
-            productId: product.id,
-            familyId: this.normalizeConfigString(rawConfig.familyId ?? rawConfig.family_id ?? product.productCode ?? product.name),
-            serie: this.normalizeConfigString(rawConfig.series ?? rawConfig.serie),
-            material: this.normalizeConfigString(rawConfig.material ?? 'ALUMINIO'),
-            color: this.normalizeConfigString(rawConfig.color ?? 'NATURAL'),
-            vidrio: this.normalizeConfigString(rawConfig.vidrio ?? rawConfig.glass ?? '4 MM'),
-            widthMm: this.normalizeConfigNumber(rawConfig.widthMm ?? rawConfig.width_mm ?? rawConfig.width, 'width'),
-            heightMm: this.normalizeConfigNumber(rawConfig.heightMm ?? rawConfig.height_mm ?? rawConfig.height, 'height'),
-            hasMosquitero: this.normalizeConfigBoolean(rawConfig.hasMosquitero ?? rawConfig.mosquitoNet ?? rawConfig.mosquitero),
-            hasShutterMonoblock: this.normalizeConfigBoolean(
-              rawConfig.hasShutterMonoblock ?? rawConfig.monoblock ?? rawConfig.has_monoblock ?? rawConfig.monoblockEnabled,
-            ),
-            shutterMaterial: this.normalizeConfigString(
-              rawConfig.shutterMaterial ??
-                rawConfig.shutter_material ??
-                rawConfig.shutterSystem ??
-                rawConfig.shutter_system ??
-                rawConfig.monoblockSystem ??
-                rawConfig.monoblockMaterial ??
-                '',
-            ),
-          }
-          const quote = await this.parametricPricing.quote(quoteInput)
-          parametricSnapshot = quote
-          if (!quote.available || quote.price === undefined) {
-            throw new BadRequestException('Selected configuration is not available.')
-          }
-          salePriceAmount = quote.price
-          unitPrice = decimal(quote.price)
-          unitCost = decimal(baseCostPrice)
-          priceCurrency = this.currencyConversion.normalizeCurrency(quote.currency ?? product.currency) ?? priceCurrency
-          const widthMm = quote.requested.widthMm
-          const heightMm = quote.requested.heightMm
-          specEntries = [
-            { label: 'Serie', value: quote.requested.serie || 'N/A' },
-            { label: 'Material', value: quote.requested.material || 'N/A' },
-            { label: 'Color', value: quote.requested.color || 'NATURAL' },
-            { label: 'Vidrio', value: quote.requested.vidrio || '4 MM' },
-            { label: 'Ancho', value: `${widthMm} mm` },
-            { label: 'Alto', value: `${heightMm} mm` },
-            {
-              label: 'Mosquitero',
-              value: quote.requested.hasMosquitero ? 'Sí' : 'No',
-            },
-          ]
-          if (quote.requested.hasShutterMonoblock) {
-          specEntries.push({
-            label: 'Material Monoblock',
-            value: quote.requested.shutterMaterial || 'N/A',
-          })
-        }
-        specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
-        displayName = `${product.name} (${widthMm}x${heightMm} mm)`
-        const skuBase = (product.productCode ?? slugify(product.name)).toUpperCase().replace(/[^A-Z0-9]/g, '')
-        const typeCode = this.buildProductTypeCode(quote.requested.familyId)
-        const widthKey = Math.round(widthMm)
-        const heightKey = Math.round(heightMm)
-        const skuParts = [typeCode, skuBase, `${widthKey}x${heightKey}`].filter(
-          (part) => typeof part === 'string' && part.length > 0,
-        )
-        skuSnapshot = skuParts.join('-')
-        parametricConfig = {
-          ...quote.requested,
-          price: quote.price,
-          currency: quote.currency ?? product.currency ?? priceCurrency,
-          detailSnapshot: quote.detailSnapshot ?? null,
-            referenceDate: quote.referenceDate ?? null,
+          const publishedParametricDefinition = await this.publishedProductResolver.resolvePublishedParametricProduct(
+            product.id,
+            product.currency,
+          )
+          if (publishedParametricDefinition) {
+            specEntries = publishedParametricDefinition.specifications
+            specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
+            displayName = product.name
+            skuSnapshot = product.productCode ?? undefined
+            parametricConfig = publishedParametricDefinition.configuration
+          } else {
+            if (!item.configuration || typeof item.configuration !== 'object') {
+              throw new BadRequestException('Parametric configuration is required for this product.')
+            }
+
+            const rawConfig = item.configuration as Record<string, unknown>
+            const quoteInput: ParametricQuoteInput = {
+              productId: product.id,
+              familyId: this.normalizeConfigString(
+                rawConfig.familyId ?? rawConfig.family_id ?? product.productCode ?? product.name,
+              ),
+              serie: this.normalizeConfigString(rawConfig.series ?? rawConfig.serie),
+              material: this.normalizeConfigString(rawConfig.material ?? 'ALUMINIO'),
+              color: this.normalizeConfigString(rawConfig.color ?? 'NATURAL'),
+              vidrio: this.normalizeConfigString(rawConfig.vidrio ?? rawConfig.glass ?? '4 MM'),
+              widthMm: this.normalizeConfigNumber(rawConfig.widthMm ?? rawConfig.width_mm ?? rawConfig.width, 'width'),
+              heightMm: this.normalizeConfigNumber(rawConfig.heightMm ?? rawConfig.height_mm ?? rawConfig.height, 'height'),
+              hasMosquitero: this.normalizeConfigBoolean(
+                rawConfig.hasMosquitero ?? rawConfig.mosquitoNet ?? rawConfig.mosquitero,
+              ),
+              hasShutterMonoblock: this.normalizeConfigBoolean(
+                rawConfig.hasShutterMonoblock ??
+                  rawConfig.monoblock ??
+                  rawConfig.has_monoblock ??
+                  rawConfig.monoblockEnabled,
+              ),
+              shutterMaterial: this.normalizeConfigString(
+                rawConfig.shutterMaterial ??
+                  rawConfig.shutter_material ??
+                  rawConfig.shutterSystem ??
+                  rawConfig.shutter_system ??
+                  rawConfig.monoblockSystem ??
+                  rawConfig.monoblockMaterial ??
+                  '',
+              ),
+            }
+            const quote = await this.parametricPricing.quote(quoteInput)
+            parametricSnapshot = quote
+            if (!quote.available || quote.price === undefined) {
+              throw new BadRequestException('Selected configuration is not available.')
+            }
+            salePriceAmount = quote.price
+            unitPrice = decimal(quote.price)
+            unitCost = decimal(baseCostPrice)
+            priceCurrency = this.currencyConversion.normalizeCurrency(quote.currency ?? product.currency) ?? priceCurrency
+            const widthMm = quote.requested.widthMm
+            const heightMm = quote.requested.heightMm
+            specEntries = [
+              { label: 'Serie', value: quote.requested.serie || 'N/A' },
+              { label: 'Material', value: quote.requested.material || 'N/A' },
+              { label: 'Color', value: quote.requested.color || 'NATURAL' },
+              { label: 'Vidrio', value: quote.requested.vidrio || '4 MM' },
+              { label: 'Ancho', value: `${widthMm} mm` },
+              { label: 'Alto', value: `${heightMm} mm` },
+              {
+                label: 'Mosquitero',
+                value: quote.requested.hasMosquitero ? 'Sí' : 'No',
+              },
+            ]
+            if (quote.requested.hasShutterMonoblock) {
+              specEntries.push({
+                label: 'Material Monoblock',
+                value: quote.requested.shutterMaterial || 'N/A',
+              })
+            }
+            specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
+            displayName = `${product.name} (${widthMm}x${heightMm} mm)`
+            const skuBase = (product.productCode ?? slugify(product.name)).toUpperCase().replace(/[^A-Z0-9]/g, '')
+            const typeCode = this.buildProductTypeCode(quote.requested.familyId)
+            const widthKey = Math.round(widthMm)
+            const heightKey = Math.round(heightMm)
+            const skuParts = [typeCode, skuBase, `${widthKey}x${heightKey}`].filter(
+              (part) => typeof part === 'string' && part.length > 0,
+            )
+            skuSnapshot = skuParts.join('-')
+            parametricConfig = {
+              ...quote.requested,
+              price: quote.price,
+              currency: quote.currency ?? product.currency ?? priceCurrency,
+              detailSnapshot: quote.detailSnapshot ?? null,
+              referenceDate: quote.referenceDate ?? null,
+            }
           }
         } else {
           salePriceAmount =
@@ -1663,6 +2128,22 @@ export class StorefrontService implements OnModuleInit {
     const selectedPaymentMethod = dto.paymentIntentId
       ? findPaymentMethodByCode('mercado_pago')
       : findPaymentMethodByCode('cash')
+    const shippingOption =
+      dto.shippingOptionId !== undefined && dto.shippingOptionId !== null
+        ? await this.prisma.shippingOption.findUnique({
+            where: { id: Number(dto.shippingOptionId) },
+          })
+        : null
+
+    if (dto.shippingOptionId !== undefined && dto.shippingOptionId !== null && !shippingOption) {
+      throw new BadRequestException('La opción de envío seleccionada no existe.')
+    }
+
+    if (!shippingOption) {
+      throw new BadRequestException('Debes seleccionar una opción de entrega para continuar.')
+    }
+
+    const deliveryFeesDecimal = decimal(Number(shippingOption?.deliveryFees ?? 0)).toDecimalPlaces(2)
     const grossSubtotalDecimal = lineItems.reduce(
       (sum, item) => sum.plus(item.orderCurrencyUnitPrice.times(item.quantity)),
       decimal(0),
@@ -1682,79 +2163,87 @@ export class StorefrontService implements OnModuleInit {
       taxDecimal = taxRounded
     }
 
-    const grandTotalDecimal = grossSubtotalDecimal
+    const grandTotalDecimal = grossSubtotalDecimal.plus(deliveryFeesDecimal).toDecimalPlaces(2)
 
     if (!order) {
       try {
-        order = await this.prisma.order.create({
-          data: {
-            ...(checkoutUuid ? { uuid: checkoutUuid } : {}),
-            documentType: DocumentType.ORDER,
-            customer: { connect: { id: customer.id } },
-            date: new Date(),
-            shippingAddress1: dto.shippingAddress.line1,
-            shippingAddress2: dto.shippingAddress.line2,
-            shippingCity: dto.shippingAddress.city,
-            shippingState: dto.shippingAddress.state,
-            shippingZip: dto.shippingAddress.zip,
-            billingAddress1: dto.billingAddress?.line1 ?? dto.shippingAddress.line1,
-            billingAddress2: dto.billingAddress?.line2 ?? dto.shippingAddress.line2,
-            billingCity: dto.billingAddress?.city ?? dto.shippingAddress.city,
-            billingState: dto.billingAddress?.state ?? dto.shippingAddress.state,
-            billingZip: dto.billingAddress?.zip ?? dto.shippingAddress.zip,
-            subTotal: netSubtotalDecimal.toDecimalPlaces(2),
-            tax: taxDecimal.toDecimalPlaces(2),
-            grandTotal: grandTotalDecimal.toDecimalPlaces(2),
-            orderCurrency,
-            fxBase: fxSnapshot.base,
-            fxRates: fxRatesPayload,
-            currencySnapshot: orderCurrency,
-            exchangeRateSnapshot: fxRatesPayload,
-            comment: dto.notes,
-            paymentMethodId: selectedPaymentMethod?.id ?? null,
-            statusId: ORDER_STATUS_CODES.PENDING,
-            items: {
-              create: lineItems.map((item) => ({
-                product: { connect: { id: item.product.id } },
-                ...(item.variant ? { variant: { connect: { id: item.variant.id } } } : {}),
-                name: item.nameSnapshot,
-                qty: item.quantity,
-                price: item.orderCurrencyUnitPrice.toDecimalPlaces(2),
-                unitCurrency: orderCurrency,
-                unitAmount: item.orderCurrencyUnitPrice.toDecimalPlaces(4),
-                unitAmountOrderCurrency: item.orderCurrencyUnitPrice.toDecimalPlaces(4),
-                conversionRate: item.priceConversionRate.toDecimalPlaces(8),
-                unitPriceSnapshot: item.orderCurrencyUnitPrice.toDecimalPlaces(4),
-                unitCostAmount: item.unitCost.toDecimalPlaces(4),
-                unitCostCurrency: item.costCurrency,
-                unitCostOrderCurrency: item.orderCurrencyUnitCost.toDecimalPlaces(4),
-                skuSnapshot: item.skuSnapshot,
-                nameSnapshot: item.nameSnapshot,
-                img: item.image ?? undefined,
-                specSummary: item.specSummary || null,
-                specJson: item.specEntries.length ? item.specEntries : undefined,
-                parametricConfig: item.parametricConfig
-                  ? (item.parametricConfig as Prisma.InputJsonValue)
-                  : undefined,
-                parametricBreakdown: item.parametricSnapshot
-                  ? {
-                      price: item.parametricSnapshot.price,
-                      currency: item.parametricSnapshot.currency,
-                      detailSnapshot: item.parametricSnapshot.detailSnapshot,
-                      requested: item.parametricSnapshot.requested,
-                    }
-                  : undefined,
-                parametricReferenceDate: undefined,
-                parametricSource: undefined,
-                parametricVersion: undefined,
-              })),
+        order = await this.prisma.$transaction(async (tx) => {
+          await this.stockIntegrity.commitStorefrontItems(lineItems, tx)
+
+          return tx.order.create({
+            data: {
+              ...(checkoutUuid ? { uuid: checkoutUuid } : {}),
+              documentType: DocumentType.ORDER,
+              customer: { connect: { id: customer.id } },
+              date: new Date(),
+              shippingAddress1: dto.shippingAddress.line1,
+              shippingAddress2: dto.shippingAddress.line2,
+              shippingCity: dto.shippingAddress.city,
+              shippingState: dto.shippingAddress.state,
+              shippingZip: dto.shippingAddress.zip,
+              billingAddress1: dto.billingAddress?.line1 ?? dto.shippingAddress.line1,
+              billingAddress2: dto.billingAddress?.line2 ?? dto.shippingAddress.line2,
+              billingCity: dto.billingAddress?.city ?? dto.shippingAddress.city,
+              billingState: dto.billingAddress?.state ?? dto.shippingAddress.state,
+              billingZip: dto.billingAddress?.zip ?? dto.shippingAddress.zip,
+              shippingVendor: shippingOption?.name ?? null,
+              deliveryFees: deliveryFeesDecimal,
+              estimatedMin: shippingOption?.estimatedMin ?? null,
+              estimatedMax: shippingOption?.estimatedMax ?? null,
+              subTotal: netSubtotalDecimal.toDecimalPlaces(2),
+              tax: taxDecimal.toDecimalPlaces(2),
+              grandTotal: grandTotalDecimal.toDecimalPlaces(2),
+              orderCurrency,
+              fxBase: fxSnapshot.base,
+              fxRates: fxRatesPayload,
+              currencySnapshot: orderCurrency,
+              exchangeRateSnapshot: fxRatesPayload,
+              comment: dto.notes,
+              paymentMethodId: selectedPaymentMethod?.id ?? null,
+              statusId: ORDER_STATUS_CODES.PENDING,
+              items: {
+                create: lineItems.map((item) => ({
+                  product: { connect: { id: item.product.id } },
+                  ...(item.variant ? { variant: { connect: { id: item.variant.id } } } : {}),
+                  name: item.nameSnapshot,
+                  qty: item.quantity,
+                  price: item.orderCurrencyUnitPrice.toDecimalPlaces(2),
+                  unitCurrency: orderCurrency,
+                  unitAmount: item.orderCurrencyUnitPrice.toDecimalPlaces(4),
+                  unitAmountOrderCurrency: item.orderCurrencyUnitPrice.toDecimalPlaces(4),
+                  conversionRate: item.priceConversionRate.toDecimalPlaces(8),
+                  unitPriceSnapshot: item.orderCurrencyUnitPrice.toDecimalPlaces(4),
+                  unitCostAmount: item.unitCost.toDecimalPlaces(4),
+                  unitCostCurrency: item.costCurrency,
+                  unitCostOrderCurrency: item.orderCurrencyUnitCost.toDecimalPlaces(4),
+                  skuSnapshot: item.skuSnapshot,
+                  nameSnapshot: item.nameSnapshot,
+                  img: item.image ?? undefined,
+                  specSummary: item.specSummary || null,
+                  specJson: item.specEntries.length ? item.specEntries : undefined,
+                  parametricConfig: item.parametricConfig
+                    ? (item.parametricConfig as Prisma.InputJsonValue)
+                    : undefined,
+                  parametricBreakdown: item.parametricSnapshot
+                    ? {
+                        price: item.parametricSnapshot.price,
+                        currency: item.parametricSnapshot.currency,
+                        detailSnapshot: item.parametricSnapshot.detailSnapshot,
+                        requested: item.parametricSnapshot.requested,
+                      }
+                    : undefined,
+                  parametricReferenceDate: undefined,
+                  parametricSource: undefined,
+                  parametricVersion: undefined,
+                })),
+              },
             },
-          },
-          include: {
-            items: true,
-            payments: true,
-            storefrontPayments: true,
-          },
+            include: {
+              items: true,
+              payments: true,
+              storefrontPayments: true,
+            },
+          })
         })
         isNewOrder = true
       } catch (error) {
@@ -1793,9 +2282,8 @@ export class StorefrontService implements OnModuleInit {
     if (dto.paymentIntentId) {
       try {
         await this.mercadoPago.attachPaymentIntentToOrder(order.id, dto.paymentIntentId)
-        const refreshed = await this.prisma.order.update({
+        const refreshed = await this.prisma.order.findUnique({
           where: { id: order.id },
-          data: { statusId: ORDER_STATUS_CODES.PAID },
           include: {
             items: true,
             payments: true,
@@ -2145,13 +2633,16 @@ export class StorefrontService implements OnModuleInit {
 
     if (!hasSummaryEvent && paymentEventsSorted.length > 0) {
       const lastPaymentEvent = paymentEventsSorted[paymentEventsSorted.length - 1]
+      const hasPriorPartialPayment = paymentEventsSorted
+        .slice(0, -1)
+        .some((event) => (event.type || '').toUpperCase() === 'PAYMENT_PARTIAL')
       const lastRemaining =
         typeof lastPaymentEvent.remainingAmount === 'number' ? Number(lastPaymentEvent.remainingAmount) : null
       const lastType = (lastPaymentEvent.type || '').toUpperCase()
       const isFullyPaid =
         lastType === 'PAYMENT_FULL' || (lastRemaining !== null && lastRemaining <= 0.01)
 
-      if (isFullyPaid) {
+      if (isFullyPaid && hasPriorPartialPayment) {
         const baseTimestamp = paymentSummary?.updatedAt ?? lastPaymentEvent.timestamp
         const summaryDate = new Date(baseTimestamp)
         const summaryTimestamp = new Date(summaryDate.getTime() + 1).toISOString()
@@ -2346,7 +2837,10 @@ export class StorefrontService implements OnModuleInit {
     return 'in-stock'
   }
 
-  private toProductDetail(product: ProductWithVariants): ProductDetailDto {
+  private toProductDetail(
+    product: ProductWithVariants,
+    publishedParametricDefinition?: PublishedParametricProductDefinition | null,
+  ): ProductDetailDto {
     const summary = this.toProductSummary(product)
     const attributes = product.options.map((option) => ({
       id: option.id,
@@ -2447,6 +2941,8 @@ export class StorefrontService implements OnModuleInit {
             const [label, ...rest] = line.split(':')
             return { label: label.trim(), value: rest.join(':').trim() }
           })
+        : product.mode === ProductMode.PARAMETRIC && publishedParametricDefinition
+        ? publishedParametricDefinition.specifications
         : undefined,
       gallery: product.images.map((image) => ({
         id: image.id,
@@ -2569,6 +3065,7 @@ export class StorefrontService implements OnModuleInit {
         country: shippingAddress.country,
       }
 
+    const deliverySummary = this.buildDeliverySummary(order)
     const statusDefinition = findOrderStatusById(order.statusId ?? null)
     const statusCode = statusDefinition?.code ?? 'pending'
     const statusLabel = statusDefinition?.label ?? 'Pendiente'
@@ -2618,10 +3115,39 @@ export class StorefrontService implements OnModuleInit {
         shipping: money(shipping, currency),
         discounts: [],
         grandTotal: money(grandTotal, currency),
+        estimatedDelivery: deliverySummary?.estimatedLabel ?? undefined,
+        delivery: deliverySummary ?? undefined,
       },
+      delivery: deliverySummary ?? undefined,
       shippingAddress,
       billingAddress,
       payment: paymentSummary ?? undefined,
+    }
+  }
+
+  private buildDeliverySummary(order: OrderWithRelations): OrderDeliverySummary | null {
+    const estimatedMin = order.estimatedMin ?? null
+    const estimatedMax = order.estimatedMax ?? null
+    const estimatedLabel =
+      estimatedMin !== null && estimatedMax !== null
+        ? estimatedMin === estimatedMax
+          ? `${estimatedMin} día${estimatedMin === 1 ? '' : 's'}`
+          : `${estimatedMin}-${estimatedMax} días`
+        : estimatedMin !== null
+          ? `${estimatedMin} día${estimatedMin === 1 ? '' : 's'}`
+          : null
+
+    if (!order.shippingVendor && estimatedLabel === null) {
+      return null
+    }
+
+    return {
+      mode: 'home_delivery',
+      modeLabel: 'Envío a domicilio',
+      shippingVendor: order.shippingVendor ?? null,
+      estimatedMin,
+      estimatedMax,
+      estimatedLabel,
     }
   }
 
@@ -2671,7 +3197,7 @@ export class StorefrontService implements OnModuleInit {
           ? Math.max(0, orderTotal - intentAmount) <= tolerance
           : false
 
-      if (['approved', 'authorized', 'captured'].includes(normalized)) {
+      if (['approved', 'captured'].includes(normalized)) {
         if (coversTotal) {
           return 'paid'
         }
@@ -2680,7 +3206,7 @@ export class StorefrontService implements OnModuleInit {
         }
         return 'processing'
       }
-      if (['in_process', 'pending', 'in_mediation'].includes(normalized)) {
+      if (['authorized', 'in_process', 'pending', 'in_mediation'].includes(normalized)) {
         return 'processing'
       }
       if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(normalized)) {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment } from "react";
+import { Fragment, Suspense } from "react";
 import { IconMapPin } from "@tabler/icons-react";
 
 // GLOBAL CUSTOM COMPONENTS
@@ -14,7 +14,7 @@ import { AddressForm } from "@sections/customer-dashboard/address";
 
 import { useTranslation } from "@/state/i18n-context";
 
-export default function AccountCreateAddressPage() {
+function AccountCreateAddressPageContent() {
   const t = useTranslation();
 
   const headerLink = (
@@ -35,5 +35,13 @@ export default function AccountCreateAddressPage() {
         <AddressForm />
       </Card1>
     </Fragment>
+  );
+}
+
+export default function AccountCreateAddressPage() {
+  return (
+    <Suspense fallback={null}>
+      <AccountCreateAddressPageContent />
+    </Suspense>
   );
 }

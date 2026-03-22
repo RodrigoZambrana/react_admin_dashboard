@@ -42,6 +42,7 @@ import {
   listPaymentMethods,
 } from '../common/constants/payment-methods'
 import { UpdateOrderDeliveryDto } from './dto/update-delivery.dto'
+import { OrderStockIntegrityService } from './order-stock-integrity.service'
 
 const SALES_UNIT_KEYWORDS: Record<SalesUnit, string[]> = {
   [SalesUnit.UNIT]: ['unit', 'units', 'unidad', 'unidades', 'u'],
@@ -118,6 +119,7 @@ export class SalesDocumentsService {
     private readonly timeline: OrderTimelineService,
     private readonly notifications: NotificationOrchestratorService,
     private readonly email: EmailService,
+    private readonly stockIntegrity: OrderStockIntegrityService,
   ) {}
 
   private readonly logger = new Logger(SalesDocumentsService.name)
@@ -2526,6 +2528,12 @@ export class SalesDocumentsService {
       throw new BadRequestException('sales.orders.validation.notFound')
     }
     if (documentType === DocumentType.ORDER) {
+      if (
+        previousStatusId !== body.status &&
+        body.status === ORDER_STATUS_CODES.CANCELLED
+      ) {
+        await this.stockIntegrity.releaseOrderStock(id)
+      }
       this.notifications
         .notifyOrderStatusChanged(id, previousStatusId, body.status)
         .catch((error) => this.logger.error(`Failed to dispatch status change notifications for order ${id}: ${(error as Error).message}`))

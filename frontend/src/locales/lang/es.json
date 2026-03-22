@@ -1304,6 +1304,7 @@
         "itemsRequired": "Agregue al menos un producto",
         "customerAddressRequired": "El cliente debe tener una dirección principal",
         "quantityPositive": "La cantidad debe ser mayor que 0",
+        "cancelledReopenRequiresNewOrder": "Una orden cancelada no se reactiva. Debes crear un nuevo pedido con reabrir, repetir o regenerar.",
         "activityNotFound": "No encontramos la actividad seleccionada.",
         "activityInvalid": "Ingresá una actividad válida o dejá el campo vacío."
       },

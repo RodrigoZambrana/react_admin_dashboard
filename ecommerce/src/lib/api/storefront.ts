@@ -1,6 +1,7 @@
 import type {
   AuthSession,
   CategorySummary,
+  CheckoutSnapshotPayload,
   CreateOrderPayload,
   CustomerNotificationList,
   CustomerProfile,
@@ -14,6 +15,7 @@ import type {
   ProductDetail,
   ProductListQuery,
   ProductSummary,
+  StorefrontShippingOption,
   StorefrontConfig
 } from "@/types/storefront";
 import type { OrderTimelineResponse } from "@/types/orderTimeline";
@@ -103,7 +105,7 @@ export interface MercadoPagoChargeRequest {
   paymentMethodId: string;
   payer: {
     email: string;
-    identification: { type: string; number: string };
+    identification?: { type: string; number: string };
     firstName?: string;
     lastName?: string;
   };
@@ -111,7 +113,9 @@ export interface MercadoPagoChargeRequest {
   description?: string;
   orderId?: string;
   cartId?: string;
+  checkoutToken?: string;
   statementDescriptor?: string;
+  checkoutSnapshot?: CheckoutSnapshotPayload;
 }
 
 export interface MercadoPagoChargeResponse {
@@ -127,6 +131,7 @@ export interface MercadoPagoChargeResponse {
   cardBrand?: string | null;
   cardLastFour?: string | null;
   cardholderName?: string | null;
+  checkoutSnapshot?: CheckoutSnapshotPayload | null;
   createdAt: string;
 }
 
@@ -135,16 +140,27 @@ export interface MercadoPagoPreferenceRequest {
   currency: string;
   description?: string;
   cartId?: string;
+  checkoutToken?: string;
   orderId?: string;
   statementDescriptor?: string;
   payerEmail?: string;
   successUrl?: string;
   failureUrl?: string;
   pendingUrl?: string;
+  minInstallments?: number;
+  maxInstallments?: number;
+  checkoutSnapshot?: CheckoutSnapshotPayload;
 }
 
 export interface MercadoPagoPreferenceResponse {
   preferenceId: string;
+}
+
+export interface MercadoPagoResolvePaymentRequest {
+  externalPaymentId: string;
+  cartId?: string;
+  checkoutToken?: string;
+  payerEmail?: string;
 }
 
 export interface GoogleAuthStartResponse {
@@ -203,6 +219,12 @@ export const StorefrontApi = {
 
   async getProduct(slugOrId: string): Promise<ProductDetail> {
     return apiFetch<ProductDetail>(`products/${encodeURIComponent(slugOrId)}`, {
+      cache: "no-store"
+    });
+  },
+
+  async listShippingOptions(): Promise<StorefrontShippingOption[]> {
+    return apiFetch<StorefrontShippingOption[]>("shipping-options", {
       cache: "no-store"
     });
   },
@@ -376,6 +398,19 @@ export const StorefrontApi = {
   ): Promise<MercadoPagoPreferenceResponse> {
     return apiFetch(
       "payments/mercadopago/preference",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+        cache: "no-store"
+      }
+    );
+  },
+
+  async resolveMercadoPagoPayment(
+    payload: MercadoPagoResolvePaymentRequest
+  ): Promise<MercadoPagoChargeResponse> {
+    return apiFetch(
+      "payments/mercadopago/resolve",
       {
         method: "POST",
         body: JSON.stringify(payload),

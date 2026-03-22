@@ -34,7 +34,7 @@ import { StorefrontJwtGuard } from './storefront-jwt.guard'
 import type { StorefrontJwtPayload } from './storefront-jwt.strategy'
 import type { StorefrontCategoryTree } from './types'
 import { MercadoPagoChargeDto, MercadoPagoWebhookDto } from './dto/mercadopago-charge.dto'
-import { MercadoPagoPreferenceDto } from './dto/mercadopago-preference.dto'
+import { MercadoPagoPreferenceDto, MercadoPagoResolvePaymentDto } from './dto/mercadopago-preference.dto'
 import { MercadoPagoService } from './payments/mercadopago.service'
 import { decimalToNumber } from '../common/currency/money.util'
 import { Throttle } from '@nestjs/throttler'
@@ -85,6 +85,11 @@ export class StorefrontController {
   @Get('categories')
   listCategories(): Promise<StorefrontCategoryTree[]> {
     return this.storefront.listCategories()
+  }
+
+  @Get('shipping-options')
+  listShippingOptions() {
+    return this.storefront.listShippingOptions()
   }
 
   @Get('products')
@@ -320,14 +325,20 @@ export class StorefrontController {
       throw new BadRequestException({ message: 'amount es obligatorio', mp: dto })
     }
     const backUrls = this.buildBackUrls(dto, req)
+    const checkoutSnapshot = dto.checkoutSnapshot
+      ? await this.storefront.prepareCheckoutSnapshot(dto.checkoutSnapshot as StorefrontCreateOrderDto)
+      : null
     return this.mercadoPago.createPreference({
       amount: dto.amount,
       currency: dto.currency,
       description: dto.description,
       cartId: dto.cartId,
+      checkoutToken: dto.checkoutToken,
+      checkoutSnapshot: checkoutSnapshot ? (checkoutSnapshot as unknown as Record<string, unknown>) : null,
       orderId: dto.orderId,
       statementDescriptor: dto.statementDescriptor,
       payerEmail: dto.payerEmail,
+      maxInstallments: dto.maxInstallments,
       backUrls,
     })
   }
@@ -339,9 +350,15 @@ export class StorefrontController {
     @Headers('x-idempotency-key') idempotencyKey: string | undefined,
     @Req() req: FastifyRequest,
   ) {
+    const checkoutSnapshot = dto.checkoutSnapshot
+      ? await this.storefront.prepareCheckoutSnapshot(dto.checkoutSnapshot as StorefrontCreateOrderDto)
+      : null
+
     const record = await this.mercadoPago.createCardPayment(dto, {
       idempotencyKey: idempotencyKey ?? null,
       cartId: dto.cartId ?? null,
+      checkoutToken: dto.checkoutToken ?? null,
+      checkoutSnapshot: checkoutSnapshot ? (checkoutSnapshot as unknown as Record<string, unknown>) : null,
       userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
       ipAddress: (req.headers['x-forwarded-for'] as string | undefined) ?? req.ip ?? null,
     })
@@ -359,6 +376,48 @@ export class StorefrontController {
       cardBrand: record.cardBrand,
       cardLastFour: record.cardLastFour,
       cardholderName: record.cardholderName,
+      checkoutSnapshot:
+        record.metadata && typeof record.metadata === 'object'
+          ? ((record.metadata as Record<string, unknown>).checkoutSnapshot as Record<string, unknown> | undefined) ??
+            null
+          : null,
+      createdAt: record.createdAt,
+    }
+  }
+
+  @Post('payments/mercadopago/resolve')
+  async resolveMercadoPagoPayment(@Body() dto: MercadoPagoResolvePaymentDto) {
+    const record = await this.mercadoPago.resolvePaymentIntentByExternalId(dto.externalPaymentId, {
+      cartId: dto.cartId ?? null,
+      checkoutToken: dto.checkoutToken ?? null,
+      payerEmail: dto.payerEmail ?? null,
+    })
+
+    if (!record) {
+      throw new BadRequestException('No pudimos resolver el pago de Mercado Pago.')
+    }
+
+    const reconciledOrder =
+      !record.orderId ? await this.storefront.reconcileApprovedPaymentIntent(record.id) : null
+
+    return {
+      status: record.status,
+      statusDetail: record.statusDetail,
+      paymentId: record.externalPaymentId,
+      paymentIntentId: record.id,
+      cartId: record.cartId,
+      orderId: reconciledOrder?.id ?? record.orderId,
+      amount: decimalToNumber(record.amount),
+      currency: record.currency,
+      installments: record.installments,
+      cardBrand: record.cardBrand,
+      cardLastFour: record.cardLastFour,
+      cardholderName: record.cardholderName,
+      checkoutSnapshot:
+        record.metadata && typeof record.metadata === 'object'
+          ? ((record.metadata as Record<string, unknown>).checkoutSnapshot as Record<string, unknown> | undefined) ??
+            null
+          : null,
       createdAt: record.createdAt,
     }
   }
@@ -378,7 +437,10 @@ export class StorefrontController {
     }
 
     try {
-      await this.mercadoPago.syncPaymentIntentByExternalId(paymentId)
+      const record = await this.mercadoPago.syncPaymentIntentByExternalId(paymentId)
+      if (record && !record.orderId) {
+        await this.storefront.reconcileApprovedPaymentIntent(record.id)
+      }
       return { received: true }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)

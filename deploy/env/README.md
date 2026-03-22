@@ -23,6 +23,8 @@ cp deploy/env/storefront.prod.env.example deploy/env/storefront.prod.env
 Update the copied files with the values that apply to your environment.
 At a minimum the backend file must define `DATABASE_URL`, authentication secrets
 (`JWT_SECRET`, `COOKIE_SECRET`) and CORS settings via `ALLOWED_ORIGINS`.
+If any value contains spaces, wrap it in double quotes so the file can be safely
+loaded by shells and helper scripts.
 Para Docker Compose local, la variante del cliente queda centralizada en una sola
 variable: `CLIENT_SLUG`. El stack deriva desde ahí:
 
@@ -38,3 +40,17 @@ archivos de entorno. El frontend controla además variables de Vite como
 
 Run `node scripts/check-env.mjs` to validate that all `.env` files contain the keys
 declared in `env.schema.json` before building or deploying.
+
+Backend + Prisma migration flow
+- Local outside Docker:
+  - update `backend/prisma/schema.prisma`
+  - version the migration
+  - run `cd backend && npm run prisma:generate`
+  - run `cd backend && npm run prisma:migrate`
+- Docker local:
+  - `deploy/docker-compose.dev.yml` runs `npx prisma migrate deploy` automatically before starting the backend container
+  - set `SKIP_PRISMA_MIGRATIONS=true` only for exceptional cases
+- Testing/production:
+  - deploy only versioned migrations
+  - keep `PRISMA_APPLY_MIGRATIONS=true`
+  - avoid manual schema edits directly in the database

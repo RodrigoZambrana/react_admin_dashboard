@@ -1303,6 +1303,7 @@
         "itemsRequired": "Please add at least one product",
         "customerAddressRequired": "Customer must have a primary address",
         "quantityPositive": "Quantity must be greater than 0",
+        "cancelledReopenRequiresNewOrder": "A cancelled order cannot be reactivated. Create a new order instead via reopen, repeat or regenerate.",
         "activityNotFound": "The selected activity could not be found.",
         "activityInvalid": "Provide a valid activity or leave the field empty."
       },

@@ -99,6 +99,26 @@ export interface CompanyProfileDto {
   logo?: string | null
 }
 
+export interface StorefrontShippingOptionDto {
+  id: number
+  name: string
+  deliveryFees: number
+  estimatedMin: number | null
+  estimatedMax: number | null
+  img?: string | null
+}
+
+export type StorefrontFulfillmentMode = 'home_delivery'
+
+export interface OrderDeliverySummary {
+  mode: StorefrontFulfillmentMode
+  modeLabel: string
+  shippingVendor?: string | null
+  estimatedMin?: number | null
+  estimatedMax?: number | null
+  estimatedLabel?: string | null
+}
+
 export interface MoneyDto {
   amount: number
   currency: string
@@ -230,6 +250,8 @@ export interface CreateOrderInput {
   notes?: string
   paymentIntentId?: string
   checkoutToken?: string
+  shippingOptionId?: number
+  fulfillmentMode?: StorefrontFulfillmentMode
 }
 
 export interface CheckoutLineItem {
@@ -252,6 +274,7 @@ export interface CheckoutSummary {
   grandTotal: MoneyDto
   estimatedDelivery?: string
   notes?: string
+  delivery?: OrderDeliverySummary
 }
 
 export interface OrderPaymentSummary {
@@ -285,6 +308,7 @@ export interface OrderSummary {
   fulfillmentStatusLabel?: string
   items: CheckoutLineItem[]
   summary: CheckoutSummary
+  delivery?: OrderDeliverySummary
   shippingAddress: CreateOrderInput['shippingAddress']
   billingAddress?: CreateOrderInput['billingAddress']
   payment?: OrderPaymentSummary | null
