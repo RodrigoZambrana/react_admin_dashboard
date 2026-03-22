@@ -66,7 +66,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
           Please log in again to continue. If the issue persists after signing in, contact support so
           we can look into it.
         </Typography>
-        <Link href="/login">
+        <Link href="/account/login">
           <Button color="primary" variant="contained">
             Go to login
           </Button>

@@ -1,14 +1,19 @@
+import type { Metadata } from "next";
 import Box from "@component/Box";
 import Grid from "@component/grid/Grid";
 
 import CheckoutForm from "@sections/checkout/CheckoutForm";
 
 import CheckoutCostSummary from "@/components/cart/CheckoutCostSummary";
+import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import AdditionalCommentsPanel from "./AdditionalCommentsPanel";
 
-export const metadata = {
-  title: "Checkout details · Storefront"
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return buildStorefrontPageMetadata({
+    title: "Checkout",
+    description: "Completa los datos de contacto y entrega para finalizar tu compra."
+  });
+}
 
 export default function CheckoutDetailsPage() {
   return (

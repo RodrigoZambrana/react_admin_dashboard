@@ -4,20 +4,46 @@ const StyledSearchBox = styled.div`
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
+  border: 1px solid ${({ theme }) => theme.colors.text.disabled};
+  border-radius: 999px;
+  background-color: ${({ theme }) => theme.colors.body.paper};
+  overflow: visible;
 
   .search-icon {
-    position: absolute;
     color: ${({ theme }) => theme.colors.text.hint};
-    left: 1rem;
+  }
+
+  .search-trigger {
+    position: absolute;
+    left: 0.75rem;
     z-index: 1;
+    border: 0;
+    padding: 0.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    cursor: pointer;
   }
 
   .search-field {
     flex: 1 1 0;
+    min-width: 0;
     padding-left: 3rem;
-    padding-right: 11.5rem;
+    padding-right: 1rem;
     height: 44px;
-    border-radius: 8px;
+    border: 0;
+    border-radius: 999px;
+    background-color: transparent;
+    box-shadow: none;
+
+    &:hover,
+    &:focus {
+      border-color: transparent;
+      outline: none;
+      box-shadow: none;
+    }
   }
   .search-button {
     position: absolute;
@@ -28,19 +54,43 @@ const StyledSearchBox = styled.div`
     padding-right: 55px;
   }
   .category-dropdown {
-    position: absolute;
-    right: 0px;
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 3;
     color: ${({ theme }) => theme.colors.text.hint};
+    background-color: ${({ theme }) => theme.colors.gray[100]};
+    border-left: 1px solid ${({ theme }) => theme.colors.text.disabled};
+    border-radius: 0 999px 999px 0;
+
+    .menu-item-holder {
+      max-height: min(22rem, calc(100vh - 8rem));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+    }
   }
   .dropdown-handler {
-    height: 40px;
+    height: 44px;
     cursor: pointer;
-    min-width: 90px;
-    padding-left: 1.25rem;
-    padding-right: 1rem;
-    border-left: 1px solid ${({ theme }) => theme.colors.text.disabled};
+    min-width: 128px;
+    padding-left: 1rem;
+    padding-right: 0.9rem;
+    border: 0;
+    outline: 0;
+    appearance: none;
+    border-left: 0;
+    background-color: transparent;
+    border-radius: 0 999px 999px 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     span {
-      margin-right: 0.75rem;
+      margin-right: 0.5rem;
+      font-size: 13px;
+      max-width: 130px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
   }
   .menu-button {
@@ -48,13 +98,12 @@ const StyledSearchBox = styled.div`
   }
   @media only screen and (max-width: 900px) {
     .search-icon {
-      left: 1rem;
+      left: 0;
     }
     .search-field {
-      height: 40px;
-      border-radius: 300px;
+      height: 44px;
       padding-left: 2.75rem;
-      padding-right: 8rem;
+      padding-right: 0.75rem;
     }
     .search-button {
       padding-left: 1.25rem;
@@ -64,21 +113,22 @@ const StyledSearchBox = styled.div`
       display: unset;
     }
     .category-dropdown {
-      position: absolute;
-      right: 0.75rem;
-      top: 50%;
-      transform: translateY(-50%);
+      display: flex;
+      align-items: stretch;
+      border-radius: 0 999px 999px 0;
     }
     .dropdown-handler {
-      border-left: none;
-      background-color: ${({ theme }) => theme.colors.body.paper};
-      border: 1px solid ${({ theme }) => theme.colors.text.disabled};
-      border-radius: 999px;
-      min-width: 0;
-      padding: 0.25rem 0.75rem;
+      height: 100%;
+      min-width: 104px;
+      padding: 0 0.85rem 0 0.85rem;
+      border-radius: 0 999px 999px 0;
       span {
         margin-right: 0.5rem;
         font-size: 12px;
+        max-width: 68px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
       }
     }
   }

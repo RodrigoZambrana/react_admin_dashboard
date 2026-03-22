@@ -7,6 +7,9 @@ import type {
   CustomerWishlist,
   HomeLayoutDefinition,
   OrderSummary,
+  ParametricConfigSnapshot,
+  ParametricQuoteRequest,
+  ParametricQuoteResult,
   PaginatedResponse,
   ProductDetail,
   ProductListQuery,
@@ -204,17 +207,17 @@ export const StorefrontApi = {
     });
   },
 
-  async getProductParametricConfig(productId: number): Promise<Record<string, any>> {
-    return apiFetch<Record<string, any>>(`products/${productId}/parametric-config`, {
+  async getProductParametricConfig(productId: number): Promise<ParametricConfigSnapshot> {
+    return apiFetch<ParametricConfigSnapshot>(`products/${productId}/parametric-config`, {
       cache: "no-store"
     });
   },
 
   async quoteParametricProduct(
     productId: number,
-    payload: Record<string, unknown>
-  ): Promise<any> {
-    return apiFetch(`products/${productId}/parametric-quote`, {
+    payload: ParametricQuoteRequest
+  ): Promise<ParametricQuoteResult> {
+    return apiFetch<ParametricQuoteResult>(`products/${productId}/parametric-quote`, {
       method: "POST",
       body: JSON.stringify(payload),
       headers: {

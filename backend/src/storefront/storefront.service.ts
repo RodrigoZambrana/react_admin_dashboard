@@ -30,7 +30,13 @@ import { decimal, decimalToNumber } from '../common/currency/money.util'
 import { buildImageDataUrl, ensureNodeBuffer } from '../common/images/image.utils'
 import { DEFAULT_STOREFRONT_CONFIG } from './defaults/config'
 import { DEFAULT_HOME_LAYOUTS, FALLBACK_LAYOUT_KEY } from './defaults/layouts'
-import { buildCategorySlug, buildProductSlug, slugify } from './utils'
+import {
+  buildCategorySlug,
+  buildLegacyCategorySlug,
+  buildLegacyProductSlug,
+  buildProductSlug,
+  slugify,
+} from './utils'
 import type {
   HomeLayoutDefinition,
   HomeModuleConfig,
@@ -628,6 +634,136 @@ export class StorefrontService implements OnModuleInit {
     return result
   }
 
+  private collectCategoryHierarchyIdsFromRecords(
+    categories: Array<{ id: number; parentId: number | null }>,
+    categoryId: number,
+  ): number[] {
+    const exists = categories.some((category) => category.id === categoryId)
+    if (!exists) {
+      return []
+    }
+
+    const childrenMap = new Map<number, number[]>()
+    for (const category of categories) {
+      if (category.parentId !== null) {
+        if (!childrenMap.has(category.parentId)) {
+          childrenMap.set(category.parentId, [])
+        }
+        childrenMap.get(category.parentId)!.push(category.id)
+      }
+    }
+
+    const result: number[] = []
+    const stack: number[] = [categoryId]
+    const visited = new Set<number>()
+
+    while (stack.length > 0) {
+      const current = stack.pop()!
+      if (visited.has(current)) {
+        continue
+      }
+      visited.add(current)
+      result.push(current)
+      const children = childrenMap.get(current)
+      if (children?.length) {
+        stack.push(...children)
+      }
+    }
+
+    return result
+  }
+
+  private async resolveCategoryHierarchyIds(identifier?: string | null): Promise<number[] | null> {
+    const trimmed = identifier?.trim()
+    if (!trimmed) {
+      return null
+    }
+
+    const categories = await this.prisma.productCategory.findMany({
+      select: { id: true, name: true, parentId: true },
+    })
+
+    const normalized = trimmed.toLowerCase()
+    const legacySlugMatch = normalized.match(/-(\d+)$/)
+    const legacyCategoryId = legacySlugMatch ? Number.parseInt(legacySlugMatch[1], 10) : Number.NaN
+
+    let matchedCategoryId: number | null = null
+    if (Number.isFinite(legacyCategoryId) && legacyCategoryId > 0) {
+      matchedCategoryId = categories.some((category) => category.id === legacyCategoryId)
+        ? legacyCategoryId
+        : null
+    }
+
+    if (matchedCategoryId === null) {
+      const matchedCategory = categories.find((category) => {
+        const currentSlug = buildCategorySlug(category.id, category.name).toLowerCase()
+        const legacySlug = buildLegacyCategorySlug(category.id, category.name).toLowerCase()
+        return (
+          currentSlug === normalized ||
+          legacySlug === normalized ||
+          category.name.trim().toLowerCase() === normalized
+        )
+      })
+
+      matchedCategoryId = matchedCategory?.id ?? null
+    }
+
+    if (matchedCategoryId === null) {
+      return []
+    }
+
+    return this.collectCategoryHierarchyIdsFromRecords(categories, matchedCategoryId)
+  }
+
+  private async resolveStorefrontProductIdByIdentifier(identifier: string): Promise<number | null> {
+    const trimmed = identifier.trim()
+    if (!trimmed) {
+      return null
+    }
+
+    const byId = parsePositiveInt(trimmed, -1)
+    const baseWhere: Prisma.ProductWhereInput = {
+      published: true,
+      productType: ProductType.PHYSICAL,
+    }
+
+    if (byId > 0) {
+      const productById = await this.prisma.product.findFirst({
+        where: { ...baseWhere, id: byId },
+        select: { id: true },
+      })
+      if (productById) {
+        return productById.id
+      }
+    }
+
+    const productByCode = await this.prisma.product.findFirst({
+      where: {
+        ...baseWhere,
+        productCode: { equals: trimmed, mode: 'insensitive' },
+      },
+      select: { id: true },
+    })
+
+    if (productByCode) {
+      return productByCode.id
+    }
+
+    const candidates = await this.prisma.product.findMany({
+      where: baseWhere,
+      select: { id: true, name: true, productCode: true },
+    })
+
+    const normalized = trimmed.toLowerCase()
+    const product = candidates.find((candidate) => {
+      const currentSlug = buildProductSlug(candidate.id, candidate.name, candidate.productCode ?? undefined).toLowerCase()
+      const legacySlug = buildLegacyProductSlug(candidate.id, candidate.name, candidate.productCode ?? undefined).toLowerCase()
+      return currentSlug === normalized || legacySlug === normalized
+    })
+
+    return product?.id ?? null
+  }
+
   async listProducts(query: StorefrontProductQueryDto) {
     const page = parsePositiveInt(query.page, 1)
     const pageSize = Math.min(parsePositiveInt(query.pageSize, 12), 48)
@@ -635,24 +771,9 @@ export class StorefrontService implements OnModuleInit {
 
     if (query.category) {
       const trimmed = query.category.trim()
-      const slugMatch = trimmed.match(/-(\d+)$/)
-      if (slugMatch) {
-        const categoryId = Number.parseInt(slugMatch[1], 10)
-        if (Number.isFinite(categoryId) && categoryId > 0) {
-          const categoryIds = await this.collectCategoryHierarchyIds(categoryId)
-          if (categoryIds.length > 0) {
-            where.categoryId =
-              categoryIds.length === 1 ? categoryIds[0] : { in: categoryIds }
-          } else {
-            const normalized = trimmed.toLowerCase()
-            where.category = {
-              OR: [
-                { name: { equals: normalized, mode: 'insensitive' } },
-                { name: { equals: trimmed, mode: 'insensitive' } },
-              ],
-            }
-          }
-        }
+      const categoryIds = await this.resolveCategoryHierarchyIds(trimmed)
+      if (categoryIds && categoryIds.length > 0) {
+        where.categoryId = categoryIds.length === 1 ? categoryIds[0] : { in: categoryIds }
       } else {
         const normalized = trimmed.toLowerCase()
         where.category = {
@@ -723,18 +844,15 @@ export class StorefrontService implements OnModuleInit {
   }
 
   async getProduct(identifier: string): Promise<ProductDetailDto> {
-    const byId = parsePositiveInt(identifier, -1)
+    const resolvedProductId = await this.resolveStorefrontProductIdByIdentifier(identifier)
+    if (!resolvedProductId) {
+      throw new NotFoundException('Product not found')
+    }
+
     const where: Prisma.ProductWhereInput = {
-      AND: [
-        { published: true },
-        { productType: ProductType.PHYSICAL },
-        {
-          OR: [
-            byId > 0 ? { id: byId } : undefined,
-            { productCode: { equals: identifier, mode: 'insensitive' } },
-          ].filter(Boolean) as Prisma.ProductWhereInput[],
-        },
-      ],
+      id: resolvedProductId,
+      published: true,
+      productType: ProductType.PHYSICAL,
     }
 
     let product: ProductWithVariants | null = null
@@ -861,13 +979,40 @@ export class StorefrontService implements OnModuleInit {
     return items.map((item) => this.toProductSummary(item))
   }
 
+  private async resolveStorefrontParametricProductId(productId: number): Promise<number> {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, mode: true },
+    })
+
+    if (!product) {
+      throw new NotFoundException('Product not found')
+    }
+
+    const ownMatrixRows = await this.prisma.dimensionPriceMatrix.count({
+      where: { productId },
+    })
+
+    if (ownMatrixRows > 0) {
+      return productId
+    }
+
+    if (product.mode === ProductMode.PARAMETRIC) {
+      return this.parametricPricing.getDefaultParametricProductId()
+    }
+
+    return productId
+  }
+
   async getParametricProductConfig(productId: number) {
-    return this.parametricPricing.getProductConfig(productId)
+    const resolvedProductId = await this.resolveStorefrontParametricProductId(productId)
+    return this.parametricPricing.getProductConfig(resolvedProductId)
   }
 
   async quoteParametricProduct(payload: Parameters<ParametricPricingService['quote']>[0]) {
+    const resolvedProductId = await this.resolveStorefrontParametricProductId(payload.productId)
     const quoteInput: ParametricQuoteInput = {
-      productId: payload.productId,
+      productId: resolvedProductId,
       familyId: this.normalizeConfigString((payload as any).familyId ?? ''),
       serie: this.normalizeConfigString((payload as any).serie ?? ''),
       material: this.normalizeConfigString((payload as any).material ?? ''),

@@ -1,9 +1,9 @@
-import { StorefrontApi } from "@/lib/api/storefront";
-import { flattenCategorySummaries, FALLBACK_CATEGORY_IMAGE } from "@/lib/storefront/adapters";
-import type { CategorySummary } from "@/types/storefront";
+"use client";
+
 import CategoryProductShelfClient from "./CategoryProductShelfClient";
-import { mapProductSummaryToCardProps } from "./mapProductSummaryToCard";
-import type { StorefrontProductCardProps } from "@component/product-cards/StorefrontProductCard";
+import type { CategorySummary } from "@/types/storefront";
+import { flattenCategorySummaries } from "@/lib/storefront/adapters";
+import { useStorefrontCategories } from "@/hooks/useStorefrontCategories";
 
 export interface CategoryProductShelfProps {
   title: string;
@@ -18,16 +18,13 @@ export interface CategoryProductShelfProps {
 }
 
 const normalizeCategoryOptions = (
-  categories: CategorySummary[]
+  categories: CategorySummary[],
 ): Array<{ slug: string; name: string }> =>
   categories.map((category) => ({ slug: category.slug, name: category.name }));
 
-const ensureCategoryImage = (category: CategorySummary) =>
-  category.thumbnail?.url ?? FALLBACK_CATEGORY_IMAGE;
-
 const filterCategories = (
   categories: CategorySummary[],
-  props: CategoryProductShelfProps
+  props: CategoryProductShelfProps,
 ): CategorySummary[] => {
   const { includeSlugs, includeDescendantsOf, categoryFilter, categoryLimit } = props;
 
@@ -60,35 +57,17 @@ const filterCategories = (
   return filtered;
 };
 
-export default async function CategoryProductShelf(props: CategoryProductShelfProps) {
+export default function CategoryProductShelf(props: CategoryProductShelfProps) {
   const {
     title,
     seeMoreLink,
     defaultCategorySlug,
     pageSize = 9,
-    emptyStateText
+    emptyStateText,
   } = props;
 
-  let flattened: CategorySummary[] = [];
-
-  try {
-    const categoriesTree = await StorefrontApi.listCategories();
-    flattened = flattenCategorySummaries(categoriesTree);
-  } catch (error) {
-    console.warn(
-      "[storefront] Category shelf fell back to offline mode. Unable to load categories from API.",
-      error,
-    );
-    return (
-      <section aria-live="polite" style={{ padding: "2rem 1.5rem" }}>
-        <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "0.75rem" }}>{title}</h2>
-        <p style={{ color: "#b45309", fontSize: 14 }}>
-          Mostramos el catálogo guardado cuando el servicio esté disponible nuevamente.
-        </p>
-      </section>
-    );
-  }
-
+  const categoriesTree = useStorefrontCategories();
+  const flattened = flattenCategorySummaries(categoriesTree);
   const filteredCategories = filterCategories(flattened, props);
 
   if (filteredCategories.length === 0) {
@@ -100,28 +79,12 @@ export default async function CategoryProductShelf(props: CategoryProductShelfPr
       ? defaultCategorySlug
       : filteredCategories[0].slug;
 
-  let initialProducts: StorefrontProductCardProps[] = [];
-
-  try {
-    const response = await StorefrontApi.listProducts({
-      categorySlug: selectedSlug,
-      pageSize,
-      sort: "featured"
-    });
-
-    initialProducts = response.data.map(mapProductSummaryToCardProps);
-  } catch (error) {
-    initialProducts = [];
-  }
-
-  const categoriesForClient = normalizeCategoryOptions(filteredCategories);
-
   return (
     <CategoryProductShelfClient
       title={title}
-      categories={categoriesForClient}
+      categories={normalizeCategoryOptions(filteredCategories)}
       initialCategorySlug={selectedSlug}
-      initialProducts={initialProducts}
+      initialProducts={[]}
       seeMoreLink={seeMoreLink}
       fetchPageSize={pageSize}
       emptyStateText={emptyStateText}

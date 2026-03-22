@@ -42,6 +42,25 @@ const STORAGE_KEY = "storefront.locale.v1";
 const isSupportedLocale = (value: string): value is SupportedLocale =>
   SUPPORTED_LOCALES.includes(value as SupportedLocale);
 
+const detectBrowserLocale = (): SupportedLocale | null => {
+  if (typeof navigator === "undefined") {
+    return null;
+  }
+
+  const candidates = Array.isArray(navigator.languages) && navigator.languages.length > 0
+    ? navigator.languages
+    : [navigator.language];
+
+  for (const candidate of candidates) {
+    const normalized = candidate?.split("-")[0]?.trim().toLowerCase();
+    if (normalized && isSupportedLocale(normalized)) {
+      return normalized;
+    }
+  }
+
+  return null;
+};
+
 const normalizeKey = (value: string): string => value.replace(/\s+/g, " ").trim();
 
 const preserveSurroundingWhitespace = (source: string, translated: string): string => {
@@ -132,10 +151,8 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.warn("[i18n] Unable to read stored locale", error);
     }
 
-    const browserLocale =
-      typeof navigator !== "undefined" ? navigator.language?.split("-")[0] : undefined;
-
-    if (browserLocale && isSupportedLocale(browserLocale)) {
+    const browserLocale = detectBrowserLocale();
+    if (browserLocale) {
       setLocaleState(browserLocale);
     }
   }, []);

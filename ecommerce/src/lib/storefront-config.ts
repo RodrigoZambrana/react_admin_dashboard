@@ -8,40 +8,22 @@ import { env } from "./env";
 import { StorefrontApi, isApiError } from "./api/storefront";
 import { DEFAULT_HOME_LAYOUTS, FALLBACK_LAYOUT_KEY } from "./layouts/homeLayouts";
 import { readJsonCache, writeJsonCache } from "./persistent-cache";
+import { buildDefaultPublicNavigation } from "./storefront/public-navigation";
 import { setSnapshotFallbackEnabled } from "./resilience-flags";
+
+const snapshotFallbackEnvValue =
+  process.env.NEXT_PUBLIC_ENABLE_SNAPSHOT_FALLBACKS ??
+  process.env.ENABLE_SNAPSHOT_FALLBACKS ??
+  process.env.ENABLE_STOREFRONT_FALLBACKS ??
+  "false";
+
+const SNAPSHOT_FALLBACKS_ENABLED =
+  snapshotFallbackEnvValue !== "false" && snapshotFallbackEnvValue !== "0";
 
 const FALLBACK_CONFIG: StorefrontConfig = {
   defaultLayout: FALLBACK_LAYOUT_KEY,
   layouts: DEFAULT_HOME_LAYOUTS,
-  navigation: {
-    primary: [
-      { id: "nav-new", label: "New arrivals", href: "/products?sort=newest" },
-      { id: "nav-shop", label: "Shop", href: "/products" },
-      { id: "nav-categories", label: "Categories", href: "/categories" },
-      { id: "nav-stories", label: "Stories", href: "/blog" }
-    ],
-    secondary: [
-      { id: "nav-account", label: "Account", href: "/account" },
-      { id: "nav-orders", label: "Order tracking", href: "/account/orders" }
-    ],
-    footer: [
-      [
-        { id: "footer-about", label: "About us", href: "/about" },
-        { id: "footer-contact", label: "Contact", href: "/contact" },
-        { id: "footer-faq", label: "FAQ", href: "/faq" }
-      ],
-      [
-        { id: "footer-shipping", label: "Shipping", href: "/policies/shipping" },
-        { id: "footer-returns", label: "Returns", href: "/policies/returns" },
-        { id: "footer-privacy", label: "Privacy policy", href: "/policies/privacy" }
-      ]
-    ],
-    socials: [
-      { id: "social-instagram", label: "Instagram", href: "https://instagram.com", external: true },
-      { id: "social-pinterest", label: "Pinterest", href: "https://pinterest.com", external: true },
-      { id: "social-youtube", label: "YouTube", href: "https://youtube.com", external: true }
-    ]
-  },
+  navigation: buildDefaultPublicNavigation(),
   theme: {
     accentColor: "#111827",
     accentContrastColor: "#ffffff",
@@ -57,39 +39,22 @@ const FALLBACK_CONFIG: StorefrontConfig = {
     }
   },
   seo: {
-    siteName: "Ecommerce Storefront",
-    defaultTitle: "Ecommerce Storefront",
-    titleTemplate: "%s · Ecommerce Storefront",
+    siteName: "Tienda",
+    defaultTitle: "Tienda",
+    titleTemplate: "%s | Tienda",
     defaultDescription:
-      "Configurable eCommerce experience powered by a headless backend and Bonik presentation layer."
+      "Catalogo y experiencia de compra conectados al backend del proyecto."
   },
   companyProfile: {
-    legalName: "Bonik Storefront",
-    tradeName: "Bonik",
-    email: "support@ui-lib.com",
-    phone: "+88012 3456 7894",
-    addressLine1: "70 Washington Square South, New York, NY 10012, United States",
-    logo: "/assets/images/logo.svg"
+    legalName: "Tienda",
+    tradeName: "Tienda",
+    email: null,
+    phone: null,
+    addressLine1: null,
+    logo: null
   },
-  policies: [
-    {
-      title: "Shipping & delivery",
-      body: "We ship worldwide within 3-5 business days.",
-      updatedAt: new Date().toISOString()
-    },
-    {
-      title: "Returns",
-      body: "Returns accepted within 30 days in original condition.",
-      updatedAt: new Date().toISOString()
-    }
-  ],
-  announcement: {
-    id: "free-shipping",
-    message: "Enjoy complimentary express shipping on orders over $150.",
-    level: "info",
-    active: true,
-    cta: { id: "announcement-learn-more", label: "See details", href: "/policies/shipping" }
-  },
+  policies: [],
+  announcement: null,
   payments: {
     mercadopago: null
   },
@@ -98,7 +63,7 @@ const FALLBACK_CONFIG: StorefrontConfig = {
     recaptcha: { enabled: false, siteKey: null }
   },
   resilience: {
-    snapshotFallbackEnabled: true
+    snapshotFallbackEnabled: false
   }
 };
 
@@ -108,11 +73,91 @@ const STOREFRONT_CONFIG_CACHE_KEY = "storefront-config";
 
 const buildCacheKey = (slug: string) => `${STOREFRONT_CONFIG_CACHE_KEY}:${slug}`;
 
+const buildBaseFallbackConfig = (variant: StorefrontClientVariantConfig): StorefrontConfig =>
+  merge({}, FALLBACK_CONFIG, {
+    seo: {
+      siteName: variant.displayName,
+      defaultTitle: variant.displayName,
+      titleTemplate: `%s · ${variant.displayName}`,
+    },
+    companyProfile: {
+      legalName: variant.displayName,
+      tradeName: variant.displayName,
+      logo: null,
+    },
+  }) as StorefrontConfig;
+
+const cloneNavigationItems = <T>(items: T[]): T[] =>
+  items.map((item) => {
+    if (Array.isArray(item)) {
+      return cloneNavigationItems(item) as T;
+    }
+    if (item && typeof item === "object") {
+      return { ...(item as Record<string, unknown>) } as T;
+    }
+    return item;
+  });
+
+const applyNavigationArrayOverrides = (
+  merged: StorefrontConfig,
+  config: StorefrontConfig,
+  clientOverrides: StorefrontClientVariantConfig["configOverrides"] = {}
+) => {
+  const mergedNavigation = merged.navigation ?? FALLBACK_CONFIG.navigation;
+  const overrideNavigation = clientOverrides.navigation;
+  const configNavigation = config.navigation;
+
+  if (Array.isArray(configNavigation?.primary)) {
+    mergedNavigation.primary = cloneNavigationItems(configNavigation.primary);
+  }
+  if (Array.isArray(configNavigation?.secondary)) {
+    mergedNavigation.secondary = cloneNavigationItems(configNavigation.secondary);
+  }
+  if (Array.isArray(configNavigation?.footer)) {
+    mergedNavigation.footer = cloneNavigationItems(configNavigation.footer);
+  }
+  if (Array.isArray(configNavigation?.socials)) {
+    mergedNavigation.socials = cloneNavigationItems(configNavigation.socials);
+  }
+  if (Array.isArray(configNavigation?.helpLinks)) {
+    mergedNavigation.helpLinks = cloneNavigationItems(configNavigation.helpLinks);
+  }
+
+  if (Array.isArray(overrideNavigation?.primary)) {
+    mergedNavigation.primary = cloneNavigationItems(
+      overrideNavigation.primary as StorefrontConfig["navigation"]["primary"]
+    );
+  }
+  if (Array.isArray(overrideNavigation?.secondary)) {
+    mergedNavigation.secondary = cloneNavigationItems(
+      overrideNavigation.secondary as NonNullable<StorefrontConfig["navigation"]["secondary"]>
+    );
+  }
+  if (Array.isArray(overrideNavigation?.footer)) {
+    mergedNavigation.footer = cloneNavigationItems(
+      overrideNavigation.footer as NonNullable<StorefrontConfig["navigation"]["footer"]>
+    );
+  }
+  if (Array.isArray(overrideNavigation?.socials)) {
+    mergedNavigation.socials = cloneNavigationItems(
+      overrideNavigation.socials as NonNullable<StorefrontConfig["navigation"]["socials"]>
+    );
+  }
+  if (Array.isArray(overrideNavigation?.helpLinks)) {
+    mergedNavigation.helpLinks = cloneNavigationItems(
+      overrideNavigation.helpLinks as NonNullable<StorefrontConfig["navigation"]["helpLinks"]>
+    );
+  }
+
+  merged.navigation = mergedNavigation;
+};
+
 const mergeConfig = (
   config: StorefrontConfig,
   clientOverrides: StorefrontClientVariantConfig["configOverrides"] = {}
 ): StorefrontConfig => {
   const merged = merge({}, FALLBACK_CONFIG, config ?? {}, clientOverrides ?? {}) as StorefrontConfig;
+  applyNavigationArrayOverrides(merged, config, clientOverrides);
   const layouts = merged.layouts?.length ? merged.layouts : DEFAULT_HOME_LAYOUTS;
   const defaultLayout =
     merged.defaultLayout && layouts.some((layout) => layout.key === merged.defaultLayout)
@@ -129,10 +174,11 @@ const mergeConfig = (
 export const getStorefrontConfig = cache(async (): Promise<StorefrontConfig> => {
   const variant = getClientVariantConfig(env.clientSlug);
   const cacheKey = buildCacheKey(variant.slug);
+  const baseFallbackConfig = buildBaseFallbackConfig(variant);
 
   try {
     const config = await StorefrontApi.getConfig(variant.slug);
-    const merged = mergeConfig(config, variant.configOverrides);
+    const merged = mergeConfig(merge({}, baseFallbackConfig, config) as StorefrontConfig, variant.configOverrides);
     await writeJsonCache(cacheKey, merged);
     lastConfigErrorSignature = null;
     setSnapshotFallbackEnabled(merged.resilience?.snapshotFallbackEnabled !== false);
@@ -159,20 +205,20 @@ export const getStorefrontConfig = cache(async (): Promise<StorefrontConfig> => 
         lastConfigErrorSignature = signature;
       }
     }
-    const cached = await readJsonCache<StorefrontConfig>(cacheKey);
-    if (cached) {
-      console.info(
-        `[storefront] Serving cached storefront config snapshot for slug "${variant.slug}" from`,
-        cached.storedAt,
-      );
-      const normalized = mergeConfig(cached.value, variant.configOverrides);
-      setSnapshotFallbackEnabled(normalized.resilience?.snapshotFallbackEnabled !== false);
-      return normalized;
+    if (SNAPSHOT_FALLBACKS_ENABLED) {
+      const cached = await readJsonCache<StorefrontConfig>(cacheKey);
+      if (cached) {
+        console.info(
+          `[storefront] Serving cached storefront config snapshot for slug "${variant.slug}" from`,
+          cached.storedAt,
+        );
+        const normalized = mergeConfig(cached.value, variant.configOverrides);
+        setSnapshotFallbackEnabled(normalized.resilience?.snapshotFallbackEnabled !== false);
+        return normalized;
+      }
     }
-    console.info(
-      `[storefront] No cached config available for slug "${variant.slug}". Falling back to defaults.`,
-    );
-    const normalizedFallback = mergeConfig(FALLBACK_CONFIG, variant.configOverrides);
+    console.info(`[storefront] Using minimal fallback configuration for slug "${variant.slug}".`);
+    const normalizedFallback = mergeConfig(baseFallbackConfig, variant.configOverrides);
     setSnapshotFallbackEnabled(normalizedFallback.resilience?.snapshotFallbackEnabled !== false);
     return normalizedFallback;
   }

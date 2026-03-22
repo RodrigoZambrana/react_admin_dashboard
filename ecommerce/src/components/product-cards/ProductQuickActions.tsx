@@ -8,6 +8,7 @@ import { IconButton } from "@component/buttons";
 import { filterValidProductImages } from "@/lib/utils/image";
 import ProductQuickView from "@component/products/ProductQuickView";
 import ProductWishlistButton from "./ProductWishlistButton";
+import { useTranslation } from "@/state/i18n-context";
 
 type FlexDirection = "row" | "column";
 
@@ -104,6 +105,7 @@ export default function ProductQuickActions({
   cartDisabled = false,
   disableOverlay = false
 }: ProductQuickActionsProps) {
+  const t = useTranslation();
   const [quickViewOpen, setQuickViewOpen] = useState(false);
 
   const numericProductId = useMemo(() => sanitizeProductId(productId), [productId]);
@@ -145,7 +147,7 @@ export default function ProductQuickActions({
         <IconGroup>
           {shouldRenderQuickViewIcon ? (
             <IconButton
-              aria-label="Quick view"
+              aria-label={t("product.actions.quickView", { defaultMessage: "Quick view" })}
               onClick={handleOpenQuickView}
               disabled={!canOpenQuickView}
               size="small"
@@ -162,7 +164,7 @@ export default function ProductQuickActions({
           />
 
           <IconButton
-            aria-label="Add to cart"
+            aria-label={t("product.actions.addToCart", { defaultMessage: "Add to Cart" })}
             onClick={cartEnabled ? onAddToCart : undefined}
             disabled={!cartEnabled}
             size="small"

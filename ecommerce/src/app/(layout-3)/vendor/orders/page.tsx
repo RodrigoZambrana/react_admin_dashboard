@@ -1,14 +1,9 @@
 import { Fragment } from "react";
-import { IconShoppingBagCheck } from "@tabler/icons-react";
+import { notFound } from "next/navigation";
 import type Order from "@models/order.model";
 // UTILS
 import axios from "@lib/axios";
-// GLOBAL CUSTOM COMPONENTS
-import Hidden from "@component/hidden";
-import TableRow from "@component/TableRow";
-import { H5 } from "@component/Typography";
-import DashboardPageHeader from "@component/DashboardPageHeader";
-import OrderList from "@sections/vendor-dashboard/orders/OrderList";
+import { isDemoRouteEnabled } from "@/lib/public-route-policy";
 
 const ORDER_HEADERS = ["Order #", "Status", "Date purchased", "Total"];
 
@@ -31,6 +26,27 @@ const normalizeOrder = (order: ApiOrder): Order => {
 };
 
 export default async function Orders() {
+  if (!isDemoRouteEnabled()) {
+    notFound();
+  }
+
+  const [
+    { IconShoppingBagCheck },
+    { default: Hidden },
+    { default: TableRow },
+    typographyModule,
+    { default: DashboardPageHeader },
+    { default: OrderList }
+  ] = await Promise.all([
+    import("@tabler/icons-react"),
+    import("@component/hidden"),
+    import("@component/TableRow"),
+    import("@component/Typography"),
+    import("@component/DashboardPageHeader"),
+    import("@sections/vendor-dashboard/orders/OrderList")
+  ]);
+  const { H5 } = typographyModule;
+
   let orders: Order[] = [];
 
   try {

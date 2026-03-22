@@ -1,20 +1,12 @@
 "use client";
 
 import { Fragment, useCallback } from "react";
+import { notFound } from "next/navigation";
 import { Formik } from "formik";
 import * as yup from "yup";
-import { IconCamera, IconSettings } from "@tabler/icons-react";
 // GLOBAL CUSTOM COMPONENTS
-import Box from "@component/Box";
-import Hidden from "@component/hidden";
-import Select from "@component/Select";
-import Avatar from "@component/avatar";
-import Grid from "@component/grid/Grid";
-import { Card1 } from "@component/Card1";
-import { Button } from "@component/buttons";
-import TextField from "@component/text-field";
-import DashboardPageHeader from "@component/DashboardPageHeader";
 // CUSTOM DATA
+import { isDemoRouteEnabled } from "@/lib/public-route-policy";
 import countryList from "@data/countryList";
 
 interface FormValues {
@@ -36,6 +28,21 @@ const accountSchema = yup.object().shape({
 });
 
 export default function AccountSettings() {
+  if (!isDemoRouteEnabled()) {
+    notFound();
+  }
+
+  const { IconCamera, IconSettings } = require("@tabler/icons-react");
+  const Box = require("@component/Box").default;
+  const Hidden = require("@component/hidden").default;
+  const Select = require("@component/Select").default;
+  const Avatar = require("@component/avatar").default;
+  const Grid = require("@component/grid/Grid").default;
+  const { Card1 } = require("@component/Card1");
+  const { Button } = require("@component/buttons");
+  const TextField = require("@component/text-field").default;
+  const DashboardPageHeader = require("@component/DashboardPageHeader").default;
+
   const initialValues: FormValues = {
     first_name: "",
     last_name: "",

@@ -649,10 +649,246 @@ Entrar en una fase sostenible para nuevas features.
 - Estrategia de procedencia de datos y operación degradada del storefront todavía no definida.
 - La clave histórica compatible de la base local quedó identificada en el historial del repo; sigue pendiente decidir si se reutiliza temporalmente o si se limpia/re-cifra `SecureConfig`.
 
+- 2026-03-21
+  - Retoma operativa:
+    - el stack Docker volvió a quedar funcional con PostgreSQL local disponible vía `postgres-local`,
+    - `backend`, `frontend` y `storefront` quedaron otra vez en `Up`,
+    - se revalidó el bloque antes de seguir con cambios de storefront.
+  - Nuevo avance sobre el storefront:
+    - se eliminó otro tramo de fallback implícito a datasets Bonik en catálogo y navegación,
+- `market-1` quedó reducido a API real + vacío controlado, sin compatibilidad con colecciones mock heredadas,
+- la configuración de storefront ya no cae a navegación/footer demo cuando la API falla y los snapshots están desactivados,
+- el fallback actual pasa a ser una configuración mínima y explícita del producto real.
+  - Estado resultante:
+    - `ecommerce lint`: verde,
+    - `ecommerce build`: verde,
+    - runtime del storefront validado otra vez en Docker,
+    - el siguiente paso natural ya no es seguir limpiando mocks del catálogo base, sino atacar la definición final del set oficial de rutas públicas y el recorte de la superficie demo restante.
+  - Subbloque adicional ya ejecutado:
+    - `shops` deja de depender de snapshots y mocks locales,
+    - `mobile-category-nav` queda preservado en `page.demo.tsx`, pero fuera del flujo normal mientras los demo routes sigan desactivados,
+    - se mantiene el criterio acordado: preservar código reutilizable, pero separar lo activo de lo heredado/demo.
+  - Ajuste puntual ya ejecutado:
+    - el configurador paramétrico deja de tratar el `404` de config como error técnico visible en consola,
+    - la navegación móvil de categorías pasa a reutilizar el mismo `CategoryDropdown` del menú de categorías principal para evitar divergencia visual y funcional.
+  - Nuevo ajuste estructural ya ejecutado:
+    - el configurador paramétrico del storefront quedó alineado al contrato real de admin/backend,
+    - se reemplazó el modelo legado basado en `inputs.series/color/glass` y medidas en metros por el snapshot canónico con:
+      - `selectors.families`, `series`, `materials`, `colors`, `glass`, `widths`, `heights`, `shutterMaterials`,
+      - `compatibility.glassBySeries`, `monoblockBySeries`, `sizeLimits`,
+      - quote request canónico en milímetros y con flags reales del backend,
+    - el storefront ya no inventa breakdowns ni campos no soportados por backend como `monoblockColor`,
+    - el carrito pasa a persistir configuración paramétrica canónica.
+  - Validación del subbloque:
+    - `ecommerce npm run lint`: verde,
+    - `ecommerce npm run build`: verde,
+    - `docker compose -f deploy/docker-compose.dev.yml up -d storefront`: verde,
+    - `curl http://127.0.0.1:3000/api/health`: `{"status":"ok"}`.
+  - Cierre de incidencia crítica del flujo paramétrico:
+    - el `404` de `/api/storefront/products/:id/parametric-config` se debía a que el entorno local estaba corriendo la variante `core`,
+    - se alineó el desarrollo local a `urucortinas` en Docker y en `.env` locales para que admin/backend/storefront compartan el mismo set de features,
+    - se dejó además el backend preparado para resolver el `parametricProductId` base cuando el producto público paramétrico no tiene matriz propia.
+  - Validación:
+    - `backend npm run lint`: verde,
+    - `backend npm run build`: verde,
+    - `docker compose -f deploy/docker-compose.dev.yml build backend frontend storefront`: verde,
+    - `docker compose -f deploy/docker-compose.dev.yml up -d backend frontend storefront`: verde,
+    - logs de backend:
+      - `GET /api/storefront/products/2115/parametric-config`: `200`,
+      - `POST /api/storefront/products/2115/parametric-quote`: `201`.
+  - Ajuste de consistencia UX en móvil:
+    - el menú general del header móvil quedó reimplementado con la misma base visual y de navegación del drawer de categorías,
+    - se reemplazó el árbol textual por un menú por niveles consistente con categorías.
+  - Validación:
+    - `ecommerce npm run lint`: verde,
+    - `ecommerce npm run build`: verde,
+    - `docker compose -f deploy/docker-compose.dev.yml build storefront`: verde,
+    - `docker compose -f deploy/docker-compose.dev.yml up -d storefront`: verde,
+    - `curl http://127.0.0.1:3000/api/health`: `{"status":"ok"}`.
+  - Alineación de categorías reales en storefront:
+    - el nodo superior del menú general móvil mantiene su nombre `Products`, pero queda desplegado por defecto,
+    - los enlaces de categorías del storefront dejan de usar la ruta legacy basada en búsqueda textual y pasan a navegar a `/shop?category=<slug-real>`,
+    - `shop` deja de aplicar un filtro cliente redundante por categoría y confía en el filtrado ya resuelto por backend,
+    - `/product/search/[slug]` queda como compatibilidad controlada:
+      - slugs legacy con formato `nombre-id` redirigen a `/shop?category=<slug-limpio>`,
+      - términos libres siguen redirigiendo a `/shop?query=<texto>`,
+    - validación adicional:
+      - `psql` confirmó que no hay colisiones de slug limpio en categorías ni en productos físicos publicados,
+      - `npm run build` del storefront ya levanta con `slug "urucortinas"` y no `core`,
+      - `GET /api/storefront/categories` devuelve slugs limpios,
+      - `GET /api/storefront/products/cortinas-roller` resuelve el slug limpio directamente,
+      - `curl -I http://127.0.0.1:3000/shop?category=aberturas`: `200`,
+      - `curl -I http://127.0.0.1:3000/product/cortinas-roller`: `200`.
+  - Consistencia entre drawers móviles:
+    - el menú general móvil y el drawer de categorías móvil quedan alineados en jerarquía visual y espaciado,
+    - el drawer de categorías móvil pasa a comportamiento acordeón:
+      - categorías con hijos despliegan subniveles al click,
+      - categorías hoja navegan a `shop`,
+      - el área clickeable primaria pasa a ser toda la fila del ítem, no solo el chevron,
+    - se consolidó el renderer móvil compartido en `AccordionMenu.tsx` para evitar duplicación entre ambos drawers,
+    - el menú de categorías desktop mantiene el comportamiento hover actual.
+  - Refinamiento del bloque móvil ya ejecutado:
+    - el árbol móvil se desacopló visualmente de `categories/styles.tsx` con un bloque propio en `components/mobile-navigation/styles.tsx`,
+    - se corrigió la desalineación entre iconos izquierdos y texto introducida por el refactor previo,
+    - se agregó estado activo y rama activa para rutas y queries reales,
+    - se reforzó el feedback táctil de filas móviles (`hover/press/active`) sin contaminar la capa desktop.
+  - Ajuste adicional del storefront:
+    - el flujo Google auth del storefront dejó de intentar desmontar listeners DOM sobre el popup cross-origin de Google; la detección de cierre pasa a `popup.closed` dentro del polling de sesión,
+    - se consolidó un mapper compartido en `lib/storefront/menu-nodes.ts` para evitar divergencia entre navegación general y categorías al construir el árbol móvil,
+    - los endpoints `api/public/snapshots` y `api/internal/snapshots` quedan fuera de servicio (`404`) cuando los snapshot fallbacks están desactivados.
+  - Alineación de build/runtime en el admin:
+    - se detectó que `frontend` estaba compilando con `VITE_CLIENT_SLUG=core` aunque en runtime exponía `urucortinas`,
+    - se corrigió `deploy/docker-compose.dev.yml` para centralizar el stack Docker local en una sola variable `CLIENT_SLUG`,
+    - backend/frontend/storefront derivan desde esa única fuente sus valores de slug en build-time y runtime,
+    - esto corrige la condición que impedía mostrar el menú `Aberturas` pese a tener activo `PARAMETRIC_PRODUCTS`.
+  - Recorte incremental adicional del storefront:
+    - se eliminó el enlace demo visible del detalle de producto hacia `/shops/scarlett-beauty`,
+    - se alinearon los links de reautenticación del dashboard cliente hacia `/account/login`,
+    - el loader de snapshots deja de consultar la API de snapshots cuando esa capa está desactivada.
+  - Priorización explícita de pendientes de navegación:
+    - `Corto plazo`
+      - ajustar fino de QA visual móvil si aparecen desalineaciones residuales,
+    - `Pendiente a futuro`
+      - agregar CTA secundaria “Ver todo” en categorías con hijos,
+    - `Mediano plazo`
+      - revisar consolidación adicional del modelado entre desktop y mobile,
+      - mantener renderers separados si la interacción sigue siendo diferente (`hover` vs `accordion`).
+- Ajuste adicional de entorno:
+  - se restableció la convención de desarrollo dual del backend:
+    - Docker local usa `deploy/env/backend.dev.env` y el override opcional `deploy/env/.env.backend.dev.local`,
+    - desarrollo fuera de Docker usa `backend/.env` con `127.0.0.1:5432`,
+  - `backend/.env.example` y `backend/README.md` quedaron alineados con esa separación,
+  - validación disponible:
+    - `psql` contra `127.0.0.1:5432` respondió correctamente,
+    - Docker local siguió estable,
+    - el arranque `npm start` del backend desde esta herramienta todavía no quedó demostrado al 100% por un `P1001` inconsistente con la prueba SQL directa, así que conviene cerrarlo con una validación manual en terminal del usuario antes de darlo por totalmente resuelto.
+
 ### Próxima sesión sugerida
 
 - Profundizar el recorte de superficie pública del storefront y la política de fallbacks controlados.
-- Al volver sobre storefront, revisar si las URLs de categoría deben seguir aterrizando en `/shop?query=<slug>` o migrar a un filtro explícito por categoría.
 - Próximo objetivo recomendado:
   - mantener `vendor-pdf` y `vendor-charts` como únicos bundles grandes aceptados salvo evidencia de impacto real,
   - seguir luego con el recorte de superficie pública del storefront y la política de fallbacks controlados.
+- 2026-03-21
+  - Bloque completado:
+    - implementación de `/contact` con contenido dummy controlado y parametrizable,
+    - revisión exhaustiva de traducciones activas del storefront (`es/en`) en flujo público,
+    - limpieza de metadata activa residual de `Bonik/UI-LIB/Storefront`,
+    - redirect estable de `/products` y `/search` hacia `/shop`,
+    - saneamiento de topbar/footer/paneles para no mostrar valores template en runtime.
+  - Archivos/base técnica incorporada:
+    - `ecommerce/src/components/storefront/InfoPage.tsx`
+    - `ecommerce/src/components/i18n/TranslatedText.tsx`
+    - `ecommerce/src/lib/page-metadata.ts`
+  - Estado después del bloque:
+    - storefront `lint/build`: verdes,
+    - Docker local validado,
+    - metadata pública activa validada en runtime para `/contact` y `/cart`,
+    - `/products` validado con redirect `307 -> /shop`.
+  - Siguiente foco recomendado:
+    - continuar recortando superficie demo restante del storefront,
+    - seguir consolidando el fallback controlado sin reintroducir datos demo,
+    - después retomar el siguiente bloque del roadmap general.
+- 2026-03-21
+  - Bloque incremental ejecutado antes de volver al roadmap general:
+    - reforzar uso de `companyProfile` del backend/admin en storefront activo,
+    - cerrar preferencia de idioma con persistencia real para usuarios autenticados,
+    - atacar la intermitencia del home,
+    - mejorar búsqueda por producto/categoría y feedback de vacío.
+  - Implementación aplicada:
+    - `companyProfile`
+      - se consolidó el consumo en `Logo`, `Topbar`, `Footer1` y `/contact`,
+      - no se agregó una segunda fuente de datos; se mantuvo `storefront/config` como contrato único hacia el storefront.
+    - `i18n`
+      - la detección inicial usa `navigator.languages`,
+      - el orden efectivo de resolución queda:
+        - preferencia del usuario autenticado en DB,
+        - preferencia persistida en navegador,
+        - idioma del navegador,
+        - fallback a `es`,
+      - el cambio de idioma de usuario autenticado ahora sincroniza hacia backend vía `account/profile`.
+    - `home`
+      - categorías destacadas, productos destacados y novedades pasaron de fetch server-side frágil a fetch cliente con cache/control de refresh,
+      - se reutilizó el mismo enfoque para el shelf por categoría,
+      - esto reduce la divergencia que existía entre menú de categorías cargado en cliente y home vacía por fallo puntual de render server-side.
+    - `búsqueda`
+      - el buscador ahora trabaja sobre productos y categorías,
+      - respeta la categoría seleccionada como scope,
+      - navega al catálogo aunque no haya match exacto,
+      - usa `/shop?category=<slug>` cuando la coincidencia exacta es una categoría,
+      - mejora el feedback cuando no hay resultados.
+  - Estado al cierre del bloque:
+    - storefront `lint`: verde,
+    - storefront `build`: verde,
+    - Docker local del storefront: validado,
+    - se mantiene como observación abierta el fallback mínimo durante `next build` cuando el backend/config responde `500/503` en prerender.
+  - Nuevo avance sobre el recorte de superficie demo y fallback controlado:
+    - se limpió el home activo para que ya no sirva hero/carrusel demo heredado del template,
+    - `market1Defaults` deja de arrastrar assets `apple-watch`, textos genéricos y links absolutos a `localhost`,
+    - `/contact` queda incorporada explícitamente al set oficial de rutas públicas,
+    - la navegación pública deja de depender de un override puntual de `urucortinas` y pasa a centralizarse en una base compartida para `core` y tenants, evitando mezclas de arrays heredados del backend/defaults,
+    - la config pública serializada al cliente deja fuera `layouts` y `policies` demo que no se usan en la UI activa,
+    - el carousel del home se reincorpora con información parametrizada del storefront real en vez de slides demo del template,
+    - `shops`, `vendor` y `checkout-demo` pasan a patrón de carga diferida:
+      - cuando las demo routes están desactivadas, cortan antes de importar layouts y secciones internas,
+      - el código demo sigue preservado, pero fuera del flujo normal del storefront,
+    - el storefront fue reconstruido sin caché para validar el artefacto real y no un build viejo,
+    - la validación desde contenedor confirma:
+      - `/login` -> `/account/login`,
+      - `/signup` -> `/account/register`,
+      - `/market-1` -> `/`,
+      - `/checkout-alternative` -> `/checkout`,
+      - `/shops` -> `404`,
+      - `/mobile-category-nav` -> `404`,
+      - el HTML del home ya no incluye marcas demo heredadas,
+      - el HTML público del tenant ya no serializa `/about`, `/faq`, `/policies/*`, `nav-services` ni `/services/measurement`.
+  - Siguiente foco recomendado:
+    - seguir con el recorte restante de superficie demo del storefront en rutas/páginas preservadas de `layout-3`, vendor y shops,
+    - seguir consolidando fallback controlado sin reintroducir datos demo ni branding genérico en build-time,
+    - luego retomar el siguiente bloque del roadmap general.
+- 2026-03-21
+  - Subbloque ejecutado sobre el recorte restante del storefront:
+    - se reforzó `shops`, `vendor` y `checkout-demo` para que no solo salgan del flujo público, sino que además eviten cargar sus módulos demo pesados cuando las demo routes están deshabilitadas;
+    - esto se hizo moviendo layouts/páginas a un patrón de guard clause + import diferido;
+    - en `checkout-demo` las implementaciones preservadas quedaron separadas en `page.demo.tsx`.
+  - Subbloque general retomado a continuación:
+    - limpieza del audit del admin/frontend,
+    - salieron `lodash-es` y `mdast-util-to-hast` del reporte productivo,
+    - quedó solo `quill` con 2 vulnerabilidades bajas heredadas por `react-quill-new`.
+  - Próximo foco recomendado:
+    - decidir si el riesgo residual de `quill` se acepta temporalmente o si conviene reemplazar el editor rico del admin,
+    - seguir luego con el recorte restante de la superficie demo todavía preservada en módulos no activos,
+    - después retomar el siguiente bloque general del roadmap.
+- 2026-03-21
+  - Ajuste puntual ejecutado fuera del bloque mayor:
+    - se contrajo el trigger de categorías del header desktop del storefront para alinearlo con el patrón visual de `fashion-3`,
+    - el cambio quedó intencionalmente limitado a ese elemento, sin abrir un rediseño del topbar ni del dropdown desktop.
+  - Validación:
+    - `cd ecommerce && npm run lint`: verde,
+    - `cd ecommerce && npm run build`: verde,
+    - `docker compose -f deploy/docker-compose.dev.yml build storefront`: verde,
+    - `docker compose -f deploy/docker-compose.dev.yml up -d --force-recreate storefront`: verde,
+    - `curl http://127.0.0.1:3000/api/health`: `{"status":"ok"}`.
+- 2026-03-21
+  - Decisión de riesgo aceptado:
+    - el remanente de `quill` en el admin queda aceptado temporalmente como riesgo bajo, dado que la funcionalidad está confinada al panel administrativo y no al storefront público.
+  - Subbloque storefront adicional:
+    - `shop` recupera la barra superior de resultados con ordenamiento y tipo de visualización,
+    - la home desktop pasa a consumir la misma fuente/cache de categorías que usa navegación y catálogo para evitar divergencia funcional.
+- 2026-03-21
+- Medida operativa incorporada al plan:
+  - el `storefront` del compose de desarrollo pasa a ejecutarse en `next dev` dentro de Docker para evitar la recurrencia de runtime desfasado por rebuilds productivos lentos,
+  - este cambio queda restringido al stack local de `deploy/docker-compose.dev.yml`,
+  - el flujo productivo y el despliegue en DigitalOcean permanecen sin cambios.
+- Ajustes funcionales asociados:
+  - `/shop` ya no trata `All` como categoría activa,
+  - el buscador limpia/cierra mejor al navegar a resultados,
+  - el selector de categoría del buscador recupera prioridad de click.
+- Criterio a partir de este punto:
+  - usar el `storefront` Docker local en modo dev para iteración y validación rápida,
+  - reservar validaciones de build productivo del `ecommerce` para bloques específicos donde realmente haga falta chequear el artefacto de release.
+- 2026-03-21
+  - Ajuste adicional del buscador del storefront:
+    - se consolidó una única fila base reutilizable para el nav de categorías desktop y los resultados del buscador,
+    - esto evita mantener dos implementaciones visuales separadas para categorías/productos dentro del dropdown,
+    - la diferenciación entre ambos tipos queda resuelta por jerarquía de contenido sobre el mismo componente compartido.

@@ -1,17 +1,16 @@
-import Grid from "@component/grid/Grid";
-import CheckoutForm from "@sections/checkout/CheckoutForm";
-import CheckoutSummary from "@sections/checkout/CheckoutSummary";
+import { notFound } from "next/navigation";
 
-export default function Checkout() {
-  return (
-    <Grid container flexWrap="wrap-reverse" spacing={6}>
-      <Grid item lg={8} md={8} xs={12}>
-        <CheckoutForm />
-      </Grid>
+import { isDemoRouteEnabled } from "@/lib/public-route-policy";
 
-      <Grid item lg={4} md={4} xs={12}>
-        <CheckoutSummary />
-      </Grid>
-    </Grid>
-  );
+export const dynamic = "force-dynamic";
+
+export default async function CheckoutDemoPage() {
+  if (!isDemoRouteEnabled()) {
+    notFound();
+  }
+
+  const checkoutModule = await import("./page.demo");
+  const CheckoutDemo = checkoutModule.default;
+
+  return <CheckoutDemo />;
 }

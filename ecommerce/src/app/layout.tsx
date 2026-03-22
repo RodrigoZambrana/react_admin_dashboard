@@ -14,6 +14,7 @@ import NProgressBar from "@component/NProgress";
 import { I18nProvider } from "@/state/i18n-context";
 import ToastProvider from "@context/ToastContext";
 import NetworkStatusBanner from "@/components/status/NetworkStatusBanner";
+import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 
 const publicSans = localFont({
   src: [
@@ -31,13 +32,9 @@ const publicSans = localFont({
   display: "swap"
 });
 
-export const metadata: Metadata = {
-  title: "Bonik - La mejor plantilla de comercio electrónico React",
-  description:
-    "Bonik es una plantilla de comercio electrónico basada en Next.js. Crea tiendas en línea optimizadas para SEO, apps de delivery y plataformas multivendedor.",
-  authors: [{ name: "UI-LIB", url: "https://ui-lib.com" }],
-  keywords: ["comercio electrónico", "plantilla ecommerce", "next.js", "react", "bonik"]
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return buildStorefrontPageMetadata();
+}
 
 export default function RootLayout({ children }: PropsWithChildren) {
   return (

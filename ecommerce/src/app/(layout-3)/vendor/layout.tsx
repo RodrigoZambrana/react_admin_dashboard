@@ -1,12 +1,17 @@
 import { PropsWithChildren } from "react";
+import { notFound } from "next/navigation";
 // GLOBAL CUSTOM COMPONENTS
-import { enforcePublicRoute } from "@/lib/public-route-policy";
-import VendorDashboardLayout from "@component/layout/vendor-dashboard";
+import { isDemoRouteEnabled } from "@/lib/public-route-policy";
 
 export const dynamic = "force-dynamic";
 
-export default function Layout({ children }: PropsWithChildren) {
-  enforcePublicRoute("vendor");
+export default async function Layout({ children }: PropsWithChildren) {
+  if (!isDemoRouteEnabled()) {
+    notFound();
+  }
+
+  const layoutModule = await import("@component/layout/vendor-dashboard");
+  const VendorDashboardLayout = layoutModule.default;
 
   return <VendorDashboardLayout>{children}</VendorDashboardLayout>;
 }

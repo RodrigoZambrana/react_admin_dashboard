@@ -1,4 +1,5 @@
 import type { StorefrontClientVariantConfig } from "../types";
+import { buildDefaultPublicNavigation } from "@/lib/storefront/public-navigation";
 
 const config: StorefrontClientVariantConfig = {
   slug: "retail",
@@ -19,7 +20,8 @@ const config: StorefrontClientVariantConfig = {
       defaultTitle: "Retail Boutique",
       titleTemplate: "%s · Retail Boutique",
       defaultDescription: "Descubrí la experiencia Retail Boutique con colecciones seleccionadas especialmente para tu negocio."
-    }
+    },
+    navigation: buildDefaultPublicNavigation()
   }
 };
 

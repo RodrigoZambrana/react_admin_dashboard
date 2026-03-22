@@ -1,13 +1,10 @@
 import { Fragment } from "react";
-import { IconDeviceAnalytics } from "@tabler/icons-react";
+import { notFound } from "next/navigation";
 // API FUNCTIONS
 import api from "@utils/__api__/dashboard";
-// GLOBAL CUSTOM COMPONENTS
-import DashboardPageHeader from "@component/DashboardPageHeader";
-// PAGE SECTION COMPONENTS
-import DashboardContent from "@sections/vendor-dashboard/dashboard";
 import { cardList, salesData, topCountryList } from "@/__server__/__db__/dashboard/data";
 import { vendorDashboardRecovery } from "@/__server__/snapshots/recovery-data";
+import { isDemoRouteEnabled } from "@/lib/public-route-policy";
 
 type SalesDataset = typeof salesData;
 type SummaryCard = (typeof cardList)[number];
@@ -71,6 +68,17 @@ async function fetchWithFallback<T>(
 }
 
 export default async function VendorDashboard() {
+  if (!isDemoRouteEnabled()) {
+    notFound();
+  }
+
+  const [{ IconDeviceAnalytics }, { default: DashboardPageHeader }, { default: DashboardContent }] =
+    await Promise.all([
+      import("@tabler/icons-react"),
+      import("@component/DashboardPageHeader"),
+      import("@sections/vendor-dashboard/dashboard")
+    ]);
+
   const [sales, summeryCards, countrySales] = await Promise.all([
     fetchWithFallback(() => api.getSales(), "sales metrics", {
       localFallback: salesData,

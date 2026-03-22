@@ -3,8 +3,6 @@ import { mapProductSummaryToProduct } from "@/lib/storefront/adapters";
 
 export const revalidate = 180;
 
-import FlexBox from "@component/FlexBox";
-import { H1 } from "@component/Typography";
 import Container from "@component/Container";
 import Hidden from "@component/hidden";
 
@@ -16,24 +14,19 @@ import type Product from "@models/product.model";
 import { Meta, SearchParams } from "interfaces";
 import type { CategorySummary, ProductListQuery } from "@/types/storefront";
 import type { ActiveFilters, PriceFilter } from "./components/ShopFilterPanel";
+import {
+  buildSearchCategoryOptions,
+  findMatchingSearchCategories,
+} from "@/lib/storefront/search-utils";
 
 const PAGE_SIZE = 28;
-const ALLOW_MOCK_PRODUCTS =
-  process.env.NEXT_PUBLIC_ENABLE_STOREFRONT_FALLBACKS === "true" ||
-  process.env.ENABLE_STOREFRONT_FALLBACKS === "true";
-
 type SaleCategoryDefinition = {
   icon: string;
   title: string;
   slug?: string;
 };
 
-const FALLBACK_SALE_CATEGORIES: SaleCategoryDefinition[] = [
-  { icon: "women-dress", title: "Women" },
-  { icon: "beauty-products", title: "Cosmetics" },
-  { icon: "camera", title: "Electronics" },
-  { icon: "sofa", title: "Furniture" }
-];
+const DEFAULT_SALE_CATEGORIES: SaleCategoryDefinition[] = [{ icon: "category", title: "All" }];
 
 const SALE_CATEGORY_ICONS = ["women-dress", "beauty-products", "camera", "sofa"];
 
@@ -58,6 +51,22 @@ const parseNumberParam = (input: string | string[] | undefined): number | undefi
   const parsed = Number(value);
   if (Number.isNaN(parsed)) return undefined;
   return parsed;
+};
+
+const extractSortParam = (
+  input: string | string[] | undefined,
+): ProductListQuery["sort"] | undefined => {
+  const value = Array.isArray(input) ? input[0] : input;
+  switch (value) {
+    case "newest":
+    case "price-asc":
+    case "price-desc":
+    case "featured":
+    case "best-sellers":
+      return value;
+    default:
+      return undefined;
+  }
 };
 
 const extractSearchTerm = (params: Record<string, string | string[] | undefined>): string | undefined => {
@@ -151,25 +160,8 @@ const fetchStorefrontProducts = async (
   };
 };
 
-const loadMockProducts = async (): Promise<Product[]> => {
-  const dataModule = await import("@/__server__/__db__/products/data");
-  const dataset = dataModule?.uniqueProudcts ?? [];
-  return Array.isArray(dataset) ? (dataset as Product[]) : [];
-};
-
-const fetchMockProducts = async (pageSize: number): Promise<Product[]> => {
-  if (!ALLOW_MOCK_PRODUCTS) {
-    return [];
-  }
-
-  const dataset = await loadMockProducts();
-  if (dataset.length === 0) {
-    return [];
-  }
-
-  const required = Math.max(pageSize, dataset.length);
-  return dataset.slice(0, required);
-};
+const dedupeProducts = (products: Product[]) =>
+  Array.from(new Map(products.map((product) => [product.id, product])).values());
 
 export default async function ShopPage({ searchParams }: SearchParams) {
   const params = await searchParams;
@@ -180,41 +172,17 @@ export default async function ShopPage({ searchParams }: SearchParams) {
     ? categoryParam
     : undefined;
   const searchTerm = extractSearchTerm(params ?? {});
+  const sort = extractSortParam(params?.sort);
   const priceMin = parseNumberParam(params?.priceMin ?? params?.minPrice ?? params?.price_min);
   const priceMax = parseNumberParam(params?.priceMax ?? params?.maxPrice ?? params?.price_max);
   const rating = parseNumberParam(params?.rating);
 
   let products: Product[] = [];
   let meta: Meta = { page: requestedPage, pageSize: PAGE_SIZE, total: 0, totalPage: 1 };
-  let saleCategories: SaleCategoryDefinition[] = FALLBACK_SALE_CATEGORIES;
-
-  let shouldFallbackToMockProducts = false;
+  let saleCategories: SaleCategoryDefinition[] = DEFAULT_SALE_CATEGORIES;
   let allProducts: Product[] = [];
-
-  try {
-    const { products: storefrontProducts } = await fetchStorefrontProducts(
-      {
-        categorySlug: selectedCategorySlug,
-        search: searchTerm
-      },
-      PAGE_SIZE
-    );
-
-    allProducts = storefrontProducts;
-
-    if (ALLOW_MOCK_PRODUCTS && allProducts.length === 0) {
-      shouldFallbackToMockProducts = true;
-    }
-  } catch (error) {
-    if (!isApiError(error)) {
-      console.warn("[sale-page] Falling back to template products:", error);
-    }
-    shouldFallbackToMockProducts = ALLOW_MOCK_PRODUCTS;
-  }
-
-  if (shouldFallbackToMockProducts && ALLOW_MOCK_PRODUCTS) {
-    allProducts = await fetchMockProducts(PAGE_SIZE);
-  }
+  let selectedCategoryLabel: string | undefined;
+  let matchedCategorySlugs: string[] = [];
 
   try {
     const categories = await StorefrontApi.listCategories();
@@ -222,11 +190,59 @@ export default async function ShopPage({ searchParams }: SearchParams) {
     if (mapped.length > 0) {
       saleCategories = mapped;
     }
+    selectedCategoryLabel = selectedCategorySlug
+      ? mapped.find((category) => category.slug === selectedCategorySlug)?.title
+      : undefined;
+
+    if (!selectedCategorySlug && searchTerm) {
+      const searchCategoryOptions = buildSearchCategoryOptions(categories);
+      matchedCategorySlugs = findMatchingSearchCategories(searchCategoryOptions, searchTerm)
+        .map((category) => category.slug)
+        .filter((slug): slug is string => Boolean(slug));
+    }
   } catch (error) {
     if (!isApiError(error)) {
-      console.warn("[sale-page] Falling back to template categories:", error);
+      console.warn("[sale-page] Failed to load storefront categories.", error);
     }
-    saleCategories = FALLBACK_SALE_CATEGORIES;
+    saleCategories = DEFAULT_SALE_CATEGORIES;
+  }
+
+  try {
+    const productSources = [
+      fetchStorefrontProducts(
+        {
+          categorySlug: selectedCategorySlug,
+          search: searchTerm,
+          sort,
+        },
+        PAGE_SIZE
+      ),
+    ];
+
+    if (!selectedCategorySlug && searchTerm && matchedCategorySlugs.length > 0) {
+      const extraCategorySources = matchedCategorySlugs.slice(0, 3).map((slug) =>
+        fetchStorefrontProducts(
+          {
+            categorySlug: slug,
+            sort,
+          },
+          PAGE_SIZE
+        )
+      );
+      productSources.push(...extraCategorySources);
+    }
+
+    const settled = await Promise.allSettled(productSources);
+    const storefrontProducts = settled.flatMap((result) =>
+      result.status === "fulfilled" ? result.value.products : []
+    );
+
+    allProducts = dedupeProducts(storefrontProducts);
+  } catch (error) {
+    if (!isApiError(error)) {
+      console.warn("[sale-page] Failed to load storefront products.", error);
+    }
+    allProducts = [];
   }
 
   const normalizeText = (value?: string) => (value ? value.toLowerCase() : "");
@@ -234,13 +250,7 @@ export default async function ShopPage({ searchParams }: SearchParams) {
 
   let scopedProducts = allProducts;
 
-  if (selectedCategorySlug) {
-    scopedProducts = scopedProducts.filter((product) =>
-      product.categories?.some((category) => category?.slug === selectedCategorySlug)
-    );
-  }
-
-  if (normalizedSearchTerm) {
+  if (normalizedSearchTerm && matchedCategorySlugs.length === 0) {
     scopedProducts = scopedProducts.filter((product) =>
       normalizeText(product.title).includes(normalizedSearchTerm) ||
       normalizeText(product.slug).includes(normalizedSearchTerm)
@@ -274,26 +284,16 @@ export default async function ShopPage({ searchParams }: SearchParams) {
     <Container mt="2rem">
       <SaleNavbar categories={saleCategories} selectedSlug={selectedCategorySlug} />
 
-      <div>
-        <FlexBox mb="2rem" flexWrap="wrap">
-          <H1 color="primary.main" mr="0.5rem" lineHeight="1">
-            Flash Deals,
-          </H1>
-
-          <H1 color="text.muted" lineHeight="1">
-            Enjoy Upto 80% discounts
-          </H1>
-        </FlexBox>
-
-        <Hidden down="sm">
-          <SaleCategory categories={saleCategories} selectedSlug={selectedCategorySlug} />
-        </Hidden>
-      </div>
+      <Hidden down="sm">
+        <SaleCategory categories={saleCategories} selectedSlug={selectedCategorySlug} />
+      </Hidden>
 
       <ShopProductArea
         products={products}
         meta={meta}
         selectedCategorySlug={selectedCategorySlug}
+        selectedCategoryLabel={selectedCategoryLabel}
+        searchTerm={searchTerm}
         categories={saleCategories}
         filters={{ priceBounds: availablePriceBounds, active: appliedFilters }}
       />

@@ -148,6 +148,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
   const [status, setStatus] = useState<SessionStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const isBootstrapped = useRef(false);
+  const localeSyncInFlight = useRef(false);
   const toast = useToast();
   const { locale, setLocale } = useI18n();
 
@@ -195,6 +196,63 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       setLocale(normalized);
     }
   }, [locale, session?.customer?.preferredLocale, setLocale]);
+
+  useEffect(() => {
+    if (status !== "authenticated" || !session) {
+      return;
+    }
+
+    const persistedLocale = session.customer.preferredLocale;
+    const normalizedPersisted =
+      persistedLocale === "en" || persistedLocale === "es" ? persistedLocale : "es";
+
+    if (locale !== "en" && locale !== "es") {
+      return;
+    }
+
+    if (normalizedPersisted === locale || localeSyncInFlight.current) {
+      return;
+    }
+
+    let cancelled = false;
+    localeSyncInFlight.current = true;
+
+    const syncPreferredLocale = async () => {
+      try {
+        const profile = await StorefrontApi.updateAccountProfile(session.accessToken, {
+          locale,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        setSession((current) =>
+          current
+            ? {
+                ...current,
+                customer: normalizeCustomerProfile(profile),
+              }
+            : current,
+        );
+      } catch (syncError) {
+        if (!cancelled) {
+          console.warn("[session] Unable to persist storefront locale preference", syncError);
+        }
+      } finally {
+        if (!cancelled) {
+          localeSyncInFlight.current = false;
+        }
+      }
+    };
+
+    void syncPreferredLocale();
+
+    return () => {
+      cancelled = true;
+      localeSyncInFlight.current = false;
+    };
+  }, [locale, session, status]);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -344,7 +402,6 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       return new Promise<{ session: AuthSession; returnPath: string | null }>((resolve, reject) => {
         let completed = false;
         let fallbackTimer: number | undefined;
-        let detachPopupUnloadListener: (() => void) | null = null;
         let completionInFlight = false;
         let sessionPollTimer: number | undefined;
         let sessionPollInFlight = false;
@@ -372,14 +429,6 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           window.removeEventListener("message", handleMessage);
           clearFallbackTimer();
           clearSessionPoll();
-          if (detachPopupUnloadListener) {
-            try {
-              detachPopupUnloadListener();
-            } catch (error) {
-              console.warn("[session] Unable to detach Google auth popup listener", error);
-            }
-            detachPopupUnloadListener = null;
-          }
           try {
             window.sessionStorage.removeItem(GOOGLE_STATE_STORAGE_KEY);
           } catch (error) {
@@ -459,22 +508,6 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           }, timeoutMs);
         };
 
-        const attachPopupUnloadListener = () => {
-          if (!popup || typeof popup.addEventListener !== "function") {
-            return;
-          }
-          const handlePopupUnload = () => {
-            if (completed) {
-              return;
-            }
-            fail(new Error("Se cerró la ventana de Google antes de finalizar el acceso."));
-          };
-          popup.addEventListener("beforeunload", handlePopupUnload);
-          detachPopupUnloadListener = () => {
-            popup.removeEventListener("beforeunload", handlePopupUnload);
-          };
-        };
-
         const startSessionPoll = () => {
           if (sessionPollTimer) {
             return;
@@ -482,6 +515,11 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           sessionPollTimer = window.setInterval(async () => {
             if (completed || completionInFlight) {
               clearSessionPoll();
+              return;
+            }
+            if (popup.closed) {
+              clearSessionPoll();
+              fail(new Error("Se cerró la ventana de Google antes de finalizar el acceso."));
               return;
             }
             if (sessionPollInFlight) {
@@ -557,7 +595,6 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         };
 
         window.addEventListener("message", handleMessage);
-        attachPopupUnloadListener();
         startSessionPoll();
         startFallbackTimer();
       });

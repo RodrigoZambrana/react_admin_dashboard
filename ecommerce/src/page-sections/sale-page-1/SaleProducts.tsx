@@ -11,20 +11,32 @@ import { ProductCard1 } from "@component/product-cards";
 import { renderProductCount } from "@utils/utils";
 import Product from "@models/product.model";
 import { Meta } from "interfaces";
+import { useTranslation } from "@/state/i18n-context";
 
 // ==============================================================
 interface Props {
   meta: Meta;
   products: Product[];
   selectedCategorySlug?: string;
+  selectedCategoryLabel?: string;
+  searchTerm?: string;
+  view?: "grid" | "list";
 }
 // ==============================================================
 
-export default function SaleProducts({ products, meta, selectedCategorySlug }: Props) {
+export default function SaleProducts({
+  products,
+  meta,
+  selectedCategorySlug,
+  selectedCategoryLabel,
+  searchTerm,
+  view = "grid",
+}: Props) {
   const { push } = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const hasProducts = products.length > 0;
+  const t = useTranslation();
 
   const handlePageChange = useCallback(
     (page: number) => {
@@ -48,7 +60,13 @@ export default function SaleProducts({ products, meta, selectedCategorySlug }: P
       {hasProducts ? (
         <Grid container spacing={6}>
           {products.map((item: Product) => (
-            <Grid item lg={3} md={4} sm={6} xs={12} key={item.slug}>
+            <Grid
+              item
+              lg={view === "grid" ? 3 : 12}
+              md={view === "grid" ? 4 : 12}
+              sm={view === "grid" ? 6 : 12}
+              xs={12}
+              key={item.slug}>
               <ProductCard1
                 id={item.id}
                 slug={item.slug}
@@ -74,7 +92,21 @@ export default function SaleProducts({ products, meta, selectedCategorySlug }: P
           justifyContent="center"
           border="1px dashed"
           borderColor="gray.400">
-          <SemiSpan color="text.muted">No products match your filters yet.</SemiSpan>
+          <SemiSpan color="text.muted" style={{ textAlign: "center", maxWidth: 480 }}>
+            {searchTerm
+              ? t("shop.empty.search", {
+                  defaultMessage: "We couldn't find products for “{query}”.",
+                  values: { query: searchTerm },
+                })
+              : selectedCategoryLabel
+                ? t("shop.empty.category", {
+                    defaultMessage: "We couldn't find products in {category}.",
+                    values: { category: selectedCategoryLabel },
+                  })
+                : t("shop.empty.filters", {
+                    defaultMessage: "No products match the current filters yet.",
+                  })}
+          </SemiSpan>
         </FlexBox>
       )}
 
@@ -82,7 +114,7 @@ export default function SaleProducts({ products, meta, selectedCategorySlug }: P
         <SemiSpan>
           {meta.total > 0
             ? renderProductCount(meta.page - 1, meta.pageSize, meta.total)
-            : "Showing 0 products"}
+            : t("shop.empty.count", { defaultMessage: "Showing 0 products" })}
         </SemiSpan>
         <Pagination currentPage={meta.page} onChange={handlePageChange} pageCount={meta.totalPage} />
       </FlexBox>

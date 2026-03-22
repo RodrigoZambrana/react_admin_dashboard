@@ -1,4 +1,7 @@
+"use client";
+
 import Typography from "@component/Typography";
+import { useTranslation } from "@/state/i18n-context";
 
 interface ProductDescriptionProps {
   description?: string;
@@ -9,6 +12,7 @@ export default function ProductDescription({
   description,
   descriptionHtml
 }: ProductDescriptionProps) {
+  const t = useTranslation();
   return (
     <div>
       {descriptionHtml ? (
@@ -18,7 +22,12 @@ export default function ProductDescription({
           dangerouslySetInnerHTML={{ __html: descriptionHtml }}
         />
       ) : (
-        <Typography color="text.muted">{description ?? "Product description is coming soon."}</Typography>
+        <Typography color="text.muted">
+          {description ??
+            t("product.description.pending", {
+              defaultMessage: "Product description is coming soon."
+            })}
+        </Typography>
       )}
     </div>
   );

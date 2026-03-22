@@ -6,17 +6,22 @@ x-backend-common: &backend-common
     - path: ./env/.env.backend.dev.local
       required: false
   environment:
+    CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
     PORT: ${BACKEND_PORT:-4000}
 
 x-frontend-common: &frontend-common
   env_file:
     - ./env/frontend.dev.env
+  environment:
+    VITE_CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
 
 x-storefront-common: &storefront-common
   env_file:
     - ../ecommerce/.env
     - ./env/storefront.dev.env
   environment:
+    CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
+    NEXT_PUBLIC_CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
     PORT: ${STOREFRONT_PORT:-3000}
 
 services:
@@ -28,7 +33,7 @@ services:
       dockerfile: Dockerfile
       # Ajusta CLIENT_SLUG para ejecutar una variante específica (por ejemplo urucortinas)
       args:
-        CLIENT_SLUG: ${CLIENT_SLUG:-core}
+        CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
       target: runtime
     working_dir: /app
     command: >
@@ -70,7 +75,7 @@ services:
       args:
         VITE_APP_NAME: "React Admin Dashboard (Dev)"
         VITE_API_URL: "http://localhost:4000/api"
-        VITE_CLIENT_SLUG: ${VITE_CLIENT_SLUG:-core}
+        VITE_CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
         VITE_STATE_SIGNATURE_KEY: ${VITE_STATE_SIGNATURE_KEY:-local-dev-state-signature-change-me}
         VITE_RECAPTCHA_ENABLED: "false"
         VITE_RECAPTCHA_SITE_KEY: ""
@@ -91,9 +96,10 @@ services:
     build:
       context: ..
       dockerfile: ecommerce/Dockerfile
+      target: deps
       args:
-        CLIENT_SLUG: core
-        NEXT_PUBLIC_CLIENT_SLUG: core
+        CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
+        NEXT_PUBLIC_CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
         NEXT_PUBLIC_STOREFRONT_API_URL: http://localhost:4000/api/storefront
         STOREFRONT_API_URL: http://backend:4000/api/storefront
         NEXT_PUBLIC_SITE_URL: http://localhost:3000
@@ -112,11 +118,27 @@ services:
         NEXT_PUBLIC_MP_SUCCESS_URL: /payment/success
         NEXT_PUBLIC_MP_FAILURE_URL: /payment/error
         SNAPSHOT_ACCESS_TOKEN: ""
-      target: runtime
     container_name: dashboard-storefront-dev
+    working_dir: /app
+    command: >
+      sh -c '
+        if [ ! -d node_modules/next ]; then
+          npm install --legacy-peer-deps;
+        fi;
+        npm run dev -- --hostname 0.0.0.0 --port 3000;
+      '
+    volumes:
+      - ../ecommerce:/app
+      - ../src:/src
+      - storefront-node-modules:/app/node_modules
+      - storefront-next-cache:/app/.next
     ports:
       - "${STOREFRONT_HOST_PORT:-3000}:3000"
     depends_on:
       - backend
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/api/health || exit 1"]
+
+volumes:
+  storefront-node-modules:
+  storefront-next-cache:

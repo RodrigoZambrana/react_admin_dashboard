@@ -48,7 +48,7 @@ export default function OrdersClient() {
               "Please log in again to restore access. If the issue continues after signing in, reach out to support so we can investigate."
           })}
         </Typography>
-        <Link href="/login">
+        <Link href="/account/login">
           <Button color="primary" variant="contained">
             {translate("account.orders.sessionExpiredCta", { defaultMessage: "Go to login" })}
           </Button>

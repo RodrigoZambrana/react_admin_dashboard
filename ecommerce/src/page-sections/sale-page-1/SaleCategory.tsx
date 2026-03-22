@@ -8,6 +8,7 @@ import Icon from "@component/icon/Icon";
 import FlexBox from "@component/FlexBox";
 import { H5 } from "@component/Typography";
 import shadows from "@utils/themeShadows";
+import { useTranslation } from "@/state/i18n-context";
 
 // ==============================================================
 interface SaleCategoryProps {
@@ -21,6 +22,7 @@ interface SaleCategoryProps {
 // ==============================================================
 
 export default function SaleCategory({ categories, selectedSlug }: SaleCategoryProps) {
+  const t = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -82,7 +84,9 @@ export default function SaleCategory({ categories, selectedSlug }: SaleCategoryP
                 {item.icon}
               </Icon>
 
-              <H5 color={isSelected ? "primary.main" : "inherit"}>{item.title}</H5>
+              <H5 color={isSelected ? "primary.main" : "inherit"}>
+                {t(item.title, { defaultMessage: item.title })}
+              </H5>
 
               <Chip
                 top="1rem"
@@ -94,7 +98,7 @@ export default function SaleCategory({ categories, selectedSlug }: SaleCategoryP
                 color={isSelected ? "white" : "inherit"}
                 bg={isSelected ? "primary.main" : "gray.300"}
                 boxShadow={isSelected ? shadows.badge : "inherit"}>
-                Upto 40% off
+                {t("shop.categoryCard.cta", { defaultMessage: "Browse category" })}
               </Chip>
             </FlexBox>
           );

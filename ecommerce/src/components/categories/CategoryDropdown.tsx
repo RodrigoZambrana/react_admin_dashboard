@@ -11,7 +11,12 @@ import CategoryMenuItem from "./CategoryMenuItem";
 import { StyledCategoryDropdown } from "./styles";
 import type { CategorySummary } from "@/types/storefront";
 import { buildFallbackCategorySummaries } from "@/lib/storefront/category-utils";
+import {
+  buildShopCategoryHref,
+  mapCategorySummariesToAccordionNodes,
+} from "@/lib/storefront/menu-nodes";
 import navigations from "@data/navigations";
+import AccordionMenu from "@component/mobile-navigation/AccordionMenu";
 
 // =========================================
 type CategoryDropdownProps = {
@@ -19,6 +24,8 @@ type CategoryDropdownProps = {
   position?: "absolute" | "relative";
   categories?: CategorySummary[];
   icons?: string[];
+  onNavigate?: () => void;
+  interactionMode?: "hover" | "accordion";
 };
 // =========================================
 
@@ -26,7 +33,9 @@ export default function CategoryDropdown({
   open,
   position = "absolute",
   categories,
-  icons
+  icons,
+  onNavigate,
+  interactionMode = "hover",
 }: CategoryDropdownProps) {
   const fallbackCategories = useMemo(() => buildFallbackCategorySummaries(), []);
   const fallbackIcons = useMemo(() => navigations.map((item) => item.icon || "category"), []);
@@ -36,6 +45,16 @@ export default function CategoryDropdown({
     () => (categories && categories.length > 0 ? categories : fallbackCategories),
     [categories, fallbackCategories]
   );
+  const accordionItems = useMemo(
+    () => mapCategorySummariesToAccordionNodes(categoryData, iconList),
+    [categoryData, iconList]
+  );
+
+  if (interactionMode === "accordion") {
+    return (
+      <AccordionMenu items={accordionItems} onNavigate={onNavigate} />
+    );
+  }
 
   return (
     <StyledCategoryDropdown open={open} position={position}>
@@ -46,10 +65,11 @@ export default function CategoryDropdown({
         return (
           <CategoryMenuItem
             key={categoryKey}
-            href={`/product/search/${encodeURIComponent(category.slug)}`}
+            href={buildShopCategoryHref(category.slug)}
             icon={iconName}
             title={category.name}
-            caret={childCategories.length > 0}>
+            caret={childCategories.length > 0}
+            onNavigate={onNavigate}>
             {childCategories.length > 0 ? (
               <Box className="mega-menu" display="none" minWidth="220px" p="1rem">
                 <Box display="flex" flexDirection="column" gridGap="0.5rem">
@@ -80,7 +100,8 @@ export default function CategoryDropdown({
                       <Link
                         key={subKey}
                         className="sub-category-link"
-                        href={`/product/search/${encodeURIComponent(childSlug)}`}>
+                        href={buildShopCategoryHref(childSlug)}
+                        onClick={onNavigate}>
                         {content}
                       </Link>
                     );

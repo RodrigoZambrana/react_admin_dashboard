@@ -11,6 +11,8 @@ import { InlineNotice } from "@/components/status/InlineNotice";
 import SkeletonPanel from "@/components/status/SkeletonPanel";
 import PanelBoundary from "@/components/status/PanelBoundary";
 import { createApiPanelRequest, usePanelResource } from "@/hooks/usePanelResource";
+import { useI18n, useTranslation } from "@/state/i18n-context";
+import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 
 type FeaturedProductsPayload = PaginatedResponse<ProductSummary>;
 
@@ -20,6 +22,9 @@ const requestFeaturedProducts = createApiPanelRequest<FeaturedProductsPayload>(
 
 export function FeaturedProductsPanel() {
   const config = useStorefrontConfig();
+  const { locale } = useI18n();
+  const t = useTranslation();
+  const { formatMoney } = useMoneyFormatter();
   const snapshotEnabled = config.resilience?.snapshotFallbackEnabled !== false;
 
   const { data, error, status, isRefreshing, isStale, refetch, source, snapshotAt } =
@@ -52,7 +57,12 @@ export function FeaturedProductsPanel() {
   if (!items.length && status === "error") {
     return (
       <div style={{ padding: 20, border: "1px dashed rgba(248, 113, 113, 0.6)", borderRadius: 12 }}>
-        <InlineNotice tone="warning" text="No pudimos cargar los productos destacados." />
+        <InlineNotice
+          tone="warning"
+          text={t("home.featured.error", {
+            defaultMessage: "We couldn't load the featured products."
+          })}
+        />
         <button
           type="button"
           onClick={() => refetch()}
@@ -66,7 +76,7 @@ export function FeaturedProductsPanel() {
             fontWeight: 500,
           }}
         >
-          Reintentar
+          {t("account.orders.retry", { defaultMessage: "Try again" })}
         </button>
       </div>
     );
@@ -82,9 +92,11 @@ export function FeaturedProductsPanel() {
       }}
     >
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ fontSize: "1.25rem", fontWeight: 600 }}>Novedades</h2>
-        <Link href="/products?sort=newest" style={{ fontSize: 14, color: "#1d4ed8" }}>
-          Ver todo
+        <h2 style={{ fontSize: "1.25rem", fontWeight: 600 }}>
+          {t("home.featured.title", { defaultMessage: "New arrivals" })}
+        </h2>
+        <Link href="/shop?sort=newest" style={{ fontSize: 14, color: "#1d4ed8" }}>
+          {t("common.viewAll", { defaultMessage: "View all" })}
         </Link>
       </header>
 
@@ -95,13 +107,30 @@ export function FeaturedProductsPanel() {
               tone="info"
               text={
                 source === "snapshot" && snapshotAt
-                  ? `Mostrando datos guardados (${new Date(snapshotAt).toLocaleString()}).`
-                  : "Mostrando datos guardados."
+                  ? t("home.featured.snapshotAt", {
+                      defaultMessage: "Showing saved data ({date}).",
+                      values: { date: new Date(snapshotAt).toLocaleString(locale) }
+                    })
+                  : t("home.featured.snapshot", {
+                      defaultMessage: "Showing saved data."
+                    })
               }
             />
           ) : null}
-          {isRefreshing ? <InlineNotice tone="info" text="Actualizando…" /> : null}
-          {error ? <InlineNotice tone="warning" text="Servicio intermitente. Reintentaremos pronto." /> : null}
+          {isRefreshing ? (
+            <InlineNotice
+              tone="info"
+              text={t("home.featured.refreshing", { defaultMessage: "Refreshing…" })}
+            />
+          ) : null}
+          {error ? (
+            <InlineNotice
+              tone="warning"
+              text={t("home.featured.unstable", {
+                defaultMessage: "Service is intermittent. We'll retry soon."
+              })}
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -128,13 +157,17 @@ export function FeaturedProductsPanel() {
           >
             <h3 style={{ fontSize: "1rem", fontWeight: 600 }}>{item.name}</h3>
             <p style={{ fontSize: 13, color: "#475569" }}>
-              {item.shortDescription ?? "Descripción no disponible."}
+              {item.shortDescription ??
+                t("product.shortDescription.missing", {
+                  defaultMessage: "Description not available."
+                })}
             </p>
             <strong style={{ fontSize: "1rem", color: "#0f172a" }}>
-              {Intl.NumberFormat("es-UY", {
-                style: "currency",
+              {formatMoney({
+                amount: item.price.amount ?? 0,
                 currency: item.price.currency ?? "USD",
-              }).format(item.price.amount ?? 0)}
+                formatted: item.price.formatted
+              })}
             </strong>
           </article>
         ))}

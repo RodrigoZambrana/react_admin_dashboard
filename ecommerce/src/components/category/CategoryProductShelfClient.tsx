@@ -18,6 +18,7 @@ import StorefrontProductCard, {
 import { StorefrontApi } from "@/lib/api/storefront";
 import type { ProductSummary } from "@/types/storefront";
 import { mapProductSummaryToCardProps } from "./mapProductSummaryToCard";
+import { useTranslation } from "@/state/i18n-context";
 
 const CategoryListContainer = styled(Box)(({ theme }) => ({
   width: 260,
@@ -88,6 +89,7 @@ export default function CategoryProductShelfClient({
   fetchPageSize = 9,
   emptyStateText = "No products found in this category."
 }: CategoryProductShelfClientProps) {
+  const t = useTranslation();
   const [activeCategory, setActiveCategory] = useState(initialCategorySlug);
   const [productsByCategory, setProductsByCategory] = useState<Record<string, StorefrontProductCardProps[]>>({
     [initialCategorySlug]: initialProducts
@@ -96,7 +98,7 @@ export default function CategoryProductShelfClient({
   const [errorSlug, setErrorSlug] = useState<string | null>(null);
 
   const activeProducts = productsByCategory[activeCategory] ?? [];
-  const isLoading = loadingSlug === activeCategory;
+  const isLoading = loadingSlug === activeCategory || (!productsByCategory[activeCategory] && Boolean(activeCategory));
   const showError = errorSlug === activeCategory;
 
   const handleSelectCategory = useCallback((slug: string) => {
@@ -197,7 +199,9 @@ export default function CategoryProductShelfClient({
               minHeight="200px"
               style={{ gap: "0.75rem" }}>
               <Paragraph color="error.main" textAlign="center">
-                Unable to load products right now.
+                {t("categoryShelf.errors.loadProducts", {
+                  defaultMessage: "Unable to load products right now."
+                })}
               </Paragraph>
               <Button
                 variant="outlined"
@@ -209,13 +213,13 @@ export default function CategoryProductShelfClient({
                   });
                   setErrorSlug(null);
                 }}>
-                Retry
+                {t("common.retry", { defaultMessage: "Retry" })}
               </Button>
             </FlexBox>
           ) : activeProducts.length === 0 ? (
             <FlexBox alignItems="center" justifyContent="center" minHeight="200px">
               <Paragraph color="text.muted" textAlign="center">
-                {emptyStateText}
+                {t(emptyStateText, { defaultMessage: emptyStateText })}
               </Paragraph>
             </FlexBox>
           ) : (
