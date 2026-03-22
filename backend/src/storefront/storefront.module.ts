@@ -12,6 +12,7 @@ import { PricingModule } from '../pricing/pricing.module'
 import { EmailModule } from '../email/email.module'
 import { StorefrontSecurityService } from './security/storefront-security.service'
 import { OrdersModule } from '../orders/orders.module'
+import { StorefrontPublishedProductResolverService } from './storefront-published-product-resolver.service'
 
 @Module({
   imports: [CurrencyModule, NotificationsModule, PricingModule, EmailModule, OrdersModule],
@@ -24,6 +25,7 @@ import { OrdersModule } from '../orders/orders.module'
     StorefrontGoogleOAuthService,
     StorefrontSessionCookieService,
     StorefrontSecurityService,
+    StorefrontPublishedProductResolverService,
   ],
   exports: [MercadoPagoService],
 })

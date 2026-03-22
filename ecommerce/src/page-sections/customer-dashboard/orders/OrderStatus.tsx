@@ -214,6 +214,53 @@ const compareTimelineEvents = (a: OrderTimelineEvent, b: OrderTimelineEvent) => 
   return timeA - timeB;
 };
 
+const getTimelineDisplayRank = (type: string) => {
+  switch ((type || "").toUpperCase()) {
+    case "ORDER_RECEIVED":
+      return 10;
+    case "PAYMENT_WAITING":
+      return 20;
+    case "PAYMENT_PARTIAL":
+      return 30;
+    case "PAYMENT_FULL":
+    case "PAYMENT_FULL_SUMMARY":
+      return 40;
+    case "ESTIMATE_SET":
+    case "ESTIMATE_UPDATED":
+      return 50;
+    case "SHIPPED":
+      return 60;
+    case "IN_TRANSIT":
+      return 70;
+    case "OUT_FOR_DELIVERY":
+      return 80;
+    case "DELIVERED":
+      return 90;
+    case "CANCELLED":
+      return 100;
+    default:
+      return 85;
+  }
+};
+
+const resolveDisplayTimestamp = (event: Pick<OrderTimelineEvent, "type" | "timestamp" | "estimateDate" | "eventId">) => {
+  const normalizedType = (event.type || "").toUpperCase();
+  if (
+    (normalizedType === "ESTIMATE_SET" || normalizedType === "ESTIMATE_UPDATED") &&
+    typeof event.estimateDate === "string" &&
+    dayjs(event.estimateDate).isValid()
+  ) {
+    return dayjs(event.estimateDate).valueOf();
+  }
+
+  return dayjs(event.timestamp).valueOf();
+};
+
+const isCompletedTimelineEvent = (type: string) => {
+  const normalizedType = (type || "").toUpperCase();
+  return normalizedType !== "PAYMENT_WAITING" && normalizedType !== "CANCELLED";
+};
+
 const isPaymentEvent = (event: OrderTimelineEvent) => PAYMENT_EVENT_TYPES.has((event.type || "").toUpperCase());
 
 const ensurePaymentEvents = (
@@ -304,7 +351,11 @@ const ensurePaymentEvents = (
 
   const augmented = events.concat(synthetic);
 
-  if (paymentType === "PAYMENT_FULL") {
+  const hasPriorPartialPayment = augmented.some(
+    (event) => (event.type || "").toUpperCase() === "PAYMENT_PARTIAL",
+  );
+
+  if (paymentType === "PAYMENT_FULL" && hasPriorPartialPayment) {
     const summaryTimestamp = dayjs(timestamp).add(1, "millisecond").toISOString();
     augmented.push({
       eventId: `synthetic:order:${order.id}:payment_full_summary`,
@@ -643,9 +694,11 @@ const getEventDescription = (
   }
 
   if (type === "PAYMENT_FULL_SUMMARY") {
-    return translate("order.timeline.payment.fullSummary", {
-      defaultMessage: "Payment complete",
-    });
+    return null;
+  }
+
+  if (type === "ORDER_RECEIVED") {
+    return null;
   }
 
   if (type === "ESTIMATE_SET" || type === "ESTIMATE_UPDATED") {
@@ -916,15 +969,13 @@ export default function OrderStatus({ timeline, paymentInfo = null, loading = fa
       summary.events
         .slice()
         .sort((a, b) => {
-          const aCancelled = a.type === "CANCELLED";
-          const bCancelled = b.type === "CANCELLED";
-          if (aCancelled && !bCancelled) return -1;
-          if (!aCancelled && bCancelled) return 1;
-          const aDelivered = a.type === "DELIVERED";
-          const bDelivered = b.type === "DELIVERED";
-          if (aDelivered && !bDelivered) return -1;
-          if (!aDelivered && bDelivered) return 1;
-          return dayjs(b.timestamp).valueOf() - dayjs(a.timestamp).valueOf();
+          const rankDiff = getTimelineDisplayRank(b.type) - getTimelineDisplayRank(a.type);
+          if (rankDiff !== 0) return rankDiff;
+
+          const timestampDiff = resolveDisplayTimestamp(b) - resolveDisplayTimestamp(a);
+          if (timestampDiff !== 0) return timestampDiff;
+
+          return b.id.localeCompare(a.id);
         }),
     [summary.events],
   );
@@ -996,14 +1047,14 @@ export default function OrderStatus({ timeline, paymentInfo = null, loading = fa
           {orderedEvents.map((event, index) => {
             const isLast = index === orderedEvents.length - 1;
             const isCompleted = event.state === "completed";
-          const hasCheck = event.type === "DELIVERED" || event.type === "PAYMENT_FULL_SUMMARY";
-          const showCancelBadge = event.type === "CANCELLED";
-          const backgroundColor =
-            event.type === "CANCELLED"
-              ? "error.main"
-              : isCompleted
-                ? "primary.main"
-                : "gray.300";
+            const hasCheck = isCompleted && isCompletedTimelineEvent(event.type);
+            const showCancelBadge = event.type === "CANCELLED";
+            const backgroundColor =
+              event.type === "CANCELLED"
+                ? "error.main"
+                : isCompleted
+                  ? "primary.main"
+                  : "gray.300";
 
             return (
               <FlexBox key={event.id} alignItems="flex-start" mb={isLast ? "0" : "1.75rem"}>

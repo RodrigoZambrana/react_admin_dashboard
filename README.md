@@ -251,10 +251,26 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
 ## Base de datos y Prisma
 
 - La cadena de conexión debe seguir el formato `postgresql://USER:PASSWORD@HOST:PORT/DB?schema=public`.
+- Si un valor de `.env` contiene espacios, escríbelo entre comillas dobles. Eso evita errores al cargar el archivo desde shell/scripts.
 - Durante los despliegues se ejecuta `npx prisma migrate deploy` sólo si:
   - Cambió algún archivo dentro de `backend/prisma/**`, y
   - El secreto `PRISMA_APPLY_MIGRATIONS` está configurado en `true` para el environment objetivo.
 - Usa `npm run prisma:migrate` (deploy) o `npm run prisma:migrate:dev` (si lo defines) para aplicar cambios manualmente.
+- Prisma toma la ubicación del schema desde `backend/prisma.config.ts`; el seed sigue corriendo por script (`npm run prisma:seed` o `npx prisma db seed`).
+
+Flujo correcto por entorno
+- Local fuera de Docker:
+  - cambiar `backend/prisma/schema.prisma`
+  - crear/versionar migración
+  - correr `cd backend && npm run prisma:generate`
+  - correr `cd backend && npm run prisma:migrate`
+- Docker local:
+  - el servicio `backend` del compose ejecuta `npx prisma migrate deploy` al boot
+  - usar `SKIP_PRISMA_MIGRATIONS=true` solo si necesitas omitirlo de forma excepcional
+- Testing / producción:
+  - desplegar únicamente migraciones versionadas
+  - mantener `PRISMA_APPLY_MIGRATIONS=true`
+  - no aplicar cambios manuales de schema directo en la base
 
 ### Acceso a la base de datos local
 

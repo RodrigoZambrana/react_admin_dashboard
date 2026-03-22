@@ -516,7 +516,7 @@ const ParametricConfigurator = ({
     const snapshot: CartProductSnapshot = {
       id: lineId,
       productId: product.id,
-      mode: product.mode ?? "parametric",
+      mode: "parametric",
       variantId: undefined,
       variantKey: undefined,
       variantLabel: summaryLabel,

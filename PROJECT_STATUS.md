@@ -1784,3 +1784,281 @@ Cuando se retome:
     - `cd ecommerce && npm run lint`: verde,
     - `docker compose -f deploy/docker-compose.dev.yml ps storefront`: `healthy`,
     - `curl http://127.0.0.1:3000/api/health`: `{"status":"ok"}`.
+- 2026-03-22
+  - Cierre formal del bloque storefront:
+    - se deja inventario final de rutas y módulos en `STOREFRONT_CLOSURE.md`,
+    - se fija política definitiva de procedencia de datos y fallback permitido,
+    - se congela el bloque: mejoras cosméticas o no críticas pasan a backlog.
+- 2026-03-22
+  - Nueva fase principal acordada: `Product Readiness / E2E Commerce`.
+  - Estado actual de referencia:
+    - el storefront ya quedó estabilizado y congelado dentro del alcance actual;
+    - `backend`, `frontend` y `ecommerce` cuentan con baseline técnica operativa;
+    - no existe todavía una validación integral documentada del flujo comercial completo de punta a punta.
+  - Estado deseado de esta nueva fase:
+    - flujo básico completo y verificable:
+      - producto -> carrito -> checkout -> compra -> pago -> confirmaciones -> entrega;
+    - mails transaccionales operativos para comprador y administración del sitio;
+    - integración de Mercado Pago validada con estados, notificaciones y reconciliación básica;
+    - relevamiento explícito de datos de envío/entrega necesarios para concretar la compra sin intervención manual;
+    - checklist funcional y testing exploratorio que permitan considerar al producto listo para salida controlada.
+  - Alcance técnico-operativo inicial del relevamiento:
+    - catálogo y stock público,
+    - carrito,
+    - checkout,
+    - Mercado Pago,
+    - mails transaccionales,
+    - datos de envío/entrega,
+    - notificaciones.
+  - Orden de dependencia acordado para las próximas fases:
+    - primero `Product Readiness / E2E Commerce`,
+    - después `mobile-first + contenido dinámico` como capa de producto/experiencia,
+    - y recién después `SEO dinámico`, porque depende de que el modelo de producto/página y el contenido ya estén estabilizados.
+  - Línea móvil/producto ya asentada para una fase posterior:
+    - explorar una home mobile-first con feed tipo stories, carousels dinámicos y navegación más fuerte inspirada en patrones tipo Instagram/Spotify;
+    - no abrir este frente antes de cerrar la compra end-to-end.
+  - Línea SEO futura ya asentada:
+    - metadata dinámica,
+    - datos estructurados,
+    - estructuración de páginas de producto/categoría,
+    - SEO acoplado al alta/baja/cambio de productos.
+  - Criterio de gobernanza desde este punto:
+    - cualquier ajuste menor de storefront se trata como incidencia puntual o backlog,
+    - el frente principal deja de ser “limpieza storefront” y pasa a ser “cierre del flujo comercial real”.
+- 2026-03-22
+  - Subfase `8.1` relevada y documentada en `PRODUCT_READINESS_E2E_ASSESSMENT.md`.
+  - Resultado del relevamiento técnico-operativo por tramo:
+    - `catálogo y stock público`: operativo con observación importante sobre política de reserva/descuento de stock todavía no cerrada en storefront;
+    - `carrito`: operativo, pero client-side (`localStorage`) y sin persistencia server-side ni reserva;
+    - `checkout`: parcial; captura datos mínimos, pero no resuelve todavía fulfillment real;
+    - `Mercado Pago`: parcial con gaps críticos de consistencia entre intent, estado de orden, timeline y notificaciones;
+    - `mails transaccionales`: parcial; la infraestructura está, pero los flags/defaults actuales no garantizan todavía experiencia completa para comprador;
+    - `datos de envío/entrega`: parciales y todavía subdefinidos para operación real;
+    - `notificaciones`: parciales; backend y UI existen, pero el cierre automático del ciclo de pago storefront todavía requiere consolidación.
+  - Hallazgos críticos asentados:
+    - el storefront hoy permite continuar compra con estados de Mercado Pago `pending` / `in_process`,
+    - `createOrder` marca la orden como `PAID` al vincular `paymentIntentId`, sin quedar demostrado en este relevamiento un cierre más estricto por estado confirmado final,
+    - el flujo automático de pago storefront no muestra todavía integración tan clara como el admin para disparar `notifyPaymentReceived` + timeline + post-pago consistente,
+    - no se identificó en este bloque una política cerrada de reserva/descuento de stock al crear orden pública,
+    - el modelo de entrega existe en backend/admin, pero no está todavía expresado como flujo público completo.
+  - Orden recomendado a partir del relevamiento:
+    - primero corregir semántica y cierre real de pagos,
+    - después post-pago transaccional (timeline, notifications, mails),
+    - luego envío/entrega,
+    - después validación operativa de stock,
+    - y recién entonces QA funcional end-to-end intensiva.
+- 2026-03-22
+  - Se deja documentado el plan operativo de delegación real para la fase `Product Readiness / E2E Commerce` en `E2E_DELEGATION_PLAN.md`.
+  - Criterio fijado:
+    - la exploración corre en paralelo por workstreams separados,
+    - la implementación no replica necesariamente esa misma separación si los módulos de backend se pisan fuertemente.
+  - Workstreams de exploración lanzados primero:
+    - `payments-semantics`,
+    - `post-payment-orchestration`,
+    - `checkout-fulfillment`,
+    - `stock-order-integrity`,
+    - `e2e-test-design`.
+  - Estrategia de implementación recomendada:
+    - `payments-semantics` + `post-payment-orchestration` convergen en una sola rama de implementación (`codex/e2e-payments-core`) por alto solapamiento;
+    - `checkout-fulfillment`, `stock-order-integrity` y `e2e-test-design` quedan como bloques separados posteriores.
+- 2026-03-22
+  - Primera ola efectiva de `codex/e2e-payments-core` iniciada con apoyo de subagentes sobre backend y storefront.
+  - Slice ya aterrizado:
+    - storefront ya no trata estados `pending` / `in_process` / `authorized` como cierre válido de pago para avanzar a review o crear orden;
+    - el helper compartido de Mercado Pago queda alineado a que solo `approved` / `captured` equivalen a pago confirmado;
+    - el success flow de checkout deja de asumir `approved` por defecto y pasa a mostrar guidance según estado real;
+    - `createOrder` deja de forzar `statusId = PAID` al vincular `paymentIntentId`;
+    - `MercadoPagoService` recalcula financieros de la orden tras crear/actualizar el `Payment` espejado desde intents/webhook;
+    - `authorized` deja de mapear a `PaymentStatus.CONFIRMED` y pasa a estado no liquidado.
+  - Validación de este slice:
+    - `cd backend && npm test -- src/storefront/payments/__tests__/mercadopago.service.spec.ts`: verde (`3` tests),
+    - `cd backend && npm run lint`: verde,
+    - `cd backend && npm run build`: verde,
+    - `cd ecommerce && npm run lint -- --file ...payment/success/page.tsx --file ...review/ReviewClient.tsx --file ...PaymentForm.tsx --file ...checkout-context.tsx --file ...mercadopago.ts --file ...order-status.ts`: verde,
+    - Docker local:
+      - `backend` recreado y `/api/health` en `:4000` responde `{"status":"ok","db":true,...}`,
+      - `storefront` recreado y `/api/health` en `:3000` responde `{"status":"ok"}`,
+      - `storefront` queda `healthy`.
+  - Pendiente inmediato dentro de `e2e-payments-core`:
+    - unificar post-pago con timeline/notificaciones/mails sobre el flujo automático de storefront,
+    - eliminar drift restante entre path manual/accounting y path automático Mercado Pago,
+    - agregar tests más integrales de `createOrder -> attach/webhook -> estado final`.
+- 2026-03-22
+  - Segunda ola de `codex/e2e-payments-core` aterrizada:
+    - se crea `backend/src/orders/order-payment-settlement.service.ts` como capa compartida mínima de settlement;
+    - `accounting/payments.service.ts` deja de open-codear `recalc -> timeline -> notify` y pasa a usar esa capa;
+    - `storefront/payments/mercadopago.service.ts` también pasa por la misma capa para attach/webhook sync;
+    - el flujo ya unifica:
+      - `recalculateOrderFinancials`,
+      - `ensurePaymentWaiting`,
+      - captura de timeline al pasar a pago confirmado,
+      - transición de estado de orden cuando financieros la provocan,
+      - dispatch post-commit de `notifyPaymentReceived` y `notifyOrderStatusChanged`.
+  - Validación de esta segunda ola:
+    - `cd backend && npm test -- src/storefront/payments/__tests__/mercadopago.service.spec.ts src/orders/__tests__/order-payment-settlement.service.spec.ts`: verde (`5` tests),
+    - `cd backend && npm run lint`: verde,
+    - `cd backend && npm run build`: verde,
+    - Docker local:
+      - `backend` recreado y `/api/health` en `:4000` responde `{"status":"ok","db":true,...}`,
+      - `storefront` recreado y `/api/health` en `:3000` responde `{"status":"ok"}`.
+  - Estado resultante de `e2e-payments-core`:
+    - `pending` / `in_process` / `authorized` ya no cierran la orden como si el pago estuviera liquidado;
+    - attach/webhook/manual accounting convergen sobre la misma base de settlement para timeline y dispatch principal;
+    - sigue pendiente una tercera capa más fina:
+      - reducir drift restante con path manual/accounting en escenarios de update más complejos,
+      - ampliar tests de integración reales sobre `createOrder -> attach -> webhook -> estado final`,
+      - y después cerrar fulfillment/stock antes de QA E2E intensiva.
+- 2026-03-22
+  - Refuerzo final del remanente inmediato de pagos:
+    - se agrega cobertura para `backend/src/accounting/payments.service.ts`, confirmando que `createPayment` y `updatePayment` pasan por `OrderPaymentSettlementService`;
+    - el total de tests del frente de pagos queda en `7`:
+      - `mercadopago.service`,
+      - `order-payment-settlement.service`,
+      - `payments.service`.
+  - Validación backend actualizada:
+    - `cd backend && npm test -- src/storefront/payments/__tests__/mercadopago.service.spec.ts src/orders/__tests__/order-payment-settlement.service.spec.ts src/accounting/__tests__/payments.service.spec.ts`: verde (`7` tests),
+    - `cd backend && npm run lint`: verde,
+    - `cd backend && npm run build`: verde.
+  - Blocker explícito de build del storefront:
+    - se corrige el error de `useSearchParams()` en `ecommerce/src/app/(layout-3)/(customer-dashboard)/account/address/create/page.tsx` envolviendo la página en `Suspense`;
+    - el error explícito previo deja de reproducirse en esta sesión;
+    - `npm run build` de `ecommerce` sigue pudiendo quedar colgado en `Creating an optimized production build ...`, comportamiento ya visto antes en esta herramienta y no ligado específicamente a este fix.
+  - Validación adicional storefront:
+    - lint focalizado sobre `payment/success`, `review`, `PaymentForm`, `checkout-context`, `mercadopago`, `order-status` y `/account/address/create`: verde,
+    - Docker local recreado:
+      - `backend` responde `/api/health` en `:4000`,
+      - `storefront` responde `/api/health` en `:3000`.
+  - Con esto, el siguiente bloque principal recomendado pasa a ser `checkout-fulfillment`, manteniendo el remanente de integración E2E de pagos dentro del checklist de cierre comercial.
+- 2026-03-22
+  - Remanente de pagos reforzado con prueba más cercana al flujo real:
+    - se agrega `backend/src/storefront/__tests__/storefront.service.spec.ts`;
+    - la cobertura verifica que `createOrder` con `paymentIntentId` adjunto y estado `authorized`:
+      - no deja la orden en `PAID`,
+      - retorna `paymentStatus=processing`,
+      - y snapshotea `shippingVendor`, `deliveryFees`, `estimatedMin`, `estimatedMax`.
+  - Primer slice efectivo de `checkout-fulfillment` aterrizado:
+    - backend expone `GET /api/storefront/shipping-options`;
+    - `StorefrontCreateOrderDto` y el contrato público del storefront aceptan `shippingOptionId`;
+    - `createOrder` resuelve la opción seleccionada desde backend y persiste snapshot operativo de entrega en la orden;
+    - el checkout público ya exige selección de opción de entrega, la guarda en `checkout-context`, la suma a `useCheckoutTotals` y la envía en `review` / `payment/success`;
+    - el total público y el total de orden dejan de asumir `shipping=0` cuando hay opción de entrega seleccionada.
+  - Validación actualizada:
+    - `cd backend && npm test -- src/storefront/payments/__tests__/mercadopago.service.spec.ts src/orders/__tests__/order-payment-settlement.service.spec.ts src/accounting/__tests__/payments.service.spec.ts src/storefront/__tests__/storefront.service.spec.ts`: verde (`8` tests),
+    - `cd backend && npm run lint`: verde,
+    - `cd backend && npm run build`: verde,
+    - `cd ecommerce && npm run lint -- --file src/app/(layout-3)/(customer-dashboard)/account/address/create/page.tsx --file src/page-sections/checkout/CheckoutForm.tsx --file src/state/checkout-context.tsx --file src/hooks/useCheckoutTotals.ts --file src/app/(storefront)/(checkout)/review/ReviewClient.tsx --file src/app/(storefront)/(checkout)/payment/success/page.tsx --file src/lib/api/storefront.ts --file src/types/storefront.ts`: verde,
+    - Docker local:
+      - `docker compose -f deploy/docker-compose.dev.yml up -d --build --force-recreate backend storefront`: verde,
+      - `backend` responde `/api/health` en `:4000`,
+      - `storefront` responde `/api/health` en `:3000`.
+  - Estado operativo resultante:
+    - el blocker explícito de `/account/address/create` ya no reaparece en esta sesión;
+    - `next build` de `ecommerce` sigue pudiendo quedar colgado en `Creating an optimized production build ...`, pero sin reproducir el error explícito previo de `useSearchParams`;
+    - el siguiente paso recomendado dentro de `checkout-fulfillment` es profundizar modalidad/validaciones de entrega y expresar mejor el snapshot de envío en review/confirmación.
+- 2026-03-22
+  - `checkout-fulfillment` profundizado en modalidad pública explícita:
+    - el contrato público incorpora `fulfillmentMode`, hoy restringido a `home_delivery`;
+    - backend valida entrega en Uruguay y exige `shippingOptionId` válido para continuar;
+    - `OrderSummary` / `CheckoutSummary` ahora exponen `delivery` con:
+      - `mode`,
+      - `shippingVendor`,
+      - `estimatedMin`,
+      - `estimatedMax`,
+      - `estimatedLabel`.
+  - Review/confirmación del storefront ya muestran snapshot de entrega real:
+    - modalidad,
+    - opción seleccionada,
+    - estimación de entrega.
+  - Primer endurecimiento de `stock-order-integrity` aterrizado:
+    - se crea `backend/src/orders/order-stock-integrity.service.ts`;
+    - storefront descuenta stock no permanente dentro de la transacción de creación de orden;
+    - admin libera stock al pasar una orden a `cancelled` vía `updateDocumentStatus`;
+    - el endurecimiento cubre producto simple y variante con stock propio.
+  - Validación actualizada:
+    - `cd backend && npm test -- src/storefront/payments/__tests__/mercadopago.service.spec.ts src/orders/__tests__/order-payment-settlement.service.spec.ts src/accounting/__tests__/payments.service.spec.ts src/storefront/__tests__/storefront.service.spec.ts src/orders/__tests__/order-stock-integrity.service.spec.ts`: verde (`10` tests),
+    - `cd backend && npm run lint`: verde,
+    - `cd backend && npm run build`: verde,
+    - `cd ecommerce && npm run lint -- --file src/page-sections/checkout/CheckoutForm.tsx --file src/state/checkout-context.tsx --file src/hooks/useCheckoutTotals.ts --file src/app/(storefront)/(checkout)/review/ReviewClient.tsx --file src/app/(storefront)/(checkout)/payment/success/page.tsx --file src/types/storefront.ts --file src/translations/es.ts --file src/translations/en.ts`: verde,
+    - Docker local:
+      - `backend` y `storefront` recreados,
+      - `/api/health` backend y storefront responden OK,
+      - `GET /api/storefront/shipping-options` validado dentro del contenedor backend.
+  - Pendiente inmediato después de este slice:
+    - decidir si el release de stock debe cubrir también reversiones `cancelled -> activo`,
+    - endurecer stock para flujos admin/manuales fuera de storefront si se quiere paridad total,
+    - pasar a checklist de stock operativo y luego a QA E2E intensiva.
+- 2026-03-22
+  - Política de stock cerrada para pedidos cancelados:
+    - `cancelled -> activo` queda explícitamente prohibido sobre la misma orden;
+    - para `reabrir`, `repetir` o `regenerar`, se debe crear una nueva orden y la cancelada original permanece cancelada;
+    - la validación central se fuerza en `backend/src/orders/order-finance.service.ts`;
+    - se agrega cobertura en `backend/src/orders/__tests__/order-finance.service.spec.ts`.
+  - QA E2E inicial documentada en `E2E_COMMERCE_QA_CHECKLIST.md` con criterio de cierre, alcance y evidencias reales.
+  - Evidencia funcional ya confirmada en local:
+    - backend y storefront responden `/api/health`;
+    - `GET /api/storefront/categories`: OK;
+    - `GET /api/storefront/products/cortinas-roller`: OK;
+    - `GET /api/storefront/shipping-options`: OK dentro del contenedor backend;
+    - `GET /api/storefront/products/2115/parametric-config`: OK dentro del contenedor backend;
+    - `POST /api/storefront/orders`: OK dentro del contenedor backend, generando la orden `ORD-000102` con:
+      - `status=pending`,
+      - snapshot de entrega persistido (`shippingVendor=Test`, `deliveryFees=1.00`, `estimatedMin=1`, `estimatedMax=1`).
+  - Hallazgo operativo importante:
+    - la API del backend sigue mostrando intermitencia local desde host para algunos endpoints del storefront, aunque dentro del contenedor y desde el storefront real los endpoints responden correctamente;
+    - no se trata como blocker funcional del flujo comercial, pero conviene revisarlo como tema de entorno local/bridge una vez cerrado el bloque E2E principal.
+- 2026-03-22
+  - QA E2E de Mercado Pago profundizada:
+    - `payment/success`, `payment/error`, `PaymentForm`, `PaymentBrick` y el bloqueo de review por pago no confirmado quedaron alineados en traducciones `es/en`;
+    - en pago confirmado la acción principal pasa a `Mis compras / My orders`, eliminando el retorno a review;
+    - la inicialización de preferencia de Mercado Pago ahora reintenta fallas transitorias y expone retry explícito en UI;
+    - el `Payment Brick` habilita `prepaidCard` explícitamente;
+    - la creación de preferencia propaga `maxInstallments` para alinear mejor wallet y brick.
+  - Validación cerrada de esta subronda:
+    - `backend npm run lint`: verde,
+    - `backend npm run build`: verde,
+    - `backend` tests focalizados de pagos/storefront/finance: verdes (`8`),
+    - `ecommerce` lint focalizado sobre flujo de pago: verde,
+    - Docker local recreado para `backend` + `storefront`,
+    - `POST /api/storefront/payments/mercadopago/preference`: OK, retorna `preferenceId` real en sandbox local.
+- 2026-03-22
+  - Política operativa cerrada para `StorefrontPaymentIntent` no consolidados:
+    - el sistema ya no depende solo del estado del navegador para cerrar la compra post-pago;
+    - el `checkoutSnapshot` queda persistido en `StorefrontPaymentIntent.metadata` tanto en `preference` como en `charge`;
+    - el registro del pedido post-pago reutiliza primero ese snapshot persistido, lo que cubre mejor el caso crítico de productos paramétricos.
+  - Regla de cleanup implementada:
+    - el `intent` se conserva para auditoría;
+    - lo que expira es solo `metadata.checkoutSnapshot`, no el registro del pago;
+    - cuando se vuelve obsoleto se marca en metadata con:
+      - `checkoutSnapshotObsoleteAt`,
+      - `checkoutSnapshotObsoleteReason`,
+      - `checkoutSnapshotCleanupTrigger`,
+      - `checkoutSnapshotOriginalStatus`.
+  - Ventanas vigentes de obsolescencia sin orden asociada:
+    - `rejected/cancelled/refunded/charged_back/failed`: 1 hora;
+    - `pending/in_process/authorized/processing/in_mediation`: 24 horas;
+    - `approved/captured` sin orden: 7 días para ventana de reconciliación;
+    - estado desconocido: 48 horas.
+  - Limpieza ejecutada de forma oportunista en el servicio de Mercado Pago:
+    - al inicializar módulo,
+    - al crear preferencia,
+    - al crear `charge`,
+    - al resolver/sincronizar pagos.
+- 2026-03-22
+  - Reconciliación server-side endurecida para pagos storefront aprobados sin orden:
+    - `backend/src/storefront/storefront.service.ts` incorpora `reconcileApprovedPaymentIntent()` y `reconcileHistoricalApprovedPaymentIntents()`;
+    - `backend/src/storefront/storefront.controller.ts` intenta reconciliar automáticamente en `resolve` y en webhook antes de devolver el estado final;
+    - la reconciliación reusa `createOrder()` con `paymentIntentId + checkoutSnapshot` ya preparado en backend, manteniendo idempotencia sobre `checkoutToken/paymentIntentId`.
+  - Clasificación operativa añadida en metadata de `StorefrontPaymentIntent`:
+    - `resolved`,
+    - `manual_review_required`,
+    - `auto_reconcile_failed`,
+    - `deferred_provider_unavailable`.
+  - QA técnica cerrada de este slice:
+    - `backend/src/storefront/__tests__/storefront.service.spec.ts`: verde (`10` tests),
+    - `cd backend && npm run lint`: verde,
+    - `cd backend && npm run build`: verde,
+    - backend Docker recreado y `/api/health` OK.
+  - Evidencia funcional sobre base local:
+    - la compra buena actual queda consolidada en `order 105` con intents aprobados vinculados,
+    - `OrderItem` del producto paramétrico `2115` persiste `specSummary` y `parametricConfig`,
+    - siguen existiendo intents aprobados históricos sin `orderId`, pero ya quedan diferenciados del flujo bueno actual y listos para reconciliación o revisión manual según contexto disponible.

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, OnModuleInit, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { MercadoPagoConfig, Payment, Preference } from 'mercadopago'
 import type { PaymentCreateResponse } from 'mercadopago/dist/clients/payment/create/types'
@@ -10,13 +10,18 @@ import { MercadoPagoChargeDto } from '../dto/mercadopago-charge.dto'
 import { decimal, decimalToNumber } from '../../common/currency/money.util'
 import { SecureConfigService } from '../../common/security/secure-config.service'
 import { findPaymentMethodByCode } from '../../common/constants/payment-methods'
+import { OrderPaymentSettlementService } from '../../orders/order-payment-settlement.service'
 
 type CreateChargeOptions = {
   idempotencyKey?: string | null
   cartId?: string | null
+  checkoutToken?: string | null
+  checkoutSnapshot?: CheckoutSnapshot | null
   userAgent?: string | null
   ipAddress?: string | null
 }
+
+type CheckoutSnapshot = Record<string, unknown>
 
 type MercadoPagoErrorPayload = {
   message?: string
@@ -28,6 +33,13 @@ type MercadoPagoErrorPayload = {
 const DEFAULT_TIMEOUT_MS = 12_000
 const MERCADO_PAGO_PROVIDER = 'mercadopago'
 export const MERCADO_PAGO_SECURE_CONFIG_KEY = 'payments.mercadopago'
+const SNAPSHOT_CLEANUP_INTERVAL_MS = 15 * 60 * 1000
+const SNAPSHOT_OBSOLETE_TTL_MS = {
+  negativeTerminal: 60 * 60 * 1000,
+  inFlight: 24 * 60 * 60 * 1000,
+  approvedWithoutOrder: 7 * 24 * 60 * 60 * 1000,
+  unknown: 48 * 60 * 60 * 1000,
+} as const
 
 type StoredMercadoPagoConfig = {
   provider?: string | null
@@ -79,8 +91,15 @@ const normalizeAmount = (raw: unknown): number => {
   return parsed
 }
 
+const sanitizeCheckoutSnapshot = (value: unknown): CheckoutSnapshot | undefined => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+  return value as CheckoutSnapshot
+}
+
 @Injectable()
-export class MercadoPagoService {
+export class MercadoPagoService implements OnModuleInit {
   private readonly logger = new Logger(MercadoPagoService.name)
   private readonly envProvider: 'mercadopago' | 'none'
   private provider: 'mercadopago' | 'none'
@@ -91,11 +110,13 @@ export class MercadoPagoService {
   private paymentMethodIdCache?: number
   private clientSignature: string | null = null
   private lastKnownAccessToken: string | null = null
+  private lastSnapshotCleanupAt = 0
 
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly secureConfig: SecureConfigService,
+    private readonly paymentSettlement: OrderPaymentSettlementService,
   ) {
     const envProviderConfig = (config.get<string>('PAYMENTS_PROVIDER') ?? MERCADO_PAGO_PROVIDER).toLowerCase().trim()
     this.envProvider = envProviderConfig === MERCADO_PAGO_PROVIDER ? MERCADO_PAGO_PROVIDER : 'none'
@@ -139,6 +160,10 @@ export class MercadoPagoService {
     }
   }
 
+  async onModuleInit() {
+    await this.maybeCleanupObsoleteCheckoutSnapshots('module-init')
+  }
+
   private providerEnabled(): boolean {
     return this.provider === MERCADO_PAGO_PROVIDER
   }
@@ -151,6 +176,7 @@ export class MercadoPagoService {
     dto: MercadoPagoChargeDto,
     options: CreateChargeOptions = {},
   ): Promise<StorefrontPaymentIntent> {
+    await this.maybeCleanupObsoleteCheckoutSnapshots('charge')
     const { client, config } = await this.acquireClient()
 
     const transactionAmount = Number(dto.transactionAmount.toFixed(2))
@@ -159,11 +185,11 @@ export class MercadoPagoService {
     const payerEmail = dto.payer.email.trim()
     const payerFirstName = dto.payer.firstName?.trim()
     const payerLastName = dto.payer.lastName?.trim()
-    const rawIdentificationType = dto.payer.identification.type.trim()
-    const identificationType = rawIdentificationType.toUpperCase()
-    const identificationNumber = dto.payer.identification.number.trim()
+    const rawIdentificationType = sanitizeString(dto.payer.identification?.type)
+    const identificationType = rawIdentificationType?.toUpperCase()
+    const identificationNumber = sanitizeString(dto.payer.identification?.number)?.replace(/[^\dA-Za-z]/g, '')
 
-    if (config.country === 'UY' && ['OTRO', 'OTHER'].includes(identificationType)) {
+    if (config.country === 'UY' && identificationType && ['OTRO', 'OTHER'].includes(identificationType)) {
       throw new BadRequestException(
         'El tipo de documento no es válido para Uruguay. Usa CI o RUT para continuar con Mercado Pago.',
       )
@@ -171,10 +197,13 @@ export class MercadoPagoService {
 
     const payer: Record<string, unknown> = {
       email: payerEmail,
-      identification: {
+    }
+
+    if (rawIdentificationType && identificationNumber) {
+      payer.identification = {
         type: rawIdentificationType,
         number: identificationNumber,
-      },
+      }
     }
 
     if (payerFirstName) {
@@ -216,6 +245,10 @@ export class MercadoPagoService {
       idempotencyKey: options.idempotencyKey ?? undefined,
     }
 
+    this.logger.debug(
+      `Mercado Pago charge payload: amount=${transactionAmount} currency=${currencyCode ?? dto.currency} method=${dto.paymentMethodId} issuer=${dto.issuerId ?? 'none'} installments=${dto.installments} hasIdentification=${rawIdentificationType && identificationNumber ? 'yes' : 'no'} identificationType=${identificationType ?? 'none'} cartId=${dto.cartId ?? options.cartId ?? 'none'} orderId=${dto.orderId ?? 'none'}`,
+    )
+
     let payment: PaymentCreateResponse
     try {
       payment = await client.create({ body, requestOptions })
@@ -252,15 +285,25 @@ export class MercadoPagoService {
         cartId: dto.cartId ?? options.cartId ?? null,
         orderId: orderId ? Number.parseInt(orderId, 10) || null : null,
         payerEmail,
-        payerIdentificationType: identificationType,
-        payerIdentificationNumber: identificationNumber,
+        payerIdentificationType: identificationType ?? null,
+        payerIdentificationNumber: identificationNumber ?? null,
         payerFirstName: payerFirstName ?? null,
         payerLastName: payerLastName ?? null,
         riskLevel: (paymentData.risk_execution_mode as string | undefined) ?? null,
         fraudStatus: (paymentData.fraud_mode as string | undefined) ?? null,
         captureMethod: (paymentData.capture_method as string | undefined) ?? null,
         paymentMethodType: paymentData.payment_type_id ?? null,
-        metadata: paymentData.metadata ? (paymentData.metadata as Prisma.JsonValue) : undefined,
+        metadata: {
+          ...(paymentData.metadata && typeof paymentData.metadata === 'object'
+            ? (paymentData.metadata as Record<string, unknown>)
+            : {}),
+          cartId: dto.cartId ?? options.cartId ?? null,
+          checkoutToken: dto.checkoutToken ?? options.checkoutToken ?? null,
+          checkoutSnapshot:
+            sanitizeCheckoutSnapshot(options.checkoutSnapshot) ??
+            sanitizeCheckoutSnapshot(dto.checkoutSnapshot) ??
+            null,
+        } as Prisma.JsonValue,
         rawResponse: paymentData as Prisma.JsonValue,
         rawError: null,
         idempotencyKey: options.idempotencyKey ?? null,
@@ -280,11 +323,15 @@ export class MercadoPagoService {
     currency: string
     description?: string | null
     cartId?: string | null
+    checkoutToken?: string | null
     orderId?: string | null
     statementDescriptor?: string | null
     payerEmail?: string | null
     backUrls?: { success?: string | null; failure?: string | null; pending?: string | null }
+    maxInstallments?: number | null
+    checkoutSnapshot?: CheckoutSnapshot | null
   }): Promise<{ preferenceId: string }> {
+    await this.maybeCleanupObsoleteCheckoutSnapshots('preference')
     if (!this.providerEnabled()) {
       throw new ServiceUnavailableException('Mercado Pago integration is disabled.')
     }
@@ -323,6 +370,10 @@ export class MercadoPagoService {
           pending: sanitizeBackUrl(dto.backUrls.pending),
         }
       : undefined
+    const maxInstallments =
+      typeof dto.maxInstallments === 'number' && Number.isFinite(dto.maxInstallments) && dto.maxInstallments > 0
+        ? Math.floor(dto.maxInstallments)
+        : null
 
     const body: Record<string, unknown> = {
       items: [
@@ -336,8 +387,16 @@ export class MercadoPagoService {
       ],
       metadata: {
         cartId: dto.cartId ?? null,
+        checkoutToken: dto.checkoutToken ?? null,
         orderId: dto.orderId ?? null,
+        checkoutSnapshot: sanitizeCheckoutSnapshot(dto.checkoutSnapshot) ?? null,
       },
+    }
+
+    if (maxInstallments) {
+      body.payment_methods = {
+        installments: maxInstallments,
+      }
     }
 
     if (statementDescriptor) {
@@ -408,74 +467,157 @@ export class MercadoPagoService {
       return null
     }
 
-    const paymentData = payment as unknown as Record<string, any>
-    const intent = await this.prisma.storefrontPaymentIntent.findUnique({
-      where: { externalPaymentId },
-    })
+    const updated = await this.resolvePaymentIntentByExternalId(externalPaymentId, undefined, payment as unknown as Record<string, any>)
 
-    if (!intent) {
+    if (!updated) {
       this.logger.warn(`Received Mercado Pago webhook for unknown payment ${externalPaymentId}`)
       return null
     }
 
-    const updateData: Prisma.StorefrontPaymentIntentUpdateInput = {
-      status: (paymentData.status as string | undefined) ?? intent.status,
-      statusDetail: (paymentData.status_detail as string | undefined) ?? intent.statusDetail,
-      amount: decimal(Number(paymentData.transaction_amount ?? decimalToNumber(intent.amount))),
-      currency: (paymentData.currency_id ?? intent.currency ?? 'ARS').toUpperCase(),
-      installments: (paymentData.installments as number | undefined) ?? intent.installments,
-      paymentMethodId: (paymentData.payment_method_id as string | undefined) ?? intent.paymentMethodId,
-      paymentTypeId: (paymentData.payment_type_id as string | undefined) ?? intent.paymentTypeId,
+    if (updated.orderId) {
+      const dispatchPlan = await this.upsertOrderPayment(updated.orderId, updated)
+      await this.paymentSettlement.dispatch(dispatchPlan)
+    }
+
+    return updated
+  }
+
+  async resolvePaymentIntentByExternalId(
+    externalPaymentId: string,
+    context?: { cartId?: string | null; checkoutToken?: string | null; payerEmail?: string | null },
+    paymentDataArg?: Record<string, any> | null,
+  ) {
+    await this.maybeCleanupObsoleteCheckoutSnapshots('resolve')
+    const paymentData =
+      paymentDataArg ?? ((await this.getPayment(externalPaymentId)) as unknown as Record<string, any> | null)
+    if (!paymentData) {
+      return null
+    }
+
+    const existing =
+      (await this.prisma.storefrontPaymentIntent.findFirst({
+        where: { externalPaymentId },
+      })) ??
+      null
+
+    const paymentMetadata =
+      paymentData.metadata && typeof paymentData.metadata === 'object'
+        ? (paymentData.metadata as Record<string, unknown>)
+        : {}
+
+    const resolvedCartId =
+      sanitizeString(paymentMetadata.cartId as string | undefined) ??
+      sanitizeString(context?.cartId) ??
+      existing?.cartId ??
+      undefined
+    const resolvedCheckoutToken =
+      sanitizeString(paymentMetadata.checkoutToken as string | undefined) ??
+      sanitizeString(context?.checkoutToken) ??
+      undefined
+    const resolvedPayerEmail =
+      sanitizeString(paymentData.payer?.email as string | undefined) ??
+      sanitizeString(context?.payerEmail) ??
+      existing?.payerEmail ??
+      undefined
+
+    const baseData: Prisma.StorefrontPaymentIntentUpdateInput = {
+      externalPaymentId,
+      status: (paymentData.status as string | undefined) ?? existing?.status ?? 'pending',
+      statusDetail: (paymentData.status_detail as string | undefined) ?? existing?.statusDetail ?? null,
+      amount: decimal(Number(paymentData.transaction_amount ?? decimalToNumber(existing?.amount ?? decimal(0)))),
+      currency: (paymentData.currency_id ?? existing?.currency ?? 'ARS').toUpperCase(),
+      installments: (paymentData.installments as number | undefined) ?? existing?.installments,
+      paymentMethodId: (paymentData.payment_method_id as string | undefined) ?? existing?.paymentMethodId,
+      paymentTypeId: (paymentData.payment_type_id as string | undefined) ?? existing?.paymentTypeId,
       statementDescriptor:
-        (paymentData.statement_descriptor as string | undefined) ?? intent.statementDescriptor,
-      description: (paymentData.description as string | undefined) ?? intent.description,
+        (paymentData.statement_descriptor as string | undefined) ?? existing?.statementDescriptor,
+      description: (paymentData.description as string | undefined) ?? existing?.description,
       rawResponse: paymentData as Prisma.JsonValue,
       refundsRaw: paymentData.refunds ? (paymentData.refunds as Prisma.JsonValue) : undefined,
-      processedAt: paymentData.date_approved ? new Date(paymentData.date_approved) : intent.processedAt,
+      processedAt: paymentData.date_approved
+        ? new Date(paymentData.date_approved)
+        : existing?.processedAt,
       statusUpdatedAt: paymentData.date_last_updated
         ? new Date(paymentData.date_last_updated)
-        : intent.statusUpdatedAt,
-      liveMode: (paymentData.live_mode as boolean | undefined) ?? intent.liveMode,
+        : existing?.statusUpdatedAt,
+      liveMode: (paymentData.live_mode as boolean | undefined) ?? existing?.liveMode,
+      cartId: resolvedCartId ?? null,
+      payerEmail: resolvedPayerEmail ?? null,
+      metadata: {
+        ...(existing?.metadata && typeof existing.metadata === 'object'
+          ? (existing.metadata as Record<string, unknown>)
+          : {}),
+        ...paymentMetadata,
+        cartId: resolvedCartId ?? null,
+        checkoutToken: resolvedCheckoutToken ?? null,
+      } as Prisma.JsonValue,
     }
 
     if (paymentData.card) {
       const card = paymentData.card as Record<string, unknown>
-      updateData.cardLastFour = (card.last_four_digits as string | null | undefined) ?? intent.cardLastFour
-      updateData.cardBrand =
+      baseData.cardLastFour = (card.last_four_digits as string | null | undefined) ?? existing?.cardLastFour
+      baseData.cardBrand =
         (card.payment_method as string | null | undefined) ??
         (card['card_brand'] as string | null | undefined) ??
         (paymentData.payment_method_id as string | null | undefined) ??
-        intent.cardBrand
+        existing?.cardBrand
       if (card.cardholder && typeof card.cardholder === 'object') {
         const holder = card.cardholder as Record<string, unknown>
-        updateData.cardholderName = (holder.name as string | null | undefined) ?? intent.cardholderName
+        baseData.cardholderName = (holder.name as string | null | undefined) ?? existing?.cardholderName
       }
     }
 
     if (paymentData.payer) {
       const payer = paymentData.payer as Record<string, unknown>
-      updateData.payerEmail = (payer.email as string | undefined) ?? intent.payerEmail
-      updateData.payerFirstName = (payer.first_name as string | undefined) ?? intent.payerFirstName
-      updateData.payerLastName = (payer.last_name as string | undefined) ?? intent.payerLastName
+      baseData.payerEmail = (payer.email as string | undefined) ?? resolvedPayerEmail ?? null
+      baseData.payerFirstName = (payer.first_name as string | undefined) ?? existing?.payerFirstName
+      baseData.payerLastName = (payer.last_name as string | undefined) ?? existing?.payerLastName
       if (payer.identification && typeof payer.identification === 'object') {
         const identification = payer.identification as Record<string, unknown>
-        updateData.payerIdentificationType =
-          (identification.type as string | undefined) ?? intent.payerIdentificationType
-        updateData.payerIdentificationNumber =
-          (identification.number as string | undefined) ?? intent.payerIdentificationNumber
+        baseData.payerIdentificationType =
+          (identification.type as string | undefined) ?? existing?.payerIdentificationType
+        baseData.payerIdentificationNumber =
+          (identification.number as string | undefined) ?? existing?.payerIdentificationNumber
       }
     }
 
-    const updated = await this.prisma.storefrontPaymentIntent.update({
-      where: { id: intent.id },
-      data: updateData,
-    })
-
-    if (updated.orderId) {
-      await this.upsertOrderPayment(updated.orderId, updated)
+    if (existing) {
+      return this.prisma.storefrontPaymentIntent.update({
+        where: { id: existing.id },
+        data: baseData,
+      })
     }
 
-    return updated
+    return this.prisma.storefrontPaymentIntent.create({
+      data: {
+        provider: MERCADO_PAGO_PROVIDER,
+        status: (baseData.status as string | undefined) ?? 'pending',
+        statusDetail: (baseData.statusDetail as string | null | undefined) ?? null,
+        amount: baseData.amount as Prisma.Decimal,
+        currency: (baseData.currency as string | undefined) ?? 'ARS',
+        externalPaymentId,
+        installments: (baseData.installments as number | null | undefined) ?? null,
+        paymentMethodId: (baseData.paymentMethodId as string | null | undefined) ?? null,
+        paymentTypeId: (baseData.paymentTypeId as string | null | undefined) ?? null,
+        cardBrand: (baseData.cardBrand as string | null | undefined) ?? null,
+        cardLastFour: (baseData.cardLastFour as string | null | undefined) ?? null,
+        cardholderName: (baseData.cardholderName as string | null | undefined) ?? null,
+        statementDescriptor: (baseData.statementDescriptor as string | null | undefined) ?? null,
+        description: (baseData.description as string | null | undefined) ?? null,
+        cartId: resolvedCartId ?? null,
+        payerEmail: (baseData.payerEmail as string | null | undefined) ?? null,
+        payerIdentificationType: (baseData.payerIdentificationType as string | null | undefined) ?? null,
+        payerIdentificationNumber: (baseData.payerIdentificationNumber as string | null | undefined) ?? null,
+        payerFirstName: (baseData.payerFirstName as string | null | undefined) ?? null,
+        payerLastName: (baseData.payerLastName as string | null | undefined) ?? null,
+        rawResponse: paymentData as Prisma.JsonValue,
+        refundsRaw: paymentData.refunds ? (paymentData.refunds as Prisma.JsonValue) : undefined,
+        processedAt: baseData.processedAt as Date | null | undefined,
+        statusUpdatedAt: baseData.statusUpdatedAt as Date | null | undefined,
+        liveMode: (baseData.liveMode as boolean | null | undefined) ?? null,
+        metadata: baseData.metadata as Prisma.JsonValue,
+      },
+    })
   }
 
   async attachPaymentIntentToOrder(orderId: number, intentId: string) {
@@ -496,7 +638,8 @@ export class MercadoPagoService {
       data: { orderId },
     })
 
-    await this.upsertOrderPayment(orderId, updated)
+    const dispatchPlan = await this.upsertOrderPayment(orderId, updated)
+    await this.paymentSettlement.dispatch(dispatchPlan)
 
     return updated
   }
@@ -524,6 +667,7 @@ export class MercadoPagoService {
     })
 
     if (existing) {
+      const previousStatus = existing.status
       await this.prisma.payment.update({
         where: { id: existing.id },
         data: {
@@ -534,10 +678,13 @@ export class MercadoPagoService {
           metadata,
         },
       })
-      return existing
+      return this.paymentSettlement.apply({
+        paymentId: existing.id,
+        previousPaymentStatus: previousStatus,
+      })
     }
 
-    await this.prisma.payment.create({
+    const created = await this.prisma.payment.create({
       data: {
         orderId,
         paymentMethodId,
@@ -550,6 +697,10 @@ export class MercadoPagoService {
         notes: intent.description ?? undefined,
         metadata,
       },
+    })
+    return this.paymentSettlement.apply({
+      paymentId: created.id,
+      previousPaymentStatus: null,
     })
   }
 
@@ -567,10 +718,15 @@ export class MercadoPagoService {
 
   private mapPaymentStatus(status: string): PaymentStatus {
     const normalized = status.toLowerCase()
-    if (normalized === 'approved' || normalized === 'authorized') {
+    if (normalized === 'approved' || normalized === 'captured') {
       return PaymentStatus.CONFIRMED
     }
-    if (normalized === 'in_process' || normalized === 'pending' || normalized === 'in_mediation') {
+    if (
+      normalized === 'authorized' ||
+      normalized === 'in_process' ||
+      normalized === 'pending' ||
+      normalized === 'in_mediation'
+    ) {
       return PaymentStatus.REGISTERED
     }
     return PaymentStatus.FAILED
@@ -819,5 +975,111 @@ export class MercadoPagoService {
     }
 
     return {}
+  }
+
+  private async maybeCleanupObsoleteCheckoutSnapshots(trigger: string) {
+    const now = Date.now()
+    if (now - this.lastSnapshotCleanupAt < SNAPSHOT_CLEANUP_INTERVAL_MS) {
+      return
+    }
+    this.lastSnapshotCleanupAt = now
+    try {
+      await this.cleanupObsoleteCheckoutSnapshots(trigger, new Date(now))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.logger.warn(`Mercado Pago snapshot cleanup failed during ${trigger}: ${message}`)
+    }
+  }
+
+  private async cleanupObsoleteCheckoutSnapshots(trigger: string, now: Date) {
+    const oldestRelevantDate = new Date(now.getTime() - SNAPSHOT_OBSOLETE_TTL_MS.negativeTerminal)
+    const candidates = await this.prisma.storefrontPaymentIntent.findMany({
+      where: {
+        orderId: null,
+        createdAt: { lte: oldestRelevantDate },
+      },
+      select: {
+        id: true,
+        status: true,
+        statusDetail: true,
+        metadata: true,
+        createdAt: true,
+        updatedAt: true,
+        statusUpdatedAt: true,
+        externalPaymentId: true,
+      },
+      take: 200,
+      orderBy: { createdAt: 'asc' },
+    })
+
+    let cleaned = 0
+    for (const intent of candidates) {
+      const metadata =
+        intent.metadata && typeof intent.metadata === 'object' && !Array.isArray(intent.metadata)
+          ? ({ ...(intent.metadata as Record<string, unknown>) } satisfies Record<string, unknown>)
+          : null
+      if (!metadata || !('checkoutSnapshot' in metadata) || !metadata.checkoutSnapshot) {
+        continue
+      }
+
+      const cleanupPolicy = this.resolveSnapshotCleanupPolicy(intent.status)
+      const referenceDate = intent.statusUpdatedAt ?? intent.updatedAt ?? intent.createdAt
+      const ageMs = now.getTime() - referenceDate.getTime()
+      if (ageMs < cleanupPolicy.ttlMs) {
+        continue
+      }
+
+      metadata.checkoutSnapshot = null
+      metadata.checkoutSnapshotObsoleteAt = now.toISOString()
+      metadata.checkoutSnapshotObsoleteReason = cleanupPolicy.reason
+      metadata.checkoutSnapshotCleanupTrigger = trigger
+      metadata.checkoutSnapshotOriginalStatus = intent.status
+      metadata.checkoutSnapshotOriginalStatusDetail = intent.statusDetail ?? null
+
+      await this.prisma.storefrontPaymentIntent.update({
+        where: { id: intent.id },
+        data: {
+          metadata: metadata as Prisma.JsonValue,
+        },
+      })
+      cleaned += 1
+    }
+
+    if (cleaned > 0) {
+      this.logger.log(`Mercado Pago snapshot cleanup (${trigger}) marked ${cleaned} intent(s) as obsolete.`)
+    }
+  }
+
+  private resolveSnapshotCleanupPolicy(status: string | null | undefined): {
+    ttlMs: number
+    reason: string
+  } {
+    const normalized = (status ?? '').trim().toLowerCase()
+
+    if (['rejected', 'cancelled', 'canceled', 'refunded', 'charged_back', 'failed'].includes(normalized)) {
+      return {
+        ttlMs: SNAPSHOT_OBSOLETE_TTL_MS.negativeTerminal,
+        reason: 'terminal_payment_without_order',
+      }
+    }
+
+    if (['approved', 'captured'].includes(normalized)) {
+      return {
+        ttlMs: SNAPSHOT_OBSOLETE_TTL_MS.approvedWithoutOrder,
+        reason: 'approved_without_order_reconciliation_window_expired',
+      }
+    }
+
+    if (['authorized', 'in_process', 'pending', 'processing', 'in_mediation'].includes(normalized)) {
+      return {
+        ttlMs: SNAPSHOT_OBSOLETE_TTL_MS.inFlight,
+        reason: 'payment_intent_stale_without_order',
+      }
+    }
+
+    return {
+      ttlMs: SNAPSHOT_OBSOLETE_TTL_MS.unknown,
+      reason: 'unknown_payment_state_without_order',
+    }
   }
 }

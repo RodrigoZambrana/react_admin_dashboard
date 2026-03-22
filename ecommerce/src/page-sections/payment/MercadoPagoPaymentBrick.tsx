@@ -8,12 +8,14 @@ import Spinner from "@component/Spinner";
 import Typography from "@component/Typography";
 import { formatCurrencyAmount } from "@/lib/currency/utils";
 import { resolveCurrencyLocale } from "@/lib/currency/locale";
+import { useTranslation } from "@/state/i18n-context";
 
 const SDK_URL = "https://sdk.mercadopago.com/js/v2";
 const SECURITY_SCRIPT_URL = "https://www.mercadopago.com/v2/security.js";
 const SCRIPT_ID = "mercado-pago-sdk";
 const SECURITY_SCRIPT_ID = "mercado-pago-security";
 const BRICK_CONTAINER_ID = "mp-payment-brick";
+const SDK_GLOBAL_TIMEOUT_MS = 10000;
 
 export type MercadoPagoPaymentSubmitPayload = {
   token: string;
@@ -22,7 +24,7 @@ export type MercadoPagoPaymentSubmitPayload = {
   issuerId?: string;
   payer: {
     email: string;
-    identification: { type: string; number: string };
+    identification?: { type: string; number: string };
     firstName?: string;
     lastName?: string;
   };
@@ -96,15 +98,68 @@ type SubmitEventArg =
       selectedPaymentMethod?: unknown;
     };
 
-const loadScript = (id: string, src: string, target: "head" | "body" = "body") =>
+const scriptLoadPromises = new Map<string, Promise<void>>();
+
+const waitForCondition = (
+  check: () => boolean,
+  timeoutMs: number,
+  errorFactory: () => Error
+) =>
   new Promise<void>((resolve, reject) => {
+    if (check()) {
+      resolve();
+      return;
+    }
+
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      if (check()) {
+        window.clearInterval(timer);
+        resolve();
+        return;
+      }
+
+      if (Date.now() - startedAt >= timeoutMs) {
+        window.clearInterval(timer);
+        reject(errorFactory());
+      }
+    }, 50);
+  });
+
+const loadScript = (id: string, src: string, target: "head" | "body" = "body") => {
+  const existingPromise = scriptLoadPromises.get(id);
+  if (existingPromise) {
+    return existingPromise;
+  }
+
+  const promise = new Promise<void>((resolve, reject) => {
     if (typeof document === "undefined") {
       reject(new Error("Mercado Pago scripts can only be loaded in the browser."));
       return;
     }
 
-    if (document.getElementById(id)) {
-      resolve();
+    const existingScript = document.getElementById(id) as HTMLScriptElement | null;
+    if (existingScript) {
+      if (existingScript.dataset.loaded === "true") {
+        resolve();
+        return;
+      }
+
+      const handleLoad = () => {
+        existingScript.dataset.loaded = "true";
+        existingScript.removeEventListener("load", handleLoad);
+        existingScript.removeEventListener("error", handleError);
+        resolve();
+      };
+      const handleError = () => {
+        existingScript.removeEventListener("load", handleLoad);
+        existingScript.removeEventListener("error", handleError);
+        scriptLoadPromises.delete(id);
+        reject(new Error(`Failed to load script ${src}.`));
+      };
+
+      existingScript.addEventListener("load", handleLoad, { once: true });
+      existingScript.addEventListener("error", handleError, { once: true });
       return;
     }
 
@@ -112,10 +167,20 @@ const loadScript = (id: string, src: string, target: "head" | "body" = "body") =
     script.id = id;
     script.src = src;
     script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Failed to load script ${src}.`));
+    script.onload = () => {
+      script.dataset.loaded = "true";
+      resolve();
+    };
+    script.onerror = () => {
+      scriptLoadPromises.delete(id);
+      reject(new Error(`Failed to load script ${src}.`));
+    };
     (target === "head" ? document.head : document.body).appendChild(script);
   });
+
+  scriptLoadPromises.set(id, promise);
+  return promise;
+};
 
 const initializeMercadoPago = async (publicKey: string, locale: string) => {
   if (typeof window === "undefined") {
@@ -123,6 +188,11 @@ const initializeMercadoPago = async (publicKey: string, locale: string) => {
   }
 
   await loadScript(SCRIPT_ID, SDK_URL, "head");
+  await waitForCondition(
+    () => typeof window.MercadoPago === "function",
+    SDK_GLOBAL_TIMEOUT_MS,
+    () => new Error("Mercado Pago SDK did not become available on window in time.")
+  );
 
   if (typeof window.MercadoPago !== "function") {
     throw new Error("Mercado Pago SDK is not available on window.");
@@ -144,9 +214,12 @@ const ensureIdentification = (
   defaults: { firstName?: string; lastName?: string }
 ) => {
   const identification = source?.identification ?? {};
-  const type = identification.type && identification.type.trim().length > 0 ? identification.type : "DNI";
+  const type =
+    identification.type && identification.type.trim().length > 0 ? identification.type.trim() : undefined;
   const number =
-    identification.number && identification.number.trim().length > 0 ? identification.number : "00000000";
+    identification.number && identification.number.trim().length > 0
+      ? identification.number.trim()
+      : undefined;
   return {
     type,
     number,
@@ -240,6 +313,7 @@ export default function MercadoPagoPaymentBrick({
   onReady,
   onError
 }: MercadoPagoPaymentBrickProps) {
+  const t = useTranslation();
   const controllerRef = useRef<MercadoPagoBrickController | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -254,13 +328,21 @@ export default function MercadoPagoPaymentBrick({
       try {
         if (amount <= 0) {
           setLoading(false);
-          onError?.("Payment amount must be greater than zero to initialize Mercado Pago.");
+          onError?.(
+            t("checkout.payment.form.errors.invalidAmount", {
+              defaultMessage: "The payment amount must be greater than zero to initialize Mercado Pago."
+            })
+          );
           return;
         }
 
         if (!preferenceId) {
           setLoading(false);
-          onError?.("Missing Mercado Pago preference to initialize the payment brick.");
+          onError?.(
+            t("checkout.payment.form.errors.missingPreference", {
+              defaultMessage: "Missing Mercado Pago preference to initialize the payment form."
+            })
+          );
           return;
         }
 
@@ -296,6 +378,7 @@ export default function MercadoPagoPaymentBrick({
             paymentMethods: {
               creditCard: "all",
               debitCard: "all",
+              prepaidCard: "all",
               bankTransfer: "all",
               ticket: "all",
               mercadoPago: "all",
@@ -338,7 +421,9 @@ export default function MercadoPagoPaymentBrick({
               const email = (formData?.payer?.email ?? payer.email).trim();
 
               if (!email || !isValidEmail(email)) {
-                const message = "Enter a valid email address to continue with Mercado Pago.";
+                const message = t("checkout.payment.form.errors.invalidEmail", {
+                  defaultMessage: "Enter a valid email address to continue with Mercado Pago."
+                });
                 onError?.(message);
                 const fallback: BrickSubmitResult = {
                   status: "error",
@@ -361,14 +446,17 @@ export default function MercadoPagoPaymentBrick({
                 issuerId: formData!.issuer_id ?? undefined,
                 payer: {
                   email,
-                  identification: {
-                    type: identification.type,
-                    number: identification.number
-                  },
                   firstName: identification.firstName,
                   lastName: identification.lastName
                 }
               };
+
+              if (identification.type && identification.number) {
+                payload.payer.identification = {
+                  type: identification.type,
+                  number: identification.number
+                };
+              }
 
               let notified = false;
               const notify = (result: BrickSubmitResult, err?: unknown) => {
@@ -398,7 +486,9 @@ export default function MercadoPagoPaymentBrick({
                 const message =
                   error instanceof Error
                     ? error.message
-                    : "We couldn't process your payment with Mercado Pago. Please try again.";
+                    : t("checkout.payment.form.errors.processFailed", {
+                        defaultMessage: "We couldn't process your payment with Mercado Pago. Please try again."
+                      });
                 onError?.(message);
 
                 const fallback: BrickSubmitResult = {
@@ -422,7 +512,9 @@ export default function MercadoPagoPaymentBrick({
               const message =
                 error instanceof Error
                   ? error.message
-                  : "An unexpected error occurred while loading Mercado Pago.";
+                  : t("checkout.payment.form.errors.unexpectedLoad", {
+                      defaultMessage: "An unexpected error occurred while loading Mercado Pago."
+                    });
               onError?.(message);
             }
           }
@@ -438,7 +530,11 @@ export default function MercadoPagoPaymentBrick({
         if (cancelled) return;
         setLoading(false);
         const message =
-          error instanceof Error ? error.message : "We were unable to initialize the Mercado Pago brick.";
+          error instanceof Error
+            ? error.message
+            : t("checkout.payment.form.errors.initializeBrick", {
+                defaultMessage: "We were unable to initialize the Mercado Pago payment form."
+              });
         onError?.(message);
       }
     };
@@ -459,12 +555,13 @@ export default function MercadoPagoPaymentBrick({
     onError,
     onProcessingChange,
     onReady,
-    onSubmit,
-    payer.email,
-    payer.firstName,
-    payer.lastName,
-    preferenceId,
-    publicKey
+        onSubmit,
+        payer.email,
+        payer.firstName,
+        payer.lastName,
+        preferenceId,
+        publicKey,
+        t
   ]);
 
   return (
@@ -483,14 +580,21 @@ export default function MercadoPagoPaymentBrick({
         </FlexBox>
       )}
       <Typography color="text.muted" fontSize="12px" mt="0.75rem">
-        Pago seguro procesado por Mercado Pago.
+        {t("checkout.payment.form.brick.secure", {
+          defaultMessage: "Secure payment processed by Mercado Pago."
+        })}
         {description ? ` ${description}` : ""}
         {currency
-          ? ` · Total estimado ${formatCurrencyAmount(amount, currency, resolveCurrencyLocale())}`
+          ? ` · ${t("checkout.payment.form.brick.totalEstimate", {
+              defaultMessage: "Estimated total {amount}",
+              values: { amount: formatCurrencyAmount(amount, currency, resolveCurrencyLocale()) }
+            })}`
           : ""}
       </Typography>
       <Typography color="text.muted" fontSize="12px" mt="0.25rem">
-        Modo prueba activo: utiliza tarjetas de prueba de Mercado Pago.
+        {t("checkout.payment.form.brick.sandbox", {
+          defaultMessage: "Sandbox mode is active: use Mercado Pago test cards."
+        })}
       </Typography>
     </Box>
   );

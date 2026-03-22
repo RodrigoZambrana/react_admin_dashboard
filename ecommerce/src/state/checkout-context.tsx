@@ -9,7 +9,18 @@ import {
   useReducer
 } from "react";
 
-import type { OrderSummary } from "@/types/storefront";
+import type {
+  CheckoutSnapshotPayload,
+  OrderSummary,
+  StorefrontFulfillmentMode,
+  StorefrontShippingOption
+} from "@/types/storefront";
+import { isMercadoPagoPaymentConfirmed } from "@/utils/mercadopago";
+import {
+  clearPersistedCheckoutState,
+  loadPersistedCheckoutState,
+  savePersistedCheckoutState
+} from "@/utils/checkoutStorage";
 import { useSession } from "./session-context";
 
 type CheckoutStep = "details" | "payment";
@@ -43,6 +54,7 @@ export type CheckoutPayment =
       cardBrand?: string;
       cardLastFour?: string;
       cardholderName?: string;
+      checkoutSnapshot?: CheckoutSnapshotPayload;
       updatedAt?: string;
     }
   | {
@@ -52,6 +64,8 @@ export type CheckoutPayment =
 interface CheckoutState {
   contact: CheckoutContact;
   shippingAddress: CheckoutAddress;
+  fulfillmentMode: StorefrontFulfillmentMode;
+  shippingOption: StorefrontShippingOption | null;
   payment: CheckoutPayment | null;
   notes: string;
   completed: Record<CheckoutStep, boolean>;
@@ -63,7 +77,12 @@ interface CheckoutState {
 type CheckoutAction =
   | {
       type: "SET_DETAILS";
-      payload: { contact: CheckoutContact; shippingAddress: CheckoutAddress };
+      payload: {
+        contact: CheckoutContact;
+        shippingAddress: CheckoutAddress;
+        fulfillmentMode: StorefrontFulfillmentMode;
+        shippingOption: StorefrontShippingOption;
+      };
     }
   | { type: "SET_PAYMENT"; payload: CheckoutPayment }
   | { type: "CLEAR_PAYMENT" }
@@ -76,6 +95,10 @@ type CheckoutAction =
         contact?: Partial<CheckoutContact>;
         shippingAddress?: Partial<CheckoutAddress>;
       };
+    }
+  | {
+      type: "HYDRATE";
+      payload: Partial<CheckoutState>;
     }
   | { type: "SET_LAST_ORDER"; payload: OrderSummary | null };
 
@@ -105,6 +128,8 @@ const createInitialState = (): CheckoutState => ({
     zip: "",
     country: ""
   },
+  fulfillmentMode: "home_delivery",
+  shippingOption: null,
   payment: null,
   notes: "",
   completed: {
@@ -135,7 +160,12 @@ const checkoutReducer = (state: CheckoutState, action: CheckoutAction): Checkout
         ...state,
         contact: action.payload.contact,
         shippingAddress: action.payload.shippingAddress,
-        completed: { ...state.completed, details: true }
+        fulfillmentMode: action.payload.fulfillmentMode,
+        shippingOption: action.payload.shippingOption,
+        completed: {
+          ...state.completed,
+          details: Boolean(action.payload.shippingOption?.id)
+        }
       };
     }
     case "SET_PAYMENT": {
@@ -144,8 +174,7 @@ const checkoutReducer = (state: CheckoutState, action: CheckoutAction): Checkout
         payment.method === "cod" ||
         (payment.method === "mercadopago" &&
           Boolean(payment.paymentIntentId) &&
-          payment.status !== "rejected" &&
-          payment.status !== "processing");
+          isMercadoPagoPaymentConfirmed(payment.status));
       return {
         ...state,
         payment,
@@ -164,6 +193,16 @@ const checkoutReducer = (state: CheckoutState, action: CheckoutAction): Checkout
     }
     case "RESET": {
       return createInitialState();
+    }
+    case "HYDRATE": {
+      return {
+        ...state,
+        ...action.payload,
+        completed: {
+          ...state.completed,
+          ...(action.payload.completed ?? {})
+        }
+      };
     }
     case "PREFILL_FROM_SESSION": {
       const customerId = action.payload.customerId ?? null;
@@ -210,6 +249,8 @@ const checkoutReducer = (state: CheckoutState, action: CheckoutAction): Checkout
 interface CheckoutContextValue {
   contact: CheckoutContact;
   shippingAddress: CheckoutAddress;
+  fulfillmentMode: StorefrontFulfillmentMode;
+  shippingOption: StorefrontShippingOption | null;
   payment: CheckoutPayment | null;
   notes: string;
   completed: Record<CheckoutStep, boolean>;
@@ -217,7 +258,12 @@ interface CheckoutContextValue {
   checkoutToken: string;
   hasDetails: boolean;
   hasPayment: boolean;
-  setDetails: (contact: CheckoutContact, shippingAddress: CheckoutAddress) => void;
+  setDetails: (
+    contact: CheckoutContact,
+    shippingAddress: CheckoutAddress,
+    fulfillmentMode: StorefrontFulfillmentMode,
+    shippingOption: StorefrontShippingOption
+  ) => void;
   setPayment: (payment: CheckoutPayment) => void;
   clearPayment: () => void;
   setNotes: (notes: string) => void;
@@ -232,6 +278,18 @@ export const StorefrontCheckoutProvider: React.FC<{ children: React.ReactNode }>
 }) => {
   const [state, dispatch] = useReducer(checkoutReducer, initialState);
   const { session, status } = useSession();
+
+  useEffect(() => {
+    const persisted = loadPersistedCheckoutState();
+    if (!persisted) {
+      return;
+    }
+
+    dispatch({
+      type: "HYDRATE",
+      payload: persisted
+    });
+  }, []);
 
   useEffect(() => {
     if (status !== "authenticated" || !session) {
@@ -271,8 +329,16 @@ export const StorefrontCheckoutProvider: React.FC<{ children: React.ReactNode }>
   }, [session, status]);
 
   const setDetails = useCallback(
-    (contact: CheckoutContact, shippingAddress: CheckoutAddress) => {
-      dispatch({ type: "SET_DETAILS", payload: { contact, shippingAddress } });
+    (
+      contact: CheckoutContact,
+      shippingAddress: CheckoutAddress,
+      fulfillmentMode: StorefrontFulfillmentMode,
+      shippingOption: StorefrontShippingOption
+    ) => {
+      dispatch({
+        type: "SET_DETAILS",
+        payload: { contact, shippingAddress, fulfillmentMode, shippingOption }
+      });
     },
     []
   );
@@ -294,13 +360,30 @@ export const StorefrontCheckoutProvider: React.FC<{ children: React.ReactNode }>
   }, []);
 
   const reset = useCallback(() => {
+    clearPersistedCheckoutState();
     dispatch({ type: "RESET" });
   }, []);
+
+  useEffect(() => {
+    savePersistedCheckoutState({
+      contact: state.contact,
+      shippingAddress: state.shippingAddress,
+      fulfillmentMode: state.fulfillmentMode,
+      shippingOption: state.shippingOption,
+      payment: state.payment,
+      notes: state.notes,
+      completed: state.completed,
+      lastOrder: state.lastOrder,
+      checkoutToken: state.checkoutToken
+    });
+  }, [state]);
 
   const value = useMemo<CheckoutContextValue>(
     () => ({
       contact: state.contact,
       shippingAddress: state.shippingAddress,
+      fulfillmentMode: state.fulfillmentMode,
+      shippingOption: state.shippingOption,
       payment: state.payment,
       notes: state.notes,
       completed: state.completed,

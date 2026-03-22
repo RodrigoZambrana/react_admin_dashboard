@@ -26,7 +26,7 @@ export const PAYMENT_STATE_VARIANT: Record<PaymentState, StatusColorVariant> = {
 const PAYMENT_STATE_MAP: Record<string, PaymentState> = {
   paid: "full",
   captured: "full",
-  authorized: "full",
+  authorized: "waiting",
   completed: "full",
   fulfilled: "full",
   waiting: "waiting",

@@ -89,6 +89,26 @@ export interface CompanyProfile {
   logo?: string | null;
 }
 
+export interface StorefrontShippingOption {
+  id: number;
+  name: string;
+  deliveryFees: number;
+  estimatedMin: number | null;
+  estimatedMax: number | null;
+  img?: string | null;
+}
+
+export type StorefrontFulfillmentMode = "home_delivery";
+
+export interface OrderDeliverySummary {
+  mode: StorefrontFulfillmentMode;
+  modeLabel: string;
+  shippingVendor?: string | null;
+  estimatedMin?: number | null;
+  estimatedMax?: number | null;
+  estimatedLabel?: string | null;
+}
+
 export interface StorefrontConfig {
   defaultLayout: string;
   layouts: HomeLayoutDefinition[];
@@ -545,6 +565,7 @@ export interface CheckoutSummary {
   grandTotal: Money;
   estimatedDelivery?: string;
   notes?: string;
+  delivery?: OrderDeliverySummary;
 }
 
 export interface OrderPaymentSummary {
@@ -614,8 +635,12 @@ export interface CreateOrderPayload {
   notes?: string;
   paymentIntentId?: string;
   checkoutToken?: string;
+  shippingOptionId?: number;
+  fulfillmentMode?: StorefrontFulfillmentMode;
   currency?: string;
 }
+
+export type CheckoutSnapshotPayload = Omit<CreateOrderPayload, "paymentIntentId">;
 
 export interface OrderSummary {
   id: number;
@@ -635,6 +660,7 @@ export interface OrderSummary {
   fulfillmentStatusLabel?: string;
   items: CheckoutLineItem[];
   summary: CheckoutSummary;
+  delivery?: OrderDeliverySummary;
   shippingAddress: CreateOrderPayload["shippingAddress"];
   billingAddress?: CreateOrderPayload["billingAddress"];
   payment?: OrderPaymentSummary | null;

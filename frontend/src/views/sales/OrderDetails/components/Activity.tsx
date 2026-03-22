@@ -399,9 +399,11 @@ const getEventDescription = (
     }
 
     if (type === 'PAYMENT_FULL_SUMMARY') {
-        return translate('sales.orderDetails.timeline.payment.fullSummary', {
-            defaultValue: 'Payment complete',
-        })
+        return undefined
+    }
+
+    if (type === 'ORDER_RECEIVED') {
+        return undefined
     }
 
     if (type === 'ESTIMATE_SET' || type === 'ESTIMATE_UPDATED') {
@@ -592,6 +594,41 @@ const compareTimelineEvents = (a: OrderTimelineEvent, b: OrderTimelineEvent) => 
     return timeA - timeB
 }
 
+const getTimelineDisplayRank = (type: string) => {
+    switch ((type || '').toUpperCase()) {
+        case 'ORDER_RECEIVED':
+            return 10
+        case 'PAYMENT_WAITING':
+            return 20
+        case 'PAYMENT_PARTIAL':
+            return 30
+        case 'PAYMENT_FULL':
+        case 'PAYMENT_FULL_SUMMARY':
+            return 40
+        case 'ESTIMATE_SET':
+        case 'ESTIMATE_UPDATED':
+            return 50
+        case 'SHIPPED':
+            return 60
+        case 'IN_TRANSIT':
+            return 70
+        case 'OUT_FOR_DELIVERY':
+            return 80
+        case 'DELIVERED':
+            return 90
+        case 'CANCELLED':
+        case 'CANCELED':
+            return 100
+        default:
+            return 85
+    }
+}
+
+const isCompletedTimelineEvent = (type: string) => {
+    const normalizedType = (type || '').toUpperCase()
+    return normalizedType !== 'PAYMENT_WAITING' && normalizedType !== 'CANCELLED' && normalizedType !== 'CANCELED'
+}
+
 const buildTimelineSummary = (
     timeline: OrderTimelineResponse | null | undefined,
     translate: (key: string, options: { defaultValue: string; [key: string]: unknown }) => string,
@@ -736,7 +773,9 @@ const buildTimelineSummary = (
         const metadata = getEventMetadata(event)
         const description = getEventDescription(event, order, translate)
         const isEstimateEvent = normalizedType === 'ESTIMATE_SET' || normalizedType === 'ESTIMATE_UPDATED'
-        const isCompleted = isEstimateEvent && metadata.completed === true
+        const isCompleted =
+            isCompletedTimelineEvent(normalizedType) &&
+            (!isEstimateEvent || metadata.completed === true)
         const badgeClassName = isCompleted
             ? 'bg-emerald-600'
             : EVENT_BADGE_COLORS[normalizedType] ?? 'bg-slate-400'
@@ -798,28 +837,16 @@ const Activity = ({ timeline, loading = false, error = null }: ActivityProps) =>
 
     const orderedEvents = useMemo(() => {
         return summary.events.slice().sort((a, b) => {
-            const aCancelled = (a.event.type || '').toUpperCase() === 'CANCELLED'
-            const bCancelled = (b.event.type || '').toUpperCase() === 'CANCELLED'
-            if (aCancelled && !bCancelled) {
-                return -1
+            const rankDiff = getTimelineDisplayRank(b.type) - getTimelineDisplayRank(a.type)
+            if (rankDiff !== 0) {
+                return rankDiff
             }
-            if (!aCancelled && bCancelled) {
-                return 1
+            const timestampDiff =
+                resolveEventTime(b.event).valueOf() - resolveEventTime(a.event).valueOf()
+            if (timestampDiff !== 0) {
+                return timestampDiff
             }
-            const aDelivered =
-                (a.event.type || '').toUpperCase() === 'DELIVERED'
-            const bDelivered =
-                (b.event.type || '').toUpperCase() === 'DELIVERED'
-            if (aDelivered && !bDelivered) {
-                return -1
-            }
-            if (!aDelivered && bDelivered) {
-                return 1
-            }
-            return (
-                dayjs(b.event.estimateDate ?? b.event.timestamp).valueOf() -
-                dayjs(a.event.estimateDate ?? a.event.timestamp).valueOf()
-            )
+            return b.id.localeCompare(a.id)
         })
     }, [summary.events])
 

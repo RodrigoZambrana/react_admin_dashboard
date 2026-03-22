@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import type { Money, ProductMode, ProductSummary, ProductVariantAttribute } from "@/types/storefront";
+import { isParametricCartLineId } from "@/lib/checkout/order-items";
 import { normalizeMoney } from "@/lib/utils/format";
 import { useToast } from "@/contexts/ToastContext";
 
@@ -40,6 +41,11 @@ interface CartState {
   items: CartLineItem[];
   updatedAt: number;
 }
+
+type UpgradedCartStateResult = {
+  state: CartState;
+  droppedInvalidParametricItems: number;
+};
 
 type CartAction =
   | { type: "LOADED"; payload: CartState }
@@ -73,12 +79,15 @@ const coerceCartConfiguration = (value: unknown): Record<string, unknown> | unde
   return undefined;
 };
 
-const upgradeCartState = (state: CartState | null | undefined): CartState => {
+const upgradeCartState = (state: CartState | null | undefined): UpgradedCartStateResult => {
   if (!state || !Array.isArray(state.items)) {
-    return { items: [], updatedAt: Date.now() };
+    return { state: { items: [], updatedAt: Date.now() }, droppedInvalidParametricItems: 0 };
   }
 
-  const upgradedItems: CartLineItem[] = state.items.map((item) => {
+  let droppedInvalidParametricItems = 0;
+
+  const upgradedItems: CartLineItem[] = state.items
+    .map((item) => {
     const product = item.product ?? ({} as CartProductSnapshot);
     const legacyId = product.id ?? product.productId ?? "";
     let normalizedLineId = String(legacyId);
@@ -100,6 +109,13 @@ const upgradeCartState = (state: CartState | null | undefined): CartState => {
       (product as { parametricConfiguration?: unknown }).parametricConfiguration ??
       (product as { config?: unknown }).config;
     const configuration = coerceCartConfiguration(rawConfiguration);
+    const looksParametric = isParametricCartLineId(normalizedLineId);
+    const requiresDynamicParametricConfiguration = Boolean(configuration || looksParametric);
+
+    if (requiresDynamicParametricConfiguration && !configuration) {
+      droppedInvalidParametricItems += 1;
+      return null;
+    }
 
     return {
       ...item,
@@ -107,7 +123,7 @@ const upgradeCartState = (state: CartState | null | undefined): CartState => {
         ...product,
         id: normalizedLineId,
         productId: normalizedProductId,
-        mode: product.mode ?? (configuration ? "parametric" : undefined),
+        mode: product.mode ?? (configuration || looksParametric ? "parametric" : undefined),
         variantId,
         variantKey: typeof product.variantKey === "string" ? product.variantKey : undefined,
         variantLabel: product.variantLabel ?? null,
@@ -115,11 +131,15 @@ const upgradeCartState = (state: CartState | null | undefined): CartState => {
         configuration
       }
     };
-  });
+  })
+    .filter(Boolean) as CartLineItem[];
 
   return {
-    items: upgradedItems,
-    updatedAt: typeof state.updatedAt === "number" ? state.updatedAt : Date.now()
+    state: {
+      items: upgradedItems,
+      updatedAt: typeof state.updatedAt === "number" ? state.updatedAt : Date.now()
+    },
+    droppedInvalidParametricItems
   };
 };
 
@@ -133,7 +153,17 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
       const updatedItems = existing
         ? state.items.map((item) =>
             item.product.id === action.payload.product.id
-              ? { ...item, quantity: item.quantity + quantity }
+              ? {
+                  ...item,
+                  product: {
+                    ...item.product,
+                    ...action.payload.product,
+                    configuration:
+                      action.payload.product.configuration ?? item.product.configuration,
+                    mode: action.payload.product.mode ?? item.product.mode
+                  },
+                  quantity: item.quantity + quantity
+                }
               : item
           )
         : [...state.items, { product: action.payload.product, quantity }];
@@ -233,7 +263,17 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
       if (raw) {
         const parsed = JSON.parse(raw) as CartState;
         if (Array.isArray(parsed.items)) {
-          dispatch({ type: "LOADED", payload: upgradeCartState(parsed) });
+          const upgraded = upgradeCartState(parsed);
+          dispatch({ type: "LOADED", payload: upgraded.state });
+          if (upgraded.droppedInvalidParametricItems > 0) {
+            toast.info({
+              title: "Carrito actualizado",
+              description:
+                upgraded.droppedInvalidParametricItems === 1
+                  ? "Se quitó una configuración paramétrica incompleta del carrito. Vuelve a configurarla para continuar."
+                  : "Se quitaron configuraciones paramétricas incompletas del carrito. Vuelve a configurarlas para continuar."
+            });
+          }
         }
       }
     } catch (error) {
@@ -241,7 +281,7 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
     } finally {
       isHydrated.current = true;
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     if (!isHydrated.current) return;

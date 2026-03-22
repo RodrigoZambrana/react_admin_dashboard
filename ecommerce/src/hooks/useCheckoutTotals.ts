@@ -4,6 +4,7 @@ import { StorefrontApi } from "@/lib/api/storefront";
 import { normalizeMoney } from "@/lib/utils/format";
 import type { Money } from "@/types/storefront";
 import { useStorefrontCart } from "@/state/cart-context";
+import { useCheckout } from "@/state/checkout-context";
 import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
 
 const parseTaxRate = (value: unknown): number | undefined => {
@@ -39,6 +40,7 @@ export interface CheckoutTotals {
 
 export function useCheckoutTotals() {
   const { subtotal } = useStorefrontCart();
+  const { shippingOption } = useCheckout();
   const config = useStorefrontConfig();
   const [remoteTax, setRemoteTax] = useState<{ rate?: number; taxId?: string } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -104,7 +106,7 @@ export function useCheckoutTotals() {
       taxAmount = Math.max(0, roundCurrency(correctedTotal - subtotalAmount));
     }
 
-    const shippingAmount = 0;
+    const shippingAmount = roundCurrency(shippingOption?.deliveryFees ?? 0);
     const discountAmount = 0;
     const finalTotalAmount = roundCurrency(correctedTotal + shippingAmount - discountAmount);
 
@@ -120,7 +122,7 @@ export function useCheckoutTotals() {
       total: toMoney(finalTotalAmount, currency),
       currency
     };
-  }, [config, subtotal, remoteTax]);
+  }, [config, subtotal, remoteTax, shippingOption?.deliveryFees]);
 
   return { totals, loading } as const;
 }

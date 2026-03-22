@@ -162,8 +162,7 @@ export class OrderFinanceService {
   }
 
   private generateWorkOrderCode(orderId: number) {
-    const stamp = Date.now().toString(36).toUpperCase()
-    return `WO-${orderId}-${stamp}`
+    return `WO-${orderId.toString().padStart(6, '0')}`
   }
 
   async recalculateOrderFinancials(
@@ -250,14 +249,38 @@ export class OrderFinanceService {
         updateData.confirmedAt = now
       }
       if (enableWorkOrders && !targetWorkOrderId) {
-        const workOrder = await client.workOrder.create({
-          data: {
-            orderId: order.id,
-            code: this.generateWorkOrderCode(order.id),
-            status: WorkOrderStatus.PENDING,
-          },
+        const existingWorkOrder = await client.workOrder.findFirst({
+          where: { orderId: order.id },
+          orderBy: { id: 'asc' },
         })
-        targetWorkOrderId = workOrder.id
+
+        if (existingWorkOrder) {
+          targetWorkOrderId = existingWorkOrder.id
+        } else {
+          try {
+            const workOrder = await client.workOrder.create({
+              data: {
+                orderId: order.id,
+                code: this.generateWorkOrderCode(order.id),
+                status: WorkOrderStatus.PENDING,
+              },
+            })
+            targetWorkOrderId = workOrder.id
+          } catch (error) {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+              const concurrentWorkOrder = await client.workOrder.findFirst({
+                where: { orderId: order.id },
+                orderBy: { id: 'asc' },
+              })
+              if (!concurrentWorkOrder) {
+                throw error
+              }
+              targetWorkOrderId = concurrentWorkOrder.id
+            } else {
+              throw error
+            }
+          }
+        }
       }
     } else if (order.confirmedAt && order.statusId === paidStatusId) {
       updateData.confirmedAt = null
@@ -320,13 +343,29 @@ export class OrderFinanceService {
     force = false,
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: { statusId: true },
+      })
+      if (!order) {
+        throw new BadRequestException('sales.orders.validation.notFound')
+      }
+
       const summary = await this.recalculateOrderFinancials(orderId, tx)
       const targetStatus = findOrderStatusById(targetStatusId)
       if (!targetStatus) {
         throw new BadRequestException('sales.orders.validation.statusInvalid')
       }
 
+      const currentStatusId = order.statusId ?? null
       const targetCode = targetStatus.id
+      if (
+        currentStatusId === ORDER_STATUS_CODES.CANCELLED &&
+        targetCode !== ORDER_STATUS_CODES.CANCELLED
+      ) {
+        throw new BadRequestException('sales.orders.validation.cancelledReopenRequiresNewOrder')
+      }
+
       if (
         (targetCode === ORDER_STATUS_CODES.PAID || targetCode === ORDER_STATUS_CODES.DELIVERED) &&
         !summary.depositMet

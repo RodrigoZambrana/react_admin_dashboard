@@ -13,7 +13,7 @@ import {
   IsIn,
 } from 'class-validator'
 
-class StorefrontOrderCustomerDto {
+export class StorefrontOrderCustomerDto {
   @IsEmail()
   email!: string
 
@@ -33,7 +33,7 @@ class StorefrontOrderCustomerDto {
   locale?: string
 }
 
-class StorefrontAddressDto {
+export class StorefrontAddressDto {
   @IsString()
   line1!: string
 
@@ -55,7 +55,7 @@ class StorefrontAddressDto {
   country!: string
 }
 
-class StorefrontOrderItemDto {
+export class StorefrontOrderItemDto {
   @IsInt()
   @IsPositive()
   productId!: number
@@ -105,6 +105,16 @@ export class StorefrontCreateOrderDto {
   @IsOptional()
   @IsString()
   checkoutToken?: string
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  shippingOptionId?: number
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['home_delivery'])
+  fulfillmentMode?: 'home_delivery'
 
   @IsOptional()
   @IsString()

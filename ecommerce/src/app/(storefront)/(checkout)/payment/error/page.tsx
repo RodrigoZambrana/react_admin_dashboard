@@ -113,7 +113,9 @@ function PaymentErrorView({ paymentId, status, detail }: PaymentErrorProps) {
           <FlexBox justifyContent="center" flexWrap="wrap" style={{ gap: "1rem" }}>
             <Link href="/payment" style={{ textDecoration: "none" }}>
               <Button color="primary" variant="contained">
-                {t("Try again")}
+                {t("checkout.payment.error.actions.retry", {
+                  defaultMessage: "Try again"
+                })}
               </Button>
             </Link>
             <Link href="/shop" style={{ textDecoration: "none" }}>

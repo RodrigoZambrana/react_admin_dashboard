@@ -14,16 +14,19 @@ import Typography from "@component/Typography";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { extractApiErrorMessage } from "@/lib/api/errors";
+import { buildCheckoutOrderItems } from "@/lib/checkout/order-items";
 import { useCheckout } from "@/state/checkout-context";
 import { useStorefrontCart } from "@/state/cart-context";
 import { useCheckoutTotals } from "@/hooks/useCheckoutTotals";
 import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
 import { useToast } from "@/contexts/ToastContext";
+import { useI18n, useTranslation } from "@/state/i18n-context";
+import { savePersistedCheckoutOrderItems } from "@/utils/checkoutStorage";
 import MercadoPagoPaymentBrick, {
   type MercadoPagoPaymentSubmitPayload
 } from "./MercadoPagoPaymentBrick";
 import {
-  buildMercadoPagoStatusMessage,
+  isMercadoPagoPaymentConfirmed,
   MERCADO_PAGO_STATUS_DETAIL_MESSAGES,
   normalizeMercadoPagoStatus
 } from "@/utils/mercadopago";
@@ -143,12 +146,18 @@ const redirectWithParams = (
 export default function PaymentForm() {
   const router = useRouter();
   const toast = useToast();
+  const t = useTranslation();
+  const { locale } = useI18n();
   const { convertMoney } = useCurrency();
   const { state: cartState } = useStorefrontCart();
   const { totals } = useCheckoutTotals();
   const storefrontConfig = useStorefrontConfig();
   const {
     contact,
+    shippingAddress,
+    shippingOption,
+    fulfillmentMode,
+    notes,
     hasDetails,
     payment,
     setPayment,
@@ -164,7 +173,68 @@ export default function PaymentForm() {
   const [preferenceId, setPreferenceId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [preferenceReloadNonce, setPreferenceReloadNonce] = useState(0);
   const lastPreferenceKeyRef = useRef<string | null>(null);
+  const [showMercadoPagoRecovery, setShowMercadoPagoRecovery] = useState(false);
+
+  const translateMercadoPagoStatusMessage = useCallback(
+    (status: string, detail?: string | null) => {
+      const normalized = normalizeMercadoPagoStatus(status);
+      switch (normalized) {
+        case "approved":
+          return t("checkout.payment.form.status.approved", {
+            defaultMessage: "Payment approved. You can continue to confirm your order."
+          });
+        case "authorized":
+          return t("checkout.payment.form.status.authorized", {
+            defaultMessage:
+              "Mercado Pago authorized the payment, but it is still pending final confirmation."
+          });
+        case "in_process":
+        case "pending":
+          return t("checkout.payment.form.status.pending", {
+            defaultMessage:
+              "Mercado Pago is reviewing your payment. Wait for confirmation before placing the order."
+          });
+        case "rejected":
+          return detail && MERCADO_PAGO_STATUS_DETAIL_MESSAGES[detail]
+            ? t(detail, {
+                defaultMessage: MERCADO_PAGO_STATUS_DETAIL_MESSAGES[detail]
+              })
+            : t("checkout.payment.form.status.rejected", {
+                defaultMessage:
+                  "Your bank declined the transaction. Please verify the details or try another card."
+              });
+        case "processing":
+        default:
+          return t("checkout.payment.form.status.processing", {
+            defaultMessage:
+              "Processing payment with Mercado Pago. Wait for confirmation before placing the order."
+          });
+      }
+    },
+    [t]
+  );
+
+  const resetMercadoPagoSession = useCallback(
+    (options?: { clearStoredPayment?: boolean }) => {
+      if (options?.clearStoredPayment) {
+        clearPayment();
+      }
+      setIsProcessingPayment(false);
+      setPreferenceId(null);
+      lastPreferenceKeyRef.current = null;
+      setStatusMessage(null);
+      setErrorMessage(null);
+      setShowMercadoPagoRecovery(false);
+      setPreferenceReloadNonce((value) => value + 1);
+    },
+    [clearPayment]
+  );
+
+  const retryPreferenceLoad = useCallback(() => {
+    resetMercadoPagoSession();
+  }, [resetMercadoPagoSession]);
 
   useEffect(() => {
     if (cartState.items.length === 0) {
@@ -182,21 +252,23 @@ export default function PaymentForm() {
     if (payment?.method === "mercadopago") {
       const status = normalizeMercadoPagoStatus(payment.status);
       setSelectedMethod("mercadopago");
-      setStatusMessage(buildMercadoPagoStatusMessage(status, payment.statusDetail));
+      setStatusMessage(translateMercadoPagoStatusMessage(status, payment.statusDetail));
       setErrorMessage(null);
+      setShowMercadoPagoRecovery(false);
     } else if (payment?.method === "cod") {
       setSelectedMethod("cod");
       setStatusMessage(null);
       setErrorMessage(null);
+      setShowMercadoPagoRecovery(false);
     }
-  }, [payment]);
+  }, [payment, translateMercadoPagoStatusMessage]);
 
   const mercadopagoConfig = storefrontConfig?.payments?.mercadopago ?? null;
   const publicKey =
     mercadopagoConfig?.publicKey ??
     process.env.NEXT_PUBLIC_MP_PUBLIC_KEY ??
     "";
-  const locale = mapCountryToLocale(
+  const mpLocale = mapCountryToLocale(
     mercadopagoConfig?.country ?? process.env.NEXT_PUBLIC_MP_COUNTRY ?? "AR"
   );
   const isMercadoPagoEnabled =
@@ -252,19 +324,84 @@ export default function PaymentForm() {
       currency: resolvedCurrency
     };
   }, [convertMoney, totals.total]);
+  const orderItemsSnapshot = useMemo(() => buildCheckoutOrderItems(cartState.items), [cartState.items]);
+  const checkoutSnapshot = useMemo(() => {
+    if (!shippingOption?.id || orderItemsSnapshot.items.length === 0 || orderItemsSnapshot.error) {
+      return undefined;
+    }
+
+    return {
+      customer: {
+        email: contact.email,
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        phone: contact.phone && contact.phone.length > 0 ? contact.phone : undefined,
+        locale
+      },
+      shippingAddress: {
+        line1: shippingAddress.line1,
+        line2: shippingAddress.line2 || undefined,
+        city: shippingAddress.city,
+        state: shippingAddress.state || undefined,
+        zip: shippingAddress.zip || undefined,
+        country: shippingAddress.country
+      },
+      items: orderItemsSnapshot.items,
+      notes: notes && notes.trim().length > 0 ? notes.trim() : undefined,
+      shippingOptionId: shippingOption.id,
+      fulfillmentMode,
+      currency
+    };
+  }, [
+    contact.email,
+    contact.firstName,
+    contact.lastName,
+    contact.phone,
+    currency,
+    fulfillmentMode,
+    locale,
+    notes,
+    orderItemsSnapshot.error,
+    orderItemsSnapshot.items,
+    shippingAddress.city,
+    shippingAddress.country,
+    shippingAddress.line1,
+    shippingAddress.line2,
+    shippingAddress.state,
+    shippingAddress.zip,
+    shippingOption?.id
+  ]);
+
+  useEffect(() => {
+    if (!checkoutToken || orderItemsSnapshot.items.length === 0 || orderItemsSnapshot.error) {
+      return;
+    }
+    savePersistedCheckoutOrderItems(checkoutToken, orderItemsSnapshot.items);
+  }, [checkoutToken, orderItemsSnapshot]);
 
   const hasPublicKey = publicKey.trim().length > 0;
-  const canRenderBrick = isMercadoPagoEnabled && hasPublicKey && amount > 0;
+  const checkoutItemsError = orderItemsSnapshot.error;
+  const canRenderBrick =
+    isMercadoPagoEnabled &&
+    hasPublicKey &&
+    amount > 0 &&
+    orderItemsSnapshot.items.length > 0 &&
+    !checkoutItemsError;
 
   const handleProcessingChange = useCallback(
     (processing: boolean) => {
       setIsProcessingPayment(processing);
       if (processing) {
-        setStatusMessage("Processing payment with Mercado Pago...");
+        setStatusMessage(
+          t("checkout.payment.form.status.processing", {
+            defaultMessage:
+              "Processing payment with Mercado Pago. Wait for confirmation before placing the order."
+          })
+        );
         setErrorMessage(null);
       }
     },
-    []
+    [t]
   );
 
   const successRedirectTarget = useMemo(() => {
@@ -285,7 +422,11 @@ export default function PaymentForm() {
     }
 
     if (!Number.isFinite(amount) || amount <= 0) {
-      setErrorMessage("Invalid amount to initialize Mercado Pago.");
+      setErrorMessage(
+        t("checkout.payment.form.errors.invalidAmount", {
+          defaultMessage: "The payment amount is invalid for Mercado Pago."
+        })
+      );
       setPreferenceId(null);
       lastPreferenceKeyRef.current = null;
       return;
@@ -293,7 +434,11 @@ export default function PaymentForm() {
 
     const normalizedAmount = formatAmountForPreference(amount);
     if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
-      setErrorMessage("Invalid amount to initialize Mercado Pago.");
+      setErrorMessage(
+        t("checkout.payment.form.errors.invalidAmount", {
+          defaultMessage: "The payment amount is invalid for Mercado Pago."
+        })
+      );
       setPreferenceId(null);
       lastPreferenceKeyRef.current = null;
       return;
@@ -314,6 +459,7 @@ export default function PaymentForm() {
       description,
       cartId,
       contact.email,
+      maxInstallments,
       statementDescriptor,
       successRedirectTarget,
       failureRedirectTarget
@@ -324,7 +470,10 @@ export default function PaymentForm() {
     }
 
     let cancelled = false;
-    const fetchPreference = async () => {
+    let retryTimer: ReturnType<typeof window.setTimeout> | null = null;
+    const maxRetryAttempts = 2;
+
+    const fetchPreference = async (attempt = 0) => {
       setIsLoadingPreference(true);
       try {
         const response = await StorefrontApi.createMercadoPagoPreference({
@@ -332,35 +481,60 @@ export default function PaymentForm() {
           currency,
           description,
           cartId,
+          checkoutToken,
           statementDescriptor,
           payerEmail: contact.email,
           successUrl: successRedirectTarget,
           failureUrl: failureRedirectTarget,
-          pendingUrl: failureRedirectTarget
+          pendingUrl: failureRedirectTarget,
+          minInstallments,
+          maxInstallments,
+          checkoutSnapshot
         });
         if (cancelled) return;
         setPreferenceId(response.preferenceId);
         lastPreferenceKeyRef.current = preferenceKey;
         setErrorMessage(null);
+        setIsLoadingPreference(false);
       } catch (cause) {
         if (cancelled) return;
+        if (attempt < maxRetryAttempts) {
+          retryTimer = window.setTimeout(() => {
+            void fetchPreference(attempt + 1);
+          }, 600 * (attempt + 1));
+          return;
+        }
         const message = isApiError(cause)
-          ? `Mercado Pago error: ${normalizeMessage(extractApiErrorMessage(cause), "unknown")}`
+          ? normalizeMessage(
+              extractApiErrorMessage(cause),
+              t("checkout.payment.form.errors.initializePreference", {
+                defaultMessage: "We couldn't initialize Mercado Pago. Please try again."
+              })
+            )
           : cause instanceof Error
             ? cause.message
-            : "We couldn't initialize Mercado Pago. Please try again.";
+            : t("checkout.payment.form.errors.initializePreference", {
+                defaultMessage: "We couldn't initialize Mercado Pago. Please try again."
+              });
         setPreferenceId(null);
         lastPreferenceKeyRef.current = null;
-        setErrorMessage(normalizeMessage(message, "We couldn't initialize Mercado Pago. Please try again."));
-      } finally {
-        if (!cancelled) {
-          setIsLoadingPreference(false);
-        }
+        setErrorMessage(
+          normalizeMessage(
+            message,
+            t("checkout.payment.form.errors.initializePreference", {
+              defaultMessage: "We couldn't initialize Mercado Pago. Please try again."
+            })
+          )
+        );
+        setIsLoadingPreference(false);
       }
     };
     void fetchPreference();
     return () => {
       cancelled = true;
+      if (retryTimer) {
+        window.clearTimeout(retryTimer);
+      }
     };
   }, [
     amount,
@@ -370,10 +544,16 @@ export default function PaymentForm() {
     currency,
     description,
     failureRedirectTarget,
+    maxInstallments,
+    minInstallments,
+    preferenceReloadNonce,
     preferenceId,
     selectedMethod,
     successRedirectTarget,
     statementDescriptor,
+    checkoutToken,
+    checkoutSnapshot,
+    t,
     totals.total
   ]);
 
@@ -382,7 +562,12 @@ export default function PaymentForm() {
       cardData: MercadoPagoPaymentSubmitPayload
     ): Promise<{ status: "success" | "pending" | "error"; paymentId?: string | null; statusDetail?: string | null }> => {
       setErrorMessage(null);
-      setStatusMessage("Processing payment with Mercado Pago...");
+      setStatusMessage(
+        t("checkout.payment.form.status.processing", {
+          defaultMessage:
+            "Processing payment with Mercado Pago. Wait for confirmation before placing the order."
+        })
+      );
       const idempotencyKey = generateIdempotencyKey();
 
       try {
@@ -403,7 +588,9 @@ export default function PaymentForm() {
             description,
             orderId: undefined,
             cartId,
-            statementDescriptor
+            checkoutToken,
+            statementDescriptor,
+            checkoutSnapshot
           },
           { idempotencyKey }
         );
@@ -421,11 +608,15 @@ export default function PaymentForm() {
           cardBrand: response.cardBrand ?? undefined,
           cardLastFour: response.cardLastFour ?? undefined,
           cardholderName: response.cardholderName ?? payerName,
+          checkoutSnapshot: response.checkoutSnapshot ?? checkoutSnapshot,
           updatedAt: response.createdAt ?? new Date().toISOString()
         };
 
         setPayment(checkoutPayment);
-        const statusText = buildMercadoPagoStatusMessage(normalizedStatus, checkoutPayment.statusDetail);
+        const statusText = translateMercadoPagoStatusMessage(
+          normalizedStatus,
+          checkoutPayment.statusDetail
+        );
         setStatusMessage(statusText);
         setErrorMessage(null);
 
@@ -435,35 +626,52 @@ export default function PaymentForm() {
           detail: checkoutPayment.statusDetail ?? null
         };
 
-        if (normalizedStatus === "approved" || normalizedStatus === "authorized") {
+        if (isMercadoPagoPaymentConfirmed(normalizedStatus)) {
           toast.success({
-            title: "Payment approved",
-            description: "Mercado Pago accepted your card."
+            title: t("checkout.payment.form.toast.approved.title", {
+              defaultMessage: "Payment approved"
+            }),
+            description: t("checkout.payment.form.toast.approved.description", {
+              defaultMessage: "Mercado Pago accepted your card."
+            })
           });
           redirectWithParams(successRedirectTarget, redirectParams, router);
         } else if (normalizedStatus === "in_process" || normalizedStatus === "pending") {
           toast.info({
-            title: "Payment under review",
-            description: "Mercado Pago is reviewing your payment. You can continue with your order."
+            title: t("checkout.payment.form.toast.pending.title", {
+              defaultMessage: "Payment under review"
+            }),
+            description: t("checkout.payment.form.status.pending", {
+              defaultMessage:
+                "Mercado Pago is reviewing your payment. Wait for confirmation before placing the order."
+            })
           });
         } else if (normalizedStatus === "rejected") {
           clearPayment();
           toast.error({
-            title: "Payment rejected",
+            title: t("checkout.payment.form.toast.rejected.title", {
+              defaultMessage: "Payment rejected"
+            }),
             description:
               checkoutPayment.statusDetail && MERCADO_PAGO_STATUS_DETAIL_MESSAGES[checkoutPayment.statusDetail]
-                ? MERCADO_PAGO_STATUS_DETAIL_MESSAGES[checkoutPayment.statusDetail]
-                : "Your bank declined the transaction. Please review the details and try again."
+                ? t(checkoutPayment.statusDetail, {
+                    defaultMessage: MERCADO_PAGO_STATUS_DETAIL_MESSAGES[checkoutPayment.statusDetail]
+                  })
+                : t("checkout.payment.form.status.rejected", {
+                    defaultMessage:
+                      "Your bank declined the transaction. Please verify the details or try another card."
+                  })
           });
           redirectWithParams(failureRedirectTarget, redirectParams, router);
         }
 
-        const brickStatus =
-          normalizedStatus === "approved" || normalizedStatus === "authorized"
-            ? "success"
-            : normalizedStatus === "in_process" || normalizedStatus === "pending"
-              ? "pending"
-              : "error";
+        const brickStatus = isMercadoPagoPaymentConfirmed(normalizedStatus)
+          ? "success"
+          : normalizedStatus === "authorized" ||
+              normalizedStatus === "in_process" ||
+              normalizedStatus === "pending"
+            ? "pending"
+            : "error";
 
         return {
           status: brickStatus,
@@ -475,13 +683,29 @@ export default function PaymentForm() {
           ? extractApiErrorMessage(cause)
           : cause instanceof Error
             ? cause.message
-            : "We couldn't process your payment. Please try again.";
-        setErrorMessage(normalizeMessage(message, "We couldn't process your payment. Please try again."));
+            : t("checkout.payment.form.errors.processFailed", {
+                defaultMessage: "We couldn't process your payment. Please try again."
+              });
+        setErrorMessage(
+          normalizeMessage(
+            message,
+            t("checkout.payment.form.errors.processFailed", {
+              defaultMessage: "We couldn't process your payment. Please try again."
+            })
+          )
+        );
         setStatusMessage(null);
         clearPayment();
         toast.error({
-          title: "We couldn't process the payment",
-          description: normalizeMessage(message, "We couldn't process your payment. Please try again.")
+          title: t("checkout.payment.form.toast.processFailed.title", {
+            defaultMessage: "We couldn't process the payment"
+          }),
+          description: normalizeMessage(
+            message,
+            t("checkout.payment.form.errors.processFailed", {
+              defaultMessage: "We couldn't process your payment. Please try again."
+            })
+          )
         });
         redirectWithParams(
           failureRedirectTarget,
@@ -498,6 +722,8 @@ export default function PaymentForm() {
     [
       amount,
       cartId,
+      checkoutSnapshot,
+      checkoutToken,
       clearPayment,
       currency,
       description,
@@ -508,6 +734,9 @@ export default function PaymentForm() {
       statementDescriptor,
       successRedirectTarget,
       toast
+      ,
+      translateMercadoPagoStatusMessage,
+      t
     ]
   );
 
@@ -516,6 +745,7 @@ export default function PaymentForm() {
       setSelectedMethod(method);
       setErrorMessage(null);
       setStatusMessage(null);
+      setShowMercadoPagoRecovery(false);
       if (method === "cod") {
         setPayment({ method: "cod" });
       } else if (payment?.method === "cod") {
@@ -535,9 +765,42 @@ export default function PaymentForm() {
     if (!payment.paymentIntentId) {
       return false;
     }
-    const status = normalizeMercadoPagoStatus(payment.status);
-    return status !== "rejected" && status !== "processing";
+    return isMercadoPagoPaymentConfirmed(payment.status);
   }, [payment, selectedMethod]);
+
+  useEffect(() => {
+    if (selectedMethod !== "mercadopago") {
+      setShowMercadoPagoRecovery(false);
+      return;
+    }
+
+    const paymentConfirmed =
+      payment?.method === "mercadopago" && isMercadoPagoPaymentConfirmed(payment.status);
+
+    if (paymentConfirmed || !preferenceId) {
+      setShowMercadoPagoRecovery(false);
+      return;
+    }
+
+    let wentToBackground = false;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        wentToBackground = true;
+        return;
+      }
+
+      if (wentToBackground && document.visibilityState === "visible") {
+        setShowMercadoPagoRecovery(true);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [payment, preferenceId, selectedMethod]);
 
   const handleContinue = useCallback(() => {
     if (selectedMethod === "cod") {
@@ -547,37 +810,71 @@ export default function PaymentForm() {
     }
 
     if (!payment || payment.method !== "mercadopago") {
-      const message = "Process your payment with Mercado Pago before continuing.";
+      const message = t("checkout.payment.form.errors.mustProcessBeforeContinue", {
+        defaultMessage: "Process your payment with Mercado Pago before continuing."
+      });
       setErrorMessage(message);
-      toast.error({ title: "Payment required", description: message });
+      toast.error({
+        title: t("checkout.payment.form.toast.paymentRequired.title", {
+          defaultMessage: "Payment required"
+        }),
+        description: message
+      });
       return;
     }
 
     const status = normalizeMercadoPagoStatus(payment.status);
 
+    if (isMercadoPagoPaymentConfirmed(status)) {
+      router.push("/review");
+      return;
+    }
+
     if (status === "processing") {
       toast.info({
-        title: "Payment in progress",
-        description: "Please wait while Mercado Pago completes the payment."
+        title: t("checkout.payment.form.toast.processing.title", {
+          defaultMessage: "Payment in progress"
+        }),
+        description: t("checkout.payment.form.toast.processing.description", {
+          defaultMessage: "Please wait while Mercado Pago completes the payment."
+        })
       });
       return;
     }
 
     if (status === "rejected") {
       toast.error({
-        title: "Payment rejected",
-        description: "Your bank declined the transaction. Try again with another card."
+        title: t("checkout.payment.form.toast.rejected.title", {
+          defaultMessage: "Payment rejected"
+        }),
+        description: t("checkout.payment.form.status.rejected", {
+          defaultMessage: "Your bank declined the transaction. Please verify the details or try another card."
+        })
       });
       return;
     }
 
-    router.push("/review");
-  }, [payment, router, selectedMethod, setPayment, toast]);
+    toast.info({
+      title: t("checkout.payment.form.toast.pending.title", {
+        defaultMessage: "Payment under review"
+      }),
+      description: t("checkout.payment.form.status.pending", {
+        defaultMessage:
+          "Mercado Pago is reviewing your payment. Wait for confirmation before placing the order."
+      })
+    });
+  }, [payment, router, selectedMethod, setPayment, t, toast]);
 
-  const mpUnavailableMessage = !isMercadoPagoEnabled
-    ? "Mercado Pago is not configured. Update the credentials in Configuraciones → Mercado Pago."
+  const mpUnavailableMessage = checkoutItemsError
+    ? checkoutItemsError
+    : !isMercadoPagoEnabled
+    ? t("checkout.payment.form.unavailable.notConfigured", {
+        defaultMessage: "Mercado Pago is not configured. Update the credentials in Settings → Mercado Pago."
+      })
     : amount <= 0
-      ? "Add products to your cart to enable Mercado Pago payments."
+      ? t("checkout.payment.form.unavailable.emptyCart", {
+          defaultMessage: "Add products to your cart to enable Mercado Pago payments."
+        })
       : null;
   const paymentButtonBlocked =
     selectedMethod === "mercadopago" &&
@@ -587,7 +884,7 @@ export default function PaymentForm() {
     <Box>
       <Card1 mb="2rem">
         <Typography fontWeight="600" mb="1rem">
-          Payment method
+          {t("checkout.payment.form.methodTitle", { defaultMessage: "Payment method" })}
         </Typography>
 
         <Radio
@@ -599,7 +896,9 @@ export default function PaymentForm() {
           checked={selectedMethod === "mercadopago"}
           label={
             <Typography ml="6px" fontWeight="600" fontSize="18px">
-              Pay with card (Mercado Pago)
+              {t("checkout.payment.form.method.mercadopago", {
+                defaultMessage: "Pay with card (Mercado Pago)"
+              })}
             </Typography>
           }
         />
@@ -612,16 +911,30 @@ export default function PaymentForm() {
               </Typography>
             ) : isLoadingPreference ? (
               <Typography color="text.muted" fontSize="14px">
-                Preparing Mercado Pago checkout...
+                {t("checkout.payment.form.loadingPreference", {
+                  defaultMessage: "Preparing Mercado Pago checkout..."
+                })}
               </Typography>
             ) : !preferenceId ? (
-              <Typography color="error.main" fontSize="14px">
-                {errorMessage ?? "We couldn't initialize Mercado Pago. Please try again."}
-              </Typography>
+              <Box>
+                <Typography color="error.main" fontSize="14px">
+                  {errorMessage ??
+                    t("checkout.payment.form.errors.initializePreference", {
+                      defaultMessage: "We couldn't initialize Mercado Pago. Please try again."
+                    })}
+                </Typography>
+                <Box mt="0.75rem">
+                  <Button size="sm" variant="outlined" onClick={retryPreferenceLoad}>
+                    {t("checkout.payment.form.actions.retryMercadoPago", {
+                      defaultMessage: "Retry Mercado Pago"
+                    })}
+                  </Button>
+                </Box>
+              </Box>
             ) : (
               <MercadoPagoPaymentBrick
                 publicKey={publicKey}
-                locale={locale}
+                locale={mpLocale}
                 amount={amount}
                 currency={currency}
                 preferenceId={preferenceId}
@@ -638,6 +951,27 @@ export default function PaymentForm() {
               <Typography color="primary.main" fontSize="14px" mt="0.75rem">
                 {statusMessage}
               </Typography>
+            )}
+            {showMercadoPagoRecovery && !isLoadingPreference && preferenceId && (
+              <Box mt="0.75rem">
+                <Typography color="text.muted" fontSize="14px">
+                  {t("checkout.payment.form.recovery.walletHint", {
+                    defaultMessage:
+                      "If you closed Mercado Pago Wallet and want to try again, restart the payment form."
+                  })}
+                </Typography>
+                <Box mt="0.5rem">
+                  <Button
+                    size="sm"
+                    variant="outlined"
+                    onClick={() => resetMercadoPagoSession({ clearStoredPayment: true })}
+                  >
+                    {t("checkout.payment.form.actions.restartMercadoPago", {
+                      defaultMessage: "Restart Mercado Pago"
+                    })}
+                  </Button>
+                </Box>
+              </Box>
             )}
             {errorMessage && (
               <Typography color="error.main" fontSize="14px" mt="0.75rem">
@@ -657,13 +991,17 @@ export default function PaymentForm() {
           checked={selectedMethod === "cod"}
           label={
             <Typography ml="6px" fontWeight="600" fontSize="18px">
-              Cash on delivery
+              {t("checkout.payment.form.method.cod", {
+                defaultMessage: "Cash on delivery"
+              })}
             </Typography>
           }
         />
 
         <Typography color="text.muted" fontSize="14px" mt="0.5rem">
-          You&apos;ll pay with cash or card when the order is delivered.
+          {t("checkout.payment.form.method.codHelp", {
+            defaultMessage: "You'll pay with cash or card when the order is delivered."
+          })}
         </Typography>
       </Card1>
 
@@ -671,7 +1009,9 @@ export default function PaymentForm() {
         <Grid item sm={6} xs={12}>
           <Link href="/checkout">
             <Button variant="outlined" color="primary" type="button" fullWidth>
-              Back to details
+              {t("checkout.payment.form.actions.backToDetails", {
+                defaultMessage: "Back to details"
+              })}
             </Button>
           </Link>
         </Grid>
@@ -686,10 +1026,16 @@ export default function PaymentForm() {
             onClick={handleContinue}
           >
             {selectedMethod === "cod"
-              ? "Review order"
+              ? t("checkout.payment.form.actions.reviewOrder", {
+                  defaultMessage: "Review order"
+                })
               : isProcessingPayment
-                ? "Processing..."
-                : "Review order"}
+                ? t("checkout.payment.form.actions.processing", {
+                    defaultMessage: "Processing..."
+                  })
+                : t("checkout.payment.form.actions.reviewOrder", {
+                    defaultMessage: "Review order"
+                  })}
           </Button>
         </Grid>
       </Grid>
