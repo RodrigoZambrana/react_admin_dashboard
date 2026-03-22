@@ -23,13 +23,18 @@ cp deploy/env/storefront.prod.env.example deploy/env/storefront.prod.env
 Update the copied files with the values that apply to your environment.
 At a minimum the backend file must define `DATABASE_URL`, authentication secrets
 (`JWT_SECRET`, `COOKIE_SECRET`) and CORS settings via `ALLOWED_ORIGINS`.
-Select the tenant variant by setting `CLIENT_SLUG` in the backend file,
-`VITE_CLIENT_SLUG` (o `CLIENT_SLUG`, expuesto por Vite gracias a `envPrefix`) en
-el frontend, y configurando los endpoints públicos del storefront
-(`NEXT_PUBLIC_STOREFRONT_API_URL`, `NEXT_PUBLIC_SITE_URL`). Todos apuntan a la
-variante compartida `core` si no se especifica otro slug. El frontend controla
-variables de Vite como `VITE_API_URL`, mientras que el storefront expone flags
-de UI (`NEXT_PUBLIC_GOOGLE_BUTTON_ENABLED`) y URLs de Mercado Pago.
+Para Docker Compose local, la variante del cliente queda centralizada en una sola
+variable: `CLIENT_SLUG`. El stack deriva desde ahí:
+
+- `CLIENT_SLUG` para backend,
+- `VITE_CLIENT_SLUG` para frontend,
+- `CLIENT_SLUG` y `NEXT_PUBLIC_CLIENT_SLUG` para storefront.
+
+En desarrollo fuera de Docker, el frontend sigue leyendo `VITE_CLIENT_SLUG` desde
+su `.env` local y el backend/storefront toman su `CLIENT_SLUG` desde sus propios
+archivos de entorno. El frontend controla además variables de Vite como
+`VITE_API_URL`, mientras que el storefront expone flags de UI
+(`NEXT_PUBLIC_GOOGLE_BUTTON_ENABLED`) y URLs de Mercado Pago.
 
 Run `node scripts/check-env.mjs` to validate that all `.env` files contain the keys
 declared in `env.schema.json` before building or deploying.

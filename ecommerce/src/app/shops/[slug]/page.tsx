@@ -1,32 +1,17 @@
-import { Fragment } from "react";
-// API FUNCTIONS
-import api from "@utils/__api__/shops";
-// GLOBAL CUSTOM COMPONENTS
-import Grid from "@component/grid/Grid";
-import ProductFilterCard from "@component/products/ProductFilterCard";
-// PAGE SECTION COMPONENTS
-import ShopIntroCard from "@sections/shop/ShopIntroCard";
-import ProductDetails from "@sections/shop/ProductDetails";
-// CUSTOM DATA MODEL
+import { notFound } from "next/navigation";
+
+import { isDemoRouteEnabled } from "@/lib/public-route-policy";
 import { SlugParams } from "interfaces";
 
-export default async function ShopDetails({ params }: SlugParams) {
-  const { slug } = await params;
-  const shop = await api.getShopBySlug(slug);
+export const dynamic = "force-dynamic";
 
-  return (
-    <Fragment>
-      <ShopIntroCard />
+export default async function ShopDetailsPage(props: SlugParams) {
+  if (!isDemoRouteEnabled()) {
+    notFound();
+  }
 
-      <Grid container spacing={6}>
-        <Grid item md={3} xs={12}>
-          <ProductFilterCard />
-        </Grid>
+  const demoModule = await import("./page.demo");
+  const ShopDetailsDemoPage = demoModule.default;
 
-        <Grid item md={9} xs={12}>
-          <ProductDetails shop={shop} />
-        </Grid>
-      </Grid>
-    </Fragment>
-  );
+  return <ShopDetailsDemoPage {...props} />;
 }

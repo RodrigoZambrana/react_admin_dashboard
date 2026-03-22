@@ -280,7 +280,7 @@ export default function ShopFilterPanel({
           variant="contained"
           onClick={handleApplyPrice}
           disabled={priceBounds.min === undefined || priceBounds.max === undefined}>
-          {t("Apply price")}
+          {t("common.apply", { defaultMessage: "Apply" })}
         </Button>
       </Box>
 

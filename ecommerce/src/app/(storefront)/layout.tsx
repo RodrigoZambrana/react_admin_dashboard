@@ -11,11 +11,18 @@ type StorefrontLayoutProps = {
   children: ReactNode;
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function StorefrontLayout({ children }: StorefrontLayoutProps) {
   const config = await getStorefrontConfig();
+  const clientConfig = {
+    ...config,
+    layouts: [],
+    policies: [],
+  };
 
   return (
-    <StorefrontConfigProvider config={config}>
+    <StorefrontConfigProvider config={clientConfig}>
       <StorefrontSessionProvider>
         <StorefrontCurrencyProvider>
           <WishlistProvider>{children}</WishlistProvider>

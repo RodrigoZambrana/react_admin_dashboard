@@ -42,6 +42,11 @@ const StyledHeader = styled.header`
     }
   }
 
+  .category-holder {
+    margin-left: 1rem;
+    flex-shrink: 0;
+  }
+
   .icon-holder {
     span {
       font-size: 12px;

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { IconMinus, IconPlus } from "@tabler/icons-react";
 
@@ -21,6 +20,7 @@ import useCart from "@hook/useCart";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import { formatInventoryStatus, normalizeMoney } from "@/lib/utils/format";
 import { filterValidProductImages } from "@/lib/utils/image";
+import { useTranslation } from "@/state/i18n-context";
 import type {
   InventoryStatus,
   ProductAttributeDefinition,
@@ -278,6 +278,7 @@ export default function ProductIntro({
 
   const { items, addItemSnapshot, updateQuantity } = useCart();
   const { formatAmount, baseCurrency } = useMoneyFormatter();
+  const t = useTranslation();
 
   const normalizedAttributes = useMemo(() => {
     if (!variantAttributes || variantAttributes.length === 0) {
@@ -332,7 +333,7 @@ export default function ProductIntro({
   const variantLabel = formatVariantLabel(selectedVariant);
   const variantIsPurchasable = isVariantPurchasable(selectedVariant);
   const inventoryStatus = toInventoryStatus(selectedVariant?.inventoryStatus ?? status);
-  const formattedStatus = formatInventoryStatus(inventoryStatus);
+  const formattedStatus = t(formatInventoryStatus(inventoryStatus));
 
   const baseGallery = useMemo(() => filterValidProductImages(images ?? []), [images]);
   const variantGallery = useMemo(
@@ -368,7 +369,7 @@ export default function ProductIntro({
     return Number.isFinite(numeric) ? numeric : undefined;
   }, [id]);
 
-  const productBrand = brand ?? "Store brand";
+  const productBrand = brand ?? t("product.brand.default", { defaultMessage: "Store brand" });
   const parametricProductId = useMemo(() => {
     if (typeof id === "number") return id;
     if (productNumericId) return productNumericId;
@@ -569,7 +570,6 @@ export default function ProductIntro({
                 <NoImagePlaceholder
                   width="100%"
                   height="300px"
-                  text="No image available"
                   borderRadius={16}
                 />
               )}
@@ -616,12 +616,12 @@ export default function ProductIntro({
           ) : null}
 
           <FlexBox alignItems="center" mb="1rem">
-            <SemiSpan>Brand:</SemiSpan>
+            <SemiSpan>{t("product.labels.brand", { defaultMessage: "Brand:" })}</SemiSpan>
             <H6 ml="8px">{productBrand}</H6>
           </FlexBox>
 
           <FlexBox alignItems="center" mb="1rem">
-            <SemiSpan>Rated:</SemiSpan>
+            <SemiSpan>{t("product.labels.rated", { defaultMessage: "Rated:" })}</SemiSpan>
             <Box ml="8px" mr="8px">
               <Rating color="warn" value={productRating} outof={5} />
             </Box>
@@ -639,7 +639,10 @@ export default function ProductIntro({
             ) : null}
             {typeof computedDiscount === "number" && computedDiscount > 0 ? (
               <SemiSpan color="success.main" display="block" mt="0.25rem">
-                Save {computedDiscount}%
+                {t("product.discount.savePercent", {
+                  defaultMessage: "Save {discount}%",
+                  values: { discount: computedDiscount }
+                })}
               </SemiSpan>
             ) : null}
             <SemiSpan color="inherit" display="block" mt="0.35rem">
@@ -675,7 +678,7 @@ export default function ProductIntro({
               ))}
               {selectedAttributesSummary.length > 0 ? (
                 <SemiSpan color="text.muted">
-                  Selection:{" "}
+                  {t("product.selection.label", { defaultMessage: "Selection:" })}{" "}
                   {selectedAttributesSummary
                     .map((entry) => `${entry.attribute}: ${entry.value}`)
                     .join(" • ")}
@@ -683,7 +686,9 @@ export default function ProductIntro({
               ) : null}
               {!variantIsPurchasable && selectedVariant ? (
                 <Paragraph color="text.muted" mt="0.75rem">
-                  This combination is currently unavailable.
+                  {t("product.variant.unavailable", {
+                    defaultMessage: "This combination is currently unavailable."
+                  })}
                 </Paragraph>
               ) : null}
             </Box>
@@ -697,7 +702,7 @@ export default function ProductIntro({
                 variant="contained"
                 disabled={addToCartDisabled}
                 onClick={handleAddToCart}>
-                Add to Cart
+                {t("product.actions.addToCart", { defaultMessage: "Add to Cart" })}
               </Button>
 
               <ProductWishlistButton productId={productNumericId} />
@@ -730,14 +735,14 @@ export default function ProductIntro({
             </FlexBox>
           )}
 
-          <FlexBox alignItems="center" mb="1rem">
-            <SemiSpan>Sold By:</SemiSpan>
-            <Link href="/shops/scarlett-beauty">
+          {brand ? (
+            <FlexBox alignItems="center" mb="1rem">
+              <SemiSpan>{t("product.labels.brand", { defaultMessage: "Brand:" })}</SemiSpan>
               <H6 lineHeight="1" ml="8px">
-                Mobile Store
+                {brand}
               </H6>
-            </Link>
-          </FlexBox>
+            </FlexBox>
+          ) : null}
         </Grid>
       </Grid>
     </Box>

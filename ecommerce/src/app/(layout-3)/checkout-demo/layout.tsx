@@ -1,12 +1,17 @@
 import type { PropsWithChildren } from "react";
+import { notFound } from "next/navigation";
 
-import { enforcePublicRoute } from "@/lib/public-route-policy";
-import CheckoutDemoLayoutClient from "./CheckoutDemoLayoutClient";
+import { isDemoRouteEnabled } from "@/lib/public-route-policy";
 
 export const dynamic = "force-dynamic";
 
-export default function Layout({ children }: PropsWithChildren) {
-  enforcePublicRoute("checkoutDemo");
+export default async function Layout({ children }: PropsWithChildren) {
+  if (!isDemoRouteEnabled()) {
+    notFound();
+  }
+
+  const layoutModule = await import("./CheckoutDemoLayoutClient");
+  const CheckoutDemoLayoutClient = layoutModule.default;
 
   return <CheckoutDemoLayoutClient>{children}</CheckoutDemoLayoutClient>;
 }

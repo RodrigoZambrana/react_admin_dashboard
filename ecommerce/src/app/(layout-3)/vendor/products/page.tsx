@@ -1,20 +1,37 @@
 import { Fragment } from "react";
-import { IconPackage } from "@tabler/icons-react";
+import { notFound } from "next/navigation";
 import axios from "@lib/axios";
-// GLOBAL CUSTOM COMPONENTS
-import Hidden from "@component/hidden";
-import FlexBox from "@component/FlexBox";
-import TableRow from "@component/TableRow";
-import { H5 } from "@component/Typography";
-import DashboardPageHeader from "@component/DashboardPageHeader";
-// PAGE SECTION COMPONENTS
-import { ProductList } from "@sections/vendor-dashboard/products";
+import { isDemoRouteEnabled } from "@/lib/public-route-policy";
 
 // ==============================================================
 type Params = { searchParams: Promise<{ page: string }> };
 // ==============================================================
 
 export default async function Products({ searchParams }: Params) {
+  if (!isDemoRouteEnabled()) {
+    notFound();
+  }
+
+  const [
+    { IconPackage },
+    { default: Hidden },
+    { default: FlexBox },
+    { default: TableRow },
+    typographyModule,
+    { default: DashboardPageHeader },
+    productsModule
+  ] = await Promise.all([
+    import("@tabler/icons-react"),
+    import("@component/hidden"),
+    import("@component/FlexBox"),
+    import("@component/TableRow"),
+    import("@component/Typography"),
+    import("@component/DashboardPageHeader"),
+    import("@sections/vendor-dashboard/products")
+  ]);
+  const { H5 } = typographyModule;
+  const { ProductList } = productsModule;
+
   const { page } = await searchParams;
 
   const { data } = await axios.get("/api/products", {

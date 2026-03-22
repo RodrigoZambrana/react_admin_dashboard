@@ -12,6 +12,7 @@ import FrequentlyBought from "@component/products/FrequentlyBought";
 import ProductDescription from "@component/products/ProductDescription";
 import ProductSpecifications from "@component/products/ProductSpecifications";
 import Product from "@models/product.model";
+import { useTranslation } from "@/state/i18n-context";
 
 // ==============================================================
 type Props = {
@@ -32,6 +33,7 @@ export default function ProductView({
   descriptionHtml,
   specifications
 }: Props) {
+  const t = useTranslation();
   const [selectedOption, setSelectedOption] = useState("description");
   const showFrequentlyBoughtSection = false; // hide Frequently Bought Together section
   const showAvailableShopsSection = false; // hide Available Shops section
@@ -49,7 +51,7 @@ export default function ProductView({
           onClick={handleOptionClick("description")}
           borderBottom={selectedOption === "description" ? "2px solid" : ""}
           color={selectedOption === "description" ? "primary.main" : "text.muted"}>
-          Description
+          {t("product.tabs.description", { defaultMessage: "Description" })}
         </H6>
 
         <H6
@@ -60,7 +62,7 @@ export default function ProductView({
           onClick={handleOptionClick("specifications")}
           borderBottom={selectedOption === "specifications" ? "2px solid" : ""}
           color={selectedOption === "specifications" ? "primary.main" : "text.muted"}>
-          Specifications
+          {t("product.tabs.specifications", { defaultMessage: "Specifications" })}
         </H6>
       </FlexBox>
 

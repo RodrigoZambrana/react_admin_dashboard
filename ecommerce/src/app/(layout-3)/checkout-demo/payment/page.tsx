@@ -1,17 +1,16 @@
-import Grid from "@component/grid/Grid";
-import PaymentForm from "@sections/payment/PaymentForm";
-import PaymentSummary from "@sections/payment/PaymentSummary";
+import { notFound } from "next/navigation";
 
-export default function Checkout() {
-  return (
-    <Grid container flexWrap="wrap-reverse" spacing={6}>
-      <Grid item lg={8} md={8} xs={12}>
-        <PaymentForm />
-      </Grid>
+import { isDemoRouteEnabled } from "@/lib/public-route-policy";
 
-      <Grid item lg={4} md={4} xs={12}>
-        <PaymentSummary />
-      </Grid>
-    </Grid>
-  );
+export const dynamic = "force-dynamic";
+
+export default async function CheckoutDemoPaymentPage() {
+  if (!isDemoRouteEnabled()) {
+    notFound();
+  }
+
+  const paymentModule = await import("./page.demo");
+  const PaymentDemo = paymentModule.default;
+
+  return <PaymentDemo />;
 }

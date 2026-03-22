@@ -214,6 +214,83 @@ export interface ProductDetail extends Omit<ProductSummary, "attributes"> {
   variants?: ProductVariant[];
 }
 
+export interface ParametricSizeLimit {
+  minWidthMm?: number;
+  maxWidthMm?: number;
+  minHeightMm?: number;
+  maxHeightMm?: number;
+}
+
+export interface ParametricCompatibility {
+  glassBySeries?: Record<string, string[]>;
+  monoblockBySeries?: Record<string, boolean>;
+  sizeLimits?: Record<string, ParametricSizeLimit>;
+}
+
+export interface ParametricConfigSelectors {
+  families: string[];
+  series: string[];
+  materials: string[];
+  colors: string[];
+  glass: string[];
+  widths: number[];
+  heights: number[];
+  shutterMaterials: string[];
+  hasMosquiteroOption: boolean;
+  hasMonoblockOption: boolean;
+}
+
+export interface ParametricConfigStats {
+  rowCount: number;
+  minimumPrice?: number;
+  currency?: string;
+  newestReferenceDate?: string | null;
+  oldestReferenceDate?: string | null;
+}
+
+export interface ParametricConfigSnapshot {
+  selectors: ParametricConfigSelectors;
+  stats: ParametricConfigStats;
+  compatibility: ParametricCompatibility;
+}
+
+export interface ParametricQuoteRequest {
+  familyId?: string | null;
+  serie: string;
+  material: string;
+  color: string;
+  vidrio: string;
+  widthMm: number;
+  heightMm: number;
+  hasMosquitero: boolean;
+  hasShutterMonoblock: boolean;
+  shutterMaterial?: string | null;
+}
+
+export interface ParametricQuoteResult {
+  productId: number;
+  available: boolean;
+  price?: number;
+  currency?: string;
+  detailSnapshot?: string | null;
+  specifications?: string | null;
+  source?: string | null;
+  referenceDate?: string | null;
+  matrixRowId?: number;
+  requested: {
+    familyId?: string | null;
+    serie: string;
+    material: string;
+    color: string;
+    vidrio: string;
+    widthMm: number;
+    heightMm: number;
+    hasMosquitero: boolean;
+    hasShutterMonoblock: boolean;
+    shutterMaterial: string;
+  };
+}
+
 export interface CategorySummary {
   id: number;
   slug: string;

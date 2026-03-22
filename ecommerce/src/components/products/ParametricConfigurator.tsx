@@ -1,3 +1,5 @@
+"use client";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Grid from "@component/grid/Grid";
 import FlexBox from "@component/FlexBox";
@@ -6,45 +8,66 @@ import Image from "@component/Image";
 import Avatar from "@component/avatar";
 import NoImagePlaceholder from "@component/NoImagePlaceholder";
 import { Button } from "@component/buttons";
-import { H1, H2, H3, H6, Paragraph, SemiSpan } from "@component/Typography";
+import { H1, H2, Paragraph, SemiSpan } from "@component/Typography";
 import Rating from "@component/rating";
 import Switcher from "@component/switch";
 import Select from "@component/Select";
 import TextField from "@component/text-field";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import { normalizeMoney } from "@/lib/utils/format";
-import { StorefrontApi } from "@/lib/api/storefront";
+import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import useCart from "@hook/useCart";
 import type Product from "@models/product.model";
 import type { CartProductSnapshot } from "@/state/cart-context";
 import { useTranslation } from "@/state/i18n-context";
-import type { InventoryStatus } from "@/types/storefront";
+import type {
+  InventoryStatus,
+  ParametricConfigSnapshot,
+  ParametricQuoteRequest,
+  ParametricQuoteResult,
+} from "@/types/storefront";
 
-const DEFAULT_OPTIONS = {
-  series: ["20", "25", "30", "GALA", "PROBBA", "SUMMA"],
-  colors: ["NATURAL", "WHITE", "BLACK", "BROWN", "ANOLOC"],
-  glass: ["3MM", "4MM", "5MM", "6MM", "DVH"],
+type ParametricOption = {
+  value: string;
+  label: string;
 };
 
-const DEFAULT_FORM = {
-  width: "1.00",
-  height: "1.00",
-  series: "GALA",
-  color: "NATURAL",
-  glass: "4MM",
-  mosquitoNet: false,
-  monoblockEnabled: false,
-  monoblockMaterial: "PVC",
-  monoblockColor: "WHITE",
+type ParametricFormState = {
+  familyId: string;
+  serie: string;
+  material: string;
+  color: string;
+  vidrio: string;
+  widthMm: string;
+  heightMm: string;
+  hasMosquitero: boolean;
+  hasShutterMonoblock: boolean;
+  shutterMaterial: string;
 };
 
-const sanitizeNumber = (value: string) => value.replace(/[^0-9.,]/g, "");
+type ParametricProductInfo = Pick<
+  Product,
+  | "id"
+  | "slug"
+  | "title"
+  | "shortDescription"
+  | "brand"
+  | "rating"
+  | "ratingCount"
+  | "currency"
+  | "status"
+  | "mode"
+>;
 
-const toNumber = (value: string) => {
-  const normalized = value.replace(",", ".");
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+type ParametricConfiguratorProps = {
+  product: ParametricProductInfo;
+  gallery: string[];
+  hasGallery: boolean;
+  selectedImage: number;
+  onSelectImage: (index: number) => void;
 };
+
+const sanitizeNumber = (value: string) => value.replace(/[^\d]/g, "");
 
 const sanitizeCode = (value: string) =>
   value
@@ -69,95 +92,98 @@ const normalizeInventoryStatus = (status?: string | null): InventoryStatus => {
   return "in-stock";
 };
 
-const buildParametricLineId = (
-  productId: string | number,
-  config: {
-    width: number;
-    height: number;
-    series: string;
-    color: string;
-    glass: string;
-    mosquitoNet: boolean;
-    monoblock: { enabled: boolean; material?: string | null; color?: string | null };
-  }
-) => {
-  const widthKey = Math.round(config.width * 1000);
-  const heightKey = Math.round(config.height * 1000);
-  const seriesKey = sanitizeCode(config.series);
-  const colorKey = sanitizeCode(config.color);
-  const glassKey = sanitizeCode(config.glass);
-  const mosquitoKey = config.mosquitoNet ? "MSQ1" : "MSQ0";
-  const monoblockKey = config.monoblock.enabled
-    ? `MB-${sanitizeCode(config.monoblock.material ?? "UNK")}-${sanitizeCode(
-        config.monoblock.color ?? "UNK"
-      )}`
-    : "MB-0";
-  return `${productId}:PARAM:${widthKey}x${heightKey}:${seriesKey}:${colorKey}:${glassKey}:${mosquitoKey}:${monoblockKey}`;
+const parseMm = (value: string): number => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const extractOptions = (config: Record<string, any> | null | undefined) => {
-  if (!config || typeof config !== "object") {
-    return DEFAULT_OPTIONS;
-  }
+const pickFirst = <T,>(values: T[], fallback: T): T => (values.length ? values[0] : fallback);
+
+const createDefaultForm = (config: ParametricConfigSnapshot): ParametricFormState => {
+  const { selectors, compatibility } = config;
+  const serie = pickFirst(selectors.series, "");
+  const allowedGlass = compatibility.glassBySeries?.[serie];
+  const initialGlass = pickFirst(
+    selectors.glass.filter((item) => !allowedGlass || allowedGlass.length === 0 || allowedGlass.includes(item)),
+    pickFirst(selectors.glass, ""),
+  );
+  const sizeLimits = compatibility.sizeLimits?.[serie];
+  const allowedWidths = selectors.widths.filter((value) => {
+    if (typeof sizeLimits?.minWidthMm === "number" && value < sizeLimits.minWidthMm) return false;
+    if (typeof sizeLimits?.maxWidthMm === "number" && value > sizeLimits.maxWidthMm) return false;
+    return true;
+  });
+  const allowedHeights = selectors.heights.filter((value) => {
+    if (typeof sizeLimits?.minHeightMm === "number" && value < sizeLimits.minHeightMm) return false;
+    if (typeof sizeLimits?.maxHeightMm === "number" && value > sizeLimits.maxHeightMm) return false;
+    return true;
+  });
+  const shutterMaterial = pickFirst(selectors.shutterMaterials, "");
+
   return {
-    series: Array.isArray(config?.inputs?.series?.options)
-      ? config.inputs.series.options
-      : DEFAULT_OPTIONS.series,
-    colors: Array.isArray(config?.inputs?.color?.options)
-      ? config.inputs.color.options
-      : DEFAULT_OPTIONS.colors,
-    glass: Array.isArray(config?.inputs?.glass?.options)
-      ? config.inputs.glass.options
-      : DEFAULT_OPTIONS.glass,
+    familyId: pickFirst(selectors.families, ""),
+    serie,
+    material: pickFirst(selectors.materials, "ALUMINIO"),
+    color: pickFirst(selectors.colors, ""),
+    vidrio: initialGlass,
+    widthMm: String(pickFirst(allowedWidths, pickFirst(selectors.widths, 0))),
+    heightMm: String(pickFirst(allowedHeights, pickFirst(selectors.heights, 0))),
+    hasMosquitero: false,
+    hasShutterMonoblock: false,
+    shutterMaterial,
   };
 };
 
-const buildConfigurationPayload = (
-  form: typeof DEFAULT_FORM
-): {
-  width: number;
-  height: number;
-  series: string;
-  color: string;
-  glass: string;
-  mosquitoNet: boolean;
-  monoblock: { enabled: boolean; material?: string; color?: string };
-} => ({
-  width: toNumber(form.width),
-  height: toNumber(form.height),
-  series: form.series,
+const buildParametricLineId = (productId: string | number, config: ParametricQuoteRequest) => {
+  const familyKey = sanitizeCode(config.familyId ?? "GEN");
+  const seriesKey = sanitizeCode(config.serie);
+  const materialKey = sanitizeCode(config.material);
+  const colorKey = sanitizeCode(config.color);
+  const glassKey = sanitizeCode(config.vidrio);
+  const mosquitoKey = config.hasMosquitero ? "MSQ1" : "MSQ0";
+  const monoblockKey = config.hasShutterMonoblock
+    ? `MB-${sanitizeCode(config.shutterMaterial ?? "UNK")}`
+    : "MB-0";
+  return `${productId}:PARAM:${familyKey}:${seriesKey}:${materialKey}:${colorKey}:${glassKey}:${config.widthMm}x${config.heightMm}:${mosquitoKey}:${monoblockKey}`;
+};
+
+const toStringOptions = (values: string[]): ParametricOption[] =>
+  values.filter(Boolean).map((value) => ({ value, label: value }));
+
+const toNumberOptions = (values: number[]): ParametricOption[] =>
+  values.map((value) => ({ value: String(value), label: `${value} mm` }));
+
+const readOptionValue = (input: unknown): string => {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (input && typeof input === "object" && "value" in input) {
+    const value = (input as { value?: unknown }).value;
+    if (typeof value === "string" || typeof value === "number") {
+      return String(value);
+    }
+  }
+  return "";
+};
+
+const buildQuotePayload = (form: ParametricFormState): ParametricQuoteRequest => ({
+  familyId: form.familyId || null,
+  serie: form.serie,
+  material: form.material,
   color: form.color,
-  glass: form.glass,
-  mosquitoNet: form.mosquitoNet,
-  monoblock: form.monoblockEnabled
-    ? {
-        enabled: true,
-        material: form.monoblockMaterial,
-        color: form.monoblockColor,
-      }
-    : { enabled: false },
+  vidrio: form.vidrio,
+  widthMm: parseMm(form.widthMm),
+  heightMm: parseMm(form.heightMm),
+  hasMosquitero: form.hasMosquitero,
+  hasShutterMonoblock: form.hasShutterMonoblock,
+  shutterMaterial: form.hasShutterMonoblock ? form.shutterMaterial : "",
 });
 
-type ParametricProductInfo = Pick<
-  Product,
-  | "id"
-  | "slug"
-  | "title"
-  | "shortDescription"
-  | "brand"
-  | "rating"
-  | "ratingCount"
-  | "currency"
-  | "status"
-  | "mode"
->;
-
-type ParametricConfiguratorProps = {
-  product: ParametricProductInfo;
-  gallery: string[];
-  hasGallery: boolean;
-  selectedImage: number;
-  onSelectImage: (index: number) => void;
+const formatSelectorValue = (value?: string | null) => {
+  if (!value || !value.trim()) {
+    return "-";
+  }
+  return value;
 };
 
 const ParametricConfigurator = ({
@@ -170,26 +196,19 @@ const ParametricConfigurator = ({
   const t = useTranslation();
   const { addItemSnapshot, items } = useCart();
   const { formatAmount, baseCurrency } = useMoneyFormatter();
-  const [form, setForm] = useState(DEFAULT_FORM);
-  const [config, setConfig] = useState<Record<string, any> | null>(null);
+  const [form, setForm] = useState<ParametricFormState | null>(null);
+  const [config, setConfig] = useState<ParametricConfigSnapshot | null>(null);
   const [loadingConfig, setLoadingConfig] = useState(false);
-  const [quote, setQuote] = useState<null | {
-    total: number;
-    currency: string;
-    breakdown: Record<string, number>;
-    referenceDate: string;
-    dataVersion: string;
-  }>(null);
+  const [quote, setQuote] = useState<ParametricQuoteResult | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const options = useMemo(() => extractOptions(config), [config]);
 
   useEffect(() => {
     let active = true;
     const numericId = Number(product.id);
     if (!Number.isFinite(numericId) || numericId <= 0) {
       setConfig(null);
+      setForm(null);
       setLoadingConfig(false);
       setErrorMessage(
         t("product.parametric.error.invalidProduct", {
@@ -202,18 +221,31 @@ const ParametricConfigurator = ({
     }
     setLoadingConfig(true);
     setErrorMessage(null);
+    setQuote(null);
+
     (async () => {
       try {
         const data = await StorefrontApi.getProductParametricConfig(numericId);
-        if (active) {
-          setConfig(data);
+        if (!active) {
+          return;
         }
+        setConfig(data);
+        setForm(createDefaultForm(data));
       } catch (error) {
-        console.warn("[storefront:parametric] failed to load config", error);
-        if (active) {
-          setConfig(null);
-          setErrorMessage((prev) =>
-            prev ??
+        if (!active) {
+          return;
+        }
+        setConfig(null);
+        setForm(null);
+        if (isApiError(error) && error.status === 404) {
+          setErrorMessage(
+            t("product.parametric.error.invalidProduct", {
+              defaultMessage: "This product is not configured for parametric pricing."
+            })
+          );
+        } else {
+          console.warn("[storefront:parametric] failed to load config", error);
+          setErrorMessage(
             t("product.parametric.error.configLoad", {
               defaultMessage: "Unable to load parametric configuration."
             })
@@ -225,47 +257,200 @@ const ParametricConfigurator = ({
         }
       }
     })();
+
     return () => {
       active = false;
     };
   }, [product.id, t]);
 
-  const handleFieldChange = useCallback(
-    (field: keyof typeof DEFAULT_FORM) => (input: unknown) => {
-      let value: string | boolean;
-      if (typeof input === "boolean") {
-        value = input;
-      } else if (typeof input === "string") {
-        value = input;
-      } else if (input && typeof input === "object" && "value" in input) {
-        const optionValue = (input as { value?: unknown }).value;
-        if (typeof optionValue === "boolean" || typeof optionValue === "string") {
-          value = optionValue;
-        } else if (optionValue == null) {
-          value = "";
-        } else {
-          value = String(optionValue);
-        }
-      } else if (typeof input === "number") {
-        value = String(input);
-      } else {
-        value = "";
-      }
+  const selectors = config?.selectors ?? null;
+  const currentSizeLimits = useMemo(() => {
+    if (!config || !form?.serie) {
+      return null;
+    }
+    return config.compatibility.sizeLimits?.[form.serie] ?? null;
+  }, [config, form?.serie]);
 
-      setForm((prev) => ({
-        ...prev,
-        [field]: value,
-      }));
+  const widthValues = useMemo(() => {
+    if (!selectors) {
+      return [];
+    }
+    return selectors.widths.filter((value) => {
+      if (typeof currentSizeLimits?.minWidthMm === "number" && value < currentSizeLimits.minWidthMm) return false;
+      if (typeof currentSizeLimits?.maxWidthMm === "number" && value > currentSizeLimits.maxWidthMm) return false;
+      return true;
+    });
+  }, [currentSizeLimits?.maxWidthMm, currentSizeLimits?.minWidthMm, selectors]);
+
+  const heightValues = useMemo(() => {
+    if (!selectors) {
+      return [];
+    }
+    return selectors.heights.filter((value) => {
+      if (typeof currentSizeLimits?.minHeightMm === "number" && value < currentSizeLimits.minHeightMm) return false;
+      if (typeof currentSizeLimits?.maxHeightMm === "number" && value > currentSizeLimits.maxHeightMm) return false;
+      return true;
+    });
+  }, [currentSizeLimits?.maxHeightMm, currentSizeLimits?.minHeightMm, selectors]);
+
+  const allowedGlassValues = useMemo(() => {
+    if (!selectors) {
+      return [];
+    }
+    const allowed = form?.serie ? config?.compatibility.glassBySeries?.[form.serie] : undefined;
+    return selectors.glass.filter((value) => !allowed || allowed.length === 0 || allowed.includes(value));
+  }, [config?.compatibility.glassBySeries, form?.serie, selectors]);
+
+  const monoblockEnabledForSeries = useMemo(() => {
+    if (!selectors?.hasMonoblockOption) {
+      return false;
+    }
+    if (!form?.serie) {
+      return selectors.hasMonoblockOption;
+    }
+    const flag = config?.compatibility.monoblockBySeries?.[form.serie];
+    return flag !== false;
+  }, [config?.compatibility.monoblockBySeries, form?.serie, selectors]);
+
+  useEffect(() => {
+    if (!selectors || !form) {
+      return;
+    }
+
+    const next: Partial<ParametricFormState> = {};
+    const ensureValue = (current: string, values: string[], fallback = "") => {
+      if (!values.length) {
+        return current;
+      }
+      if (values.includes(current)) {
+        return current;
+      }
+      return values[0] ?? fallback;
+    };
+
+    const normalizedFamilies = selectors.families.filter(Boolean);
+    const normalizedSeries = selectors.series.filter(Boolean);
+    const normalizedMaterials = selectors.materials.filter(Boolean);
+    const normalizedColors = selectors.colors.filter(Boolean);
+    const normalizedShutterMaterials = selectors.shutterMaterials.filter(Boolean);
+
+    const familyId = ensureValue(form.familyId, normalizedFamilies);
+    const serie = ensureValue(form.serie, normalizedSeries);
+    const material = ensureValue(form.material, normalizedMaterials, "ALUMINIO");
+    const color = ensureValue(form.color, normalizedColors);
+    const vidrio = ensureValue(form.vidrio, allowedGlassValues);
+    const widthMm = widthValues.length
+      ? ensureValue(form.widthMm, widthValues.map((value) => String(value)), form.widthMm)
+      : form.widthMm;
+    const heightMm = heightValues.length
+      ? ensureValue(form.heightMm, heightValues.map((value) => String(value)), form.heightMm)
+      : form.heightMm;
+    const shutterMaterial = monoblockEnabledForSeries
+      ? ensureValue(form.shutterMaterial, normalizedShutterMaterials)
+      : "";
+    const hasMosquitero = selectors.hasMosquiteroOption ? form.hasMosquitero : false;
+    const hasShutterMonoblock = monoblockEnabledForSeries ? form.hasShutterMonoblock : false;
+
+    if (familyId !== form.familyId) next.familyId = familyId;
+    if (serie !== form.serie) next.serie = serie;
+    if (material !== form.material) next.material = material;
+    if (color !== form.color) next.color = color;
+    if (vidrio !== form.vidrio) next.vidrio = vidrio;
+    if (widthMm !== form.widthMm) next.widthMm = widthMm;
+    if (heightMm !== form.heightMm) next.heightMm = heightMm;
+    if (shutterMaterial !== form.shutterMaterial) next.shutterMaterial = shutterMaterial;
+    if (hasMosquitero !== form.hasMosquitero) next.hasMosquitero = hasMosquitero;
+    if (hasShutterMonoblock !== form.hasShutterMonoblock) next.hasShutterMonoblock = hasShutterMonoblock;
+
+    if (Object.keys(next).length > 0) {
+      setForm((prev) => (prev ? { ...prev, ...next } : prev));
+    }
+  }, [allowedGlassValues, form, heightValues, monoblockEnabledForSeries, selectors, widthValues]);
+
+  const familyOptions = useMemo(() => toStringOptions(selectors?.families ?? []), [selectors?.families]);
+  const seriesOptions = useMemo(() => toStringOptions(selectors?.series ?? []), [selectors?.series]);
+  const materialOptions = useMemo(() => toStringOptions(selectors?.materials ?? []), [selectors?.materials]);
+  const colorOptions = useMemo(() => toStringOptions(selectors?.colors ?? []), [selectors?.colors]);
+  const glassOptions = useMemo(() => toStringOptions(allowedGlassValues), [allowedGlassValues]);
+  const shutterMaterialOptions = useMemo(
+    () => toStringOptions(selectors?.shutterMaterials ?? []),
+    [selectors?.shutterMaterials],
+  );
+  const widthOptions = useMemo(() => toNumberOptions(widthValues), [widthValues]);
+  const heightOptions = useMemo(() => toNumberOptions(heightValues), [heightValues]);
+
+  const selectedFamilyOption = useMemo(
+    () => familyOptions.find((option) => option.value === form?.familyId) ?? null,
+    [familyOptions, form?.familyId],
+  );
+  const selectedSerieOption = useMemo(
+    () => seriesOptions.find((option) => option.value === form?.serie) ?? null,
+    [form?.serie, seriesOptions],
+  );
+  const selectedMaterialOption = useMemo(
+    () => materialOptions.find((option) => option.value === form?.material) ?? null,
+    [form?.material, materialOptions],
+  );
+  const selectedColorOption = useMemo(
+    () => colorOptions.find((option) => option.value === form?.color) ?? null,
+    [colorOptions, form?.color],
+  );
+  const selectedGlassOption = useMemo(
+    () => glassOptions.find((option) => option.value === form?.vidrio) ?? null,
+    [form?.vidrio, glassOptions],
+  );
+  const selectedWidthOption = useMemo(
+    () => widthOptions.find((option) => option.value === form?.widthMm) ?? null,
+    [form?.widthMm, widthOptions],
+  );
+  const selectedHeightOption = useMemo(
+    () => heightOptions.find((option) => option.value === form?.heightMm) ?? null,
+    [form?.heightMm, heightOptions],
+  );
+  const selectedShutterMaterialOption = useMemo(
+    () => shutterMaterialOptions.find((option) => option.value === form?.shutterMaterial) ?? null,
+    [form?.shutterMaterial, shutterMaterialOptions],
+  );
+
+  const handleSelectFieldChange = useCallback(
+    (field: keyof Pick<ParametricFormState, "familyId" | "serie" | "material" | "color" | "vidrio" | "widthMm" | "heightMm" | "shutterMaterial">) =>
+      (input: unknown) => {
+        const value = readOptionValue(input);
+        setForm((prev) => (prev ? { ...prev, [field]: value } : prev));
+      },
+    [],
+  );
+
+  const handleToggleChange = useCallback(
+    (field: "hasMosquitero" | "hasShutterMonoblock") => (checked: boolean) => {
+      setForm((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [field]: checked,
+        };
+      });
     },
-    []
+    [],
+  );
+
+  const handleDimensionChange = useCallback(
+    (field: "widthMm" | "heightMm") => (event: React.ChangeEvent<HTMLInputElement>) => {
+      const value = sanitizeNumber(event.target.value);
+      setForm((prev) => (prev ? { ...prev, [field]: value } : prev));
+    },
+    [],
   );
 
   const handleQuote = useCallback(async () => {
     setQuoting(true);
     setErrorMessage(null);
     setQuote(null);
+
     const numericId = Number(product.id);
-    if (!Number.isFinite(numericId) || numericId <= 0) {
+    if (!Number.isFinite(numericId) || numericId <= 0 || !form) {
       setQuoting(false);
       setErrorMessage(
         t("product.parametric.error.invalidProduct", {
@@ -274,16 +459,35 @@ const ParametricConfigurator = ({
       );
       return;
     }
+
+    const payload = buildQuotePayload(form);
+    if (
+      !payload.serie ||
+      !payload.material ||
+      !payload.color ||
+      !payload.vidrio ||
+      payload.widthMm <= 0 ||
+      payload.heightMm <= 0
+    ) {
+      setQuoting(false);
+      setErrorMessage(
+        t("errors.validation", {
+          defaultMessage: "Review the information provided."
+        })
+      );
+      return;
+    }
+
     try {
-      const payload = buildConfigurationPayload(form);
       const result = await StorefrontApi.quoteParametricProduct(numericId, payload);
-      setQuote({
-        total: result.total,
-        currency: result.currency ?? product.currency ?? baseCurrency,
-        breakdown: result.breakdown,
-        referenceDate: result.referenceDate,
-        dataVersion: result.dataVersion,
-      });
+      setQuote(result);
+      if (!result.available) {
+        setErrorMessage(
+          t("product.parametric.error.unavailable", {
+            defaultMessage: "No pricing is available for the selected configuration."
+          })
+        );
+      }
     } catch (error) {
       console.error("[storefront:parametric] quote failed", error);
       setErrorMessage(
@@ -294,19 +498,20 @@ const ParametricConfigurator = ({
     } finally {
       setQuoting(false);
     }
-  }, [form, product.id, product.currency, baseCurrency, t]);
+  }, [form, product.id, t]);
 
   const handleAddToCart = useCallback(() => {
-    if (!quote) {
+    if (!quote?.available || typeof quote.price !== "number" || !form) {
       return;
     }
-    const configurationPayload = buildConfigurationPayload(form);
+
+    const configurationPayload = buildQuotePayload(form);
     const lineId = buildParametricLineId(product.id, configurationPayload);
     const money = normalizeMoney({
-      amount: quote.total,
+      amount: quote.price,
       currency: quote.currency ?? product.currency ?? baseCurrency,
     });
-    const summaryLabel = `Serie ${configurationPayload.series} ${configurationPayload.width.toFixed(2)}x${configurationPayload.height.toFixed(2)}`;
+    const summaryLabel = `${configurationPayload.serie} ${configurationPayload.widthMm}x${configurationPayload.heightMm} mm`;
 
     const snapshot: CartProductSnapshot = {
       id: lineId,
@@ -329,9 +534,10 @@ const ParametricConfigurator = ({
       configuration: {
         ...configurationPayload,
         currency: quote.currency ?? product.currency ?? baseCurrency,
-        referenceDate: quote.referenceDate,
-        dataVersion: quote.dataVersion,
-        breakdown: quote.breakdown,
+        referenceDate: quote.referenceDate ?? null,
+        source: quote.source ?? null,
+        matrixRowId: quote.matrixRowId ?? null,
+        specifications: quote.specifications ?? null,
       },
     };
 
@@ -339,8 +545,10 @@ const ParametricConfigurator = ({
   }, [addItemSnapshot, baseCurrency, form, gallery, product, quote, selectedImage]);
 
   const existingQuantity = useMemo(() => {
-    const configurationPayload = buildConfigurationPayload(form);
-    const lineId = buildParametricLineId(product.id, configurationPayload);
+    if (!form) {
+      return 0;
+    }
+    const lineId = buildParametricLineId(product.id, buildQuotePayload(form));
     const entry = items.find((item) => item.product.id === lineId);
     return entry?.quantity ?? 0;
   }, [form, product.id, items]);
@@ -365,7 +573,30 @@ const ParametricConfigurator = ({
     });
   }, [existingQuantity, t, unitsLabel]);
 
-  const { width, height, series, color, glass, mosquitoNet, monoblockEnabled, monoblockMaterial, monoblockColor } = form;
+  const minimumPriceLabel = useMemo(() => {
+    if (!config?.stats.minimumPrice) {
+      return null;
+    }
+    return formatAmount(config.stats.minimumPrice, config.stats.currency ?? product.currency ?? baseCurrency);
+  }, [baseCurrency, config?.stats.currency, config?.stats.minimumPrice, formatAmount, product.currency]);
+
+  const quotePriceLabel =
+    quote?.available && typeof quote.price === "number"
+      ? formatAmount(quote.price, quote.currency ?? product.currency ?? baseCurrency)
+      : null;
+
+  if (!form) {
+    return (
+      <Box overflow="hidden">
+        <Paragraph color={errorMessage ? "error.main" : "text.muted"}>
+          {errorMessage ??
+            t("product.parametric.loading", {
+              defaultMessage: "Loading parametric configuration…"
+            })}
+        </Paragraph>
+      </Box>
+    );
+  }
 
   return (
     <Box overflow="hidden">
@@ -385,7 +616,6 @@ const ParametricConfigurator = ({
                 <NoImagePlaceholder
                   width="100%"
                   height="300px"
-                  text="No image available"
                   borderRadius={16}
                 />
               )}
@@ -393,9 +623,9 @@ const ParametricConfigurator = ({
 
             {hasGallery ? (
               <FlexBox overflow="auto">
-                {gallery.map((url, ind) => (
+                {gallery.map((url, index) => (
                   <Box
-                    key={ind}
+                    key={url}
                     size={70}
                     bg="white"
                     minWidth={70}
@@ -405,10 +635,10 @@ const ParametricConfigurator = ({
                     borderRadius="10px"
                     alignItems="center"
                     justifyContent="center"
-                    ml={ind === 0 ? "auto" : ""}
-                    mr={ind === gallery.length - 1 ? "auto" : "10px"}
-                    borderColor={selectedImage === ind ? "primary.main" : "gray.400"}
-                    onClick={() => onSelectImage(ind)}
+                    ml={index === 0 ? "auto" : ""}
+                    mr={index === gallery.length - 1 ? "auto" : "10px"}
+                    borderColor={selectedImage === index ? "primary.main" : "gray.400"}
+                    onClick={() => onSelectImage(index)}
                   >
                     <Avatar src={url} borderRadius="10px" size={65} />
                   </Box>
@@ -428,28 +658,33 @@ const ParametricConfigurator = ({
           ) : null}
 
           <FlexBox alignItems="center" mb="1rem">
-            <SemiSpan>Brand:</SemiSpan>
-            <H6 ml="8px">{product.brand ?? "Store brand"}</H6>
+            <SemiSpan>{t("product.labels.brand", { defaultMessage: "Brand:" })}</SemiSpan>
+            <SemiSpan ml="8px">
+              {product.brand ?? t("product.brand.default", { defaultMessage: "Store brand" })}
+            </SemiSpan>
           </FlexBox>
 
           <FlexBox alignItems="center" mb="1rem">
-            <SemiSpan>Rated:</SemiSpan>
+            <SemiSpan>{t("product.labels.rated", { defaultMessage: "Rated:" })}</SemiSpan>
             <Box ml="8px" mr="8px">
               <Rating color="warn" value={product.rating ?? 4} outof={5} />
             </Box>
-            <H6>({product.ratingCount ?? 0})</H6>
+            <SemiSpan>({product.ratingCount ?? 0})</SemiSpan>
           </FlexBox>
 
           <Box mb="24px">
-            {quote ? (
+            {quotePriceLabel ? (
+              <H2 color="primary.main" mb="4px" lineHeight="1">
+                {quotePriceLabel}
+              </H2>
+            ) : minimumPriceLabel ? (
               <>
                 <H2 color="primary.main" mb="4px" lineHeight="1">
-                  {formatAmount(quote.total, quote.currency ?? baseCurrency)}
+                  {minimumPriceLabel}
                 </H2>
                 <SemiSpan color="inherit" display="block" mt="0.35rem">
-                  {t("product.parametric.quoteVersion", {
-                    defaultMessage: "Version {version}",
-                    values: { version: quote.dataVersion.split("#")[0] }
+                  {t("product.parametric.minimumPrice", {
+                    defaultMessage: "Base price from the current matrix"
                   })}
                 </SemiSpan>
               </>
@@ -460,65 +695,145 @@ const ParametricConfigurator = ({
                       defaultMessage: "Loading parametric configuration…"
                     })
                   : t("product.parametric.instructions", {
-                      defaultMessage: "Enter the dimensions and components to obtain an estimated price."
+                      defaultMessage: "Select the exact dimensions and components to calculate the price."
                     })}
               </Paragraph>
             )}
           </Box>
 
           <Box mb="24px" className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <TextField
-              label={t("product.parametric.fields.width", {
-                defaultMessage: "Width (m)"
+            <Select
+              label={t("product.parametric.fields.family", {
+                defaultMessage: "Family"
               })}
-              value={width}
-              onChange={(event) => handleFieldChange("width")(sanitizeNumber(event.target.value))}
-            />
-            <TextField
-              label={t("product.parametric.fields.height", {
-                defaultMessage: "Height (m)"
+              options={familyOptions}
+              value={selectedFamilyOption}
+              onChange={handleSelectFieldChange("familyId")}
+              placeholder={t("product.parametric.fields.family", {
+                defaultMessage: "Family"
               })}
-              value={height}
-              onChange={(event) => handleFieldChange("height")(sanitizeNumber(event.target.value))}
             />
             <Select
-              options={options.series.map((value) => ({ value, label: value }))}
-              value={series}
-              onChange={(value) => handleFieldChange("series")(value)}
+              label={t("product.parametric.fields.series", {
+                defaultMessage: "Series"
+              })}
+              options={seriesOptions}
+              value={selectedSerieOption}
+              onChange={handleSelectFieldChange("serie")}
               placeholder={t("product.parametric.fields.series", {
                 defaultMessage: "Series"
               })}
             />
             <Select
-              options={options.colors.map((value) => ({ value, label: value }))}
-              value={color}
-              onChange={(value) => handleFieldChange("color")(value)}
+              label={t("product.parametric.fields.material", {
+                defaultMessage: "Material"
+              })}
+              options={materialOptions}
+              value={selectedMaterialOption}
+              onChange={handleSelectFieldChange("material")}
+              placeholder={t("product.parametric.fields.material", {
+                defaultMessage: "Material"
+              })}
+            />
+            <Select
+              label={t("product.parametric.fields.color", {
+                defaultMessage: "Color"
+              })}
+              options={colorOptions}
+              value={selectedColorOption}
+              onChange={handleSelectFieldChange("color")}
               placeholder={t("product.parametric.fields.color", {
                 defaultMessage: "Color"
               })}
             />
             <Select
-              options={options.glass.map((value) => ({ value, label: value }))}
-              value={glass}
-              onChange={(value) => handleFieldChange("glass")(value)}
+              label={t("product.parametric.fields.glass", {
+                defaultMessage: "Glass"
+              })}
+              options={glassOptions}
+              value={selectedGlassOption}
+              onChange={handleSelectFieldChange("vidrio")}
               placeholder={t("product.parametric.fields.glass", {
                 defaultMessage: "Glass"
               })}
             />
-            <div className="flex items-center justify-between border rounded-md px-3 py-2">
+
+            {widthOptions.length > 0 ? (
+              <Select
+                label={t("product.parametric.fields.width", {
+                  defaultMessage: "Width (mm)"
+                })}
+                options={widthOptions}
+                value={selectedWidthOption}
+                onChange={handleSelectFieldChange("widthMm")}
+                placeholder={t("product.parametric.fields.width", {
+                  defaultMessage: "Width (mm)"
+                })}
+              />
+            ) : (
+              <TextField
+                label={t("product.parametric.fields.width", {
+                  defaultMessage: "Width (mm)"
+                })}
+                inputMode="numeric"
+                value={form.widthMm}
+                onChange={handleDimensionChange("widthMm")}
+              />
+            )}
+
+            {heightOptions.length > 0 ? (
+              <Select
+                label={t("product.parametric.fields.height", {
+                  defaultMessage: "Height (mm)"
+                })}
+                options={heightOptions}
+                value={selectedHeightOption}
+                onChange={handleSelectFieldChange("heightMm")}
+                placeholder={t("product.parametric.fields.height", {
+                  defaultMessage: "Height (mm)"
+                })}
+              />
+            ) : (
+              <TextField
+                label={t("product.parametric.fields.height", {
+                  defaultMessage: "Height (mm)"
+                })}
+                inputMode="numeric"
+                value={form.heightMm}
+                onChange={handleDimensionChange("heightMm")}
+              />
+            )}
+          </Box>
+
+          {currentSizeLimits ? (
+            <Paragraph color="text.muted" mb="1rem">
+              {t("product.parametric.sizeLimits", {
+                defaultMessage:
+                  "Allowed range for this series: width {minWidth}-{maxWidth} mm, height {minHeight}-{maxHeight} mm.",
+                values: {
+                  minWidth: currentSizeLimits.minWidthMm ?? "-",
+                  maxWidth: currentSizeLimits.maxWidthMm ?? "-",
+                  minHeight: currentSizeLimits.minHeightMm ?? "-",
+                  maxHeight: currentSizeLimits.maxHeightMm ?? "-",
+                }
+              })}
+            </Paragraph>
+          ) : null}
+
+          <Box mb="24px" className="border rounded-md p-3 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
               <span className="text-sm font-medium">
                 {t("product.parametric.fields.mosquito", {
                   defaultMessage: "Mosquito net"
                 })}
               </span>
               <Switcher
-                checked={mosquitoNet}
-                onChange={(checked) => handleFieldChange("mosquitoNet")(checked)}
+                checked={form.hasMosquitero}
+                onChange={handleToggleChange("hasMosquitero")}
+                disabled={!Boolean(selectors?.hasMosquiteroOption)}
               />
             </div>
-          </Box>
 
-          <Box mb="24px" className="border rounded-md p-3 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">
                 {t("product.parametric.fields.monoblock", {
@@ -526,33 +841,25 @@ const ParametricConfigurator = ({
                 })}
               </span>
               <Switcher
-                checked={monoblockEnabled}
-                onChange={(checked) => handleFieldChange("monoblockEnabled")(checked)}
+                checked={form.hasShutterMonoblock}
+                onChange={handleToggleChange("hasShutterMonoblock")}
+                disabled={!monoblockEnabledForSeries}
               />
             </div>
-            {monoblockEnabled && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Select
-                  options={[
-                    { value: "PVC", label: "PVC" },
-                    { value: "ALUMINUM", label: "ALUMINUM" },
-                  ]}
-                  value={monoblockMaterial}
-                  onChange={(value) => handleFieldChange("monoblockMaterial")(value)}
-                  placeholder={t("product.parametric.fields.monoblockMaterial", {
-                    defaultMessage: "Material"
-                  })}
-                />
-                <Select
-                  options={["WHITE", "NATURAL", "BLACK", "BROWN"].map((value) => ({ value, label: value }))}
-                  value={monoblockColor}
-                  onChange={(value) => handleFieldChange("monoblockColor")(value)}
-                  placeholder={t("product.parametric.fields.monoblockColor", {
-                    defaultMessage: "Color"
-                  })}
-                />
-              </div>
-            )}
+
+            {form.hasShutterMonoblock ? (
+              <Select
+                label={t("product.parametric.fields.shutterMaterial", {
+                  defaultMessage: "Shutter material"
+                })}
+                options={shutterMaterialOptions}
+                value={selectedShutterMaterialOption}
+                onChange={handleSelectFieldChange("shutterMaterial")}
+                placeholder={t("product.parametric.fields.shutterMaterial", {
+                  defaultMessage: "Shutter material"
+                })}
+              />
+            ) : null}
           </Box>
 
           <FlexBox alignItems="center" mb="24px" style={{ gap: "0.75rem" }}>
@@ -561,7 +868,7 @@ const ParametricConfigurator = ({
               color="primary"
               variant="contained"
               onClick={handleQuote}
-              disabled={quoting}
+              disabled={quoting || loadingConfig}
             >
               {quoting
                 ? t("product.parametric.buttons.quotePending", {
@@ -575,7 +882,7 @@ const ParametricConfigurator = ({
               size="small"
               color="primary"
               variant="outlined"
-              disabled={!quote}
+              disabled={!quote?.available}
               onClick={handleAddToCart}
             >
               {t("product.parametric.buttons.addToCart", {
@@ -584,41 +891,78 @@ const ParametricConfigurator = ({
             </Button>
           </FlexBox>
 
-          {existingQuantity > 0 && (
+          {existingQuantity > 0 ? (
             <SemiSpan color="text.muted" display="block" mb="1rem">
               {inCartNotice}
             </SemiSpan>
-          )}
+          ) : null}
 
-          {quote ? (
+          {quote?.available ? (
             <Box mb="1.5rem" className="border rounded-md p-3 text-sm">
               <Paragraph fontWeight="600" mb="0.5rem">
                 {t("product.parametric.breakdown.title", {
-                  defaultMessage: "Calculation detail"
+                  defaultMessage: "Selected configuration"
                 })}
               </Paragraph>
               <ul>
                 <li>
-                  {t("product.parametric.breakdown.base", { defaultMessage: "Base" })}:{" "}
-                  {formatAmount(quote.breakdown.base ?? 0, quote.currency ?? baseCurrency)}
+                  {t("product.parametric.fields.family", { defaultMessage: "Family" })}:{" "}
+                  {formatSelectorValue(quote.requested.familyId ?? null)}
                 </li>
                 <li>
-                  {t("product.parametric.breakdown.color", { defaultMessage: "Color" })}:{" "}
-                  {formatAmount(quote.breakdown.color ?? 0, quote.currency ?? baseCurrency)}
+                  {t("product.parametric.fields.series", { defaultMessage: "Series" })}: {quote.requested.serie}
                 </li>
                 <li>
-                  {t("product.parametric.breakdown.glass", { defaultMessage: "Glass" })}:{" "}
-                  {formatAmount(quote.breakdown.glass ?? 0, quote.currency ?? baseCurrency)}
+                  {t("product.parametric.fields.material", { defaultMessage: "Material" })}: {quote.requested.material}
                 </li>
                 <li>
-                  {t("product.parametric.breakdown.monoblock", { defaultMessage: "Monoblock" })}:{" "}
-                  {formatAmount(quote.breakdown.monoblock ?? 0, quote.currency ?? baseCurrency)}
+                  {t("product.parametric.fields.color", { defaultMessage: "Color" })}: {quote.requested.color}
                 </li>
                 <li>
-                  {t("product.parametric.breakdown.mosquito", { defaultMessage: "Mosquito net" })}:{" "}
-                  {formatAmount(quote.breakdown.mosquitoNet ?? 0, quote.currency ?? baseCurrency)}
+                  {t("product.parametric.fields.glass", { defaultMessage: "Glass" })}: {quote.requested.vidrio}
                 </li>
+                <li>
+                  {t("product.parametric.fields.width", { defaultMessage: "Width (mm)" })}: {quote.requested.widthMm}
+                </li>
+                <li>
+                  {t("product.parametric.fields.height", { defaultMessage: "Height (mm)" })}: {quote.requested.heightMm}
+                </li>
+                <li>
+                  {t("product.parametric.fields.mosquito", { defaultMessage: "Mosquito net" })}:{" "}
+                  {quote.requested.hasMosquitero
+                    ? t("common.yes", { defaultMessage: "Yes" })
+                    : t("common.no", { defaultMessage: "No" })}
+                </li>
+                <li>
+                  {t("product.parametric.fields.monoblock", { defaultMessage: "Monoblock" })}:{" "}
+                  {quote.requested.hasShutterMonoblock
+                    ? t("common.yes", { defaultMessage: "Yes" })
+                    : t("common.no", { defaultMessage: "No" })}
+                </li>
+                {quote.requested.hasShutterMonoblock ? (
+                  <li>
+                    {t("product.parametric.fields.shutterMaterial", {
+                      defaultMessage: "Shutter material"
+                    })}: {quote.requested.shutterMaterial}
+                  </li>
+                ) : null}
+                {quote.source ? (
+                  <li>
+                    {t("product.parametric.source", { defaultMessage: "Source" })}: {quote.source}
+                  </li>
+                ) : null}
+                {quote.referenceDate ? (
+                  <li>
+                    {t("product.parametric.referenceDate", { defaultMessage: "Reference date" })}:{" "}
+                    {new Date(quote.referenceDate).toLocaleDateString()}
+                  </li>
+                ) : null}
               </ul>
+              {quote.specifications ? (
+                <Paragraph mt="0.75rem" style={{ whiteSpace: "pre-line" }}>
+                  {quote.specifications}
+                </Paragraph>
+              ) : null}
             </Box>
           ) : null}
 
@@ -627,7 +971,6 @@ const ParametricConfigurator = ({
               {errorMessage}
             </Paragraph>
           ) : null}
-
         </Grid>
       </Grid>
     </Box>

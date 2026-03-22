@@ -1,14 +1,16 @@
-import type { Metadata } from "next";
-import Signup from "@sections/auth/Signup";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Register - The Best React eCommerce Template",
-  description:
-    "Bonik is a React Next.js E-commerce template. Build SEO friendly Online store, delivery app and Multi vendor store",
-  authors: [{ name: "UI-LIB", url: "https://ui-lib.com" }],
-  keywords: ["e-commerce", "e-commerce template", "next.js", "react", "bonik"]
-};
+import { isDemoRouteEnabled } from "@/lib/public-route-policy";
 
-export default function SignUpPage() {
+export const dynamic = "force-dynamic";
+
+export default async function SignUpPage() {
+  if (!isDemoRouteEnabled()) {
+    redirect("/account/register");
+  }
+
+  const signupModule = await import("@sections/auth/Signup");
+  const Signup = signupModule.default;
+
   return <Signup />;
 }

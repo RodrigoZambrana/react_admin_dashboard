@@ -41,37 +41,85 @@ export const StyledCategoryDropdown = styled.div.withConfig({
   z-index: 98;
 `;
 
-export const StyledCategoryMenuItem = styled.div`
-  .category-dropdown-link {
-    height: 40px;
+export const CategoryDropdownRow = styled.div.withConfig({
+  shouldForwardProp: isValidProp
+})<{ $active?: boolean; $minWidth?: string }>`
+  min-height: 40px;
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  padding: 0px 1rem;
+  min-width: ${({ $minWidth }) => $minWidth ?? "278px"};
+  transition: all 250ms ease-in-out;
+  color: ${({ theme, $active }) => ($active ? theme.colors.primary.main : "inherit")};
+  background: ${({ theme, $active }) => ($active ? theme.colors.primary.light : "transparent")};
+
+  .row-content {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-left: 0.75rem;
     display: flex;
-    cursor: pointer;
-    min-width: 278px;
-    white-space: pre;
-    padding: 0px 1rem;
-    align-items: center;
-    transition: all 250ms ease-in-out;
+    flex-direction: column;
+    justify-content: center;
+    row-gap: 0.1rem;
+  }
 
-    .title {
-      padding-left: 0.75rem;
-      flex-grow: 1;
-    }
+  .row-eyebrow {
+    color: ${({ theme, $active }) => ($active ? theme.colors.primary.main : theme.colors.text.muted)};
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
 
-    .chevron-icon {
-      margin-left: 0.75rem;
-      flex-shrink: 0;
-      transition: transform 250ms ease-in-out;
-    }
+  .row-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.92rem;
+    font-weight: 600;
+  }
 
-    .has-children {
-      transform: rotate(0deg);
-    }
+  .row-description {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: ${({ theme }) => theme.colors.text.muted};
+    font-size: 0.78rem;
+  }
 
-    &:hover {
+  .row-aside {
+    margin-left: 0.75rem;
+    flex-shrink: 0;
+    color: ${({ theme }) => theme.colors.text.muted};
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .row-chevron {
+    margin-left: 0.75rem;
+    flex-shrink: 0;
+    transition: transform 250ms ease-in-out;
+  }
+
+  .has-children {
+    transform: rotate(0deg);
+  }
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.primary.main};
+    background: ${({ theme }) => theme.colors.primary.light};
+
+    .row-eyebrow,
+    .row-description,
+    .row-aside {
       color: ${({ theme }) => theme.colors.primary.main};
-      background: ${({ theme }) => theme.colors.primary.light};
     }
   }
+`;
+
+export const StyledCategoryMenuItem = styled.div`
+  position: relative;
 
   .sub-category-link,
   .sub-category-static {
@@ -87,6 +135,10 @@ export const StyledCategoryMenuItem = styled.div`
   .sub-category-link {
     padding: 0.25rem 0;
     transition: color 200ms ease-in-out;
+    background: transparent;
+    border: 0;
+    text-align: left;
+    cursor: pointer;
   }
 
   .sub-category-static {
@@ -101,12 +153,18 @@ export const StyledCategoryMenuItem = styled.div`
     color: ${({ theme }) => theme.colors.primary.main};
   }
 
+  .sub-category-link.active,
+  .sub-category-static.active {
+    color: ${({ theme }) => theme.colors.primary.main};
+    font-weight: 600;
+  }
+
   .sub-category-chevron {
     flex-shrink: 0;
   }
 
   &:hover {
-    & > .category-dropdown-link {
+    & > ${CategoryDropdownRow} {
       color: ${({ theme }) => theme.colors.primary.main};
       background: ${({ theme }) => theme.colors.primary.light};
     }

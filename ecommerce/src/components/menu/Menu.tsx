@@ -11,6 +11,8 @@ interface MenuProps {
   className?: string;
   style?: CSSProperties;
   direction?: "left" | "right";
+  closeOnContentClick?: boolean;
+  closeOnMouseLeave?: boolean;
   children: ReactElement | ReactElement[];
   handler: (handleOpen: (e: React.MouseEvent<HTMLElement>) => void) => ReactNode;
 }
@@ -21,9 +23,13 @@ export default function Menu({
   style,
   children,
   className,
-  direction = "left"
+  direction = "left",
+  closeOnContentClick = false,
+  closeOnMouseLeave = false,
 }: MenuProps) {
   const [show, setShow] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const popoverRef = useRef(show);
   popoverRef.current = show;
@@ -40,13 +46,60 @@ export default function Menu({
     []
   );
 
+  const handleContentClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      event.stopPropagation();
+      if (closeOnContentClick) {
+        setShow(false);
+      }
+    },
+    [closeOnContentClick]
+  );
+
   useEffect(() => {
     window.addEventListener("click", handleDocumentClick);
     return () => window.removeEventListener("click", handleDocumentClick);
   }, [handleDocumentClick]);
 
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+
+  const handleMouseEnter = useCallback(() => {
+    clearCloseTimer();
+  }, [clearCloseTimer]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (!closeOnMouseLeave) {
+      return;
+    }
+
+    clearCloseTimer();
+    closeTimerRef.current = setTimeout(() => {
+      setShow(false);
+      closeTimerRef.current = null;
+    }, 120);
+  }, [clearCloseTimer, closeOnMouseLeave]);
+
   return (
-    <StyledMenu direction={direction} className={className} style={style}>
+    <StyledMenu
+      ref={rootRef}
+      direction={direction}
+      className={className}
+      style={style}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}>
       {handler(togglePopover)}
 
       <AnimatePresence>
@@ -56,6 +109,7 @@ export default function Menu({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={{ duration: 0.2 }}
+            onClick={handleContentClick}
             className="menu-item-holder">
             {children}
           </motion.div>

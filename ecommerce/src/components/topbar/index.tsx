@@ -30,16 +30,17 @@ export default function Topbar() {
   const t = useTranslation();
   const { currency, availableCurrencies, setCurrency } = useCurrency();
   const companyProfile = storefrontConfig.companyProfile;
+  const helpLinks = storefrontConfig.navigation?.helpLinks ?? [];
 
-  const logoSrc = companyProfile?.logo ?? "/assets/images/logo.svg";
+  const logoSrc = companyProfile?.logo ?? null;
   const brandName =
     companyProfile?.tradeName ??
     companyProfile?.legalName ??
     (typeof storefrontConfig.seo?.siteName === "string"
       ? storefrontConfig.seo.siteName
       : "Storefront");
-  const phone = companyProfile?.phone ?? "+88012 3456 7894";
-  const email = companyProfile?.email ?? "support@ui-lib.com";
+  const phone = companyProfile?.phone ?? null;
+  const email = companyProfile?.email ?? null;
 
   const activeLanguage = LANGUAGES.find((item) => item.locale === locale) ?? LANGUAGES[0];
 
@@ -86,7 +87,13 @@ export default function Topbar() {
       <Container className="container">
         <div className="topbar-left">
           <NavLink className="logo" href="/" aria-label={brandName}>
-            <Image src={logoSrc} alt={brandName} height="36px" />
+            {logoSrc ? (
+              <Image src={logoSrc} alt={brandName} height="36px" />
+            ) : (
+              <Small fontWeight="700" style={{ letterSpacing: "0.02em" }}>
+                {brandName}
+              </Small>
+            )}
           </NavLink>
 
           {phone && (
@@ -105,12 +112,12 @@ export default function Topbar() {
         </div>
 
         <div className="topbar-right">
-          <NavLink className="link" href="/">
-            {t('Theme FAQ"s')}
+          <NavLink className="link" href={helpLinks[0]?.href ?? "/contact"}>
+            {helpLinks[0]?.label ? t(helpLinks[0].label) : t("FAQ")}
           </NavLink>
 
-          <NavLink className="link" href="/">
-            {t("Need Help?")}
+          <NavLink className="link" href={helpLinks[1]?.href ?? "/contact"}>
+            {helpLinks[1]?.label ? t(helpLinks[1].label) : t("Need Help?")}
           </NavLink>
 
           <Menu
@@ -138,7 +145,7 @@ export default function Topbar() {
                 onChange={handleCurrencySelect}
                 isSearchable={false}
                 isDisabled={currencyOptions.length <= 1}
-                placeholder="Select currency"
+                placeholder={t("Select currency")}
                 instanceId="topbar-currency-selector"
                 formatOptionLabel={(option: CurrencyOption, meta: { context: "menu" | "value" }) =>
                   renderCurrencyOption(option, meta)}

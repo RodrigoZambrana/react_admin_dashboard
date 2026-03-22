@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { ReactNode } from "react";
-import { IconChevronRight } from "@tabler/icons-react";
-import Icon from "@component/icon/Icon";
 import { StyledCategoryMenuItem } from "./styles";
+import CategoryNavigationRow from "./CategoryNavigationRow";
 
 // ===============================================================
 interface CategoryMenuItemProps {
@@ -11,6 +10,7 @@ interface CategoryMenuItemProps {
   title: string;
   caret?: boolean;
   showChevron?: boolean;
+  onNavigate?: () => void;
   children: ReactNode;
 }
 // ===============================================================
@@ -21,20 +21,13 @@ export default function CategoryMenuItem({
   title,
   children,
   caret = true,
-  showChevron = true
+  showChevron = true,
+  onNavigate
 }: CategoryMenuItemProps) {
-  const chevronClassName = caret ? "chevron-icon has-children" : "chevron-icon";
-
   return (
     <StyledCategoryMenuItem>
-      <Link href={href}>
-        <div className="category-dropdown-link">
-          {icon && <Icon variant="small">{icon}</Icon>}
-          <span className="title">{title}</span>
-          {showChevron && (
-            <IconChevronRight className={chevronClassName} stroke={1.5} size={16} />
-          )}
-        </div>
+      <Link href={href} onClick={onNavigate}>
+        <CategoryNavigationRow icon={icon} title={title} caret={caret} showChevron={showChevron} />
       </Link>
 
       {children}

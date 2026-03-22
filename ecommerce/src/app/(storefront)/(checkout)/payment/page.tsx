@@ -1,12 +1,17 @@
+import type { Metadata } from "next";
 import Grid from "@component/grid/Grid";
 
 import PaymentForm from "@sections/payment/PaymentForm";
 
 import CheckoutCostSummary from "@/components/cart/CheckoutCostSummary";
+import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 
-export const metadata = {
-  title: "Payment · Storefront"
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return buildStorefrontPageMetadata({
+    title: "Pago",
+    description: "Selecciona y completa el método de pago para tu pedido."
+  });
+}
 
 export default function PaymentPage() {
   return (
@@ -21,4 +26,3 @@ export default function PaymentPage() {
     </Grid>
   );
 }
-

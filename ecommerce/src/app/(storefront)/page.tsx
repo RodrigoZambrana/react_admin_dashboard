@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import AppLayout from "@component/layout/layout-1";
 import Navbar from "@component/navbar/Navbar";
 import Section1 from "@sections/market-1/Section1";
@@ -7,19 +8,18 @@ import Section6 from "@sections/market-1/Section6";
 import Section8 from "@sections/market-1/Section8";
 import Section10 from "@sections/market-1/Section10";
 import Section12 from "@sections/market-1/Section12";
-import Section9 from "@sections/fashion-2/section-9";
+import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 
-export const metadata = {
-  title: "Storefront",
-  description: "Configurable ecommerce storefront powered by the Bonik UI."
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return buildStorefrontPageMetadata();
+}
 
 export const revalidate = 300;
 export const dynamic = "force-static";
 
 export default async function StorefrontHomePage() {
   return (
-    <AppLayout navbar={<Navbar navListOpen />}>
+    <AppLayout navbar={<Navbar />}>
       <Section1 />
       <Section10 />
       <Section12 />
@@ -27,7 +27,6 @@ export default async function StorefrontHomePage() {
       <Section5 />
       <Section6 />
       {/* <Section8 /> */}
-      <Section9 />
     </AppLayout>
   );
 }

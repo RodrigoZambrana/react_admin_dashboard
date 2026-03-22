@@ -1,4 +1,5 @@
 import type { StorefrontClientVariantConfig } from "../types";
+import { buildDefaultPublicNavigation } from "@/lib/storefront/public-navigation";
 
 const config: StorefrontClientVariantConfig = {
   slug: "urucortinas",
@@ -22,17 +23,10 @@ const config: StorefrontClientVariantConfig = {
       cta: {
         id: "book-measurement",
         label: "Agendar medición",
-        href: "/services/measurement"
+        href: "/contact"
       }
     },
-    navigation: {
-      primary: [
-        { id: "nav-home", label: "Inicio", href: "/" },
-        { id: "nav-products", label: "Cortinas", href: "/products" },
-        { id: "nav-services", label: "Servicios", href: "/services" },
-        { id: "nav-contact", label: "Contacto", href: "/contact" }
-      ]
-    },
+    navigation: buildDefaultPublicNavigation(),
     seo: {
       siteName: "UruCortinas",
       defaultTitle: "UruCortinas",

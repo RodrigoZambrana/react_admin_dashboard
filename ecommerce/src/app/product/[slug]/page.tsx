@@ -2,8 +2,6 @@ import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import ProductView from "@component/products/ProductView";
 import ProductIntro from "@component/products/ProductIntro";
-import api from "@utils/__api__/products";
-import { mocksEnabled } from "@/lib/axios";
 import type Product from "@models/product.model";
 import type Shop from "@models/shop.model";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
@@ -94,37 +92,13 @@ export default async function ProductDetails({
       }
     } catch (recommendationError) {
       if (!isApiError(recommendationError)) {
-        console.warn("[product] Failed to load recommendations, fallback to mock", recommendationError);
-      }
-    }
-  }
-
-  if (!product) {
-    console.warn(
-      `[product] Falling back to mock product data for slug "${slug}" after storefront lookup failed`
-    );
-
-    for (const identifier of identifierCandidates) {
-      try {
-        product = await api.getProduct(identifier);
-        break;
-      } catch (mockError) {
-        continue;
+        console.warn("[product] Failed to load recommendations.", recommendationError);
       }
     }
   }
 
   if (!product) {
     notFound();
-  }
-
-  if (relatedProducts.length === 0 && mocksEnabled) {
-    relatedProducts = await api.getRelatedProducts();
-  }
-
-  if (mocksEnabled) {
-    frequentlyBought = await api.getFrequentlyBought();
-    shops = await api.getAvailableShop();
   }
 
   return (

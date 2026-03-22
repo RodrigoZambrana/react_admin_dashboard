@@ -2573,6 +2573,11 @@ export class ParametricPricingService {
     return fallback.productId
   }
 
+  async getDefaultParametricProductId(): Promise<number> {
+    this.assertFeatureEnabled()
+    return this.resolveDefaultParametricProductId()
+  }
+
   private evaluateMatrixRow(
     row: ParametricMatrixEntry,
     criteria: ParametricMatrixSearchDto,

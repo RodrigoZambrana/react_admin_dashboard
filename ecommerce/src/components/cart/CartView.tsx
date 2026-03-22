@@ -24,6 +24,7 @@ import { isMissingProductImage } from "@/lib/utils/image";
 import { type CartLineItem, useStorefrontCart } from "@/state/cart-context";
 import { normalizeMoney } from "@/lib/utils/format";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
+import { useTranslation } from "@/state/i18n-context";
 import CheckoutCostSummary from "./CheckoutCostSummary";
 
 // Feature flag to re-enable voucher and shipping estimators when backend is ready.
@@ -90,7 +91,7 @@ function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: C
       {hasImage ? (
         <LazyImage alt={item.product.name} width={140} height={140} src={thumbnailSrc!} />
       ) : (
-        <NoImagePlaceholder width={140} height={140} text="No image available" />
+        <NoImagePlaceholder width={140} height={140} />
       )}
 
       <FlexBox
@@ -160,7 +161,8 @@ function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: C
 }
 
 export function CartView() {
-  const { state, updateQuantity, removeItem, subtotal } = useStorefrontCart();
+  const { state, updateQuantity, removeItem } = useStorefrontCart();
+  const t = useTranslation();
 
   if (state.items.length === 0) {
     return (
@@ -171,11 +173,13 @@ export function CartView() {
           justifyContent="center"
           height="320px">
           <Paragraph mt="1rem" color="text.muted" textAlign="center" maxWidth="260px">
-            Your shopping bag is empty. Start shopping
+            {t("cart.empty.message", {
+              defaultMessage: "Your shopping bag is empty. Start shopping"
+            })}
           </Paragraph>
           <Link href="/shop" style={{ textDecoration: "none" }}>
             <Button mt="1.5rem" variant="contained" color="primary">
-              Continue Shopping
+              {t("cart.empty.cta", { defaultMessage: "Continue Shopping" })}
             </Button>
           </Link>
         </FlexBox>

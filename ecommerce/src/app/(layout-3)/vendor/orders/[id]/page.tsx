@@ -1,23 +1,33 @@
 import Link from "next/link";
 import { Fragment } from "react";
-import { IconShoppingBagCheck } from "@tabler/icons-react";
+import { notFound } from "next/navigation";
 
-import { Button } from "@component/buttons";
-import DashboardPageHeader from "@component/DashboardPageHeader";
-import OrderDetails from "@sections/vendor-dashboard/orders/OrderDetails";
+import { isDemoRouteEnabled } from "@/lib/public-route-policy";
 import { IDParams } from "interfaces";
 
-const BACK_BUTTON = (
-  <Link href="/vendor/orders">
-    <Button color="primary">Back</Button>
-  </Link>
-);
-
 export default async function OrderDetailsPage({ params }: IDParams) {
+  if (!isDemoRouteEnabled()) {
+    notFound();
+  }
+
+  const [{ IconShoppingBagCheck }, buttonsModule, { default: DashboardPageHeader }, { default: OrderDetails }] =
+    await Promise.all([
+      import("@tabler/icons-react"),
+      import("@component/buttons"),
+      import("@component/DashboardPageHeader"),
+      import("@sections/vendor-dashboard/orders/OrderDetails")
+    ]);
+  const { Button } = buttonsModule;
+  const backButton = (
+    <Link href="/vendor/orders">
+      <Button color="primary">Back</Button>
+    </Link>
+  );
+
   return (
     <Fragment>
       <DashboardPageHeader
-        button={BACK_BUTTON}
+        button={backButton}
         title="Order Details"
         Icon={<IconShoppingBagCheck size={27} />}
       />

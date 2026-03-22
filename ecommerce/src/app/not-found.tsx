@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import Image from "@component/Image";
 import FlexBox from "@component/FlexBox";
 import { Button } from "@component/buttons";
+import { useTranslation } from "@/state/i18n-context";
 
 export default function NotFound() {
   const router = useRouter();
+  const t = useTranslation();
   const handleGoBack = () => router.back();
 
   return (
@@ -20,7 +22,7 @@ export default function NotFound() {
       justifyContent="center">
       <Image
         src="/assets/images/illustrations/404.svg"
-        alt="Page not found"
+        alt={t("notFound.imageAlt", { defaultMessage: "Page not found" })}
         maxWidth="320px"
         width="100%"
         mb="2rem"
@@ -28,12 +30,12 @@ export default function NotFound() {
 
       <FlexBox flexWrap="wrap">
         <Button variant="outlined" color="primary" m="0.5rem" onClick={handleGoBack}>
-          Go Back
+          {t("notFound.actions.back", { defaultMessage: "Go Back" })}
         </Button>
 
         <Link href="/">
           <Button variant="contained" color="primary" m="0.5rem">
-            Go to Home
+            {t("notFound.actions.home", { defaultMessage: "Go to Home" })}
           </Button>
         </Link>
       </FlexBox>

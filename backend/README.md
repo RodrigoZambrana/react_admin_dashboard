@@ -15,6 +15,11 @@ Quick Start
 - Seed base data: `npm run prisma:seed`
 - Start dev server: `npm run start:dev`
 
+Local development modes
+- `npm run start:dev` / `npm start` outside Docker should use `127.0.0.1:5432` in `.env`.
+- `docker compose -f ../deploy/docker-compose.dev.yml up ...` does not depend on `backend/.env`; it injects its own env files from `deploy/env/` and can be overridden locally with `deploy/env/.env.backend.dev.local`.
+- Do not point `backend/.env` at Docker-only hostnames such as `db` or `postgres-local`, because that breaks the non-Docker workflow.
+
 Aplicar nuevas migraciones en un entorno existente
 - Posicionate en la carpeta del backend: `cd backend`
 - Instala (o actualiza) dependencias si todavía no están presentes: `npm install`

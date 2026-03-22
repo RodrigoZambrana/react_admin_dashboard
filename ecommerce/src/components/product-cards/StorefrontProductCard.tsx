@@ -155,7 +155,7 @@ export default function StorefrontProductCard({
               style={{ width: "100%", height: "auto", objectFit: "cover" }}
             />
           ) : (
-            <NoImagePlaceholder height="300px" width="100%" text="No image available" />
+            <NoImagePlaceholder height="300px" width="100%" />
           )}
         </Link>
 

@@ -1,33 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 
-import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { StorefrontApi } from "@/lib/api/storefront";
 import type { CategorySummary } from "@/types/storefront";
+import { usePanelResource } from "@/hooks/usePanelResource";
+
+const requestCategories = () => StorefrontApi.listCategories();
+
+export function useStorefrontCategoriesResource() {
+  return usePanelResource<CategorySummary[]>({
+    cacheKey: "storefront.categories.tree",
+    request: requestCategories,
+    staleMs: 5 * 60_000,
+  });
+}
 
 export function useStorefrontCategories(): CategorySummary[] {
-  const [categories, setCategories] = useState<CategorySummary[]>([]);
+  const { data } = useStorefrontCategoriesResource();
 
-  useEffect(() => {
-    let active = true;
-
-    (async () => {
-      try {
-        const data = await StorefrontApi.listCategories();
-        if (active && data.length > 0) {
-          setCategories(data);
-        }
-      } catch (error) {
-        if (!isApiError(error)) {
-          console.warn("[storefront] Failed to load storefront categories.", error);
-        }
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  return categories;
+  return useMemo(() => data ?? [], [data]);
 }

@@ -5,14 +5,10 @@ import Link from "next/link";
 import Box from "@component/Box";
 import Image from "@component/Image";
 import Grid from "@component/grid/Grid";
-import Icon from "@component/icon/Icon";
-import FlexBox from "@component/FlexBox";
-import AppStore from "@component/AppStore";
 import Container from "@component/Container";
 import Typography, { Paragraph } from "@component/Typography";
 // STYLED COMPONENTS
 // CUSTOM DATA
-import { iconList } from "./data";
 import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
 import { useTranslation } from "@/state/i18n-context";
 
@@ -20,15 +16,15 @@ export default function Footer1() {
   const storefrontConfig = useStorefrontConfig();
   const t = useTranslation();
   const companyProfile = storefrontConfig.companyProfile;
-  const logoSrc = companyProfile?.logo ?? "/assets/images/logo.svg";
+  const logoSrc = companyProfile?.logo ?? null;
   const brandName =
     companyProfile?.tradeName ??
     companyProfile?.legalName ??
     (typeof storefrontConfig.seo?.siteName === "string"
       ? storefrontConfig.seo.siteName
       : "Storefront");
-  const email = companyProfile?.email ?? "uilib.help@gmail.com";
-  const phone = companyProfile?.phone ?? "+1 1123 456 780";
+  const email = companyProfile?.email ?? null;
+  const phone = companyProfile?.phone ?? null;
   const addressLines = [companyProfile?.addressLine1, companyProfile?.addressLine2].filter(
     (line): line is string => Boolean(line)
   );
@@ -41,13 +37,20 @@ export default function Footer1() {
             <Grid container spacing={6}>
               <Grid item lg={6} md={6} sm={6} xs={12}>
                 <Link href="/">
-                  <Image alt={brandName} mb="1rem" src={logoSrc} height="44px" />
+                  {logoSrc ? (
+                    <Image alt={brandName} mb="1rem" src={logoSrc} height="44px" />
+                  ) : (
+                    <Typography mb="1rem" fontSize={28} fontWeight="700" color="white">
+                      {brandName}
+                    </Typography>
+                  )}
                 </Link>
 
                 <Paragraph mb="1.25rem" color="gray.500" maxWidth="320px">
-                  {t(
-                    "Soluciones en cortinas roller, toldos, persianas y aberturas en aluminio con fabricación a medida en Uruguay."
-                  )}
+                  {t("footer.description.default", {
+                    defaultMessage:
+                      "Soluciones en cortinas roller, toldos, persianas y aberturas en aluminio con fabricación a medida en Uruguay."
+                  })}
                 </Paragraph>
 
                 {/* <AppStore /> */}
@@ -67,31 +70,15 @@ export default function Footer1() {
 
                 {email && (
                   <Typography py="0.3rem" color="gray.500">
-                    Email: {email}
+                    {t("contact.page.labels.email", { defaultMessage: "Email" })}: {email}
                   </Typography>
                 )}
 
                 {phone && (
                   <Typography py="0.3rem" mb="1rem" color="gray.500">
-                    Phone: {phone}
+                    {t("contact.page.labels.phone", { defaultMessage: "Phone" })}: {phone}
                   </Typography>
                 )}
-
-                <FlexBox className="flex" mx="-5px">
-                  {iconList.map((item) => (
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      key={item.iconName}
-                      rel="noreferrer noopenner">
-                      <Box m="5px" p="10px" size="small" borderRadius="50%" bg="rgba(0,0,0,0.2)">
-                        <Icon size="12px" defaultColor="auto">
-                          {item.iconName}
-                        </Icon>
-                      </Box>
-                    </a>
-                  ))}
-                </FlexBox>
               </Grid>
             </Grid>
           </Box>

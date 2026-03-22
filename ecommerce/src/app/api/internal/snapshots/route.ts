@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
+import { isSnapshotFallbackEnabled } from "@/lib/resilience-flags";
 import { captureStorefrontSnapshot } from "@/lib/snapshots/capture";
 import { loadStorefrontSnapshot } from "@/lib/snapshots/loaders";
 
@@ -17,6 +18,10 @@ const isAuthorised = (request: NextRequest) => {
 };
 
 export async function GET(request: NextRequest) {
+  if (!isSnapshotFallbackEnabled()) {
+    return NextResponse.json({ ok: false, message: "Not found." }, { status: 404 });
+  }
+
   if (!isAuthorised(request)) {
     return NextResponse.json({ ok: false, message: "Unauthorised" }, { status: 403 });
   }
@@ -36,6 +41,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isSnapshotFallbackEnabled()) {
+    return NextResponse.json({ ok: false, message: "Not found." }, { status: 404 });
+  }
+
   if (!isAuthorised(request)) {
     return NextResponse.json({ ok: false, message: "Unauthorised" }, { status: 401 });
   }

@@ -20,6 +20,7 @@ import { filterValidProductImages, isMissingProductImage } from "@/lib/utils/ima
 import ProductQuickActions from "./ProductQuickActions";
 import { deviceSize } from "@utils/constants";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
+import { useTranslation } from "@/state/i18n-context";
 
 // STYLED COMPONENT
 const Wrapper = styled(Card)`
@@ -151,6 +152,7 @@ export default function ProductCard1({
   currencyCode,
   ...props
 }: ProductCard1Props) {
+  const t = useTranslation();
   const { state, dispatch } = useCart();
   const { formatAmount, baseCurrency } = useMoneyFormatter();
   const cartProductId = id ?? slug;
@@ -219,7 +221,10 @@ export default function ProductCard1({
               position="absolute"
               color="primary.text"
               zIndex={1}>
-              {off}% off
+              {t("product.discount.percentOff", {
+                defaultMessage: "{discount}% off",
+                values: { discount: off }
+              })}
             </Chip>
           )}
 
@@ -241,7 +246,7 @@ export default function ProductCard1({
             {primaryImage ? (
               <NextImage alt={title} width={277} src={primaryImage} height={270} />
             ) : (
-              <NoImagePlaceholder width={277} height={270} text="No image available" />
+              <NoImagePlaceholder width={277} height={270} />
             )}
           </Link>
         </div>

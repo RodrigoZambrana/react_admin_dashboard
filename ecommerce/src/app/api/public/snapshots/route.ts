@@ -1,9 +1,14 @@
 "use server";
 
 import { NextResponse } from "next/server";
+import { isSnapshotFallbackEnabled } from "@/lib/resilience-flags";
 import { loadStorefrontSnapshot } from "@/lib/snapshots/loaders";
 
 export async function GET() {
+  if (!isSnapshotFallbackEnabled()) {
+    return NextResponse.json({ message: "Not found." }, { status: 404 });
+  }
+
   const record = await loadStorefrontSnapshot();
 
   if (!record) {

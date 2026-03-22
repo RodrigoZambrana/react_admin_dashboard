@@ -11,6 +11,7 @@ import { Button } from "@component/buttons";
 
 import { useCheckoutTotals } from "@/hooks/useCheckoutTotals";
 import { useCurrency } from "@/state/currency-context";
+import { useTranslation } from "@/state/i18n-context";
 
 type CheckoutCostSummaryProps = {
   actionHref?: string | null;
@@ -19,24 +20,34 @@ type CheckoutCostSummaryProps = {
 
 export default function CheckoutCostSummary({
   actionHref = "/checkout",
-  actionLabel = "Checkout Now"
+  actionLabel
 }: CheckoutCostSummaryProps) {
   const { totals } = useCheckoutTotals();
   const { formatMoney, convertMoney } = useCurrency();
+  const t = useTranslation();
 
   const hasTax = totals.taxRate > 0;
-  const subtotalLabel = hasTax ? "Subtotal (sin impuestos)" : "Subtotal";
-  const taxLabel = hasTax ? `Impuestos (${totals.taxRate.toFixed(2)}%)` : "Impuestos";
-  const totalLabel = hasTax ? "Total (con impuestos)" : "Total";
+  const subtotalLabel = hasTax
+    ? t("checkout.summary.subtotalExcludingTax", { defaultMessage: "Subtotal (excluding taxes)" })
+    : t("checkout.review.summary.subtotal", { defaultMessage: "Subtotal" });
+  const taxLabel = hasTax
+    ? t("checkout.summary.taxWithRate", {
+        defaultMessage: "Taxes ({rate}%)",
+        values: { rate: totals.taxRate.toFixed(2) }
+      })
+    : t("checkout.summary.tax", { defaultMessage: "Taxes" });
+  const totalLabel = hasTax
+    ? t("checkout.summary.totalIncludingTax", { defaultMessage: "Total (including taxes)" })
+    : t("checkout.review.summary.total", { defaultMessage: "Total" });
 
   const rows = useMemo(
     () => [
       { label: subtotalLabel, value: totals.subtotal },
-      { label: "Shipping", value: totals.shipping },
+      { label: t("checkout.review.summary.shipping", { defaultMessage: "Shipping" }), value: totals.shipping },
       { label: taxLabel, value: totals.tax },
-      { label: "Discount", value: totals.discount }
+      { label: t("checkout.review.summary.discount", { defaultMessage: "Discount" }), value: totals.discount }
     ],
-    [subtotalLabel, taxLabel, totals]
+    [subtotalLabel, t, taxLabel, totals]
   );
 
   const hasAction = Boolean(actionHref);
@@ -63,21 +74,32 @@ export default function CheckoutCostSummary({
 
       {hasTax && (
         <Typography color="text.muted" fontSize="12px" textAlign="right" mb={hasAction ? "1rem" : undefined}>
-          Impuesto aplicado: {totals.taxRate.toFixed(2)}%
-          {totals.taxId ? ` · Tax ID ${totals.taxId}` : ""}
+          {t("checkout.summary.taxApplied", {
+            defaultMessage: "Applied tax: {rate}%",
+            values: { rate: totals.taxRate.toFixed(2) }
+          })}
+          {totals.taxId
+            ? ` · ${t("checkout.summary.taxId", {
+                defaultMessage: "Tax ID {taxId}",
+                values: { taxId: totals.taxId }
+              })}`
+            : ""}
         </Typography>
       )}
 
       {!hasTax && totals.taxId && (
         <Typography color="text.muted" fontSize="12px" textAlign="right" mb={hasAction ? "1rem" : undefined}>
-          Tax ID {totals.taxId}
+          {t("checkout.summary.taxId", {
+            defaultMessage: "Tax ID {taxId}",
+            values: { taxId: totals.taxId }
+          })}
         </Typography>
       )}
 
       {hasAction && actionHref && (
         <Link href={actionHref}>
           <Button variant="contained" color="primary" fullWidth>
-            {actionLabel ?? "Continue"}
+            {actionLabel ?? t("checkout.summary.primaryAction", { defaultMessage: "Checkout Now" })}
           </Button>
         </Link>
       )}

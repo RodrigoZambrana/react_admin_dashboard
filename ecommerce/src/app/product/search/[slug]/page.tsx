@@ -7,7 +7,12 @@ export default async function ProductSearchResult({
 }) {
   const { slug } = await params;
   const searchTerm = slug?.trim();
-  const destination = searchTerm ? `/shop?query=${encodeURIComponent(searchTerm)}` : "/shop";
+  const legacyCategorySlug = searchTerm?.match(/^(.*)-\d+$/)?.[1]?.trim();
+  const destination = searchTerm
+    ? legacyCategorySlug
+      ? `/shop?category=${encodeURIComponent(legacyCategorySlug)}`
+      : `/shop?query=${encodeURIComponent(searchTerm)}`
+    : "/shop";
 
   redirect(destination);
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import styled from "styled-components";
 import { IconAdjustmentsHorizontal } from "@tabler/icons-react";
 
@@ -14,6 +15,8 @@ import { H6, Paragraph } from "@component/Typography";
 import SaleProducts from "@sections/sale-page-1/SaleProducts";
 
 import ShopFilterPanel, { ActiveFilters, PriceFilter } from "./ShopFilterPanel";
+import ShopResultsToolbar from "./ShopResultsToolbar";
+import { useTranslation } from "@/state/i18n-context";
 
 import type Product from "@models/product.model";
 import type { Meta } from "interfaces";
@@ -28,6 +31,8 @@ type ShopProductAreaProps = {
   products: Product[];
   meta: Meta;
   selectedCategorySlug?: string;
+  selectedCategoryLabel?: string;
+  searchTerm?: string;
   categories: SaleCategoryDefinition[];
   filters: {
     priceBounds: PriceFilter;
@@ -71,9 +76,16 @@ export default function ShopProductArea({
   meta,
   filters,
   categories,
-  selectedCategorySlug
+  selectedCategorySlug,
+  selectedCategoryLabel,
+  searchTerm,
 }: ShopProductAreaProps) {
+  const t = useTranslation();
+  const searchParams = useSearchParams();
   const [isDrawerOpen, setDrawerOpen] = useState(false);
+  const viewParam = searchParams?.get("view");
+  const currentView = viewParam === "list" ? "list" : "grid";
+  const sortParam = searchParams?.get("sort") ?? undefined;
 
   const handleOpenDrawer = useCallback(() => setDrawerOpen(true), []);
   const handleCloseDrawer = useCallback(() => setDrawerOpen(false), []);
@@ -93,7 +105,22 @@ export default function ShopProductArea({
         </Grid>
 
         <Grid item lg={9} md={8} xs={12}>
-          <SaleProducts products={products} meta={meta} selectedCategorySlug={selectedCategorySlug} />
+          <ShopResultsToolbar
+            total={meta.total}
+            searchTerm={searchTerm}
+            selectedCategoryLabel={selectedCategoryLabel}
+            currentSort={sortParam}
+            currentView={currentView}
+          />
+
+          <SaleProducts
+            products={products}
+            meta={meta}
+            selectedCategorySlug={selectedCategorySlug}
+            selectedCategoryLabel={selectedCategoryLabel}
+            searchTerm={searchTerm}
+            view={currentView}
+          />
         </Grid>
       </Grid>
 
@@ -106,17 +133,17 @@ export default function ShopProductArea({
         handle={
           <MobileFilterButton color="primary" variant="contained" onClick={handleOpenDrawer}>
             <IconAdjustmentsHorizontal size={20} />
-            Filters
+            {t("Filters")}
           </MobileFilterButton>
         }>
         <DrawerHeader>
-          <H6 mb="0">Filters</H6>
+          <H6 mb="0">{t("Filters")}</H6>
           <Paragraph
             fontSize="12px"
             color="primary.main"
             style={{ cursor: "pointer" }}
             onClick={handleCloseDrawer}>
-            Close
+            {t("common.close", { defaultMessage: "Close" })}
           </Paragraph>
         </DrawerHeader>
 

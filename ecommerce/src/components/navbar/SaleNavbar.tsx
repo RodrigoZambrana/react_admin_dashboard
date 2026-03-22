@@ -3,6 +3,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Icon from "@component/icon/Icon";
 import FlexBox from "@component/FlexBox";
 import { H5 } from "@component/Typography";
+import { useTranslation } from "@/state/i18n-context";
 
 // ===========================================================
 interface SaleNavbarProps {
@@ -12,6 +13,7 @@ interface SaleNavbarProps {
 // ===========================================================
 
 export default function SaleNavbar({ categories, selectedSlug }: SaleNavbarProps) {
+  const t = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -69,7 +71,7 @@ export default function SaleNavbar({ categories, selectedSlug }: SaleNavbarProps
               textAlign="center"
               fontWeight={isSelected ? "600" : "400"}
               color={isSelected ? "primary.main" : "inherit"}>
-              {item.title}
+              {t(item.title, { defaultMessage: item.title })}
             </H5>
           </FlexBox>
         );

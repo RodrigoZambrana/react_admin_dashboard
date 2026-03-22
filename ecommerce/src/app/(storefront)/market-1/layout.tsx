@@ -8,5 +8,5 @@ export const dynamic = "force-dynamic";
 export default function Layout({ children }: PropsWithChildren) {
   enforcePublicRoute("market1");
 
-  return <AppLayout navbar={<Navbar navListOpen />}>{children}</AppLayout>;
+  return <AppLayout navbar={<Navbar />}>{children}</AppLayout>;
 }

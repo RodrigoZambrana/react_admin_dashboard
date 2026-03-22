@@ -1,4 +1,5 @@
 import type { StorefrontSnapshot, StorefrontSnapshotRecord } from "./types";
+import { isSnapshotFallbackEnabled } from "@/lib/resilience-flags";
 
 let inMemorySnapshot: StorefrontSnapshotRecord | null = null;
 let snapshotUnavailable = false;
@@ -55,6 +56,10 @@ const fetchClientSnapshot = async (): Promise<ClientSnapshotResponse | null | "m
 };
 
 export const loadStorefrontSnapshot = async (): Promise<StorefrontSnapshotRecord | null> => {
+  if (!isSnapshotFallbackEnabled()) {
+    return null;
+  }
+
   if (inMemorySnapshot) {
     return inMemorySnapshot;
   }

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ApiError } from "@/lib/http";
+import { useTranslation } from "@/state/i18n-context";
 
 export interface ErrorStateProps {
   title?: string;
@@ -13,15 +14,22 @@ export interface ErrorStateProps {
 }
 
 export function ErrorState({
-  title = "Algo salió mal",
-  description = "Intentá nuevamente en unos segundos.",
+  title,
+  description,
   error,
   correlationId,
-  retryLabel = "Reintentar",
+  retryLabel,
   onRetry,
   actionSlot,
   icon,
 }: ErrorStateProps) {
+  const t = useTranslation();
+  const resolvedTitle = title ?? t("errorState.title", { defaultMessage: "Something went wrong" });
+  const resolvedDescription =
+    description ??
+    t("errorState.description", { defaultMessage: "Please try again in a few seconds." });
+  const resolvedRetryLabel =
+    retryLabel ?? t("errorState.retry", { defaultMessage: "Try again" });
   const visibleCorrelationId = correlationId ?? error?.correlationId;
   const retryAfterSeconds = error?.retryAfter;
 
@@ -45,9 +53,9 @@ export function ErrorState({
           </span>
         )}
         <div>
-          <h2 style={{ fontSize: "18px", fontWeight: 600, margin: 0 }}>{title}</h2>
+          <h2 style={{ fontSize: "18px", fontWeight: 600, margin: 0 }}>{resolvedTitle}</h2>
           <p style={{ marginTop: "8px", fontSize: "14px", lineHeight: 1.6, color: "#9f1239" }}>
-            {description}
+            {resolvedDescription}
             {error?.code ? (
               <span style={{ marginLeft: "4px", fontWeight: 600, color: "#7f1d1d" }}>
                 ({error.code})
@@ -59,7 +67,7 @@ export function ErrorState({
       <div style={{ marginTop: "16px", fontSize: "12px", color: "#991b1b" }}>
         {visibleCorrelationId ? (
           <p>
-            ID de seguimiento:{" "}
+            {t("errorState.correlationId", { defaultMessage: "Tracking ID" })}:{" "}
             <code style={{ fontFamily: "ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace" }}>
               {visibleCorrelationId}
             </code>
@@ -67,7 +75,7 @@ export function ErrorState({
         ) : null}
         {retryAfterSeconds ? (
           <p>
-            Podés reintentar en{" "}
+            {t("errorState.retryAfter", { defaultMessage: "You can retry in" })}{" "}
             <strong>{Math.ceil(retryAfterSeconds)}s</strong>.
           </p>
         ) : null}
@@ -90,7 +98,7 @@ export function ErrorState({
               cursor: "pointer",
             }}
           >
-            {retryLabel}
+            {resolvedRetryLabel}
           </button>
         ) : null}
         {actionSlot}
