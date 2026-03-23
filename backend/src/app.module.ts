@@ -28,6 +28,7 @@ import { SecureConfigModule } from './common/security/secure-config.module'
 import { CatalogModule } from './catalog/catalog.module'
 import { PricingModule } from './pricing/pricing.module'
 import { AberturasGlossaryModule } from './aberturas/aberturas-glossary.module'
+import { CmsModule } from './cms/cms.module'
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware'
 import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor'
@@ -71,6 +72,7 @@ import { ObservabilityService } from './common/observability/observability.servi
     CatalogModule,
     PricingModule,
     AberturasGlossaryModule,
+    CmsModule,
   ],
   providers: [
     {

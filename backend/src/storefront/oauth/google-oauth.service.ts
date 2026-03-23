@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { StorefrontService } from '../storefront.service'
 import { StorefrontSecurityService } from '../security/storefront-security.service'
 import { GoogleConfigService } from '../../common/integrations/google-config.service'
+import { EmailService } from '../../email/email.service'
 import type { StorefrontAuthSession } from '../types'
 import type { FastifyRequest } from 'fastify'
 import { randomBytes, randomUUID, createHash } from 'crypto'
@@ -91,6 +92,7 @@ export class StorefrontGoogleOAuthService {
     private readonly storefront: StorefrontService,
     private readonly googleConfig: GoogleConfigService,
     private readonly security: StorefrontSecurityService,
+    private readonly email: EmailService,
   ) {}
 
   async start(
@@ -261,12 +263,25 @@ export class StorefrontGoogleOAuthService {
         nonce: session.nonce,
       })
 
-      const customer = await this.linkCustomerAccount(
+      const { customer, isNewCustomer } = await this.linkCustomerAccount(
         payload,
         tokenResponse.scope ?? this.defaultScopes,
         purpose,
         session.expectedCustomerId ?? null,
       )
+      if (isNewCustomer && customer.email) {
+        this.email
+          .sendWelcome({
+            customerId: customer.id,
+            email: customer.email,
+            locale: payload.locale ?? 'es',
+            displayName: customer.name ?? [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim(),
+          })
+          .catch((error) => {
+            const message = error instanceof Error ? error.message : String(error)
+            this.logger.warn(`Failed to send Google welcome email to customer ${customer.id}: ${message}`)
+          })
+      }
       const storefrontSession =
         purpose === 'reauth' ? null : await this.storefront.createSessionForCustomer(customer)
 
@@ -642,7 +657,7 @@ export class StorefrontGoogleOAuthService {
     scope: string,
     purpose: GoogleOAuthPurpose,
     expectedCustomerId?: number | null,
-  ): Promise<Customer> {
+  ): Promise<{ customer: Customer; isNewCustomer: boolean }> {
     const now = new Date()
 
     return this.prisma.$transaction(async (tx) => {
@@ -656,6 +671,7 @@ export class StorefrontGoogleOAuthService {
       })
 
       let customer: Customer | null = null
+      let isNewCustomer = false
       if (account) {
         customer = await tx.customer.findUnique({ where: { id: account.customerId } })
       }
@@ -687,6 +703,7 @@ export class StorefrontGoogleOAuthService {
           customer = await tx.customer.create({
             data: {
               email: payload.email,
+              emailVerifiedAt: payload.email_verified ? now : null,
               firstName,
               lastName,
               name: displayName || payload.email,
@@ -694,9 +711,13 @@ export class StorefrontGoogleOAuthService {
               storefrontDefaultPasswordHash: null,
             },
           })
+          isNewCustomer = true
         } else {
           const updateData: Record<string, unknown> = { updatedAt: now }
           updateData.storefrontDefaultPasswordHash = null
+          if (!customer.emailVerifiedAt && payload.email_verified) {
+            updateData.emailVerifiedAt = now
+          }
           if (!customer.firstName && payload.given_name) updateData.firstName = payload.given_name
           if (!customer.lastName && payload.family_name) updateData.lastName = payload.family_name
           if (!customer.name) {
@@ -718,6 +739,9 @@ export class StorefrontGoogleOAuthService {
         if (purpose !== 'reauth') {
           const updateData: Record<string, unknown> = { updatedAt: now }
           updateData.storefrontDefaultPasswordHash = null
+          if (!customer.emailVerifiedAt && payload.email_verified) {
+            updateData.emailVerifiedAt = now
+          }
           if (!customer.firstName && payload.given_name) updateData.firstName = payload.given_name
           if (!customer.lastName && payload.family_name) updateData.lastName = payload.family_name
           if (!customer.name) {
@@ -776,7 +800,8 @@ export class StorefrontGoogleOAuthService {
         },
       })
 
-      return tx.customer.findUniqueOrThrow({ where: { id: account.customerId } })
+      const resolvedCustomer = await tx.customer.findUniqueOrThrow({ where: { id: account.customerId } })
+      return { customer: resolvedCustomer, isNewCustomer }
     })
   }
 }

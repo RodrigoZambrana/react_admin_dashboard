@@ -93,6 +93,18 @@ enum ProductAttributeType {
   MATERIAL
 }
 
+enum CmsEntryStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CmsEntryAssetType {
+  IMAGE
+  VIDEO
+  EMBED
+}
+
 enum InboxChannelType {
   EMAIL
   WHATSAPP
@@ -309,6 +321,7 @@ model Customer {
   firstName                     String?
   lastName                      String?
   email                         String?                 @unique
+  emailVerifiedAt               DateTime?
   img                           String?
   location                      String?
   title                         String?
@@ -331,6 +344,7 @@ model Customer {
   orders                        Order[]
   notifications                 Notification[]
   passwordResetTokens           PasswordResetToken[]
+  emailVerificationTokens       CustomerEmailVerificationToken[]
   securityEvents                CustomerSecurityEvent[]
   otpChallenges                 CustomerOtpChallenge[]
   reauthTokens                  CustomerReauthToken[]
@@ -339,6 +353,23 @@ model Customer {
   status                        CustomerStatus?         @relation(fields: [statusId], references: [id], onDelete: SetNull)
   wishlist                      Wishlist?
   oauthAccounts                 CustomerOAuthAccount[]
+}
+
+model CustomerEmailVerificationToken {
+  id            Int       @id @default(autoincrement())
+  customerId    Int
+  customer      Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tokenHash     String    @unique
+  emailSnapshot String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([customerId])
+  @@index([expiresAt])
 }
 
 model CustomerOAuthAccount {
@@ -478,6 +509,7 @@ model Product {
   options                   ProductOption[]
   variants                  ProductVariant[]
   wishlistItems             WishlistItem[]
+  cmsEntries                CmsEntry[]
   createdAt                 DateTime                      @default(now())
   updatedAt                 DateTime                      @updatedAt
   orderItems                OrderItem[]
@@ -585,11 +617,79 @@ model ProductCategory {
   parent                  ProductCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children                ProductCategory[] @relation("CategoryHierarchy")
   products                Product[]
+  cmsEntries              CmsEntry[]
   installServiceProductId Int?
   installServiceProduct   Product?          @relation("CategoryInstallService", fields: [installServiceProductId], references: [id], onDelete: SetNull)
 
   @@unique([installServiceProductId])
   @@index([parentId])
+}
+
+model CmsSection {
+  id          Int        @id @default(autoincrement())
+  key         String     @unique
+  name        String
+  description String?
+  isActive    Boolean    @default(true)
+  sortOrder   Int        @default(0)
+  entries     CmsEntry[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+model CmsEntry {
+  id           Int             @id @default(autoincrement())
+  sectionId    Int
+  section      CmsSection      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  slug         String?
+  title        String
+  subtitle     String?
+  description  String?
+  payload      Json?
+  locale       String          @default("es")
+  status       CmsEntryStatus  @default(DRAFT)
+  priority     Int             @default(0)
+  isActive     Boolean         @default(true)
+  publishedAt  DateTime?
+  startsAt     DateTime?
+  endsAt       DateTime?
+  thumbnailUrl String?
+  ctaLabel     String?
+  ctaUrl       String?
+  productId    Int?
+  product      Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  categoryId   Int?
+  category     ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assets       CmsEntryAsset[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([sectionId, locale, slug])
+  @@index([sectionId, status, isActive, priority])
+  @@index([productId])
+  @@index([categoryId])
+  @@index([publishedAt])
+}
+
+model CmsEntryAsset {
+  id          Int               @id @default(autoincrement())
+  entryId     Int
+  entry       CmsEntry          @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  title       String?
+  caption     String?
+  mediaType   CmsEntryAssetType @default(IMAGE)
+  mediaUrl    String
+  posterUrl   String?
+  externalUrl String?
+  durationSec Int?
+  sortOrder   Int               @default(0)
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([entryId, isActive, sortOrder])
 }
 
 model SystemConfig {

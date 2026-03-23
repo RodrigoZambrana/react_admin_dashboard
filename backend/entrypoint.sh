@@ -1,5 +1,5 @@
 #!/bin/sh
 set -e
 
-npx prisma migrate deploy
+sh ./scripts/ensure-db.sh
 node dist/src/main.js

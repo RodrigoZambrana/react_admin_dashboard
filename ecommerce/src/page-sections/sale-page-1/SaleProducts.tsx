@@ -79,6 +79,7 @@ export default function SaleProducts({
                 images={item.images}
                 imgUrl={item.thumbnail}
                 rating={item.rating || 4}
+                variantKey={item.variantKey ?? null}
                 variantLabel={item.variantLabel ?? null}
                 configuration={item.configuration ?? null}
               />

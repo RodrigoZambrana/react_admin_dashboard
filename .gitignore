@@ -25,6 +25,10 @@ yarn-error.log*
 
 # Tooling
 .vercel
+playwright-report/
+test-results/
+ecommerce/playwright-report/
+ecommerce/test-results/
 
 # Prisma
 backend/prisma/generated/

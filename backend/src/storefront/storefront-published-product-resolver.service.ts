@@ -112,6 +112,7 @@ export class StorefrontPublishedProductResolverService {
   async resolvePublishedParametricProduct(
     productId: number,
     fallbackCurrency?: string | null,
+    preferredSalePrice?: Prisma.Decimal | number | null,
   ): Promise<PublishedParametricProductDefinition | null> {
     const [rows, markupMultiplier] = await Promise.all([
       this.prisma.dimensionPriceMatrix.findMany({
@@ -152,13 +153,33 @@ export class StorefrontPublishedProductResolverService {
     const defaultRow = rows[0]
     const pricingSummary = this.buildPricingSummary(rows)
     const variants = this.buildPublishedVariants(defaultRow, pricingSummary, markupMultiplier, fallbackCurrency)
+    const normalizedPreferredSalePrice = this.decimalToNumber(preferredSalePrice)
     const defaultVariant =
+      variants.find(
+        (variant) =>
+          normalizedPreferredSalePrice > 0 &&
+          Math.abs(variant.price - normalizedPreferredSalePrice) < 0.0001 &&
+          !variant.optionValues.hasMosquitero &&
+          !variant.optionValues.hasShutterMonoblock,
+      ) ??
+      variants.find(
+        (variant) =>
+          !variant.optionValues.hasMosquitero &&
+          !variant.optionValues.hasShutterMonoblock,
+      ) ??
+      variants.find(
+        (variant) =>
+          normalizedPreferredSalePrice > 0 &&
+          Math.abs(variant.price - normalizedPreferredSalePrice) < 0.0001,
+      ) ??
       variants.find(
         (variant) =>
           variant.optionValues.hasMosquitero === defaultRow.hasMosquitero &&
           variant.optionValues.hasShutterMonoblock === defaultRow.hasShutterMonoblock &&
-          this.normalizeString(variant.optionValues.shutterMaterial) === this.normalizeString(defaultRow.shutterSystem ?? ''),
-      ) ?? variants[0]
+          this.normalizeString(variant.optionValues.shutterMaterial) ===
+            this.normalizeString(defaultRow.shutterSystem ?? ''),
+      ) ??
+      variants[0]
 
     return {
       defaultVariantKey: defaultVariant.key,
@@ -185,8 +206,13 @@ export class StorefrontPublishedProductResolverService {
     productId: number,
     rawConfiguration?: Record<string, unknown> | null,
     fallbackCurrency?: string | null,
+    preferredSalePrice?: Prisma.Decimal | number | null,
   ): Promise<PublishedParametricVariantDefinition | null> {
-    const definition = await this.resolvePublishedParametricProduct(productId, fallbackCurrency)
+    const definition = await this.resolvePublishedParametricProduct(
+      productId,
+      fallbackCurrency,
+      preferredSalePrice,
+    )
     if (!definition) {
       return null
     }

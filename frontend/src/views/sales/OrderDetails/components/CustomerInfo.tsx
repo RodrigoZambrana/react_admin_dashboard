@@ -26,6 +26,7 @@ type CustomerInfoProps = {
             line3: string
             line4: string
         }
+        comment?: string
     }
 }
 
@@ -48,6 +49,7 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
     const { t } = useTranslation()
     const shippingLines = normalizeLines(data?.shippingAddress)
     const billingLines = normalizeLines(data?.billingAddress)
+    const customerComment = typeof data?.comment === 'string' ? data.comment.trim() : ''
     const previousOrders = data?.previousOrder ?? 0
     const previousBudgets = data?.previousBudgets ?? 0
     return (
@@ -113,6 +115,15 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
                     <div>—</div>
                 )}
             </address>
+            {customerComment ? (
+                <>
+                    <hr className="my-5" />
+                    <h6 className="mb-4">{t('text.columns.notes')}</h6>
+                    <div className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200">
+                        {customerComment}
+                    </div>
+                </>
+            ) : null}
         </Card>
     )
 }

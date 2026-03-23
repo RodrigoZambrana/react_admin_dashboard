@@ -128,7 +128,12 @@ export function WishlistContent() {
 
           return (
             <Grid item key={item.productId} xs={12} sm={6}>
-              <Card position="relative" p="1rem" height="100%" borderRadius={16}>
+              <Card
+                position="relative"
+                p="1rem"
+                height="100%"
+                borderRadius={16}
+                data-testid={`wishlist-item-${item.productId}`}>
                 <ProductWishlistButton
                   productId={item.productId}
                   style={{ position: "absolute", top: 16, right: 16 }}

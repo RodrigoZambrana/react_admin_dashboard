@@ -31,6 +31,7 @@ import {
   normalizeMercadoPagoStatus
 } from "@/utils/mercadopago";
 import { useCurrency } from "@/state/currency-context";
+import type { CheckoutSummary } from "@/types/storefront";
 
 const MERCADO_PAGO_CURRENCY = "UYU";
 const DEFAULT_MIN_INSTALLMENTS = 1;
@@ -148,7 +149,7 @@ export default function PaymentForm() {
   const toast = useToast();
   const t = useTranslation();
   const { locale } = useI18n();
-  const { convertMoney } = useCurrency();
+  const { convertMoney, baseCurrency } = useCurrency();
   const { state: cartState } = useStorefrontCart();
   const { totals } = useCheckoutTotals();
   const storefrontConfig = useStorefrontConfig();
@@ -176,6 +177,7 @@ export default function PaymentForm() {
   const [preferenceReloadNonce, setPreferenceReloadNonce] = useState(0);
   const lastPreferenceKeyRef = useRef<string | null>(null);
   const [showMercadoPagoRecovery, setShowMercadoPagoRecovery] = useState(false);
+  const [preparedSummary, setPreparedSummary] = useState<CheckoutSummary | null>(null);
 
   const translateMercadoPagoStatusMessage = useCallback(
     (status: string, detail?: string | null) => {
@@ -313,18 +315,6 @@ export default function PaymentForm() {
   );
 
   const cartId = useMemo(() => `cart-${cartState.updatedAt}`, [cartState.updatedAt]);
-  const checkoutCurrency = totals.total.currency ?? activeCurrency;
-  const { amount, currency } = useMemo(() => {
-    const converted = convertMoney(totals.total, MERCADO_PAGO_CURRENCY);
-    const roundedAmount = Number.isFinite(converted.amount)
-      ? Math.round(converted.amount * 100) / 100
-      : 0;
-    const resolvedCurrency = converted.currency ?? MERCADO_PAGO_CURRENCY;
-    return {
-      amount: roundedAmount,
-      currency: resolvedCurrency
-    };
-  }, [convertMoney, totals.total]);
   const orderItemsSnapshot = useMemo(() => buildCheckoutOrderItems(cartState.items), [cartState.items]);
   const checkoutSnapshot = useMemo(() => {
     if (!shippingOption?.id || orderItemsSnapshot.items.length === 0 || orderItemsSnapshot.error) {
@@ -333,10 +323,10 @@ export default function PaymentForm() {
 
     return {
       customer: {
-        email: contact.email,
+        ...(contact.email ? { email: contact.email } : {}),
         firstName: contact.firstName,
         lastName: contact.lastName,
-        phone: contact.phone && contact.phone.length > 0 ? contact.phone : undefined,
+        phone: contact.phone ?? "",
         locale
       },
       shippingAddress: {
@@ -351,14 +341,14 @@ export default function PaymentForm() {
       notes: notes && notes.trim().length > 0 ? notes.trim() : undefined,
       shippingOptionId: shippingOption.id,
       fulfillmentMode,
-      currency: checkoutCurrency
+      currency: totals.total.currency ?? baseCurrency
     };
   }, [
+    baseCurrency,
     contact.email,
     contact.firstName,
     contact.lastName,
     contact.phone,
-    checkoutCurrency,
     fulfillmentMode,
     locale,
     notes,
@@ -370,8 +360,48 @@ export default function PaymentForm() {
     shippingAddress.line2,
     shippingAddress.state,
     shippingAddress.zip,
-    shippingOption?.id
+    shippingOption?.id,
+    totals.total.currency
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!checkoutSnapshot) {
+      setPreparedSummary(null);
+      return;
+    }
+
+    void StorefrontApi.previewCheckout(checkoutSnapshot)
+      .then((summary) => {
+        if (!cancelled) {
+          setPreparedSummary(summary);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreparedSummary(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [checkoutSnapshot]);
+
+  const checkoutCurrency = preparedSummary?.grandTotal.currency ?? totals.total.currency ?? baseCurrency;
+  const { amount, currency } = useMemo(() => {
+    const sourceTotal = preparedSummary?.grandTotal ?? totals.total;
+    const converted = convertMoney(sourceTotal, MERCADO_PAGO_CURRENCY);
+    const roundedAmount = Number.isFinite(converted.amount)
+      ? Math.round(converted.amount * 100) / 100
+      : 0;
+    const resolvedCurrency = converted.currency ?? MERCADO_PAGO_CURRENCY;
+    return {
+      amount: roundedAmount,
+      currency: resolvedCurrency
+    };
+  }, [convertMoney, preparedSummary?.grandTotal, totals.total]);
 
   useEffect(() => {
     if (!checkoutToken || orderItemsSnapshot.items.length === 0 || orderItemsSnapshot.error) {
@@ -471,7 +501,7 @@ export default function PaymentForm() {
     }
 
     let cancelled = false;
-    let retryTimer: ReturnType<typeof window.setTimeout> | null = null;
+    let retryTimer: number | null = null;
     const maxRetryAttempts = 2;
 
     const fetchPreference = async (attempt = 0) => {
@@ -484,7 +514,7 @@ export default function PaymentForm() {
           cartId,
           checkoutToken,
           statementDescriptor,
-          payerEmail: contact.email,
+          payerEmail: contact.email || undefined,
           successUrl: successRedirectTarget,
           failureUrl: failureRedirectTarget,
           pendingUrl: failureRedirectTarget,
@@ -925,7 +955,7 @@ export default function PaymentForm() {
                     })}
                 </Typography>
                 <Box mt="0.75rem">
-                  <Button size="sm" variant="outlined" onClick={retryPreferenceLoad}>
+                  <Button size="small" variant="outlined" onClick={retryPreferenceLoad}>
                     {t("checkout.payment.form.actions.retryMercadoPago", {
                       defaultMessage: "Retry Mercado Pago"
                     })}
@@ -963,7 +993,7 @@ export default function PaymentForm() {
                 </Typography>
                 <Box mt="0.5rem">
                   <Button
-                    size="sm"
+                    size="small"
                     variant="outlined"
                     onClick={() => resetMercadoPagoSession({ clearStoredPayment: true })}
                   >

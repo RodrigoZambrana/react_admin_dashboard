@@ -38,6 +38,9 @@ type ProductWishlistButtonProps = Omit<IconButtonComponentProps, "children"> & {
   onRequireAuth?: () => void;
 };
 
+const PENDING_WISHLIST_PRODUCT_KEY = "storefront.pendingWishlistProductId";
+const PENDING_WISHLIST_REDIRECT_KEY = "storefront.pendingWishlistRedirect";
+
 export default function ProductWishlistButton({
   productId,
   onRequireAuth,
@@ -67,6 +70,16 @@ export default function ProductWishlistButton({
 
     if (!wishlist.isAuthenticated) {
       onRequireAuth?.();
+      if (typeof window !== "undefined") {
+        try {
+          window.sessionStorage.setItem(PENDING_WISHLIST_PRODUCT_KEY, String(productId));
+          if (pathname) {
+            window.sessionStorage.setItem(PENDING_WISHLIST_REDIRECT_KEY, pathname);
+          }
+        } catch (error) {
+          console.warn("[wishlist] Unable to persist pending wishlist intent", error);
+        }
+      }
       let loginHandled = false;
       if (typeof window !== "undefined") {
         const loginEvent = new CustomEvent("storefront:auth:login", {
@@ -103,6 +116,7 @@ export default function ProductWishlistButton({
       size="small"
       aria-label={isFavorite ? "Remove from wishlist" : "Add to wishlist"}
       aria-pressed={isFavorite}
+      data-testid={productId ? `wishlist-button-${productId}` : "wishlist-button"}
       onClick={handleToggle}
       disabled={isPending}
       data-state={isFavorite ? "active" : "inactive"}

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
-import { IconBell, IconCheck } from "@tabler/icons-react";
+import { IconBell, IconCheck, IconTrash } from "@tabler/icons-react";
 import Box from "@component/Box";
 import FlexBox from "@component/FlexBox";
 import Menu from "@component/menu";
@@ -341,6 +341,44 @@ export default function CustomerNotifications() {
     }
   }, [token, unreadCount, handleUnauthorized]);
 
+  const handleDeleteAll = useCallback(async () => {
+    if (!token || notifications.length === 0) return;
+    try {
+      await StorefrontApi.deleteNotifications(token, { deleteAll: true });
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (error) {
+      if (isApiError(error) && error.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      console.error("Failed to delete notifications", error);
+    }
+  }, [token, notifications.length, handleUnauthorized]);
+
+  const handleDeleteNotification = useCallback(
+    async (event: MouseEvent<HTMLElement>, notificationId: number) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!token) return;
+      const deleted = notifications.find((entry) => entry.id === notificationId);
+      try {
+        await StorefrontApi.deleteNotification(token, notificationId);
+        setNotifications((prev) => prev.filter((item) => item.id !== notificationId));
+        if (deleted && !deleted.readAt) {
+          setUnreadCount((count) => Math.max(0, count - 1));
+        }
+      } catch (error) {
+        if (isApiError(error) && error.status === 401) {
+          handleUnauthorized();
+          return;
+        }
+        console.error("Failed to delete notification", error);
+      }
+    },
+    [token, notifications, handleUnauthorized]
+  );
+
   const entries = useMemo(() => notifications, [notifications]);
 
   return (
@@ -358,14 +396,24 @@ export default function CustomerNotifications() {
       <Box minWidth="280px" maxWidth="320px" padding="1rem">
         <FlexBox alignItems="center" justifyContent="space-between" mb="0.75rem">
           <H6 mb="0">{t("notifications.panel.title")}</H6>
-          <Tiny
-            role="button"
-            color="text.muted"
-            style={{ cursor: unreadCount > 0 ? "pointer" : "default" }}
-            onClick={unreadCount > 0 ? handleMarkAll : undefined}
-          >
-            {t("notifications.panel.markAll")}
-          </Tiny>
+          <FlexBox alignItems="center" gridGap="0.75rem">
+            <Tiny
+              role="button"
+              color="text.muted"
+              style={{ cursor: unreadCount > 0 ? "pointer" : "default" }}
+              onClick={unreadCount > 0 ? handleMarkAll : undefined}
+            >
+              {t("notifications.panel.markAll")}
+            </Tiny>
+            <Tiny
+              role="button"
+              color="text.muted"
+              style={{ cursor: notifications.length > 0 ? "pointer" : "default" }}
+              onClick={notifications.length > 0 ? handleDeleteAll : undefined}
+            >
+              {t("notifications.panel.deleteAll")}
+            </Tiny>
+          </FlexBox>
         </FlexBox>
         <Box height={`${PANEL_HEIGHT}px`} overflow="hidden">
           {isAuthenticated ? (
@@ -399,9 +447,19 @@ export default function CustomerNotifications() {
                           <Small fontWeight={600} color="text.primary">
                             {copy.title}
                           </Small>
-                          <Tiny color="text.muted">
-                            {new Date(item.createdAt).toLocaleString()}
-                          </Tiny>
+                          <FlexBox alignItems="center" gridGap="0.5rem">
+                            <Tiny color="text.muted">
+                              {new Date(item.createdAt).toLocaleString()}
+                            </Tiny>
+                            <IconButton
+                              variant="text"
+                              padding="0.15rem"
+                              title={t("notifications.panel.deleteOne")}
+                              onClick={(event) => void handleDeleteNotification(event, item.id)}
+                            >
+                              <IconTrash size={14} stroke={1.6} />
+                            </IconButton>
+                          </FlexBox>
                         </FlexBox>
                         {summary && <Tiny color="text.hint">{summary}</Tiny>}
                         {copy.body && <Tiny color="text.secondary">{copy.body}</Tiny>}

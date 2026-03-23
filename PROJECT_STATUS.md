@@ -73,6 +73,15 @@ El proyecto tiene una base funcional y una separación razonable por aplicacione
 5. Limpieza de residuos de template y definición real del alcance del storefront.
 6. Recién después: SEO técnico profundo y optimización.
 
+### Pendientes transversales abiertos a la fecha
+
+- Normalización selectiva de tablas y revisión de estructuras que puedan dificultar evolución, seguridad o reporting.
+- Revisión de consultas críticas e incorporación de índices solo donde haya evidencia real de necesidad.
+- Estrategia general de cache unificada para `backend`, `frontend` y `ecommerce`.
+- Expansión de `data-testid` en superficies críticas como base de automatización futura.
+- Aumento progresivo de cobertura de pruebas con regresiones browser para flujos de alto riesgo.
+- Dirección futura del CMS del sitio: `stories` ligado a `Product` sirve como MVP, pero la evolución recomendada es desacoplarlo a un dominio CMS independiente con asociación opcional a producto, categoría o URL.
+
 ## 2. Mapa del proyecto
 
 ### Estructura observada
@@ -157,6 +166,11 @@ root/
 - Estado real de despliegue: hoy hay señales de Docker Compose y DigitalOcean App Platform, pero no una fuente única consistente.
 - Dependencias externas opcionales: Redis/colas, SMTP/IMAP, Google OAuth, Mercado Pago, snapshots del storefront.
 - Política de minimización de DTO públicos del storefront y auditoría periódica de exposición de datos hacia frontend.
+- Semántica operativa del flujo de efectivo storefront vs. confirmación manual posterior por administración.
+- Diferencia entre onboarding real ya implementado por email (`welcome`) y backlog que todavía requiere infraestructura (`email verification`, `checkout abandonment`).
+- Estrategia transversal de cache por capa y criterios de invalidación.
+- Inventario de consultas calientes e índices requeridos por dominio funcional.
+- Criterio de aceptación de `data-testid` y automatización de regresión para futuros cambios.
 
 ### Áreas que requieren validación manual adicional
 
@@ -2176,3 +2190,64 @@ Cuando se retome:
       - emails transaccionales,
       - recovery/auth,
       - privacidad/anonymización.
+- 2026-03-23
+  - `Email/Privacy Operations Hardening` iniciado con primer slice implementado.
+  - Cambios aplicados:
+    - `backend/src/email/email.service.ts` separa locale/payload por audiencia para:
+      - `sendPaymentReceived`,
+      - `sendSalesDocumentStatusEmail`;
+    - emails a cliente pasan a respetar `customer.preferredLocale` cuando existe;
+    - emails admin dejan de heredar locale del cliente y quedan en locale operativo admin;
+    - `backend/src/common/privacy/masking.ts` agrega helper reutilizable de masking;
+    - `backend/src/email/email-log.service.ts` enmascara `toAddress`, `ccAddresses` y `bccAddresses` en la respuesta del panel admin;
+    - `backend/src/email/__tests__/email.service.spec.ts` y `backend/src/common/privacy/__tests__/masking.spec.ts` cubren el slice.
+  - Validación cerrada:
+    - `cd backend && npm test -- src/email/__tests__/email.service.spec.ts src/common/privacy/__tests__/masking.spec.ts`: verde (`8` tests),
+    - `cd backend && npm run lint`: verde,
+    - `cd backend && npm run build`: verde.
+  - Trazabilidad operativa:
+    - `EMAIL_PRIVACY_HARDENING_2026-03-23.md` documenta:
+      - gobernanza mínima de templates/settings,
+      - inventario inicial de PII por superficie,
+      - estado de implementación y pendientes.
+- 2026-03-23
+  - `Email/Privacy Operations Hardening`: segundo slice implementado sobre el flujo storefront real.
+  - Cambios aplicados:
+    - `backend/src/email/email.types.ts`, `backend/src/email/email.service.ts` y `backend/src/email/templates/definitions.ts` amplían el contrato y el HTML de mails de compra/pago:
+      - pedido recibido,
+      - pago recibido,
+      - cambio de estado;
+    - los mails de pago ahora incluyen para cliente/admin:
+      - número/fecha de pedido,
+      - estado del pedido,
+      - monto pagado,
+      - acumulado,
+      - saldo pendiente,
+      - total del pedido,
+      - método/referencias,
+      - resumen de ítems,
+      - CTA contextual;
+    - `backend/src/notifications/notification-settings.service.ts` deja activos por defecto los canales `EMAIL` necesarios del flujo storefront:
+      - `ORDER_RECEIVED` customer/admin,
+      - `PAYMENT_RECEIVED` customer/admin,
+      - `ORDER_STATUS_CHANGED` customer/admin;
+    - además aplica un patch conservador de defaults legacy sobre instalaciones donde esos settings seguían intactos y apagados.
+  - Alcance funcional real del circuito de mails:
+    - compra storefront:
+      - mail a cliente por pedido recibido,
+      - mail a cliente por pago recibido,
+      - mail a cliente por cambio de estado,
+      - aviso admin por pedido recibido,
+      - aviso admin por pago recibido,
+      - aviso admin por cambio de estado;
+    - auth:
+      - reset de contraseña,
+      - password changed / recovery notice.
+  - Pendiente explícito para futura implementación:
+    - welcome mail de registro,
+    - verificación/activación por email,
+    - mails de abandono de checkout.
+  - Validación cerrada:
+    - `cd backend && npm test -- src/email/__tests__/email.service.spec.ts src/common/privacy/__tests__/masking.spec.ts`: verde (`9` tests),
+    - `cd backend && npm run lint`: verde,
+    - `cd backend && npm run build`: verde.

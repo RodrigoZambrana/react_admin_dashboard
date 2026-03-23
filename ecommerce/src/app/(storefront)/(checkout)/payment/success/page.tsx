@@ -15,7 +15,7 @@ import { extractApiErrorMessage } from "@/lib/api/errors";
 import { useCheckout } from "@/state/checkout-context";
 import { useCurrency } from "@/state/currency-context";
 import { useStorefrontCart } from "@/state/cart-context";
-import type { CreateOrderPayload } from "@/types/storefront";
+import type { CreateOrderPayload, OrderSummary } from "@/types/storefront";
 import {
   isMercadoPagoPaymentConfirmed,
   normalizeMercadoPagoStatus,
@@ -83,6 +83,7 @@ function PaymentSuccessContent() {
   const [orderState, setOrderState] = useState<OrderCreationState>("idle");
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderRetryCount, setOrderRetryCount] = useState(0);
+  const [createdOrder, setCreatedOrder] = useState<OrderSummary | null>(null);
   const persistedCheckout = useMemo(() => loadPersistedCheckoutState(), []);
   const paymentCheckoutSnapshot =
     payment?.method === "mercadopago" ? payment.checkoutSnapshot ?? null : null;
@@ -369,10 +370,10 @@ function PaymentSuccessContent() {
 
       const payload: CreateOrderPayload = {
         customer: {
-          email: checkoutCustomer.email,
+          ...(checkoutCustomer.email ? { email: checkoutCustomer.email } : {}),
           firstName: checkoutCustomer.firstName,
           lastName: checkoutCustomer.lastName,
-          phone: checkoutCustomer.phone && checkoutCustomer.phone.length > 0 ? checkoutCustomer.phone : undefined,
+          phone: checkoutCustomer.phone ?? "",
           locale: checkoutCustomerLocale
         },
         shippingAddress: shippingAddressPayload,
@@ -396,6 +397,7 @@ function PaymentSuccessContent() {
       }
 
       setLastOrder(order);
+      setCreatedOrder(order);
       clearCart();
       clearPersistedCheckoutOrderItems(resolvedCheckoutToken);
       reset();
@@ -428,6 +430,15 @@ function PaymentSuccessContent() {
     setLastOrder,
     t
   ]);
+
+  const orderLabel = createdOrder ? `#${createdOrder.orderNumber ?? createdOrder.id}` : null;
+  const orderTotalLabel = createdOrder
+    ? new Intl.NumberFormat(locale === "en" ? "en-US" : "es-UY", {
+        style: "currency",
+        currency: createdOrder.summary.grandTotal.currency
+      }).format(createdOrder.summary.grandTotal.amount)
+    : null;
+  const deliveryEstimateLabel = createdOrder?.delivery?.estimatedLabel ?? null;
 
   useEffect(() => {
     if (orderState === "idle" && canAttemptOrderCreation) {
@@ -546,6 +557,45 @@ function PaymentSuccessContent() {
             mb="2rem"
             maxWidth="100%"
           >
+            {createdOrder ? (
+              <>
+                <Typography fontWeight="600" mb="0.5rem">
+                  {t("checkout.payment.success.orderReference", {
+                    defaultMessage: "Order reference"
+                  })}
+                </Typography>
+                <Typography color="text.muted" mb="1rem">
+                  {orderLabel}
+                </Typography>
+
+                {orderTotalLabel ? (
+                  <>
+                    <Typography fontWeight="600" mb="0.5rem">
+                      {t("checkout.payment.success.orderTotal", {
+                        defaultMessage: "Order total"
+                      })}
+                    </Typography>
+                    <Typography color="text.muted" mb="1rem">
+                      {orderTotalLabel}
+                    </Typography>
+                  </>
+                ) : null}
+
+                {deliveryEstimateLabel ? (
+                  <>
+                    <Typography fontWeight="600" mb="0.5rem">
+                      {t("checkout.payment.success.deliveryEstimate", {
+                        defaultMessage: "Estimated delivery"
+                      })}
+                    </Typography>
+                    <Typography color="text.muted" mb="1rem">
+                      {deliveryEstimateLabel}
+                    </Typography>
+                  </>
+                ) : null}
+              </>
+            ) : null}
+
             <Typography fontWeight="600" mb="0.5rem">
               {t("checkout.payment.shared.status", { defaultMessage: "Status" })}
             </Typography>

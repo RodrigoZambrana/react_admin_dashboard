@@ -98,6 +98,32 @@ const sanitizeCheckoutSnapshot = (value: unknown): CheckoutSnapshot | undefined 
   return value as CheckoutSnapshot
 }
 
+const buildMercadoPagoProviderMetadata = (input: {
+  cartId?: string | null
+  checkoutToken?: string | null
+  orderId?: string | null
+}): Record<string, string> => {
+  const metadata: Record<string, string> = {}
+
+  const cartId = sanitizeString(input.cartId)
+  const checkoutToken = sanitizeString(input.checkoutToken)
+  const orderId = sanitizeString(input.orderId)
+
+  if (cartId) {
+    metadata.cartId = cartId
+  }
+
+  if (checkoutToken) {
+    metadata.checkoutToken = checkoutToken
+  }
+
+  if (orderId) {
+    metadata.orderId = orderId
+  }
+
+  return metadata
+}
+
 @Injectable()
 export class MercadoPagoService implements OnModuleInit {
   private readonly logger = new Logger(MercadoPagoService.name)
@@ -375,6 +401,12 @@ export class MercadoPagoService implements OnModuleInit {
         ? Math.floor(dto.maxInstallments)
         : null
 
+    const providerMetadata = buildMercadoPagoProviderMetadata({
+      cartId: dto.cartId,
+      checkoutToken: dto.checkoutToken,
+      orderId: dto.orderId,
+    })
+
     const body: Record<string, unknown> = {
       items: [
         {
@@ -385,12 +417,7 @@ export class MercadoPagoService implements OnModuleInit {
           currency_id: currency,
         },
       ],
-      metadata: {
-        cartId: dto.cartId ?? null,
-        checkoutToken: dto.checkoutToken ?? null,
-        orderId: dto.orderId ?? null,
-        checkoutSnapshot: sanitizeCheckoutSnapshot(dto.checkoutSnapshot) ?? null,
-      },
+      metadata: providerMetadata,
     }
 
     if (maxInstallments) {
@@ -444,6 +471,69 @@ export class MercadoPagoService implements OnModuleInit {
       throw new ServiceUnavailableException('Failed to create Mercado Pago preference.')
     }
 
+    const checkoutSnapshot = sanitizeCheckoutSnapshot(dto.checkoutSnapshot) ?? null
+    const existingPendingIntent =
+      dto.checkoutToken || dto.cartId
+        ? await this.prisma.storefrontPaymentIntent.findFirst({
+            where: {
+              provider: MERCADO_PAGO_PROVIDER,
+              externalPaymentId: null,
+              ...(dto.cartId ? { cartId: dto.cartId } : {}),
+              ...(dto.checkoutToken
+                ? {
+                    metadata: {
+                      path: ['checkoutToken'],
+                      equals: dto.checkoutToken,
+                    },
+                  }
+                : {}),
+            },
+            orderBy: { createdAt: 'desc' },
+          })
+        : null
+
+    const localMetadata: Record<string, unknown> = {
+      preferenceId: String(preferenceId),
+      cartId: dto.cartId ?? null,
+      checkoutToken: dto.checkoutToken ?? null,
+      orderId: dto.orderId ?? null,
+      checkoutSnapshot,
+      providerMetadata,
+    }
+
+    if (existingPendingIntent) {
+      await this.prisma.storefrontPaymentIntent.update({
+        where: { id: existingPendingIntent.id },
+        data: {
+          status: 'preference_created',
+          statusDetail: null,
+          amount: decimal(amountRounded),
+          currency,
+          description,
+          statementDescriptor: statementDescriptor ?? null,
+          cartId: dto.cartId ?? null,
+          payerEmail: payerEmail ?? null,
+          metadata: localMetadata as Prisma.JsonValue,
+        },
+      })
+    } else {
+      await this.prisma.storefrontPaymentIntent.create({
+        data: {
+          provider: MERCADO_PAGO_PROVIDER,
+          status: 'preference_created',
+          statusDetail: null,
+          amount: decimal(amountRounded),
+          currency,
+          description,
+          statementDescriptor: statementDescriptor ?? null,
+          cartId: dto.cartId ?? null,
+          orderId: dto.orderId ? Number.parseInt(dto.orderId, 10) || null : null,
+          payerEmail: payerEmail ?? null,
+          metadata: localMetadata as Prisma.JsonValue,
+        },
+      })
+    }
+
     return { preferenceId: String(preferenceId) }
   }
 
@@ -494,11 +584,31 @@ export class MercadoPagoService implements OnModuleInit {
       return null
     }
 
-    const existing =
-      (await this.prisma.storefrontPaymentIntent.findFirst({
-        where: { externalPaymentId },
-      })) ??
-      null
+    const existingByExternalId = await this.prisma.storefrontPaymentIntent.findFirst({
+      where: { externalPaymentId },
+    })
+
+    const existingByContext =
+      !existingByExternalId && (context?.checkoutToken || context?.cartId)
+        ? await this.prisma.storefrontPaymentIntent.findFirst({
+            where: {
+              provider: MERCADO_PAGO_PROVIDER,
+              externalPaymentId: null,
+              ...(context?.cartId ? { cartId: context.cartId } : {}),
+              ...(context?.checkoutToken
+                ? {
+                    metadata: {
+                      path: ['checkoutToken'],
+                      equals: context.checkoutToken,
+                    },
+                  }
+                : {}),
+            },
+            orderBy: { createdAt: 'desc' },
+          })
+        : null
+
+    const existing = existingByExternalId ?? existingByContext ?? null
 
     const paymentMetadata =
       paymentData.metadata && typeof paymentData.metadata === 'object'
@@ -649,14 +759,28 @@ export class MercadoPagoService implements OnModuleInit {
     const mappedStatus = this.mapPaymentStatus(status)
 
     const paymentMethodId = this.ensurePaymentMethod()
-    const amount = intent.amount
-    const currency = intent.currency ?? 'USD'
+    const orderMonetary = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        grandTotal: true,
+        orderCurrency: true,
+      },
+    })
+
+    const providerAmount = intent.amount ?? decimal(0)
+    const providerCurrency = (intent.currency ?? 'USD').toUpperCase()
+    const amount = orderMonetary?.grandTotal ?? providerAmount
+    const currency = (orderMonetary?.orderCurrency ?? providerCurrency).toUpperCase()
     const reference = intent.externalPaymentId ?? undefined
 
     const metadata: Record<string, unknown> = {
       provider: MERCADO_PAGO_PROVIDER,
       paymentIntentId: intent.id,
       statusDetail: intent.statusDetail,
+      providerAmount: decimalToNumber(providerAmount),
+      providerCurrency,
+      accountingAmount: decimalToNumber(amount),
+      accountingCurrency: currency,
     }
 
     const existing = await this.prisma.payment.findFirst({

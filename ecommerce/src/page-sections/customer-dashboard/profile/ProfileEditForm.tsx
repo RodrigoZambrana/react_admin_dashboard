@@ -18,6 +18,7 @@ import { extractApiErrorMessage } from "@/lib/api/errors";
 import type { CustomerProfile } from "@/types/storefront";
 import { normalizePhoneNumber, looksLikePhoneNumber } from "@/lib/utils/phone";
 import { useI18n, useTranslation } from "@/state/i18n-context";
+import { useToast } from "@/contexts/ToastContext";
 
 type FormValues = {
   firstName: string;
@@ -54,6 +55,7 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
   const { session } = useSession();
   const { locale } = useI18n();
   const t = useTranslation();
+  const toast = useToast();
 
   const validationSchema = useMemo(
     () =>
@@ -154,9 +156,12 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
         } as const;
 
         const updated = await StorefrontApi.updateAccountProfile(session.accessToken, payload);
-        helpers.setStatus({
-          type: "success",
-          message: t("account.profile.edit.success", {
+        helpers.setStatus(null);
+        toast.success({
+          title: t("account.profile.edit.successTitle", {
+            defaultMessage: "Perfil actualizado"
+          }),
+          description: t("account.profile.edit.success", {
             defaultMessage: "Perfil actualizado correctamente."
           })
         });
@@ -174,7 +179,7 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
         helpers.setSubmitting(false);
       }
     },
-    [locale, onUpdated, session?.accessToken, t]
+    [locale, onUpdated, session?.accessToken, t, toast]
   );
 
   return (

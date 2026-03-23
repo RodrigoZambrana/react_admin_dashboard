@@ -43,11 +43,13 @@ type StepState = "pending" | "current" | "completed";
 
 type DisplayEvent = {
   id: string;
+  eventId: string;
   type: string;
   label: string;
   description?: string | null;
   timestamp: string;
   timestampLabel: string;
+  estimateDate?: string | null;
   icon: string;
   state: StepState;
   isTerminal: boolean;
@@ -297,6 +299,7 @@ const ensurePaymentEvents = (
   } else if (
     normalizedStatus === "WAITING" ||
     normalizedStatus === "PENDING" ||
+    normalizedStatus === "PENDING_CONFIRMATION" ||
     normalizedStatus === "PENDING_PAYMENT" ||
     normalizedStatus === "REQUIRES_PAYMENT_METHOD"
   ) {
@@ -330,6 +333,8 @@ const ensurePaymentEvents = (
     paymentCurrencyCode === orderCurrencyCode
   ) {
     remainingAmount = Math.max(0, orderTotal - paymentAmountValue);
+  } else if (paymentType === "PAYMENT_WAITING") {
+    remainingAmount = Math.max(0, orderTotal);
   }
 
   const synthetic: OrderTimelineEvent = {
@@ -935,11 +940,13 @@ const buildTimelineSummary = (
     const description = getEventDescription(event, order, translate, locale, overrides);
     return {
       id: event.eventId,
+      eventId: event.eventId,
       type: normalized,
       label,
       description,
       timestamp: event.timestamp,
       timestampLabel: formatDateTime(event.timestamp, locale),
+      estimateDate: event.estimateDate ?? null,
       icon: iconPath(EVENT_ICON_FILES[normalized] ?? "package-box.svg"),
       state: determineEventState(normalized),
       isTerminal: terminalId ? event.eventId === terminalId : false,

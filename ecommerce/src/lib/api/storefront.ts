@@ -1,6 +1,7 @@
 import type {
   AuthSession,
   CategorySummary,
+  CheckoutSummary,
   CheckoutSnapshotPayload,
   CreateOrderPayload,
   CustomerNotificationList,
@@ -14,6 +15,7 @@ import type {
   PaginatedResponse,
   ProductDetail,
   ProductListQuery,
+  CmsContentSection,
   ProductSummary,
   StorefrontShippingOption,
   StorefrontConfig
@@ -183,6 +185,13 @@ export const StorefrontApi = {
     });
   },
 
+  async getContentSection(sectionKey: string, locale?: string): Promise<CmsContentSection> {
+    return apiFetch<CmsContentSection>(`content/sections/${encodeURIComponent(sectionKey)}`, {
+      params: locale ? { locale } : undefined,
+      cache: "no-store"
+    });
+  },
+
   async listProducts(query: ProductListQuery = {}): Promise<PaginatedResponse<ProductSummary>> {
     try {
       return await apiFetch<PaginatedResponse<ProductSummary>>("products", {
@@ -330,8 +339,50 @@ export const StorefrontApi = {
     });
   },
 
+  async requestPasswordRecoveryByEmail(email: string): Promise<{ ok: true }> {
+    return apiFetch<{ ok: true }>("auth/password/forgot", {
+      method: "POST",
+      body: JSON.stringify({ channel: "email", email }),
+      cache: "no-store"
+    });
+  },
+
+  async resetPasswordByEmail(token: string, newPassword: string): Promise<{ ok: true }> {
+    return apiFetch<{ ok: true }>("auth/password/reset", {
+      method: "POST",
+      body: JSON.stringify({ channel: "email", token, newPassword }),
+      cache: "no-store"
+    });
+  },
+
+  async confirmEmailVerification(token: string): Promise<{ ok: true }> {
+    return apiFetch<{ ok: true }>("auth/email-verification/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+      cache: "no-store"
+    });
+  },
+
+  async resendEmailVerification(token: string): Promise<{ ok: true }> {
+    return apiFetch<{ ok: true }>("auth/email-verification/resend", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      cache: "no-store"
+    });
+  },
+
   async createOrder(payload: CreateOrderPayload): Promise<OrderSummary> {
     return apiFetch<OrderSummary>("orders", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      cache: "no-store"
+    });
+  },
+
+  async previewCheckout(payload: CheckoutSnapshotPayload): Promise<CheckoutSummary> {
+    return apiFetch<CheckoutSummary>("checkout/preview", {
       method: "POST",
       body: JSON.stringify(payload),
       cache: "no-store"
@@ -367,6 +418,30 @@ export const StorefrontApi = {
     await apiFetch("account/notifications/read", {
       method: "POST",
       body: JSON.stringify(payload),
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      cache: "no-store"
+    });
+  },
+
+  async deleteNotifications(
+    token: string,
+    payload: { ids?: number[]; deleteAll?: boolean }
+  ): Promise<void> {
+    await apiFetch("account/notifications", {
+      method: "DELETE",
+      body: JSON.stringify(payload),
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      cache: "no-store"
+    });
+  },
+
+  async deleteNotification(token: string, id: number): Promise<void> {
+    await apiFetch(`account/notifications/${id}`, {
+      method: "DELETE",
       headers: {
         Authorization: `Bearer ${token}`
       },

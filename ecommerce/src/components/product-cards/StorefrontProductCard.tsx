@@ -13,6 +13,10 @@ import { H4, Paragraph, Small } from "@component/Typography";
 import useCart from "@hook/useCart";
 import ProductQuickActions from "./ProductQuickActions";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
+import {
+  buildPublishedParametricDetailHref,
+  buildPublishedParametricLineId
+} from "@/lib/storefront/published-parametric";
 import type { InventoryStatus, ProductMode, ProductVariantAttribute } from "@/types/storefront";
 
 const Wrapper = styled(Box)({
@@ -85,7 +89,15 @@ export default function StorefrontProductCard({
   const { state, dispatch } = useCart();
   const { formatAmount, baseCurrency } = useMoneyFormatter();
 
-  const cartItem = state.cart.find((item) => item.id === id || item.slug === slug);
+  const cartLineId =
+    mode === "parametric" && variantKey
+      ? buildPublishedParametricLineId(id, variantKey)
+      : id;
+  const detailHref =
+    mode === "parametric"
+      ? buildPublishedParametricDetailHref(slug, configuration ?? undefined)
+      : `/product/${slug}`;
+  const cartItem = state.cart.find((item) => item.id === cartLineId || item.slug === slug);
   const primaryImage = typeof imgUrl === "string" && imgUrl.trim() ? imgUrl.trim() : undefined;
   const gallery = useMemo(() => {
     const list =
@@ -102,7 +114,7 @@ export default function StorefrontProductCard({
     dispatch({
       type: "CHANGE_CART_AMOUNT",
       payload: {
-        id,
+        id: cartLineId,
         slug,
         price,
         currency: currencyCode ?? baseCurrency,
@@ -121,11 +133,11 @@ export default function StorefrontProductCard({
   }, [
     attributes,
     baseCurrency,
+    cartLineId,
     cartItem?.qty,
     configuration,
     currencyCode,
     dispatch,
-    id,
     inventoryStatus,
     mode,
     primaryImage,
@@ -145,7 +157,7 @@ export default function StorefrontProductCard({
   return (
     <Wrapper>
       <Media>
-        <Link href={`/product/${slug}`}>
+        <Link href={detailHref}>
           {primaryImage ? (
             <NextImage
               width={300}
@@ -183,7 +195,7 @@ export default function StorefrontProductCard({
           </Small>
         ) : null}
 
-        <Link href={`/product/${slug}`}>
+        <Link href={detailHref}>
           <Paragraph fontWeight="600" mb="0.35rem">
             {title}
           </Paragraph>

@@ -72,7 +72,7 @@ const DEFAULT_SETTINGS: DefaultSetting[] = [
     eventType: NotificationEventType.ORDER_RECEIVED,
     audience: NotificationAudience.CUSTOMER,
     channel: NotificationChannel.EMAIL,
-    enabled: false,
+    enabled: true,
     emailSubject: 'We received your order',
   },
   {
@@ -100,7 +100,7 @@ const DEFAULT_SETTINGS: DefaultSetting[] = [
     eventType: NotificationEventType.PAYMENT_RECEIVED,
     audience: NotificationAudience.CUSTOMER,
     channel: NotificationChannel.EMAIL,
-    enabled: false,
+    enabled: true,
     emailSubject: 'Payment received for your order',
   },
   {
@@ -128,7 +128,7 @@ const DEFAULT_SETTINGS: DefaultSetting[] = [
     eventType: NotificationEventType.ORDER_STATUS_CHANGED,
     audience: NotificationAudience.CUSTOMER,
     channel: NotificationChannel.EMAIL,
-    enabled: false,
+    enabled: true,
   },
   {
     eventType: NotificationEventType.ORDER_STATUS_CHANGED,
@@ -141,10 +141,29 @@ const DEFAULT_SETTINGS: DefaultSetting[] = [
     eventType: NotificationEventType.ORDER_STATUS_CHANGED,
     audience: NotificationAudience.ADMIN,
     channel: NotificationChannel.EMAIL,
-    enabled: false,
+    enabled: true,
     roles: [Role.SUPERADMIN, Role.ADMIN, Role.OPS, Role.SALES],
   },
 ]
+
+const LEGACY_EMAIL_ENABLE_PATCHES: Record<string, { enabled: boolean; emailSubject?: string | null }> = {
+  'ORDER_RECEIVED:CUSTOMER:EMAIL': {
+    enabled: true,
+    emailSubject: 'We received your order',
+  },
+  'PAYMENT_RECEIVED:CUSTOMER:EMAIL': {
+    enabled: true,
+    emailSubject: 'Payment received for your order',
+  },
+  'ORDER_STATUS_CHANGED:CUSTOMER:EMAIL': {
+    enabled: true,
+    emailSubject: null,
+  },
+  'ORDER_STATUS_CHANGED:ADMIN:EMAIL': {
+    enabled: true,
+    emailSubject: null,
+  },
+}
 
 @Injectable()
 export class NotificationSettingsService {
@@ -373,10 +392,30 @@ export class NotificationSettingsService {
       updates.push({ id: record.id, roles: nextRoles })
     }
 
-    for (const update of updates) {
+    const settingUpdates: Array<{ id: number; data: Prisma.NotificationSettingUpdateInput }> = updates.map((update) => ({
+      id: update.id,
+      data: { roles: update.roles },
+    }))
+
+    for (const [key, patch] of Object.entries(LEGACY_EMAIL_ENABLE_PATCHES)) {
+      const record = updatedRecords.get(key)
+      if (!record) continue
+      if (record.enabled === patch.enabled) continue
+      const untouchedLegacyRecord = record.createdAt.getTime() === record.updatedAt.getTime()
+      if (!untouchedLegacyRecord) continue
+      settingUpdates.push({
+        id: record.id,
+        data: {
+          enabled: patch.enabled,
+          ...(patch.emailSubject !== undefined ? { emailSubject: patch.emailSubject } : {}),
+        },
+      })
+    }
+
+    for (const update of settingUpdates) {
       await this.prisma.notificationSetting.update({
         where: { id: update.id },
-        data: { roles: update.roles },
+        data: update.data,
       })
     }
   }

@@ -148,8 +148,8 @@ const orderItemsTableEs = buildOrderItemsTable({ item: 'Producto', qty: 'Cant.',
 const totalsBlockEn = buildTotalsBlock({ subtotal: 'Subtotal', tax: 'Tax', total: 'Total' })
 const totalsBlockEs = buildTotalsBlock({ subtotal: 'Subtotal', tax: 'Impuestos', total: 'Total' })
 
-const orderCustomerSubjectEn = `[{{companyName}}] {{eventLabel payload.event}} {{#if payload.orderNumber}}#{{payload.orderNumber}}{{/if}}`
-const orderCustomerSubjectEs = `[{{companyName}}] {{eventLabel payload.event}} {{#if payload.orderNumber}}#{{payload.orderNumber}}{{/if}}`
+const orderCustomerSubjectEn = `{{eventLabel payload.event}} {{#if payload.orderNumber}}#{{payload.orderNumber}}{{/if}}`
+const orderCustomerSubjectEs = `{{eventLabel payload.event}} {{#if payload.orderNumber}}#{{payload.orderNumber}}{{/if}}`
 const orderAdminSubjectEn = `[{{companyName}} - Admin] New order received {{#if payload.orderNumber}}#{{payload.orderNumber}}{{/if}}`
 const orderAdminSubjectEs = `[{{companyName}} - Admin] Nuevo pedido recibido {{#if payload.orderNumber}}#{{payload.orderNumber}}{{/if}}`
 
@@ -255,6 +255,9 @@ ${paragraph('{{eventAdminMessage payload}}')}
 ${dataTable(`
   ${tableRow('Order number', '{{default payload.orderNumber payload.orderId}}')}
   ${tableRow('Customer', '{{default payload.customer.name payload.customer.email}} ({{payload.customer.email}})')}
+  {{#if payload.customer.phone}}
+    ${tableRow('Phone', '{{payload.customer.phone}}')}
+  {{/if}}
   ${tableRow('Order date', '{{payload.orderDate}}')}
   {{#if payload.status}}
     ${tableRow('Status', '{{payload.status}}')}
@@ -304,6 +307,9 @@ ${paragraph('{{eventAdminMessage payload}}')}
 ${dataTable(`
   ${tableRow('Número de pedido', '{{default payload.orderNumber payload.orderId}}')}
   ${tableRow('Cliente', '{{default payload.customer.name payload.customer.email}} ({{payload.customer.email}})')}
+  {{#if payload.customer.phone}}
+    ${tableRow('Teléfono', '{{payload.customer.phone}}')}
+  {{/if}}
   ${tableRow('Fecha del pedido', '{{payload.orderDate}}')}
   {{#if payload.status}}
     ${tableRow('Estado', '{{payload.status}}')}
@@ -348,31 +354,89 @@ ${paragraph('Notificación automática generada por el sistema.', styles.muted)}
 `)
 
 const paymentCustomerEn = wrapWithLayout(`
-${heading('Payment confirmation')}
+${heading('{{#if payload.isFullyPaid}}Payment confirmed{{else}}Partial payment received{{/if}}')}
 ${paragraph(
-  'We received a payment of {{payload.amount}} {{payload.currency}} for order {{#if payload.orderNumber}}#{{payload.orderNumber}}{{else}}#{{payload.orderId}}{{/if}} on {{payload.processedAt}} ({{payload.status}}).',
+  '{{#if payload.isFullyPaid}}We confirmed your payment for order {{#if payload.orderNumber}}#{{payload.orderNumber}}{{else}}#{{payload.orderId}}{{/if}}. Your purchase is fully paid and continues to the next stage.{{else}}We confirmed a partial payment for order {{#if payload.orderNumber}}#{{payload.orderNumber}}{{else}}#{{payload.orderId}}{{/if}}. The remaining balance is shown below.{{/if}}',
 )}
 ${dataTable(`
+  ${tableRow('Order number', '{{default payload.orderNumber payload.orderId}}')}
+  {{#if payload.orderDate}}
+    ${tableRow('Order date', '{{payload.orderDate}}')}
+  {{/if}}
+  {{#if payload.orderStatus}}
+    ${tableRow('Order status', '{{payload.orderStatus}}')}
+  {{/if}}
+  ${tableRow('Payment amount', '{{formatCurrency payload.amountRaw payload.currency}}')}
+  ${tableRow('Paid so far', '{{formatCurrency payload.totals.totalPaidRaw payload.totals.currency}}')}
+  ${tableRow('Remaining balance', '{{formatCurrency payload.totals.remainingRaw payload.totals.currency}}')}
+  ${tableRow('Order total', '{{formatCurrency payload.totals.grandTotalRaw payload.totals.currency}}')}
+  ${tableRow('Payment status', '{{payload.statusLabel}}')}
   ${tableRow('Method', '{{payload.method}}')}
   ${tableRow('Reference', '{{#if payload.paymentId}}#{{payload.paymentId}}{{else}}-{{/if}}')}
+  {{#if payload.reference}}
+    ${tableRow('Provider reference', '{{payload.reference}}')}
+  {{/if}}
+  ${tableRow('Processed at', '{{payload.processedAt}}')}
 `)}
+${divider()}
+${sectionTitle('Order summary')}
+${orderItemsTableEn}
+${dataTable(`
+  ${tableRow('Paid so far', '{{formatCurrency payload.totals.totalPaidRaw payload.totals.currency}}')}
+  ${tableRow('Remaining balance', '{{formatCurrency payload.totals.remainingRaw payload.totals.currency}}')}
+  ${tableRow('Order total', '<strong>{{formatCurrency payload.totals.grandTotalRaw payload.totals.currency}}</strong>')}
+`)}
+{{#if payload.links.customer}}
+  ${buildButton('{{payload.links.customer}}', 'View order details')}
+{{else if payload.portalUrl}}
+  ${buildButton('{{payload.portalUrl}}', 'View your orders')}
+{{/if}}
 {{#if payload.portalUrl}}
-  ${buildButton('{{payload.portalUrl}}', 'View payment details')}
+  ${paragraph('You can review the latest status from your customer account.', styles.muted)}
 {{/if}}
 ${paragraph('Keep this receipt for your records.', styles.muted)}
 `)
 
 const paymentCustomerEs = wrapWithLayout(`
-${heading('Confirmación de pago')}
+${heading('{{#if payload.isFullyPaid}}Pago confirmado{{else}}Pago parcial recibido{{/if}}')}
 ${paragraph(
-  'Recibimos un pago de {{payload.amount}} {{payload.currency}} para el pedido {{#if payload.orderNumber}}#{{payload.orderNumber}}{{else}}#{{payload.orderId}}{{/if}} el {{payload.processedAt}} ({{payload.status}}).',
+  '{{#if payload.isFullyPaid}}Confirmamos tu pago para el pedido {{#if payload.orderNumber}}#{{payload.orderNumber}}{{else}}#{{payload.orderId}}{{/if}}. Tu compra quedó totalmente pagada y sigue a la próxima etapa.{{else}}Confirmamos un pago parcial para el pedido {{#if payload.orderNumber}}#{{payload.orderNumber}}{{else}}#{{payload.orderId}}{{/if}}. El saldo pendiente se muestra debajo.{{/if}}',
 )}
 ${dataTable(`
+  ${tableRow('Número de pedido', '{{default payload.orderNumber payload.orderId}}')}
+  {{#if payload.orderDate}}
+    ${tableRow('Fecha del pedido', '{{payload.orderDate}}')}
+  {{/if}}
+  {{#if payload.orderStatus}}
+    ${tableRow('Estado del pedido', '{{payload.orderStatus}}')}
+  {{/if}}
+  ${tableRow('Monto del pago', '{{formatCurrency payload.amountRaw payload.currency}}')}
+  ${tableRow('Pagado hasta ahora', '{{formatCurrency payload.totals.totalPaidRaw payload.totals.currency}}')}
+  ${tableRow('Saldo pendiente', '{{formatCurrency payload.totals.remainingRaw payload.totals.currency}}')}
+  ${tableRow('Total del pedido', '{{formatCurrency payload.totals.grandTotalRaw payload.totals.currency}}')}
+  ${tableRow('Estado del pago', '{{payload.statusLabel}}')}
   ${tableRow('Método', '{{payload.method}}')}
   ${tableRow('Referencia', '{{#if payload.paymentId}}#{{payload.paymentId}}{{else}}-{{/if}}')}
+  {{#if payload.reference}}
+    ${tableRow('Referencia del proveedor', '{{payload.reference}}')}
+  {{/if}}
+  ${tableRow('Procesado el', '{{payload.processedAt}}')}
 `)}
+${divider()}
+${sectionTitle('Resumen del pedido')}
+${orderItemsTableEs}
+${dataTable(`
+  ${tableRow('Pagado hasta ahora', '{{formatCurrency payload.totals.totalPaidRaw payload.totals.currency}}')}
+  ${tableRow('Saldo pendiente', '{{formatCurrency payload.totals.remainingRaw payload.totals.currency}}')}
+  ${tableRow('Total del pedido', '<strong>{{formatCurrency payload.totals.grandTotalRaw payload.totals.currency}}</strong>')}
+`)}
+{{#if payload.links.customer}}
+  ${buildButton('{{payload.links.customer}}', 'Ver detalle del pedido')}
+{{else if payload.portalUrl}}
+  ${buildButton('{{payload.portalUrl}}', 'Ver mis compras')}
+{{/if}}
 {{#if payload.portalUrl}}
-  ${buildButton('{{payload.portalUrl}}', 'Ver detalle del pago')}
+  ${paragraph('Podés revisar el estado actualizado desde tu cuenta de cliente.', styles.muted)}
 {{/if}}
 ${paragraph('Guardá este comprobante para tus registros.', styles.muted)}
 `)
@@ -380,65 +444,135 @@ ${paragraph('Guardá este comprobante para tus registros.', styles.muted)}
 const paymentAdminEn = wrapWithLayout(`
 ${heading('Payment received')}
 ${paragraph(
-  'Payment {{payload.amount}} {{payload.currency}} for order {{#if payload.orderNumber}}#{{payload.orderNumber}}{{else}}#{{payload.orderId}}{{/if}} was recorded on {{payload.processedAt}} with status {{payload.status}}.',
+  'A payment was recorded for order {{#if payload.orderNumber}}#{{payload.orderNumber}}{{else}}#{{payload.orderId}}{{/if}}. Review the settlement details below.',
 )}
 ${dataTable(`
+  ${tableRow('Order number', '{{default payload.orderNumber payload.orderId}}')}
   ${tableRow('Customer', '{{payload.customer.name}} ({{payload.customer.email}})')}
+  {{#if payload.customer.phone}}
+    ${tableRow('Phone', '{{payload.customer.phone}}')}
+  {{/if}}
+  {{#if payload.orderStatus}}
+    ${tableRow('Order status', '{{payload.orderStatus}}')}
+  {{/if}}
+  ${tableRow('Payment amount', '{{formatCurrency payload.amountRaw payload.currency}}')}
+  ${tableRow('Paid so far', '{{formatCurrency payload.totals.totalPaidRaw payload.totals.currency}}')}
+  ${tableRow('Remaining balance', '{{formatCurrency payload.totals.remainingRaw payload.totals.currency}}')}
+  ${tableRow('Order total', '{{formatCurrency payload.totals.grandTotalRaw payload.totals.currency}}')}
+  ${tableRow('Payment status', '{{payload.statusLabel}}')}
   ${tableRow('Method', '{{payload.method}}')}
+  ${tableRow('Reference', '{{#if payload.paymentId}}#{{payload.paymentId}}{{else}}-{{/if}}')}
+  {{#if payload.reference}}
+    ${tableRow('Provider reference', '{{payload.reference}}')}
+  {{/if}}
+  ${tableRow('Processed at', '{{payload.processedAt}}')}
 `)}
-{{#if payload.portalUrl}}
-  ${buildButton('{{payload.portalUrl}}', 'Review payment')}
+${divider()}
+${sectionTitle('Order summary')}
+${orderItemsTableEn}
+${dataTable(`
+  ${tableRow('Paid so far', '{{formatCurrency payload.totals.totalPaidRaw payload.totals.currency}}')}
+  ${tableRow('Remaining balance', '{{formatCurrency payload.totals.remainingRaw payload.totals.currency}}')}
+  ${tableRow('Order total', '<strong>{{formatCurrency payload.totals.grandTotalRaw payload.totals.currency}}</strong>')}
+`)}
+{{#if payload.links.admin}}
+  ${buildButton('{{payload.links.admin}}', 'Open order in dashboard')}
+{{else if payload.adminUrl}}
+  ${buildButton('{{payload.adminUrl}}', 'Open dashboard')}
 {{/if}}
 `)
 
 const paymentAdminEs = wrapWithLayout(`
 ${heading('Pago recibido')}
 ${paragraph(
-  'Se registró un pago de {{payload.amount}} {{payload.currency}} para el pedido {{#if payload.orderNumber}}#{{payload.orderNumber}}{{else}}#{{payload.orderId}}{{/if}} el {{payload.processedAt}} con estado {{payload.status}}.',
+  'Se registró un pago para el pedido {{#if payload.orderNumber}}#{{payload.orderNumber}}{{else}}#{{payload.orderId}}{{/if}}. Revisá debajo el estado de cobranza.',
 )}
 ${dataTable(`
+  ${tableRow('Número de pedido', '{{default payload.orderNumber payload.orderId}}')}
   ${tableRow('Cliente', '{{payload.customer.name}} ({{payload.customer.email}})')}
+  {{#if payload.customer.phone}}
+    ${tableRow('Teléfono', '{{payload.customer.phone}}')}
+  {{/if}}
+  {{#if payload.orderStatus}}
+    ${tableRow('Estado del pedido', '{{payload.orderStatus}}')}
+  {{/if}}
+  ${tableRow('Monto del pago', '{{formatCurrency payload.amountRaw payload.currency}}')}
+  ${tableRow('Pagado hasta ahora', '{{formatCurrency payload.totals.totalPaidRaw payload.totals.currency}}')}
+  ${tableRow('Saldo pendiente', '{{formatCurrency payload.totals.remainingRaw payload.totals.currency}}')}
+  ${tableRow('Total del pedido', '{{formatCurrency payload.totals.grandTotalRaw payload.totals.currency}}')}
+  ${tableRow('Estado del pago', '{{payload.statusLabel}}')}
   ${tableRow('Método', '{{payload.method}}')}
+  ${tableRow('Referencia', '{{#if payload.paymentId}}#{{payload.paymentId}}{{else}}-{{/if}}')}
+  {{#if payload.reference}}
+    ${tableRow('Referencia del proveedor', '{{payload.reference}}')}
+  {{/if}}
+  ${tableRow('Procesado el', '{{payload.processedAt}}')}
 `)}
-{{#if payload.portalUrl}}
-  ${buildButton('{{payload.portalUrl}}', 'Revisar pago')}
+${divider()}
+${sectionTitle('Resumen del pedido')}
+${orderItemsTableEs}
+${dataTable(`
+  ${tableRow('Pagado hasta ahora', '{{formatCurrency payload.totals.totalPaidRaw payload.totals.currency}}')}
+  ${tableRow('Saldo pendiente', '{{formatCurrency payload.totals.remainingRaw payload.totals.currency}}')}
+  ${tableRow('Total del pedido', '<strong>{{formatCurrency payload.totals.grandTotalRaw payload.totals.currency}}</strong>')}
+`)}
+{{#if payload.links.admin}}
+  ${buildButton('{{payload.links.admin}}', 'Abrir pedido en el panel')}
+{{else if payload.adminUrl}}
+  ${buildButton('{{payload.adminUrl}}', 'Abrir panel')}
 {{/if}}
 `)
 
 const resetCustomerEn = wrapWithLayout(`
 ${heading(
-  "{{#if (eq payload.event 'password_changed')}}Your password was updated{{else if (eq payload.event 'recovery_notice')}}Password recovery requested{{else}}Reset your password{{/if}}",
+  "{{#if (eq payload.event 'welcome')}}Welcome to {{companyName}}{{else if (eq payload.event 'verify_email')}}Confirm your email{{else if (eq payload.event 'password_changed')}}Your password was updated{{else if (eq payload.event 'recovery_notice')}}Password recovery requested{{else}}Reset your password{{/if}}",
 )}
 ${paragraph(
-  "{{#if (eq payload.event 'password_changed')}}Hello {{payload.displayName}}, your password was just updated. If you did not make this change, secure your account immediately.{{else if (eq payload.event 'recovery_notice')}}Hello {{payload.displayName}}, we received a request to recover access to your account. If it was you, follow the steps below. If not, secure your account to keep it safe.{{else}}Hello {{payload.displayName}}, we received a request to reset your password. Use the button below to choose a new one.{{#if payload.expiresAt}} This link expires on {{payload.expiresAt}}.{{/if}}{{/if}}",
+  "{{#if (eq payload.event 'welcome')}}Hello {{payload.displayName}}, your account is ready. You can now review your orders, addresses, and profile details from your customer account.{{else if (eq payload.event 'verify_email')}}Hello {{payload.displayName}}, please confirm your email address to complete the activation of your account.{{#if payload.expiresAt}} This link expires on {{payload.expiresAt}}.{{/if}}{{else if (eq payload.event 'password_changed')}}Hello {{payload.displayName}}, your password was just updated. If you did not make this change, secure your account immediately.{{else if (eq payload.event 'recovery_notice')}}Hello {{payload.displayName}}, we received a request to recover access to your account. If it was you, follow the steps below. If not, secure your account to keep it safe.{{else}}Hello {{payload.displayName}}, we received a request to reset your password. Use the button below to choose a new one.{{#if payload.expiresAt}} This link expires on {{payload.expiresAt}}.{{/if}}{{/if}}",
 )}
-{{#if payload.resetUrl}}
+{{#if (eq payload.event 'welcome')}}
+  {{#if payload.accountUrl}}
+    ${buildButton('{{payload.accountUrl}}', 'Go to my account')}
+  {{/if}}
+{{else if (eq payload.event 'verify_email')}}
+  {{#if payload.resetUrl}}
+    ${buildButton('{{payload.resetUrl}}', 'Confirm email')}
+  {{/if}}
+{{else if payload.resetUrl}}
   ${buildButton(
     '{{payload.resetUrl}}',
     "{{#if (eq payload.event 'reset_link')}}Reset password{{else}}Secure account{{/if}}",
   )}
 {{/if}}
 ${paragraph(
-  "{{#if (eq payload.event 'password_changed')}}If you did not authorize this change, secure your account or contact us immediately.{{else if (eq payload.event 'recovery_notice')}}If this wasn't you, secure your account to prevent unauthorized access.{{else}}Didn't request this? You can safely ignore this email.{{/if}}",
+  "{{#if (eq payload.event 'welcome')}}If you need help getting started, reply to this email and our team will assist you.{{else if (eq payload.event 'verify_email')}}If you did not create this account, you can safely ignore this message.{{else if (eq payload.event 'password_changed')}}If you did not authorize this change, secure your account or contact us immediately.{{else if (eq payload.event 'recovery_notice')}}If this wasn't you, secure your account to prevent unauthorized access.{{else}}Didn't request this? You can safely ignore this email.{{/if}}",
   styles.muted,
 )}
 `)
 
 const resetCustomerEs = wrapWithLayout(`
 ${heading(
-  "{{#if (eq payload.event 'password_changed')}}Tu contraseña fue actualizada{{else if (eq payload.event 'recovery_notice')}}Solicitud de recuperación{{else}}Restablecé tu contraseña{{/if}}",
+  "{{#if (eq payload.event 'welcome')}}Bienvenido a {{companyName}}{{else if (eq payload.event 'verify_email')}}Confirmá tu correo electrónico{{else if (eq payload.event 'password_changed')}}Tu contraseña fue actualizada{{else if (eq payload.event 'recovery_notice')}}Solicitud de recuperación{{else}}Restablecé tu contraseña{{/if}}",
 )}
 ${paragraph(
-  "{{#if (eq payload.event 'password_changed')}}Hola {{payload.displayName}}, acabamos de actualizar tu contraseña. Si no fuiste vos, asegurá tu cuenta de inmediato.{{else if (eq payload.event 'recovery_notice')}}Hola {{payload.displayName}}, recibimos una solicitud para recuperar el acceso a tu cuenta. Si fuiste vos, seguí los pasos a continuación. Si no la hiciste, protegé tu cuenta.{{else}}Hola {{payload.displayName}}, recibimos una solicitud para restablecer tu contraseña. Utilizá el siguiente botón para crear una nueva.{{#if payload.expiresAt}} El enlace vence el {{payload.expiresAt}}.{{/if}}{{/if}}",
+  "{{#if (eq payload.event 'welcome')}}Hola {{payload.displayName}}, tu cuenta ya está lista. Desde tu perfil podés seguir tus pedidos, administrar tus direcciones y actualizar tus datos.{{else if (eq payload.event 'verify_email')}}Hola {{payload.displayName}}, confirmá tu correo electrónico para terminar de activar tu cuenta.{{#if payload.expiresAt}} Este enlace vence el {{payload.expiresAt}}.{{/if}}{{else if (eq payload.event 'password_changed')}}Hola {{payload.displayName}}, acabamos de actualizar tu contraseña. Si no fuiste vos, asegurá tu cuenta de inmediato.{{else if (eq payload.event 'recovery_notice')}}Hola {{payload.displayName}}, recibimos una solicitud para recuperar el acceso a tu cuenta. Si fuiste vos, seguí los pasos a continuación. Si no la hiciste, protegé tu cuenta.{{else}}Hola {{payload.displayName}}, recibimos una solicitud para restablecer tu contraseña. Utilizá el siguiente botón para crear una nueva.{{#if payload.expiresAt}} El enlace vence el {{payload.expiresAt}}.{{/if}}{{/if}}",
 )}
-{{#if payload.resetUrl}}
+{{#if (eq payload.event 'welcome')}}
+  {{#if payload.accountUrl}}
+    ${buildButton('{{payload.accountUrl}}', 'Ir a mi cuenta')}
+  {{/if}}
+{{else if (eq payload.event 'verify_email')}}
+  {{#if payload.resetUrl}}
+    ${buildButton('{{payload.resetUrl}}', 'Confirmar correo')}
+  {{/if}}
+{{else if payload.resetUrl}}
   ${buildButton(
     '{{payload.resetUrl}}',
     "{{#if (eq payload.event 'reset_link')}}Restablecer contraseña{{else}}Proteger cuenta{{/if}}",
   )}
 {{/if}}
 ${paragraph(
-  "{{#if (eq payload.event 'password_changed')}}Si no realizaste este cambio, asegurá tu cuenta o contactanos de inmediato.{{else if (eq payload.event 'recovery_notice')}}Si no fuiste vos, protegé tu cuenta para evitar accesos no autorizados.{{else}}¿No solicitaste esto? Podés ignorar este mensaje.{{/if}}",
+  "{{#if (eq payload.event 'welcome')}}Si necesitás ayuda para empezar, respondé este correo y te ayudaremos.{{else if (eq payload.event 'verify_email')}}Si no creaste esta cuenta, podés ignorar este mensaje.{{else if (eq payload.event 'password_changed')}}Si no realizaste este cambio, asegurá tu cuenta o contactanos de inmediato.{{else if (eq payload.event 'recovery_notice')}}Si no fuiste vos, protegé tu cuenta para evitar accesos no autorizados.{{else}}¿No solicitaste esto? Podés ignorar este mensaje.{{/if}}",
   styles.muted,
 )}
 `)
@@ -486,7 +620,7 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.ORDERS,
     variant: EmailTemplateVariant.CUSTOMER,
     locale: 'en',
-    version: 6,
+    version: 7,
     subject: orderCustomerSubjectEn,
     body: orderCustomerEn,
   },
@@ -494,7 +628,7 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.ORDERS,
     variant: EmailTemplateVariant.CUSTOMER,
     locale: 'es',
-    version: 6,
+    version: 7,
     subject: orderCustomerSubjectEs,
     body: orderCustomerEs,
   },
@@ -502,7 +636,7 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.ORDERS,
     variant: EmailTemplateVariant.ADMIN,
     locale: 'en',
-    version: 6,
+    version: 7,
     subject: orderAdminSubjectEn,
     body: orderAdminEn,
   },
@@ -510,7 +644,7 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.ORDERS,
     variant: EmailTemplateVariant.ADMIN,
     locale: 'es',
-    version: 6,
+    version: 7,
     subject: orderAdminSubjectEs,
     body: orderAdminEs,
   },
@@ -518,23 +652,23 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.PAYMENTS,
     variant: EmailTemplateVariant.CUSTOMER,
     locale: 'en',
-    version: 2,
-    subject: '[{{companyName}}] Payment received for order #{{payload.orderNumber}}',
+    version: 4,
+    subject: 'Payment received for order #{{payload.orderNumber}}',
     body: paymentCustomerEn,
   },
   {
     category: EmailCategory.PAYMENTS,
     variant: EmailTemplateVariant.CUSTOMER,
     locale: 'es',
-    version: 2,
-    subject: '[{{companyName}}] Pago recibido para el pedido #{{payload.orderNumber}}',
+    version: 4,
+    subject: 'Pago recibido para el pedido #{{payload.orderNumber}}',
     body: paymentCustomerEs,
   },
   {
     category: EmailCategory.PAYMENTS,
     variant: EmailTemplateVariant.ADMIN,
     locale: 'en',
-    version: 2,
+    version: 3,
     subject: '[Payments] Payment received for order #{{payload.orderNumber}}',
     body: paymentAdminEn,
   },
@@ -542,7 +676,7 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.PAYMENTS,
     variant: EmailTemplateVariant.ADMIN,
     locale: 'es',
-    version: 2,
+    version: 3,
     subject: '[Pagos] Pago registrado para el pedido #{{payload.orderNumber}}',
     body: paymentAdminEs,
   },
@@ -550,16 +684,18 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.AUTH,
     variant: EmailTemplateVariant.CUSTOMER,
     locale: 'en',
-    version: 2,
-    subject: 'Reset your {{companyName}} password',
+    version: 4,
+    subject:
+      "{{#if (eq payload.event 'welcome')}}Welcome to {{companyName}}{{else if (eq payload.event 'verify_email')}}Confirm your email for {{companyName}}{{else if (eq payload.event 'password_changed')}}Your {{companyName}} password was updated{{else if (eq payload.event 'recovery_notice')}}Password recovery requested for {{companyName}}{{else}}Reset your {{companyName}} password{{/if}}",
     body: resetCustomerEn,
   },
   {
     category: EmailCategory.AUTH,
     variant: EmailTemplateVariant.CUSTOMER,
     locale: 'es',
-    version: 2,
-    subject: 'Restablecé tu contraseña de {{companyName}}',
+    version: 4,
+    subject:
+      "{{#if (eq payload.event 'welcome')}}Bienvenido a {{companyName}}{{else if (eq payload.event 'verify_email')}}Confirmá tu correo para {{companyName}}{{else if (eq payload.event 'password_changed')}}Tu contraseña de {{companyName}} fue actualizada{{else if (eq payload.event 'recovery_notice')}}Solicitud de recuperación para {{companyName}}{{else}}Restablecé tu contraseña de {{companyName}}{{/if}}",
     body: resetCustomerEs,
   },
   {

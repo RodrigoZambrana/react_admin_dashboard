@@ -509,6 +509,15 @@ const baseAppsRoute: Routes = [
         component: lazy(() => import('@/views/settings/CalendarEventTypes')),
         authority: getRolesForFeature(FEATURES.SETTINGS),
     },
+    {
+        key: 'appsCms.content',
+        path: `${APP_PREFIX_PATH}/cms/content`,
+        component: lazy(() => import('@/views/cms/ContentManager')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'CMS Content',
+        },
+    },
     // Users
     {
         key: 'appsUsers.userList',

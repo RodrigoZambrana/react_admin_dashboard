@@ -22,6 +22,8 @@ ENV CLIENT_SLUG=${CLIENT_SLUG}
 RUN apk add --no-cache postgresql-client
 COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
+COPY prisma.config.ts ./prisma.config.ts
+COPY tsconfig.seed.json ./tsconfig.seed.json
 COPY --from=build /app/dist ./dist
 COPY prisma ./prisma
 COPY --from=build /app/scripts ./scripts

@@ -19,7 +19,7 @@ import { useCheckout } from "@/state/checkout-context";
 import { useCurrency } from "@/state/currency-context";
 import { useStorefrontCart } from "@/state/cart-context";
 import type { CheckoutPayment } from "@/state/checkout-context";
-import type { CreateOrderPayload, Money, OrderSummary } from "@/types/storefront";
+import type { CheckoutSummary, CreateOrderPayload, Money, OrderSummary } from "@/types/storefront";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import { useToast } from "@/contexts/ToastContext";
 import {
@@ -130,7 +130,13 @@ const mapOrderPaymentToCheckoutPayment = (
     };
   }
 
-  if (provider === "cod" || provider === "cash" || provider === "cash on delivery") {
+  if (
+    provider === "cod" ||
+    provider === "cash" ||
+    provider === "cash on delivery" ||
+    provider === "efectivo" ||
+    provider === "pago contra entrega"
+  ) {
     return { method: "cod" };
   }
 
@@ -192,11 +198,22 @@ export default function ReviewClient() {
   const [confirmedContact, setConfirmedContact] = useState<{ name: string; email: string } | null>(
     null
   );
+  const [preparedSummary, setPreparedSummary] = useState<CheckoutSummary | null>(null);
   const { formatMoney: formatDisplayMoney } = useMoneyFormatter();
   const toast = useToast();
   const { currency: activeCurrency } = useCurrency();
 
   const reviewItems = useMemo<ReviewItem[]>(() => {
+    if (preparedSummary?.items?.length) {
+      return preparedSummary.items.map((item) => ({
+        id: `${item.productId}-${item.variantId ?? "base"}`,
+        name: item.name ?? t("checkout.review.items.productFallback", { values: { id: item.productId } }),
+        quantity: item.quantity,
+        unitPrice: item.price,
+        lineTotal: item.total
+      }));
+    }
+
     return cartState.items.map((item) => {
       const unitPrice = normalizeMoney(item.product.salePrice ?? item.product.price);
       const lineTotal = normalizeMoney({
@@ -211,7 +228,7 @@ export default function ReviewClient() {
         lineTotal
       };
     });
-  }, [cartState.items]);
+  }, [cartState.items, preparedSummary?.items, t]);
 
   useEffect(() => {
     if (!lastOrder && cartState.items.length === 0) {
@@ -226,6 +243,85 @@ export default function ReviewClient() {
   }, [hasPayment, lastOrder, router]);
 
   const orderItemsData = useMemo(() => buildCheckoutOrderItems(cartState.items), [cartState.items]);
+
+  const previewPayload = useMemo<CreateOrderPayload | null>(() => {
+    if (!shippingOption?.id || orderItemsData.items.length === 0 || orderItemsData.error) {
+      return null;
+    }
+
+    const resolvedZip =
+      typeof shippingAddress.zip === "string" && shippingAddress.zip.trim().length > 0
+        ? shippingAddress.zip.trim()
+        : DEFAULT_POSTAL_CODE_BY_COUNTRY[shippingAddress.country] ?? POSTAL_CODE_FALLBACK;
+
+    return {
+      customer: {
+        ...(contact.email ? { email: contact.email } : {}),
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        phone: contact.phone ?? "",
+        locale
+      },
+      shippingAddress: {
+        line1: shippingAddress.line1,
+        line2: shippingAddress.line2 || undefined,
+        city: shippingAddress.city,
+        state: shippingAddress.state || undefined,
+        zip: resolvedZip,
+        country: shippingAddress.country
+      },
+      items: orderItemsData.items,
+      notes: notes.trim().length > 0 ? notes.trim() : undefined,
+      checkoutToken,
+      shippingOptionId: shippingOption.id,
+      fulfillmentMode,
+      currency: activeCurrency
+    };
+  }, [
+    activeCurrency,
+    checkoutToken,
+    contact.email,
+    contact.firstName,
+    contact.lastName,
+    contact.phone,
+    fulfillmentMode,
+    locale,
+    notes,
+    orderItemsData.error,
+    orderItemsData.items,
+    shippingAddress.city,
+    shippingAddress.country,
+    shippingAddress.line1,
+    shippingAddress.line2,
+    shippingAddress.state,
+    shippingAddress.zip,
+    shippingOption?.id
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!previewPayload) {
+      setPreparedSummary(null);
+      return;
+    }
+
+    void StorefrontApi.previewCheckout(previewPayload)
+      .then((summary) => {
+        if (!cancelled) {
+          setPreparedSummary(summary);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreparedSummary(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewPayload]);
 
   const handlePlaceOrder = useCallback(async () => {
     if (isSubmitting) return;
@@ -248,7 +344,7 @@ export default function ReviewClient() {
       clearOrderLock(orderLockKey);
     }
 
-    if (!contact.firstName || !contact.lastName || !contact.email) {
+    if (!contact.firstName || !contact.lastName || !contact.phone) {
       const message = t("checkout.review.errors.contactIncompleteMessage");
       setErrorMessage(message);
       toast.error({
@@ -356,10 +452,10 @@ export default function ReviewClient() {
 
       const payload: CreateOrderPayload = {
         customer: {
-          email: contact.email,
+          ...(contact.email ? { email: contact.email } : {}),
           firstName: contact.firstName,
           lastName: contact.lastName,
-          phone: contact.phone && contact.phone.length > 0 ? contact.phone : undefined,
+          phone: contact.phone,
           locale
         },
         shippingAddress: shippingAddressPayload,
@@ -378,8 +474,8 @@ export default function ReviewClient() {
         mapOrderPaymentToCheckoutPayment(order.payment ?? null, order) ?? payment ?? null;
       setConfirmedPayment(normalizedPayment);
       setConfirmedContact({
-        name: nameForConfirmation || contact.email,
-        email: contact.email
+        name: nameForConfirmation || contact.email || contact.phone,
+        email: contact.email || contact.phone
       });
       if (orderLockKey && typeof window !== "undefined") {
         writeOrderLock(orderLockKey);
@@ -388,11 +484,25 @@ export default function ReviewClient() {
       reset();
       setLastOrder(order);
       const orderLabel = order.orderNumber || `#${order.id}`;
+      const isCashOrder = normalizedPayment?.method === "cod";
       toast.success({
-        title: t("checkout.review.toast.success.title"),
+        title: t(
+          isCashOrder
+            ? "checkout.review.toast.success.title.cod"
+            : "checkout.review.toast.success.title"
+        ),
         description: orderLabel
-          ? t("checkout.review.toast.success.descriptionWithId", { values: { orderLabel } })
-          : t("checkout.review.toast.success.description")
+          ? t(
+              isCashOrder
+                ? "checkout.review.toast.success.descriptionWithId.cod"
+                : "checkout.review.toast.success.descriptionWithId",
+              { values: { orderLabel } }
+            )
+          : t(
+              isCashOrder
+                ? "checkout.review.toast.success.description.cod"
+                : "checkout.review.toast.success.description"
+            )
       });
     } catch (cause) {
       const message = isApiError(cause)
@@ -503,10 +613,11 @@ export default function ReviewClient() {
       : t("checkout.delivery.estimate.pending"));
 
   const hasOrderConfirmation = Boolean(lastOrder);
+  const isCashConfirmation = (confirmedPayment ?? payment)?.method === "cod";
   const confirmationSummary = lastOrder?.summary;
   const confirmationName =
     confirmedContact?.name || contactName || t("checkout.review.confirmation.defaultName");
-  const confirmationEmail = confirmedContact?.email || contact.email;
+  const confirmationEmail = confirmedContact?.email || contact.email || contact.phone;
   const confirmationEmailLabel =
     confirmationEmail || t("checkout.review.confirmation.yourEmail");
   const confirmationOrderLabel = lastOrder
@@ -519,14 +630,18 @@ export default function ReviewClient() {
         <H2 fontWeight={600} mb="0.5rem">
           {t(
             hasOrderConfirmation
-              ? "checkout.review.heading.confirmed"
+              ? isCashConfirmation
+                ? "checkout.review.heading.confirmed.cod"
+                : "checkout.review.heading.confirmed"
               : "checkout.review.heading.review"
           )}
         </H2>
         <Paragraph color="text.muted" maxWidth="520px">
           {t(
             hasOrderConfirmation
-              ? "checkout.review.subheading.confirmed"
+              ? isCashConfirmation
+                ? "checkout.review.subheading.confirmed.cod"
+                : "checkout.review.subheading.confirmed"
               : "checkout.review.subheading.review"
           )}
         </Paragraph>
@@ -679,11 +794,11 @@ export default function ReviewClient() {
                 {t("checkout.review.contact.title")}
               </Typography>
               <Typography fontWeight="500" mb="0.25rem">
-                {contactName || contact.email}
+                {contactName || contact.email || contact.phone}
               </Typography>
               <Typography color="text.muted" mb="1rem">
-                {contact.email}
-                {contact.phone ? ` · ${contact.phone}` : ""}
+                {contact.email || contact.phone}
+                {contact.email && contact.phone ? ` · ${contact.phone}` : ""}
               </Typography>
               <Typography fontWeight="500" mb="0.25rem">
                 {t("checkout.review.contact.shippingTitle")}
@@ -719,7 +834,7 @@ export default function ReviewClient() {
           </Grid>
 
           <Grid item lg={4} md={4} xs={12}>
-            <CheckoutCostSummary actionHref={null} />
+            <CheckoutCostSummary actionHref={null} summaryOverride={preparedSummary} />
             {errorMessage && (
               <Typography color="error.main" mt="1rem">
                 {errorMessage}

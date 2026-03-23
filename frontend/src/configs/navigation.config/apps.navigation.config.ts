@@ -493,6 +493,16 @@ const appsNavigationConfig: NavigationTree[] = [
                         authority: getRolesForFeature(FEATURES.SETTINGS),
                         subMenu: [],
                     },
+                    {
+                        key: 'appsCms.content',
+                        path: `${APP_PREFIX_PATH}/cms/content`,
+                        title: 'CMS Content',
+                        translateKey: 'nav.appsCms.content',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
+                        subMenu: [],
+                    },
                 ],
             },
             // Cuenta

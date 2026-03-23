@@ -65,3 +65,9 @@ export class StorefrontUpdateProfileDto {
   @IsIn(['es', 'en'])
   locale?: string
 }
+
+export class StorefrontEmailVerificationDto {
+  @IsString()
+  @MinLength(10)
+  token!: string
+}

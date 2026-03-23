@@ -36,6 +36,7 @@ interface Product {
   published?: boolean;
   specifications?: Array<{ label: string; value: string }>;
   mode?: ProductMode;
+  variantKey?: string | null;
   variantAttributes?: ProductAttributeDefinition[];
   publishedParametricOptions?: PublishedParametricOptions;
   variantLabel?: string | null;

@@ -93,6 +93,7 @@ describe('StorefrontGoogleOAuthService', () => {
       storefront as any,
       googleConfig as any,
       security as any,
+      { sendWelcome: vi.fn().mockResolvedValue(undefined) } as any,
     )
   })
 
@@ -160,7 +161,9 @@ describe('StorefrontGoogleOAuthService', () => {
 
     vi.spyOn(service as any, 'exchangeAuthorizationCode').mockResolvedValue(tokenResponse)
     vi.spyOn(service as any, 'verifyIdToken').mockResolvedValue(idPayload)
-    vi.spyOn(service as any, 'linkCustomerAccount').mockImplementation(async () => ({ id: 1 }))
+    vi
+      .spyOn(service as any, 'linkCustomerAccount')
+      .mockImplementation(async () => ({ customer: { id: 1, email: 'buyer@example.com' }, isNewCustomer: false }))
 
     const result = await service.complete({ state: 'test-state', code: 'auth-code' })
 

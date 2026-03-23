@@ -13,6 +13,9 @@ Dejar registrados los hallazgos surgidos del testing exploratorio inicial del st
 - Para `urucortinas`, los productos paramétricos publicados no deben “cotizar” en checkout de forma arbitraria si ya representan un SKU público definido en backend.
 - Mercado Pago debe seguir recibiendo el monto en `UYU`, aunque el storefront pueda mostrar otras monedas al cliente.
 - Los cambios de UX menores no deben perder trazabilidad: si no se implementan en el bloque actual, quedan explícitamente en backlog.
+- Las superficies críticas que puedan requerir automatización futura deben incorporar `data-testid` estables.
+- `data-testid` pasa a considerarse criterio de aceptación para futuras modificaciones relevantes en flujos storefront.
+- El objetivo futuro no es “testear todo”, sino sostener una cobertura aceptable y útil para regresión en los flujos de mayor riesgo.
 
 ## Priorización propuesta
 
@@ -117,6 +120,38 @@ Archivos a revisar:
 
 - [ecommerce/src/state/i18n-context.tsx](/Users/rodrigo/git/personal/react_admin_dashboard/ecommerce/src/state/i18n-context.tsx)
 - [ecommerce/src/state/session-context.tsx](/Users/rodrigo/git/personal/react_admin_dashboard/ecommerce/src/state/session-context.tsx)
+
+### 11. Checkout invitado, alta de cliente y verificación por email
+
+Estado actual acordado:
+
+- `checkout` público debe permitir compra sin sesión iniciada.
+- El dato obligatorio de contacto es `teléfono`.
+- `email` es opcional.
+- Si existe `email`, sigue siendo el canal principal de notificaciones automáticas hasta que exista `SMS/WhatsApp`.
+- Si no existe `email`, no debe esperarse hoy un canal automático alternativo.
+
+Implementado en esta fase:
+
+- Backend/storefront ya aceptan `checkout` invitado con `teléfono` obligatorio y `email` opcional.
+- La compra crea o actualiza el `Customer` asociado.
+- El cliente nuevo queda con estado por tabla (`CustomerStatus`) y no con dato local hardcodeado.
+- Se sembraron estados base para instalaciones limpias:
+  - `Activo`
+  - `Suspendido`
+  - `Bloqueado`
+- Las notificaciones de compra por email siguen aplicando cuando el cliente tiene email y no dependen de login con Google.
+
+Pendiente futuro, no implementado todavía:
+
+- Verificación/activación de email para cuentas storefront.
+- Recomendación de diseño:
+  - agregar `Customer.emailVerifiedAt`
+  - reutilizar la infraestructura segura de tokens con un propósito explícito `email_verification`
+  - enviar mail HTML de activación con link único y expiración
+  - confirmar email desde endpoint público idempotente
+  - no bloquear la creación del pedido, pero sí reflejar claramente el estado de verificación de la cuenta
+  - si el alta proviene de Google OAuth, considerar el email verificado por el provider y evitar doble confirmación
 
 Criterio de aceptación:
 
@@ -485,6 +520,16 @@ Línea recomendada:
 ### Ola 4. Evolución visual/comercial
 
 - stories de categorías
+
+### Ola 5. Automatización browser y regresiones críticas
+
+- extender la suite Playwright actual a:
+  - `shop -> product detail -> cart` para paramétricos publicados
+  - `checkout preview -> pago -> order detail`
+  - flujo `cash` pendiente de confirmación
+  - notificaciones cliente/admin
+- agregar `data-testid` a las superficies críticas que aún no los tienen
+- consolidar el criterio de selectores estables como parte del Definition of Done de cambios futuros
 
 ## Estado de este documento
 

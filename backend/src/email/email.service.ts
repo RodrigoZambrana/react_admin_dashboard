@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
+import type { ClientVariantConfig } from '../config/client-config.types'
+import { CLIENT_CONFIG_TOKEN } from '../config/client-config.constants'
 import {
   EmailCategory,
   EmailRecipientType,
@@ -63,7 +65,15 @@ type PasswordResetEmailOptions = {
   locale?: string | null
   displayName?: string | null
   isAdmin?: boolean
-  event?: 'reset_link' | 'password_changed' | 'recovery_notice'
+  event?: 'reset_link' | 'password_changed' | 'recovery_notice' | 'welcome'
+}
+
+type WelcomeEmailOptions = {
+  customerId?: number | null
+  email: string
+  locale?: string | null
+  displayName?: string | null
+  accountUrl?: string | null
 }
 
 type TestEmailOptions = {
@@ -85,6 +95,8 @@ export class EmailService {
     private readonly queue: EmailQueueService,
     private readonly settings: EmailSettingsService,
     private readonly config: ConfigService,
+    @Inject(CLIENT_CONFIG_TOKEN)
+    private readonly clientConfig: ClientVariantConfig,
   ) {}
 
   async sendOrderReceived(options: OrderEmailOptions) {
@@ -178,6 +190,8 @@ export class EmailService {
         order: {
           include: {
             customer: true,
+            items: true,
+            payments: true,
           },
         },
       },
@@ -192,27 +206,29 @@ export class EmailService {
       return
     }
     const customer = order.customer
-    const locale = this.resolveLocale(options.localeOverride)
     const company = await this.getCompanyContext()
-    const payload = this.buildPaymentPayload(payment, locale)
     const extras = { ...company }
 
     if (options.sendToCustomer !== false && customer?.email) {
       if (await this.canSendToRecipient(EmailRecipientType.CUSTOMER, `Payment ${payment.id} customer notification`)) {
+        const customerLocalePreference =
+          (customer as { preferredLocale?: string | null })?.preferredLocale ?? options.localeOverride
+        const customerLocale = this.resolveLocale(customerLocalePreference)
+        const customerPayload = this.buildPaymentPayload(payment, customerLocale)
         const recipients: EmailRecipient[] = [
           {
             email: customer.email,
             name: this.sanitizeName(customer.name ?? `${customer.firstName ?? ''} ${customer.lastName ?? ''}`),
-            locale,
+            locale: customerLocale,
           },
         ]
         const message = await this.buildMessage<PaymentEmailContext>({
           category: EmailCategory.PAYMENTS,
           variant: EmailTemplateVariant.CUSTOMER,
-          locale,
+          locale: customerLocale,
           recipientType: EmailRecipientType.CUSTOMER,
           recipients,
-          payload,
+          payload: customerPayload,
           extras,
         })
         await this.queue.enqueue(message)
@@ -221,16 +237,22 @@ export class EmailService {
 
     if (options.sendToAdmin !== false) {
       if (await this.canSendToRecipient(EmailRecipientType.ADMIN, `Payment ${payment.id} admin notification`)) {
+        const adminLocale = this.resolveLocale('es')
+        const adminPayload = this.buildPaymentPayload(payment, adminLocale)
         const recipientsConfig = await this.settings.resolveAdminRecipients(EmailCategory.PAYMENTS)
         if (recipientsConfig.to.length) {
-          const recipients: EmailRecipient[] = recipientsConfig.to.map((email) => ({ email, name: null, locale }))
+          const recipients: EmailRecipient[] = recipientsConfig.to.map((email) => ({
+            email,
+            name: null,
+            locale: adminLocale,
+          }))
           const message = await this.buildMessage<PaymentEmailContext>({
             category: EmailCategory.PAYMENTS,
             variant: EmailTemplateVariant.ADMIN,
-            locale,
+            locale: adminLocale,
             recipientType: EmailRecipientType.ADMIN,
             recipients,
-            payload,
+            payload: adminPayload,
             extras,
             cc: recipientsConfig.cc,
             bcc: recipientsConfig.bcc,
@@ -287,25 +309,28 @@ export class EmailService {
       )
       return
     }
-    const locale = this.resolveLocale(options.localeOverride)
     const company = await this.getCompanyContext()
     const nextStatusId = options.nextStatusId ?? order.statusId ?? null
     const previousStatusId = options.previousStatusId ?? null
     const nextStatus = nextStatusId ? findOrderStatusById(nextStatusId) : null
     const previousStatus = previousStatusId ? findOrderStatusById(previousStatusId) : null
     const eventKey = options.eventOverride ?? this.resolveStatusEventKey(documentType, nextStatus?.code ?? null)
-    const overrides: Partial<OrderEmailContext> = {
-      event: eventKey,
-      status: this.resolveStatusLabel(nextStatus, locale),
-      statusCode: nextStatus?.code ?? null,
-      previousStatus: this.resolveStatusLabel(previousStatus, locale),
-      previousStatusCode: previousStatus?.code ?? null,
-    }
-    const payload = this.buildOrderPayload(order, locale, overrides)
     const extras = { ...company }
 
     if (options.sendToCustomer !== false) {
-      const customerEmail = payload.customer.email
+      const customerLocalePreference =
+        (order.customer as { preferredLocale?: string | null } | null | undefined)?.preferredLocale ??
+        options.localeOverride
+      const customerLocale = this.resolveLocale(customerLocalePreference)
+      const customerOverrides: Partial<OrderEmailContext> = {
+        event: eventKey,
+        status: this.resolveStatusLabel(nextStatus, customerLocale),
+        statusCode: nextStatus?.code ?? null,
+        previousStatus: this.resolveStatusLabel(previousStatus, customerLocale),
+        previousStatusCode: previousStatus?.code ?? null,
+      }
+      const customerPayload = this.buildOrderPayload(order, customerLocale, customerOverrides)
+      const customerEmail = customerPayload.customer.email
       if (customerEmail) {
         if (
           await this.canSendToRecipient(
@@ -316,17 +341,17 @@ export class EmailService {
           const recipients: EmailRecipient[] = [
             {
               email: customerEmail,
-              name: payload.customer.name,
-              locale,
+              name: customerPayload.customer.name,
+              locale: customerLocale,
             },
           ]
           const message = await this.buildMessage<OrderEmailContext>({
             category: EmailCategory.ORDERS,
             variant: EmailTemplateVariant.CUSTOMER,
-            locale,
+            locale: customerLocale,
             recipientType: EmailRecipientType.CUSTOMER,
             recipients,
-            payload,
+            payload: customerPayload,
             extras,
           })
           await this.queue.enqueue(message)
@@ -337,6 +362,15 @@ export class EmailService {
     }
 
     if (options.sendToAdmin !== false) {
+      const adminLocale = this.resolveLocale('es')
+      const adminOverrides: Partial<OrderEmailContext> = {
+        event: eventKey,
+        status: this.resolveStatusLabel(nextStatus, adminLocale),
+        statusCode: nextStatus?.code ?? null,
+        previousStatus: this.resolveStatusLabel(previousStatus, adminLocale),
+        previousStatusCode: previousStatus?.code ?? null,
+      }
+      const adminPayload = this.buildOrderPayload(order, adminLocale, adminOverrides)
       if (
         await this.canSendToRecipient(
           EmailRecipientType.ADMIN,
@@ -345,14 +379,18 @@ export class EmailService {
       ) {
         const recipientsConfig = await this.settings.resolveAdminRecipients(EmailCategory.ORDERS)
         if (recipientsConfig.to.length) {
-          const recipients: EmailRecipient[] = recipientsConfig.to.map((email) => ({ email, name: null, locale }))
+          const recipients: EmailRecipient[] = recipientsConfig.to.map((email) => ({
+            email,
+            name: null,
+            locale: adminLocale,
+          }))
           const message = await this.buildMessage<OrderEmailContext>({
             category: EmailCategory.ORDERS,
             variant: EmailTemplateVariant.ADMIN,
-            locale,
+            locale: adminLocale,
             recipientType: EmailRecipientType.ADMIN,
             recipients,
-            payload,
+            payload: adminPayload,
             extras,
             cc: recipientsConfig.cc,
             bcc: recipientsConfig.bcc,
@@ -389,6 +427,7 @@ export class EmailService {
       event,
       resetUrl,
       supportUrl: options.supportUrl ?? null,
+      accountUrl: null,
       expiresAt,
       displayName,
       locale,
@@ -405,6 +444,93 @@ export class EmailService {
       variant,
       locale,
       recipientType,
+      recipients,
+      payload,
+      extras: company,
+    })
+    await this.queue.enqueue(message)
+  }
+
+  async sendWelcome(options: WelcomeEmailOptions) {
+    if (!(await this.settings.isEnabled(EmailCategory.AUTH))) {
+      this.logger.debug('Auth emails disabled; skipping welcome email.')
+      return
+    }
+    const email = this.normalizeEmail(options.email)
+    if (!email) {
+      this.logger.warn('Welcome email skipped because address is invalid or empty.')
+      return
+    }
+    const locale = this.resolveLocale(options.locale)
+    const company = await this.getCompanyContext()
+    const displayName = this.sanitizeName(options.displayName) || email
+    if (!(await this.canSendToRecipient(EmailRecipientType.CUSTOMER, 'Welcome email'))) {
+      return
+    }
+    const payload: PasswordResetEmailContext = {
+      event: 'welcome',
+      resetUrl: null,
+      supportUrl: null,
+      accountUrl:
+        options.accountUrl ??
+        this.joinUrl(this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null, '/account/profile'),
+      expiresAt: null,
+      displayName,
+      locale,
+      isAdmin: false,
+    }
+    const recipients: EmailRecipient[] = [{ email, name: displayName, locale }]
+    const message = await this.buildMessage<PasswordResetEmailContext>({
+      category: EmailCategory.AUTH,
+      variant: EmailTemplateVariant.CUSTOMER,
+      locale,
+      recipientType: EmailRecipientType.CUSTOMER,
+      recipients,
+      payload,
+      extras: company,
+    })
+    await this.queue.enqueue(message)
+  }
+
+  async sendEmailVerification(options: {
+    email: string
+    displayName?: string | null
+    locale?: string | null
+    verificationUrl: string
+    expiresAt?: Date | string | null
+  }) {
+    if (!(await this.settings.isEnabled(EmailCategory.AUTH))) {
+      this.logger.debug('Auth emails disabled; skipping email verification email.')
+      return
+    }
+    const email = this.normalizeEmail(options.email)
+    if (!email) {
+      this.logger.warn('Email verification skipped because address is invalid or empty.')
+      return
+    }
+    const locale = this.resolveLocale(options.locale)
+    const company = await this.getCompanyContext()
+    const displayName = this.sanitizeName(options.displayName) || email
+    if (!(await this.canSendToRecipient(EmailRecipientType.CUSTOMER, 'Email verification'))) {
+      return
+    }
+    const payload: PasswordResetEmailContext = {
+      event: 'verify_email',
+      resetUrl: options.verificationUrl,
+      supportUrl: null,
+      accountUrl:
+        this.joinUrl(this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null, '/account/profile'),
+      expiresAt: options.expiresAt ? this.formatDate(options.expiresAt, locale) : null,
+      displayName,
+      locale,
+      isAdmin: false,
+    }
+    const recipients: EmailRecipient[] = [{ email, name: displayName, locale }]
+    const message = await this.buildMessage<PasswordResetEmailContext>({
+      category: EmailCategory.AUTH,
+      variant: EmailTemplateVariant.CUSTOMER,
+      locale,
+      recipientType: EmailRecipientType.CUSTOMER,
       recipients,
       payload,
       extras: company,
@@ -473,15 +599,51 @@ export class EmailService {
       return new Date().toISOString()
     }
     try {
+      const timeZone = this.resolveEmailTimeZone()
       return new Intl.DateTimeFormat(locale || 'en', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        timeZone,
       }).format(dt)
     } catch (error) {
       return dt.toISOString()
+    }
+  }
+
+  private resolveEmailTimeZone() {
+    return (
+      this.config.get<string>('EMAIL_DEFAULT_TIMEZONE') ||
+      (typeof this.clientConfig?.shared?.timezone === 'string' ? this.clientConfig.shared.timezone : undefined) ||
+      'UTC'
+    )
+  }
+
+  private isPlaceholderSenderAddress(email?: string | null) {
+    const normalized = (email ?? '').trim().toLowerCase()
+    if (!normalized) return true
+    return normalized.endsWith('@example.com') || normalized.endsWith('@example.org') || normalized.endsWith('@example.net')
+  }
+
+  private async resolveSenderIdentity(category: EmailCategory) {
+    const fromSettings = await this.settings.getCategorySettings(category)
+    const providerConfig = await this.settings.resolveEmailProviderConfig()
+
+    const email = this.isPlaceholderSenderAddress(fromSettings.fromAddress)
+      ? providerConfig.fromAddress
+      : fromSettings.fromAddress
+
+    const name =
+      (fromSettings.fromName && fromSettings.fromName.trim().length ? fromSettings.fromName.trim() : null) ??
+      (providerConfig.fromName && providerConfig.fromName.trim().length ? providerConfig.fromName.trim() : null) ??
+      undefined
+
+    return {
+      email,
+      name,
+      replyTo: this.config.get<string>('EMAIL_REPLY_TO') ?? email,
     }
   }
 
@@ -669,6 +831,7 @@ export class EmailService {
         id: customer?.id ?? 0,
         name: this.sanitizeName(customer?.name) ?? null,
         email: customer?.email ?? '',
+        phone: customer?.phoneNumber ?? null,
         locale,
       },
       items,
@@ -711,7 +874,7 @@ export class EmailService {
   private buildPaymentPayload(
     payment: Prisma.PaymentGetPayload<{
       include: {
-        order: { include: { customer: true } }
+        order: { include: { customer: true; items: true; payments: true } }
       }
     }>,
     locale: string,
@@ -719,22 +882,70 @@ export class EmailService {
     const order = payment.order
     const customer = order.customer
     const paymentMethod = findPaymentMethodById(payment.paymentMethodId ?? null)
+    const statusDefinition = findOrderStatusById(order.statusId ?? null)
+    const links = this.buildDocumentLinks(order as any, (order.documentType ?? 'ORDER') as OrderEmailContext['documentType'])
+    const items = order.items.map((item) => {
+      const qty = Number(item.qty ?? 0)
+      const price = new Prisma.Decimal(item.price ?? 0)
+      const subtotal = price.times(qty)
+      return {
+        name: item.name,
+        quantity: qty,
+        unitPrice: this.formatAmount(item.price ?? 0, locale),
+        unitPriceRaw: Number(price.toFixed(2)),
+        subtotal: this.formatAmount(subtotal, locale),
+        subtotalRaw: Number(subtotal.toFixed(2)),
+        description: item.description ?? item.specSummary ?? null,
+      }
+    })
+    const grandTotalDecimal = new Prisma.Decimal(order.grandTotal ?? 0)
+    const confirmedTotalDecimal = (order.payments ?? []).reduce((acc, entry) => {
+      if (entry.status !== PaymentStatus.CONFIRMED) {
+        return acc
+      }
+      return acc.plus(new Prisma.Decimal(entry.amount ?? 0))
+    }, new Prisma.Decimal(0))
+    const remainingDecimal = Prisma.Decimal.max(new Prisma.Decimal(0), grandTotalDecimal.minus(confirmedTotalDecimal))
+    const paymentAmountDecimal = new Prisma.Decimal(payment.amount ?? 0)
     return {
       paymentId: payment.id,
       orderId: order.id,
       orderNumber: order.uuid || String(order.id),
+      orderDate: this.formatDate(order.date, locale),
       amount: this.formatAmount(payment.amount, locale),
+      amountRaw: Number(paymentAmountDecimal.toFixed(2)),
       currency: payment.currency,
       method: payment.method || paymentMethod?.label || null,
+      reference: payment.reference ?? null,
       status: payment.status,
+      statusLabel: this.resolvePaymentStatusLabel(payment.status, locale),
       processedAt: this.formatDate(payment.date, locale),
       customer: {
         id: customer?.id ?? 0,
         name: this.sanitizeName(customer?.name) ?? null,
         email: customer?.email ?? '',
+        phone: customer?.phoneNumber ?? null,
         locale,
       },
+      orderStatus: this.resolveStatusLabel(statusDefinition, locale),
+      orderStatusCode: statusDefinition?.code ?? null,
+      items,
+      totals: {
+        grandTotal: this.formatAmount(grandTotalDecimal, locale),
+        grandTotalRaw: Number(grandTotalDecimal.toFixed(2)),
+        totalPaid: this.formatAmount(confirmedTotalDecimal, locale),
+        totalPaidRaw: Number(confirmedTotalDecimal.toFixed(2)),
+        remaining: this.formatAmount(remainingDecimal, locale),
+        remainingRaw: Number(remainingDecimal.toFixed(2)),
+        currency: order.orderCurrency ?? payment.currency,
+      },
+      isFullyPaid: remainingDecimal.lessThanOrEqualTo(0),
+      links: {
+        customer: links?.customer ?? null,
+        admin: links?.admin ?? null,
+      },
       portalUrl: this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null,
+      adminUrl: this.config.get<string>('ADMIN_PORTAL_URL') ?? null,
       locale,
     }
   }
@@ -758,8 +969,7 @@ export class EmailService {
       } as any,
       params.extras,
     )
-    const fromSettings = await this.settings.getCategorySettings(params.category)
-    const replyToOverride = this.config.get<string>('EMAIL_REPLY_TO') ?? null
+    const sender = await this.resolveSenderIdentity(params.category)
     const listUnsubscribeHeader = this.config.get<string>('EMAIL_LIST_UNSUBSCRIBE') ?? null
     const headers: Record<string, string> | undefined = listUnsubscribeHeader
       ? { 'List-Unsubscribe': listUnsubscribeHeader }
@@ -776,10 +986,10 @@ export class EmailService {
       cc: params.cc,
       bcc: params.bcc,
       from: {
-        email: fromSettings.fromAddress,
-        name: fromSettings.fromName ?? undefined,
+        email: sender.email,
+        name: sender.name,
       },
-      replyTo: replyToOverride ?? fromSettings.fromAddress,
+      replyTo: sender.replyTo,
       headers,
       payload: params.payload as unknown as Record<string, unknown>,
       templateId: render.templateId ?? null,
@@ -1122,17 +1332,55 @@ export class EmailService {
   }
 
   private buildPaymentSample(locale: string): PaymentEmailContext {
+    const amountRaw = 120
+    const totalPaidRaw = 120
+    const grandTotalRaw = 187.98
+    const remainingRaw = 67.98
     return {
       paymentId: 501,
       orderId: 1001,
       orderNumber: 'ORD-1001',
-      amount: this.formatAmount(120, locale),
+      orderDate: this.formatDate(new Date(), locale),
+      amount: this.formatAmount(amountRaw, locale),
+      amountRaw,
       currency: 'USD',
       method: 'Credit Card',
+      reference: 'PMT-501',
       status: PaymentStatus.CONFIRMED,
+      statusLabel: this.resolvePaymentStatusLabel(PaymentStatus.CONFIRMED, locale),
       processedAt: this.formatDate(new Date(), locale),
-      customer: { id: 1, name: 'Sample Customer', email: 'customer@example.com', locale },
+      customer: { id: 1, name: 'Sample Customer', email: 'customer@example.com', phone: '+59899111222', locale },
+      orderStatus: locale.toLowerCase().startsWith('es') ? 'Pendiente' : 'Pending',
+      orderStatusCode: 'pending',
+      items: [
+        {
+          name: locale.toLowerCase().startsWith('es') ? 'Ventana corrediza' : 'Sliding window',
+          quantity: 1,
+          unitPrice: this.formatAmount(grandTotalRaw, locale),
+          unitPriceRaw: grandTotalRaw,
+          subtotal: this.formatAmount(grandTotalRaw, locale),
+          subtotalRaw: grandTotalRaw,
+          description: locale.toLowerCase().startsWith('es')
+            ? 'Serie: 20 • Color: Blanco • Vidrio: 3MM'
+            : 'Series: 20 • Color: White • Glass: 3MM',
+        },
+      ],
+      totals: {
+        grandTotal: this.formatAmount(grandTotalRaw, locale),
+        grandTotalRaw,
+        totalPaid: this.formatAmount(totalPaidRaw, locale),
+        totalPaidRaw,
+        remaining: this.formatAmount(remainingRaw, locale),
+        remainingRaw,
+        currency: 'USD',
+      },
+      isFullyPaid: false,
+      links: {
+        customer: 'https://example.com/orders/ORD-1001',
+        admin: 'https://admin.example.com/orders/1001',
+      },
       portalUrl: this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null,
+      adminUrl: this.config.get<string>('ADMIN_PORTAL_URL') ?? null,
       locale,
     }
   }
@@ -1143,6 +1391,8 @@ export class EmailService {
     const base: PasswordResetEmailContext = {
       event: 'reset_link',
       resetUrl: 'https://example.com/reset?token=demo',
+      supportUrl: null,
+      accountUrl: 'https://example.com/account/profile',
       expiresAt: this.formatDate(expires, locale),
       displayName: locale.toLowerCase().startsWith('es') ? 'Usuario de ejemplo' : 'Sample User',
       locale,
@@ -1162,6 +1412,13 @@ export class EmailService {
           ...base,
           event: 'recovery_notice',
           resetUrl: 'https://example.com/account/security',
+          expiresAt: null,
+        }
+      case 'auth.welcome':
+        return {
+          ...base,
+          event: 'welcome',
+          resetUrl: null,
           expiresAt: null,
         }
       default:
@@ -1224,6 +1481,7 @@ export class EmailService {
       { key: 'auth.reset', label: t('Password reset', 'Restablecer contraseña') },
       { key: 'auth.changed', label: t('Password changed', 'Contraseña actualizada') },
       { key: 'auth.recovery', label: t('Recovery alert', 'Aviso de recuperación') },
+      { key: 'auth.welcome', label: t('Welcome email', 'Correo de bienvenida') },
     ]
   }
 
@@ -1236,6 +1494,24 @@ export class EmailService {
       return definition.translations[normalized]
     }
     return definition.label
+  }
+
+  private resolvePaymentStatusLabel(status: PaymentStatus | string | null | undefined, locale: string) {
+    const normalizedLocale = (locale || '').split(/[-_]/)[0]?.toLowerCase() || 'en'
+    const isSpanish = normalizedLocale === 'es'
+    switch (status) {
+      case PaymentStatus.CONFIRMED:
+      case 'CONFIRMED':
+        return isSpanish ? 'Confirmado' : 'Confirmed'
+      case PaymentStatus.REGISTERED:
+      case 'REGISTERED':
+        return isSpanish ? 'Registrado' : 'Registered'
+      case PaymentStatus.FAILED:
+      case 'FAILED':
+        return isSpanish ? 'Fallido' : 'Failed'
+      default:
+        return status ? String(status) : null
+    }
   }
 
   private buildDocumentLinks(

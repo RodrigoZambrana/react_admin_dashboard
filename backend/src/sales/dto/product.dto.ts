@@ -295,6 +295,7 @@ export class UpsertProductDto {
   @ValidateNested({ each: true })
   @Type(() => ProductVariantPayload)
   variants?: ProductVariantPayload[]
+
 }
 
 // For updates, allow partial fields and require only id
@@ -413,6 +414,7 @@ export class UpdateProductDto {
   @ValidateNested({ each: true })
   @Type(() => ProductVariantPayload)
   variants?: ProductVariantPayload[]
+
 }
 
 export class TableQueryDto {

@@ -26,6 +26,7 @@ export type OrderEmailContext = {
     id: number
     name: string | null
     email: string
+    phone?: string | null
     locale?: string | null
   }
   items: Array<{
@@ -73,24 +74,56 @@ export type PaymentEmailContext = {
   orderId: number
   orderNumber?: string | null
   amount: string
+  amountRaw: number
   currency: string
   method?: string | null
+  reference?: string | null
   status: string
+  statusLabel?: string | null
   processedAt: string
   customer: {
     id: number
     name: string | null
     email: string
+    phone?: string | null
     locale?: string | null
   }
+  orderDate?: string | null
+  orderStatus?: string | null
+  orderStatusCode?: string | null
+  items: Array<{
+    name: string
+    quantity: number
+    unitPrice: string
+    unitPriceRaw: number
+    subtotal: string
+    subtotalRaw: number
+    description?: string | null
+  }>
+  totals: {
+    grandTotal: string
+    grandTotalRaw: number
+    totalPaid: string
+    totalPaidRaw: number
+    remaining: string
+    remainingRaw: number
+    currency: string
+  }
+  isFullyPaid: boolean
+  links?: {
+    customer?: string | null
+    admin?: string | null
+  } | null
   locale: EmailLocale
   portalUrl?: string | null
+  adminUrl?: string | null
 }
 
 export type PasswordResetEmailContext = {
-  event: 'reset_link' | 'password_changed' | 'recovery_notice'
+  event: 'reset_link' | 'password_changed' | 'recovery_notice' | 'welcome' | 'verify_email'
   resetUrl?: string | null
   supportUrl?: string | null
+  accountUrl?: string | null
   expiresAt?: string | null
   displayName: string
   locale: EmailLocale

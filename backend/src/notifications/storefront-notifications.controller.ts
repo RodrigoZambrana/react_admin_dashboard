@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req, Sse, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Post, Query, Req, Sse, UseGuards } from '@nestjs/common'
 import type { FastifyRequest } from 'fastify'
 import type { Observable } from 'rxjs'
 import { StorefrontJwtGuard } from '../storefront/storefront-jwt.guard'
@@ -6,6 +6,7 @@ import { NotificationsService } from './notifications.service'
 import { NotificationStreamService } from './notification-stream.service'
 import { NotificationQueryDto } from './dto/notification-query.dto'
 import { MarkNotificationsReadDto } from './dto/mark-read.dto'
+import { DeleteNotificationsDto } from './dto/delete-notifications.dto'
 import { StorefrontJwtPayload } from '../storefront/storefront-jwt.strategy'
 import { MessageEvent } from '@nestjs/common'
 
@@ -49,6 +50,33 @@ export class StorefrontNotificationsController {
     const ids = body.ids ?? []
     const markAll = body.markAll ?? false
     await this.notifications.markAsReadForCustomer(customerId, ids, markAll)
+    return { success: true }
+  }
+
+  @Delete()
+  async deleteMany(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Body() body: DeleteNotificationsDto,
+  ) {
+    const customerId = Number(req.user?.sub)
+    const ids = body.ids ?? []
+    const deleteAll = body.deleteAll ?? false
+    await this.notifications.deleteForCustomer(customerId, ids, deleteAll)
+    return { success: true }
+  }
+
+  @Delete(':id')
+  async deleteOne(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Param('id') id: string,
+  ) {
+    const customerId = Number(req.user?.sub)
+    const numericId = Number(id)
+    await this.notifications.deleteForCustomer(
+      customerId,
+      Number.isFinite(numericId) ? [numericId] : [],
+      false,
+    )
     return { success: true }
   }
 

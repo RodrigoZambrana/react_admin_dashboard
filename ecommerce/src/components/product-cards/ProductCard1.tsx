@@ -18,7 +18,11 @@ import { Button } from "@component/buttons";
 import NoImagePlaceholder from "@component/NoImagePlaceholder";
 import { filterValidProductImages, isMissingProductImage } from "@/lib/utils/image";
 import { StorefrontApi } from "@/lib/api/storefront";
-import { buildPublishedParametricSummaryEntries } from "@/lib/storefront/published-parametric";
+import {
+  buildPublishedParametricDetailHref,
+  buildPublishedParametricLineId,
+  buildPublishedParametricSummaryEntries
+} from "@/lib/storefront/published-parametric";
 import ProductQuickActions from "./ProductQuickActions";
 import { deviceSize } from "@utils/constants";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
@@ -145,6 +149,7 @@ interface ProductCard1Props extends CardProps {
   basePrice?: number;
   currencyCode?: string;
   mode?: ProductMode;
+  variantKey?: string | null;
   variantLabel?: string | null;
   configuration?: Record<string, unknown> | null;
 }
@@ -162,6 +167,7 @@ export default function ProductCard1({
   basePrice,
   currencyCode,
   mode,
+  variantKey,
   variantLabel,
   configuration,
   ...props
@@ -169,7 +175,10 @@ export default function ProductCard1({
   const t = useTranslation();
   const { state, dispatch } = useCart();
   const { formatAmount, baseCurrency } = useMoneyFormatter();
-  const cartProductId = id ?? slug;
+  const cartProductId =
+    mode === "parametric" && variantKey
+      ? buildPublishedParametricLineId(id ?? slug ?? "product", variantKey)
+      : id ?? slug;
   const cartItem = state.cart.find((item) => item.id === cartProductId);
 
   const primaryImage = useMemo(() => {
@@ -201,6 +210,10 @@ export default function ProductCard1({
   const showListPrice = hasExplicitBasePrice || hasDiscountPercentage;
   const formattedSalePrice = formatAmount(saleAmount, resolvedCurrency);
   const formattedListPrice = showListPrice ? formatAmount(baselineAmount, resolvedCurrency) : null;
+  const detailHref =
+    mode === "parametric" && slug
+      ? buildPublishedParametricDetailHref(slug, configuration ?? undefined)
+      : `/product/${slug}`;
 
   const handleCartAmountChange = useCallback(
     async (amount: number) => {
@@ -293,7 +306,7 @@ export default function ProductCard1({
           onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)}
         />
 
-          <Link href={`/product/${slug}`}>
+          <Link href={detailHref}>
             {primaryImage ? (
               <NextImage alt={title} width={277} src={primaryImage} height={270} />
             ) : (
@@ -305,7 +318,7 @@ export default function ProductCard1({
         <div className="details">
           <FlexBox>
             <Box flex="1 1 0" minWidth="0px" mr="0.5rem">
-              <Link href={`/product/${slug}`}>
+              <Link href={detailHref}>
                 <H3
                   mb="10px"
                   title={title}

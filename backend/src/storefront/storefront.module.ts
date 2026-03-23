@@ -13,9 +13,10 @@ import { EmailModule } from '../email/email.module'
 import { StorefrontSecurityService } from './security/storefront-security.service'
 import { OrdersModule } from '../orders/orders.module'
 import { StorefrontPublishedProductResolverService } from './storefront-published-product-resolver.service'
+import { CmsModule } from '../cms/cms.module'
 
 @Module({
-  imports: [CurrencyModule, NotificationsModule, PricingModule, EmailModule, OrdersModule],
+  imports: [CurrencyModule, NotificationsModule, PricingModule, EmailModule, OrdersModule, CmsModule],
   controllers: [StorefrontController],
   providers: [
     StorefrontService,

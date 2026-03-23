@@ -27,11 +27,15 @@ export default function ProductGridView({ products }: Props) {
               price={item.price}
               basePrice={item.basePrice}
               currencyCode={item.currency}
+              mode={item.mode}
               title={item.title}
               off={item.discount}
               images={item.images}
               imgUrl={item.thumbnail}
               rating={item.rating || 4}
+              variantKey={item.variantKey ?? null}
+              variantLabel={item.variantLabel ?? null}
+              configuration={item.configuration ?? null}
             />
           </Grid>
         ))}
