@@ -631,6 +631,10 @@ export class ParametricPricingService {
     return 1 + Math.max(0, markupPercent) / 100
   }
 
+  async getPublishedMarkupMultiplier(): Promise<number> {
+    return this.resolveMarkupMultiplier()
+  }
+
   private applyMarkupToPrice(value: number, multiplier: number): number {
     if (!Number.isFinite(value) || value <= 0) {
       return 0

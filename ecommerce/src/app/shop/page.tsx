@@ -259,14 +259,8 @@ export default async function ShopPage({ searchParams }: SearchParams) {
 
   const availablePriceBounds = priceBoundsFromProducts(scopedProducts);
   const appliedFilters: ActiveFilters = {
-    priceMin:
-      typeof priceMin === "number" && typeof availablePriceBounds.min === "number"
-        ? Math.max(priceMin, availablePriceBounds.min)
-        : priceMin,
-    priceMax:
-      typeof priceMax === "number" && typeof availablePriceBounds.max === "number"
-        ? Math.min(priceMax, availablePriceBounds.max)
-        : priceMax,
+    priceMin,
+    priceMax,
     rating: typeof rating === "number" && rating > 0 ? Math.min(Math.max(Math.floor(rating), 1), 5) : undefined
   };
 

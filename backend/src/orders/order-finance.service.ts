@@ -303,14 +303,33 @@ export class OrderFinanceService {
         where: { orderId: order.id },
       })
       if (!existingProduction) {
-        await client.productionOrder.create({
-          data: {
-            orderId: order.id,
-            workOrderId: targetWorkOrderId,
-            status: WorkOrderStatus.PENDING,
-            priority: 1,
-          },
-        })
+        try {
+          await client.productionOrder.create({
+            data: {
+              orderId: order.id,
+              workOrderId: targetWorkOrderId,
+              status: WorkOrderStatus.PENDING,
+              priority: 1,
+            },
+          })
+        } catch (error) {
+          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            const concurrentProduction = await client.productionOrder.findFirst({
+              where: {
+                OR: [{ orderId: order.id }, { workOrderId: targetWorkOrderId }],
+              },
+            })
+            if (!concurrentProduction) {
+              throw error
+            }
+
+            if (concurrentProduction.orderId !== order.id) {
+              throw error
+            }
+          } else {
+            throw error
+          }
+        }
       } else if (existingProduction.workOrderId !== targetWorkOrderId) {
         await client.productionOrder.update({
           where: { id: existingProduction.id },

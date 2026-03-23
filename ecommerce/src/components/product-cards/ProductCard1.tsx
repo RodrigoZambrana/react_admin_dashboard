@@ -17,10 +17,13 @@ import { H3, SemiSpan } from "@component/Typography";
 import { Button } from "@component/buttons";
 import NoImagePlaceholder from "@component/NoImagePlaceholder";
 import { filterValidProductImages, isMissingProductImage } from "@/lib/utils/image";
+import { StorefrontApi } from "@/lib/api/storefront";
+import { buildPublishedParametricSummaryEntries } from "@/lib/storefront/published-parametric";
 import ProductQuickActions from "./ProductQuickActions";
 import { deviceSize } from "@utils/constants";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import { useTranslation } from "@/state/i18n-context";
+import type { ProductMode } from "@/types/storefront";
 
 // STYLED COMPONENT
 const Wrapper = styled(Card)`
@@ -82,9 +85,14 @@ const Wrapper = styled(Card)`
 
     .title,
     .categories {
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
+      white-space: normal;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .title {
+      min-height: 2.8em;
+      line-height: 1.4;
     }
 
     .icon-holder {
@@ -136,6 +144,9 @@ interface ProductCard1Props extends CardProps {
   id?: string | number;
   basePrice?: number;
   currencyCode?: string;
+  mode?: ProductMode;
+  variantLabel?: string | null;
+  configuration?: Record<string, unknown> | null;
 }
 // =======================================================================
 
@@ -150,6 +161,9 @@ export default function ProductCard1({
   rating = 4,
   basePrice,
   currencyCode,
+  mode,
+  variantLabel,
+  configuration,
   ...props
 }: ProductCard1Props) {
   const t = useTranslation();
@@ -189,7 +203,29 @@ export default function ProductCard1({
   const formattedListPrice = showListPrice ? formatAmount(baselineAmount, resolvedCurrency) : null;
 
   const handleCartAmountChange = useCallback(
-    (amount: number) => {
+    async (amount: number) => {
+      let resolvedConfiguration = configuration ?? undefined;
+      let resolvedSelectionSummary = variantLabel ?? null;
+
+      if (mode === "parametric" && (!resolvedConfiguration || !resolvedSelectionSummary) && slug) {
+        try {
+          const detail = await StorefrontApi.getProduct(slug);
+          const defaultConfiguration = detail.publishedParametricOptions?.defaultConfiguration;
+          const defaultSummary = defaultConfiguration
+            ? buildPublishedParametricSummaryEntries(defaultConfiguration, t, {
+                includeMaterial: false
+              })
+                .map((entry) => `${entry.attribute}: ${entry.value}`)
+                .join(" • ")
+            : null;
+
+          resolvedConfiguration = defaultConfiguration ?? resolvedConfiguration;
+          resolvedSelectionSummary = defaultSummary || detail.variantLabel || resolvedSelectionSummary;
+        } catch (error) {
+          console.warn("[shop-card] Unable to hydrate parametric summary before add to cart", error);
+        }
+      }
+
       dispatch({
         type: "CHANGE_CART_AMOUNT",
         payload: {
@@ -197,13 +233,28 @@ export default function ProductCard1({
           slug,
           price: effectivePrice,
           currency: productCurrency,
-          imgUrl: primaryImage,
-          name: title,
-          qty: amount
-        }
-      });
-    },
-    [dispatch, cartProductId, slug, effectivePrice, primaryImage, productCurrency, title]
+        imgUrl: primaryImage,
+        name: title,
+        qty: amount,
+        variantLabel: resolvedSelectionSummary,
+        selectionSummary: resolvedSelectionSummary,
+        configuration: resolvedConfiguration
+      }
+    });
+  },
+    [
+      configuration,
+      dispatch,
+      cartProductId,
+      slug,
+      effectivePrice,
+      mode,
+      primaryImage,
+      productCurrency,
+      t,
+      title,
+      variantLabel
+    ]
   );
 
   return (

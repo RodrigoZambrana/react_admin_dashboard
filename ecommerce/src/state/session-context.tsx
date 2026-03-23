@@ -16,7 +16,7 @@ import { env } from "@/lib/env";
 import { looksLikePhoneNumber, normalizePhoneNumber } from "@/lib/utils/phone";
 import type { AuthSession, CustomerProfile } from "@/types/storefront";
 import { useToast } from "@/contexts/ToastContext";
-import { useI18n } from "@/state/i18n-context";
+import { LOCALE_STORAGE_KEY, useI18n } from "@/state/i18n-context";
 
 type SessionStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -35,11 +35,11 @@ interface SessionContextValue {
 }
 
 export interface RegisterPayload {
-  email: string;
+  email?: string;
   password: string;
   firstName: string;
   lastName: string;
-  phone?: string;
+  phone: string;
   locale?: string;
 }
 
@@ -106,6 +106,20 @@ const clearLegacySessionStorage = () => {
 
 const GOOGLE_AUTH_MESSAGE_TYPE = "storefront:google-auth";
 
+const getStoredLocalePreference = (): "es" | "en" | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+    return stored === "es" || stored === "en" ? stored : null;
+  } catch (error) {
+    console.warn("[session] Unable to read stored locale preference", error);
+    return null;
+  }
+};
+
 type GoogleAuthSuccessMessage = {
   type: typeof GOOGLE_AUTH_MESSAGE_TYPE;
   status: "success";
@@ -150,7 +164,37 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
   const isBootstrapped = useRef(false);
   const localeSyncInFlight = useRef(false);
   const toast = useToast();
-  const { locale, setLocale } = useI18n();
+  const { locale, setLocale, t } = useI18n();
+
+  const translateAuthError = useCallback(
+    (message: string) => {
+      switch (message) {
+        case "Customer already exists":
+          return t("auth.register.errors.customerExists", {
+            defaultMessage: "Ya existe un cliente con ese correo o teléfono."
+          });
+        case "Phone number is required":
+          return t("auth.register.errors.phoneRequired", {
+            defaultMessage: "Debes ingresar un número de teléfono."
+          });
+        case "Phone number is already in use":
+          return t("auth.register.errors.phoneInUse", {
+            defaultMessage: "El teléfono ya está registrado en el sistema."
+          });
+        case "At least one contact method is required":
+          return t("auth.register.errors.contactRequired", {
+            defaultMessage: "Debes ingresar al menos un correo o un teléfono."
+          });
+        case "Invalid phone number":
+          return t("auth.register.errors.invalidPhone", {
+            defaultMessage: "Ingresa un número de teléfono válido."
+          });
+        default:
+          return message;
+      }
+    },
+    [t]
+  );
 
   useEffect(() => {
     if (isBootstrapped.current) return;
@@ -192,6 +236,12 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
   useEffect(() => {
     const preferred = session?.customer?.preferredLocale;
     const normalized = preferred === "en" || preferred === "es" ? preferred : null;
+    const storedLocale = getStoredLocalePreference();
+
+    if (storedLocale && storedLocale !== normalized) {
+      return;
+    }
+
     if (normalized && normalized !== locale) {
       setLocale(normalized);
     }
@@ -296,9 +346,9 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       let message = "Unable to authenticate. Please try again.";
       if (isApiError(cause)) {
         const resolved = extractApiErrorMessage(cause);
-        message = resolved || message;
+        message = resolved ? translateAuthError(resolved) : message;
       } else if (cause instanceof Error) {
-        message = cause.message;
+        message = translateAuthError(cause.message);
       }
       setError(message);
       setStatus((current) => (current === "loading" ? "unauthenticated" : current));
@@ -308,7 +358,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
       });
       throw cause;
     },
-    [toast]
+    [toast, translateAuthError]
   );
 
   const login = useCallback(
@@ -605,18 +655,19 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
   const register = useCallback(
     async (payload: RegisterPayload) => {
       try {
-        const normalizedPhone = payload.phone
-          ? normalizePhoneNumber(payload.phone)
-          : undefined;
-        if (payload.phone && !normalizedPhone) {
-          throw new Error("Please enter a valid phone number.");
+        const normalizedPhone = normalizePhoneNumber(payload.phone);
+        if (!payload.phone.trim().length) {
+          throw new Error("Phone number is required");
+        }
+        if (!normalizedPhone) {
+          throw new Error("Invalid phone number");
         }
         const sessionResponse = await StorefrontApi.register({
-          email: payload.email.trim(),
+          email: payload.email?.trim() || undefined,
           password: payload.password,
           firstName: payload.firstName.trim(),
           lastName: payload.lastName.trim(),
-          phone: normalizedPhone ?? undefined,
+          phone: normalizedPhone,
           locale: payload.locale ?? locale ?? "es"
         });
         return handleAuthSuccess(sessionResponse, "register");

@@ -5,6 +5,7 @@ import {
   cloneElement,
   createContext,
   isValidElement,
+  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -13,6 +14,7 @@ import {
   useState
 } from "react";
 import type { ReactElement, ReactNode } from "react";
+import { useRouter } from "next/navigation";
 
 import {
   DEFAULT_LOCALE,
@@ -37,7 +39,7 @@ interface I18nContextValue {
 
 const I18nContext = createContext<I18nContextValue | undefined>(undefined);
 
-const STORAGE_KEY = "storefront.locale.v1";
+export const LOCALE_STORAGE_KEY = "storefront.locale.v1";
 
 const isSupportedLocale = (value: string): value is SupportedLocale =>
   SUPPORTED_LOCALES.includes(value as SupportedLocale);
@@ -123,13 +125,14 @@ export const translateNode = (
 };
 
 export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const router = useRouter();
   const [locale, setLocaleState] = useState<SupportedLocale>(INITIAL_LOCALE);
   const hasBootstrapped = useRef(false);
 
   const persistLocale = useCallback((value: SupportedLocale) => {
     if (typeof window === "undefined") return;
     try {
-      window.localStorage.setItem(STORAGE_KEY, value);
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, value);
     } catch (error) {
       console.warn("[i18n] Unable to persist locale preference", error);
     }
@@ -142,7 +145,7 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (typeof window === "undefined") return;
 
     try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
+      const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
       if (stored && isSupportedLocale(stored)) {
         setLocaleState(stored);
         return;
@@ -168,8 +171,11 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!isSupportedLocale(next)) return;
       setLocaleState(next);
       persistLocale(next);
+      startTransition(() => {
+        router.refresh();
+      });
     },
-    [persistLocale]
+    [persistLocale, router]
   );
 
   const toggleLocale = useCallback(() => {
@@ -178,7 +184,10 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       persistLocale(next);
       return next;
     });
-  }, [persistLocale]);
+    startTransition(() => {
+      router.refresh();
+    });
+  }, [persistLocale, router]);
 
   const translate = useCallback(
     (key: string, params?: TranslateParams) => {

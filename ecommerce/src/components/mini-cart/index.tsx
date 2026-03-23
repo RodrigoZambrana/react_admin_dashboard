@@ -10,6 +10,10 @@ import { Button } from "@component/buttons";
 import Typography, { H5, Paragraph, Tiny } from "@component/Typography";
 import useCart from "@hook/useCart";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
+import {
+  buildPublishedParametricDetailHref,
+  buildPublishedParametricSummaryEntries
+} from "@/lib/storefront/published-parametric";
 import { useTranslation } from "@/state/i18n-context";
 // STYLED COMPONENT
 import { StyledMiniCart } from "./styles";
@@ -63,6 +67,16 @@ export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
 
         {state.cart.map((item) => (
           <Fragment key={item.id}>
+            {(() => {
+              const detailHref = buildPublishedParametricDetailHref(item.slug, item.configuration);
+              const parametricSummary = buildPublishedParametricSummaryEntries(item.configuration, t, {
+                includeMaterial: false
+              })
+                .map((entry) => `${entry.attribute}: ${entry.value}`)
+                .join(" • ");
+              const detailSummary = parametricSummary || item.selectionSummary || item.variantLabel || null;
+
+              return (
             <div className="cart-item">
               <FlexBox alignItems="center" flexDirection="column">
                 <Button
@@ -93,7 +107,7 @@ export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
                 </Button>
               </FlexBox>
 
-              <Link href={`/product/${item.slug}`}>
+              <Link href={detailHref}>
                 <Avatar
                   size={76}
                   mx=".5rem"
@@ -103,11 +117,17 @@ export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
               </Link>
 
               <div className="product-details">
-                <Link href={`/product/${item.slug}`}>
+                <Link href={detailHref}>
                   <H5 className="title" fontSize="14px">
                     {item.name}
                   </H5>
                 </Link>
+
+                {detailSummary ? (
+                  <Tiny color="text.muted" display="block" mt="2px">
+                    {detailSummary}
+                  </Tiny>
+                ) : null}
 
                 <Tiny color="text.muted">
                   {formatAmount(item.price, item.currency ?? baseCurrency)}
@@ -128,6 +148,8 @@ export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
                 close
               </Icon>
             </div>
+              );
+            })()}
             <Divider />
           </Fragment>
         ))}

@@ -22,6 +22,10 @@ import { isValidProp } from "@utils/utils";
 import { isMissingProductImage } from "@/lib/utils/image";
 
 import { type CartLineItem, useStorefrontCart } from "@/state/cart-context";
+import {
+  buildPublishedParametricDetailHref,
+  buildPublishedParametricSummaryEntries
+} from "@/lib/storefront/published-parametric";
 import { normalizeMoney } from "@/lib/utils/format";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import { useTranslation } from "@/state/i18n-context";
@@ -76,15 +80,22 @@ function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: C
     currency: unitPrice.currency
   });
   const { formatMoney } = useMoneyFormatter();
+  const t = useTranslation();
 
   const thumbnailSrc = item.product.thumbnail?.url;
   const hasImage = thumbnailSrc && !isMissingProductImage(thumbnailSrc);
-  const displayName = item.product.variantLabel
-    ? `${item.product.name} · ${item.product.variantLabel}`
-    : item.product.name;
+  const displayName = item.product.name;
   const attributeSummary = item.product.attributes
     ?.map((attribute) => attribute.label ?? attribute.value ?? attribute.valueKey)
     .join(" • ");
+  const parametricSummary = buildPublishedParametricSummaryEntries(item.product.configuration, t, {
+    includeMaterial: false
+  })
+    .map((entry) => `${entry.attribute}: ${entry.value}`)
+    .join(" • ");
+  const detailSummary =
+    parametricSummary || item.product.selectionSummary || item.product.variantLabel || null;
+  const detailHref = buildPublishedParametricDetailHref(item.product.slug, item.product.configuration);
 
   return (
     <CartLineItemWrapper {...rest}>
@@ -100,12 +111,16 @@ function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: C
         flexDirection="column"
         className="product-details"
         justifyContent="space-between">
-        <Link href={`/product/${item.product.slug}`}>
+        <Link href={detailHref}>
           <Typography className="title" fontWeight="500" fontSize="18px" mb="0.5rem">
             {displayName}
           </Typography>
         </Link>
-        {attributeSummary ? (
+        {detailSummary ? (
+          <Typography color="text.muted" mb="0.5rem" fontSize="14px">
+            {detailSummary}
+          </Typography>
+        ) : attributeSummary ? (
           <Typography color="text.muted" mb="0.5rem" fontSize="14px">
             {attributeSummary}
           </Typography>

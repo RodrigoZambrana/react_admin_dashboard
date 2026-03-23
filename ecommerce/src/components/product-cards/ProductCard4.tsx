@@ -92,7 +92,13 @@ export default function ProductCard4(props: ProductCard4Props) {
         </Small>
       </FlexBox>
 
-      <H4 fontWeight="600" fontSize="14px" textAlign="center" mb="0.25rem" title={title} ellipsis>
+      <H4
+        fontWeight="600"
+        fontSize="14px"
+        textAlign="center"
+        mb="0.25rem"
+        title={title}
+        style={{ whiteSpace: "normal", wordBreak: "break-word", overflowWrap: "anywhere", minHeight: "2.8em" }}>
         {title}
       </H4>
 

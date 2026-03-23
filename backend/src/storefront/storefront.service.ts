@@ -79,7 +79,9 @@ import { OrderStockIntegrityService } from '../orders/order-stock-integrity.serv
 import {
   StorefrontPublishedProductResolverService,
   type PublishedParametricProductDefinition,
+  type PublishedParametricVariantDefinition,
 } from './storefront-published-product-resolver.service'
+import { buildPhoneLookupCandidates, normalizePhoneNumber } from '../common/utils/phone'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
@@ -157,16 +159,11 @@ const splitStreetAndNumber = (
 
 const normalizeEmail = (email: string): string => email.trim().toLowerCase()
 
-const normalizePhone = (phone: string): string => phone.replace(/[^\d+]/g, '')
-
 const isEmailIdentifier = (value: string): boolean => value.includes('@')
 
 const sanitizePhoneInput = (value?: string | null): string | null => {
-  if (!value) {
-    return null
-  }
-  const normalized = normalizePhone(value)
-  return normalized.length >= 6 ? normalized : null
+  const normalized = normalizePhoneNumber(value)
+  return normalized && normalized.length >= 6 ? normalized : null
 }
 
 const normalizeLocalePreference = (value?: string | null): 'en' | 'es' => {
@@ -389,10 +386,10 @@ export class StorefrontService implements OnModuleInit {
 
   private async resolvePublishedParametricConfiguration(
     productId: number,
+    rawConfiguration?: Record<string, unknown> | null,
     fallbackCurrency?: string | null,
-  ): Promise<Record<string, unknown> | null> {
-    const definition = await this.publishedProductResolver.resolvePublishedParametricProduct(productId, fallbackCurrency)
-    return definition?.configuration ?? null
+  ): Promise<PublishedParametricVariantDefinition | null> {
+    return this.publishedProductResolver.resolvePublishedParametricVariant(productId, rawConfiguration, fallbackCurrency)
   }
 
   private buildProductTypeCode(familyId?: string | null): string {
@@ -1053,7 +1050,10 @@ export class StorefrontService implements OnModuleInit {
       }),
     ])
 
-    const data = products.map((product) => this.toProductSummary(product))
+    const publishedParametricDefinitions = await this.resolvePublishedParametricDefinitions(products)
+    const data = products.map((product) =>
+      this.toProductSummary(product, publishedParametricDefinitions.get(product.id) ?? null),
+    )
     const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
     return {
@@ -1171,7 +1171,10 @@ export class StorefrontService implements OnModuleInit {
       },
     })
 
-    detail.relatedProducts = related.map((item) => this.toProductSummary(item))
+    const relatedPublishedDefinitions = await this.resolvePublishedParametricDefinitions(related)
+    detail.relatedProducts = related.map((item) =>
+      this.toProductSummary(item, relatedPublishedDefinitions.get(item.id) ?? null),
+    )
     return detail
   }
 
@@ -1202,7 +1205,10 @@ export class StorefrontService implements OnModuleInit {
         category: true,
       },
     })
-    return items.map((item) => this.toProductSummary(item))
+    const publishedParametricDefinitions = await this.resolvePublishedParametricDefinitions(items)
+    return items.map((item) =>
+      this.toProductSummary(item, publishedParametricDefinitions.get(item.id) ?? null),
+    )
   }
 
   private async resolveStorefrontParametricProductId(productId: number): Promise<number> {
@@ -1284,8 +1290,9 @@ export class StorefrontService implements OnModuleInit {
     }
 
     const productIds = dto.items.map((item) => item.productId)
+    const uniqueProductIds = Array.from(new Set(productIds))
     const products = await this.prisma.product.findMany({
-      where: { id: { in: productIds }, published: true },
+      where: { id: { in: uniqueProductIds }, published: true },
       select: {
         id: true,
         name: true,
@@ -1295,7 +1302,7 @@ export class StorefrontService implements OnModuleInit {
       },
     })
 
-    if (products.length !== dto.items.length) {
+    if (products.length !== uniqueProductIds.length) {
       throw new BadRequestException('One or more products are unavailable')
     }
 
@@ -1349,12 +1356,18 @@ export class StorefrontService implements OnModuleInit {
         }
 
         if (product.mode === ProductMode.PARAMETRIC) {
-          const publishedConfiguration = await this.resolvePublishedParametricConfiguration(product.id, product.currency)
-          if (publishedConfiguration) {
+          const publishedVariant = await this.resolvePublishedParametricConfiguration(
+            product.id,
+            item.configuration && typeof item.configuration === 'object'
+              ? (item.configuration as Record<string, unknown>)
+              : null,
+            product.currency,
+          )
+          if (publishedVariant) {
             return {
               productId: product.id,
               quantity,
-              configuration: publishedConfiguration,
+              configuration: publishedVariant.configuration,
             }
           }
 
@@ -1500,7 +1513,13 @@ export class StorefrontService implements OnModuleInit {
       return null
     }
 
-    return this.prisma.customer.findUnique({ where: { phoneNumber: phone } })
+    return this.prisma.customer.findFirst({
+      where: {
+        phoneNumber: {
+          in: buildPhoneLookupCandidates(phone),
+        },
+      },
+    })
   }
 
   private async verifyCustomerPassword(customer: Customer, password: string): Promise<{ valid: boolean; usingDefault: boolean }> {
@@ -1524,19 +1543,46 @@ export class StorefrontService implements OnModuleInit {
   async registerCustomer(dto: StorefrontRegisterDto) {
     await this.ensureDefaultPasswordHash()
 
-    const email = normalizeEmail(dto.email)
-    const existing = await this.prisma.customer.findUnique({ where: { email } })
+    const email = dto.email ? normalizeEmail(dto.email) : null
+    const phone = sanitizePhoneInput(dto.phone)
+
+    if (!dto.phone?.trim().length) {
+      throw new BadRequestException('Phone number is required')
+    }
+
+    if (!phone) {
+      throw new BadRequestException('Invalid phone number')
+    }
+
+    const [existingByEmail, existingByPhone] = await Promise.all([
+      email ? this.prisma.customer.findUnique({ where: { email } }) : Promise.resolve(null),
+      phone
+        ? this.prisma.customer.findFirst({
+            where: {
+              phoneNumber: {
+                in: buildPhoneLookupCandidates(phone),
+              },
+            },
+          })
+        : Promise.resolve(null),
+    ])
+
+    if (existingByEmail && existingByPhone && existingByEmail.id !== existingByPhone.id) {
+      throw new ConflictException('Customer already exists')
+    }
+
+    const existing = existingByEmail ?? existingByPhone
     if (existing?.passwordHash) {
       throw new ConflictException('Customer already exists')
     }
 
-    const phone = sanitizePhoneInput(dto.phone)
     const passwordHash = await bcrypt.hash(dto.password, 12)
     const preferredLocale = dto.locale ? normalizeLocalePreference(dto.locale) : undefined
     const customer = existing
       ? await this.prisma.customer.update({
           where: { id: existing.id },
           data: {
+            ...(email ? { email } : {}),
             firstName: dto.firstName,
             lastName: dto.lastName,
             name: `${dto.firstName} ${dto.lastName}`.trim(),
@@ -1816,8 +1862,9 @@ export class StorefrontService implements OnModuleInit {
     customer = await this.syncCustomerProfileFromCheckout(customer, dto)
 
     const productIds = dto.items.map((item) => item.productId)
+    const uniqueProductIds = Array.from(new Set(productIds))
     const products = await this.prisma.product.findMany({
-      where: { id: { in: productIds }, published: true },
+      where: { id: { in: uniqueProductIds }, published: true },
       include: {
         images: {
           where: { variantId: null },
@@ -1825,7 +1872,7 @@ export class StorefrontService implements OnModuleInit {
         },
       },
     })
-    if (products.length !== dto.items.length) {
+    if (products.length !== uniqueProductIds.length) {
       throw new BadRequestException('One or more products are unavailable')
     }
     const productById = new Map(products.map((product) => [product.id, product]))
@@ -1902,16 +1949,24 @@ export class StorefrontService implements OnModuleInit {
         let parametricConfig: Record<string, unknown> | undefined
 
         if (product.mode === ProductMode.PARAMETRIC) {
-          const publishedParametricDefinition = await this.publishedProductResolver.resolvePublishedParametricProduct(
+          const publishedParametricVariant = await this.resolvePublishedParametricConfiguration(
             product.id,
+            item.configuration && typeof item.configuration === 'object'
+              ? (item.configuration as Record<string, unknown>)
+              : null,
             product.currency,
           )
-          if (publishedParametricDefinition) {
-            specEntries = publishedParametricDefinition.specifications
+          if (publishedParametricVariant) {
+            salePriceAmount = publishedParametricVariant.price
+            unitPrice = decimal(publishedParametricVariant.price)
+            specEntries = publishedParametricVariant.specifications
             specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
             displayName = product.name
             skuSnapshot = product.productCode ?? undefined
-            parametricConfig = publishedParametricDefinition.configuration
+            parametricConfig = publishedParametricVariant.configuration
+            priceCurrency =
+              this.currencyConversion.normalizeCurrency(publishedParametricVariant.currency ?? product.currency) ??
+              priceCurrency
           } else {
             if (!item.configuration || typeof item.configuration !== 'object') {
               throw new BadRequestException('Parametric configuration is required for this product.')
@@ -2784,10 +2839,50 @@ export class StorefrontService implements OnModuleInit {
     }
   }
 
-  private toProductSummary(product: Prisma.ProductGetPayload<{ include: { images: true; category: true } }>): ProductSummaryDto {
+  private async resolvePublishedParametricDefinitions(
+    products: Array<Prisma.ProductGetPayload<{ include: { images: true; category: true } }>>,
+  ): Promise<Map<number, PublishedParametricProductDefinition | null>> {
+    const parametricProducts = products.filter((product) => product.mode === ProductMode.PARAMETRIC)
+    if (parametricProducts.length === 0) {
+      return new Map()
+    }
+
+    const uniqueIds = Array.from(new Set(parametricProducts.map((product) => product.id)))
+    const definitions = await Promise.all(
+      uniqueIds.map(async (productId) => [
+        productId,
+        await this.publishedProductResolver.resolvePublishedParametricProduct(productId),
+      ] as const),
+    )
+
+    return new Map<number, PublishedParametricProductDefinition | null>(definitions)
+  }
+
+  private buildPublishedParametricVariantLabel(
+    specifications: Array<{ label: string; value: string }> | undefined,
+  ): string | null {
+    if (!specifications?.length) {
+      return null
+    }
+
+    const entries = specifications
+      .filter((entry) => entry?.label && entry?.value)
+      .filter((entry) => entry.label.trim().toLowerCase() !== 'material')
+      .map((entry) => `${entry.label}: ${entry.value}`)
+
+    return entries.length > 0 ? entries.join(' • ') : null
+  }
+
+  private toProductSummary(
+    product: Prisma.ProductGetPayload<{ include: { images: true; category: true } }>,
+    publishedParametricDefinition?: PublishedParametricProductDefinition | null,
+  ): ProductSummaryDto {
     const thumbnail = product.images?.[0]
     const price = decimalToNumber(product.salePrice)
     const salePrice = decimalToNumber(product.salePrice)
+    const publishedVariantLabel = publishedParametricDefinition
+      ? this.buildPublishedParametricVariantLabel(publishedParametricDefinition.specifications)
+      : null
     const summary: ProductSummaryDto = {
       id: product.id,
       slug: buildProductSlug(product.id, product.name, product.productCode ?? undefined),
@@ -2820,6 +2915,9 @@ export class StorefrontService implements OnModuleInit {
           : product.mode === ProductMode.PARAMETRIC
           ? 'parametric'
           : 'simple',
+      variantLabel: publishedVariantLabel,
+      configuration: publishedParametricDefinition?.configuration ?? undefined,
+      specifications: publishedParametricDefinition?.specifications ?? undefined,
     }
     return summary
   }
@@ -2952,6 +3050,23 @@ export class StorefrontService implements OnModuleInit {
       relatedProducts: [],
       attributes: attributes.length ? attributes : undefined,
       variants: variants.length ? variants : undefined,
+      publishedParametricOptions:
+        product.mode === ProductMode.PARAMETRIC && publishedParametricDefinition
+          ? {
+              defaultVariantKey: publishedParametricDefinition.defaultVariantKey,
+              defaultConfiguration: publishedParametricDefinition.configuration,
+              defaultSpecifications: publishedParametricDefinition.specifications,
+              selectors: publishedParametricDefinition.selectors,
+              variants: publishedParametricDefinition.variants.map((variant) => ({
+                id: variant.id,
+                key: variant.key,
+                price: money(variant.price, variant.currency ?? product.currency ?? 'USD'),
+                configuration: variant.configuration,
+                specifications: variant.specifications,
+                optionValues: variant.optionValues,
+              })),
+            }
+          : undefined,
     }
   }
 

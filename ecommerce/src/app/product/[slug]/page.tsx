@@ -1,7 +1,6 @@
 import { Fragment } from "react";
 import { notFound } from "next/navigation";
-import ProductView from "@component/products/ProductView";
-import ProductIntro from "@component/products/ProductIntro";
+import ProductDetailExperience from "@component/products/ProductDetailExperience";
 import type Product from "@models/product.model";
 import type Shop from "@models/shop.model";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
@@ -103,32 +102,11 @@ export default async function ProductDetails({
 
   return (
     <Fragment>
-      <ProductIntro
-        id={product.id}
-        slug={product.slug}
-        price={product.price}
-        currency={product.currency}
-        basePrice={product.basePrice}
-        discount={product.discount}
-        rating={product.rating}
-        ratingCount={product.ratingCount}
-        brand={product.brand}
-        status={product.status}
-        shortDescription={product.shortDescription}
-        title={product.title}
-        images={product.images && product.images.length > 0 ? product.images : [product.thumbnail]}
-        mode={product.mode}
-        variantAttributes={product.variantAttributes}
-        variants={product.variants}
-      />
-
-      <ProductView
+      <ProductDetailExperience
+        product={product}
         shops={shops}
         relatedProducts={relatedProducts}
         frequentlyBought={frequentlyBought}
-        description={product.description}
-        descriptionHtml={product.descriptionHtml}
-        specifications={product.specifications}
       />
     </Fragment>
   );

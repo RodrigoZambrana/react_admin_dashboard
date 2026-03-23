@@ -14,6 +14,7 @@ Plan operativo para ejecutar el saneamiento y la evolución del proyecto sin per
 - El stack Docker local debe seguir operativo en cada iteración relevante como control mínimo de integración y empaquetado.
 - No hace falta correr Docker por cada microcambio, pero sí al cierre de cada bloque relevante y al cierre de cualquier cambio en `package.json`, Dockerfiles, compose, envs, imports compartidos o runtime server/client.
 - El storefront debe evolucionar con una política explícita de procedencia de datos y degradación controlada cuando el backend no esté disponible.
+- Los DTO públicos del storefront deben mantenerse mínimos y auditados para no exponer costos, márgenes o reglas internas innecesarias.
 
 ## Secuencia de trabajo recomendada
 
@@ -1174,3 +1175,58 @@ Implementar SEO dinámico consistente con un ecommerce SaaS real.
   - `resolve` y webhook intentan reconciliar `approved/captured` sin `orderId` usando el snapshot ya preparado en backend;
   - si falta contexto suficiente, el intent se marca para `manual_review_required`;
   - si el provider no está disponible en el boot, la reconciliación histórica se difiere sin degradar esos intents a error funcional.
+
+## Backlog exploratorio storefront adicional
+
+- Quedó documentado en `STOREFRONT_EXPLORATORY_BACKLOG_2026-03-22.md`.
+- Agrupa los siguientes bloques para ejecución posterior:
+  - pagos parciales y cronología final de pedido,
+  - moneda única de compra vs visualización posterior,
+  - selector de idioma reactivo,
+  - selector de búsqueda con `Todas las categorías`,
+  - variantes configurables de productos paramétricos publicados,
+  - registro/perfil de usuario con validaciones reales y sin datos dummy,
+  - mejora integral de `contact`,
+  - filtro correcto de rango de precios en `shop`,
+  - feed tipo stories para categorías como evolución mobile-first.
+
+### Estado parcial de la ola 1
+
+- Ya resuelto en esta ronda:
+  - selector de idioma reactivo sin refresh manual,
+  - reaparición de `Todas las categorías` en el selector de búsqueda,
+  - filtro de rango de precios sin clamp artificial de query,
+  - preservación de moneda original elegida por el cliente en el snapshot de checkout previo al post-pago,
+  - registro storefront alineado a `teléfono obligatorio / mail opcional`,
+  - normalización consistente de teléfono en frontend/backend para lookup y recuperación,
+  - perfil público sin saldo dummy.
+- Sigue pendiente dentro de la misma ola:
+  - definición final de visualización histórica de moneda luego de la compra,
+  - bajada operativa del relevamiento nuevo de:
+    - ABM de plantillas/configuración de mails,
+    - correos transaccionales de compra/autenticación,
+    - anonimización/protección de datos personales.
+
+### Validación adicional cerrada
+
+- Pagos parciales manuales:
+  - caso real ejecutado sobre la orden `#101` usando `PaymentsService` dentro del contenedor backend;
+  - secuencia resultante validada:
+    - `ORDER_RECEIVED`
+    - `PAYMENT_PARTIAL`
+    - `PAYMENT_PARTIAL`
+    - `PAYMENT_FULL`
+- UX storefront:
+  - cards principales activas ajustadas para mostrar el nombre completo del producto sin truncado de una sola línea.
+  - `/contact` alineado al layout storefront real y sin warning React por keys duplicadas.
+  - edición de perfil storefront alineada a `teléfono obligatorio / mail opcional`, con avatar solo informativo y copy consistente.
+  - registro storefront con feedback visible de obligatoriedad/opcionalidad y hint de normalización de teléfono.
+  - backlog exploratorio ampliado con la implementación recomendada para:
+    - variantes configurables de paramétricos publicados basadas en resolver canónico backend,
+    - operación real de templates/emails,
+    - privacidad/anonimización.
+  - slice inicial implementado para paramétricos publicados:
+    - backend ya expone `publishedParametricOptions` con variantes reales por `productId`,
+    - storefront detalle ya puede seleccionar entre variantes publicadas disponibles sin reabrir el flujo de cotización libre.
+  - bloque operativo de mails/privacidad relevado y aterrizado en:
+    - `EMAIL_PRIVACY_OPERATIONS_2026-03-22.md`.

@@ -189,6 +189,42 @@ export interface ProductVariant {
   images: ProductImage[];
 }
 
+export interface PublishedParametricVariant {
+  id: number;
+  key: string;
+  price: Money;
+  configuration: Record<string, unknown>;
+  specifications: Array<{ label: string; value: string }>;
+  optionValues: {
+    familyId: string;
+    serie: string;
+    material: string;
+    color: string;
+    vidrio: string;
+    widthMm: number;
+    heightMm: number;
+    hasMosquitero: boolean;
+    hasShutterMonoblock: boolean;
+    shutterMaterial: string;
+  };
+}
+
+export interface PublishedParametricOptions {
+  defaultVariantKey: string;
+  defaultConfiguration: Record<string, unknown>;
+  defaultSpecifications: Array<{ label: string; value: string }>;
+  selectors: {
+    series: string[];
+    materials: string[];
+    colors: string[];
+    glass: string[];
+    shutterMaterials: string[];
+    hasMosquiteroOption: boolean;
+    hasMonoblockOption: boolean;
+  };
+  variants: PublishedParametricVariant[];
+}
+
 export interface ProductImage extends ImageAsset {
   sortOrder?: number;
   isPrimary?: boolean;
@@ -217,6 +253,7 @@ export interface ProductSummary {
   variantKey?: string | null;
   variantLabel?: string | null;
   configuration?: Record<string, unknown> | null;
+  specifications?: Array<{ label: string; value: string }>;
 }
 
 export interface ProductDetail extends Omit<ProductSummary, "attributes"> {
@@ -232,6 +269,7 @@ export interface ProductDetail extends Omit<ProductSummary, "attributes"> {
   };
   attributes?: ProductAttributeDefinition[];
   variants?: ProductVariant[];
+  publishedParametricOptions?: PublishedParametricOptions;
 }
 
 export interface ParametricSizeLimit {

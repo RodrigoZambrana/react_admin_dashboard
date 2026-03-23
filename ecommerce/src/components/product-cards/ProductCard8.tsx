@@ -94,7 +94,12 @@ export default function ProductCard8({
           />
         </HoverBox>
 
-        <SemiSpan title={title} mb="0.25rem" color="inherit" ellipsis display="block">
+        <SemiSpan
+          title={title}
+          mb="0.25rem"
+          color="inherit"
+          display="block"
+          style={{ whiteSpace: "normal", wordBreak: "break-word", overflowWrap: "anywhere", minHeight: "2.8em" }}>
           {title}
         </SemiSpan>
 

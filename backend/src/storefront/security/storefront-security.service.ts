@@ -12,6 +12,7 @@ import { randomBytes, createHash, timingSafeEqual, randomInt } from 'crypto'
 import type { FastifyRequest } from 'fastify'
 import { Prisma, Customer, CustomerSecurityEventType, CustomerReauthMethod, PasswordResetChannel, CustomerOtpChallenge } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
+import { buildPhoneLookupCandidates, normalizePhoneNumber } from '../../common/utils/phone'
 
 type RecoveryChannel = 'email' | 'phone' | 'google'
 
@@ -36,7 +37,6 @@ const PASSWORD_MAX_LENGTH = 256
 const OTP_LENGTH = 6
 
 const normalizeEmail = (value: string): string => value.trim().toLowerCase()
-const normalizePhone = (value: string): string => value.replace(/[^\d+]/g, '')
 
 const hashSha256 = (value: string): string => createHash('sha256').update(value).digest('hex')
 
@@ -151,7 +151,7 @@ export class StorefrontSecurityService {
   }
 
   async requestPhoneRecovery(phoneRaw: string, req?: FastifyRequest): Promise<void> {
-    const normalized = normalizePhone(phoneRaw)
+    const normalized = normalizePhoneNumber(phoneRaw)
     if (!normalized || normalized.length < 6) {
       throw new BadRequestException('auth.passwordRecovery.invalidPhone')
     }
@@ -162,8 +162,12 @@ export class StorefrontSecurityService {
 
     await this.enforceOtpRateLimit(normalized, ipAddress)
 
-    const customer = await this.prisma.customer.findUnique({
-      where: { phoneNumber: normalized },
+    const customer = await this.prisma.customer.findFirst({
+      where: {
+        phoneNumber: {
+          in: buildPhoneLookupCandidates(normalized),
+        },
+      },
     })
 
     if (!customer) {
@@ -247,7 +251,7 @@ export class StorefrontSecurityService {
   }
 
   async verifyPhoneOtp(phoneRaw: string, otp: string, req?: FastifyRequest): Promise<ResetSessionToken> {
-    const normalized = normalizePhone(phoneRaw)
+    const normalized = normalizePhoneNumber(phoneRaw)
     if (!normalized || normalized.length < 6) {
       throw new BadRequestException('auth.passwordRecovery.invalidPhone')
     }
@@ -260,7 +264,9 @@ export class StorefrontSecurityService {
 
     const challenge = await this.prisma.customerOtpChallenge.findFirst({
       where: {
-        phone: normalized,
+        phone: {
+          in: buildPhoneLookupCandidates(normalized),
+        },
         consumedAt: null,
         expiresAt: { gt: new Date() },
       },

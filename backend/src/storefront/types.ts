@@ -196,6 +196,45 @@ export interface ProductSummaryDto {
   categories?: Array<{ id: number; slug: string; name: string }>
   tags?: string[]
   mode: ProductModeDto
+  variantLabel?: string | null
+  configuration?: Record<string, unknown> | null
+  specifications?: Array<{ label: string; value: string }>
+}
+
+export interface PublishedParametricVariantDto {
+  id: number
+  key: string
+  price: MoneyDto
+  configuration: Record<string, unknown>
+  specifications: Array<{ label: string; value: string }>
+  optionValues: {
+    familyId: string
+    serie: string
+    material: string
+    color: string
+    vidrio: string
+    widthMm: number
+    heightMm: number
+    hasMosquitero: boolean
+    hasShutterMonoblock: boolean
+    shutterMaterial: string
+  }
+}
+
+export interface PublishedParametricOptionsDto {
+  defaultVariantKey: string
+  defaultConfiguration: Record<string, unknown>
+  defaultSpecifications: Array<{ label: string; value: string }>
+  selectors: {
+    series: string[]
+    materials: string[]
+    colors: string[]
+    glass: string[]
+    shutterMaterials: string[]
+    hasMosquiteroOption: boolean
+    hasMonoblockOption: boolean
+  }
+  variants: PublishedParametricVariantDto[]
 }
 
 export interface ProductDetailDto extends ProductSummaryDto {
@@ -207,6 +246,7 @@ export interface ProductDetailDto extends ProductSummaryDto {
   meta?: Record<string, unknown>
   attributes?: ProductAttributeDefinitionDto[]
   variants?: ProductVariantDto[]
+  publishedParametricOptions?: PublishedParametricOptionsDto
 }
 
 export interface ProductListFilters {

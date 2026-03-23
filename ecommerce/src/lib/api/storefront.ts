@@ -293,11 +293,11 @@ export const StorefrontApi = {
 
   async register(
     payload: {
-      email: string;
+      email?: string;
       password: string;
       firstName: string;
       lastName: string;
-      phone?: string;
+      phone: string;
       locale?: string;
     }
   ): Promise<AuthSession> {

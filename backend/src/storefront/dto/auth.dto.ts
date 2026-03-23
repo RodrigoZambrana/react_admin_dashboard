@@ -1,8 +1,9 @@
 import { IsDateString, IsEmail, IsOptional, IsString, MinLength, IsIn } from 'class-validator'
 
 export class StorefrontRegisterDto {
+  @IsOptional()
   @IsEmail()
-  email!: string
+  email?: string
 
   @IsString()
   @MinLength(8)
@@ -14,10 +15,9 @@ export class StorefrontRegisterDto {
   @IsString()
   lastName!: string
 
-  @IsOptional()
   @IsString()
   @MinLength(6)
-  phone?: string
+  phone!: string
 
   @IsOptional()
   @IsString()
