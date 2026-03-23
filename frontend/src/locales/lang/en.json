@@ -2763,6 +2763,8 @@
   "notification": {
     "title": "Notifications",
     "markAllRead": "Mark all as read",
+    "deleteAll": "Delete all",
+    "deleteOne": "Delete notification",
     "empty": {
       "title": "No notifications!",
       "desc": "Please try again later"

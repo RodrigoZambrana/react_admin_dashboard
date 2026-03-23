@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import classNames from 'classnames'
 import dayjs from 'dayjs'
@@ -10,7 +10,7 @@ import ScrollBar from '@/components/ui/ScrollBar'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Tooltip from '@/components/ui/Tooltip'
-import { HiOutlineBell, HiOutlineMailOpen } from 'react-icons/hi'
+import { HiOutlineBell, HiOutlineMailOpen, HiOutlineTrash } from 'react-icons/hi'
 import { useTranslation } from 'react-i18next'
 import appConfig from '@/configs/app.config'
 import {
@@ -18,6 +18,7 @@ import {
     fetchNotifications,
     fetchUnreadCount,
     markNotificationsRead,
+    deleteNotifications,
     notificationReceived,
     selectNotifications,
     selectNotificationsMeta,
@@ -217,6 +218,30 @@ const _Notification = ({ className }: { className?: string }) => {
         void dispatch(markNotificationsRead({ markAll: true }))
     }, [dispatch, unreadCount, signedIn])
 
+    const onDeleteAll = useCallback(() => {
+        if (!signedIn || entries.length === 0) {
+            return
+        }
+        void dispatch(deleteNotifications({ deleteAll: true }))
+    }, [dispatch, entries.length, signedIn])
+
+    const handleDeleteNotification = useCallback(
+        async (event: MouseEvent<HTMLButtonElement>, entry: NotificationEntry) => {
+            event.preventDefault()
+            event.stopPropagation()
+            if (!signedIn) {
+                return
+            }
+            try {
+                await dispatch(deleteNotifications({ ids: [entry.id] })).unwrap()
+            } catch (error) {
+                // eslint-disable-next-line no-console
+                console.error('Failed to delete notification', error)
+            }
+        },
+        [dispatch, signedIn],
+    )
+
     const handleNotificationClick = useCallback(
         async (entry: NotificationEntry) => {
             if (!signedIn) {
@@ -263,6 +288,16 @@ const _Notification = ({ className }: { className?: string }) => {
                             onClick={onMarkAllAsRead}
                         />
                     </Tooltip>
+                    <Tooltip title={t('notification.deleteAll')}>
+                        <Button
+                            variant="plain"
+                            shape="circle"
+                            size="sm"
+                            disabled={entries.length === 0}
+                            icon={<HiOutlineTrash className="text-xl" />}
+                            onClick={onDeleteAll}
+                        />
+                    </Tooltip>
                 </div>
             </Dropdown.Item>
             <div className={classNames('overflow-y-auto', notificationHeight)}>
@@ -291,15 +326,27 @@ const _Notification = ({ className }: { className?: string }) => {
                                         {item.eventType?.[0] ?? 'N'}
                                     </Avatar>
                                     <div className="ltr:ml-3 rtl:mr-3 flex-1 min-w-0">
-                                        <div className="flex items-center justify-between">
+                                        <div className="flex items-center justify-between gap-2">
                                             <span className="font-semibold heading-text truncate">
                                                 {item.title ?? t('notification.untitled')}
                                             </span>
-                                            <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
-                                                {dayjs(item.createdAt)
-                                                    .locale(i18n.language)
-                                                    .fromNow()}
-                                            </span>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <span className="text-xs text-gray-500 whitespace-nowrap">
+                                                    {dayjs(item.createdAt)
+                                                        .locale(i18n.language)
+                                                        .fromNow()}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    className="text-gray-400 hover:text-red-500 transition-colors"
+                                                    aria-label={t('notification.deleteOne')}
+                                                    onClick={(event) =>
+                                                        void handleDeleteNotification(event, item)
+                                                    }
+                                                >
+                                                    <HiOutlineTrash className="text-base" />
+                                                </button>
+                                            </div>
                                         </div>
                                         {summary && (
                                             <div className="text-xs text-gray-500">{summary}</div>

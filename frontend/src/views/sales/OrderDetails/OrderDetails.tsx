@@ -29,7 +29,7 @@ import Notification from '@/components/ui/Notification'
 import { useSalesDocumentI18n } from '../context/useSalesDocumentI18n'
 import { resolveTextDirection } from '@/utils/textDirection'
 import { sanitizeRichText } from '@/utils/security/inputGuards'
-import { apiDeletePaymentAttachment } from '@/services/AccountingService'
+import { apiDeletePaymentAttachment, apiUpdatePayment } from '@/services/AccountingService'
 import type { OrderTimelineResponse } from '@/types/orderTimeline'
 import { deriveStatusColorClasses } from '@/utils/statusColor'
 import { ORDER_STATUS_CHANGE_ALLOWED, ORDER_STATUS_IDS } from '@/constants/orderStatus'
@@ -128,17 +128,18 @@ type SalesOrderDetailsResponse = {
             recipient?: string
         }[]
     }[]
-    customer?: {
-        id?: number
-        name: string
-        email: string
-        phone: string
-        img: string
-        previousOrder: number
-        previousBudgets?: number
-        shippingAddress: {
-            line1: string
-            line2: string
+        customer?: {
+            id?: number
+            name: string
+            email: string
+            phone: string
+            img: string
+            previousOrder: number
+            previousBudgets?: number
+            comment?: string
+            shippingAddress: {
+                line1: string
+                line2: string
             line3: string
             line4: string
         }
@@ -413,6 +414,45 @@ const OrderDetails = () => {
         [fetchData, t],
     )
 
+    const handleChangePaymentStatus = useCallback(
+        async (paymentId: number, status: 'CONFIRMED' | 'FAILED') => {
+            try {
+                await apiUpdatePayment(paymentId, { status })
+                toast.push(
+                    <Notification
+                        title={t('sales.orders.payments.statusUpdatedTitle', {
+                            defaultValue: 'Payment updated',
+                        })}
+                        type="success"
+                    >
+                        {status === 'CONFIRMED'
+                            ? t('sales.orders.payments.statusUpdatedConfirmed', {
+                                  defaultValue: 'The payment was confirmed successfully.',
+                              })
+                            : t('sales.orders.payments.statusUpdatedFailed', {
+                                  defaultValue: 'The payment was cancelled successfully.',
+                              })}
+                    </Notification>,
+                )
+                fetchData()
+            } catch {
+                toast.push(
+                    <Notification
+                        title={t('sales.orders.payments.statusUpdatedFailedTitle', {
+                            defaultValue: 'Unable to update payment',
+                        })}
+                        type="danger"
+                    >
+                        {t('sales.orders.payments.statusUpdatedFailedDesc', {
+                            defaultValue: 'Please try again.',
+                        })}
+                    </Notification>,
+                )
+            }
+        },
+        [fetchData, t],
+    )
+
     const disclaimerHtml = useMemo(() => {
         if (typeof data.disclaimer === 'string') {
             const trimmed = data.disclaimer.trim()
@@ -604,6 +644,7 @@ const OrderDetails = () => {
                                     payments={data.payments ?? undefined}
                                     onAddPayment={() => setPaymentDialogOpen(true)}
                                     onDeleteAttachment={handleDeleteAttachment}
+                                    onChangePaymentStatus={handleChangePaymentStatus}
                                 />
                                 <Activity
                                     timeline={timeline}
@@ -612,7 +653,16 @@ const OrderDetails = () => {
                                 />
                             </div>
                             <div className="xl:max-w-[360px] w-full space-y-4">
-                                <CustomerInfo data={data.customer} />
+                                <CustomerInfo
+                                    data={
+                                        data.customer
+                                            ? {
+                                                  ...data.customer,
+                                                  comment: data.comment ?? undefined,
+                                              }
+                                            : undefined
+                                    }
+                                />
                                 <ShippingInfo
                                     data={data.shipping}
                                     estimatedDate={resolvedEstimatedDate}

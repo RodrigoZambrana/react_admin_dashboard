@@ -25,6 +25,7 @@ import {
   StorefrontLoginDto,
   StorefrontRefreshDto,
   StorefrontUpdateProfileDto,
+  StorefrontEmailVerificationDto,
 } from './dto/auth.dto'
 import { StorefrontCreateOrderDto } from './dto/order.dto'
 import { StorefrontAddressDto } from './dto/address.dto'
@@ -229,6 +230,21 @@ export class StorefrontController {
     return this.toClientSession(session)
   }
 
+  @UseGuards(StorefrontJwtGuard)
+  @Post('auth/email-verification/resend')
+  async resendEmailVerification(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+  ) {
+    await this.security.sendEmailVerification(req.user.sub, req)
+    return { ok: true }
+  }
+
+  @Post('auth/email-verification/confirm')
+  async confirmEmailVerification(@Body() dto: StorefrontEmailVerificationDto) {
+    await this.security.verifyEmailToken(dto.token)
+    return { ok: true }
+  }
+
   @Post('auth/google/start')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async startGoogle(
@@ -314,6 +330,16 @@ export class StorefrontController {
     return this.storefront.createOrder(dto)
   }
 
+  @Get('content/sections/:key')
+  getContentSection(@Param('key') key: string, @Query('locale') locale?: string) {
+    return this.storefront.getContentSection(key, locale)
+  }
+
+  @Post('checkout/preview')
+  createCheckoutPreview(@Body() dto: StorefrontCreateOrderDto) {
+    return this.storefront.prepareCheckoutSummary(dto)
+  }
+
   @Post('payments/mercadopago/preference')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   async createMercadoPagoPreference(@Body() dto: MercadoPagoPreferenceDto, @Req() req: FastifyRequest) {
@@ -328,9 +354,12 @@ export class StorefrontController {
     const checkoutSnapshot = dto.checkoutSnapshot
       ? await this.storefront.prepareCheckoutSnapshot(dto.checkoutSnapshot as StorefrontCreateOrderDto)
       : null
+    const resolvedPaymentQuote = checkoutSnapshot
+      ? await this.storefront.resolveCheckoutPaymentAmount(checkoutSnapshot, dto.currency)
+      : { amount: dto.amount, currency: dto.currency }
     return this.mercadoPago.createPreference({
-      amount: dto.amount,
-      currency: dto.currency,
+      amount: resolvedPaymentQuote.amount,
+      currency: resolvedPaymentQuote.currency,
       description: dto.description,
       cartId: dto.cartId,
       checkoutToken: dto.checkoutToken,
@@ -353,15 +382,25 @@ export class StorefrontController {
     const checkoutSnapshot = dto.checkoutSnapshot
       ? await this.storefront.prepareCheckoutSnapshot(dto.checkoutSnapshot as StorefrontCreateOrderDto)
       : null
+    const resolvedPaymentQuote = checkoutSnapshot
+      ? await this.storefront.resolveCheckoutPaymentAmount(checkoutSnapshot, dto.currency)
+      : { amount: dto.transactionAmount, currency: dto.currency }
 
-    const record = await this.mercadoPago.createCardPayment(dto, {
+    const record = await this.mercadoPago.createCardPayment(
+      {
+        ...dto,
+        transactionAmount: resolvedPaymentQuote.amount,
+        currency: resolvedPaymentQuote.currency,
+      },
+      {
       idempotencyKey: idempotencyKey ?? null,
       cartId: dto.cartId ?? null,
       checkoutToken: dto.checkoutToken ?? null,
       checkoutSnapshot: checkoutSnapshot ? (checkoutSnapshot as unknown as Record<string, unknown>) : null,
       userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
       ipAddress: (req.headers['x-forwarded-for'] as string | undefined) ?? req.ip ?? null,
-    })
+      },
+    )
 
     return {
       status: record.status,

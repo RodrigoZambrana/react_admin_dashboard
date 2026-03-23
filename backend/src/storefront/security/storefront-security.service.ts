@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -62,6 +63,7 @@ export class StorefrontSecurityService {
   private readonly otpRateLimitPerIp: number
   private readonly otpResendCooldownMs: number
   private readonly reauthTokenTtlMs: number
+  private readonly emailVerificationTtlMs: number
 
   constructor(
     private readonly prisma: PrismaService,
@@ -78,6 +80,9 @@ export class StorefrontSecurityService {
     this.otpRateLimitPerIp = Number(this.config.get<string>('CUSTOMER_PASSWORD_OTP_MAX_PER_IP') ?? 10)
     this.otpResendCooldownMs = Number(this.config.get<string>('CUSTOMER_PASSWORD_OTP_RESEND_COOLDOWN_MS') ?? 60 * 1000)
     this.reauthTokenTtlMs = Number(this.config.get<string>('CUSTOMER_REAUTH_TOKEN_TTL_MS') ?? 10 * 60 * 1000)
+    this.emailVerificationTtlMs = Number(
+      this.config.get<string>('CUSTOMER_EMAIL_VERIFICATION_TTL_MS') ?? 48 * 60 * 60 * 1000,
+    )
   }
 
   /**
@@ -138,7 +143,7 @@ export class StorefrontSecurityService {
       resetUrl,
       expiresAt,
       displayName: this.resolveDisplayName(customer),
-      locale: null,
+      locale: customer.preferredLocale ?? null,
       isAdmin: false,
     })
 
@@ -419,6 +424,101 @@ export class StorefrontSecurityService {
     })
   }
 
+  async sendEmailVerification(customerId: number, req?: FastifyRequest): Promise<void> {
+    const customer = await this.requireCustomer(customerId)
+    const email = customer.email ? normalizeEmail(customer.email) : null
+    if (!email) {
+      throw new BadRequestException('auth.emailVerification.emailRequired')
+    }
+    if (customer.emailVerifiedAt) {
+      throw new ConflictException('auth.emailVerification.alreadyVerified')
+    }
+
+    const ipAddress = req?.ip ?? null
+    const userAgent = (req?.headers['user-agent'] as string | undefined) ?? null
+    const token = randomBytes(48).toString('hex')
+    const tokenHash = hashSha256(token)
+    const expiresAt = this.nowPlus(this.emailVerificationTtlMs)
+
+    await this.prisma.customerEmailVerificationToken.updateMany({
+      where: {
+        customerId,
+        usedAt: null,
+      },
+      data: {
+        expiresAt: new Date(),
+      },
+    })
+
+    await this.prisma.customerEmailVerificationToken.create({
+      data: {
+        customerId,
+        tokenHash,
+        emailSnapshot: email,
+        expiresAt,
+        ipAddress,
+        userAgent,
+      },
+    })
+
+    await this.email.sendEmailVerification({
+      email,
+      displayName: this.resolveDisplayName(customer),
+      locale: (customer as { preferredLocale?: string | null }).preferredLocale ?? 'es',
+      verificationUrl: this.buildEmailVerificationUrl(token),
+      expiresAt,
+    })
+  }
+
+  async verifyEmailToken(token: string): Promise<Customer> {
+    const trimmedToken = token.trim()
+    if (!trimmedToken) {
+      throw new BadRequestException('auth.emailVerification.invalidToken')
+    }
+
+    const tokenHash = hashSha256(trimmedToken)
+    const record = await this.prisma.customerEmailVerificationToken.findFirst({
+      where: {
+        tokenHash,
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      include: {
+        customer: true,
+      },
+    })
+
+    if (!record?.customer) {
+      throw new BadRequestException('auth.emailVerification.invalidToken')
+    }
+
+    if (!record.customer.email || normalizeEmail(record.customer.email) !== normalizeEmail(record.emailSnapshot)) {
+      throw new BadRequestException('auth.emailVerification.invalidToken')
+    }
+
+    const verifiedAt = new Date()
+    await this.prisma.$transaction([
+      this.prisma.customer.update({
+        where: { id: record.customerId },
+        data: { emailVerifiedAt: verifiedAt },
+      }),
+      this.prisma.customerEmailVerificationToken.update({
+        where: { id: record.id },
+        data: { usedAt: verifiedAt },
+      }),
+      this.prisma.customerEmailVerificationToken.updateMany({
+        where: {
+          customerId: record.customerId,
+          usedAt: null,
+          id: { not: record.id },
+        },
+        data: { expiresAt: verifiedAt },
+      }),
+    ])
+
+    return this.requireCustomer(record.customerId)
+  }
+
   async reauthenticateWithPassword(customerId: number, password: string, req: FastifyRequest): Promise<ReauthTokenRecord> {
     const customer = await this.requireCustomer(customerId)
     if (!customer.passwordHash) {
@@ -675,6 +775,15 @@ export class StorefrontSecurityService {
     }
     const normalized = base.endsWith('/') ? base.slice(0, -1) : base
     return `${normalized}/account/security`
+  }
+
+  private buildEmailVerificationUrl(token: string) {
+    const base = this.config.get<string>('STOREFRONT_BASE_URL') ?? ''
+    if (!base) {
+      return `https://example.com/account/verify-email?token=${encodeURIComponent(token)}`
+    }
+    const normalized = base.endsWith('/') ? base.slice(0, -1) : base
+    return `${normalized}/account/verify-email?token=${encodeURIComponent(token)}`
   }
 
   private validatePassword(password: string) {

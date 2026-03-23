@@ -19,8 +19,13 @@ const createConfig = (overrides: Record<string, string | undefined> = {}) => {
 
 const createPrisma = () => ({
   storefrontPaymentIntent: {
+    findFirst: vi.fn(),
+    findMany: vi.fn().mockResolvedValue([]),
     findUnique: vi.fn(),
     update: vi.fn(),
+  },
+  order: {
+    findUnique: vi.fn(),
   },
   payment: {
     findFirst: vi.fn(),
@@ -127,7 +132,7 @@ describe('MercadoPagoService', () => {
       live_mode: false,
     } as any)
 
-    prisma.storefrontPaymentIntent.findUnique.mockResolvedValue({
+    prisma.storefrontPaymentIntent.findFirst.mockResolvedValue({
       id: 'intent-2',
       orderId: 55,
       status: 'pending',
@@ -168,6 +173,10 @@ describe('MercadoPagoService', () => {
       externalPaymentId: 'mp-2',
       liveMode: false,
     })
+    prisma.order.findUnique.mockResolvedValue({
+      grandTotal: decimal(875),
+      orderCurrency: 'USD',
+    })
     prisma.payment.findFirst.mockResolvedValue(null)
     prisma.payment.create.mockResolvedValue({ id: 91 })
     paymentSettlement.apply.mockResolvedValue({
@@ -185,7 +194,15 @@ describe('MercadoPagoService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           orderId: 55,
+          amount: decimal(875),
+          currency: 'USD',
           status: PaymentStatus.REGISTERED,
+          metadata: expect.objectContaining({
+            providerAmount: 200,
+            providerCurrency: 'UYU',
+            accountingAmount: 875,
+            accountingCurrency: 'USD',
+          }),
         }),
       }),
     )

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as yup from "yup";
 import { Formik, FormikHelpers, useFormikContext } from "formik";
 import { useRouter } from "next/navigation";
@@ -13,7 +13,6 @@ import TextArea from "@component/textarea";
 import CheckBox from "@component/CheckBox";
 import Typography from "@component/Typography";
 
-import CountrySelect from "@/components/country-city/CountrySelect";
 import CitySelect from "@/components/country-city/CitySelect";
 import { deriveCountryCode, useCountryCityData } from "@/lib/country-city";
 import { StorefrontApi, StorefrontAddressInput, isApiError } from "@/lib/api/storefront";
@@ -21,31 +20,58 @@ import { extractApiErrorMessage } from "@/lib/api/errors";
 import { useAccountProfile } from "@/hooks/useAccountProfile";
 import Address from "@models/address.model";
 import { useToast } from "@/contexts/ToastContext";
+import { useTranslation } from "@/state/i18n-context";
 
-const VALIDATION_SCHEMA = yup.object({
-  label: yup.string().nullable(),
-  street: yup.string().required("Street is required"),
-  number: yup
-    .string()
-    .matches(/^\d+$/, {
-      message: "Please enter numbers only.",
-      excludeEmptyString: true
-    })
-    .required("Number is required"),
-  corner: yup.string().nullable(),
-  apartment: yup.string().nullable(),
-  city: yup.string().required("City is required"),
-  country: yup.string().required("Country is required"),
-  countryCode: yup
-    .string()
-    .transform((value) => (value === "" ? null : value))
-    .nullable()
-    .notRequired(),
-  comments: yup.string().nullable(),
-  isPrimary: yup.boolean()
-});
+const DEFAULT_COUNTRY_NAME = "Uruguay";
+const DEFAULT_COUNTRY_CODE = "UY";
+const DEFAULT_CITY = "Montevideo";
 
-export type AddressFormValues = yup.InferType<typeof VALIDATION_SCHEMA>;
+const buildValidationSchema = (t: ReturnType<typeof useTranslation>) =>
+  yup.object({
+    label: yup.string().nullable(),
+    street: yup
+      .string()
+      .trim()
+      .required(t("account.address.form.errors.streetRequired", { defaultMessage: "Debes ingresar la calle." })),
+    number: yup
+      .string()
+      .matches(/^\d+$/, {
+        message: t("account.address.form.errors.numberOnly", {
+          defaultMessage: "Ingresa solo números."
+        }),
+        excludeEmptyString: true
+      })
+      .required(t("account.address.form.errors.numberRequired", { defaultMessage: "Debes ingresar el número." })),
+    corner: yup.string().nullable(),
+    apartment: yup.string().nullable(),
+    city: yup
+      .string()
+      .trim()
+      .required(t("account.address.form.errors.cityRequired", {
+        defaultMessage: "Debes seleccionar una ciudad o departamento."
+      })),
+    country: yup.string().trim().required(),
+    countryCode: yup
+      .string()
+      .transform((value) => (value === "" ? null : value))
+      .nullable()
+      .notRequired(),
+    comments: yup.string().nullable(),
+    isPrimary: yup.boolean()
+  });
+
+export type AddressFormValues = {
+  label: string | null;
+  street: string;
+  number: string;
+  corner: string | null;
+  apartment: string | null;
+  city: string;
+  country: string;
+  countryCode?: string | null;
+  comments: string | null;
+  isPrimary: boolean;
+};
 
 type AddressFormProps = { address?: Address };
 type FormStatus = { error?: string };
@@ -107,20 +133,27 @@ const buildInitialValues = (address?: Address): AddressFormValues => {
   const countryCode = address?.countryCode || (country ? deriveCountryCode(country) : "");
 
   return {
-    label: address?.label ?? "",
+  label: address?.label ?? "",
     street: address?.street ?? street ?? "",
     number: address?.number ?? number ?? "",
     corner: address?.corner ?? line2Parsed.corner ?? "",
     apartment: address?.apartment ?? line2Parsed.apartment ?? "",
-    city: address?.city ?? "",
-    country,
-    countryCode,
+    city: address?.city ?? DEFAULT_CITY,
+    country: country || DEFAULT_COUNTRY_NAME,
+    countryCode: countryCode || DEFAULT_COUNTRY_CODE,
     comments: address?.comments ?? line2Parsed.comments ?? "",
     isPrimary: address?.isPrimary ?? true
   };
 };
 
-function AddressFormFields({ address }: { address?: Address }) {
+function AddressFormFields({
+  address,
+  onSelectSubmitMode
+}: {
+  address?: Address;
+  onSelectSubmitMode: (mode: "save" | "save_and_add_another") => void;
+}) {
+  const t = useTranslation();
   const {
     values,
     errors,
@@ -132,39 +165,29 @@ function AddressFormFields({ address }: { address?: Address }) {
     setFieldValue,
     status
   } = useFormikContext<AddressFormValues>();
-  const { rows, countries, getFirstCityForCountry } = useCountryCityData();
+  const { rows, getFirstCityForCountry } = useCountryCityData();
 
   useEffect(() => {
     if (!rows || rows.length === 0) return;
     if (values.country && values.city) return;
 
-    const hasUruguay = rows.some(
-      (row) => (row.country_name ?? "").trim().toLowerCase() === "uruguay"
-    );
     const preferredCountry = (() => {
       if (values.country) return values.country;
       if (address?.state) return address.state;
       if (address?.country) return address.country;
-      if (hasUruguay) return "Uruguay";
-      return countries[0] ?? "";
+      return DEFAULT_COUNTRY_NAME;
     })();
 
     if (preferredCountry) {
-      const nextCity = getFirstCityForCountry(preferredCountry);
-      const nextCode = deriveCountryCode(preferredCountry);
-      if (!values.country) {
-        setFieldValue("country", preferredCountry, false);
-      }
-      if (!values.countryCode) {
-        setFieldValue("countryCode", nextCode, false);
-      }
+      const nextCity = values.city || getFirstCityForCountry(preferredCountry) || DEFAULT_CITY;
+      setFieldValue("country", DEFAULT_COUNTRY_NAME, false);
+      setFieldValue("countryCode", DEFAULT_COUNTRY_CODE, false);
       if (!values.city && nextCity) {
         setFieldValue("city", nextCity, false);
       }
     }
   }, [
     rows,
-      countries,
     values.country,
     values.city,
     values.countryCode,
@@ -194,8 +217,10 @@ function AddressFormFields({ address }: { address?: Address }) {
             <TextField
               fullWidth
               name="label"
-              label="Label"
-              placeholder="Home, Office, etc."
+              label={t("account.address.form.label", { defaultMessage: "Etiqueta" })}
+              placeholder={t("account.address.form.placeholder.label", {
+                defaultMessage: "Casa, trabajo, etc."
+              })}
               onBlur={handleBlur}
               value={values.label ?? ""}
               onChange={handleChange}
@@ -206,8 +231,8 @@ function AddressFormFields({ address }: { address?: Address }) {
           <Grid item md={6} xs={12}>
             <CheckBox
               checked={Boolean(values.isPrimary)}
-              onChange={(event) => setFieldValue("isPrimary", event.target.checked)}
-              label="Use as primary address"
+            onChange={(event) => setFieldValue("isPrimary", event.target.checked)}
+              label={t("account.address.form.isPrimary", { defaultMessage: "Usar como dirección principal" })}
               mt="1.75rem"
             />
           </Grid>
@@ -216,8 +241,10 @@ function AddressFormFields({ address }: { address?: Address }) {
             <TextField
               fullWidth
               name="street"
-              label="Street"
-              placeholder="Enter street name"
+              label={t("account.address.form.street", { defaultMessage: "Calle" })}
+              placeholder={t("account.address.form.placeholder.street", {
+                defaultMessage: "Ingresa el nombre de la calle"
+              })}
               onBlur={handleBlur}
               value={values.street}
               onChange={handleChange}
@@ -229,8 +256,10 @@ function AddressFormFields({ address }: { address?: Address }) {
             <TextField
               fullWidth
               name="number"
-              label="Number"
-              placeholder="House or building number"
+              label={t("account.address.form.number", { defaultMessage: "Número" })}
+              placeholder={t("account.address.form.placeholder.number", {
+                defaultMessage: "Número de puerta"
+              })}
               onBlur={handleBlur}
               value={values.number}
               onChange={handleChange}
@@ -242,8 +271,10 @@ function AddressFormFields({ address }: { address?: Address }) {
             <TextField
               fullWidth
               name="corner"
-              label="Corner"
-              placeholder="Nearest cross street"
+              label={t("account.address.form.corner", { defaultMessage: "Esquina" })}
+              placeholder={t("account.address.form.placeholder.corner", {
+                defaultMessage: "Esquina o calle de referencia"
+              })}
               onBlur={handleBlur}
               value={values.corner ?? ""}
               onChange={handleChange}
@@ -255,8 +286,10 @@ function AddressFormFields({ address }: { address?: Address }) {
             <TextField
               fullWidth
               name="apartment"
-              label="Apartment / Unit"
-              placeholder="Apt, suite, floor, etc."
+              label={t("account.address.form.apartment", { defaultMessage: "Apartamento / Unidad" })}
+              placeholder={t("account.address.form.placeholder.apartment", {
+                defaultMessage: "Apto, unidad, piso, etc."
+              })}
               onBlur={handleBlur}
               value={values.apartment ?? ""}
               onChange={handleChange}
@@ -265,30 +298,21 @@ function AddressFormFields({ address }: { address?: Address }) {
           </Grid>
 
           <Grid item md={6} xs={12}>
-            <CountrySelect
-              label="Country"
-              value={{ name: values.country, code: values.countryCode ?? undefined }}
+            <TextField
+              fullWidth
+              name="country"
+              label={t("account.address.form.country", { defaultMessage: "País" })}
+              value={DEFAULT_COUNTRY_NAME}
+              disabled
               errorText={countryError}
-              onChange={(selection) => {
-                const nextName = selection.name ?? "";
-                const nextCode = selection.code ?? (nextName ? deriveCountryCode(nextName) : "");
-                setFieldValue("country", nextName);
-                setFieldValue("countryCode", nextCode);
-                if (nextName) {
-                  const nextCity = getFirstCityForCountry(nextName);
-                  setFieldValue("city", nextCity || "");
-                } else {
-                  setFieldValue("city", "");
-                }
-              }}
             />
           </Grid>
 
           <Grid item md={6} xs={12}>
             <CitySelect
-              label="City"
-              countryCode={values.countryCode ?? undefined}
-              countryName={values.country}
+              label={t("account.address.form.city", { defaultMessage: "Ciudad / Departamento" })}
+              countryCode={DEFAULT_COUNTRY_CODE}
+              countryName={DEFAULT_COUNTRY_NAME}
               value={values.city}
               errorText={cityError}
               onChange={(city) => setFieldValue("city", city ?? "")}
@@ -300,12 +324,14 @@ function AddressFormFields({ address }: { address?: Address }) {
               fullWidth
               rows={4}
               name="comments"
-              placeholder="Delivery notes, reference points, etc."
+              placeholder={t("account.address.form.placeholder.comments", {
+                defaultMessage: "Indicaciones adicionales o referencias para la entrega"
+              })}
               value={values.comments ?? ""}
               onBlur={handleBlur}
               onChange={(event) => setFieldValue("comments", event.target.value)}
               errorText={commentsError}
-              label="Additional notes"
+              label={t("account.address.form.comments", { defaultMessage: "Comentarios" })}
             />
           </Grid>
         </Grid>
@@ -317,9 +343,32 @@ function AddressFormFields({ address }: { address?: Address }) {
         </Typography>
       )}
 
-      <Button type="submit" variant="contained" color="primary" disabled={isSubmitting}>
-        Save Changes
-      </Button>
+      <Box display="flex" flexWrap="wrap" style={{ gap: "0.75rem" }}>
+        <Button
+          type="submit"
+          variant="contained"
+          color="primary"
+          disabled={isSubmitting}
+          onClick={() => onSelectSubmitMode("save")}
+        >
+          {t("account.address.form.save", { defaultMessage: "Guardar dirección" })}
+        </Button>
+        {!address ? (
+          <Button
+            type="submit"
+            variant="outlined"
+            color="primary"
+            disabled={isSubmitting}
+            onClick={() => {
+              onSelectSubmitMode("save_and_add_another");
+            }}
+          >
+            {t("account.address.form.saveAndAddAnother", {
+              defaultMessage: "Guardar y agregar otra"
+            })}
+          </Button>
+        ) : null}
+      </Box>
     </form>
   );
 }
@@ -331,6 +380,9 @@ export default function AddressForm({ address }: AddressFormProps) {
   const router = useRouter();
   const isEditing = Boolean(address?.id);
   const toast = useToast();
+  const t = useTranslation();
+  const submitModeRef = useRef<"save" | "save_and_add_another">("save");
+  const validationSchema = useMemo(() => buildValidationSchema(t), [t]);
 
   const handleFormSubmit = async (values: AddressFormValues, helpers: FormikHelpers<AddressFormValues>) => {
     if (!token) {
@@ -354,7 +406,7 @@ export default function AddressForm({ address }: AddressFormProps) {
       street: values.street.trim(),
       number: values.number.trim(),
       city: values.city.trim(),
-      country: values.country.trim(),
+      country: DEFAULT_COUNTRY_NAME,
       label: normalizeOptional(values.label ?? null) ?? null,
       corner: normalizeOptional(values.corner ?? null) ?? null,
       apartment: normalizeOptional(values.apartment ?? null) ?? null,
@@ -383,11 +435,28 @@ export default function AddressForm({ address }: AddressFormProps) {
       updateLocalProfile(profile);
       helpers.setSubmitting(false);
       toast.success({
-        title: isEditing ? "Dirección actualizada" : "Dirección guardada",
+        title: isEditing
+          ? t("account.address.toast.updated.title", { defaultMessage: "Dirección actualizada" })
+          : t("account.address.toast.created.title", { defaultMessage: "Dirección guardada" }),
         description: isEditing
-          ? "Actualizamos la dirección en tu cuenta."
-          : "Agregamos la nueva dirección a tu cuenta."
+          ? t("account.address.toast.updated.description", {
+              defaultMessage: "Actualizamos la dirección en tu cuenta."
+            })
+          : submitModeRef.current === "save_and_add_another"
+            ? t("account.address.toast.created.keepAdding", {
+                defaultMessage: "Guardamos la dirección. Puedes agregar otra a continuación."
+              })
+            : t("account.address.toast.created.description", {
+                defaultMessage: "Agregamos la nueva dirección a tu cuenta."
+              })
       });
+      if (!isEditing && submitModeRef.current === "save_and_add_another") {
+        helpers.resetForm({ values: buildInitialValues() });
+        helpers.setStatus(null);
+        submitModeRef.current = "save";
+        return;
+      }
+      submitModeRef.current = "save";
       router.push("/account/address");
     } catch (error) {
       let message = "Unable to save address. Please try again.";
@@ -400,7 +469,9 @@ export default function AddressForm({ address }: AddressFormProps) {
       helpers.setStatus({ error: message });
       helpers.setSubmitting(false);
       toast.error({
-        title: "No pudimos guardar la dirección",
+        title: t("account.address.toast.error.title", {
+          defaultMessage: "No pudimos guardar la dirección"
+        }),
         description: message
       });
     }
@@ -411,8 +482,13 @@ export default function AddressForm({ address }: AddressFormProps) {
       enableReinitialize
       onSubmit={handleFormSubmit}
       initialValues={initialValues}
-      validationSchema={VALIDATION_SCHEMA}>
-      <AddressFormFields address={address} />
+      validationSchema={validationSchema}>
+      <AddressFormFields
+        address={address}
+        onSelectSubmitMode={(mode) => {
+          submitModeRef.current = mode;
+        }}
+      />
     </Formik>
   );
 }

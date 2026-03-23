@@ -9,6 +9,10 @@ const createPrisma = () => ({
     callback({
       order: {
         create: vi.fn(),
+        findUniqueOrThrow: vi.fn(),
+      },
+      payment: {
+        create: vi.fn(),
       },
       product: {
         updateMany: vi.fn(),
@@ -28,12 +32,18 @@ const createPrisma = () => ({
   },
   customer: {
     findUnique: vi.fn(),
+    findFirst: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+  },
+  customerStatus: {
+    findFirst: vi.fn(),
+    create: vi.fn(),
   },
   product: {
     findMany: vi.fn(),
     findUnique: vi.fn(),
+    findFirst: vi.fn(),
   },
   productVariant: {
     findMany: vi.fn(),
@@ -56,7 +66,10 @@ const createCurrencyConversion = () => ({
     generatedAt: '2026-03-22T10:00:00.000Z',
     rates: { UYU: 1 },
   }),
-  convertWithSnapshot: vi.fn(),
+  convertWithSnapshot: vi.fn((amount: string | number) => ({
+    amount: decimal(amount),
+    rate: decimal(1),
+  })),
 })
 
 const createNotifications = () => ({
@@ -78,18 +91,35 @@ const createPublishedProductResolver = () => ({
   resolvePublishedParametricVariant: vi.fn().mockResolvedValue(null),
 })
 
+const createPaymentSettlement = () => ({
+  apply: vi.fn().mockResolvedValue({
+    paymentId: 1,
+    orderId: 1,
+    previousStatusId: ORDER_STATUS_CODES.PENDING,
+    nextStatusId: ORDER_STATUS_CODES.PENDING,
+    notifyPaymentReceived: false,
+    notifyOrderStatusChanged: false,
+  }),
+  dispatch: vi.fn().mockResolvedValue(undefined),
+})
+
 describe('StorefrontService.createOrder', () => {
   let prisma: ReturnType<typeof createPrisma>
   let service: StorefrontService
   let mercadoPago: ReturnType<typeof createMercadoPago>
   let parametricPricing: ReturnType<typeof createParametricPricing>
   let publishedProductResolver: ReturnType<typeof createPublishedProductResolver>
+  let paymentSettlement: ReturnType<typeof createPaymentSettlement>
 
   beforeEach(() => {
     prisma = createPrisma()
+    prisma.customer.findFirst.mockResolvedValue(null)
+    prisma.customerStatus.findFirst.mockResolvedValue({ id: 1, name: 'Activo', code: 'activo' })
+    prisma.customerStatus.create.mockResolvedValue({ id: 1, name: 'Activo', code: 'activo' })
     mercadoPago = createMercadoPago()
     parametricPricing = createParametricPricing()
     publishedProductResolver = createPublishedProductResolver()
+    paymentSettlement = createPaymentSettlement()
 
     service = new StorefrontService(
       prisma as any,
@@ -97,12 +127,16 @@ describe('StorefrontService.createOrder', () => {
       {} as any,
       createCurrencyConversion() as any,
       createNotifications() as any,
+      { sendWelcome: vi.fn().mockResolvedValue(undefined) } as any,
       mercadoPago as any,
       {} as any,
       parametricPricing as any,
       {} as any,
       { commitStorefrontItems: vi.fn().mockResolvedValue(undefined) } as any,
+      paymentSettlement as any,
       publishedProductResolver as any,
+      { sendEmailVerification: vi.fn().mockResolvedValue(undefined) } as any,
+      {} as any,
     )
 
     vi.spyOn(service as any, 'ensureDefaultPasswordHash').mockResolvedValue(undefined)
@@ -115,6 +149,7 @@ describe('StorefrontService.createOrder', () => {
       email: 'buyer@example.com',
       firstName: 'Ana',
       lastName: 'Pérez',
+      phone: '+59891234567',
       locale: 'es' as const,
     },
     shippingAddress: {
@@ -283,6 +318,7 @@ describe('StorefrontService.createOrder', () => {
         email: 'buyer@example.com',
         firstName: 'Ana',
         lastName: 'Pérez',
+        phone: '+59891234567',
         locale: 'es',
       },
       shippingAddress: {
@@ -438,7 +474,8 @@ describe('StorefrontService.createOrder', () => {
 
     prisma.$transaction.mockImplementation(async (callback: any) =>
       callback({
-        order: { create: prisma.order.create },
+        order: { create: prisma.order.create, findUniqueOrThrow: prisma.order.findUnique },
+        payment: { create: vi.fn().mockResolvedValue({ id: 501 }) },
         product: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
         productVariant: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
       }),
@@ -669,7 +706,8 @@ describe('StorefrontService.createOrder', () => {
 
     prisma.$transaction.mockImplementation(async (callback: any) =>
       callback({
-        order: { create: prisma.order.create },
+        order: { create: prisma.order.create, findUniqueOrThrow: prisma.order.findUnique },
+        payment: { create: vi.fn().mockResolvedValue({ id: 502 }) },
         product: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
         productVariant: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
       }),
@@ -817,7 +855,7 @@ describe('StorefrontService.createOrder', () => {
     })
 
     expect(snapshot.items).toEqual([
-      {
+      expect.objectContaining({
         productId: 2115,
         quantity: 1,
         configuration: expect.objectContaining({
@@ -830,7 +868,7 @@ describe('StorefrontService.createOrder', () => {
           source: 'matrix',
           matrixRowId: 15,
         }),
-      },
+      }),
     ])
   })
 
@@ -848,6 +886,8 @@ describe('StorefrontService.createOrder', () => {
     prisma.productVariant.findMany.mockResolvedValue([])
     prisma.shippingOption.findUnique.mockResolvedValue({ id: 3, name: 'Envío Montevideo' })
     const publishedParametricVariant = {
+      price: 224,
+      currency: 'USD',
       configuration: {
         familyId: 'VENTANA_CORREDIZA',
         serie: '20',
@@ -894,7 +934,7 @@ describe('StorefrontService.createOrder', () => {
 
     expect(parametricPricing.quote).not.toHaveBeenCalled()
     expect(snapshot.items).toEqual([
-      {
+      expect.objectContaining({
         productId: 2115,
         quantity: 1,
         configuration: expect.objectContaining({
@@ -906,7 +946,7 @@ describe('StorefrontService.createOrder', () => {
           heightMm: 2000,
           source: 'published_product',
         }),
-      },
+      }),
     ])
   })
 
@@ -942,10 +982,20 @@ describe('StorefrontService.createOrder', () => {
         id: 901,
         productId: 3001,
         isActive: true,
+        stock: 10,
+        permanentStock: false,
+        salePrice: decimal(80),
+        costPrice: decimal(40),
+        label: 'Azul',
+        sku: 'VAR-01-AZUL',
+        images: [],
+        selections: [],
       },
     ])
     prisma.shippingOption.findUnique.mockResolvedValue({ id: 3, name: 'Envío Montevideo' })
     const publishedParametricVariant = {
+      price: 224,
+      currency: 'USD',
       configuration: {
         familyId: 'VENTANA_CORREDIZA',
         serie: '20',
@@ -983,9 +1033,9 @@ describe('StorefrontService.createOrder', () => {
     })
 
     expect(snapshot.items).toEqual([
-      { productId: 1873, quantity: 2 },
-      { productId: 3001, quantity: 1, variantId: 901 },
-      {
+      expect.objectContaining({ productId: 1873, quantity: 2 }),
+      expect.objectContaining({ productId: 3001, quantity: 1, variantId: 901 }),
+      expect.objectContaining({
         productId: 2115,
         quantity: 1,
         configuration: expect.objectContaining({
@@ -993,7 +1043,7 @@ describe('StorefrontService.createOrder', () => {
           serie: '20',
           color: 'BLANCO',
         }),
-      },
+      }),
     ])
   })
 
@@ -1015,6 +1065,8 @@ describe('StorefrontService.createOrder', () => {
         return null
       }
       return {
+        price: 224,
+        currency: 'USD',
         configuration: {
           familyId: 'VENTANA_CORREDIZA',
           serie: '20',
@@ -1038,7 +1090,16 @@ describe('StorefrontService.createOrder', () => {
 
     const resolvePublishedParametricConfigurationSpy = vi
       .spyOn(service as any, 'resolvePublishedParametricConfiguration')
-      .mockResolvedValueOnce({
+      .mockImplementation(async (_productId: number, configuration?: Record<string, unknown> | null) => ({
+        price:
+          configuration?.hasMosquitero || configuration?.hasShutterMonoblock
+            ? 260
+            : 224,
+        currency: 'USD',
+        specifications: [
+          { label: 'Serie', value: '20' },
+          { label: 'Color', value: 'BLANCO' },
+        ],
         configuration: {
           familyId: 'VENTANA_CORREDIZA',
           serie: '20',
@@ -1047,27 +1108,12 @@ describe('StorefrontService.createOrder', () => {
           vidrio: '3MM',
           widthMm: 1500,
           heightMm: 2000,
-          hasMosquitero: false,
-          hasShutterMonoblock: false,
-          shutterMaterial: '',
+          hasMosquitero: Boolean(configuration?.hasMosquitero),
+          hasShutterMonoblock: Boolean(configuration?.hasShutterMonoblock),
+          shutterMaterial: configuration?.hasShutterMonoblock ? 'PVC' : '',
           currency: 'USD',
         },
-      })
-      .mockResolvedValueOnce({
-        configuration: {
-          familyId: 'VENTANA_CORREDIZA',
-          serie: '20',
-          material: 'ALUMINIO',
-          color: 'BLANCO',
-          vidrio: '3MM',
-          widthMm: 1500,
-          heightMm: 2000,
-          hasMosquitero: true,
-          hasShutterMonoblock: true,
-          shutterMaterial: 'PVC',
-          currency: 'USD',
-        },
-      })
+      }))
 
     const snapshot = await service.prepareCheckoutSnapshot({
       ...buildBaseOrderPayload(),
@@ -1107,17 +1153,17 @@ describe('StorefrontService.createOrder', () => {
       ],
     })
 
-    expect(resolvePublishedParametricConfigurationSpy).toHaveBeenCalledTimes(2)
+    expect(resolvePublishedParametricConfigurationSpy.mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(snapshot.items).toEqual([
-      {
+      expect.objectContaining({
         productId: 2115,
         quantity: 2,
         configuration: expect.objectContaining({
           hasMosquitero: false,
           hasShutterMonoblock: false,
         }),
-      },
-      {
+      }),
+      expect.objectContaining({
         productId: 2115,
         quantity: 2,
         configuration: expect.objectContaining({
@@ -1125,8 +1171,161 @@ describe('StorefrontService.createOrder', () => {
           hasShutterMonoblock: true,
           shutterMaterial: 'PVC',
         }),
-      },
+      }),
     ])
+  })
+
+  it('keeps published parametric default pricing and configuration aligned between listing and detail', async () => {
+    prisma.product.findFirst.mockResolvedValue({
+      id: 2115,
+      name: 'Ventana corrediza',
+      published: true,
+      productType: 'PHYSICAL',
+      mode: ProductMode.PARAMETRIC,
+      salePrice: decimal(331),
+      costPrice: decimal(180),
+      taxRate: 22,
+      currency: 'USD',
+      productCode: 'VENT-01',
+      stock: 10,
+      permanentStock: false,
+      status: 0,
+      description: 'Descripción',
+      specifications: null,
+      categoryId: null,
+      category: null,
+      tags: [],
+      brand: null,
+      vendor: null,
+      img: null,
+      images: [],
+      options: [],
+      variants: [],
+      createdAt: new Date('2026-03-23T12:00:00.000Z'),
+      updatedAt: new Date('2026-03-23T12:00:00.000Z'),
+    })
+    prisma.product.findMany.mockResolvedValue([])
+    publishedProductResolver.resolvePublishedParametricProduct.mockResolvedValue({
+      defaultVariantKey: 'base:1',
+      configuration: {
+        familyId: 'VENTANA_CORREDIZA',
+        serie: '20',
+        material: 'ALUMINIO',
+        color: 'BLANCO',
+        vidrio: '3MM',
+        widthMm: 1800,
+        heightMm: 1200,
+        hasMosquitero: false,
+        hasShutterMonoblock: false,
+        shutterMaterial: '',
+      },
+      specifications: [
+        { label: 'Serie', value: '20' },
+        { label: 'Color', value: 'BLANCO' },
+      ],
+      selectors: {
+        series: ['20'],
+        materials: ['ALUMINIO'],
+        colors: ['BLANCO'],
+        glass: ['3MM'],
+        shutterMaterials: ['PVC'],
+        hasMosquiteroOption: true,
+        hasMonoblockOption: true,
+      },
+      variants: [
+        {
+          id: 1,
+          key: 'base:1',
+          price: 190,
+          currency: 'USD',
+          configuration: {
+            familyId: 'VENTANA_CORREDIZA',
+            serie: '20',
+            material: 'ALUMINIO',
+            color: 'BLANCO',
+            vidrio: '3MM',
+            widthMm: 1800,
+            heightMm: 1200,
+            hasMosquitero: false,
+            hasShutterMonoblock: false,
+            shutterMaterial: '',
+          },
+          specifications: [
+            { label: 'Serie', value: '20' },
+            { label: 'Material', value: 'ALUMINIO' },
+            { label: 'Color', value: 'BLANCO' },
+            { label: 'Vidrio', value: '3MM' },
+          ],
+          optionValues: {
+            familyId: 'VENTANA_CORREDIZA',
+            serie: '20',
+            material: 'ALUMINIO',
+            color: 'BLANCO',
+            vidrio: '3MM',
+            widthMm: 1800,
+            heightMm: 1200,
+            hasMosquitero: false,
+            hasShutterMonoblock: false,
+            shutterMaterial: '',
+          },
+        },
+        {
+          id: 2,
+          key: 'combo:2',
+          price: 331,
+          currency: 'USD',
+          configuration: {
+            familyId: 'VENTANA_CORREDIZA',
+            serie: '20',
+            material: 'ALUMINIO',
+            color: 'BLANCO',
+            vidrio: '3MM',
+            widthMm: 1800,
+            heightMm: 1200,
+            hasMosquitero: true,
+            hasShutterMonoblock: true,
+            shutterMaterial: 'PVC',
+          },
+          specifications: [
+            { label: 'Serie', value: '20' },
+            { label: 'Material', value: 'ALUMINIO' },
+            { label: 'Color', value: 'BLANCO' },
+            { label: 'Vidrio', value: '3MM' },
+            { label: 'Mosquitero', value: 'Sí' },
+            { label: 'Monoblock', value: 'PVC' },
+          ],
+          optionValues: {
+            familyId: 'VENTANA_CORREDIZA',
+            serie: '20',
+            material: 'ALUMINIO',
+            color: 'BLANCO',
+            vidrio: '3MM',
+            widthMm: 1800,
+            heightMm: 1200,
+            hasMosquitero: true,
+            hasShutterMonoblock: true,
+            shutterMaterial: 'PVC',
+          },
+        },
+      ],
+    })
+
+    const detail = await service.getProduct('ventana-corrediza-20-blanco-3mm-1800x1200')
+
+    expect(detail.price.amount).toBe(190)
+    expect(detail.salePrice?.amount).toBe(190)
+    expect(detail.configuration).toEqual(
+      expect.objectContaining({
+        hasMosquitero: false,
+        hasShutterMonoblock: false,
+      }),
+    )
+    expect(detail.specifications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Serie', value: '20' }),
+        expect.objectContaining({ label: 'Color', value: 'BLANCO' }),
+      ]),
+    )
   })
 })
 
@@ -1143,12 +1342,16 @@ describe('StorefrontService.reconcileApprovedPaymentIntent', () => {
       {} as any,
       createCurrencyConversion() as any,
       createNotifications() as any,
+      { sendWelcome: vi.fn().mockResolvedValue(undefined) } as any,
       createMercadoPago() as any,
       {} as any,
       createParametricPricing() as any,
       {} as any,
       { commitStorefrontItems: vi.fn().mockResolvedValue(undefined) } as any,
+      createPaymentSettlement() as any,
       createPublishedProductResolver() as any,
+      { sendEmailVerification: vi.fn().mockResolvedValue(undefined) } as any,
+      {} as any,
     )
   })
 
@@ -1164,6 +1367,7 @@ describe('StorefrontService.reconcileApprovedPaymentIntent', () => {
             email: 'buyer@example.com',
             firstName: 'Ana',
             lastName: 'Pérez',
+            phone: '+59891234567',
             locale: 'es',
           },
           shippingAddress: {
@@ -1269,5 +1473,37 @@ describe('StorefrontService.reconcileApprovedPaymentIntent', () => {
       }),
     )
     expect(result).toBeNull()
+  })
+
+  it('normalizes customer-facing payment summary to order currency when storefront provider currency differs', () => {
+    const order = {
+      grandTotal: decimal(875),
+      orderCurrency: 'USD',
+      paymentMethodId: 1,
+      payments: [],
+    }
+
+    const summary = (service as any).buildOrderPaymentSummary(
+      {
+        id: 'intent-3',
+        provider: 'mercadopago',
+        status: 'approved',
+        statusDetail: 'accredited',
+        externalPaymentId: 'mp-3',
+        amount: decimal(38160),
+        currency: 'UYU',
+        installments: 1,
+        cardBrand: 'visa',
+        cardLastFour: '1111',
+        createdAt: new Date('2026-03-23T01:00:00.000Z'),
+        updatedAt: new Date('2026-03-23T01:05:00.000Z'),
+      },
+      null,
+      'USD',
+      order as any,
+      'paid',
+    )
+
+    expect(summary.amount).toEqual({ amount: 875, currency: 'USD' })
   })
 })

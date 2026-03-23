@@ -88,6 +88,28 @@ export class NotificationsService {
     )
   }
 
+  async deleteForUser(userId: number, ids: number[] | null, deleteAll: boolean): Promise<void> {
+    await this.deleteNotifications(
+      {
+        recipientId: userId,
+        audience: NotificationAudience.ADMIN,
+      },
+      ids,
+      deleteAll,
+    )
+  }
+
+  async deleteForCustomer(customerId: number, ids: number[] | null, deleteAll: boolean): Promise<void> {
+    await this.deleteNotifications(
+      {
+        customerId,
+        audience: NotificationAudience.CUSTOMER,
+      },
+      ids,
+      deleteAll,
+    )
+  }
+
   async createNotifications(inputs: CreateNotificationInput[]): Promise<number[]> {
     if (!inputs.length) {
       return []
@@ -230,9 +252,32 @@ export class NotificationsService {
         page,
         pageSize,
         total,
-        unread,
+      unread,
       },
     }
+  }
+
+  private async deleteNotifications(
+    scope: { recipientId?: number; customerId?: number; audience: NotificationAudience },
+    ids: number[] | null,
+    deleteAll: boolean,
+  ) {
+    const where: Prisma.NotificationWhereInput = {
+      audience: scope.audience,
+    }
+    if (scope.recipientId) {
+      where.recipientId = scope.recipientId
+    }
+    if (scope.customerId) {
+      where.customerId = scope.customerId
+    }
+    if (ids && ids.length) {
+      where.id = { in: ids }
+    }
+    if (!deleteAll && (!ids || !ids.length)) {
+      return
+    }
+    await this.prisma.notification.deleteMany({ where })
   }
 
   private serialize(record: Notification): NotificationListItem {

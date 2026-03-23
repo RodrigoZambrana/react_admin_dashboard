@@ -225,6 +225,51 @@ export interface PublishedParametricOptions {
   variants: PublishedParametricVariant[];
 }
 
+export type CmsContentAssetType = "IMAGE" | "VIDEO" | "EMBED";
+
+export interface CmsContentAsset {
+  id: number;
+  title?: string | null;
+  caption?: string | null;
+  mediaType: CmsContentAssetType;
+  mediaUrl: string;
+  posterUrl?: string | null;
+  externalUrl?: string | null;
+  durationSec?: number | null;
+  sortOrder: number;
+}
+
+export interface CmsContentEntry {
+  id: number;
+  slug?: string | null;
+  title: string;
+  subtitle?: string | null;
+  description?: string | null;
+  priority: number;
+  payload?: Record<string, unknown> | null;
+  thumbnail?: ImageAsset | null;
+  cta?: ActionLink | null;
+  product?: {
+    id: number;
+    slug: string;
+    name: string;
+  } | null;
+  category?: {
+    id: number;
+    slug: string;
+    name: string;
+  } | null;
+  assets: CmsContentAsset[];
+}
+
+export interface CmsContentSection {
+  id: number;
+  key: string;
+  name: string;
+  description?: string | null;
+  entries: CmsContentEntry[];
+}
+
 export interface ProductImage extends ImageAsset {
   sortOrder?: number;
   isPrimary?: boolean;
@@ -538,12 +583,15 @@ export interface ProductListQuery {
 export interface CustomerProfile {
   id: number;
   email: string;
+  emailVerifiedAt?: string | null;
+  emailVerificationRequired?: boolean;
   firstName?: string | null;
   lastName?: string | null;
   phone?: string | null;
   dateOfBirth?: string | null;
   avatarUrl?: string | null;
   preferredLocale?: string | null;
+  status?: string | null;
   wishlistCount: number;
   wishlistProductIds: number[];
   addresses: Array<{
@@ -647,10 +695,10 @@ export interface CustomerNotificationList {
 
 export interface CreateOrderPayload {
   customer: {
-    email: string;
+    email?: string;
     firstName: string;
     lastName: string;
-    phone?: string;
+    phone: string;
     locale?: string;
   };
   shippingAddress: {

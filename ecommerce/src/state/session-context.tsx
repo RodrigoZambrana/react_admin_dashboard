@@ -189,6 +189,26 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           return t("auth.register.errors.invalidPhone", {
             defaultMessage: "Ingresa un número de teléfono válido."
           });
+        case "Invalid credentials":
+          return t("auth.login.errors.invalidCredentials", {
+            defaultMessage: "Las credenciales ingresadas no son válidas."
+          });
+        case "Se cerró la ventana de Google antes de finalizar el acceso.":
+          return t("auth.google.errors.popupClosed", {
+            defaultMessage: "Se cerró la ventana de Google antes de finalizar el acceso."
+          });
+        case "auth.emailVerification.emailRequired":
+          return t("auth.emailVerification.emailRequired", {
+            defaultMessage: "Debes tener un correo electrónico para verificar la cuenta."
+          });
+        case "auth.emailVerification.alreadyVerified":
+          return t("auth.emailVerification.alreadyVerified", {
+            defaultMessage: "Tu correo ya fue verificado."
+          });
+        case "auth.emailVerification.invalidToken":
+          return t("auth.emailVerification.invalidToken", {
+            defaultMessage: "El enlace de verificación es inválido o ya venció."
+          });
         default:
           return message;
       }
@@ -328,9 +348,13 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         title: origin === "register" ? "Cuenta creada" : "Sesión iniciada",
         description:
           origin === "register"
-            ? customerName
-              ? `¡Bienvenido/a ${customerName}! Tu cuenta ya está activa.`
-              : "Tu cuenta fue creada y ya puedes comenzar a comprar."
+            ? normalizedSession.customer.email && normalizedSession.customer.emailVerificationRequired
+              ? customerName
+                ? `¡Bienvenido/a ${customerName}! Revisa tu correo para verificar la cuenta.`
+                : "Tu cuenta fue creada. Revisa tu correo para verificarla."
+              : customerName
+                ? `¡Bienvenido/a ${customerName}! Tu cuenta ya está activa.`
+                : "Tu cuenta fue creada y ya puedes comenzar a comprar."
             : customerName
               ? `Hola ${customerName}, nos alegra verte de vuelta.`
               : "Iniciaste sesión correctamente."
@@ -351,10 +375,10 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
         message = translateAuthError(cause.message);
       }
       setError(message);
-      setStatus((current) => (current === "loading" ? "unauthenticated" : current));
-      toast.error({
-        title: origin === "register" ? "No pudimos crear tu cuenta" : "No pudimos iniciar sesión",
-        description: message
+        setStatus((current) => (current === "loading" ? "unauthenticated" : current));
+        toast.error({
+          title: origin === "register" ? "No pudimos crear tu cuenta" : "No pudimos iniciar sesión",
+          description: message
       });
       throw cause;
     },

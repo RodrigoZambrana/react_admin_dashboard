@@ -17,6 +17,13 @@ type CacheEntry = {
   error: string | null;
 };
 
+const sanitizeCsvValue = (value?: string) => {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.replace(/^"+|"+$/g, "").trim();
+};
+
 const cache = new Map<string, CacheEntry>();
 const pendingFetches = new Map<string, Promise<CityRow[]>>();
 
@@ -29,7 +36,7 @@ const normalizeRow = (row: RawCityRow): CityRow => {
   for (const [rawKey, value] of Object.entries(row)) {
     const key = trimHeader(rawKey);
     if (key === "country_name" || key === "name") {
-      normalized[key as keyof CityRow] = value;
+      normalized[key as keyof CityRow] = sanitizeCsvValue(value);
     }
   }
   return normalized;

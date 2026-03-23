@@ -1997,11 +1997,11 @@ export class SalesController {
     const nId = Number(id)
     const data = await this.prisma.product.findUnique({
       where: { id: nId },
-      include: {
-        images: {
-          where: { variantId: null },
-          orderBy: { sortOrder: 'asc' },
-        },
+        include: {
+          images: {
+            where: { variantId: null },
+            orderBy: { sortOrder: 'asc' },
+          },
         category: true,
         options: {
           include: {
@@ -2190,7 +2190,6 @@ export class SalesController {
     const normalizedSalePrice = roundCurrency(dto.salePrice)
     const normalizedCostPrice = roundCurrency(dto.costPrice)
     const coverImage = dto.img || dto.imgList?.[0]?.img || null
-
     let createdProductId: number | null = null
 
     await this.prisma.$transaction(async (tx) => {
@@ -2291,7 +2290,6 @@ export class SalesController {
     const normalizedCostPrice = dto.costPrice === undefined ? undefined : roundCurrency(dto.costPrice)
     const normalizedCurrency =
       dto.currency === undefined ? undefined : (this.safeTrim(dto.currency) || 'UYU').toUpperCase()
-
     const updateData: Prisma.ProductUpdateInput = {
       name: dto.name,
       productCode: dto.productCode,

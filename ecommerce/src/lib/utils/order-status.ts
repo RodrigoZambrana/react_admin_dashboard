@@ -31,6 +31,7 @@ const PAYMENT_STATE_MAP: Record<string, PaymentState> = {
   fulfilled: "full",
   waiting: "waiting",
   pending: "waiting",
+  pending_confirmation: "waiting",
   processing: "waiting",
   in_process: "waiting",
   requires_payment_method: "waiting",

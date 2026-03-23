@@ -12,29 +12,34 @@ import { Button } from "@component/buttons";
 import { useCheckoutTotals } from "@/hooks/useCheckoutTotals";
 import { useCurrency } from "@/state/currency-context";
 import { useTranslation } from "@/state/i18n-context";
+import type { CheckoutSummary } from "@/types/storefront";
 
 type CheckoutCostSummaryProps = {
   actionHref?: string | null;
   actionLabel?: string;
+  summaryOverride?: CheckoutSummary | null;
 };
 
 export default function CheckoutCostSummary({
   actionHref = "/checkout",
-  actionLabel
+  actionLabel,
+  summaryOverride = null
 }: CheckoutCostSummaryProps) {
   const { totals } = useCheckoutTotals();
   const { formatMoney, convertMoney } = useCurrency();
   const t = useTranslation();
 
-  const hasTax = totals.taxRate > 0;
+  const hasTax = summaryOverride ? summaryOverride.tax.amount > 0 : totals.taxRate > 0;
   const subtotalLabel = hasTax
     ? t("checkout.summary.subtotalExcludingTax", { defaultMessage: "Subtotal (excluding taxes)" })
     : t("checkout.review.summary.subtotal", { defaultMessage: "Subtotal" });
   const taxLabel = hasTax
-    ? t("checkout.summary.taxWithRate", {
-        defaultMessage: "Taxes ({rate}%)",
-        values: { rate: totals.taxRate.toFixed(2) }
-      })
+    ? summaryOverride
+      ? t("checkout.summary.tax", { defaultMessage: "Taxes" })
+      : t("checkout.summary.taxWithRate", {
+          defaultMessage: "Taxes ({rate}%)",
+          values: { rate: totals.taxRate.toFixed(2) }
+        })
     : t("checkout.summary.tax", { defaultMessage: "Taxes" });
   const totalLabel = hasTax
     ? t("checkout.summary.totalIncludingTax", { defaultMessage: "Total (including taxes)" })
@@ -42,15 +47,25 @@ export default function CheckoutCostSummary({
 
   const rows = useMemo(
     () => [
-      { label: subtotalLabel, value: totals.subtotal },
-      { label: t("checkout.review.summary.shipping", { defaultMessage: "Shipping" }), value: totals.shipping },
-      { label: taxLabel, value: totals.tax },
-      { label: t("checkout.review.summary.discount", { defaultMessage: "Discount" }), value: totals.discount }
+      {
+        label: subtotalLabel,
+        value: summaryOverride ? summaryOverride.subtotal : totals.subtotal
+      },
+      {
+        label: t("checkout.review.summary.shipping", { defaultMessage: "Shipping" }),
+        value: summaryOverride ? summaryOverride.shipping : totals.shipping
+      },
+      { label: taxLabel, value: summaryOverride ? summaryOverride.tax : totals.tax },
+      {
+        label: t("checkout.review.summary.discount", { defaultMessage: "Discount" }),
+        value: totals.discount
+      }
     ],
-    [subtotalLabel, t, taxLabel, totals]
+    [subtotalLabel, summaryOverride, t, taxLabel, totals]
   );
 
   const hasAction = Boolean(actionHref);
+  const totalValue = summaryOverride ? summaryOverride.grandTotal : totals.total;
 
   return (
     <Card1>
@@ -68,11 +83,11 @@ export default function CheckoutCostSummary({
       <FlexBox justifyContent="space-between" alignItems="center" mb="0.5rem">
         <Typography fontWeight="600">{totalLabel}</Typography>
         <Typography fontSize="24px" fontWeight="700" lineHeight="1">
-          {formatMoney(convertMoney(totals.total))}
+          {formatMoney(convertMoney(totalValue))}
         </Typography>
       </FlexBox>
 
-      {hasTax && (
+      {hasTax && !summaryOverride && (
         <Typography color="text.muted" fontSize="12px" textAlign="right" mb={hasAction ? "1rem" : undefined}>
           {t("checkout.summary.taxApplied", {
             defaultMessage: "Applied tax: {rate}%",
@@ -87,7 +102,7 @@ export default function CheckoutCostSummary({
         </Typography>
       )}
 
-      {!hasTax && totals.taxId && (
+      {!hasTax && !summaryOverride && totals.taxId && (
         <Typography color="text.muted" fontSize="12px" textAlign="right" mb={hasAction ? "1rem" : undefined}>
           {t("checkout.summary.taxId", {
             defaultMessage: "Tax ID {taxId}",

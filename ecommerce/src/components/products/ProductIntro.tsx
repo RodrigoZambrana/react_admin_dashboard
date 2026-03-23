@@ -17,8 +17,8 @@ import ProductWishlistButton from "@component/product-cards/ProductWishlistButto
 
 import useCart from "@hook/useCart";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
-import { PARAMETRIC_LINE_MARKER } from "@/lib/checkout/order-items";
 import {
+  buildPublishedParametricLineId,
   buildPublishedParametricSummaryEntries,
   findPreferredPublishedParametricVariant,
   isPublishedParametricOptionSelectable,
@@ -49,9 +49,6 @@ type PublishedParametricVariantSummary = NonNullable<Props["publishedParametricO
 
 const buildLineId = (productId: string | number, variantId?: number) =>
   variantId !== undefined && variantId !== null ? `${String(productId)}:${variantId}` : String(productId);
-
-const buildPublishedParametricLineId = (productId: string | number, variantKey: string) =>
-  `${String(productId)}${PARAMETRIC_LINE_MARKER}${variantKey}`;
 
 const mergeImages = (primary: string[], secondary: string[]): string[] => {
   const merged: string[] = [];

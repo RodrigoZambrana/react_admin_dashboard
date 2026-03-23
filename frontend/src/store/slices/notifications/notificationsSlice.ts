@@ -83,6 +83,25 @@ export const markNotificationsRead = createAsyncThunk<
     }
 })
 
+export const deleteNotifications = createAsyncThunk<
+    { ids?: number[]; deleteAll?: boolean },
+    { ids?: number[]; deleteAll?: boolean },
+    { rejectValue: string }
+>('notifications/delete', async (payload, { rejectWithValue }) => {
+    try {
+        if (payload.deleteAll) {
+            await NotificationService.deleteNotifications({ deleteAll: true })
+        } else if (payload.ids && payload.ids.length === 1) {
+            await NotificationService.deleteNotification(payload.ids[0]!)
+        } else {
+            await NotificationService.deleteNotifications(payload)
+        }
+        return payload
+    } catch (error) {
+        return rejectWithValue((error as Error).message ?? 'Failed to delete notifications')
+    }
+})
+
 export const fetchNotificationSettings = createAsyncThunk<
     NotificationSettingDto[],
     void,
@@ -176,6 +195,21 @@ const notificationsSlice = createSlice({
                     )
                     const remainingUnread = state.items.filter((item) => !item.readAt).length
                     state.unreadCount = remainingUnread
+                }
+            })
+            .addCase(deleteNotifications.fulfilled, (state, action) => {
+                const { ids, deleteAll } = action.payload
+                if (deleteAll) {
+                    state.items = []
+                    state.total = 0
+                    state.unreadCount = 0
+                    return
+                }
+                if (ids && ids.length) {
+                    const deleteSet = new Set(ids)
+                    state.items = state.items.filter((item) => !deleteSet.has(item.id))
+                    state.total = Math.max(0, state.total - ids.length)
+                    state.unreadCount = state.items.filter((item) => !item.readAt).length
                 }
             })
             .addCase(fetchNotificationSettings.pending, (state) => {

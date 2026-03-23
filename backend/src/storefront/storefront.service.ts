@@ -11,6 +11,7 @@ import {
   Prisma,
   DocumentType,
   Customer,
+  CustomerStatus,
   CustomerAddress,
   OrderItem,
   ProductType,
@@ -18,6 +19,7 @@ import {
   ProductAttributeType,
   CompanyProfile,
   PaymentStatus,
+  PaymentType,
   StorefrontPaymentIntent,
 } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
@@ -25,6 +27,7 @@ import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
 import { NotificationOrchestratorService } from '../notifications/notification-orchestrator.service'
+import { EmailService } from '../email/email.service'
 import { CurrencyConversionService } from '../common/currency/currency-conversion.service'
 import { decimal, decimalToNumber } from '../common/currency/money.util'
 import { buildImageDataUrl, ensureNodeBuffer } from '../common/images/image.utils'
@@ -56,6 +59,10 @@ import type {
   StorefrontAuthSession,
   StorefrontShippingOptionDto,
   OrderDeliverySummary,
+  CheckoutSummary,
+  CmsContentSectionDto,
+  CmsContentAssetDto,
+  CmsContentEntryDto,
 } from './types'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
 import {
@@ -64,7 +71,7 @@ import {
   StorefrontRefreshDto,
   StorefrontUpdateProfileDto,
 } from './dto/auth.dto'
-import { StorefrontCreateOrderDto } from './dto/order.dto'
+import { StorefrontCreateOrderDto, StorefrontOrderItemDto } from './dto/order.dto'
 import { createHash } from 'crypto'
 import { StorefrontAddressDto } from './dto/address.dto'
 import { MercadoPagoService } from './payments/mercadopago.service'
@@ -77,11 +84,17 @@ import type { ParametricQuoteInput } from '../pricing/types'
 import { OrderTimelineService } from '../orders/order-timeline.service'
 import { OrderStockIntegrityService } from '../orders/order-stock-integrity.service'
 import {
+  OrderPaymentSettlementService,
+  type PaymentSettlementDispatchPlan,
+} from '../orders/order-payment-settlement.service'
+import {
   StorefrontPublishedProductResolverService,
   type PublishedParametricProductDefinition,
   type PublishedParametricVariantDefinition,
 } from './storefront-published-product-resolver.service'
 import { buildPhoneLookupCandidates, normalizePhoneNumber } from '../common/utils/phone'
+import { StorefrontSecurityService } from './security/storefront-security.service'
+import { CmsService } from '../cms/cms.service'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
@@ -93,6 +106,34 @@ const INVENTORY_STATUS: Record<number, 'in-stock' | 'limited' | 'out-of-stock'> 
 }
 
 const CHECKOUT_UUID_PREFIX = 'storefront:checkout:'
+
+type PreparedCheckoutItemPricingSnapshot = {
+  unitPrice: number
+  currency: string
+  nameSnapshot: string
+  image?: string | null
+  specSummary?: string
+  specEntries?: Array<{ label: string; value: string }>
+  skuSnapshot?: string
+  parametricConfig?: Record<string, unknown> | null
+}
+
+type PreparedCheckoutItemDto = StorefrontOrderItemDto & {
+  pricingSnapshot?: PreparedCheckoutItemPricingSnapshot
+}
+
+type PreparedCheckoutPricingSummary = {
+  currency: string
+  subtotal: number
+  tax: number
+  shipping: number
+  grandTotal: number
+}
+
+type PreparedStorefrontCheckoutSnapshot = Omit<StorefrontCreateOrderDto, 'items'> & {
+  items: PreparedCheckoutItemDto[]
+  pricingSummary?: PreparedCheckoutPricingSummary
+}
 
 const mapStatusColorToBadge = (color?: string | null): 'primary' | 'secondary' | 'success' | 'warning' | 'error' => {
   if (!color) {
@@ -120,6 +161,7 @@ const PAYMENT_STATUS_META: Record<
 > = {
   paid: { label: 'Pagado', badge: 'primary', color: 'blue' },
   pending: { label: 'Pendiente', badge: 'warning', color: 'orange' },
+  pending_confirmation: { label: 'Pendiente de confirmación', badge: 'warning', color: 'orange' },
   processing: { label: 'En revisión', badge: 'warning', color: 'orange' },
   failed: { label: 'Fallido', badge: 'error', color: 'red' },
 }
@@ -276,7 +318,7 @@ type OrderWithRelations = Prisma.OrderGetPayload<{
 }>
 
 type OrderIdentifierCandidate = { id: number; createdAt: Date; uuid: string | null }
-type CustomerWithAddresses = Customer & { addresses: CustomerAddress[] }
+type CustomerWithAddresses = Customer & { addresses: CustomerAddress[]; status?: CustomerStatus | null }
 type OrderSummaryWithReference = OrderSummary & { reference: string }
 type WishlistWithItems = Prisma.WishlistGetPayload<{
   include: {
@@ -329,12 +371,16 @@ export class StorefrontService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly currencyConversion: CurrencyConversionService,
     private readonly notifications: NotificationOrchestratorService,
+    private readonly email: EmailService,
     private readonly mercadoPago: MercadoPagoService,
     private readonly googleConfig: GoogleConfigService,
     private readonly parametricPricing: ParametricPricingService,
     private readonly timeline: OrderTimelineService,
     private readonly stockIntegrity: OrderStockIntegrityService,
+    private readonly paymentSettlement: OrderPaymentSettlementService,
     private readonly publishedProductResolver: StorefrontPublishedProductResolverService,
+    private readonly security: StorefrontSecurityService,
+    private readonly cms: CmsService,
   ) {}
 
   private defaultCustomerPassword!: string
@@ -420,7 +466,9 @@ export class StorefrontService implements OnModuleInit {
     return normalized === 'approved' || normalized === 'captured'
   }
 
-  private extractCheckoutSnapshotFromIntent(intent: Pick<StorefrontPaymentIntent, 'metadata'>): StorefrontCreateOrderDto | null {
+  private extractCheckoutSnapshotFromIntent(
+    intent: Pick<StorefrontPaymentIntent, 'metadata'>,
+  ): PreparedStorefrontCheckoutSnapshot | null {
     if (!intent.metadata || typeof intent.metadata !== 'object' || Array.isArray(intent.metadata)) {
       return null
     }
@@ -431,7 +479,422 @@ export class StorefrontService implements OnModuleInit {
       return null
     }
 
-    return snapshot as StorefrontCreateOrderDto
+    return snapshot as PreparedStorefrontCheckoutSnapshot
+  }
+
+  private isPreparedCheckoutItem(item: StorefrontOrderItemDto | PreparedCheckoutItemDto): item is PreparedCheckoutItemDto {
+    return Boolean(
+      item &&
+        'pricingSnapshot' in item &&
+        item.pricingSnapshot &&
+        typeof item.pricingSnapshot === 'object' &&
+        !Array.isArray(item.pricingSnapshot),
+    )
+  }
+
+  private async buildCheckoutPricingContext(
+    dto: StorefrontCreateOrderDto | PreparedStorefrontCheckoutSnapshot,
+    options?: { preferLockedPricing?: boolean },
+  ) {
+    const productIds = dto.items.map((item) => item.productId)
+    const uniqueProductIds = Array.from(new Set(productIds))
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: uniqueProductIds }, published: true },
+      include: {
+        images: {
+          where: { variantId: null },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    })
+    if (products.length !== uniqueProductIds.length) {
+      throw new BadRequestException('One or more products are unavailable')
+    }
+    const productById = new Map(products.map((product) => [product.id, product]))
+
+    const variantIds = dto.items
+      .map((item) => (item.variantId ? Number(item.variantId) : null))
+      .filter((id): id is number => Number.isFinite(id) && id! > 0)
+
+    const variants = variantIds.length
+      ? await this.prisma.productVariant.findMany({
+          where: { id: { in: variantIds } },
+          include: {
+            product: true,
+            images: { orderBy: { sortOrder: 'asc' } },
+            selections: {
+              include: {
+                optionValue: {
+                  include: {
+                    option: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+      : []
+    const variantById = new Map(variants.map((variant) => [variant.id, variant]))
+
+    const rawLineItems = await Promise.all(
+      dto.items.map(async (item) => {
+        const product = productById.get(item.productId)
+        if (!product) {
+          throw new BadRequestException('One or more products are unavailable')
+        }
+
+        let priceCurrency = this.currencyConversion.normalizeCurrency(product.currency)
+        let costCurrency = priceCurrency
+
+        const variantId =
+          item.variantId !== undefined && item.variantId !== null ? Number(item.variantId) : null
+        const variant = variantId ? variantById.get(variantId) ?? null : null
+
+        if (variantId && !variant) {
+          throw new BadRequestException('Selected product variant is invalid or unavailable.')
+        }
+
+        if (product.mode === ProductMode.VARIABLE && !variant) {
+          throw new BadRequestException('A product variant must be selected for this item.')
+        }
+
+        if (variant) {
+          if (variant.productId !== product.id) {
+            throw new BadRequestException('Invalid product variant selected for this product.')
+          }
+          if (!variant.isActive) {
+            throw new BadRequestException('Selected variant is not currently available.')
+          }
+        }
+
+        const quantity = Math.max(1, Number(item.quantity ?? 1))
+        const baseSalePrice = decimalToNumber(product.salePrice)
+        const baseCostPrice = decimalToNumber(product.costPrice)
+
+        let unitPrice = decimal(baseSalePrice)
+        let unitCost = decimal(baseCostPrice)
+        let specEntries: { label: string; value: string }[] = []
+        let specSummary = ''
+        let primaryImage: string | null = product.images?.[0]?.img ?? null
+        let displayName = product.name
+        let skuSnapshot = product.productCode ?? undefined
+        let parametricSnapshot: Awaited<ReturnType<ParametricPricingService['quote']>> | null = null
+        let parametricConfig: Record<string, unknown> | undefined
+
+        const lockedPricing =
+          options?.preferLockedPricing && this.isPreparedCheckoutItem(item) ? item.pricingSnapshot ?? null : null
+
+        if (product.mode === ProductMode.PARAMETRIC) {
+          const publishedParametricVariant = await this.resolvePublishedParametricConfiguration(
+            product.id,
+            item.configuration && typeof item.configuration === 'object'
+              ? (item.configuration as Record<string, unknown>)
+              : null,
+            product.currency,
+          )
+          if (publishedParametricVariant) {
+            unitPrice = decimal(publishedParametricVariant.price)
+            specEntries = publishedParametricVariant.specifications
+            specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
+            displayName = product.name
+            skuSnapshot = product.productCode ?? undefined
+            parametricConfig = publishedParametricVariant.configuration
+            priceCurrency =
+              this.currencyConversion.normalizeCurrency(publishedParametricVariant.currency ?? product.currency) ??
+              priceCurrency
+          } else {
+            if (!item.configuration || typeof item.configuration !== 'object') {
+              throw new BadRequestException('Parametric configuration is required for this product.')
+            }
+
+            const rawConfig = item.configuration as Record<string, unknown>
+            const quoteInput: ParametricQuoteInput = {
+              productId: product.id,
+              familyId: this.normalizeConfigString(
+                rawConfig.familyId ?? rawConfig.family_id ?? product.productCode ?? product.name,
+              ),
+              serie: this.normalizeConfigString(rawConfig.series ?? rawConfig.serie),
+              material: this.normalizeConfigString(rawConfig.material ?? 'ALUMINIO'),
+              color: this.normalizeConfigString(rawConfig.color ?? 'NATURAL'),
+              vidrio: this.normalizeConfigString(rawConfig.vidrio ?? rawConfig.glass ?? '4 MM'),
+              widthMm: this.normalizeConfigNumber(rawConfig.widthMm ?? rawConfig.width_mm ?? rawConfig.width, 'width'),
+              heightMm: this.normalizeConfigNumber(rawConfig.heightMm ?? rawConfig.height_mm ?? rawConfig.height, 'height'),
+              hasMosquitero: this.normalizeConfigBoolean(
+                rawConfig.hasMosquitero ?? rawConfig.mosquitoNet ?? rawConfig.mosquitero,
+              ),
+              hasShutterMonoblock: this.normalizeConfigBoolean(
+                rawConfig.hasShutterMonoblock ??
+                  rawConfig.monoblock ??
+                  rawConfig.has_monoblock ??
+                  rawConfig.monoblockEnabled,
+              ),
+              shutterMaterial: this.normalizeConfigString(
+                rawConfig.shutterMaterial ??
+                  rawConfig.shutter_material ??
+                  rawConfig.shutterSystem ??
+                  rawConfig.shutter_system ??
+                  rawConfig.monoblockSystem ??
+                  rawConfig.monoblockMaterial ??
+                  '',
+              ),
+            }
+            const quote = await this.parametricPricing.quote(quoteInput)
+            parametricSnapshot = quote
+            if (!quote.available || quote.price === undefined) {
+              throw new BadRequestException('Selected configuration is not available.')
+            }
+            unitPrice = decimal(quote.price)
+            unitCost = decimal(baseCostPrice)
+            priceCurrency = this.currencyConversion.normalizeCurrency(quote.currency ?? product.currency) ?? priceCurrency
+            const widthMm = quote.requested.widthMm
+            const heightMm = quote.requested.heightMm
+            specEntries = [
+              { label: 'Serie', value: quote.requested.serie || 'N/A' },
+              { label: 'Material', value: quote.requested.material || 'N/A' },
+              { label: 'Color', value: quote.requested.color || 'NATURAL' },
+              { label: 'Vidrio', value: quote.requested.vidrio || '4 MM' },
+              { label: 'Ancho', value: `${widthMm} mm` },
+              { label: 'Alto', value: `${heightMm} mm` },
+              {
+                label: 'Mosquitero',
+                value: quote.requested.hasMosquitero ? 'Sí' : 'No',
+              },
+            ]
+            if (quote.requested.hasShutterMonoblock) {
+              specEntries.push({
+                label: 'Material Monoblock',
+                value: quote.requested.shutterMaterial || 'N/A',
+              })
+            }
+            specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
+            displayName = `${product.name} (${widthMm}x${heightMm} mm)`
+            const skuBase = (product.productCode ?? slugify(product.name)).toUpperCase().replace(/[^A-Z0-9]/g, '')
+            const typeCode = this.buildProductTypeCode(quote.requested.familyId)
+            const widthKey = Math.round(widthMm)
+            const heightKey = Math.round(heightMm)
+            const skuParts = [typeCode, skuBase, `${widthKey}x${heightKey}`].filter(
+              (part) => typeof part === 'string' && part.length > 0,
+            )
+            skuSnapshot = skuParts.join('-')
+            parametricConfig = {
+              ...quote.requested,
+              price: quote.price,
+              currency: quote.currency ?? product.currency ?? priceCurrency,
+              detailSnapshot: quote.detailSnapshot ?? null,
+              referenceDate: quote.referenceDate ?? null,
+            }
+          }
+        } else {
+          const resolvedSalePrice =
+            variant && variant.salePrice !== null && variant.salePrice !== undefined
+              ? decimalToNumber(variant.salePrice)
+              : baseSalePrice
+          const resolvedCostPrice =
+            variant && variant.costPrice !== null && variant.costPrice !== undefined
+              ? decimalToNumber(variant.costPrice)
+              : baseCostPrice
+          unitPrice = decimal(resolvedSalePrice)
+          unitCost = decimal(resolvedCostPrice)
+          const variantStock =
+            variant && variant.stock !== null && variant.stock !== undefined
+              ? variant.stock
+              : product.stock ?? 0
+          const variantPermanent =
+            variant && variant.permanentStock !== null && variant.permanentStock !== undefined
+              ? variant.permanentStock
+              : product.permanentStock ?? false
+          if (variant && !variantPermanent && Number(variantStock ?? 0) <= 0) {
+            throw new BadRequestException('Selected variant is out of stock.')
+          }
+
+          specEntries =
+            variant?.selections.map((selection) => ({
+              label: selection.optionValue.option.name,
+              value: selection.optionValue.label,
+            })) ?? []
+          specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
+          primaryImage = variant?.images[0]?.img ?? product.images?.[0]?.img ?? null
+          displayName = variant?.label ? `${product.name} - ${variant.label}` : product.name
+          skuSnapshot = variant?.sku ?? product.productCode ?? undefined
+        }
+
+        if (lockedPricing) {
+          const lockedCurrency =
+            this.currencyConversion.normalizeCurrency(lockedPricing.currency) ??
+            priceCurrency ??
+            this.currencyConversion.normalizeCurrency(product.currency) ??
+            'USD'
+          const lockedUnitPrice = Number(lockedPricing.unitPrice)
+          if (Number.isFinite(lockedUnitPrice) && lockedUnitPrice > 0) {
+            unitPrice = decimal(lockedUnitPrice)
+            priceCurrency = lockedCurrency
+          }
+          if (Array.isArray(lockedPricing.specEntries) && lockedPricing.specEntries.length > 0) {
+            specEntries = lockedPricing.specEntries
+          }
+          if (typeof lockedPricing.specSummary === 'string' && lockedPricing.specSummary.trim().length > 0) {
+            specSummary = lockedPricing.specSummary.trim()
+          } else if (specEntries.length > 0) {
+            specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
+          }
+          if (typeof lockedPricing.nameSnapshot === 'string' && lockedPricing.nameSnapshot.trim().length > 0) {
+            displayName = lockedPricing.nameSnapshot.trim()
+          }
+          if (lockedPricing.image !== undefined) {
+            primaryImage = lockedPricing.image ?? null
+          }
+          if (typeof lockedPricing.skuSnapshot === 'string' && lockedPricing.skuSnapshot.trim().length > 0) {
+            skuSnapshot = lockedPricing.skuSnapshot.trim()
+          }
+          if (lockedPricing.parametricConfig && typeof lockedPricing.parametricConfig === 'object') {
+            parametricConfig = lockedPricing.parametricConfig
+          }
+        }
+
+        costCurrency = costCurrency ?? priceCurrency
+
+        return {
+          product,
+          variant,
+          quantity,
+          unitPrice,
+          unitCost,
+          specEntries,
+          specSummary,
+          image: primaryImage,
+          nameSnapshot: displayName,
+          skuSnapshot,
+          parametricSnapshot,
+          parametricConfig,
+          priceCurrency: priceCurrency ?? null,
+          costCurrency: costCurrency ?? priceCurrency ?? null,
+        }
+      }),
+    )
+
+    const enabledCurrencies = await this.currencyConversion.getEnabledCurrencies()
+    const baseCurrency = await this.currencyConversion.getBaseCurrency()
+    const requestedCurrency = dto.currency ? this.currencyConversion.normalizeCurrency(dto.currency) : null
+    const lineItemCurrencies = rawLineItems
+      .map((item) => item.priceCurrency)
+      .filter((code): code is string => Boolean(code))
+
+    let orderCurrency =
+      requestedCurrency && enabledCurrencies.includes(requestedCurrency)
+        ? requestedCurrency
+        : null
+
+    if (!orderCurrency) {
+      orderCurrency =
+        lineItemCurrencies.find((code) => enabledCurrencies.includes(code)) ??
+        lineItemCurrencies[0] ??
+        (enabledCurrencies.includes(baseCurrency) ? baseCurrency : baseCurrency)
+    }
+
+    if (!orderCurrency) {
+      orderCurrency = baseCurrency || 'USD'
+    }
+
+    const requiredCurrencies = new Set<string>([orderCurrency, baseCurrency])
+    lineItemCurrencies.forEach((code) => code && requiredCurrencies.add(code))
+    rawLineItems
+      .map((item) => item.costCurrency)
+      .filter((code): code is string => Boolean(code))
+      .forEach((code) => requiredCurrencies.add(code))
+
+    const fxSnapshot = await this.currencyConversion.buildRatesSnapshot(Array.from(requiredCurrencies))
+    const fxRatesPayload = {
+      base: fxSnapshot.base,
+      generatedAt: fxSnapshot.generatedAt,
+      rates: Object.fromEntries(
+        Object.entries(fxSnapshot.rates).map(([code, rate]) => [code, rate.toString()]),
+      ),
+    }
+
+    const convertAmount = (amount: Prisma.Decimal, fromCurrency: string | null | undefined) => {
+      const normalizedFrom = this.currencyConversion.normalizeCurrency(fromCurrency) ?? orderCurrency
+      if (normalizedFrom === orderCurrency) {
+        return { amount, rate: decimal(1) }
+      }
+      return this.currencyConversion.convertWithSnapshot(
+        amount.toString(),
+        normalizedFrom,
+        orderCurrency,
+        fxSnapshot,
+        { amountScale: 4, rateScale: 8 },
+      )
+    }
+
+    const lineItems = rawLineItems.map((item) => {
+      const priceConversion = convertAmount(item.unitPrice, item.priceCurrency ?? orderCurrency)
+      const costConversion = convertAmount(
+        item.unitCost,
+        item.costCurrency ?? item.priceCurrency ?? orderCurrency,
+      )
+      return {
+        ...item,
+        orderCurrencyUnitPrice: priceConversion.amount,
+        priceConversionRate: priceConversion.rate,
+        orderCurrencyUnitCost: costConversion.amount,
+        costConversionRate: costConversion.rate,
+        priceCurrency: this.currencyConversion.normalizeCurrency(item.priceCurrency) ?? orderCurrency,
+        costCurrency:
+          this.currencyConversion.normalizeCurrency(item.costCurrency) ??
+          this.currencyConversion.normalizeCurrency(item.priceCurrency) ??
+          orderCurrency,
+      }
+    })
+
+    const shippingOption =
+      dto.shippingOptionId !== undefined && dto.shippingOptionId !== null
+        ? await this.prisma.shippingOption.findUnique({
+            where: { id: Number(dto.shippingOptionId) },
+          })
+        : null
+
+    if (dto.shippingOptionId !== undefined && dto.shippingOptionId !== null && !shippingOption) {
+      throw new BadRequestException('La opción de envío seleccionada no existe.')
+    }
+
+    if (!shippingOption) {
+      throw new BadRequestException('Debes seleccionar una opción de entrega para continuar.')
+    }
+
+    const deliveryFeesDecimal = decimal(Number(shippingOption?.deliveryFees ?? 0)).toDecimalPlaces(2)
+    const grossSubtotalDecimal = lineItems.reduce(
+      (sum, item) => sum.plus(item.orderCurrencyUnitPrice.times(item.quantity)),
+      decimal(0),
+    )
+    const taxRatePercentRaw = Number(products[0]?.taxRate ?? 0)
+    const taxRateDecimal = decimal(taxRatePercentRaw).dividedBy(100)
+
+    let netSubtotalDecimal = grossSubtotalDecimal
+    let taxDecimal = decimal(0)
+
+    if (taxRateDecimal.greaterThan(0)) {
+      const divisor = decimal(1).plus(taxRateDecimal)
+      const netSubtotal = grossSubtotalDecimal.dividedBy(divisor)
+      const netRounded = netSubtotal.toDecimalPlaces(2)
+      const taxRounded = grossSubtotalDecimal.minus(netRounded).toDecimalPlaces(2)
+      netSubtotalDecimal = netRounded
+      taxDecimal = taxRounded
+    }
+
+    const grandTotalDecimal = grossSubtotalDecimal.plus(deliveryFeesDecimal).toDecimalPlaces(2)
+
+    return {
+      products,
+      lineItems,
+      orderCurrency,
+      fxSnapshot,
+      fxRatesPayload,
+      shippingOption,
+      deliveryFeesDecimal,
+      grossSubtotalDecimal,
+      netSubtotalDecimal,
+      taxDecimal,
+      grandTotalDecimal,
+    }
   }
 
   private extractCheckoutTokenFromIntent(intent: Pick<StorefrontPaymentIntent, 'metadata'>): string | undefined {
@@ -1065,6 +1528,93 @@ export class StorefrontService implements OnModuleInit {
     }
   }
 
+  async getContentSection(key: string, locale = 'es'): Promise<CmsContentSectionDto> {
+    const section = await this.cms.getPublicSectionByKey(key, locale)
+
+    const entries: CmsContentEntryDto[] = section.entries.map((entry) => {
+      const primaryAsset = entry.assets[0] ?? null
+      const thumbnail = entry.thumbnailUrl
+        ? {
+            id: `cms-entry-thumbnail-${entry.id}`,
+            url: entry.thumbnailUrl,
+            alt: entry.title,
+          }
+        : primaryAsset
+          ? {
+              id: `cms-entry-asset-${primaryAsset.id}`,
+              url: primaryAsset.posterUrl ?? primaryAsset.mediaUrl,
+              alt: primaryAsset.title ?? entry.title,
+            }
+          : null
+
+      const assets: CmsContentAssetDto[] = entry.assets.map((asset) => ({
+        id: asset.id,
+        title: asset.title ?? null,
+        caption: asset.caption ?? null,
+        mediaType: asset.mediaType,
+        mediaUrl: asset.mediaUrl,
+        posterUrl: asset.posterUrl ?? null,
+        externalUrl: asset.externalUrl ?? null,
+        durationSec: asset.durationSec ?? null,
+        sortOrder: asset.sortOrder,
+      }))
+
+      const productLink =
+        entry.product && entry.product.published
+          ? {
+              id: entry.product.id,
+              slug: buildProductSlug(entry.product.id, entry.product.name, entry.product.productCode ?? undefined),
+              name: entry.product.name,
+            }
+          : null
+
+      const categoryLink = entry.category
+        ? {
+            id: entry.category.id,
+            slug: buildCategorySlug(entry.category.id, entry.category.name),
+            name: entry.category.name,
+          }
+        : null
+
+      const href = this.normalizeConfigString(entry.ctaUrl)
+      const cta =
+        href || productLink || categoryLink
+          ? {
+              label: this.normalizeConfigString(entry.ctaLabel) || 'Ver más',
+              href:
+                href ||
+                (productLink ? `/product/${productLink.slug}` : categoryLink ? `/categories/${categoryLink.slug}` : '#'),
+            }
+          : null
+
+      return {
+        id: entry.id,
+        slug: entry.slug ?? null,
+        title: entry.title,
+        subtitle: entry.subtitle ?? null,
+        description: entry.description ?? null,
+        priority: entry.priority ?? 0,
+        payload:
+          entry.payload && typeof entry.payload === 'object' && !Array.isArray(entry.payload)
+            ? (entry.payload as Record<string, unknown>)
+            : null,
+        thumbnail,
+        cta,
+        product: productLink,
+        category: categoryLink,
+        assets,
+      }
+    })
+
+    return {
+      id: section.id,
+      key: section.key,
+      name: section.name,
+      description: section.description ?? null,
+      entries,
+    }
+  }
+
   async getProduct(identifier: string): Promise<ProductDetailDto> {
     const resolvedProductId = await this.resolveStorefrontProductIdByIdentifier(identifier)
     if (!resolvedProductId) {
@@ -1149,7 +1699,11 @@ export class StorefrontService implements OnModuleInit {
 
     const publishedParametricDefinition =
       product.mode === ProductMode.PARAMETRIC
-        ? await this.publishedProductResolver.resolvePublishedParametricProduct(product.id, product.currency)
+        ? await this.publishedProductResolver.resolvePublishedParametricProduct(
+            product.id,
+            product.currency,
+            product.salePrice,
+          )
         : null
     const detail = this.toProductDetail(product, publishedParametricDefinition)
 
@@ -1259,7 +1813,7 @@ export class StorefrontService implements OnModuleInit {
     return this.parametricPricing.quote(quoteInput)
   }
 
-  async prepareCheckoutSnapshot(dto: StorefrontCreateOrderDto): Promise<StorefrontCreateOrderDto> {
+  async prepareCheckoutSnapshot(dto: StorefrontCreateOrderDto): Promise<PreparedStorefrontCheckoutSnapshot> {
     const fulfillmentMode = dto.fulfillmentMode ?? 'home_delivery'
 
     if (fulfillmentMode !== 'home_delivery') {
@@ -1455,12 +2009,12 @@ export class StorefrontService implements OnModuleInit {
       country: normalizedCountry,
     })
 
-    return {
+    const normalizedSnapshot: StorefrontCreateOrderDto = {
       customer: {
-        email: normalizeEmail(dto.customer.email),
+        ...(dto.customer.email ? { email: normalizeEmail(dto.customer.email) } : {}),
         firstName: this.normalizeConfigString(dto.customer.firstName),
         lastName: this.normalizeConfigString(dto.customer.lastName),
-        phone: sanitizePhoneInput(dto.customer.phone) ?? undefined,
+        phone: sanitizePhoneInput(dto.customer.phone) ?? this.normalizeConfigString(dto.customer.phone),
         locale: dto.customer.locale ? normalizeLocalePreference(dto.customer.locale) : undefined,
       },
       shippingAddress: normalizeAddress(dto.shippingAddress),
@@ -1472,6 +2026,147 @@ export class StorefrontService implements OnModuleInit {
       shippingOptionId,
       fulfillmentMode,
       currency: this.currencyConversion.normalizeCurrency(dto.currency) ?? undefined,
+    }
+
+    const pricingContext = await this.buildCheckoutPricingContext(normalizedSnapshot)
+
+    return {
+      ...normalizedSnapshot,
+      items: normalizedSnapshot.items.map((item, index) => {
+        const lineItem = pricingContext.lineItems[index]
+        return {
+          ...item,
+          pricingSnapshot: {
+            unitPrice: decimalToNumber(lineItem.orderCurrencyUnitPrice),
+            currency: pricingContext.orderCurrency,
+            nameSnapshot: lineItem.nameSnapshot,
+            image: lineItem.image ?? null,
+            specSummary: lineItem.specSummary || undefined,
+            specEntries: lineItem.specEntries,
+            skuSnapshot: lineItem.skuSnapshot,
+            parametricConfig: lineItem.parametricConfig ?? null,
+          },
+        }
+      }),
+      pricingSummary: {
+        currency: pricingContext.orderCurrency,
+        subtotal: decimalToNumber(pricingContext.netSubtotalDecimal),
+        tax: decimalToNumber(pricingContext.taxDecimal),
+        shipping: decimalToNumber(pricingContext.deliveryFeesDecimal),
+        grandTotal: decimalToNumber(pricingContext.grandTotalDecimal),
+      },
+    }
+  }
+
+  async resolveCheckoutPaymentAmount(
+    snapshot: PreparedStorefrontCheckoutSnapshot,
+    targetCurrency: string,
+  ): Promise<{ amount: number; currency: string }> {
+    const normalizedTargetCurrency = this.currencyConversion.normalizeCurrency(targetCurrency)
+    if (!normalizedTargetCurrency) {
+      throw new BadRequestException('La moneda del pago es inválida.')
+    }
+
+    const pricingSummary =
+      snapshot.pricingSummary ??
+      (() => {
+        throw new BadRequestException('No pudimos preparar el total del checkout para el pago.')
+      })()
+
+    const sourceCurrency =
+      this.currencyConversion.normalizeCurrency(pricingSummary.currency) ??
+      this.currencyConversion.normalizeCurrency(snapshot.currency) ??
+      null
+
+    if (!sourceCurrency) {
+      throw new BadRequestException('No pudimos determinar la moneda del checkout.')
+    }
+
+    const grandTotal = decimal(pricingSummary.grandTotal).toDecimalPlaces(4)
+    if (sourceCurrency === normalizedTargetCurrency) {
+      return {
+        amount: decimalToNumber(grandTotal.toDecimalPlaces(2)),
+        currency: normalizedTargetCurrency,
+      }
+    }
+
+    const fxSnapshot = await this.currencyConversion.buildRatesSnapshot([sourceCurrency, normalizedTargetCurrency])
+    const converted = this.currencyConversion.convertWithSnapshot(
+      grandTotal,
+      sourceCurrency,
+      normalizedTargetCurrency,
+      fxSnapshot,
+      { amountScale: 4, rateScale: 8 },
+    )
+
+    return {
+      amount: decimalToNumber(converted.amount.toDecimalPlaces(2)),
+      currency: normalizedTargetCurrency,
+    }
+  }
+
+  async prepareCheckoutSummary(dto: StorefrontCreateOrderDto): Promise<CheckoutSummary> {
+    const preparedSnapshot = await this.prepareCheckoutSnapshot(dto)
+    const pricingSummary = preparedSnapshot.pricingSummary
+    if (!pricingSummary) {
+      throw new BadRequestException('No pudimos preparar el resumen del checkout.')
+    }
+
+    const items = preparedSnapshot.items.map((item) => {
+      const pricingSnapshot = item.pricingSnapshot
+      const unitAmount = pricingSnapshot?.unitPrice ?? 0
+      const currency = pricingSnapshot?.currency ?? pricingSummary.currency
+      return {
+        productId: item.productId,
+        quantity: item.quantity,
+        ...(item.variantId ? { variantId: item.variantId } : {}),
+        price: money(unitAmount, currency),
+        total: money(unitAmount * item.quantity, currency),
+        name: pricingSnapshot?.nameSnapshot,
+        image: pricingSnapshot?.image ?? null,
+        specifications:
+          pricingSnapshot?.specEntries?.map((entry) => ({
+            label: entry.label,
+            value: entry.value,
+          })) ?? undefined,
+      }
+    })
+
+    const shippingOption = preparedSnapshot.shippingOptionId
+      ? await this.prisma.shippingOption.findUnique({
+          where: { id: preparedSnapshot.shippingOptionId },
+        })
+      : null
+
+    const delivery =
+      shippingOption || preparedSnapshot.fulfillmentMode === 'home_delivery'
+        ? {
+            mode: 'home_delivery' as const,
+            modeLabel: 'Envío a domicilio',
+            shippingVendor: shippingOption?.name ?? null,
+            estimatedMin: shippingOption?.estimatedMin ?? null,
+            estimatedMax: shippingOption?.estimatedMax ?? null,
+            estimatedLabel:
+              shippingOption?.estimatedMin !== null && shippingOption?.estimatedMin !== undefined
+                ? shippingOption?.estimatedMax !== null && shippingOption?.estimatedMax !== undefined
+                  ? shippingOption.estimatedMin === shippingOption.estimatedMax
+                    ? `${shippingOption.estimatedMin} día${shippingOption.estimatedMin === 1 ? '' : 's'}`
+                    : `${shippingOption.estimatedMin}-${shippingOption.estimatedMax} días`
+                  : `${shippingOption.estimatedMin} día${shippingOption.estimatedMin === 1 ? '' : 's'}`
+                : null,
+          }
+        : undefined
+
+    return {
+      items,
+      subtotal: money(pricingSummary.subtotal, pricingSummary.currency),
+      tax: money(pricingSummary.tax, pricingSummary.currency),
+      shipping: money(pricingSummary.shipping, pricingSummary.currency),
+      discounts: [],
+      grandTotal: money(pricingSummary.grandTotal, pricingSummary.currency),
+      estimatedDelivery: delivery?.estimatedLabel ?? undefined,
+      notes: preparedSnapshot.notes,
+      delivery,
     }
   }
 
@@ -1540,6 +2235,30 @@ export class StorefrontService implements OnModuleInit {
     return { valid: false, usingDefault: false }
   }
 
+  private async ensureDefaultCustomerStatusId(): Promise<number> {
+    const existing = await this.prisma.customerStatus.findFirst({
+      where: {
+        name: { in: ['Activo', 'Active'] },
+      },
+      orderBy: { id: 'asc' },
+      select: { id: true },
+    })
+
+    if (existing) {
+      return existing.id
+    }
+
+    const created = await this.prisma.customerStatus.create({
+      data: {
+        name: 'Activo',
+        color: '#10B981',
+      },
+      select: { id: true },
+    })
+
+    return created.id
+  }
+
   async registerCustomer(dto: StorefrontRegisterDto) {
     await this.ensureDefaultPasswordHash()
 
@@ -1578,6 +2297,7 @@ export class StorefrontService implements OnModuleInit {
 
     const passwordHash = await bcrypt.hash(dto.password, 12)
     const preferredLocale = dto.locale ? normalizeLocalePreference(dto.locale) : undefined
+    const defaultStatusId = await this.ensureDefaultCustomerStatusId()
     const customer = existing
       ? await this.prisma.customer.update({
           where: { id: existing.id },
@@ -1593,6 +2313,8 @@ export class StorefrontService implements OnModuleInit {
             passwordUpdatedAt: new Date(),
             ...(phone ? { phoneNumber: phone } : {}),
             ...(preferredLocale ? { preferredLocale } : {}),
+            ...(existing.statusId ? {} : { statusId: defaultStatusId }),
+            ...(email && email !== existing.email ? { emailVerifiedAt: null } : {}),
           },
         })
       : await this.prisma.customer.create({
@@ -1608,8 +2330,34 @@ export class StorefrontService implements OnModuleInit {
             passwordUpdatedAt: new Date(),
             ...(phone ? { phoneNumber: phone } : {}),
             preferredLocale: preferredLocale ?? 'es',
+            statusId: defaultStatusId,
           },
         })
+
+    if (customer.email) {
+      this.email
+        .sendWelcome({
+          customerId: customer.id,
+          email: customer.email,
+          locale: customer.preferredLocale ?? preferredLocale ?? 'es',
+          displayName: customer.name ?? `${customer.firstName ?? ''} ${customer.lastName ?? ''}`.trim(),
+        })
+        .catch((error) =>
+          this.logger.error(
+            `Failed to send welcome email to customer ${customer.id}: ${(error as Error).message}`,
+          ),
+        )
+
+      if (!customer.emailVerifiedAt) {
+        this.security
+          .sendEmailVerification(customer.id)
+          .catch((error) =>
+            this.logger.error(
+              `Failed to send verification email to customer ${customer.id}: ${(error as Error).message}`,
+            ),
+          )
+      }
+    }
 
     return this.createSessionForCustomer(customer)
   }
@@ -1752,14 +2500,12 @@ export class StorefrontService implements OnModuleInit {
   }
 
   async createOrder(dto: StorefrontCreateOrderDto) {
-    const email = normalizeEmail(dto.customer.email)
-    const phone = sanitizePhoneInput(dto.customer.phone)
     await this.ensureDefaultPasswordHash()
 
     if (dto.paymentIntentId) {
       const intentRecord = await this.prisma.storefrontPaymentIntent.findUnique({
         where: { id: dto.paymentIntentId },
-        select: { orderId: true },
+        select: { orderId: true, metadata: true },
       })
 
       if (!intentRecord) {
@@ -1780,6 +2526,22 @@ export class StorefrontService implements OnModuleInit {
           return this.toOrderSummary(existingOrder)
         }
       }
+
+      const preparedSnapshot = this.extractCheckoutSnapshotFromIntent(intentRecord)
+      if (preparedSnapshot) {
+        dto = {
+          ...preparedSnapshot,
+          paymentIntentId: dto.paymentIntentId,
+          checkoutToken: preparedSnapshot.checkoutToken ?? dto.checkoutToken,
+        } as StorefrontCreateOrderDto
+      }
+    }
+
+    const email = dto.customer.email ? normalizeEmail(dto.customer.email) : null
+    const phone = sanitizePhoneInput(dto.customer.phone)
+
+    if (!phone) {
+      throw new BadRequestException('Phone number is required')
     }
 
     const normalizedCheckoutToken =
@@ -1790,6 +2552,7 @@ export class StorefrontService implements OnModuleInit {
 
     let order: OrderWithRelations | null = null
     let isNewOrder = false
+    let cashPaymentDispatchPlan: PaymentSettlementDispatchPlan | null = null
     const fulfillmentMode = dto.fulfillmentMode ?? 'home_delivery'
 
     if (fulfillmentMode !== 'home_delivery') {
@@ -1812,8 +2575,29 @@ export class StorefrontService implements OnModuleInit {
       })
     }
 
-    let customer = await this.prisma.customer.findUnique({ where: { email } })
+    const [existingByEmail, existingByPhone] = await Promise.all([
+      email ? this.prisma.customer.findUnique({ where: { email } }) : Promise.resolve(null),
+      phone
+        ? this.prisma.customer.findFirst({
+            where: {
+              OR: [
+                { phoneNumber: { in: buildPhoneLookupCandidates(phone) } },
+                { phones: { some: { phone: { in: buildPhoneLookupCandidates(phone) } } } },
+              ],
+            },
+          })
+        : Promise.resolve(null),
+    ])
+
+    if (existingByEmail && existingByPhone && existingByEmail.id !== existingByPhone.id) {
+      throw new ConflictException('Customer already exists')
+    }
+
+    let customer = existingByEmail ?? existingByPhone
     const localePreference = dto.customer.locale ? normalizeLocalePreference(dto.customer.locale) : null
+    const defaultStatusId = await this.ensureDefaultCustomerStatusId()
+    let createdFromCheckout = false
+    let emailAssignedDuringCheckout = false
     if (!customer) {
       customer = await this.prisma.customer.create({
         data: {
@@ -1829,403 +2613,107 @@ export class StorefrontService implements OnModuleInit {
               }
             : undefined,
           preferredLocale: localePreference ?? 'es',
+          statusId: defaultStatusId,
         },
       })
+      createdFromCheckout = true
+      emailAssignedDuringCheckout = Boolean(email)
     } else if (!customer.passwordHash && !customer.storefrontDefaultPasswordHash) {
       customer = await this.prisma.customer.update({
         where: { id: customer.id },
         data: {
           storefrontDefaultPasswordHash: this.defaultCustomerPasswordHash,
+          ...(email && !customer.email ? { email, emailVerifiedAt: null } : {}),
           ...(phone && !customer.phoneNumber ? { phoneNumber: phone } : {}),
+          ...(customer.statusId ? {} : { statusId: defaultStatusId }),
           ...(localePreference && getPreferredLocale(customer) !== localePreference
             ? { preferredLocale: localePreference }
             : {}),
         },
       })
+      emailAssignedDuringCheckout = Boolean(email && !customer.email)
     } else if (phone && !customer.phoneNumber) {
       customer = await this.prisma.customer.update({
         where: { id: customer.id },
         data: {
+          ...(email && !customer.email ? { email, emailVerifiedAt: null } : {}),
           phoneNumber: phone,
+          ...(customer.statusId ? {} : { statusId: defaultStatusId }),
           ...(localePreference && getPreferredLocale(customer) !== localePreference
             ? { preferredLocale: localePreference }
             : {}),
         },
       })
+      emailAssignedDuringCheckout = Boolean(email && !customer.email)
     } else if (localePreference && getPreferredLocale(customer) !== localePreference) {
       customer = await this.prisma.customer.update({
         where: { id: customer.id },
-        data: { preferredLocale: localePreference },
+        data: {
+          preferredLocale: localePreference,
+          ...(customer.statusId ? {} : { statusId: defaultStatusId }),
+        },
+      })
+    } else if (!customer.statusId) {
+      customer = await this.prisma.customer.update({
+        where: { id: customer.id },
+        data: { statusId: defaultStatusId },
       })
     }
 
     customer = await this.syncCustomerProfileFromCheckout(customer, dto)
 
-    const productIds = dto.items.map((item) => item.productId)
-    const uniqueProductIds = Array.from(new Set(productIds))
-    const products = await this.prisma.product.findMany({
-      where: { id: { in: uniqueProductIds }, published: true },
-      include: {
-        images: {
-          where: { variantId: null },
-          orderBy: { sortOrder: 'asc' },
-        },
-      },
-    })
-    if (products.length !== uniqueProductIds.length) {
-      throw new BadRequestException('One or more products are unavailable')
-    }
-    const productById = new Map(products.map((product) => [product.id, product]))
-
-    const variantIds = dto.items
-      .map((item) => (item.variantId ? Number(item.variantId) : null))
-      .filter((id): id is number => Number.isFinite(id) && id! > 0)
-
-    const variants = variantIds.length
-      ? await this.prisma.productVariant.findMany({
-          where: { id: { in: variantIds } },
-          include: {
-            product: true,
-            images: { orderBy: { sortOrder: 'asc' } },
-            selections: {
-              include: {
-                optionValue: {
-                  include: {
-                    option: true,
-                  },
-                },
-              },
-            },
-          },
+    if (createdFromCheckout && customer.email) {
+      this.email
+        .sendWelcome({
+          customerId: customer.id,
+          email: customer.email,
+          locale: getPreferredLocale(customer),
+          displayName: customer.name ?? `${customer.firstName ?? ''} ${customer.lastName ?? ''}`.trim(),
         })
-      : []
-    const variantById = new Map(variants.map((variant) => [variant.id, variant]))
+        .catch((error) =>
+          this.logger.error(
+            `Failed to send welcome email to customer ${customer.id}: ${(error as Error).message}`,
+          ),
+        )
 
-    const rawLineItems = await Promise.all(
-      dto.items.map(async (item) => {
-        const product = productById.get(item.productId)
-        if (!product) {
-          throw new BadRequestException('One or more products are unavailable')
-        }
-
-        let priceCurrency = this.currencyConversion.normalizeCurrency(product.currency)
-        let costCurrency = priceCurrency
-
-        const variantId =
-          item.variantId !== undefined && item.variantId !== null ? Number(item.variantId) : null
-        const variant = variantId ? variantById.get(variantId) ?? null : null
-
-        if (variantId && !variant) {
-          throw new BadRequestException('Selected product variant is invalid or unavailable.')
-        }
-
-        if (product.mode === ProductMode.VARIABLE && !variant) {
-          throw new BadRequestException('A product variant must be selected for this item.')
-        }
-
-        if (variant) {
-          if (variant.productId !== product.id) {
-            throw new BadRequestException('Invalid product variant selected for this product.')
-          }
-          if (!variant.isActive) {
-            throw new BadRequestException('Selected variant is not currently available.')
-          }
-        }
-
-        const quantity = Math.max(1, Number(item.quantity ?? 1))
-        const baseSalePrice = decimalToNumber(product.salePrice)
-        const baseCostPrice = decimalToNumber(product.costPrice)
-
-        let unitPrice = decimal(baseSalePrice)
-        let unitCost = decimal(baseCostPrice)
-        let salePriceAmount = baseSalePrice
-        let costPriceAmount = baseCostPrice
-        let specEntries: { label: string; value: string }[] = []
-        let specSummary = ''
-        let primaryImage = product.images?.[0]?.img ?? null
-        let displayName = product.name
-        let skuSnapshot = product.productCode ?? undefined
-        let parametricSnapshot: Awaited<ReturnType<ParametricPricingService['quote']>> | null = null
-        let parametricConfig: Record<string, unknown> | undefined
-
-        if (product.mode === ProductMode.PARAMETRIC) {
-          const publishedParametricVariant = await this.resolvePublishedParametricConfiguration(
-            product.id,
-            item.configuration && typeof item.configuration === 'object'
-              ? (item.configuration as Record<string, unknown>)
-              : null,
-            product.currency,
-          )
-          if (publishedParametricVariant) {
-            salePriceAmount = publishedParametricVariant.price
-            unitPrice = decimal(publishedParametricVariant.price)
-            specEntries = publishedParametricVariant.specifications
-            specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
-            displayName = product.name
-            skuSnapshot = product.productCode ?? undefined
-            parametricConfig = publishedParametricVariant.configuration
-            priceCurrency =
-              this.currencyConversion.normalizeCurrency(publishedParametricVariant.currency ?? product.currency) ??
-              priceCurrency
-          } else {
-            if (!item.configuration || typeof item.configuration !== 'object') {
-              throw new BadRequestException('Parametric configuration is required for this product.')
-            }
-
-            const rawConfig = item.configuration as Record<string, unknown>
-            const quoteInput: ParametricQuoteInput = {
-              productId: product.id,
-              familyId: this.normalizeConfigString(
-                rawConfig.familyId ?? rawConfig.family_id ?? product.productCode ?? product.name,
-              ),
-              serie: this.normalizeConfigString(rawConfig.series ?? rawConfig.serie),
-              material: this.normalizeConfigString(rawConfig.material ?? 'ALUMINIO'),
-              color: this.normalizeConfigString(rawConfig.color ?? 'NATURAL'),
-              vidrio: this.normalizeConfigString(rawConfig.vidrio ?? rawConfig.glass ?? '4 MM'),
-              widthMm: this.normalizeConfigNumber(rawConfig.widthMm ?? rawConfig.width_mm ?? rawConfig.width, 'width'),
-              heightMm: this.normalizeConfigNumber(rawConfig.heightMm ?? rawConfig.height_mm ?? rawConfig.height, 'height'),
-              hasMosquitero: this.normalizeConfigBoolean(
-                rawConfig.hasMosquitero ?? rawConfig.mosquitoNet ?? rawConfig.mosquitero,
-              ),
-              hasShutterMonoblock: this.normalizeConfigBoolean(
-                rawConfig.hasShutterMonoblock ??
-                  rawConfig.monoblock ??
-                  rawConfig.has_monoblock ??
-                  rawConfig.monoblockEnabled,
-              ),
-              shutterMaterial: this.normalizeConfigString(
-                rawConfig.shutterMaterial ??
-                  rawConfig.shutter_material ??
-                  rawConfig.shutterSystem ??
-                  rawConfig.shutter_system ??
-                  rawConfig.monoblockSystem ??
-                  rawConfig.monoblockMaterial ??
-                  '',
-              ),
-            }
-            const quote = await this.parametricPricing.quote(quoteInput)
-            parametricSnapshot = quote
-            if (!quote.available || quote.price === undefined) {
-              throw new BadRequestException('Selected configuration is not available.')
-            }
-            salePriceAmount = quote.price
-            unitPrice = decimal(quote.price)
-            unitCost = decimal(baseCostPrice)
-            priceCurrency = this.currencyConversion.normalizeCurrency(quote.currency ?? product.currency) ?? priceCurrency
-            const widthMm = quote.requested.widthMm
-            const heightMm = quote.requested.heightMm
-            specEntries = [
-              { label: 'Serie', value: quote.requested.serie || 'N/A' },
-              { label: 'Material', value: quote.requested.material || 'N/A' },
-              { label: 'Color', value: quote.requested.color || 'NATURAL' },
-              { label: 'Vidrio', value: quote.requested.vidrio || '4 MM' },
-              { label: 'Ancho', value: `${widthMm} mm` },
-              { label: 'Alto', value: `${heightMm} mm` },
-              {
-                label: 'Mosquitero',
-                value: quote.requested.hasMosquitero ? 'Sí' : 'No',
-              },
-            ]
-            if (quote.requested.hasShutterMonoblock) {
-              specEntries.push({
-                label: 'Material Monoblock',
-                value: quote.requested.shutterMaterial || 'N/A',
-              })
-            }
-            specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
-            displayName = `${product.name} (${widthMm}x${heightMm} mm)`
-            const skuBase = (product.productCode ?? slugify(product.name)).toUpperCase().replace(/[^A-Z0-9]/g, '')
-            const typeCode = this.buildProductTypeCode(quote.requested.familyId)
-            const widthKey = Math.round(widthMm)
-            const heightKey = Math.round(heightMm)
-            const skuParts = [typeCode, skuBase, `${widthKey}x${heightKey}`].filter(
-              (part) => typeof part === 'string' && part.length > 0,
-            )
-            skuSnapshot = skuParts.join('-')
-            parametricConfig = {
-              ...quote.requested,
-              price: quote.price,
-              currency: quote.currency ?? product.currency ?? priceCurrency,
-              detailSnapshot: quote.detailSnapshot ?? null,
-              referenceDate: quote.referenceDate ?? null,
-            }
-          }
-        } else {
-          salePriceAmount =
-            variant && variant.salePrice !== null && variant.salePrice !== undefined
-              ? decimalToNumber(variant.salePrice)
-              : baseSalePrice
-          costPriceAmount =
-            variant && variant.costPrice !== null && variant.costPrice !== undefined
-              ? decimalToNumber(variant.costPrice)
-              : baseCostPrice
-          unitPrice = decimal(salePriceAmount)
-          unitCost = decimal(costPriceAmount)
-          const variantStock =
-            variant && variant.stock !== null && variant.stock !== undefined
-              ? variant.stock
-              : product.stock ?? 0
-          const variantPermanent =
-            variant && variant.permanentStock !== null && variant.permanentStock !== undefined
-              ? variant.permanentStock
-              : product.permanentStock ?? false
-          if (variant && !variantPermanent && Number(variantStock ?? 0) <= 0) {
-            throw new BadRequestException('Selected variant is out of stock.')
-          }
-
-          specEntries =
-            variant?.selections.map((selection) => ({
-              label: selection.optionValue.option.name,
-              value: selection.optionValue.label,
-            })) ?? []
-          specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
-          primaryImage = variant?.images[0]?.img ?? product.images?.[0]?.img ?? null
-          displayName = variant?.label ? `${product.name} - ${variant.label}` : product.name
-          skuSnapshot = variant?.sku ?? product.productCode ?? undefined
-        }
-
-        costCurrency = costCurrency ?? priceCurrency
-
-        return {
-          product,
-          variant,
-          quantity,
-          unitPrice,
-          unitCost,
-          salePriceAmount,
-          costPriceAmount,
-          specEntries,
-          specSummary,
-          image: primaryImage,
-          nameSnapshot: displayName,
-          skuSnapshot,
-          parametricSnapshot,
-          parametricConfig,
-          priceCurrency: priceCurrency ?? null,
-          costCurrency: costCurrency ?? priceCurrency ?? null,
-        }
-      }),
-    )
-
-    const enabledCurrencies = await this.currencyConversion.getEnabledCurrencies()
-    const baseCurrency = await this.currencyConversion.getBaseCurrency()
-    const requestedCurrency = dto.currency ? this.currencyConversion.normalizeCurrency(dto.currency) : null
-    const lineItemCurrencies = rawLineItems
-      .map((item) => item.priceCurrency)
-      .filter((code): code is string => Boolean(code))
-
-    let orderCurrency =
-      requestedCurrency && enabledCurrencies.includes(requestedCurrency)
-        ? requestedCurrency
-        : null
-
-    if (!orderCurrency) {
-      orderCurrency =
-        lineItemCurrencies.find((code) => enabledCurrencies.includes(code)) ??
-        lineItemCurrencies[0] ??
-        (enabledCurrencies.includes(baseCurrency) ? baseCurrency : baseCurrency)
     }
 
-    if (!orderCurrency) {
-      orderCurrency = baseCurrency || 'USD'
+    if ((createdFromCheckout || emailAssignedDuringCheckout) && customer.email && !customer.emailVerifiedAt) {
+      this.security
+        .sendEmailVerification(customer.id)
+        .catch((error) =>
+          this.logger.error(
+            `Failed to send verification email to customer ${customer.id}: ${(error as Error).message}`,
+          ),
+        )
     }
 
-    const requiredCurrencies = new Set<string>([orderCurrency, baseCurrency])
-    lineItemCurrencies.forEach((code) => code && requiredCurrencies.add(code))
-    rawLineItems
-      .map((item) => item.costCurrency)
-      .filter((code): code is string => Boolean(code))
-      .forEach((code) => requiredCurrencies.add(code))
-
-    const fxSnapshot = await this.currencyConversion.buildRatesSnapshot(Array.from(requiredCurrencies))
-    const fxRatesPayload = {
-      base: fxSnapshot.base,
-      generatedAt: fxSnapshot.generatedAt,
-      rates: Object.fromEntries(
-        Object.entries(fxSnapshot.rates).map(([code, rate]) => [code, rate.toString()]),
-      ),
-    }
-
-    const convertAmount = (amount: Prisma.Decimal, fromCurrency: string | null | undefined) => {
-      const normalizedFrom = this.currencyConversion.normalizeCurrency(fromCurrency) ?? orderCurrency
-      if (normalizedFrom === orderCurrency) {
-        return { amount, rate: decimal(1) }
-      }
-      return this.currencyConversion.convertWithSnapshot(
-        amount.toString(),
-        normalizedFrom,
-        orderCurrency,
-        fxSnapshot,
-        { amountScale: 4, rateScale: 8 },
-      )
-    }
-
-    const lineItems = rawLineItems.map((item) => {
-      const priceConversion = convertAmount(item.unitPrice, item.priceCurrency ?? orderCurrency)
-      const costConversion = convertAmount(
-        item.unitCost,
-        item.costCurrency ?? item.priceCurrency ?? orderCurrency,
-      )
-      return {
-        ...item,
-        orderCurrencyUnitPrice: priceConversion.amount,
-        priceConversionRate: priceConversion.rate,
-        orderCurrencyUnitCost: costConversion.amount,
-        costConversionRate: costConversion.rate,
-        priceCurrency: this.currencyConversion.normalizeCurrency(item.priceCurrency) ?? orderCurrency,
-        costCurrency:
-          this.currencyConversion.normalizeCurrency(item.costCurrency) ??
-          this.currencyConversion.normalizeCurrency(item.priceCurrency) ??
-          orderCurrency,
-      }
+    const pricingContext = await this.buildCheckoutPricingContext(dto as PreparedStorefrontCheckoutSnapshot, {
+      preferLockedPricing: Boolean(dto.paymentIntentId),
     })
+    const {
+      products,
+      lineItems,
+      orderCurrency,
+      fxSnapshot,
+      fxRatesPayload,
+      shippingOption,
+      deliveryFeesDecimal,
+      netSubtotalDecimal,
+      taxDecimal,
+      grandTotalDecimal,
+    } = pricingContext
 
     const selectedPaymentMethod = dto.paymentIntentId
       ? findPaymentMethodByCode('mercado_pago')
       : findPaymentMethodByCode('cash')
-    const shippingOption =
-      dto.shippingOptionId !== undefined && dto.shippingOptionId !== null
-        ? await this.prisma.shippingOption.findUnique({
-            where: { id: Number(dto.shippingOptionId) },
-          })
-        : null
-
-    if (dto.shippingOptionId !== undefined && dto.shippingOptionId !== null && !shippingOption) {
-      throw new BadRequestException('La opción de envío seleccionada no existe.')
-    }
-
-    if (!shippingOption) {
-      throw new BadRequestException('Debes seleccionar una opción de entrega para continuar.')
-    }
-
-    const deliveryFeesDecimal = decimal(Number(shippingOption?.deliveryFees ?? 0)).toDecimalPlaces(2)
-    const grossSubtotalDecimal = lineItems.reduce(
-      (sum, item) => sum.plus(item.orderCurrencyUnitPrice.times(item.quantity)),
-      decimal(0),
-    )
-    const taxRatePercentRaw = Number(products[0]?.taxRate ?? 0)
-    const taxRateDecimal = decimal(taxRatePercentRaw).dividedBy(100)
-
-    let netSubtotalDecimal = grossSubtotalDecimal
-    let taxDecimal = decimal(0)
-
-    if (taxRateDecimal.greaterThan(0)) {
-      const divisor = decimal(1).plus(taxRateDecimal)
-      const netSubtotal = grossSubtotalDecimal.dividedBy(divisor)
-      const netRounded = netSubtotal.toDecimalPlaces(2)
-      const taxRounded = grossSubtotalDecimal.minus(netRounded).toDecimalPlaces(2)
-      netSubtotalDecimal = netRounded
-      taxDecimal = taxRounded
-    }
-
-    const grandTotalDecimal = grossSubtotalDecimal.plus(deliveryFeesDecimal).toDecimalPlaces(2)
 
     if (!order) {
       try {
         order = await this.prisma.$transaction(async (tx) => {
           await this.stockIntegrity.commitStorefrontItems(lineItems, tx)
 
-          return tx.order.create({
+          const createdOrder = await tx.order.create({
             data: {
               ...(checkoutUuid ? { uuid: checkoutUuid } : {}),
               documentType: DocumentType.ORDER,
@@ -2299,6 +2787,42 @@ export class StorefrontService implements OnModuleInit {
               storefrontPayments: true,
             },
           })
+
+          if (selectedPaymentMethod?.code === 'cash') {
+            const pendingPayment = await tx.payment.create({
+              data: {
+                orderId: createdOrder.id,
+                amount: grandTotalDecimal.toDecimalPlaces(2),
+                currency: orderCurrency,
+                type: PaymentType.BALANCE,
+                status: PaymentStatus.REGISTERED,
+                paymentMethodId: selectedPaymentMethod.id,
+                method: selectedPaymentMethod.label,
+                reference: null,
+                date: new Date(),
+                notes: 'Storefront cash payment pending manual confirmation.',
+              },
+            })
+
+            cashPaymentDispatchPlan = await this.paymentSettlement.apply(
+              {
+                paymentId: pendingPayment.id,
+                previousPaymentStatus: null,
+              },
+              tx,
+            )
+
+            return tx.order.findUniqueOrThrow({
+              where: { id: createdOrder.id },
+              include: {
+                items: true,
+                payments: true,
+                storefrontPayments: true,
+              },
+            })
+          }
+
+          return createdOrder
         })
         isNewOrder = true
       } catch (error) {
@@ -2355,6 +2879,10 @@ export class StorefrontService implements OnModuleInit {
       }
     }
 
+    if (cashPaymentDispatchPlan) {
+      await this.paymentSettlement.dispatch(cashPaymentDispatchPlan)
+    }
+
     const summary = this.toOrderSummary(order, {
       shippingAddress: dto.shippingAddress,
       billingAddress: dto.billingAddress ?? dto.shippingAddress,
@@ -2377,7 +2905,7 @@ export class StorefrontService implements OnModuleInit {
     const [customer, wishlistSummary] = await Promise.all([
       this.prisma.customer.findUnique({
         where: { id: customerId },
-        include: { addresses: true },
+        include: { addresses: true, status: true },
       }),
       this.getWishlistSummary(customerId),
     ])
@@ -2390,7 +2918,7 @@ export class StorefrontService implements OnModuleInit {
   async updateCustomerProfile(customerId: number, dto: StorefrontUpdateProfileDto): Promise<CustomerProfile> {
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
-      include: { addresses: true },
+      include: { addresses: true, status: true },
     })
     if (!customer) {
       throw new NotFoundException('Customer not found')
@@ -2415,6 +2943,7 @@ export class StorefrontService implements OnModuleInit {
       }
     }
 
+    let emailChanged = false
     if (dto.email !== undefined) {
       const trimmedEmail = dto.email ? dto.email.trim() : ''
       if (trimmedEmail) {
@@ -2430,9 +2959,15 @@ export class StorefrontService implements OnModuleInit {
           throw new ConflictException('Email is already in use')
         }
         updateData.email = normalizedEmail
+        if (normalizedEmail !== customer.email) {
+          updateData.emailVerifiedAt = null
+          emailChanged = true
+        }
         nextEmail = normalizedEmail
       } else {
         updateData.email = null
+        updateData.emailVerifiedAt = null
+        emailChanged = customer.email !== null
         nextEmail = null
       }
     }
@@ -2488,13 +3023,24 @@ export class StorefrontService implements OnModuleInit {
     const [updated, wishlistSummary] = await Promise.all([
       this.prisma.customer.findUnique({
         where: { id: customerId },
-        include: { addresses: true },
+        include: { addresses: true, status: true },
       }),
       this.getWishlistSummary(customerId),
     ])
     if (!updated) {
       throw new NotFoundException('Customer not found')
     }
+
+    if (updated.email && !updated.emailVerifiedAt && emailChanged) {
+      this.security
+        .sendEmailVerification(updated.id)
+        .catch((error) =>
+          this.logger.error(
+            `Failed to send verification email to customer ${updated.id}: ${(error as Error).message}`,
+          ),
+        )
+    }
+
     return this.toCustomerProfile(updated, wishlistSummary)
   }
 
@@ -2591,10 +3137,12 @@ export class StorefrontService implements OnModuleInit {
       if (paymentsAsc.length > 0) {
         let accumulated = 0
         paymentsAsc.forEach((payment, index) => {
-          const amountNumber = decimalToNumber(payment.amount ?? decimal(0))
-          accumulated += amountNumber
-          const currencyCode = (payment.currency ?? orderCurrency).toUpperCase()
-          const sameCurrency = currencyCode === orderCurrencyCode
+          const rawAmountNumber = decimalToNumber(payment.amount ?? decimal(0))
+          accumulated += rawAmountNumber
+          const rawCurrencyCode = (payment.currency ?? orderCurrency).toUpperCase()
+          const sameCurrency = rawCurrencyCode === orderCurrencyCode
+          let amountNumber = rawAmountNumber
+          let currencyCode = rawCurrencyCode
 
           let eventType: 'PAYMENT_PARTIAL' | 'PAYMENT_FULL' = 'PAYMENT_PARTIAL'
           let remainingAmount: number | null = null
@@ -2606,6 +3154,9 @@ export class StorefrontService implements OnModuleInit {
             }
           } else if (index === paymentsAsc.length - 1 && paymentStatus === 'paid') {
             eventType = 'PAYMENT_FULL'
+            amountNumber = orderTotal
+            currencyCode = orderCurrencyCode
+            remainingAmount = 0
           }
 
           events.push({
@@ -2647,8 +3198,8 @@ export class StorefrontService implements OnModuleInit {
             remainingAmount = Math.max(0, orderTotal - amountValue)
           } else if (eventType === 'PAYMENT_FULL') {
             remainingAmount = 0
-          } else if (eventType === 'PAYMENT_WAITING' && sameCurrency && amountValue !== null) {
-            remainingAmount = Math.max(0, orderTotal - amountValue)
+          } else if (eventType === 'PAYMENT_WAITING') {
+            remainingAmount = Math.max(0, orderTotal)
           }
 
           events.push({
@@ -2851,7 +3402,11 @@ export class StorefrontService implements OnModuleInit {
     const definitions = await Promise.all(
       uniqueIds.map(async (productId) => [
         productId,
-        await this.publishedProductResolver.resolvePublishedParametricProduct(productId),
+        await this.publishedProductResolver.resolvePublishedParametricProduct(
+          productId,
+          parametricProducts.find((product) => product.id === productId)?.currency,
+          parametricProducts.find((product) => product.id === productId)?.salePrice,
+        ),
       ] as const),
     )
 
@@ -2873,24 +3428,43 @@ export class StorefrontService implements OnModuleInit {
     return entries.length > 0 ? entries.join(' • ') : null
   }
 
+  private resolvePublishedParametricDefaultVariant(
+    definition?: PublishedParametricProductDefinition | null,
+  ): PublishedParametricVariantDefinition | null {
+    if (!definition?.variants?.length) {
+      return null
+    }
+
+    return (
+      definition.variants.find((variant) => variant.key === definition.defaultVariantKey) ??
+      definition.variants[0] ??
+      null
+    )
+  }
+
   private toProductSummary(
     product: Prisma.ProductGetPayload<{ include: { images: true; category: true } }>,
     publishedParametricDefinition?: PublishedParametricProductDefinition | null,
   ): ProductSummaryDto {
     const thumbnail = product.images?.[0]
-    const price = decimalToNumber(product.salePrice)
-    const salePrice = decimalToNumber(product.salePrice)
-    const publishedVariantLabel = publishedParametricDefinition
-      ? this.buildPublishedParametricVariantLabel(publishedParametricDefinition.specifications)
-      : null
+    const defaultPublishedVariant = this.resolvePublishedParametricDefaultVariant(
+      publishedParametricDefinition,
+    )
+    const resolvedCurrency = defaultPublishedVariant?.currency ?? product.currency ?? 'USD'
+    const resolvedSalePrice = defaultPublishedVariant?.price ?? decimalToNumber(product.salePrice)
+    const publishedVariantLabel = defaultPublishedVariant
+      ? this.buildPublishedParametricVariantLabel(defaultPublishedVariant.specifications)
+      : publishedParametricDefinition
+        ? this.buildPublishedParametricVariantLabel(publishedParametricDefinition.specifications)
+        : null
     const summary: ProductSummaryDto = {
       id: product.id,
       slug: buildProductSlug(product.id, product.name, product.productCode ?? undefined),
       sku: product.productCode,
       name: product.name,
       shortDescription: product.description,
-      price: money(price, product.currency ?? 'USD'),
-      salePrice: money(salePrice, product.currency ?? 'USD'),
+      price: money(resolvedSalePrice, resolvedCurrency),
+      salePrice: money(resolvedSalePrice, resolvedCurrency),
       inventoryStatus: mapInventoryStatus(product),
       tags: product.tags ?? [],
       categories: product.category
@@ -2915,9 +3489,16 @@ export class StorefrontService implements OnModuleInit {
           : product.mode === ProductMode.PARAMETRIC
           ? 'parametric'
           : 'simple',
+      variantKey: defaultPublishedVariant?.key ?? null,
       variantLabel: publishedVariantLabel,
-      configuration: publishedParametricDefinition?.configuration ?? undefined,
-      specifications: publishedParametricDefinition?.specifications ?? undefined,
+      configuration:
+        defaultPublishedVariant?.configuration ??
+        publishedParametricDefinition?.configuration ??
+        undefined,
+      specifications:
+        defaultPublishedVariant?.specifications ??
+        publishedParametricDefinition?.specifications ??
+        undefined,
     }
     return summary
   }
@@ -2939,7 +3520,7 @@ export class StorefrontService implements OnModuleInit {
     product: ProductWithVariants,
     publishedParametricDefinition?: PublishedParametricProductDefinition | null,
   ): ProductDetailDto {
-    const summary = this.toProductSummary(product)
+    const summary = this.toProductSummary(product, publishedParametricDefinition)
     const attributes = product.options.map((option) => ({
       id: option.id,
       type: option.type as ProductAttributeType,
@@ -3231,6 +3812,7 @@ export class StorefrontService implements OnModuleInit {
         discounts: [],
         grandTotal: money(grandTotal, currency),
         estimatedDelivery: deliverySummary?.estimatedLabel ?? undefined,
+        notes: typeof order.comment === 'string' && order.comment.trim().length > 0 ? order.comment.trim() : undefined,
         delivery: deliverySummary ?? undefined,
       },
       delivery: deliverySummary ?? undefined,
@@ -3271,6 +3853,8 @@ export class StorefrontService implements OnModuleInit {
     intent: StorefrontPaymentIntent | null,
     payments: OrderWithRelations['payments'],
   ): string {
+    const orderPaymentMethod = findPaymentMethodById(order.paymentMethodId ?? null)
+    const isCashOrder = orderPaymentMethod?.code === 'cash'
     const orderCurrency = (order.orderCurrency ?? 'USD').toUpperCase()
     const orderTotal = decimalToNumber(order.grandTotal ?? decimal(0))
     const tolerance = orderTotal > 0 ? Math.max(orderTotal * 0.001, 0.01) : 0.01
@@ -3337,7 +3921,15 @@ export class StorefrontService implements OnModuleInit {
     }
 
     if (normalizedPayments.length > 0) {
-      return this.mapInternalPaymentStatus(normalizedPayments[0].status)
+      const mapped = this.mapInternalPaymentStatus(normalizedPayments[0].status)
+      if (isCashOrder && mapped === 'pending') {
+        return 'pending_confirmation'
+      }
+      return mapped
+    }
+
+    if (isCashOrder) {
+      return 'pending_confirmation'
     }
 
     return 'pending'
@@ -3363,15 +3955,57 @@ export class StorefrontService implements OnModuleInit {
     order: OrderWithRelations,
     resolvedStatus: string,
   ) {
+    const orderCurrency = (order.orderCurrency ?? fallbackCurrency).toUpperCase()
+    const orderTotal = decimalToNumber(order.grandTotal ?? decimal(0))
+    const confirmedPayments = (order.payments ?? []).filter(
+      (entry) => entry.status === PaymentStatus.CONFIRMED,
+    )
+    const confirmedTotalInOrderCurrency = confirmedPayments.reduce((sum, entry) => {
+      const paymentCurrency = (entry.currency ?? orderCurrency).toUpperCase()
+      if (paymentCurrency !== orderCurrency) {
+        return sum
+      }
+      return sum + decimalToNumber(entry.amount ?? decimal(0))
+    }, 0)
+
+    const customerFacingAmount = (() => {
+      if (resolvedStatus === 'paid') {
+        return money(orderTotal, orderCurrency)
+      }
+
+      if (resolvedStatus === 'partial' && confirmedTotalInOrderCurrency > 0) {
+        return money(Math.min(orderTotal, confirmedTotalInOrderCurrency), orderCurrency)
+      }
+
+      if (payment) {
+        const paymentCurrency = (payment.currency ?? orderCurrency).toUpperCase()
+        if (paymentCurrency === orderCurrency) {
+          return money(decimalToNumber(payment.amount ?? decimal(0)), orderCurrency)
+        }
+      }
+
+      if (intent) {
+        const intentCurrency = (intent.currency ?? orderCurrency).toUpperCase()
+        if (intentCurrency === orderCurrency && resolvedStatus !== 'pending' && resolvedStatus !== 'processing') {
+          return money(decimalToNumber(intent.amount ?? decimal(0)), orderCurrency)
+        }
+      }
+
+      if (resolvedStatus === 'pending_confirmation') {
+        return undefined
+      }
+
+      return undefined
+    })()
+
     if (intent) {
-      const currency = intent.currency ?? fallbackCurrency
       return {
         provider: intent.provider,
         status: resolvedStatus,
         statusDetail: intent.statusDetail ?? undefined,
         paymentId: intent.externalPaymentId ?? undefined,
         paymentIntentId: intent.id,
-        amount: money(decimalToNumber(intent.amount ?? decimal(0)), currency),
+        amount: customerFacingAmount,
         installments: intent.installments ?? undefined,
         cardBrand: intent.cardBrand ?? undefined,
         cardLastFour: intent.cardLastFour ?? undefined,
@@ -3380,7 +4014,6 @@ export class StorefrontService implements OnModuleInit {
     }
 
     if (payment) {
-      const currency = payment.currency ?? fallbackCurrency
       const paymentMethod = findPaymentMethodById(order.paymentMethodId ?? null)
       return {
         provider: paymentMethod?.label ?? payment.method ?? 'manual',
@@ -3388,11 +4021,27 @@ export class StorefrontService implements OnModuleInit {
         statusDetail: undefined,
         paymentId: payment.reference ?? undefined,
         paymentIntentId: undefined,
-        amount: money(decimalToNumber(payment.amount ?? decimal(0)), currency),
+        amount: customerFacingAmount,
         installments: undefined,
         cardBrand: undefined,
         cardLastFour: undefined,
         updatedAt: payment.updatedAt.toISOString(),
+      }
+    }
+
+    const paymentMethod = findPaymentMethodById(order.paymentMethodId ?? null)
+    if (paymentMethod?.code === 'cash') {
+      return {
+        provider: paymentMethod.label,
+        status: resolvedStatus,
+        statusDetail: undefined,
+        paymentId: undefined,
+        paymentIntentId: undefined,
+        amount: customerFacingAmount,
+        installments: undefined,
+        cardBrand: undefined,
+        cardLastFour: undefined,
+        updatedAt: order.updatedAt.toISOString(),
       }
     }
 
@@ -3569,12 +4218,15 @@ export class StorefrontService implements OnModuleInit {
     return {
       id: customer.id,
       email: customer.email ?? '',
+      emailVerifiedAt: customer.emailVerifiedAt ? customer.emailVerifiedAt.toISOString() : null,
+      emailVerificationRequired: Boolean(customer.email && !customer.emailVerifiedAt),
       firstName: customer.firstName ?? '',
       lastName: customer.lastName ?? '',
       phone: customer.phoneNumber ?? undefined,
       avatarUrl: customer.img ?? undefined,
       dateOfBirth: customer.birthday ? customer.birthday.toISOString() : null,
       preferredLocale: getPreferredLocale(customer),
+      status: customer.status?.name ?? null,
       wishlistCount: wishlistSummary.count,
       wishlistProductIds: wishlistSummary.productIds,
       addresses,
@@ -3646,7 +4298,7 @@ export class StorefrontService implements OnModuleInit {
       ver: customer.storefrontSessionVersion,
     }
 
-    const [accessToken, refreshToken, addresses, wishlistSummary] = await Promise.all([
+    const [accessToken, refreshToken, addresses, wishlistSummary, customerWithStatus] = await Promise.all([
       this.jwt.signAsync(accessPayload, { expiresIn: ACCESS_TOKEN_EXPIRES_IN }),
       this.jwt.signAsync(refreshPayload, { expiresIn: REFRESH_TOKEN_EXPIRES_IN }),
       this.prisma.customerAddress.findMany({
@@ -3654,6 +4306,10 @@ export class StorefrontService implements OnModuleInit {
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
       }),
       this.getWishlistSummary(customer.id),
+      this.prisma.customer.findUnique({
+        where: { id: customer.id },
+        include: { status: true },
+      }),
     ])
 
     return {
@@ -3663,10 +4319,13 @@ export class StorefrontService implements OnModuleInit {
       customer: {
         id: customer.id,
         email: customer.email ?? '',
+        emailVerifiedAt: customer.emailVerifiedAt ? customer.emailVerifiedAt.toISOString() : null,
+        emailVerificationRequired: Boolean(customer.email && !customer.emailVerifiedAt),
         firstName: customer.firstName,
         lastName: customer.lastName,
         phone: customer.phoneNumber ?? undefined,
         preferredLocale: getPreferredLocale(customer),
+        status: customerWithStatus?.status?.name ?? null,
         wishlistCount: wishlistSummary.count,
         wishlistProductIds: wishlistSummary.productIds,
         addresses: addresses.map((address) => this.toCustomerAddress(address)),

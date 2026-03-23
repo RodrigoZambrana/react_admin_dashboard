@@ -36,31 +36,6 @@ services:
         CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
       target: runtime
     working_dir: /app
-    command: >
-      sh -c '
-        set -e;
-        export PGPASSWORD="${DB_PASSWORD:-postgres}";
-        pg_host="${DB_HOST:-host.docker.internal}";
-        pg_port="${DB_PORT:-5432}";
-        pg_user="${DB_USER:-postgres}";
-        until pg_isready -h "$$pg_host" -p "$$pg_port" -U "$$pg_user"; do
-          echo "Waiting for PostgreSQL at $$pg_host:$$pg_port...";
-          sleep 2;
-        done;
-        if [ "${SKIP_PRISMA_MIGRATIONS:-false}" != "true" ]; then
-          echo "Running Prisma migrations...";
-          npx prisma migrate deploy;
-        else
-          echo "Skipping Prisma migrations (SKIP_PRISMA_MIGRATIONS=true).";
-        fi;
-        if [ "${RUN_PRISMA_SEED_ON_BOOT:-false}" = "true" ]; then
-          echo "Running Prisma seed...";
-          npx prisma db seed;
-        else
-          echo "Skipping Prisma seed (RUN_PRISMA_SEED_ON_BOOT!=true).";
-        fi;
-        node dist/src/main.js;
-      '
     ports:
       - "4000:4000"
       - "5555:5555"

@@ -10,7 +10,6 @@ export const GlobalStyles = createGlobalStyle`
     line-height: 1.5;
     transition: all 0.50s linear;
     color: ${({ theme }) => theme.colors.body.text};
-    background: ${({ theme }) => theme.colors.body.default};
     font-family: Open Sans, Roboto, -apple-system, BlinkMacSystemFont, Segoe UI,
     Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue,
     sans-serif;

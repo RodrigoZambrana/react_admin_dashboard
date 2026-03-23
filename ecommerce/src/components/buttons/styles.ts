@@ -6,7 +6,11 @@ import { StyledButtonProps } from "./Button";
 export const StyledButton = styled.button.withConfig({
   shouldForwardProp: isValidProp
 })<StyledButtonProps>(
-  ({ color, fullWidth, size, theme }) => ({
+  ({ color, fullWidth, size, theme }) => {
+    const themeColor =
+      color && typeof color === "string" && theme.colors[color] ? theme.colors[color] : null;
+
+    return ({
     display: "flex",
     width: fullWidth ? "100%" : "unset",
     justifyContent: "center",
@@ -18,7 +22,7 @@ export const StyledButton = styled.button.withConfig({
     fontSize: "1rem",
     fontWeight: 600,
     fontFamily: "inherit",
-    color: color ? theme.colors[color].main : theme.colors.body.text,
+    color: themeColor?.main ?? theme.colors.body.text,
     backgroundColor: "transparent",
     transition: "all 150ms ease-in-out",
     lineHeight: 1,
@@ -34,7 +38,7 @@ export const StyledButton = styled.button.withConfig({
     ...(size === "medium" && { height: "48px", px: 30, borderRadius: "0.75rem" }),
     ...(size === "small" && { height: "40px", fontSize: 14, borderRadius: "0.5rem" }),
     ...(size === "none" && { height: "unset", px: 0, borderRadius: "0.3rem" })
-  }),
+  })},
   ({ theme, color }) =>
     variant({
       prop: "variant",

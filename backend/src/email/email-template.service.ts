@@ -1,9 +1,11 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
 import { EmailCategory, EmailTemplate, EmailTemplateVariant } from '@prisma/client'
 import { TEMPLATE_DEFINITIONS, TemplateDefinition } from './templates/definitions'
 import { EmailRenderContext } from './email.types'
+import type { ClientVariantConfig } from '../config/client-config.types'
+import { CLIENT_CONFIG_TOKEN } from '../config/client-config.constants'
 import Handlebars from 'handlebars'
 import { htmlToText } from 'html-to-text'
 
@@ -75,6 +77,8 @@ export class EmailTemplateService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    @Inject(CLIENT_CONFIG_TOKEN)
+    private readonly clientConfig: ClientVariantConfig,
   ) {
     this.registerHelpers()
   }
@@ -170,7 +174,11 @@ export class EmailTemplateService implements OnModuleInit {
       return ''
     }
     const locale = this.resolveLocale(options)
-    const timeZone = options?.hash?.timeZone || this.config.get<string>('EMAIL_DEFAULT_TIMEZONE') || undefined
+    const timeZone =
+      options?.hash?.timeZone ||
+      this.config.get<string>('EMAIL_DEFAULT_TIMEZONE') ||
+      (typeof this.clientConfig?.shared?.timezone === 'string' ? this.clientConfig.shared.timezone : undefined) ||
+      undefined
     const formatOptions: Intl.DateTimeFormatOptions = {
       year: 'numeric',
       month: 'short',
@@ -224,10 +232,16 @@ export class EmailTemplateService implements OnModuleInit {
     const validUntil = data.validUntil ? String(data.validUntil) : null
     const customer =
       (data.customer as Record<string, unknown> | undefined) ?? undefined
+    const paymentMethod = typeof data.paymentMethod === 'string' ? data.paymentMethod.trim().toLowerCase() : ''
     const customerName =
       (customer?.name as string | undefined) ||
       (customer?.email as string | undefined) ||
       (isSpanish ? 'el cliente' : 'the customer')
+    const isCashOrder =
+      paymentMethod === 'cash' ||
+      paymentMethod === 'cash on delivery' ||
+      paymentMethod === 'efectivo' ||
+      paymentMethod === 'pago contra entrega'
 
     const makeRef = (type: 'order' | 'quote') => {
       const nounEn = type === 'order' ? 'order' : 'quote'
@@ -335,6 +349,19 @@ export class EmailTemplateService implements OnModuleInit {
       }
       switch (event) {
         case 'order.received':
+          if (isCashOrder) {
+            return joinSentences(
+              finalize(
+                (isSpanish ? 'Recibimos' : 'We received') +
+                  ` ${orderRef}${dateFragment(orderDate, 'on', 'el')}.`,
+              ),
+              finalize(
+                isSpanish
+                  ? 'El pago en efectivo quedó pendiente de confirmación. Te avisaremos cuando nuestro equipo lo registre.'
+                  : 'Cash payment is still pending confirmation. We will notify you once our team records it.',
+              ),
+            )
+          }
           return joinSentences(
             finalize(
               (isSpanish ? 'Recibimos' : 'We received') +
@@ -423,6 +450,13 @@ export class EmailTemplateService implements OnModuleInit {
       switch (event) {
         case 'order.received':
         case 'order.received_admin':
+          if (isCashOrder) {
+            return finalize(
+              isSpanish
+                ? `Nuevo ${orderNumber ? `pedido #${orderNumber}` : 'pedido'} generado por ${customerName}${dateFragment(orderDate, 'on', 'el')}. El pago en efectivo quedó pendiente de confirmación manual.`
+                : `New ${orderNumber ? `order #${orderNumber}` : 'order'} placed by ${customerName}${dateFragment(orderDate, 'on', 'el')}. Cash payment is pending manual confirmation.`,
+            )
+          }
           return finalize(
             isSpanish
               ? `Nuevo ${orderNumber ? `pedido #${orderNumber}` : 'pedido'} generado por ${customerName}${dateFragment(orderDate, 'on', 'el')}.`

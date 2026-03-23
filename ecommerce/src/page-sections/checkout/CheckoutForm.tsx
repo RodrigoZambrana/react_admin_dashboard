@@ -12,12 +12,13 @@ import { Card1 } from "@component/Card1";
 import { Button } from "@component/buttons";
 import TextField from "@component/text-field";
 import Typography from "@component/Typography";
+import CitySelect from "@/components/country-city/CitySelect";
 
 import { StorefrontApi } from "@/lib/api/storefront";
 import { useCheckout } from "@/state/checkout-context";
 import { useStorefrontCart } from "@/state/cart-context";
 import { useCountryCityData } from "@/lib/country-city";
-import { useTranslation } from "@/state/i18n-context";
+import { useI18n, useTranslation } from "@/state/i18n-context";
 import type { StorefrontShippingOption } from "@/types/storefront";
 
 type CheckoutDetailsFormValues = {
@@ -25,24 +26,58 @@ type CheckoutDetailsFormValues = {
   lastName: string;
   email: string;
   phone: string;
-  addressLine1: string;
-  addressLine2: string;
-  department: string;
+  street: string;
+  number: string;
+  corner: string;
+  apartment: string;
+  city: string;
   country: string;
   shippingOptionId: string;
 };
 
-const checkoutSchema = yup.object({
-  firstName: yup.string().trim().required("Please enter your first name"),
-  lastName: yup.string().trim().required("Please enter your last name"),
-  email: yup.string().trim().email("Enter a valid email").required("An email address is required"),
-  phone: yup.string().trim().optional(),
-  addressLine1: yup.string().trim().required("Address line 1 is required"),
-  addressLine2: yup.string().trim().optional(),
-  department: yup.string().trim().required("Department is required"),
-  country: yup.string().trim().required("Country is required"),
-  shippingOptionId: yup.string().trim().required("Shipping option is required")
-});
+const buildCheckoutSchema = (t: ReturnType<typeof useTranslation>) =>
+  yup.object({
+    firstName: yup
+      .string()
+      .trim()
+      .required(t("auth.register.errors.firstNameRequired", { defaultMessage: "Debes ingresar el nombre." })),
+    lastName: yup
+      .string()
+      .trim()
+      .required(t("auth.register.errors.lastNameRequired", { defaultMessage: "Debes ingresar el apellido." })),
+    email: yup
+      .string()
+      .trim()
+      .email(t("auth.register.errors.invalidEmail", { defaultMessage: "Ingresa un correo válido." }))
+      .optional(),
+    phone: yup
+      .string()
+      .trim()
+      .required(t("auth.register.errors.phoneRequired", { defaultMessage: "Debes ingresar un teléfono." })),
+    street: yup
+      .string()
+      .trim()
+      .required(t("account.address.form.errors.streetRequired", { defaultMessage: "Debes ingresar la calle." })),
+    number: yup
+      .string()
+      .trim()
+      .required(t("account.address.form.errors.numberRequired", { defaultMessage: "Debes ingresar el número." })),
+    corner: yup.string().trim().optional(),
+    apartment: yup.string().trim().optional(),
+    city: yup
+      .string()
+      .trim()
+      .required(t("account.address.form.errors.cityRequired", {
+        defaultMessage: "Debes seleccionar una ciudad o departamento."
+      })),
+    country: yup.string().trim().required(),
+    shippingOptionId: yup
+      .string()
+      .trim()
+      .required(t("checkout.review.errors.shippingOptionIncompleteMessage", {
+        defaultMessage: "Selecciona una opción de entrega antes de continuar."
+      }))
+  });
 
 const COUNTRY_BY_CODE: Record<string, string> = {
   UY: "Uruguay"
@@ -59,12 +94,40 @@ const COUNTRY_NAME_TO_CODE: Record<string, string> = Object.entries(COUNTRY_BY_C
 const DEFAULT_DEPARTMENT_BY_COUNTRY: Record<string, string> = {
   UY: "Montevideo"
 };
+const DEFAULT_COUNTRY_CODE = "UY";
+const DEFAULT_CITY = "Montevideo";
 
 const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
   UY: "11000"
 };
 
 const POSTAL_CODE_FALLBACK = "00000";
+const MIN_DELIVERY_DAYS = 3;
+
+const parseLine1 = (line1?: string | null) => {
+  if (!line1) return { street: "", number: "" };
+  const trimmed = line1.trim();
+  if (!trimmed) return { street: "", number: "" };
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return { street: trimmed, number: "" };
+  const last = parts[parts.length - 1];
+  if (/^\d+[A-Za-z-]*$/.test(last)) {
+    return {
+      street: parts.slice(0, -1).join(" "),
+      number: last
+    };
+  }
+  return { street: trimmed, number: "" };
+};
+
+const parseLine2 = (line2?: string | null) => {
+  if (!line2) return { apartment: "", corner: "" };
+  const tokens = line2.split(",").map((token) => token.trim()).filter(Boolean);
+  return {
+    apartment: tokens[0] ?? "",
+    corner: tokens[1] ?? ""
+  };
+};
 
 const normalizeCountryCode = (value?: string | null) => {
   if (!value) return "UY";
@@ -87,6 +150,8 @@ export default function CheckoutForm() {
   const { contact, shippingAddress, shippingOption, setDetails } = useCheckout();
   const { getCitiesForCountry, loading: locationLoading, error: locationError } = useCountryCityData();
   const t = useTranslation();
+  const { locale } = useI18n();
+  const checkoutSchema = useMemo(() => buildCheckoutSchema(t), [t]);
   const [shippingOptions, setShippingOptions] = useState<StorefrontShippingOption[]>([]);
   const [shippingOptionsLoading, setShippingOptionsLoading] = useState(true);
   const [shippingOptionsError, setShippingOptionsError] = useState<string | null>(null);
@@ -100,28 +165,6 @@ export default function CheckoutForm() {
       if (!countryName) return "";
       const cities = getCitiesForCountry(countryName);
       return cities && cities.length > 0 ? cities[0] : "";
-    },
-    [getCitiesForCountry]
-  );
-
-  const buildDepartmentOptions = useCallback(
-    (countryCode: string) => {
-      const countryName = COUNTRY_BY_CODE[countryCode];
-      if (!countryName) {
-        const fallback =
-          DEFAULT_DEPARTMENT_BY_COUNTRY[countryCode] ?? DEFAULT_DEPARTMENT_BY_COUNTRY.UY;
-        return [{ value: fallback, label: fallback }];
-      }
-      const cities = getCitiesForCountry(countryName);
-      if (!cities || cities.length === 0) {
-        const fallback =
-          DEFAULT_DEPARTMENT_BY_COUNTRY[countryCode] ?? DEFAULT_DEPARTMENT_BY_COUNTRY.UY;
-        return [{ value: fallback, label: fallback }];
-      }
-      return cities.map((city) => ({
-        value: city,
-        label: city
-      }));
     },
     [getCitiesForCountry]
   );
@@ -160,6 +203,8 @@ export default function CheckoutForm() {
   }, []);
 
   const initialValues = useMemo<CheckoutDetailsFormValues>(() => {
+    const { street, number } = parseLine1(shippingAddress.line1);
+    const { apartment, corner } = parseLine2(shippingAddress.line2);
     const initialCountryCode = normalizeCountryCode(shippingAddress.country ?? "UY");
     const initialDepartment =
       shippingAddress.state?.trim() ||
@@ -173,9 +218,11 @@ export default function CheckoutForm() {
       lastName: contact.lastName ?? "",
       email: contact.email ?? "",
       phone: contact.phone ?? "",
-      addressLine1: shippingAddress.line1 ?? "",
-      addressLine2: shippingAddress.line2 ?? "",
-      department: initialDepartment,
+      street,
+      number,
+      corner,
+      apartment,
+      city: initialDepartment,
       country: initialCountryCode,
       shippingOptionId:
         shippingOption?.id !== undefined && shippingOption?.id !== null
@@ -199,7 +246,7 @@ export default function CheckoutForm() {
     const phone = trimmed.phone ? trimmed.phone : "";
     const normalizedCountry = normalizeCountryCode(trimmed.country || "UY");
     const department =
-      trimmed.department ||
+      trimmed.city ||
       DEFAULT_DEPARTMENT_BY_COUNTRY[normalizedCountry] ||
       getDefaultDepartment(normalizedCountry) ||
       DEFAULT_DEPARTMENT_BY_COUNTRY.UY;
@@ -219,12 +266,12 @@ export default function CheckoutForm() {
       {
         firstName,
         lastName,
-        email,
-        phone: phone || undefined
+        email: email || "",
+        phone
       },
       {
-        line1: trimmed.addressLine1,
-        line2: trimmed.addressLine2,
+        line1: `${trimmed.street} ${trimmed.number}`.trim(),
+        line2: [trimmed.apartment, trimmed.corner].filter(Boolean).join(", ") || "",
         city: department,
         state: department,
         zip: postalCode,
@@ -246,15 +293,28 @@ export default function CheckoutForm() {
     []
   );
   const shippingOptionChoices = useMemo(
-    () =>
-      shippingOptions.map((option) => ({
+    () => {
+      const formatter = new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-UY", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric"
+      });
+      return shippingOptions.map((option) => {
+        const estimateDaysRaw = option.estimatedMax ?? option.estimatedMin ?? MIN_DELIVERY_DAYS;
+        const estimateDays = Math.max(MIN_DELIVERY_DAYS, estimateDaysRaw ?? MIN_DELIVERY_DAYS);
+        const estimateDate = new Date();
+        estimateDate.setDate(estimateDate.getDate() + estimateDays);
+        const estimateLabel = formatter.format(estimateDate);
+        return {
         value: String(option.id),
-        label:
-          option.estimatedMin !== null && option.estimatedMax !== null
-            ? `${option.name} · ${option.estimatedMin}-${option.estimatedMax} ${t("Days")}`
-            : option.name
-      })),
-    [shippingOptions, t]
+        label: `${option.name} · ${t("checkout.delivery.estimateDate", {
+          defaultMessage: "Entrega estimada {date}",
+          values: { date: estimateLabel }
+        })}`
+      };
+      });
+    },
+    [locale, shippingOptions, t]
   );
 
   return (
@@ -266,28 +326,6 @@ export default function CheckoutForm() {
       {({ values, errors, touched, handleChange, handleBlur, handleSubmit, setFieldValue }) => {
         const currentCountry = normalizeCountryCode(values.country);
         const selectedCountry = countryOptions.find((option) => option.value === currentCountry);
-        const departmentOptions = buildDepartmentOptions(currentCountry);
-
-        const selectedDepartment =
-          departmentOptions.find((option) => option.value === values.department) ?? null;
-
-        const handleCountryChange = (option: any) => {
-          const choice = Array.isArray(option) ? option[0] : option;
-          const nextCode = normalizeCountryCode(choice?.value ?? "");
-          const effectiveCode = nextCode || "UY";
-          const defaultDepartment =
-            getDefaultDepartment(effectiveCode) ?? DEFAULT_DEPARTMENT_BY_COUNTRY.UY;
-          setFieldValue("country", effectiveCode);
-          setFieldValue("department", defaultDepartment);
-          // No explicit postal code field in the form; shipping zip is derived during submit.
-        };
-
-        const handleDepartmentChange = (option: any) => {
-          const choice = Array.isArray(option) ? option[0] : option;
-          const nextValue = choice?.value ?? "";
-          setFieldValue("department", nextValue);
-        };
-
         return (
           <form onSubmit={handleSubmit}>
             <Card1 mb="2rem">
@@ -345,7 +383,7 @@ export default function CheckoutForm() {
                     mb="1rem"
                     label={t("Phone number")}
                     name="phone"
-                    placeholder={t("Optional")}
+                    placeholder={t("Phone number")}
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.phone}
@@ -363,13 +401,15 @@ export default function CheckoutForm() {
                   <TextField
                     fullWidth
                     mb="1rem"
-                    label="Address line 1"
-                    name="addressLine1"
-                    placeholder="Street and number"
+                    label={t("account.address.form.street", { defaultMessage: "Calle" })}
+                    name="street"
+                    placeholder={t("account.address.form.placeholder.street", {
+                      defaultMessage: "Ingresa el nombre de la calle"
+                    })}
                     onBlur={handleBlur}
                     onChange={handleChange}
-                    value={values.addressLine1}
-                    errorText={touched.addressLine1 ? errors.addressLine1 : undefined}
+                    value={values.street}
+                    errorText={touched.street ? errors.street : undefined}
                   />
                 </Grid>
 
@@ -377,42 +417,83 @@ export default function CheckoutForm() {
                   <TextField
                     fullWidth
                     mb="1rem"
-                    label="Address line 2"
-                    name="addressLine2"
-                    placeholder="Apartment, suite, etc."
+                    label={t("account.address.form.number", { defaultMessage: "Número" })}
+                    name="number"
+                    placeholder={t("account.address.form.placeholder.number", {
+                      defaultMessage: "Número de puerta"
+                    })}
                     onBlur={handleBlur}
                     onChange={handleChange}
-                    value={values.addressLine2}
-                    errorText={touched.addressLine2 ? errors.addressLine2 : undefined}
+                    value={values.number}
+                    errorText={touched.number ? errors.number : undefined}
                   />
                 </Grid>
 
                 <Grid item sm={6} xs={12}>
-                  <Select
-                    label="Country"
-                    options={countryOptions}
-                    placeholder="Select a country"
-                    value={selectedCountry ?? null}
-                    isDisabled={countryOptions.length <= 1}
+                  <TextField
+                    fullWidth
+                    mb="1rem"
+                    label={t("account.address.form.corner", { defaultMessage: "Esquina" })}
+                    name="corner"
+                    placeholder={t("account.address.form.placeholder.corner", {
+                      defaultMessage: "Esquina o calle de referencia"
+                    })}
+                    onBlur={handleBlur}
+                    onChange={handleChange}
+                    value={values.corner}
+                    errorText={touched.corner ? errors.corner : undefined}
+                  />
+                </Grid>
+
+                <Grid item sm={6} xs={12}>
+                  <TextField
+                    fullWidth
+                    mb="1rem"
+                    label={t("account.address.form.apartment", { defaultMessage: "Apartamento / Unidad" })}
+                    name="apartment"
+                    placeholder={t("account.address.form.placeholder.apartment", {
+                      defaultMessage: "Apto, unidad, piso, etc."
+                    })}
+                    onBlur={handleBlur}
+                    onChange={handleChange}
+                    value={values.apartment}
+                    errorText={touched.apartment ? errors.apartment : undefined}
+                  />
+                </Grid>
+
+                <Grid item sm={6} xs={12}>
+                  <TextField
+                    fullWidth
+                    mb="1rem"
+                    label={t("account.address.form.country", { defaultMessage: "País" })}
+                    name="country"
+                    value={selectedCountry?.label ?? COUNTRY_BY_CODE.UY}
+                    disabled
                     errorText={touched.country ? errors.country : undefined}
-                    onChange={handleCountryChange}
                   />
                 </Grid>
 
                 <Grid item sm={6} xs={12}>
-                  <Select
-                    label="Department"
-                    options={departmentOptions}
+                  <CitySelect
+                    label={t("account.address.form.city", { defaultMessage: "Ciudad / Departamento" })}
+                    countryCode={DEFAULT_COUNTRY_CODE}
+                    countryName={COUNTRY_BY_CODE.UY}
+                    value={values.city}
                     placeholder={
                       locationLoading
-                        ? "Loading departments..."
+                        ? t("account.address.form.loadingCities", {
+                            defaultMessage: "Cargando ciudades..."
+                          })
                         : locationError
-                          ? "Failed to load departments"
-                          : "Select a department"
+                          ? t("account.address.form.loadCitiesError", {
+                              defaultMessage: "No pudimos cargar las ciudades"
+                            })
+                          : t("account.address.form.selectCity", {
+                              defaultMessage: "Selecciona una ciudad"
+                            })
                     }
-                    value={selectedDepartment}
-                    errorText={touched.department ? errors.department : undefined}
-                    onChange={handleDepartmentChange}
+                    errorText={touched.city ? errors.city : undefined}
+                    onChange={(city) => setFieldValue("city", city ?? DEFAULT_CITY)}
                   />
                 </Grid>
 

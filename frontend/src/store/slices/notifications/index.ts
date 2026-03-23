@@ -2,6 +2,7 @@ export {
     fetchNotifications,
     fetchUnreadCount,
     markNotificationsRead,
+    deleteNotifications,
     fetchNotificationSettings,
     updateNotificationSettings,
 } from './notificationsSlice'

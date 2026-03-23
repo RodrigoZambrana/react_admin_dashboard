@@ -68,8 +68,14 @@ export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
         {state.cart.map((item) => (
           <Fragment key={item.id}>
             {(() => {
-              const detailHref = buildPublishedParametricDetailHref(item.slug, item.configuration);
-              const parametricSummary = buildPublishedParametricSummaryEntries(item.configuration, t, {
+              const normalizedConfiguration =
+                item.configuration && typeof item.configuration === "object" && !Array.isArray(item.configuration)
+                  ? (item.configuration as Record<string, unknown>)
+                  : null;
+              const detailHref = item.slug
+                ? buildPublishedParametricDetailHref(item.slug, normalizedConfiguration)
+                : "/shop";
+              const parametricSummary = buildPublishedParametricSummaryEntries(normalizedConfiguration, t, {
                 includeMaterial: false
               })
                 .map((entry) => `${entry.attribute}: ${entry.value}`)

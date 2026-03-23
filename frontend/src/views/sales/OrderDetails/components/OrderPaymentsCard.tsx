@@ -46,6 +46,7 @@ type OrderPaymentsCardProps = {
     }
     onAddPayment: () => void
     onDeleteAttachment?: (attachmentId: number) => Promise<void>
+    onChangePaymentStatus?: (paymentId: number, status: 'CONFIRMED' | 'FAILED') => Promise<void>
 }
 
 const ATTACHMENT_EXTENSIONS = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp']
@@ -56,6 +57,7 @@ const OrderPaymentsCard = ({
     payments,
     onAddPayment,
     onDeleteAttachment,
+    onChangePaymentStatus,
 }: OrderPaymentsCardProps) => {
     const { t, i18n } = useTranslation()
     const { confirm, ConfirmationDialog } = useConfirmation()
@@ -106,6 +108,26 @@ const OrderPaymentsCard = ({
         return extension ? `${attachment.name} (${extension})` : attachment.name
     }
 
+    const resolvePaymentStatusLabel = (status?: string | null) => {
+        const normalized = String(status ?? '').trim().toUpperCase()
+        switch (normalized) {
+            case 'REGISTERED':
+                return t('sales.orders.payments.status.registered', {
+                    defaultValue: 'Pending confirmation',
+                })
+            case 'CONFIRMED':
+                return t('sales.orders.payments.status.confirmed', {
+                    defaultValue: 'Confirmed',
+                })
+            case 'FAILED':
+                return t('sales.orders.payments.status.failed', {
+                    defaultValue: 'Cancelled / failed',
+                })
+            default:
+                return status || t('sales.orders.payments.status.unknown', { defaultValue: 'Unknown' })
+        }
+    }
+
     return (
         <>
             <Card className="mb-4">
@@ -153,6 +175,28 @@ const OrderPaymentsCard = ({
                                         #{payment.id}
                                     </div>
                                 </div>
+                                {payment.status === 'REGISTERED' && onChangePaymentStatus ? (
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button
+                                            size="xs"
+                                            variant="solid"
+                                            onClick={() => onChangePaymentStatus(payment.id, 'CONFIRMED')}
+                                        >
+                                            {t('sales.orders.payments.confirm', {
+                                                defaultValue: 'Confirm payment',
+                                            })}
+                                        </Button>
+                                        <Button
+                                            size="xs"
+                                            variant="plain"
+                                            onClick={() => onChangePaymentStatus(payment.id, 'FAILED')}
+                                        >
+                                            {t('sales.orders.payments.cancel', {
+                                                defaultValue: 'Cancel payment',
+                                            })}
+                                        </Button>
+                                    </div>
+                                ) : null}
                             </div>
                             <div className="mt-3 grid gap-1 text-sm text-gray-600 dark:text-gray-300">
                                 {payment.method && (
@@ -184,6 +228,15 @@ const OrderPaymentsCard = ({
                                         {payment.notes}
                                     </div>
                                 )}
+                                <div>
+                                    <span className="font-medium">
+                                        {t('sales.orders.payments.statusLabel', {
+                                            defaultValue: 'Status',
+                                        })}
+                                        :{' '}
+                                    </span>
+                                    {resolvePaymentStatusLabel(payment.status)}
+                                </div>
                             </div>
                             {payment.attachments.length > 0 && (
                                 <div className="mt-3">

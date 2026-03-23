@@ -14,8 +14,9 @@ import {
 } from 'class-validator'
 
 export class StorefrontOrderCustomerDto {
+  @IsOptional()
   @IsEmail()
-  email!: string
+  email?: string
 
   @IsString()
   firstName!: string
@@ -23,9 +24,8 @@ export class StorefrontOrderCustomerDto {
   @IsString()
   lastName!: string
 
-  @IsOptional()
   @IsString()
-  phone?: string
+  phone!: string
 
   @IsOptional()
   @IsString()

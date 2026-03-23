@@ -2764,6 +2764,8 @@
   "notification": {
     "title": "Notificaciones",
     "markAllRead": "Marcar todo como leído",
+    "deleteAll": "Eliminar todas",
+    "deleteOne": "Eliminar notificación",
     "empty": {
       "title": "¡Sin notificaciones!",
       "desc": "Por favor, inténtalo más tarde"

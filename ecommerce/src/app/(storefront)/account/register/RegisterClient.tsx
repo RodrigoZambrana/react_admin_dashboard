@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormik } from "formik";
 import * as yup from "yup";
@@ -36,6 +36,11 @@ export default function RegisterClient() {
   const t = useTranslation();
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    clearError();
+    return () => clearError();
+  }, [clearError]);
 
   const formSchema = useMemo(
     () =>
@@ -142,7 +147,7 @@ export default function RegisterClient() {
 
   return (
     <StyledRoot mx="auto" my="2rem" boxShadow="large" borderRadius={8}>
-      <form className="content" onSubmit={handleSubmit}>
+      <form className="content" onSubmit={handleSubmit} data-testid="auth-register-form">
         <H3 textAlign="center" mb="0.5rem">
           {t("auth.register.title", { defaultMessage: "Create your account" })}
         </H3>
@@ -163,6 +168,7 @@ export default function RegisterClient() {
           fullWidth
           name="firstName"
           mb="0.75rem"
+          data-testid="auth-register-first-name"
           label={t("First name")}
           onBlur={handleBlur}
           value={values.firstName}
@@ -176,6 +182,7 @@ export default function RegisterClient() {
           fullWidth
           name="lastName"
           mb="0.75rem"
+          data-testid="auth-register-last-name"
           label={t("Last name")}
           onBlur={handleBlur}
           value={values.lastName}
@@ -190,6 +197,7 @@ export default function RegisterClient() {
           mb="0.75rem"
           name="email"
           type="email"
+          data-testid="auth-register-email"
           onBlur={handleBlur}
           value={values.email}
           onChange={handleChange}
@@ -205,6 +213,7 @@ export default function RegisterClient() {
           fullWidth
           mb="0.75rem"
           name="phone"
+          data-testid="auth-register-phone"
           onBlur={handleBlur}
           value={values.phone}
           onChange={handleChange}
@@ -224,6 +233,7 @@ export default function RegisterClient() {
           fullWidth
           mb="0.75rem"
           name="password"
+          data-testid="auth-register-password"
           label={t("Password", { defaultMessage: "Password" })}
           placeholder={t("auth.register.placeholders.password", { defaultMessage: "********" })}
           onBlur={handleBlur}
@@ -257,6 +267,7 @@ export default function RegisterClient() {
           mb="1rem"
           fullWidth
           name="confirmPassword"
+          data-testid="auth-register-confirm-password"
           placeholder="********"
           label={t("auth.register.confirmPassword", { defaultMessage: "Confirm password" })}
           onBlur={handleBlur}
@@ -289,6 +300,7 @@ export default function RegisterClient() {
         <CheckBox
           mb="1.5rem"
           name="agreement"
+          data-testid="auth-register-agreement"
           color="secondary"
           onChange={handleChange}
           checked={values.agreement}
@@ -314,7 +326,7 @@ export default function RegisterClient() {
         ) : null}
 
         {error ? (
-          <Small color="error.main" display="block" mb="1rem">
+          <Small color="error.main" display="block" mb="1rem" data-testid="auth-register-error">
             {error}
           </Small>
         ) : null}
@@ -324,6 +336,7 @@ export default function RegisterClient() {
           variant="contained"
           color="primary"
           type="submit"
+          data-testid="auth-register-submit"
           fullWidth
           disabled={submitting}>
           {submitting

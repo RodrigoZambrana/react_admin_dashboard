@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Param,
   MessageEvent,
   Post,
   Query,
@@ -16,6 +18,7 @@ import { NotificationsService } from './notifications.service'
 import { NotificationStreamService } from './notification-stream.service'
 import { NotificationQueryDto } from './dto/notification-query.dto'
 import { MarkNotificationsReadDto } from './dto/mark-read.dto'
+import { DeleteNotificationsDto } from './dto/delete-notifications.dto'
 
 @UseGuards(JwtAuthGuard)
 @Controller('notifications')
@@ -54,6 +57,29 @@ export class NotificationsController {
     const ids = body.ids ?? []
     const markAll = body.markAll ?? false
     await this.notifications.markAsReadForUser(userId, ids, markAll)
+    return { success: true }
+  }
+
+  @Delete()
+  async deleteMany(
+    @Req() req: FastifyRequest & { user: { sub: string } },
+    @Body() body: DeleteNotificationsDto,
+  ) {
+    const userId = Number(req.user?.sub)
+    const ids = body.ids ?? []
+    const deleteAll = body.deleteAll ?? false
+    await this.notifications.deleteForUser(userId, ids, deleteAll)
+    return { success: true }
+  }
+
+  @Delete(':id')
+  async deleteOne(
+    @Req() req: FastifyRequest & { user: { sub: string } },
+    @Param('id') id: string,
+  ) {
+    const userId = Number(req.user?.sub)
+    const numericId = Number(id)
+    await this.notifications.deleteForUser(userId, Number.isFinite(numericId) ? [numericId] : [], false)
     return { success: true }
   }
 

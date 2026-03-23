@@ -195,6 +195,18 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
             <Paragraph fontSize="14px" my="0px">
               {formatAddress(order.shippingAddress)}
             </Paragraph>
+
+            {order.summary.notes ? (
+              <>
+                <Divider my="1rem" />
+                <H6 mt="0px" mb="10px">
+                  {translate("account.orderDetails.sections.notes", { defaultMessage: "Customer notes" })}
+                </H6>
+                <Paragraph fontSize="14px" my="0px" color="text.muted" style={{ whiteSpace: "pre-wrap" }}>
+                  {order.summary.notes}
+                </Paragraph>
+              </>
+            ) : null}
           </Card>
         </Grid>
 

@@ -15,6 +15,11 @@ Plan operativo para ejecutar el saneamiento y la evolución del proyecto sin per
 - No hace falta correr Docker por cada microcambio, pero sí al cierre de cada bloque relevante y al cierre de cualquier cambio en `package.json`, Dockerfiles, compose, envs, imports compartidos o runtime server/client.
 - El storefront debe evolucionar con una política explícita de procedencia de datos y degradación controlada cuando el backend no esté disponible.
 - Los DTO públicos del storefront deben mantenerse mínimos y auditados para no exponer costos, márgenes o reglas internas innecesarias.
+- El flujo de efectivo storefront debe tratar pedido y pago como eventos separados: registrar pedido ahora, confirmar pago solo cuando administración lo asiente.
+- Las automatizaciones E2E futuras deben apoyarse en `data-testid` estables en superficies críticas; ese criterio debe formar parte de la aceptación de cambios nuevos o refactors relevantes.
+- El bootstrap y la evolución de base deben seguir un camino reproducible con Prisma, pero la estructura física y la performance de consultas también deben revisarse periódicamente con normalización e índices donde corresponda.
+- La cobertura de pruebas objetivo debe crecer de forma incremental y priorizada, con regresiones browser para flujos críticos y sin depender de pasos manuales no trazables.
+- Las futuras superficies editoriales del sitio deben modelarse en un dominio CMS independiente; no conviene seguir ampliando contenido editorial directamente sobre `Product`.
 
 ## Secuencia de trabajo recomendada
 
@@ -124,6 +129,26 @@ Plan operativo para ejecutar el saneamiento y la evolución del proyecto sin per
     - `/checkout-alternative` redirige a `/checkout`,
     - `/market-1` redirige a `/`,
     - `/shop`, `/shops` y `/vendor/dashboard` devuelven `404`.
+- Subfase email/privacy hardening:
+  - locale por audiencia ya alineado en emails storefront;
+  - `welcome email` ya implementado para registro storefront y alta inicial por Google;
+  - flujo storefront en efectivo ya expresa `pending_confirmation` y evita tratar el pago como confirmado antes de la registración manual;
+  - pendientes que siguen fuera de esta ronda:
+    - verificación/activación por email,
+    - abandono de checkout con job y reglas de elegibilidad.
+- Subfase E2E storefront:
+  - Playwright ya quedó integrado en `ecommerce`;
+  - suite inicial operativa:
+    - wishlist post-login con `sessionStorage`,
+    - registro con email + verificación,
+    - forgot/reset por email;
+  - siguientes bloques naturales pendientes:
+    - `shop -> product detail -> cart` para paramétricos publicados,
+    - `checkout preview -> pago -> detalle de pedido`,
+    - flujo `cash` pendiente de confirmación,
+    - notificaciones cliente/admin;
+  - pendiente transversal:
+    - extender `data-testid` al resto de superficies críticas y tomarlo como criterio de aceptación futuro.
 
 ## Fase 0. Preparación y contención
 
@@ -310,6 +335,92 @@ Reducir superficie vulnerable sin generar regresiones evitables.
 
 - Ecommerce
   - revisar y remover `motion`
+
+## Fase 6. Rendimiento estructural y consistencia de datos
+
+### Objetivo
+
+Reducir deuda estructural en base de datos y consultas antes de que el crecimiento funcional la vuelva más costosa de corregir.
+
+### Tareas
+
+- Revisar normalización efectiva de tablas con foco en:
+  - catálogos/configuraciones que hoy mezclen responsabilidades,
+  - duplicaciones históricas mantenidas solo por compatibilidad,
+  - estructuras que compliquen reporting, seguridad o mantenimiento.
+- Auditar consultas críticas y cardinalidad real en:
+  - storefront,
+  - pedidos/pagos,
+  - timeline/notificaciones,
+  - email logs y configuraciones.
+- Incorporar índices donde sean realmente necesarios, guiados por:
+  - planes de consulta,
+  - joins frecuentes,
+  - filtros/ordenamientos reales,
+  - constraints de unicidad/consistencia.
+- Evitar indexación especulativa o no justificada.
+
+### Validación
+
+- Inventario de tablas/campos candidatos a normalización.
+- Inventario de consultas calientes.
+- Lista priorizada de índices a agregar con justificación técnica.
+
+## Fase 7. Estrategia transversal de cache
+
+### Objetivo
+
+Definir una política de cache coherente para `backend`, `frontend` y `ecommerce`, evitando comportamientos ad hoc o inconsistentes entre proyectos.
+
+### Tareas
+
+- Identificar qué recursos pueden cachearse y con qué invalidez esperada.
+- Definir por capa:
+  - cache HTTP/CDN,
+  - cache de aplicación,
+  - cache de snapshots,
+  - cache cliente.
+- Especificar reglas de invalidación por dominio:
+  - catálogo,
+  - config storefront,
+  - categorías,
+  - pricing publicado,
+  - notificaciones y cuenta.
+- Revisar si la cache actual del storefront y snapshots necesita consolidación o simplificación.
+
+### Validación
+
+- Documento de estrategia de cache por capa.
+- Lista de recursos cacheables y eventos de invalidación.
+- Propuesta técnica unificada para los tres proyectos.
+
+## Fase 8. Cobertura de pruebas y automatización
+
+### Objetivo
+
+Subir progresivamente el nivel de cobertura funcional sin introducir suites frágiles o demasiado costosas de mantener.
+
+### Tareas
+
+- Mantener Playwright como base E2E del storefront.
+- Extender `data-testid` a superficies críticas pendientes.
+- Incorporar como criterio de aceptación para cambios nuevos:
+  - selectores estables,
+  - pruebas de regresión cuando el flujo lo justifique,
+  - no romper suites existentes.
+- Definir un paquete mínimo de regresión obligatoria post-cambio para:
+  - auth,
+  - wishlist,
+  - checkout,
+  - pago,
+  - pedidos/notificaciones.
+- Evaluar luego integración CI/CD para estas suites.
+
+### Validación
+
+- Suite browser mínima estable en storefront.
+- Criterio documentado de `data-testid`.
+- Lista de regresiones críticas obligatorias por bloque de cambio.
 
 ### Subfase 3.3. Upgrades delicados
 
@@ -1230,3 +1341,39 @@ Implementar SEO dinámico consistente con un ecommerce SaaS real.
     - storefront detalle ya puede seleccionar entre variantes publicadas disponibles sin reabrir el flujo de cotización libre.
   - bloque operativo de mails/privacidad relevado y aterrizado en:
     - `EMAIL_PRIVACY_OPERATIONS_2026-03-22.md`.
+
+## Subfase Email/Privacy Hardening
+
+- Documento operativo activo:
+  - `EMAIL_PRIVACY_HARDENING_2026-03-23.md`
+- Primer slice ya implementado:
+  - locale separado por audiencia en emails transaccionales (`customer` vs `admin`);
+  - masking server-side de direcciones en logs de email del panel admin.
+- Segundo slice ya implementado:
+  - mails storefront enriquecidos para:
+    - `pedido recibido`,
+    - `pago recibido`,
+    - `cambio de estado`;
+  - defaults de `NotificationSettings` ajustados para dejar activos por defecto los canales `EMAIL` que el flujo storefront necesita;
+  - patch conservador para settings legacy nunca modificados.
+- Estado actual:
+  - validación de código cerrada;
+  - evidencia end-to-end real de envíos storefront todavía pendiente.
+- Próximos pasos:
+  1. validar compra storefront con evidencia real de:
+     - orden recibida,
+     - pago recibido,
+     - aviso admin;
+  2. cerrar gobernanza operativa de templates/settings:
+     - roles,
+     - versión activa por locale/variant,
+     - preview/test controlado;
+  3. seguir con inventario/masking de PII en:
+      - `orders`,
+      - `customers`,
+      - `notifications`,
+      - exportes/reportes.
+  4. dejar explicitado como backlog aparte:
+      - welcome mail de registro,
+      - activación/verificación de cuenta por email,
+      - abandono de checkout.

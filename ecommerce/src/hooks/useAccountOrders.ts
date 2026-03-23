@@ -8,6 +8,7 @@ import type { OrderSummary } from "@/types/storefront";
 import type { OrderTimelineResponse } from "@/types/orderTimeline";
 import { useSession } from "@/state/session-context";
 import { useToast } from "@/contexts/ToastContext";
+import { useTranslation } from "@/state/i18n-context";
 
 interface UseAccountOrdersResult {
   orders: OrderSummary[];
@@ -117,6 +118,7 @@ export function useAccountOrder(identifier: string): UseAccountOrderResult {
   const [timelineError, setTimelineError] = useState<string | null>(null);
   const [needsReauthentication, setNeedsReauthentication] = useState(false);
   const toast = useToast();
+  const t = useTranslation();
 
   const token = session?.accessToken ?? null;
 
@@ -164,7 +166,9 @@ export function useAccountOrder(identifier: string): UseAccountOrderResult {
             description: "Tu sesión caducó. Vuelve a iniciar sesión para ver el pedido."
           });
         } else if (cause.status === 404 || cause.status === 410) {
-          const message = "This item is no longer available.";
+          const message = t("account.orders.errors.noLongerAvailable", {
+            defaultMessage: "Este elemento ya no está disponible."
+          });
           setError(message);
           toast.error({
             title: "No pudimos encontrar el pedido",
@@ -197,7 +201,7 @@ export function useAccountOrder(identifier: string): UseAccountOrderResult {
       setLoading(false);
       setTimelineLoading(false);
     }
-  }, [token, identifier, logout, toast]);
+  }, [token, identifier, logout, t, toast]);
 
   useEffect(() => {
     if (status === "authenticated" && token && identifier) {

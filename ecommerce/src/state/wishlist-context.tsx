@@ -34,6 +34,7 @@ interface WishlistContextValue {
 }
 
 const WishlistContext = createContext<WishlistContextValue | undefined>(undefined);
+const PENDING_WISHLIST_PRODUCT_KEY = "storefront.pendingWishlistProductId";
 
 export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { session, status, isAuthenticated, logout, updateWishlistSummary } = useSession();
@@ -47,6 +48,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [error, setError] = useState<string | null>(null);
   const [pendingIds, setPendingIds] = useState<Set<number>>(() => new Set());
   const isMounted = useRef(true);
+  const isUpdating = pendingIds.size > 0;
 
   useEffect(() => {
     isMounted.current = true;
@@ -263,13 +265,56 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, [status, isAuthenticated, token, refresh, resetState]);
 
+  useEffect(() => {
+    if (!isAuthenticated || !token || status !== "authenticated" || isLoading || isUpdating) {
+      return;
+    }
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const pendingRaw = window.sessionStorage.getItem(PENDING_WISHLIST_PRODUCT_KEY);
+    if (!pendingRaw) {
+      return;
+    }
+
+    const pendingProductId = Number(pendingRaw);
+    if (!Number.isFinite(pendingProductId) || pendingProductId <= 0) {
+      window.sessionStorage.removeItem(PENDING_WISHLIST_PRODUCT_KEY);
+      return;
+    }
+
+    if (hasItem(pendingProductId) || isPending(pendingProductId)) {
+      window.sessionStorage.removeItem(PENDING_WISHLIST_PRODUCT_KEY);
+      return;
+    }
+
+    let cancelled = false;
+    const run = async () => {
+      try {
+        await add(pendingProductId);
+      } catch {
+        // Error already surfaced through wishlist toasts
+      } finally {
+        if (!cancelled) {
+          window.sessionStorage.removeItem(PENDING_WISHLIST_PRODUCT_KEY);
+        }
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [add, hasItem, isAuthenticated, isLoading, isPending, isUpdating, status, token]);
+
   const value = useMemo<WishlistContextValue>(
     () => ({
       items,
       productIds,
       count,
       isLoading,
-      isUpdating: pendingIds.size > 0,
+      isUpdating,
       isAuthenticated,
       error,
       clearError,
@@ -285,7 +330,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       productIds,
       count,
       isLoading,
-      pendingIds.size,
+      isUpdating,
       isAuthenticated,
       error,
       clearError,

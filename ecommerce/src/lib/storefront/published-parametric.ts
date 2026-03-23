@@ -1,4 +1,5 @@
 import type { PublishedParametricVariant } from "@/types/storefront";
+import { PARAMETRIC_LINE_MARKER } from "@/lib/checkout/order-items";
 
 export type PublishedParametricSelection = {
   serie: string;
@@ -301,6 +302,11 @@ export const buildPublishedParametricDetailHref = (
   const query = params.toString();
   return query ? `/product/${slug}?${query}` : `/product/${slug}`;
 };
+
+export const buildPublishedParametricLineId = (
+  productId: string | number,
+  variantKey: string
+) => `${String(productId)}${PARAMETRIC_LINE_MARKER}${variantKey}`;
 
 export const selectionFromSearchParams = (
   searchParams: URLSearchParams,

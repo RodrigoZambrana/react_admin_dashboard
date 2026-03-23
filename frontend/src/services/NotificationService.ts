@@ -79,6 +79,23 @@ const NotificationService = {
         return response.data
     },
 
+    async deleteNotifications(payload: { ids?: number[]; deleteAll?: boolean }) {
+        const response = await ApiService.fetchData<{ success: boolean }, typeof payload>({
+            url: '/notifications',
+            method: 'delete',
+            data: payload,
+        })
+        return response.data
+    },
+
+    async deleteNotification(id: number) {
+        const response = await ApiService.fetchData<{ success: boolean }>({
+            url: `/notifications/${id}`,
+            method: 'delete',
+        })
+        return response.data
+    },
+
     async fetchSettings() {
         const response = await ApiService.fetchData<NotificationSettingsResponse>({
             url: '/notification-settings',

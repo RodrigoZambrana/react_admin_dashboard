@@ -9,7 +9,6 @@ const GlobalStyles = createGlobalStyle`
     line-height: 1.5;
     /* transition: all 0.50s linear; */
     color: ${({ theme }) => theme.colors.body.text};
-    background: ${({ theme }) => theme.colors.body.default};   
   }
 
   html {

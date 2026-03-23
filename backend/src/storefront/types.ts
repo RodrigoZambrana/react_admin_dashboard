@@ -196,6 +196,7 @@ export interface ProductSummaryDto {
   categories?: Array<{ id: number; slug: string; name: string }>
   tags?: string[]
   mode: ProductModeDto
+  variantKey?: string | null
   variantLabel?: string | null
   configuration?: Record<string, unknown> | null
   specifications?: Array<{ label: string; value: string }>
@@ -247,6 +248,51 @@ export interface ProductDetailDto extends ProductSummaryDto {
   attributes?: ProductAttributeDefinitionDto[]
   variants?: ProductVariantDto[]
   publishedParametricOptions?: PublishedParametricOptionsDto
+}
+
+export type CmsContentAssetTypeDto = 'IMAGE' | 'VIDEO' | 'EMBED'
+
+export interface CmsContentAssetDto {
+  id: number
+  title?: string | null
+  caption?: string | null
+  mediaType: CmsContentAssetTypeDto
+  mediaUrl: string
+  posterUrl?: string | null
+  externalUrl?: string | null
+  durationSec?: number | null
+  sortOrder: number
+}
+
+export interface CmsContentEntryDto {
+  id: number
+  slug?: string | null
+  title: string
+  subtitle?: string | null
+  description?: string | null
+  priority: number
+  payload?: Record<string, unknown> | null
+  thumbnail?: ImageAssetDto | null
+  cta?: ActionLink | null
+  product?: {
+    id: number
+    slug: string
+    name: string
+  } | null
+  category?: {
+    id: number
+    slug: string
+    name: string
+  } | null
+  assets: CmsContentAssetDto[]
+}
+
+export interface CmsContentSectionDto {
+  id: number
+  key: string
+  name: string
+  description?: string | null
+  entries: CmsContentEntryDto[]
 }
 
 export interface ProductListFilters {
@@ -369,12 +415,15 @@ export interface CustomerWishlistDto {
 export interface CustomerProfile {
   id: number
   email: string
+  emailVerifiedAt?: string | null
+  emailVerificationRequired?: boolean
   firstName?: string | null
   lastName?: string | null
   phone?: string | null
   avatarUrl?: string | null
   dateOfBirth?: string | null
   preferredLocale?: string | null
+  status?: string | null
   wishlistCount: number
   wishlistProductIds: number[]
   addresses: Array<{

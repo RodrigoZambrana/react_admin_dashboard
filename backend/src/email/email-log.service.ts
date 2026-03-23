@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { EmailCategory, EmailLogStatus, EmailRecipientType, Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { maskEmailAddress, maskEmailList } from '../common/privacy/masking'
 
 export type EmailLogFilter = {
   category?: EmailCategory
@@ -16,6 +17,15 @@ export type EmailLogFilter = {
 @Injectable()
 export class EmailLogService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private sanitizeLog<T extends { toAddress: string; ccAddresses: string[]; bccAddresses: string[] }>(log: T): T {
+    return {
+      ...log,
+      toAddress: maskEmailAddress(log.toAddress),
+      ccAddresses: maskEmailList(log.ccAddresses),
+      bccAddresses: maskEmailList(log.bccAddresses),
+    }
+  }
 
   async listLogs(filter: EmailLogFilter) {
     const take = Math.min(Math.max(filter.take ?? 25, 1), 100)
@@ -61,12 +71,13 @@ export class EmailLogService {
       nextCursor = next ? next.id : null
     }
     return {
-      logs,
+      logs: logs.map((log) => this.sanitizeLog(log)),
       nextCursor,
     }
   }
 
   async getLog(id: number) {
-    return this.prisma.emailLog.findUnique({ where: { id } })
+    const log = await this.prisma.emailLog.findUnique({ where: { id } })
+    return log ? this.sanitizeLog(log) : null
   }
 }

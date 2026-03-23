@@ -9,7 +9,8 @@ import {
   NotificationDeliveryStatus,
 } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
-import { listPaymentMethods } from '../src/common/constants/payment-methods'
+import { seedUruCortinasBaseline } from './baseline/seed-baseline'
+import { listSeedPaymentMethods } from './shared/payment-methods'
 
 const prisma = new PrismaClient()
 
@@ -189,20 +190,24 @@ async function seedDemoData(superAdminEmail?: string) {
   }
 
   const customerStatuses = [
-    { name: 'Active', color: '#10b981' },
-    { name: 'Suspended', color: '#f59e0b' },
-    { name: 'Blocked', color: '#ef4444' },
+    { name: 'Activo', color: '#10b981' },
+    { name: 'Suspendido', color: '#f59e0b' },
+    { name: 'Bloqueado', color: '#ef4444' },
   ]
   const customerStatusMap = new Map<string, number>()
   for (const status of customerStatuses) {
-    const record = await prisma.customerStatus.upsert({
-      where: { name: status.name },
-      update: { color: status.color },
-      create: status,
+    const existing = await prisma.customerStatus.findFirst({
+      where: { name: { in: [status.name, status.name === 'Activo' ? 'Active' : status.name] } },
     })
+    const record = existing
+      ? await prisma.customerStatus.update({
+          where: { id: existing.id },
+          data: { color: status.color },
+        })
+      : await prisma.customerStatus.create({ data: status })
     customerStatusMap.set(status.name, record.id)
   }
-  const activeCustomerStatusId = customerStatusMap.get('Active') ?? null
+  const activeCustomerStatusId = customerStatusMap.get('Activo') ?? null
 
   // Customers
  const customers = [
@@ -548,8 +553,8 @@ async function seedDemoData(superAdminEmail?: string) {
   }
 
   // Backfill payment methods for orders without one using static catalog
-  const paymentMethods = listPaymentMethods()
-  const paymentMethodIds = paymentMethods.map((method) => method.id)
+  const paymentMethods = listSeedPaymentMethods()
+  const paymentMethodIds = paymentMethods.map((method: { id: number }) => method.id)
   const fallbackPaymentMethodId = paymentMethodIds[0] ?? null
   if (fallbackPaymentMethodId !== null) {
     const ordersNoPm = await prisma.order.findMany({
@@ -630,6 +635,34 @@ async function seedDefaultOrderStatuses() {
   console.log('[seed] Order statuses are defined statically; skipping database seeding.')
 }
 
+async function seedCustomerStatuses() {
+  const defaults = [
+    { name: 'Activo', color: '#10B981' },
+    { name: 'Suspendido', color: '#F59E0B' },
+    { name: 'Bloqueado', color: '#EF4444' },
+  ]
+
+  for (const status of defaults) {
+    const existing = await prisma.customerStatus.findFirst({
+      where: { name: { in: [status.name, status.name === 'Activo' ? 'Active' : status.name] } },
+      select: { id: true },
+    })
+    if (existing) {
+      if (status.name === 'Activo') {
+        await prisma.customerStatus.update({
+          where: { id: existing.id },
+          data: { color: status.color },
+        })
+      }
+      continue
+    }
+
+    await prisma.customerStatus.create({
+      data: status,
+    })
+  }
+}
+
 async function seedEmailSettings() {
   const categories = [EmailCategory.ORDERS, EmailCategory.PAYMENTS, EmailCategory.AUTH]
   const defaultFromAddress = process.env.EMAIL_FROM_DEFAULT || 'no-reply@example.com'
@@ -659,11 +692,39 @@ async function seedEmailSettings() {
   }
 }
 
+async function seedCmsSections() {
+  const defaults = [
+    {
+      key: 'HOME_STORIES',
+      name: 'Home Stories',
+      description: 'Stories destacadas del home storefront.',
+      sortOrder: 0,
+      isActive: true,
+    },
+  ]
+
+  for (const section of defaults) {
+    await prisma.cmsSection.upsert({
+      where: { key: section.key },
+      update: {
+        name: section.name,
+        description: section.description,
+        sortOrder: section.sortOrder,
+        isActive: section.isActive,
+      },
+      create: section,
+    })
+  }
+}
+
 async function main() {
+  await seedUruCortinasBaseline(prisma)
   const superAdmin = await seedSuperAdmin()
+  await seedCustomerStatuses()
   await seedDemoData(superAdmin?.email || SUPERADMIN_EMAIL)
   await seedDefaultOrderStatuses()
   await seedEmailSettings()
+  await seedCmsSections()
 }
 
 main()

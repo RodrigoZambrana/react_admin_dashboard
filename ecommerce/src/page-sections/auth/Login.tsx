@@ -107,7 +107,7 @@ export default function Login({
 
   return (
     <StyledRoot boxShadow="large" borderRadius={8}>
-      <form className="content" onSubmit={handleSubmit}>
+      <form className="content" onSubmit={handleSubmit} data-testid="auth-login-form">
         <H3 textAlign="center" mb="0.5rem">
           {title}
         </H3>
@@ -121,6 +121,7 @@ export default function Login({
           mb="0.75rem"
           name="identifier"
           type="text"
+          data-testid="auth-login-identifier"
           onBlur={handleBlur}
           value={values.identifier}
           onChange={handleChange}
@@ -134,6 +135,7 @@ export default function Login({
           fullWidth
           name="password"
           label="Password"
+          data-testid="auth-login-password"
           autoComplete="current-password"
           onBlur={handleBlur}
           onChange={handleChange}
@@ -154,7 +156,7 @@ export default function Login({
         />
 
         {errorMessage ? (
-          <Small color="error.main" display="block" mb="1rem">
+          <Small color="error.main" display="block" mb="1rem" data-testid="auth-login-error">
             {errorMessage}
           </Small>
         ) : null}
@@ -164,6 +166,7 @@ export default function Login({
           variant="contained"
           color="primary"
           type="submit"
+          data-testid="auth-login-submit"
           fullWidth
           disabled={effectiveSubmitting}>
           {effectiveSubmitting ? "Signing in..." : "Login"}
