@@ -313,6 +313,7 @@ export default function PaymentForm() {
   );
 
   const cartId = useMemo(() => `cart-${cartState.updatedAt}`, [cartState.updatedAt]);
+  const checkoutCurrency = totals.total.currency ?? activeCurrency;
   const { amount, currency } = useMemo(() => {
     const converted = convertMoney(totals.total, MERCADO_PAGO_CURRENCY);
     const roundedAmount = Number.isFinite(converted.amount)
@@ -350,14 +351,14 @@ export default function PaymentForm() {
       notes: notes && notes.trim().length > 0 ? notes.trim() : undefined,
       shippingOptionId: shippingOption.id,
       fulfillmentMode,
-      currency
+      currency: checkoutCurrency
     };
   }, [
     contact.email,
     contact.firstName,
     contact.lastName,
     contact.phone,
-    currency,
+    checkoutCurrency,
     fulfillmentMode,
     locale,
     notes,

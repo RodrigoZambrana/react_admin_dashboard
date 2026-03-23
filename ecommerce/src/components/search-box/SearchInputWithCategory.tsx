@@ -349,6 +349,16 @@ export default function SearchInputWithCategory() {
             )}>
             {isDesktopCategorySelector ? (
               <Box>
+                <StyledCategoryMenuItem key="all-categories-option">
+                  <CategoryNavigationRow
+                    icon="category"
+                    title={t(DEFAULT_CATEGORY.label, { defaultMessage: DEFAULT_CATEGORY.label })}
+                    active={!selectedCategory.slug}
+                    showChevron={false}
+                    minWidth="220px"
+                    onClick={() => handleCategorySelectBySlug(undefined)}
+                  />
+                </StyledCategoryMenuItem>
                 {categories.map((category, index) => {
                   const childCategories = category.children ?? [];
                   const isActive = isSelectedBranch(category);
@@ -396,11 +406,22 @@ export default function SearchInputWithCategory() {
                 })}
               </Box>
             ) : (
-              <AccordionMenu
-                items={categoryAccordionItems}
-                onSelectItem={handleAccordionCategorySelect}
-                selectedHref={selectedCategoryHref}
-              />
+              <Box minWidth="240px">
+                <button
+                  type="button"
+                  className={`sub-category-link${!selectedCategory.slug ? " active" : ""}`}
+                  onClick={() => handleCategorySelectBySlug(undefined)}
+                >
+                  <Span className="sub-category-title" color="text.muted" fontSize="14px">
+                    {t(DEFAULT_CATEGORY.label, { defaultMessage: DEFAULT_CATEGORY.label })}
+                  </Span>
+                </button>
+                <AccordionMenu
+                  items={categoryAccordionItems}
+                  onSelectItem={handleAccordionCategorySelect}
+                  selectedHref={selectedCategoryHref}
+                />
+              </Box>
             )}
           </Menu>
         </StyledSearchBox>

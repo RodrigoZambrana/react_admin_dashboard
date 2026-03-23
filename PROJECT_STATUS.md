@@ -156,6 +156,7 @@ root/
 - Variables reales usadas en runtime: faltan varias en `env.schema.json` y en `.env.example`.
 - Estado real de despliegue: hoy hay señales de Docker Compose y DigitalOcean App Platform, pero no una fuente única consistente.
 - Dependencias externas opcionales: Redis/colas, SMTP/IMAP, Google OAuth, Mercado Pago, snapshots del storefront.
+- Política de minimización de DTO públicos del storefront y auditoría periódica de exposición de datos hacia frontend.
 
 ### Áreas que requieren validación manual adicional
 
@@ -2062,3 +2063,116 @@ Cuando se retome:
     - la compra buena actual queda consolidada en `order 105` con intents aprobados vinculados,
     - `OrderItem` del producto paramétrico `2115` persiste `specSummary` y `parametricConfig`,
     - siguen existiendo intents aprobados históricos sin `orderId`, pero ya quedan diferenciados del flujo bueno actual y listos para reconciliación o revisión manual según contexto disponible.
+- 2026-03-22
+  - Se documentó el backlog exploratorio adicional de storefront en `STOREFRONT_EXPLORATORY_BACKLOG_2026-03-22.md`.
+  - Temas incorporados al seguimiento:
+    - cronología de pagos parciales y cierre de pago total,
+    - unificación de moneda entre catálogo/pedido/detalle manteniendo Mercado Pago en `UYU`,
+    - selector de idioma reactivo sin refresh,
+    - retorno de `Todas las categorías` en el selector de búsqueda,
+    - evolución de variantes configurables para productos paramétricos publicados,
+    - endurecimiento de registro y perfil de usuario,
+    - correcciones de layout/React warnings en `contact`,
+    - corrección real del filtro por rango de precios,
+    - feed tipo stories para categorías como evolución visual posterior.
+- 2026-03-22
+  - Ola 1 del backlog exploratorio: avance parcial implementado.
+  - Cambios aplicados:
+    - `ecommerce/src/state/i18n-context.tsx` ahora ejecuta `router.refresh()` al cambiar idioma, para reflejar el locale sin refresh manual del usuario;
+    - `ecommerce/src/components/search-box/SearchInputWithCategory.tsx` reincorpora la opción explícita `All Categories / Todas las categorías` tanto en desktop como mobile;
+    - `ecommerce/src/app/shop/page.tsx` y `ecommerce/src/app/shop/components/ShopFilterPanel.tsx` dejan de clamp-ear artificialmente `priceMin/priceMax`, respetando el rango pedido por query;
+    - `ecommerce/src/page-sections/payment/PaymentForm.tsx` deja de persistir `UYU` de Mercado Pago como moneda del checkout snapshot y conserva la moneda original elegida por el cliente para la orden;
+    - `backend/src/common/utils/phone.ts`, `backend/src/storefront/dto/auth.dto.ts`, `backend/src/storefront/storefront.service.ts`, `backend/src/storefront/security/storefront-security.service.ts`, `ecommerce/src/app/(storefront)/account/register/RegisterClient.tsx`, `ecommerce/src/state/session-context.tsx`, `ecommerce/src/lib/api/storefront.ts` realinean el registro a:
+      - teléfono obligatorio,
+      - mail opcional,
+      - normalización consistente de teléfono entre frontend, registro, login/lookup y recuperación,
+      - unicidad controlada contra variantes comunes (`099...`, `99...`, `598...`, `+598...`);
+    - `ecommerce/src/app/(layout-3)/(customer-dashboard)/account/profile/ProfileClient.tsx` elimina saldo/tier dummy del perfil público.
+  - Validación cerrada:
+    - `backend npm run lint`: verde,
+    - `backend npm run build`: verde,
+    - `ecommerce` lint focalizado: verde,
+    - Docker local recreado para `backend` + `storefront`,
+    - `/api/health` backend/storefront: OK.
+  - Pendiente dentro de la misma ola 1:
+    - dejar explicitada y validada la regla final de moneda histórica en todo el detalle/listado post-compra,
+    - revisar backlog nuevo de mails/plantillas y protección de datos relevado en `STOREFRONT_EXPLORATORY_BACKLOG_2026-03-22.md`.
+- 2026-03-22
+  - Pagos parciales manuales validados con ejecución real sobre `PaymentsService` dentro del contenedor backend:
+    - orden usada: `#101`,
+    - estado inicial: un pago confirmado de `UYU 4.800`,
+    - pagos agregados para QA: `UYU 2.400` + `UYU 2.400`,
+    - resultado persistido:
+      - `ORDER_RECEIVED`,
+      - `PAYMENT_PARTIAL` inicial,
+      - `PAYMENT_PARTIAL` adicional,
+      - `PAYMENT_FULL` final con saldo `0.00`.
+  - Conclusión de negocio/técnica:
+    - storefront sigue siendo pago total,
+    - pagos parciales aplican a operación manual/admin,
+    - el timeline ya soporta correctamente la secuencia parcial -> parcial -> completo.
+  - Ajuste UX adicional en storefront:
+    - `ecommerce/src/components/product-cards/ProductCard1.tsx`,
+    - `ecommerce/src/components/product-cards/ProductCard4.tsx`,
+    - `ecommerce/src/components/product-cards/ProductCard8.tsx`
+    ahora permiten mostrar el nombre completo del producto en card, sin truncado por una sola línea.
+- 2026-03-22
+  - Siguiente ola de consistencia UX: cierre parcial implementado en `contact` y perfil de cuenta.
+  - Cambios aplicados:
+    - `ecommerce/src/app/(storefront)/contact/layout.tsx` incorpora `ShopLayout` + `Navbar`, para que `/contact` comparta el mismo header/footer del storefront;
+    - `ecommerce/src/app/(storefront)/contact/ContactPageClient.tsx` reestructura tarjetas y bloques de resumen con `key` estable, elimina el warning React reportado y agrega más separación vertical entre paneles;
+    - `ecommerce/src/page-sections/customer-dashboard/profile/ProfileEditForm.tsx` queda alineado a la regla real de contacto:
+      - teléfono obligatorio,
+      - mail opcional,
+      - textos traducidos,
+      - avatar solo informativo, sin promesa falsa de edición desde esa pantalla.
+  - Validación cerrada:
+    - `cd ecommerce && npm run lint`: verde,
+    - `storefront /api/health`: OK.
+- 2026-03-22
+  - Afinado adicional de `register/profile` y aterrizaje del siguiente bloque exploratorio.
+  - Cambios aplicados:
+    - `ecommerce/src/app/(storefront)/account/register/RegisterClient.tsx` ahora explicita visualmente la regla real de contacto:
+      - teléfono obligatorio,
+      - mail opcional,
+      - hint de normalización de teléfono para variantes con `0`, `+598`, `598`, etc.;
+    - `ecommerce/src/page-sections/customer-dashboard/profile/ProfileEditForm.tsx` mejora feedback visible:
+      - hints por campo,
+      - traducción explícita para conflictos de correo/teléfono ya registrados,
+      - nota de avatar alineada al comportamiento real: foto Google si existe, fallback por defecto si no;
+    - `ecommerce/src/translations/es.ts` y `ecommerce/src/translations/en.ts` incorporan las nuevas claves de UX/errores;
+    - `STOREFRONT_EXPLORATORY_BACKLOG_2026-03-22.md` quedó ampliado con hallazgos implementables sobre:
+      - variantes configurables de paramétricos publicados,
+      - estado real de ABM de plantillas/configuración de mails,
+      - wiring real de emails transaccionales y recuperación de cuenta,
+      - línea recomendada para anonimización/protección de datos.
+  - Hallazgo técnico importante:
+    - el storefront activo no monta hoy el configurador paramétrico público en el detalle; los paramétricos publicados siguen resolviéndose como SKU fijo desde backend por `productId`.
+    - Para soportar variantes configurables reales sin romper el modelo actual, hará falta exponer desde backend un contrato explícito de `availableVariants/defaultConfiguration` sobre el resolvedor canónico del producto publicado.
+  - Validación cerrada:
+    - `cd ecommerce && npm run lint`: verde,
+    - `storefront /api/health`: OK.
+- 2026-03-22
+  - Paramétricos publicados: primer contrato backend + wiring storefront implementados.
+  - Cambios aplicados:
+    - `backend/src/storefront/storefront-published-product-resolver.service.ts` ahora expone para SKUs paramétricos publicados:
+      - `defaultConfiguration`,
+      - `defaultVariantKey`,
+      - `selectors`,
+      - `variants` reales basadas en `dimension_price_matrix`;
+    - `backend/src/storefront/storefront.service.ts` ya usa la variante publicada seleccionada tanto en:
+      - `prepareCheckoutSnapshot`,
+      - como en `createOrder`,
+      para no perder precio/configuración elegida al persistir la compra;
+    - `backend/src/storefront/types.ts` y `ecommerce/src/types/storefront.ts` agregan el contrato `publishedParametricOptions`;
+    - `ecommerce/src/lib/storefront/adapters.ts`, `ecommerce/src/models/product.model.ts`, `ecommerce/src/app/product/[slug]/page.tsx` y `ecommerce/src/components/products/ProductIntro.tsx` conectan el detalle público a ese contrato.
+  - Verificación de runtime:
+    - backend/storefront recreados,
+    - `docker exec dashboard-backend-dev ... /api/storefront/products/ventana-corrediza-20-blanco-3mm-1800x1200` confirmó `publishedParametricOptions` con variantes reales.
+  - Bloque operativo siguiente relevado en documento independiente:
+    - `EMAIL_PRIVACY_OPERATIONS_2026-03-22.md`
+    con estado actual de:
+      - ABM/configuración de templates,
+      - emails transaccionales,
+      - recovery/auth,
+      - privacidad/anonymización.

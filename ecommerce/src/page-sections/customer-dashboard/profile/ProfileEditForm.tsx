@@ -2,11 +2,9 @@
 
 import * as yup from "yup";
 import { Formik } from "formik";
-import { useCallback } from "react";
-import { IconCamera } from "@tabler/icons-react";
+import { useCallback, useMemo } from "react";
 
 import Box from "@component/Box";
-import Hidden from "@component/hidden";
 import Avatar from "@component/avatar";
 import Grid from "@component/grid/Grid";
 import FlexBox from "@component/FlexBox";
@@ -19,7 +17,7 @@ import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { extractApiErrorMessage } from "@/lib/api/errors";
 import type { CustomerProfile } from "@/types/storefront";
 import { normalizePhoneNumber, looksLikePhoneNumber } from "@/lib/utils/phone";
-import { useI18n } from "@/state/i18n-context";
+import { useI18n, useTranslation } from "@/state/i18n-context";
 
 type FormValues = {
   firstName: string;
@@ -28,39 +26,81 @@ type FormValues = {
   phone: string;
 };
 
-const VALIDATION_SCHEMA = yup.object().shape({
-  firstName: yup.string().trim().required("First name is required"),
-  lastName: yup.string().trim().nullable(),
-  email: yup
-    .string()
-    .trim()
-    .email("Please enter a valid email")
-    .nullable()
-    .test("contact-required", "Please provide an email or phone number", function (value) {
-      const phone = (this.parent as FormValues).phone;
-      const hasEmail = Boolean(value && value.trim());
-      const hasPhone = Boolean(phone && phone.trim());
-      return hasEmail || hasPhone;
-    }),
-  phone: yup
-    .string()
-    .nullable()
-    .test("phone-format", "Please enter a valid phone number", (value) => {
-      if (!value) {
-        return true;
-      }
-      return looksLikePhoneNumber(value);
-    }),
-});
-
 interface ProfileEditFormProps {
   profile: CustomerProfile;
   onUpdated?: (profile: CustomerProfile) => void;
 }
 
+const translateProfileError = (message: string, t: ReturnType<typeof useTranslation>) => {
+  switch (message) {
+    case "Email is already in use":
+      return t("account.profile.edit.errors.emailInUse", {
+        defaultMessage: "El correo electrónico ya está registrado en otra cuenta."
+      });
+    case "Phone number is already in use":
+      return t("account.profile.edit.errors.phoneInUse", {
+        defaultMessage: "El número de teléfono ya está registrado en otra cuenta."
+      });
+    case "Invalid phone number":
+      return t("auth.register.errors.invalidPhone", {
+        defaultMessage: "Ingresa un número de teléfono válido."
+      });
+    default:
+      return message;
+  }
+};
+
 export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormProps) {
   const { session } = useSession();
   const { locale } = useI18n();
+  const t = useTranslation();
+
+  const validationSchema = useMemo(
+    () =>
+      yup.object().shape({
+        firstName: yup
+          .string()
+          .trim()
+          .required(
+            t("First name is required", { defaultMessage: "First name is required" }),
+          ),
+        lastName: yup.string().trim().nullable(),
+        email: yup
+          .string()
+          .trim()
+          .test(
+            "email-or-empty",
+            t("Enter a valid email", { defaultMessage: "Enter a valid email" }),
+            (value) => {
+              if (!value || value.trim().length === 0) {
+                return true;
+              }
+
+              return yup.string().email().isValidSync(value.trim());
+            },
+          ),
+        phone: yup
+          .string()
+          .trim()
+          .required(
+            t("auth.register.errors.phoneRequired", {
+              defaultMessage: "Debes ingresar un número de teléfono."
+            }),
+          )
+          .test(
+            "phone-format",
+            t("Enter a valid phone number", { defaultMessage: "Enter a valid phone number" }),
+            (value) => {
+              if (!value) {
+                return false;
+              }
+
+              return looksLikePhoneNumber(value);
+            },
+          ),
+      }),
+    [t],
+  );
 
   const INITIAL_VALUES: FormValues = {
     firstName: profile.firstName ?? "",
@@ -78,7 +118,12 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
       }
     ) => {
       if (!session?.accessToken) {
-        helpers.setStatus({ type: "error", message: "You need to be logged in to update your profile." });
+        helpers.setStatus({
+          type: "error",
+          message: t("account.profile.edit.errors.sessionRequired", {
+            defaultMessage: "Necesitas iniciar sesión para actualizar tu perfil."
+          })
+        });
         helpers.setSubmitting(false);
         return;
       }
@@ -86,8 +131,13 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
       helpers.setStatus(null);
       try {
         const normalizedPhone = values.phone ? normalizePhoneNumber(values.phone) : null;
-        if (values.phone && !normalizedPhone) {
-          helpers.setStatus({ type: "error", message: "Please enter a valid phone number." });
+        if (!normalizedPhone) {
+          helpers.setStatus({
+            type: "error",
+            message: t("auth.register.errors.invalidPhone", {
+              defaultMessage: "Ingresa un número de teléfono válido."
+            })
+          });
           helpers.setSubmitting(false);
           return;
         }
@@ -104,50 +154,57 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
         } as const;
 
         const updated = await StorefrontApi.updateAccountProfile(session.accessToken, payload);
-        helpers.setStatus({ type: "success", message: "Profile updated successfully." });
+        helpers.setStatus({
+          type: "success",
+          message: t("account.profile.edit.success", {
+            defaultMessage: "Perfil actualizado correctamente."
+          })
+        });
         onUpdated?.(updated);
       } catch (cause) {
         const message = isApiError(cause)
-          ? extractApiErrorMessage(cause)
+          ? translateProfileError(extractApiErrorMessage(cause), t)
           : cause instanceof Error
-            ? cause.message
-            : "Unable to update profile.";
+            ? translateProfileError(cause.message, t)
+            : t("account.profile.edit.errors.generic", {
+                defaultMessage: "No pudimos actualizar tu perfil."
+              });
         helpers.setStatus({ type: "error", message });
       } finally {
         helpers.setSubmitting(false);
       }
     },
-    [locale, onUpdated, session?.accessToken]
+    [locale, onUpdated, session?.accessToken, t]
   );
 
   return (
     <>
-      <FlexBox alignItems="flex-end" mb="22px">
+      <FlexBox alignItems="center" mb="22px">
         <Avatar src={profile.avatarUrl ?? "/assets/images/faces/ralph.png"} size={64} borderRadius={12} />
 
-        <Box ml="-20px" zIndex={1}>
-          <label htmlFor="profile-image">
-            <Button p="6px" as="span" size="small" height="auto" color="primary" borderRadius="50%">
-              <IconCamera size={18} />
-            </Button>
-          </label>
+        <Box ml="12px">
+          <Typography fontSize="13px" color="text.muted">
+            {profile.avatarUrl
+              ? t("account.profile.edit.avatar.current", {
+                  defaultMessage: "Se está mostrando tu foto actual."
+                })
+              : t("account.profile.edit.avatar.fallback", {
+                  defaultMessage: "Se muestra la foto por defecto hasta que haya una imagen disponible."
+                })}
+          </Typography>
+          <Typography fontSize="12px" color="text.muted" mt="0.35rem">
+            {t("account.profile.edit.avatar.note", {
+              defaultMessage:
+                "Si ingresaste con Google y tu cuenta tiene foto, se mostrará aquí automáticamente. En caso contrario usamos la imagen por defecto."
+            })}
+          </Typography>
         </Box>
-
-        <Hidden>
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            id="profile-image"
-            onChange={(event) => console.log(event.target.files)}
-          />
-        </Hidden>
       </FlexBox>
 
       <Formik
         onSubmit={handleFormSubmit}
         initialValues={INITIAL_VALUES}
-        validationSchema={VALIDATION_SCHEMA}
+        validationSchema={validationSchema}
         enableReinitialize
       >
         {({ values, errors, touched, handleChange, handleBlur, handleSubmit, isSubmitting, status }) => (
@@ -158,7 +215,7 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
                   <TextField
                     fullWidth
                     name="firstName"
-                    label="First Name"
+                    label={t("First name")}
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.firstName}
@@ -170,7 +227,7 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
                   <TextField
                     fullWidth
                     name="lastName"
-                    label="Last Name"
+                    label={t("Last name")}
                     onBlur={handleBlur}
                     onChange={handleChange}
                     value={values.lastName}
@@ -183,26 +240,38 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
                     fullWidth
                     name="email"
                     type="email"
-                    label="Email"
+                    label={t("account.profile.edit.fields.emailOptional", {
+                      defaultMessage: "Correo electrónico (opcional)"
+                    })}
                     onBlur={handleBlur}
                     value={values.email}
                     onChange={handleChange}
                     errorText={touched.email ? errors.email : undefined}
                   />
+                  <Typography fontSize="12px" color="text.muted" mt="0.35rem">
+                    {t("account.profile.edit.emailHint", {
+                      defaultMessage: "Opcional. Si lo informas, debe ser único en el sistema."
+                    })}
+                  </Typography>
                 </Grid>
 
                 <Grid item md={6} xs={12}>
                   <TextField
                     fullWidth
-                    label="Phone"
+                    label={t("Phone number")}
                     name="phone"
                     onBlur={handleBlur}
                     value={values.phone}
                     onChange={handleChange}
                     errorText={touched.phone ? errors.phone : undefined}
                   />
+                  <Typography fontSize="12px" color="text.muted" mt="0.35rem">
+                    {t("account.profile.edit.phoneHint", {
+                      defaultMessage:
+                        "Obligatorio. Puedes ingresarlo con o sin +598 o con 0 inicial; el sistema lo normaliza."
+                    })}
+                  </Typography>
                 </Grid>
-
               </Grid>
             </Box>
 
@@ -213,7 +282,7 @@ export default function ProfileEditForm({ profile, onUpdated }: ProfileEditFormP
             )}
 
             <Button type="submit" variant="contained" color="primary" disabled={isSubmitting}>
-              Save Changes
+              {t("account.profile.edit.submit", { defaultMessage: "Guardar cambios" })}
             </Button>
           </form>
         )}

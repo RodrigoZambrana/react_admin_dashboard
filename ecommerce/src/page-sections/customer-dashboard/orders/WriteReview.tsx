@@ -20,16 +20,17 @@ export default function WriteReview({ item }: { item: CheckoutLineItem }) {
     ? item.specifications
         .map((spec) => {
           if (!spec) return "";
-          const value = (spec.value ?? "").toString().trim();
-          if (value) return value;
           const label = (spec.label ?? "").toString().trim();
+          if (label.toLowerCase() === "material") return "";
+          const value = (spec.value ?? "").toString().trim();
+          if (label && value) return `${label}: ${value}`;
+          if (value) return value;
           return label;
         })
         .filter(Boolean)
     : [];
-  const propertiesText = productSpecs.length > 0 ? productSpecs.join(", ") : null;
+  const propertiesText = productSpecs.length > 0 ? productSpecs.join(" • ") : null;
   const hasImage = item.image && !isMissingProductImage(item.image);
-  const propertiesLabel = propertiesText ?? t("Not specified");
 
   return (
     <FlexBox px="1rem" py="0.5rem" flexWrap="wrap" alignItems="center" key={`${item.productId}-${item.name}`}>
@@ -52,9 +53,11 @@ export default function WriteReview({ item }: { item: CheckoutLineItem }) {
           <Typography fontSize="14px" color="text.muted">
             {price} × {item.quantity}
           </Typography>
-          <Typography fontSize="14px" color="text.muted">
-            {t("Product properties: {properties}", { values: { properties: propertiesLabel } })}
-          </Typography>
+          {propertiesText ? (
+            <Typography fontSize="14px" color="text.muted">
+              {t("product.selection.label", { defaultMessage: "Selection:" })} {propertiesText}
+            </Typography>
+          ) : null}
         </Box>
       </FlexBox>
 

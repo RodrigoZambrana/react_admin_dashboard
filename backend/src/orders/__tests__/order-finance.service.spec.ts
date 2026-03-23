@@ -164,4 +164,70 @@ describe('OrderFinanceService.recalculateOrderFinancials', () => {
     expect(summary.orderId).toBe(107)
     expect(summary.depositMet).toBe(true)
   })
+
+  it('reuses a concurrently created production order instead of failing with a unique workOrderId conflict', async () => {
+    const prisma = {
+      order: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 108,
+          orderCurrency: 'UYU',
+          grandTotal: decimal(32360),
+          minimumDepositType: DepositRequirementType.PERCENTAGE,
+          minimumDepositValue: decimal(30),
+          statusId: ORDER_STATUS_CODES.PENDING,
+          confirmedAt: null,
+          depositSatisfiedAt: null,
+          customerCredit: decimal(0),
+          payments: [
+            {
+              amount: decimal(32360),
+              type: PaymentType.DEPOSIT,
+              status: PaymentStatus.CONFIRMED,
+            },
+          ],
+          workOrders: [{ id: 78, orderId: 108, code: 'WO-000108' }],
+        }),
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+      workOrder: {
+        findFirst: vi.fn(),
+        create: vi.fn(),
+      },
+      productionOrder: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ id: 601, orderId: 108, workOrderId: 78 }),
+        create: vi.fn().mockRejectedValue(
+          Object.assign(Object.create(Prisma.PrismaClientKnownRequestError.prototype), {
+            code: 'P2002',
+          }),
+        ),
+        update: vi.fn(),
+      },
+      systemConfig: {
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
+    }
+
+    const service = new OrderFinanceService(
+      prisma as any,
+      {
+        get: vi.fn((key: string) => (key === 'CLIENT_SLUG' ? 'urucortinas' : undefined)),
+      } as any,
+    )
+
+    const summary = await service.recalculateOrderFinancials(108)
+
+    expect(prisma.productionOrder.create).toHaveBeenCalledWith({
+      data: {
+        orderId: 108,
+        workOrderId: 78,
+        status: 'PENDING',
+        priority: 1,
+      },
+    })
+    expect(summary.orderId).toBe(108)
+    expect(summary.depositMet).toBe(true)
+  })
 })

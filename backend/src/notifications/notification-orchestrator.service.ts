@@ -636,7 +636,7 @@ export class NotificationOrchestratorService {
     metadata: Record<string, unknown>,
   ): { title: string; body: string } {
     const orderNumber = this.getMetadataString(metadata, 'orderNumber') ?? ''
-    const status = this.getMetadataString(metadata, 'status')
+    const status = this.resolveLocalizedOrderStatus(locale, metadata)
     if (status) {
       const templates = {
         en: {
@@ -668,7 +668,7 @@ export class NotificationOrchestratorService {
     metadata: Record<string, unknown>,
   ): { title: string; body: string } {
     const orderNumber = this.getMetadataString(metadata, 'orderNumber') ?? ''
-    const status = this.getMetadataString(metadata, 'status')
+    const status = this.resolveLocalizedOrderStatus(locale, metadata)
     if (status) {
       const templates = {
         en: {
@@ -693,6 +693,34 @@ export class NotificationOrchestratorService {
       },
     }
     return this.interpolate(templates, locale, { orderNumber })
+  }
+
+  private resolveLocalizedOrderStatus(
+    locale: 'en' | 'es',
+    metadata: Record<string, unknown>,
+  ): string | null {
+    const rawStatusCode = metadata.statusCode
+    const statusCode =
+      typeof rawStatusCode === 'number'
+        ? rawStatusCode
+        : typeof rawStatusCode === 'string'
+          ? Number(rawStatusCode)
+          : Number.NaN
+
+    if (Number.isFinite(statusCode)) {
+      const definition = findOrderStatusById(statusCode)
+      if (definition) {
+        const translation = definition.translations?.[locale]
+        if (typeof translation === 'string' && translation.trim()) {
+          return translation.trim()
+        }
+        if (typeof definition.label === 'string' && definition.label.trim()) {
+          return definition.label.trim()
+        }
+      }
+    }
+
+    return this.getMetadataString(metadata, 'status')
   }
 
   private getMetadataString(metadata: Record<string, unknown>, key: string): string | null {

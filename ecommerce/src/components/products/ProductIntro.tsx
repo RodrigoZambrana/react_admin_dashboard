@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { IconMinus, IconPlus } from "@tabler/icons-react";
 
 import Box from "@component/Box";
@@ -17,11 +17,23 @@ import ProductWishlistButton from "@component/product-cards/ProductWishlistButto
 
 import useCart from "@hook/useCart";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
+import { PARAMETRIC_LINE_MARKER } from "@/lib/checkout/order-items";
+import {
+  buildPublishedParametricSummaryEntries,
+  findPreferredPublishedParametricVariant,
+  isPublishedParametricOptionSelectable,
+  matchesPublishedParametricVariant,
+  resolvePublishedParametricSelection,
+  selectionFromSearchParams,
+  toPublishedParametricSelection,
+  type PublishedParametricSelection
+} from "@/lib/storefront/published-parametric";
 import { formatInventoryStatus, normalizeMoney } from "@/lib/utils/format";
 import { filterValidProductImages } from "@/lib/utils/image";
 import { useTranslation } from "@/state/i18n-context";
 import type {
   InventoryStatus,
+  PublishedParametricOptions,
   ProductAttributeDefinition,
   ProductAttributeType,
   ProductMode,
@@ -33,9 +45,13 @@ const ATTRIBUTE_ORDER: ProductAttributeType[] = ["COLOR", "SIZE", "MATERIAL"];
 type SelectedAttributeMap = Partial<Record<ProductAttributeType, string>>;
 
 type VariantSummary = NonNullable<Props["variants"]>[number];
+type PublishedParametricVariantSummary = NonNullable<Props["publishedParametricOptions"]>["variants"][number];
 
 const buildLineId = (productId: string | number, variantId?: number) =>
   variantId !== undefined && variantId !== null ? `${String(productId)}:${variantId}` : String(productId);
+
+const buildPublishedParametricLineId = (productId: string | number, variantKey: string) =>
+  `${String(productId)}${PARAMETRIC_LINE_MARKER}${variantKey}`;
 
 const mergeImages = (primary: string[], secondary: string[]): string[] => {
   const merged: string[] = [];
@@ -141,6 +157,7 @@ type AttributeOptionProps = {
   onClick: () => void;
   colorHex?: string | null;
   imageUrl?: string | null;
+  tooltip?: string | null;
 };
 
 function AttributeOptionButton({
@@ -149,15 +166,17 @@ function AttributeOptionButton({
   disabled,
   onClick,
   colorHex,
-  imageUrl
+  imageUrl,
+  tooltip
 }: AttributeOptionProps) {
-  return (
+  const button = (
     <Button
       size="small"
       variant={selected ? "contained" : "outlined"}
       disabled={disabled}
       onClick={onClick}
       type="button"
+      title={tooltip ?? undefined}
       style={{
         minWidth: 60,
         display: "flex",
@@ -181,6 +200,16 @@ function AttributeOptionButton({
       <span>{label}</span>
     </Button>
   );
+
+  if (!tooltip) {
+    return button;
+  }
+
+  return (
+    <span title={tooltip} style={{ display: "inline-flex" }}>
+      {button}
+    </span>
+  );
 }
 
 // ========================================
@@ -199,6 +228,11 @@ interface Props {
   status?: string;
   shortDescription?: string;
   mode?: ProductMode;
+  publishedParametricOptions?: PublishedParametricOptions;
+  onPublishedParametricVariantChange?: (payload: {
+    specifications: Array<{ label: string; value: string }>;
+    configuration: Record<string, unknown>;
+  } | null) => void;
   variantAttributes?: ProductAttributeDefinition[];
   variants?: Array<{
     id: number;
@@ -230,10 +264,13 @@ export default function ProductIntro({
   status,
   shortDescription,
   mode = "simple",
+  publishedParametricOptions,
+  onPublishedParametricVariantChange,
   variantAttributes,
   variants
 }: Props) {
   const param = useParams<{ slug?: string | string[] }>() ?? {};
+  const searchParams = useSearchParams();
   const rawSlug = param.slug;
   const fallbackSlug =
     typeof rawSlug === "string"
@@ -266,6 +303,10 @@ export default function ProductIntro({
   }, [variantAttributes]);
 
   const normalizedVariants = useMemo(() => (variants ? [...variants] : []), [variants]);
+  const publishedParametricVariants = useMemo(
+    () => publishedParametricOptions?.variants ?? [],
+    [publishedParametricOptions]
+  );
   const attributeTypes = useMemo<ProductAttributeType[]>(
     () => normalizedAttributes.map((attribute) => attribute.type),
     [normalizedAttributes]
@@ -277,10 +318,41 @@ export default function ProductIntro({
   );
 
   const [selectedAttributes, setSelectedAttributes] = useState<SelectedAttributeMap>(initialSelection);
+  const defaultPublishedParametricVariant = useMemo(
+    () =>
+      publishedParametricVariants.find((variant) => variant.key === publishedParametricOptions?.defaultVariantKey) ??
+      publishedParametricVariants[0] ??
+      null,
+    [publishedParametricOptions?.defaultVariantKey, publishedParametricVariants]
+  );
+  const [selectedPublishedParametric, setSelectedPublishedParametric] = useState<PublishedParametricSelection>(
+    toPublishedParametricSelection(defaultPublishedParametricVariant)
+  );
 
   useEffect(() => {
     setSelectedAttributes(initialSelection);
   }, [initialSelection]);
+
+  useEffect(() => {
+    setSelectedPublishedParametric(toPublishedParametricSelection(defaultPublishedParametricVariant));
+  }, [defaultPublishedParametricVariant]);
+
+  useEffect(() => {
+    if (!defaultPublishedParametricVariant || !searchParams) {
+      return;
+    }
+
+    const requestedSelection = selectionFromSearchParams(
+      searchParams,
+      toPublishedParametricSelection(defaultPublishedParametricVariant)
+    );
+    const resolvedSelection = resolvePublishedParametricSelection(
+      publishedParametricVariants,
+      requestedSelection,
+      toPublishedParametricSelection(defaultPublishedParametricVariant)
+    );
+    setSelectedPublishedParametric(resolvedSelection);
+  }, [defaultPublishedParametricVariant, publishedParametricVariants, searchParams]);
 
   const selectedVariant = useMemo(() => {
     if (!attributeTypes.length) {
@@ -296,8 +368,43 @@ export default function ProductIntro({
   }, [attributeTypes, normalizedVariants, selectedAttributes]);
 
   const isVariableProduct = mode === "variable" && normalizedAttributes.length > 0 && normalizedVariants.length > 0;
+  const isPublishedParametricProduct =
+    mode === "parametric" && publishedParametricVariants.length > 0 && Boolean(publishedParametricOptions);
+  const selectedPublishedParametricVariant = useMemo(() => {
+    if (!isPublishedParametricProduct) {
+      return null;
+    }
+    return (
+      publishedParametricVariants.find((variant) =>
+        matchesPublishedParametricVariant(variant, selectedPublishedParametric)
+      ) ?? defaultPublishedParametricVariant
+    );
+  }, [
+    defaultPublishedParametricVariant,
+    isPublishedParametricProduct,
+    publishedParametricVariants,
+    selectedPublishedParametric
+  ]);
+
+  useEffect(() => {
+    if (!onPublishedParametricVariantChange) {
+      return;
+    }
+    if (!isPublishedParametricProduct || !selectedPublishedParametricVariant) {
+      onPublishedParametricVariantChange(null);
+      return;
+    }
+    onPublishedParametricVariantChange({
+      specifications: selectedPublishedParametricVariant.specifications,
+      configuration: selectedPublishedParametricVariant.configuration
+    });
+  }, [
+    isPublishedParametricProduct,
+    onPublishedParametricVariantChange,
+    selectedPublishedParametricVariant
+  ]);
   const variantLabel = formatVariantLabel(selectedVariant);
-  const variantIsPurchasable = isVariantPurchasable(selectedVariant);
+  const variantIsPurchasable = isPublishedParametricProduct ? true : isVariantPurchasable(selectedVariant);
   const inventoryStatus = toInventoryStatus(selectedVariant?.inventoryStatus ?? status);
   const formattedStatus = t(formatInventoryStatus(inventoryStatus));
 
@@ -338,7 +445,9 @@ export default function ProductIntro({
   const productBrand = brand ?? t("product.brand.default", { defaultMessage: "Store brand" });
 
   const variantId = selectedVariant?.id;
-  const lineId = buildLineId(id, variantId);
+  const lineId = isPublishedParametricProduct
+    ? buildPublishedParametricLineId(id, selectedPublishedParametricVariant?.key ?? "default")
+    : buildLineId(id, variantId);
 
   const currentLineItem = useMemo(
     () => items.find((item) => item.product.id === lineId) ?? null,
@@ -346,8 +455,15 @@ export default function ProductIntro({
   );
   const currentQuantity = currentLineItem?.quantity ?? 0;
 
-  const resolvedCurrency = selectedVariant?.currency ?? currency ?? baseCurrency;
-  const resolvedPrice = selectedVariant?.price ?? price;
+  const resolvedCurrency =
+    selectedPublishedParametricVariant?.price.currency ??
+    selectedVariant?.currency ??
+    currency ??
+    baseCurrency;
+  const resolvedPrice =
+    selectedPublishedParametricVariant?.price.amount ??
+    selectedVariant?.price ??
+    price;
   const resolvedDisplayPrice = formatAmount(resolvedPrice, resolvedCurrency);
 
   const referencePrice = basePrice ?? price;
@@ -412,8 +528,91 @@ export default function ProductIntro({
     [normalizedVariants, selectedAttributes]
   );
 
+  const updatePublishedParametricSelection = useCallback(
+    (patch: Partial<PublishedParametricSelection>) => {
+      setSelectedPublishedParametric((prev) => {
+        const nextSelection: PublishedParametricSelection = { ...prev, ...patch };
+        if (patch.hasShutterMonoblock === false) {
+          nextSelection.shutterMaterial = "";
+        }
+        return resolvePublishedParametricSelection(publishedParametricVariants, nextSelection, prev);
+      });
+    },
+    [publishedParametricVariants]
+  );
+
+  const isPublishedParametricFieldSelectable = useCallback(
+    (field: keyof PublishedParametricSelection, value: string | boolean) =>
+      isPublishedParametricOptionSelectable(
+        publishedParametricVariants,
+        selectedPublishedParametric,
+        field,
+        value
+      ),
+    [publishedParametricVariants, selectedPublishedParametric]
+  );
+
+  const availableShutterMaterials = useMemo(() => {
+    if (!selectedPublishedParametric.hasShutterMonoblock) {
+      return [] as string[];
+    }
+    const materials = new Set<string>();
+    publishedParametricVariants.forEach((variant) => {
+      if (
+        variant.optionValues.serie === selectedPublishedParametric.serie &&
+        variant.optionValues.material === selectedPublishedParametric.material &&
+        variant.optionValues.color === selectedPublishedParametric.color &&
+        variant.optionValues.vidrio === selectedPublishedParametric.vidrio &&
+        variant.optionValues.hasMosquitero === selectedPublishedParametric.hasMosquitero &&
+        variant.optionValues.hasShutterMonoblock
+      ) {
+        const material = variant.optionValues.shutterMaterial?.trim();
+        if (material) {
+          materials.add(material);
+        }
+      }
+    });
+    return Array.from(materials);
+  }, [publishedParametricVariants, selectedPublishedParametric]);
+
+  const publishedParametricAvailability = useMemo(() => {
+    const mosquitoYesVariant = findPreferredPublishedParametricVariant(
+      publishedParametricVariants,
+      selectedPublishedParametric,
+      "hasMosquitero",
+      true
+    );
+    const mosquitoNoVariant = findPreferredPublishedParametricVariant(
+      publishedParametricVariants,
+      selectedPublishedParametric,
+      "hasMosquitero",
+      false
+    );
+    const shutterYesVariant = findPreferredPublishedParametricVariant(
+      publishedParametricVariants,
+      selectedPublishedParametric,
+      "hasShutterMonoblock",
+      true
+    );
+    const shutterNoVariant = findPreferredPublishedParametricVariant(
+      publishedParametricVariants,
+      selectedPublishedParametric,
+      "hasShutterMonoblock",
+      false
+    );
+
+    return {
+      mosquitoYesVariant,
+      mosquitoNoVariant,
+      shutterYesVariant,
+      shutterNoVariant
+    };
+  }, [publishedParametricVariants, selectedPublishedParametric]);
+
   const addToCartDisabled =
-    (isVariableProduct && (!selectedVariant || !variantIsPurchasable)) || (!isVariableProduct && false);
+    (isVariableProduct && (!selectedVariant || !variantIsPurchasable)) ||
+    (isPublishedParametricProduct && !selectedPublishedParametricVariant) ||
+    (!isVariableProduct && false);
 
   const selectedAttributesSummary = useMemo(() => {
     if (!isVariableProduct) {
@@ -429,6 +628,12 @@ export default function ProductIntro({
     });
   }, [isVariableProduct, normalizedAttributes, selectedAttributes]);
 
+  const selectedPublishedParametricSummary = useMemo(() => {
+    return buildPublishedParametricSummaryEntries(selectedPublishedParametricVariant?.configuration, t, {
+      includeMaterial: false
+    });
+  }, [selectedPublishedParametricVariant?.configuration, t]);
+
   const handleAddToCart = useCallback(() => {
     if (addToCartDisabled) {
       return;
@@ -436,6 +641,9 @@ export default function ProductIntro({
 
     const productIdForCart = productNumericId ?? id;
     const variantAttributesForCart = selectedVariant?.attributes ?? undefined;
+    const publishedParametricVariantLabel = selectedPublishedParametricSummary
+      .map((entry) => `${entry.attribute}: ${entry.value}`)
+      .join(" • ");
     const priceMoney = normalizeMoney({ amount: resolvedPrice, currency: resolvedCurrency });
     const snapshotThumbnail = resolvedThumbnail
       ? {
@@ -450,15 +658,19 @@ export default function ProductIntro({
         productId: productIdForCart,
         mode,
         variantId: selectedVariant?.id,
-        variantKey: selectedVariant?.key,
-        variantLabel: variantLabel,
+        variantKey: isPublishedParametricProduct ? selectedPublishedParametricVariant?.key : selectedVariant?.key,
+        variantLabel: isPublishedParametricProduct ? publishedParametricVariantLabel : variantLabel,
+        selectionSummary: isPublishedParametricProduct ? publishedParametricVariantLabel : variantLabel,
         slug: productSlug,
         name: title,
         price: priceMoney,
         salePrice: null,
         thumbnail: snapshotThumbnail,
         inventoryStatus,
-        attributes: variantAttributesForCart
+        attributes: variantAttributesForCart,
+        configuration: isPublishedParametricProduct
+          ? selectedPublishedParametricVariant?.configuration
+          : undefined
       },
       1
     );
@@ -476,6 +688,9 @@ export default function ProductIntro({
     selectedVariant,
     title,
     mode,
+    isPublishedParametricProduct,
+    selectedPublishedParametricSummary,
+    selectedPublishedParametricVariant,
     variantLabel
   ]);
 
@@ -628,6 +843,254 @@ export default function ProductIntro({
                     defaultMessage: "This combination is currently unavailable."
                   })}
                 </Paragraph>
+              ) : null}
+            </Box>
+          ) : null}
+
+          {isPublishedParametricProduct ? (
+            <Box mb="24px">
+              {publishedParametricOptions && publishedParametricOptions.selectors.series.length > 1 ? (
+                <Box mb="18px">
+                  <SemiSpan display="block" mb="8px">
+                    {t("product.parametric.fields.series", { defaultMessage: "Series" })}
+                  </SemiSpan>
+                  <FlexBox flexWrap="wrap" style={{ gap: "0.5rem" }}>
+                    {publishedParametricOptions.selectors.series.map((value) => (
+                      <AttributeOptionButton
+                        key={`serie-${value}`}
+                        label={value}
+                        selected={selectedPublishedParametric.serie === value}
+                        disabled={
+                          !isPublishedParametricFieldSelectable("serie", value) &&
+                          selectedPublishedParametric.serie !== value
+                        }
+                        onClick={() => updatePublishedParametricSelection({ serie: value })}
+                      />
+                    ))}
+                  </FlexBox>
+                </Box>
+              ) : null}
+
+              {publishedParametricOptions && publishedParametricOptions.selectors.materials.length > 1 ? (
+                <Box mb="18px">
+                  <SemiSpan display="block" mb="8px">
+                    {t("product.parametric.fields.material", { defaultMessage: "Material" })}
+                  </SemiSpan>
+                  <FlexBox flexWrap="wrap" style={{ gap: "0.5rem" }}>
+                    {publishedParametricOptions.selectors.materials.map((value) => (
+                      <AttributeOptionButton
+                        key={`material-${value}`}
+                        label={value}
+                        selected={selectedPublishedParametric.material === value}
+                        disabled={
+                          !isPublishedParametricFieldSelectable("material", value) &&
+                          selectedPublishedParametric.material !== value
+                        }
+                        onClick={() => updatePublishedParametricSelection({ material: value })}
+                      />
+                    ))}
+                  </FlexBox>
+                </Box>
+              ) : null}
+
+              {publishedParametricOptions && publishedParametricOptions.selectors.colors.length > 1 ? (
+                <Box mb="18px">
+                  <SemiSpan display="block" mb="8px">
+                    {t("product.parametric.fields.color", { defaultMessage: "Color" })}
+                  </SemiSpan>
+                  <FlexBox flexWrap="wrap" style={{ gap: "0.5rem" }}>
+                    {publishedParametricOptions.selectors.colors.map((value) => (
+                      <AttributeOptionButton
+                        key={`color-${value}`}
+                        label={value}
+                        selected={selectedPublishedParametric.color === value}
+                        disabled={
+                          !isPublishedParametricFieldSelectable("color", value) &&
+                          selectedPublishedParametric.color !== value
+                        }
+                        onClick={() => updatePublishedParametricSelection({ color: value })}
+                      />
+                    ))}
+                  </FlexBox>
+                </Box>
+              ) : null}
+
+              {publishedParametricOptions && publishedParametricOptions.selectors.glass.length > 1 ? (
+                <Box mb="18px">
+                  <SemiSpan display="block" mb="8px">
+                    {t("product.parametric.fields.glass", { defaultMessage: "Glass" })}
+                  </SemiSpan>
+                  <FlexBox flexWrap="wrap" style={{ gap: "0.5rem" }}>
+                    {publishedParametricOptions.selectors.glass.map((value) => (
+                      <AttributeOptionButton
+                        key={`glass-${value}`}
+                        label={value}
+                        selected={selectedPublishedParametric.vidrio === value}
+                        disabled={
+                          !isPublishedParametricFieldSelectable("vidrio", value) &&
+                          selectedPublishedParametric.vidrio !== value
+                        }
+                        onClick={() => updatePublishedParametricSelection({ vidrio: value })}
+                      />
+                    ))}
+                  </FlexBox>
+                </Box>
+              ) : null}
+
+              <Box mb="18px">
+                <SemiSpan display="block" mb="8px">
+                  {t("product.parametric.fields.mosquito", { defaultMessage: "Mosquito net" })}
+                </SemiSpan>
+                <FlexBox flexWrap="wrap" style={{ gap: "0.5rem" }}>
+                  <AttributeOptionButton
+                    key="mosquito-no"
+                    label={t("product.parametric.options.withoutMosquito", {
+                      defaultMessage: "Without mosquito net"
+                    })}
+                    selected={!selectedPublishedParametric.hasMosquitero}
+                    disabled={!publishedParametricAvailability.mosquitoNoVariant}
+                    tooltip={
+                      !publishedParametricAvailability.mosquitoNoVariant
+                        ? t("product.parametric.tooltips.mosquito.withoutUnavailable", {
+                            defaultMessage:
+                              "This published combination is not available without mosquito net."
+                          })
+                        : undefined
+                    }
+                    onClick={() => {
+                      const target = publishedParametricAvailability.mosquitoNoVariant;
+                      if (target) {
+                        setSelectedPublishedParametric(toPublishedParametricSelection(target));
+                      }
+                    }}
+                  />
+                  <AttributeOptionButton
+                    key="mosquito-yes"
+                    label={t("product.parametric.options.withMosquito", {
+                      defaultMessage: "With mosquito net"
+                    })}
+                    selected={selectedPublishedParametric.hasMosquitero}
+                    disabled={!publishedParametricAvailability.mosquitoYesVariant}
+                    tooltip={
+                      !publishedParametricAvailability.mosquitoYesVariant
+                        ? t("product.parametric.tooltips.mosquito.withUnavailable", {
+                            defaultMessage:
+                              "This published combination is not available with mosquito net."
+                          })
+                        : undefined
+                    }
+                    onClick={() => {
+                      const target = publishedParametricAvailability.mosquitoYesVariant;
+                      if (target) {
+                        setSelectedPublishedParametric(toPublishedParametricSelection(target));
+                      }
+                    }}
+                  />
+                </FlexBox>
+              </Box>
+
+              <Box mb="18px">
+                <SemiSpan display="block" mb="8px">
+                  {t("product.parametric.fields.monoblock", { defaultMessage: "Monoblock" })}
+                </SemiSpan>
+                <FlexBox flexWrap="wrap" style={{ gap: "0.5rem" }}>
+                  <AttributeOptionButton
+                    key="shutter-no"
+                    label={t("product.parametric.options.withoutShutter", {
+                      defaultMessage: "Without shutter"
+                    })}
+                    selected={!selectedPublishedParametric.hasShutterMonoblock}
+                    disabled={!publishedParametricAvailability.shutterNoVariant}
+                    tooltip={
+                      !publishedParametricAvailability.shutterNoVariant
+                        ? t("product.parametric.tooltips.shutter.withoutUnavailable", {
+                            defaultMessage:
+                              "This published combination is not available without shutter."
+                          })
+                        : undefined
+                    }
+                    onClick={() => {
+                      const target = publishedParametricAvailability.shutterNoVariant;
+                      if (target) {
+                        setSelectedPublishedParametric(toPublishedParametricSelection(target));
+                      }
+                    }}
+                  />
+                  <AttributeOptionButton
+                    key="shutter-yes"
+                    label={t("product.parametric.options.withShutter", {
+                      defaultMessage: "With shutter"
+                    })}
+                    selected={selectedPublishedParametric.hasShutterMonoblock}
+                    disabled={!publishedParametricAvailability.shutterYesVariant}
+                    tooltip={
+                      !publishedParametricAvailability.shutterYesVariant
+                        ? t("product.parametric.tooltips.shutter.withUnavailable", {
+                            defaultMessage:
+                              "This published combination is not available with shutter."
+                          })
+                        : undefined
+                    }
+                    onClick={() => {
+                      const target = publishedParametricAvailability.shutterYesVariant;
+                      if (target) {
+                        setSelectedPublishedParametric(toPublishedParametricSelection(target));
+                      }
+                    }}
+                  />
+                </FlexBox>
+              </Box>
+
+              {selectedPublishedParametric.hasShutterMonoblock &&
+              availableShutterMaterials.length > 0 ? (
+                <Box mb="18px">
+                  <SemiSpan display="block" mb="8px">
+                    {t("product.parametric.fields.shutterMaterial", {
+                      defaultMessage: "Shutter material"
+                    })}
+                  </SemiSpan>
+                  <FlexBox flexWrap="wrap" style={{ gap: "0.5rem" }}>
+                    {availableShutterMaterials.map((value) => {
+                      const targetVariant = findPreferredPublishedParametricVariant(
+                        publishedParametricVariants,
+                        selectedPublishedParametric,
+                        "shutterMaterial",
+                        value
+                      );
+
+                      return (
+                        <AttributeOptionButton
+                          key={`shutter-${value}`}
+                          label={value}
+                          selected={selectedPublishedParametric.shutterMaterial === value}
+                          disabled={!targetVariant}
+                          tooltip={
+                            !targetVariant
+                              ? t("product.parametric.tooltips.shutter.materialUnavailable", {
+                                  defaultMessage:
+                                    "This shutter material is not available for the selected combination."
+                                })
+                              : undefined
+                          }
+                          onClick={() => {
+                            if (targetVariant) {
+                              setSelectedPublishedParametric(toPublishedParametricSelection(targetVariant));
+                            }
+                          }}
+                        />
+                      );
+                    })}
+                  </FlexBox>
+                </Box>
+              ) : null}
+
+              {selectedPublishedParametricSummary.length > 0 ? (
+                <SemiSpan color="text.muted">
+                  {t("product.selection.label", { defaultMessage: "Selection:" })}{" "}
+                  {selectedPublishedParametricSummary
+                    .map((entry) => `${entry.attribute}: ${entry.value}`)
+                    .join(" • ")}
+                </SemiSpan>
               ) : null}
             </Box>
           ) : null}

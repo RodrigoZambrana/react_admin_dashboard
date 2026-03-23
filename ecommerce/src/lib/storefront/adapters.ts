@@ -45,6 +45,9 @@ export const mapProductSummaryToProduct = (product: ProductSummary): Product => 
     ratingCount: product.ratingCount ?? undefined,
     status: product.inventoryStatus,
     mode: product.mode ?? "simple",
+    variantLabel: product.variantLabel ?? null,
+    configuration: product.configuration ?? null,
+    specifications: product.specifications ?? undefined,
     categories:
       product.categories?.map((category) => ({
         id: category.id,
@@ -128,6 +131,7 @@ export const mapProductDetailToProduct = (product: ProductDetail): Product => {
     salePrice,
     ratingCount: product.ratingCount ?? undefined,
     mode: product.mode ?? "simple",
+    publishedParametricOptions: product.publishedParametricOptions ?? undefined,
     variantAttributes: attributeDefinitions,
     variants: variantEntries,
   };

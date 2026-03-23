@@ -75,6 +75,7 @@ const createParametricPricing = () => ({
 
 const createPublishedProductResolver = () => ({
   resolvePublishedParametricProduct: vi.fn(),
+  resolvePublishedParametricVariant: vi.fn().mockResolvedValue(null),
 })
 
 describe('StorefrontService.createOrder', () => {
@@ -524,7 +525,7 @@ describe('StorefrontService.createOrder', () => {
         images: [],
       },
     ])
-    publishedProductResolver.resolvePublishedParametricProduct.mockResolvedValue({
+    const publishedParametricVariant = {
       configuration: {
         familyId: 'VENTANA_CORREDIZA',
         serie: '20',
@@ -546,7 +547,9 @@ describe('StorefrontService.createOrder', () => {
         { label: 'Material', value: 'ALUMINIO' },
         { label: 'Color', value: 'BLANCO' },
       ],
-    })
+    }
+    publishedProductResolver.resolvePublishedParametricProduct.mockResolvedValue(publishedParametricVariant)
+    publishedProductResolver.resolvePublishedParametricVariant.mockResolvedValue(publishedParametricVariant)
     prisma.productVariant.findMany.mockResolvedValue([])
     prisma.shippingOption.findUnique.mockResolvedValue({
       id: 3,
@@ -844,7 +847,7 @@ describe('StorefrontService.createOrder', () => {
     ])
     prisma.productVariant.findMany.mockResolvedValue([])
     prisma.shippingOption.findUnique.mockResolvedValue({ id: 3, name: 'Envío Montevideo' })
-    publishedProductResolver.resolvePublishedParametricProduct.mockResolvedValue({
+    const publishedParametricVariant = {
       configuration: {
         familyId: 'VENTANA_CORREDIZA',
         serie: '20',
@@ -866,7 +869,9 @@ describe('StorefrontService.createOrder', () => {
         { label: 'Material', value: 'ALUMINIO' },
         { label: 'Color', value: 'BLANCO' },
       ],
-    })
+    }
+    publishedProductResolver.resolvePublishedParametricProduct.mockResolvedValue(publishedParametricVariant)
+    publishedProductResolver.resolvePublishedParametricVariant.mockResolvedValue(publishedParametricVariant)
 
     const snapshot = await service.prepareCheckoutSnapshot({
       ...buildBaseOrderPayload(),
@@ -940,31 +945,33 @@ describe('StorefrontService.createOrder', () => {
       },
     ])
     prisma.shippingOption.findUnique.mockResolvedValue({ id: 3, name: 'Envío Montevideo' })
+    const publishedParametricVariant = {
+      configuration: {
+        familyId: 'VENTANA_CORREDIZA',
+        serie: '20',
+        material: 'ALUMINIO',
+        color: 'BLANCO',
+        vidrio: '3MM',
+        widthMm: 1500,
+        heightMm: 2000,
+        hasMosquitero: true,
+        hasShutterMonoblock: true,
+        shutterMaterial: 'PVC',
+        currency: 'USD',
+        source: 'published_product',
+      },
+      specifications: [
+        { label: 'Serie', value: '20' },
+        { label: 'Color', value: 'BLANCO' },
+      ],
+    }
     publishedProductResolver.resolvePublishedParametricProduct.mockImplementation(async (productId: number) => {
       if (productId !== 2115) {
         return null
       }
-      return {
-        configuration: {
-          familyId: 'VENTANA_CORREDIZA',
-          serie: '20',
-          material: 'ALUMINIO',
-          color: 'BLANCO',
-          vidrio: '3MM',
-          widthMm: 1500,
-          heightMm: 2000,
-          hasMosquitero: true,
-          hasShutterMonoblock: true,
-          shutterMaterial: 'PVC',
-          currency: 'USD',
-          source: 'published_product',
-        },
-        specifications: [
-          { label: 'Serie', value: '20' },
-          { label: 'Color', value: 'BLANCO' },
-        ],
-      }
+      return publishedParametricVariant
     })
+    publishedProductResolver.resolvePublishedParametricVariant.mockResolvedValue(publishedParametricVariant)
 
     const snapshot = await service.prepareCheckoutSnapshot({
       ...buildBaseOrderPayload(),
@@ -985,6 +992,138 @@ describe('StorefrontService.createOrder', () => {
           familyId: 'VENTANA_CORREDIZA',
           serie: '20',
           color: 'BLANCO',
+        }),
+      },
+    ])
+  })
+
+  it('allows multiple checkout lines for the same published parametric product with different configurations', async () => {
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 2115,
+        name: 'Ventana corrediza',
+        published: true,
+        mode: ProductMode.PARAMETRIC,
+        currency: 'USD',
+        productCode: 'VENT-01',
+      },
+    ])
+    prisma.productVariant.findMany.mockResolvedValue([])
+    prisma.shippingOption.findUnique.mockResolvedValue({ id: 3, name: 'Envío Montevideo' })
+    publishedProductResolver.resolvePublishedParametricProduct.mockImplementation(async (productId: number) => {
+      if (productId !== 2115) {
+        return null
+      }
+      return {
+        configuration: {
+          familyId: 'VENTANA_CORREDIZA',
+          serie: '20',
+          material: 'ALUMINIO',
+          color: 'BLANCO',
+          vidrio: '3MM',
+          widthMm: 1500,
+          heightMm: 2000,
+          hasMosquitero: false,
+          hasShutterMonoblock: false,
+          shutterMaterial: '',
+          currency: 'USD',
+          source: 'published_product',
+        },
+        specifications: [
+          { label: 'Serie', value: '20' },
+          { label: 'Color', value: 'BLANCO' },
+        ],
+      }
+    })
+
+    const resolvePublishedParametricConfigurationSpy = vi
+      .spyOn(service as any, 'resolvePublishedParametricConfiguration')
+      .mockResolvedValueOnce({
+        configuration: {
+          familyId: 'VENTANA_CORREDIZA',
+          serie: '20',
+          material: 'ALUMINIO',
+          color: 'BLANCO',
+          vidrio: '3MM',
+          widthMm: 1500,
+          heightMm: 2000,
+          hasMosquitero: false,
+          hasShutterMonoblock: false,
+          shutterMaterial: '',
+          currency: 'USD',
+        },
+      })
+      .mockResolvedValueOnce({
+        configuration: {
+          familyId: 'VENTANA_CORREDIZA',
+          serie: '20',
+          material: 'ALUMINIO',
+          color: 'BLANCO',
+          vidrio: '3MM',
+          widthMm: 1500,
+          heightMm: 2000,
+          hasMosquitero: true,
+          hasShutterMonoblock: true,
+          shutterMaterial: 'PVC',
+          currency: 'USD',
+        },
+      })
+
+    const snapshot = await service.prepareCheckoutSnapshot({
+      ...buildBaseOrderPayload(),
+      items: [
+        {
+          productId: 2115,
+          quantity: 2,
+          configuration: {
+            familyId: 'VENTANA_CORREDIZA',
+            serie: '20',
+            material: 'ALUMINIO',
+            color: 'BLANCO',
+            vidrio: '3MM',
+            widthMm: 1500,
+            heightMm: 2000,
+            hasMosquitero: false,
+            hasShutterMonoblock: false,
+            shutterMaterial: '',
+          },
+        },
+        {
+          productId: 2115,
+          quantity: 2,
+          configuration: {
+            familyId: 'VENTANA_CORREDIZA',
+            serie: '20',
+            material: 'ALUMINIO',
+            color: 'BLANCO',
+            vidrio: '3MM',
+            widthMm: 1500,
+            heightMm: 2000,
+            hasMosquitero: true,
+            hasShutterMonoblock: true,
+            shutterMaterial: 'PVC',
+          },
+        },
+      ],
+    })
+
+    expect(resolvePublishedParametricConfigurationSpy).toHaveBeenCalledTimes(2)
+    expect(snapshot.items).toEqual([
+      {
+        productId: 2115,
+        quantity: 2,
+        configuration: expect.objectContaining({
+          hasMosquitero: false,
+          hasShutterMonoblock: false,
+        }),
+      },
+      {
+        productId: 2115,
+        quantity: 2,
+        configuration: expect.objectContaining({
+          hasMosquitero: true,
+          hasShutterMonoblock: true,
+          shutterMaterial: 'PVC',
         }),
       },
     ])

@@ -5,7 +5,8 @@ import type {
   ProductMode,
   ProductVariant,
   ProductAttributeDefinition,
-  ProductVariantAttribute
+  ProductVariantAttribute,
+  PublishedParametricOptions
 } from "@/types/storefront";
 
 interface Product {
@@ -36,6 +37,9 @@ interface Product {
   specifications?: Array<{ label: string; value: string }>;
   mode?: ProductMode;
   variantAttributes?: ProductAttributeDefinition[];
+  publishedParametricOptions?: PublishedParametricOptions;
+  variantLabel?: string | null;
+  configuration?: Record<string, unknown> | null;
   variants?: Array<{
     id: number;
     key: string;

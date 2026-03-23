@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import styled from "styled-components";
 
 import Box from "@component/Box";
@@ -51,8 +52,79 @@ export default function ContactPageClient() {
     t("contact.page.fallback.address", { defaultMessage: "Montevideo, Uruguay" });
   const website = companyProfile?.website ?? "https://example.com";
 
+  const summaryItems = useMemo(
+    () => [
+      {
+        key: "email",
+        label: t("contact.page.labels.email", { defaultMessage: "Email" }),
+        value: email,
+        href: formatContactHref(email, "email"),
+      },
+      {
+        key: "phone",
+        label: t("contact.page.labels.phone", { defaultMessage: "Phone" }),
+        value: phone,
+        href: formatContactHref(phone, "phone"),
+      },
+      {
+        key: "address",
+        label: t("contact.page.labels.address", { defaultMessage: "Address" }),
+        value: address,
+      },
+      {
+        key: "website",
+        label: t("contact.page.labels.website", { defaultMessage: "Website" }),
+        value: website,
+        href: website,
+        external: true,
+      },
+    ],
+    [address, email, phone, t, website],
+  );
+
+  const channelCards = useMemo(
+    () => [
+      {
+        key: "sales",
+        title: t("contact.page.channel.sales.title", { defaultMessage: "Sales and quotes" }),
+        body: t("contact.page.channel.sales.body", {
+          defaultMessage:
+            "Use this channel to request estimates, measurements, and product recommendations."
+        }),
+        ctaLabel: t("contact.page.channel.sales.cta", { defaultMessage: "Browse products" }),
+        href: "/shop",
+        external: false,
+      },
+      {
+        key: "support",
+        title: t("contact.page.channel.support.title", { defaultMessage: "Customer support" }),
+        body: t("contact.page.channel.support.body", {
+          defaultMessage:
+            "Share questions about deliveries, installations, or existing orders through the official support channel."
+        }),
+        ctaLabel: t("contact.page.channel.support.cta", { defaultMessage: "Contact support" }),
+        href: formatContactHref(email, "email"),
+        external: true,
+      },
+      {
+        key: "hours",
+        title: t("contact.page.hours.title", { defaultMessage: "Hours" }),
+        lines: [
+          t("contact.page.hours.weekdays", {
+            defaultMessage: "Monday to Friday: 9:00 to 18:00"
+          }),
+          t("contact.page.hours.saturday", {
+            defaultMessage: "Saturday: 9:00 to 13:00"
+          }),
+          t("contact.page.hours.sunday", { defaultMessage: "Sunday: closed" }),
+        ],
+      },
+    ],
+    [email, t],
+  );
+
   return (
-    <Container mt="2rem" mb="4rem">
+    <Container mt="3rem" mb="5rem">
       <HeroCard>
         <Grid container spacing={6}>
           <Grid item md={7} xs={12}>
@@ -68,7 +140,7 @@ export default function ContactPageClient() {
             <Paragraph color="text.muted" maxWidth="640px" mb="1.5rem">
               {t("contact.page.subtitle", {
                 defaultMessage:
-                  "This page uses configurable storefront data. Until the CMS arrives, missing fields fall back to controlled placeholder content."
+                  "Choose the channel that best fits your question and our team will get back to you as soon as possible."
               })}
             </Paragraph>
 
@@ -97,85 +169,68 @@ export default function ContactPageClient() {
               <H3 mb="1rem">
                 {t("contact.page.summary.title", { defaultMessage: "Contact details" })}
               </H3>
-              <Paragraph mb="0.5rem">
-                <strong>{t("contact.page.labels.email", { defaultMessage: "Email" })}:</strong> {email}
-              </Paragraph>
-              <Paragraph mb="0.5rem">
-                <strong>{t("contact.page.labels.phone", { defaultMessage: "Phone" })}:</strong> {phone}
-              </Paragraph>
-              <Paragraph mb="0.5rem">
-                <strong>{t("contact.page.labels.address", { defaultMessage: "Address" })}:</strong> {address}
-              </Paragraph>
-              <Paragraph>
-                <strong>{t("contact.page.labels.website", { defaultMessage: "Website" })}:</strong>{" "}
-                <a href={website} target="_blank" rel="noreferrer">
-                  {website}
-                </a>
-              </Paragraph>
+              <FlexBox flexDirection="column" style={{ gap: "1rem" }}>
+                {summaryItems.map((item) => (
+                  <Box key={item.key}>
+                    <SemiSpan display="block" mb="0.25rem" fontWeight={700} color="text.muted">
+                      {item.label}
+                    </SemiSpan>
+                    {item.href ? (
+                      <a
+                        href={item.href}
+                        target={item.external ? "_blank" : undefined}
+                        rel={item.external ? "noreferrer" : undefined}
+                        style={{ color: "inherit", textDecoration: "none" }}>
+                        <Paragraph>{item.value}</Paragraph>
+                      </a>
+                    ) : (
+                      <Paragraph>{item.value}</Paragraph>
+                    )}
+                  </Box>
+                ))}
+              </FlexBox>
             </Box>
           </Grid>
         </Grid>
       </HeroCard>
 
-      <Grid container spacing={6} mt="0.5rem">
-        <Grid item md={4} xs={12}>
-          <InfoCard>
-            <H3 mb="0.75rem">
-              {t("contact.page.channel.sales.title", { defaultMessage: "Sales and quotes" })}
-            </H3>
-            <Paragraph color="text.muted" mb="1rem">
-              {t("contact.page.channel.sales.body", {
-                defaultMessage:
-                  "Use this channel to request estimates, measurements, and product recommendations."
-              })}
-            </Paragraph>
-            <Link href="/shop">
-              <Button variant="text" color="primary">
-                {t("contact.page.channel.sales.cta", { defaultMessage: "Browse products" })}
-              </Button>
-            </Link>
-          </InfoCard>
-        </Grid>
-
-        <Grid item md={4} xs={12}>
-          <InfoCard>
-            <H3 mb="0.75rem">
-              {t("contact.page.channel.support.title", { defaultMessage: "Customer support" })}
-            </H3>
-            <Paragraph color="text.muted" mb="1rem">
-              {t("contact.page.channel.support.body", {
-                defaultMessage:
-                  "Share questions about deliveries, installations, or existing orders through the official support channel."
-              })}
-            </Paragraph>
-            <a href={formatContactHref(email, "email")} style={{ textDecoration: "none" }}>
-              <Button variant="text" color="primary">
-                {t("contact.page.channel.support.cta", { defaultMessage: "Contact support" })}
-              </Button>
-            </a>
-          </InfoCard>
-        </Grid>
-
-        <Grid item md={4} xs={12}>
-          <InfoCard>
-            <H3 mb="0.75rem">
-              {t("contact.page.hours.title", { defaultMessage: "Hours" })}
-            </H3>
-            <Paragraph color="text.muted" mb="0.5rem">
-              {t("contact.page.hours.weekdays", {
-                defaultMessage: "Monday to Friday: 9:00 to 18:00"
-              })}
-            </Paragraph>
-            <Paragraph color="text.muted" mb="0.5rem">
-              {t("contact.page.hours.saturday", {
-                defaultMessage: "Saturday: 9:00 to 13:00"
-              })}
-            </Paragraph>
-            <Paragraph color="text.muted">
-              {t("contact.page.hours.sunday", { defaultMessage: "Sunday: closed" })}
-            </Paragraph>
-          </InfoCard>
-        </Grid>
+      <Grid container spacing={6} mt="1.5rem">
+        {channelCards.map((card) => (
+          <Grid item md={4} xs={12} key={card.key}>
+            <InfoCard>
+              <H3 mb="0.75rem">{card.title}</H3>
+              {"body" in card && card.body ? (
+                <Paragraph color="text.muted" mb="1rem">
+                  {card.body}
+                </Paragraph>
+              ) : null}
+              {"lines" in card && card.lines ? (
+                <FlexBox flexDirection="column" style={{ gap: "0.5rem" }}>
+                  {card.lines.map((line) => (
+                    <Paragraph color="text.muted" key={line}>
+                      {line}
+                    </Paragraph>
+                  ))}
+                </FlexBox>
+              ) : null}
+              {"href" in card && card.href ? (
+                card.external ? (
+                  <a href={card.href} style={{ textDecoration: "none" }}>
+                    <Button variant="text" color="primary">
+                      {card.ctaLabel}
+                    </Button>
+                  </a>
+                ) : (
+                  <Link href={card.href}>
+                    <Button variant="text" color="primary">
+                      {card.ctaLabel}
+                    </Button>
+                  </Link>
+                )
+              ) : null}
+            </InfoCard>
+          </Grid>
+        ))}
       </Grid>
     </Container>
   );

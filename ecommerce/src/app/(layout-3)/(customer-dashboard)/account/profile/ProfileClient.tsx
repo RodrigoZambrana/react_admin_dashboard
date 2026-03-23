@@ -139,21 +139,7 @@ export default function ProfileClient() {
                 <FlexBox flexWrap="wrap" justifyContent="space-between" alignItems="center">
                   <div>
                     <H5 my="0px">{displayName}</H5>
-
-                    <FlexBox alignItems="center">
-                      <Typography fontSize="14px" color="text.hint">
-                        {t("account.profile.balanceLabel", { defaultMessage: "Balance:" })}
-                      </Typography>
-
-                      <Typography ml="4px" fontSize="14px" color="primary.main">
-                        $500
-                      </Typography>
-                    </FlexBox>
                   </div>
-
-                  <Typography fontSize="14px" color="text.hint" letterSpacing="0.2em">
-                    {t("account.profile.tier.silver", { defaultMessage: "SILVER USER" })}
-                  </Typography>
                 </FlexBox>
               </Box>
             </Card>

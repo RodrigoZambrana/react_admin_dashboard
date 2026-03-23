@@ -16,11 +16,75 @@ import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import type { CustomerNotification } from "@/types/storefront";
 import { env } from "@/lib/env";
 import { useToast } from "@/contexts/ToastContext";
-import { useTranslation } from "@/state/i18n-context";
+import { useI18n, useTranslation } from "@/state/i18n-context";
 
 const PANEL_HEIGHT = 320;
 
 type TranslateFn = (key: string, params?: { values?: Record<string, string | number> }) => string;
+
+const resolveOrderStatusLabel = (
+  notification: CustomerNotification,
+  locale: "en" | "es"
+): string | null => {
+  const metadata = notification.metadata ?? {};
+  const rawStatusCode = metadata.statusCode;
+  const statusCode =
+    typeof rawStatusCode === "number"
+      ? rawStatusCode
+      : typeof rawStatusCode === "string"
+        ? Number(rawStatusCode)
+        : Number.NaN;
+
+  if (Number.isFinite(statusCode)) {
+    switch (statusCode) {
+      case 100:
+        return locale === "en" ? "Pending" : "Pendiente";
+      case 200:
+        return locale === "en" ? "Paid" : "Pagado";
+      case 300:
+        return locale === "en" ? "Cancelled" : "Cancelado";
+      case 400:
+        return locale === "en" ? "Delivered" : "Entregado";
+      default:
+        break;
+    }
+  }
+
+  const status = metadata.status;
+  return typeof status === "string" && status.trim().length > 0 ? status.trim() : null;
+};
+
+const formatNotificationCopy = (
+  notification: CustomerNotification,
+  t: TranslateFn,
+  locale: "en" | "es"
+): { title: string; body: string | null } => {
+  const fallbackTitle = notification.title ?? t("notifications.panel.defaultTitle");
+  const fallbackBody = notification.body ?? null;
+  if (notification.eventType !== "ORDER_STATUS_CHANGED") {
+    return { title: fallbackTitle, body: fallbackBody };
+  }
+
+  const metadata = notification.metadata ?? {};
+  const orderNumber =
+    (typeof metadata.orderNumber === "string" && metadata.orderNumber.trim()) ||
+    (typeof metadata.orderId === "string" && metadata.orderId.trim()) ||
+    (typeof metadata.orderId === "number" ? String(metadata.orderId) : "");
+  const status = resolveOrderStatusLabel(notification, locale);
+
+  if (!orderNumber || !status) {
+    return { title: fallbackTitle, body: fallbackBody };
+  }
+
+  return {
+    title: t("notifications.orderStatus.title", {
+      values: { orderNumber, status }
+    }),
+    body: t("notifications.orderStatus.body", {
+      values: { status }
+    })
+  };
+};
 
 const formatSummary = (notification: CustomerNotification, t: TranslateFn): string | null => {
   const metadata = notification.metadata ?? {};
@@ -100,6 +164,7 @@ const resolveNotificationPath = (notification: CustomerNotification): string => 
 
 export default function CustomerNotifications() {
   const { session, isAuthenticated, logout } = useSession();
+  const { locale } = useI18n();
   const t = useTranslation();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<CustomerNotification[]>([]);
@@ -312,6 +377,11 @@ export default function CustomerNotifications() {
               <Scrollbar style={{ maxHeight: `${PANEL_HEIGHT - 10}px` }}>
                 {entries.map((item) => {
                   const summary = formatSummary(item, t);
+                  const copy = formatNotificationCopy(
+                    item,
+                    t,
+                    locale === "en" ? "en" : "es"
+                  );
                   return (
                     <MenuItem
                       key={item.id}
@@ -327,14 +397,14 @@ export default function CustomerNotifications() {
                       >
                         <FlexBox alignItems="center" justifyContent="space-between" gridGap="0.5rem">
                           <Small fontWeight={600} color="text.primary">
-                            {item.title ?? t("notifications.panel.defaultTitle")}
+                            {copy.title}
                           </Small>
                           <Tiny color="text.muted">
                             {new Date(item.createdAt).toLocaleString()}
                           </Tiny>
                         </FlexBox>
                         {summary && <Tiny color="text.hint">{summary}</Tiny>}
-                        {item.body && <Tiny color="text.secondary">{item.body}</Tiny>}
+                        {copy.body && <Tiny color="text.secondary">{copy.body}</Tiny>}
                         {!item.readAt && (
                           <FlexBox alignItems="center" gridGap="0.25rem" color="primary.main">
                             <IconCheck size={12} stroke={1.5} />

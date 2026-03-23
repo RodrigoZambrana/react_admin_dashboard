@@ -43,6 +43,7 @@ type LegacyCartItem = {
   variantId?: number | null;
   variantKey?: string | null;
   variantLabel?: string | null;
+  selectionSummary?: string | null;
   attributes?: ProductVariantAttribute[];
   configuration?: Record<string, unknown> | string | null;
   inventoryStatus?: InventoryStatus;
@@ -88,17 +89,17 @@ export default function useCart(): UseCartReturn {
   const legacyCart = useMemo<LegacyCartItem[]>(() => {
     return items.map((item) => {
       const unit = item.product.salePrice ?? item.product.price;
-      const displayName = item.product.variantLabel
-        ? `${item.product.name} · ${item.product.variantLabel}`
-        : item.product.name;
       return {
         id: item.product.id,
-        name: displayName,
+        name: item.product.name,
         slug: item.product.slug,
         imgUrl: item.product.thumbnail?.url,
         price: unit.amount,
         currency: unit.currency,
-        qty: item.quantity
+        qty: item.quantity,
+        configuration: item.product.configuration ?? undefined,
+        variantLabel: item.product.variantLabel ?? null,
+        selectionSummary: item.product.selectionSummary ?? null
       };
     });
   }, [items]);
@@ -131,6 +132,7 @@ export default function useCart(): UseCartReturn {
         variantId: payloadVariantId,
         variantKey,
         variantLabel,
+        selectionSummary,
         attributes,
         configuration: payloadConfiguration,
         inventoryStatus
@@ -140,12 +142,6 @@ export default function useCart(): UseCartReturn {
 
       if (nextQuantity === 0) {
         removeItem(normalizedId);
-        return;
-      }
-
-      const exists = items.some((item) => item.product.id === normalizedId);
-      if (exists) {
-        updateQuantity(normalizedId, nextQuantity);
         return;
       }
 
@@ -162,17 +158,42 @@ export default function useCart(): UseCartReturn {
       const resolvedVariantKey =
         typeof variantKey === "string" && variantKey.trim().length > 0 ? variantKey : undefined;
       const resolvedVariantLabel = variantLabel ?? null;
+      const resolvedSelectionSummary = selectionSummary ?? null;
       const resolvedAttributes = Array.isArray(attributes) ? attributes : undefined;
       const resolvedInventoryStatus = inventoryStatus ?? "in-stock";
-
-      const snapshot: CartProductSnapshot = {
-        id: String(normalizedId),
-        productId: normalizedId,
+      const productPatch: Partial<CartProductSnapshot> = {
         mode: mode ?? (resolvedConfiguration ? "parametric" : undefined),
         variantId,
         variantKey: resolvedVariantKey,
         variantLabel: resolvedVariantLabel,
+        selectionSummary: resolvedSelectionSummary,
         slug: slug ?? String(normalizedId),
+        name,
+        thumbnail: imgUrl
+          ? {
+              id: String(normalizedId),
+              url: imgUrl
+            }
+          : undefined,
+        inventoryStatus: resolvedInventoryStatus,
+        attributes: resolvedAttributes,
+        configuration: resolvedConfiguration
+      };
+      const exists = items.some((item) => item.product.id === normalizedId);
+      if (exists) {
+        updateQuantity(normalizedId, nextQuantity, productPatch);
+        return;
+      }
+
+      const snapshot: CartProductSnapshot = {
+        id: String(normalizedId),
+        productId: normalizedId,
+        mode: productPatch.mode,
+        variantId,
+        variantKey: resolvedVariantKey,
+        variantLabel: resolvedVariantLabel,
+        selectionSummary: resolvedSelectionSummary,
+        slug: productPatch.slug ?? String(normalizedId),
         name,
         price: normalizeMoney({ amount: price, currency: resolvedCurrency }),
         salePrice:
@@ -185,8 +206,8 @@ export default function useCart(): UseCartReturn {
               url: imgUrl
             }
           : undefined,
-        inventoryStatus: resolvedInventoryStatus,
-        attributes: resolvedAttributes,
+        inventoryStatus: productPatch.inventoryStatus ?? resolvedInventoryStatus,
+        attributes: productPatch.attributes,
         configuration: resolvedConfiguration
       };
 

@@ -172,12 +172,6 @@ export default function ShopFilterPanel({
     let nextMin = sanitizedMin;
     let nextMax = sanitizedMax;
 
-    if (typeof nextMin === "number" && typeof priceBounds.min === "number") {
-      nextMin = Math.max(nextMin, priceBounds.min);
-    }
-    if (typeof nextMax === "number" && typeof priceBounds.max === "number") {
-      nextMax = Math.min(nextMax, priceBounds.max);
-    }
     if (typeof nextMin === "number" && typeof nextMax === "number" && nextMin > nextMax) {
       [nextMin, nextMax] = [nextMax, nextMin];
     }
@@ -186,7 +180,7 @@ export default function ShopFilterPanel({
       priceMin: typeof nextMin === "number" ? String(nextMin) : undefined,
       priceMax: typeof nextMax === "number" ? String(nextMax) : undefined
     });
-  }, [minValue, maxValue, priceBounds.max, priceBounds.min, updateQuery]);
+  }, [minValue, maxValue, updateQuery]);
 
   const handleClearFilters = useCallback(() => {
     updateQuery({ priceMin: undefined, priceMax: undefined, rating: undefined });

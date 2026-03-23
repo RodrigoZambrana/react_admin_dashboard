@@ -22,6 +22,7 @@ export interface CartProductSnapshot {
   variantId?: number;
   variantKey?: string;
   variantLabel?: string | null;
+  selectionSummary?: string | null;
   slug: string;
   name: string;
   thumbnail?: ProductSummary["thumbnail"];
@@ -51,7 +52,10 @@ type CartAction =
   | { type: "LOADED"; payload: CartState }
   | { type: "ADD_ITEM"; payload: { product: CartProductSnapshot; quantity: number } }
   | { type: "REMOVE_ITEM"; payload: { productId: number | string } }
-  | { type: "UPDATE_QUANTITY"; payload: { productId: number | string; quantity: number } }
+  | {
+      type: "UPDATE_QUANTITY";
+      payload: { productId: number | string; quantity: number; product?: Partial<CartProductSnapshot> };
+    }
   | { type: "CLEAR" };
 
 const initialState: CartState = {
@@ -127,6 +131,10 @@ const upgradeCartState = (state: CartState | null | undefined): UpgradedCartStat
         variantId,
         variantKey: typeof product.variantKey === "string" ? product.variantKey : undefined,
         variantLabel: product.variantLabel ?? null,
+        selectionSummary:
+          typeof (product as { selectionSummary?: unknown }).selectionSummary === "string"
+            ? ((product as { selectionSummary?: string }).selectionSummary ?? null)
+            : null,
         attributes: Array.isArray(product.attributes) ? product.attributes : undefined,
         configuration
       }
@@ -180,7 +188,20 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
           if (item.product.id !== action.payload.productId) return item;
           const nextQuantity = Math.max(0, action.payload.quantity);
           if (nextQuantity === 0) return null;
-          return { ...item, quantity: nextQuantity };
+          return {
+            ...item,
+            quantity: nextQuantity,
+            product: action.payload.product
+              ? {
+                  ...item.product,
+                  ...action.payload.product,
+                  configuration: action.payload.product.configuration ?? item.product.configuration,
+                  selectionSummary:
+                    action.payload.product.selectionSummary ?? item.product.selectionSummary,
+                  variantLabel: action.payload.product.variantLabel ?? item.product.variantLabel
+                }
+              : item.product
+          };
         })
         .filter(Boolean) as CartLineItem[];
       return { items: updatedItems, updatedAt: Date.now() };
@@ -197,7 +218,11 @@ const CartContext = createContext<{
   addItem: (product: ProductSummary, quantity?: number) => void;
   addItemSnapshot: (product: CartProductSnapshot, quantity?: number) => void;
   removeItem: (productId: number | string) => void;
-  updateQuantity: (productId: number | string, quantity: number) => void;
+  updateQuantity: (
+    productId: number | string,
+    quantity: number,
+    product?: Partial<CartProductSnapshot>
+  ) => void;
   clearCart: () => void;
   subtotal: Money;
 }>(
@@ -239,6 +264,10 @@ const snapshotProduct = (product: ProductSummary): CartProductSnapshot => {
     variantId,
     variantKey,
     variantLabel: product.variantLabel ?? null,
+    selectionSummary:
+      typeof (product as { selectionSummary?: unknown }).selectionSummary === "string"
+        ? ((product as { selectionSummary?: string }).selectionSummary ?? null)
+        : null,
     slug: product.slug,
     name: product.name,
     price: normalizeMoney(product.price),
@@ -319,10 +348,10 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
       dispatch({ type: "ADD_ITEM", payload: { product, quantity } });
       toast.success({
         title: "Producto agregado",
-        description: `${formatProductName(product)} se añadió al carrito.`
+        description: `${product.name} se añadió al carrito.`
       });
     },
-    [formatProductName, toast]
+    [toast]
   );
 
   const removeItem = useCallback(
@@ -340,10 +369,10 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
   );
 
   const updateQuantity = useCallback(
-    (productId: number | string, quantity: number) => {
+    (productId: number | string, quantity: number, product?: Partial<CartProductSnapshot>) => {
       const lineItem = stateRef.current.items.find((item) => item.product.id === productId);
       const previousQuantity = lineItem?.quantity ?? 0;
-      dispatch({ type: "UPDATE_QUANTITY", payload: { productId, quantity } });
+      dispatch({ type: "UPDATE_QUANTITY", payload: { productId, quantity, product } });
       if (quantity <= 0) {
         toast.info({
           title: "Producto eliminado",
