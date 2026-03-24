@@ -29,6 +29,7 @@ playwright-report/
 test-results/
 ecommerce/playwright-report/
 ecommerce/test-results/
+ecommerce/.cache/
 
 # Prisma
 backend/prisma/generated/
