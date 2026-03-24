@@ -342,7 +342,7 @@ export class NotificationOrchestratorService {
   }
 
   private buildOrderMetadata(order: any) {
-    const orderNumber = order.uuid ?? order.id
+    const orderNumber = this.resolveOrderIdentifier(order)
     const amount = order.grandTotal ? Number(order.grandTotal) : null
     const statusDefinition = findOrderStatusById(order.statusId ?? null)
     return {
@@ -362,7 +362,7 @@ export class NotificationOrchestratorService {
   }
 
   private buildPaymentMetadata(payment: any) {
-    const orderNumber = payment.order?.uuid ?? payment.orderId
+    const orderNumber = this.resolveOrderIdentifier(payment.order ?? { id: payment.orderId, uuid: null })
     const amount = payment.amount ? Number(payment.amount) : null
     const currency = payment.currency ?? payment.order?.orderCurrency ?? null
     const paymentMethod = findPaymentMethodById(payment.paymentMethodId ?? null)
@@ -381,6 +381,13 @@ export class NotificationOrchestratorService {
         [payment.order?.customer?.firstName, payment.order?.customer?.lastName].filter(Boolean).join(' ').trim() ??
         null,
     }
+  }
+
+  private resolveOrderIdentifier(order: { id?: number | string | null; uuid?: string | null }) {
+    if (typeof order?.uuid === 'string' && order.uuid.trim().length > 0) {
+      return order.uuid.trim()
+    }
+    return order?.id ?? ''
   }
 
   private buildNotificationMetadata(

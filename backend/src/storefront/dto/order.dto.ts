@@ -41,6 +41,26 @@ export class StorefrontAddressDto {
   @IsString()
   line2?: string
 
+  @IsOptional()
+  @IsString()
+  street?: string
+
+  @IsOptional()
+  @IsString()
+  number?: string
+
+  @IsOptional()
+  @IsString()
+  corner?: string
+
+  @IsOptional()
+  @IsString()
+  apartment?: string
+
+  @IsOptional()
+  @IsString()
+  comments?: string
+
   @IsString()
   city!: string
 

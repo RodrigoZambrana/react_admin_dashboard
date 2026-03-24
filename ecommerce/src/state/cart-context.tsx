@@ -7,11 +7,12 @@ import {
   useEffect,
   useMemo,
   useReducer,
-  useRef
+  useRef,
+  useState
 } from "react";
 
 import type { Money, ProductMode, ProductSummary, ProductVariantAttribute } from "@/types/storefront";
-import { isParametricCartLineId } from "@/lib/checkout/order-items";
+import { extractProductIdFromCartLineId, isParametricCartLineId } from "@/lib/checkout/order-items";
 import { normalizeMoney } from "@/lib/utils/format";
 import { useToast } from "@/contexts/ToastContext";
 
@@ -99,7 +100,7 @@ const upgradeCartState = (state: CartState | null | undefined): UpgradedCartStat
       normalizedLineId = `line-${Math.random().toString(36).slice(2)}`;
     }
     const normalizedProductId =
-      product.productId ?? legacyId ?? normalizedLineId;
+      product.productId ?? extractProductIdFromCartLineId(normalizedLineId) ?? legacyId ?? normalizedLineId;
     const variantIdValue =
       product.variantId !== undefined && product.variantId !== null
         ? Number(product.variantId)
@@ -215,6 +216,7 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
 
 const CartContext = createContext<{
   state: CartState;
+  isHydrated: boolean;
   addItem: (product: ProductSummary, quantity?: number) => void;
   addItemSnapshot: (product: CartProductSnapshot, quantity?: number) => void;
   removeItem: (productId: number | string) => void;
@@ -228,6 +230,7 @@ const CartContext = createContext<{
 }>(
   {
     state: initialState,
+    isHydrated: false,
     addItem: () => undefined,
     addItemSnapshot: () => undefined,
     removeItem: () => undefined,
@@ -281,12 +284,12 @@ const snapshotProduct = (product: ProductSummary): CartProductSnapshot => {
 
 export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(cartReducer, initialState);
+  const [isHydrated, setIsHydrated] = useState(false);
   const toast = useToast();
-  const isHydrated = useRef(false);
   const stateRef = useRef(state);
 
   useEffect(() => {
-    if (isHydrated.current) return;
+    if (isHydrated) return;
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -308,18 +311,18 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
     } catch (error) {
       console.warn("[cart] Failed to load cart from storage", error);
     } finally {
-      isHydrated.current = true;
+      setIsHydrated(true);
     }
-  }, [toast]);
+  }, [isHydrated, toast]);
 
   useEffect(() => {
-    if (!isHydrated.current) return;
+    if (!isHydrated) return;
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (error) {
       console.warn("[cart] Failed to persist cart to storage", error);
     }
-  }, [state]);
+  }, [isHydrated, state]);
 
   useEffect(() => {
     stateRef.current = state;
@@ -420,8 +423,17 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
   }, [state.items]);
 
   const value = useMemo(
-    () => ({ state, addItem, addItemSnapshot, removeItem, updateQuantity, clearCart, subtotal }),
-    [state, addItem, addItemSnapshot, removeItem, updateQuantity, clearCart, subtotal]
+    () => ({
+      state,
+      isHydrated,
+      addItem,
+      addItemSnapshot,
+      removeItem,
+      updateQuantity,
+      clearCart,
+      subtotal
+    }),
+    [state, isHydrated, addItem, addItemSnapshot, removeItem, updateQuantity, clearCart, subtotal]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

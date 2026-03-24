@@ -2,11 +2,32 @@ import { expect, type APIRequestContext } from "@playwright/test";
 
 import { storefrontApiBaseUrl } from "./env";
 import type { TestCustomer } from "./factories";
+import type { CreateOrderPayload } from "@/types/storefront";
 
 type ProductSummary = {
   id: number;
   slug: string;
   name: string;
+  mode?: string | null;
+};
+
+export type ProductDetailSummary = ProductSummary & {
+  price?: {
+    amount: number;
+    currency: string;
+  } | null;
+  publishedParametricOptions?: {
+    defaultConfiguration?: Record<string, unknown> | null;
+    defaultVariantKey?: string | null;
+  } | null;
+};
+
+export type ShippingOptionSummary = {
+  id: number;
+  name: string;
+  deliveryFees: number;
+  estimatedMin: number | null;
+  estimatedMax: number | null;
 };
 
 export async function registerCustomer(request: APIRequestContext, customer: TestCustomer) {
@@ -39,6 +60,68 @@ export async function fetchFirstCatalogProduct(request: APIRequestContext): Prom
   return {
     id: product.id,
     slug: product.slug,
-    name: product.name ?? product.slug
+    name: product.name ?? product.slug,
+    mode: product.mode ?? null
   };
+}
+
+export async function fetchProductDetail(
+  request: APIRequestContext,
+  slug: string
+): Promise<ProductDetailSummary> {
+  const response = await request.get(`${storefrontApiBaseUrl}/products/${slug}`);
+  expect(response.ok()).toBeTruthy();
+
+  const product = await response.json();
+  if (!product?.id || !product?.slug) {
+    throw new Error(`Storefront product detail did not return a usable payload for slug ${slug}.`);
+  }
+
+  return {
+    id: product.id,
+    slug: product.slug,
+    name: product.name ?? product.slug,
+    mode: product.mode ?? null,
+    price: product.price ?? null,
+    publishedParametricOptions: product.publishedParametricOptions ?? null
+  };
+}
+
+export async function previewCheckout(
+  request: APIRequestContext,
+  payload: CreateOrderPayload
+) {
+  const response = await request.post(`${storefrontApiBaseUrl}/checkout/preview`, {
+    data: payload
+  });
+  expect(response.ok()).toBeTruthy();
+  return response.json();
+}
+
+export async function listShippingOptions(request: APIRequestContext): Promise<ShippingOptionSummary[]> {
+  const response = await request.get(`${storefrontApiBaseUrl}/shipping-options`);
+  expect(response.ok()).toBeTruthy();
+  return response.json();
+}
+
+export async function createMercadoPagoPreference(
+  request: APIRequestContext,
+  payload: {
+    amount: number;
+    currency: string;
+    description?: string;
+    cartId?: string;
+    checkoutToken?: string;
+    payerEmail?: string;
+    successUrl?: string;
+    failureUrl?: string;
+    pendingUrl?: string;
+    checkoutSnapshot: CreateOrderPayload;
+  }
+) {
+  const response = await request.post(`${storefrontApiBaseUrl}/payments/mercadopago/preference`, {
+    data: payload
+  });
+  expect(response.ok()).toBeTruthy();
+  return response.json();
 }

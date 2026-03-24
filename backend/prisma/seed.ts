@@ -3,6 +3,8 @@ import {
   Prisma,
   EmailCategory,
   Role,
+  CmsEntryAssetType,
+  CmsEntryStatus,
   NotificationEventType,
   NotificationAudience,
   NotificationChannel,
@@ -701,6 +703,13 @@ async function seedCmsSections() {
       sortOrder: 0,
       isActive: true,
     },
+    {
+      key: 'HOME_HIGHLIGHTS',
+      name: 'Home Highlights',
+      description: 'Bloques editoriales destacados del home storefront.',
+      sortOrder: 10,
+      isActive: true,
+    },
   ]
 
   for (const section of defaults) {
@@ -717,6 +726,115 @@ async function seedCmsSections() {
   }
 }
 
+async function seedCmsEntries() {
+  const now = new Date()
+  const section = await prisma.cmsSection.findUnique({
+    where: { key: 'HOME_HIGHLIGHTS' },
+    select: { id: true },
+  })
+
+  if (!section) {
+    return
+  }
+
+  const defaults = [
+    {
+      slug: 'home-highlight-compra-segura',
+      title: 'Compra segura y asesorada',
+      subtitle: 'Acompanamiento comercial real',
+      description: 'Recibe ayuda para elegir la mejor opción antes de comprar y coordinar la entrega.',
+      priority: 30,
+      ctaLabel: 'Ver productos',
+      ctaUrl: '/shop',
+      thumbnailUrl: '/assets/images/stories/story-home-2.jpg',
+      assets: [
+        {
+          title: 'Compra segura y asesorada',
+          caption: 'Acompañamiento comercial y seguimiento durante todo el proceso.',
+          mediaType: CmsEntryAssetType.IMAGE,
+          mediaUrl: '/assets/images/stories/story-home-2.jpg',
+          posterUrl: '/assets/images/stories/story-home-2.jpg',
+          sortOrder: 0,
+        },
+      ],
+    },
+    {
+      slug: 'home-highlight-entrega-coordinada',
+      title: 'Entrega coordinada',
+      subtitle: 'Fechas claras y seguimiento',
+      description: 'Visualiza fechas estimadas y mantén el control del pedido desde tu cuenta.',
+      priority: 20,
+      ctaLabel: 'Conocer entregas',
+      ctaUrl: '/contact',
+      thumbnailUrl: '/assets/images/stories/story-home-3.jpg',
+      assets: [
+        {
+          title: 'Entrega coordinada',
+          caption: 'Planificación simple para entrega o instalación según el producto.',
+          mediaType: CmsEntryAssetType.IMAGE,
+          mediaUrl: '/assets/images/stories/story-home-3.jpg',
+          posterUrl: '/assets/images/stories/story-home-3.jpg',
+          sortOrder: 0,
+        },
+      ],
+    },
+  ]
+
+  for (const entry of defaults) {
+    const saved = await prisma.cmsEntry.upsert({
+      where: {
+        sectionId_locale_slug: {
+          sectionId: section.id,
+          locale: 'es',
+          slug: entry.slug,
+        },
+      },
+      update: {
+        title: entry.title,
+        subtitle: entry.subtitle,
+        description: entry.description,
+        status: CmsEntryStatus.PUBLISHED,
+        priority: entry.priority,
+        isActive: true,
+        publishedAt: now,
+        thumbnailUrl: entry.thumbnailUrl,
+        ctaLabel: entry.ctaLabel,
+        ctaUrl: entry.ctaUrl,
+      },
+      create: {
+        sectionId: section.id,
+        slug: entry.slug,
+        locale: 'es',
+        title: entry.title,
+        subtitle: entry.subtitle,
+        description: entry.description,
+        status: CmsEntryStatus.PUBLISHED,
+        priority: entry.priority,
+        isActive: true,
+        publishedAt: now,
+        thumbnailUrl: entry.thumbnailUrl,
+        ctaLabel: entry.ctaLabel,
+        ctaUrl: entry.ctaUrl,
+      },
+      select: { id: true },
+    })
+
+    await prisma.cmsEntryAsset.deleteMany({ where: { entryId: saved.id } })
+    await prisma.cmsEntryAsset.createMany({
+      data: entry.assets.map((asset) => ({
+        entryId: saved.id,
+        title: asset.title,
+        caption: asset.caption,
+        mediaType: asset.mediaType,
+        mediaUrl: asset.mediaUrl,
+        posterUrl: asset.posterUrl,
+        sortOrder: asset.sortOrder,
+        isActive: true,
+      })),
+    })
+  }
+}
+
 async function main() {
   await seedUruCortinasBaseline(prisma)
   const superAdmin = await seedSuperAdmin()
@@ -725,6 +843,7 @@ async function main() {
   await seedDefaultOrderStatuses()
   await seedEmailSettings()
   await seedCmsSections()
+  await seedCmsEntries()
 }
 
 main()

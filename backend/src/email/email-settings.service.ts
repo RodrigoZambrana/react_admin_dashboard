@@ -383,6 +383,7 @@ export class EmailSettingsService {
         website: null,
         addressLine1: null,
         addressLine2: null,
+        logo: null,
       }
     }
     return {
@@ -393,6 +394,7 @@ export class EmailSettingsService {
       website: profile.website,
       addressLine1: profile.addressLine1,
       addressLine2: profile.addressLine2,
+      logo: profile.logo,
     }
   }
 

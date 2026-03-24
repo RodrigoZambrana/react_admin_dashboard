@@ -56,6 +56,7 @@ describe('OrderPaymentSettlementService', () => {
       currency: 'UYU',
       status: PaymentStatus.CONFIRMED,
       method: 'Mercado Pago',
+      paymentMethodId: 1,
       type: PaymentType.BALANCE,
       date: new Date('2026-03-22T10:00:00.000Z'),
     })
@@ -64,6 +65,7 @@ describe('OrderPaymentSettlementService', () => {
         id: 42,
         statusId: 1,
         orderCurrency: 'UYU',
+        createdAt: new Date(Date.now() - 10 * 60 * 1000),
       })
       .mockResolvedValueOnce({
         statusId: 2,
@@ -112,6 +114,7 @@ describe('OrderPaymentSettlementService', () => {
       currency: 'UYU',
       status: PaymentStatus.REGISTERED,
       method: 'Mercado Pago',
+      paymentMethodId: 1,
       type: PaymentType.BALANCE,
       date: new Date('2026-03-22T10:00:00.000Z'),
     })
@@ -120,6 +123,7 @@ describe('OrderPaymentSettlementService', () => {
         id: 77,
         statusId: 1,
         orderCurrency: 'UYU',
+        createdAt: new Date(Date.now() - 10 * 60 * 1000),
       })
       .mockResolvedValueOnce({
         statusId: 1,
@@ -144,5 +148,84 @@ describe('OrderPaymentSettlementService', () => {
 
     expect(notifications.notifyPaymentReceived).not.toHaveBeenCalled()
     expect(notifications.notifyOrderStatusChanged).not.toHaveBeenCalled()
+  })
+
+  it('suppresses payment and status notifications when checkout and payment settle immediately together', async () => {
+    prisma.payment.findUnique.mockResolvedValue({
+      id: 11,
+      orderId: 88,
+      amount: decimal(331),
+      currency: 'USD',
+      status: PaymentStatus.CONFIRMED,
+      method: 'Mercado Pago',
+      paymentMethodId: 1,
+      type: PaymentType.BALANCE,
+      date: new Date(),
+    })
+    prisma.order.findUnique
+      .mockResolvedValueOnce({
+        id: 88,
+        statusId: 1,
+        orderCurrency: 'USD',
+        createdAt: new Date(),
+      })
+      .mockResolvedValueOnce({
+        statusId: 2,
+      })
+    prisma.payment.count.mockResolvedValue(0)
+    orderFinance.recalculateOrderFinancials.mockResolvedValue({
+      outstanding: decimal(0),
+      currency: 'USD',
+    })
+
+    const plan = await service.apply({
+      paymentId: 11,
+      previousPaymentStatus: PaymentStatus.REGISTERED,
+    })
+
+    expect(plan.notifyPaymentReceived).toBe(false)
+    expect(plan.notifyOrderStatusChanged).toBe(false)
+
+    await service.dispatch(plan)
+
+    expect(notifications.notifyPaymentReceived).not.toHaveBeenCalled()
+    expect(notifications.notifyOrderStatusChanged).not.toHaveBeenCalled()
+  })
+
+  it('does not suppress notifications for cash payments confirmed shortly after order creation', async () => {
+    prisma.payment.findUnique.mockResolvedValue({
+      id: 12,
+      orderId: 89,
+      amount: decimal(331),
+      currency: 'USD',
+      status: PaymentStatus.CONFIRMED,
+      method: 'Cash',
+      paymentMethodId: 2,
+      type: PaymentType.BALANCE,
+      date: new Date(),
+    })
+    prisma.order.findUnique
+      .mockResolvedValueOnce({
+        id: 89,
+        statusId: 1,
+        orderCurrency: 'USD',
+        createdAt: new Date(),
+      })
+      .mockResolvedValueOnce({
+        statusId: 2,
+      })
+    prisma.payment.count.mockResolvedValue(0)
+    orderFinance.recalculateOrderFinancials.mockResolvedValue({
+      outstanding: decimal(0),
+      currency: 'USD',
+    })
+
+    const plan = await service.apply({
+      paymentId: 12,
+      previousPaymentStatus: PaymentStatus.REGISTERED,
+    })
+
+    expect(plan.notifyPaymentReceived).toBe(true)
+    expect(plan.notifyOrderStatusChanged).toBe(true)
   })
 })

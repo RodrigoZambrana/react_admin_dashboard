@@ -46,6 +46,7 @@ import type {
   InventoryStatus,
   MoneyDto,
   OrderSummary,
+  PublicOrderSummary,
   ProductDetailDto,
   ProductSummaryDto,
   ProductAttributeTypeDto,
@@ -106,6 +107,8 @@ const INVENTORY_STATUS: Record<number, 'in-stock' | 'limited' | 'out-of-stock'> 
 }
 
 const CHECKOUT_UUID_PREFIX = 'storefront:checkout:'
+const PUBLIC_STOREFRONT_CACHE_TTL_MS = 60_000
+const PUBLIC_STOREFRONT_PRODUCTS_CACHE_TTL_MS = 30_000
 
 type PreparedCheckoutItemPricingSnapshot = {
   unitPrice: number
@@ -320,6 +323,7 @@ type OrderWithRelations = Prisma.OrderGetPayload<{
 type OrderIdentifierCandidate = { id: number; createdAt: Date; uuid: string | null }
 type CustomerWithAddresses = Customer & { addresses: CustomerAddress[]; status?: CustomerStatus | null }
 type OrderSummaryWithReference = OrderSummary & { reference: string }
+type PublicOrderSummaryWithReference = PublicOrderSummary & { reference: string }
 type WishlistWithItems = Prisma.WishlistGetPayload<{
   include: {
     items: {
@@ -361,9 +365,25 @@ type ProductWithVariants = Prisma.ProductGetPayload<{
   }
 }>
 
+type PublicOrderTimelineMetadata = Record<string, unknown> | null
+
+type CacheEntry<T> = {
+  value: T
+  expiresAt: number
+}
+
+const cloneCachedValue = <T>(value: T): T => {
+  const structuredCloneFn = (globalThis as { structuredClone?: <U>(input: U) => U }).structuredClone
+  if (typeof structuredCloneFn === 'function') {
+    return structuredCloneFn(value)
+  }
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
 @Injectable()
 export class StorefrontService implements OnModuleInit {
   private readonly logger = new Logger(StorefrontService.name)
+  private readonly publicCache = new Map<string, CacheEntry<unknown>>()
 
   constructor(
     private readonly prisma: PrismaService,
@@ -387,6 +407,35 @@ export class StorefrontService implements OnModuleInit {
   private defaultCustomerPasswordHash!: string
   private readonly companySingletonKey = 'default'
   private readonly snapshotFallbackConfigKey = 'storefront:snapshotFallbackEnabled'
+
+  private readPublicCache<T>(key: string): T | null {
+    const entry = this.publicCache.get(key)
+    if (!entry) {
+      return null
+    }
+    if (entry.expiresAt <= Date.now()) {
+      this.publicCache.delete(key)
+      return null
+    }
+    return cloneCachedValue(entry.value as T)
+  }
+
+  private writePublicCache<T>(key: string, value: T, ttlMs: number): T {
+    this.publicCache.set(key, {
+      value: cloneCachedValue(value),
+      expiresAt: Date.now() + ttlMs,
+    })
+    return cloneCachedValue(value)
+  }
+
+  private async getOrSetPublicCache<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
+    const cached = this.readPublicCache<T>(key)
+    if (cached !== null) {
+      return cached
+    }
+    const value = await loader()
+    return this.writePublicCache(key, value, ttlMs)
+  }
 
   private normalizeConfigString(value: unknown): string {
     if (value === null || value === undefined) {
@@ -1113,120 +1162,128 @@ export class StorefrontService implements OnModuleInit {
   }
 
   async getConfig(): Promise<StorefrontConfig> {
-    const configRow = await this.prisma.systemConfig.findUnique({ where: { key: 'storefront:config' } })
-    let overrides: Record<string, unknown> = {}
-    if (configRow?.value) {
-      try {
-        overrides = JSON.parse(configRow.value)
-      } catch (error) {
-        overrides = {}
+    return this.getOrSetPublicCache('storefront:config', PUBLIC_STOREFRONT_CACHE_TTL_MS, async () => {
+      const configRow = await this.prisma.systemConfig.findUnique({ where: { key: 'storefront:config' } })
+      let overrides: Record<string, unknown> = {}
+      if (configRow?.value) {
+        try {
+          overrides = JSON.parse(configRow.value)
+        } catch (error) {
+          overrides = {}
+        }
       }
-    }
-    const merged = mergeDeep(DEFAULT_STOREFRONT_CONFIG, overrides)
-    const snapshotFallbackRecord = await this.prisma.systemConfig.findUnique({
-      where: { key: this.snapshotFallbackConfigKey },
-    })
-    const snapshotFallbackEnabled = snapshotFallbackRecord?.value === 'false' ? false : true
-    const layouts = Array.isArray(merged.layouts) && merged.layouts.length > 0 ? merged.layouts : DEFAULT_HOME_LAYOUTS
-    const defaultLayout = layouts.some((layout) => layout.key === merged.defaultLayout) ? merged.defaultLayout : FALLBACK_LAYOUT_KEY
-
-    let companyProfile: StorefrontConfig['companyProfile'] = merged.companyProfile ?? null
-    const hasCompanyProfileOverride = Object.prototype.hasOwnProperty.call(overrides, 'companyProfile')
-
-    if (!hasCompanyProfileOverride) {
-      const record = await this.prisma.companyProfile.findUnique({
-        where: { singleton: this.companySingletonKey },
+      const merged = mergeDeep(DEFAULT_STOREFRONT_CONFIG, overrides)
+      const snapshotFallbackRecord = await this.prisma.systemConfig.findUnique({
+        where: { key: this.snapshotFallbackConfigKey },
       })
-      const resolved = this.mapCompanyProfile(record)
-      companyProfile = resolved ?? companyProfile
-    }
+      const snapshotFallbackEnabled = snapshotFallbackRecord?.value === 'false' ? false : true
+      const layouts = Array.isArray(merged.layouts) && merged.layouts.length > 0 ? merged.layouts : DEFAULT_HOME_LAYOUTS
+      const defaultLayout = layouts.some((layout) => layout.key === merged.defaultLayout)
+        ? merged.defaultLayout
+        : FALLBACK_LAYOUT_KEY
 
-    const paymentInfo = await this.mercadoPago.getPublicConfig()
-    const payments =
-      paymentInfo.enabled || paymentInfo.publicKey || paymentInfo.country
-        ? {
-            mercadopago: {
-              enabled: paymentInfo.enabled,
-              publicKey: paymentInfo.publicKey,
-              country: paymentInfo.country,
-              updatedAt: paymentInfo.updatedAt ? paymentInfo.updatedAt.toISOString() : null,
-            },
-          }
-        : {
-            mercadopago: null,
-          }
+      let companyProfile: StorefrontConfig['companyProfile'] = merged.companyProfile ?? null
+      const hasCompanyProfileOverride = Object.prototype.hasOwnProperty.call(overrides, 'companyProfile')
 
-    const googleIntegration = await this.googleConfig.getEffectiveConfig()
-    const storefrontGoogleEnabled =
-      googleIntegration.google.enabled &&
-      googleIntegration.google.storefrontEnabled &&
-      Boolean(googleIntegration.google.clientId) &&
-      Boolean(googleIntegration.google.clientSecret) &&
-      Boolean(googleIntegration.google.redirectUri)
-    const storefrontRecaptchaEnabled =
-      googleIntegration.recaptcha.storefront.enabled &&
-      Boolean(googleIntegration.recaptcha.storefront.siteKey)
+      if (!hasCompanyProfileOverride) {
+        const record = await this.prisma.companyProfile.findUnique({
+          where: { singleton: this.companySingletonKey },
+        })
+        const resolved = this.mapCompanyProfile(record)
+        companyProfile = resolved ?? companyProfile
+      }
 
-    const integrations = {
-      google: {
-        enabled: storefrontGoogleEnabled,
-      },
-      recaptcha: {
-        enabled: storefrontRecaptchaEnabled,
-        siteKey: storefrontRecaptchaEnabled ? googleIntegration.recaptcha.storefront.siteKey : null,
-      },
-    }
+      const paymentInfo = await this.mercadoPago.getPublicConfig()
+      const payments =
+        paymentInfo.enabled || paymentInfo.publicKey || paymentInfo.country
+          ? {
+              mercadopago: {
+                enabled: paymentInfo.enabled,
+                publicKey: paymentInfo.publicKey,
+                country: paymentInfo.country,
+                updatedAt: paymentInfo.updatedAt ? paymentInfo.updatedAt.toISOString() : null,
+              },
+            }
+          : {
+              mercadopago: null,
+            }
 
-    const mergedResilienceFlag =
-      typeof merged.resilience?.snapshotFallbackEnabled === 'boolean'
-        ? merged.resilience.snapshotFallbackEnabled
-        : true
+      const googleIntegration = await this.googleConfig.getEffectiveConfig()
+      const storefrontGoogleEnabled =
+        googleIntegration.google.enabled &&
+        googleIntegration.google.storefrontEnabled &&
+        Boolean(googleIntegration.google.clientId) &&
+        Boolean(googleIntegration.google.clientSecret) &&
+        Boolean(googleIntegration.google.redirectUri)
+      const storefrontRecaptchaEnabled =
+        googleIntegration.recaptcha.storefront.enabled &&
+        Boolean(googleIntegration.recaptcha.storefront.siteKey)
 
-    const resilience = {
-      snapshotFallbackEnabled: Boolean(mergedResilienceFlag) && snapshotFallbackEnabled,
-    }
+      const integrations = {
+        google: {
+          enabled: storefrontGoogleEnabled,
+        },
+        recaptcha: {
+          enabled: storefrontRecaptchaEnabled,
+          siteKey: storefrontRecaptchaEnabled ? googleIntegration.recaptcha.storefront.siteKey : null,
+        },
+      }
 
-    return {
-      ...merged,
-      layouts,
-      defaultLayout,
-      companyProfile,
-      payments,
-      integrations,
-      resilience,
-    }
+      const mergedResilienceFlag =
+        typeof merged.resilience?.snapshotFallbackEnabled === 'boolean'
+          ? merged.resilience.snapshotFallbackEnabled
+          : true
+
+      const resilience = {
+        snapshotFallbackEnabled: Boolean(mergedResilienceFlag) && snapshotFallbackEnabled,
+      }
+
+      return {
+        ...merged,
+        layouts,
+        defaultLayout,
+        companyProfile,
+        payments,
+        integrations,
+        resilience,
+      }
+    })
   }
 
   async listShippingOptions(): Promise<StorefrontShippingOptionDto[]> {
-    const rows = await this.prisma.shippingOption.findMany({
-      orderBy: { id: 'asc' },
-    })
+    return this.getOrSetPublicCache('storefront:shipping-options', PUBLIC_STOREFRONT_CACHE_TTL_MS, async () => {
+      const rows = await this.prisma.shippingOption.findMany({
+        orderBy: { id: 'asc' },
+      })
 
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      deliveryFees: Number(row.deliveryFees ?? 0),
-      estimatedMin: row.estimatedMin ?? null,
-      estimatedMax: row.estimatedMax ?? null,
-      img: row.img ?? null,
-    }))
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        deliveryFees: Number(row.deliveryFees ?? 0),
+        estimatedMin: row.estimatedMin ?? null,
+        estimatedMax: row.estimatedMax ?? null,
+        img: row.img ?? null,
+      }))
+    })
   }
 
   async getCurrencySettings() {
-    const enabledCurrencies = await this.currencyConversion.getEnabledCurrencies()
-    const snapshot = await this.currencyConversion.buildRatesSnapshot(enabledCurrencies)
-    const rates: Record<string, number> = {}
-    for (const [currency, rate] of Object.entries(snapshot.rates)) {
-      rates[currency] = Number(rate)
-    }
-    const uniqueCurrencies = Array.from(new Set([snapshot.base, ...enabledCurrencies]))
+    return this.getOrSetPublicCache('storefront:currency-settings', PUBLIC_STOREFRONT_CACHE_TTL_MS, async () => {
+      const enabledCurrencies = await this.currencyConversion.getEnabledCurrencies()
+      const snapshot = await this.currencyConversion.buildRatesSnapshot(enabledCurrencies)
+      const rates: Record<string, number> = {}
+      for (const [currency, rate] of Object.entries(snapshot.rates)) {
+        rates[currency] = Number(rate)
+      }
+      const uniqueCurrencies = Array.from(new Set([snapshot.base, ...enabledCurrencies]))
 
-    return {
-      baseCurrency: snapshot.base,
-      enabledCurrencies: uniqueCurrencies,
-      rates,
-      generatedAt: snapshot.generatedAt,
-    }
+      return {
+        baseCurrency: snapshot.base,
+        enabledCurrencies: uniqueCurrencies,
+        rates,
+        generatedAt: snapshot.generatedAt,
+      }
+    })
   }
 
   async getHomeLayout(key: string): Promise<HomeLayoutDefinition> {
@@ -1240,45 +1297,47 @@ export class StorefrontService implements OnModuleInit {
   }
 
   async listCategories(): Promise<StorefrontCategoryTree[]> {
-    const categories = await this.prisma.productCategory.findMany({
-      orderBy: [{ parentId: 'asc' }, { name: 'asc' }],
-      include: { _count: { select: { products: true } } },
-    })
-    const nodes = new Map<number, StorefrontCategoryTree>()
-    for (const category of categories) {
-      const imageUrl = category.image ? String(category.image).trim() : null
-      const productCount =
-        category._count.products - (category.installServiceProductId ? 1 : 0)
-      nodes.set(category.id, {
-        id: category.id,
-        slug: buildCategorySlug(category.id, category.name),
-        name: category.name,
-        description: category.description ?? null,
-        thumbnail: imageUrl
-          ? { id: `category-${category.id}`, url: imageUrl, alt: category.name }
-          : null,
-        productCount: Math.max(0, productCount),
-        parentId: category.parentId ?? null,
-        children: [],
+    return this.getOrSetPublicCache('storefront:categories', PUBLIC_STOREFRONT_CACHE_TTL_MS, async () => {
+      const categories = await this.prisma.productCategory.findMany({
+        orderBy: [{ parentId: 'asc' }, { name: 'asc' }],
+        include: { _count: { select: { products: true } } },
       })
-    }
-
-    const roots: StorefrontCategoryTree[] = []
-    for (const node of nodes.values()) {
-      if (node.parentId !== null && nodes.has(node.parentId)) {
-        nodes.get(node.parentId)!.children.push(node)
-      } else {
-        roots.push(node)
+      const nodes = new Map<number, StorefrontCategoryTree>()
+      for (const category of categories) {
+        const imageUrl = category.image ? String(category.image).trim() : null
+        const productCount =
+          category._count.products - (category.installServiceProductId ? 1 : 0)
+        nodes.set(category.id, {
+          id: category.id,
+          slug: buildCategorySlug(category.id, category.name),
+          name: category.name,
+          description: category.description ?? null,
+          thumbnail: imageUrl
+            ? { id: `category-${category.id}`, url: imageUrl, alt: category.name }
+            : null,
+          productCount: Math.max(0, productCount),
+          parentId: category.parentId ?? null,
+          children: [],
+        })
       }
-    }
 
-    const sortTree = (branch: StorefrontCategoryTree[]) => {
-      branch.sort((a, b) => a.name.localeCompare(b.name))
-      branch.forEach((child) => sortTree(child.children))
-    }
+      const roots: StorefrontCategoryTree[] = []
+      for (const node of nodes.values()) {
+        if (node.parentId !== null && nodes.has(node.parentId)) {
+          nodes.get(node.parentId)!.children.push(node)
+        } else {
+          roots.push(node)
+        }
+      }
 
-    sortTree(roots)
-    return roots
+      const sortTree = (branch: StorefrontCategoryTree[]) => {
+        branch.sort((a, b) => a.name.localeCompare(b.name))
+        branch.forEach((child) => sortTree(child.children))
+      }
+
+      sortTree(roots)
+      return roots
+    })
   }
 
   private async collectCategoryHierarchyIds(categoryId: number): Promise<number[]> {
@@ -1449,88 +1508,115 @@ export class StorefrontService implements OnModuleInit {
   async listProducts(query: StorefrontProductQueryDto) {
     const page = parsePositiveInt(query.page, 1)
     const pageSize = Math.min(parsePositiveInt(query.pageSize, 12), 48)
-    const where: Prisma.ProductWhereInput = { published: true, productType: ProductType.PHYSICAL }
-
-    if (query.category) {
-      const trimmed = query.category.trim()
-      const categoryIds = await this.resolveCategoryHierarchyIds(trimmed)
-      if (categoryIds && categoryIds.length > 0) {
-        where.categoryId = categoryIds.length === 1 ? categoryIds[0] : { in: categoryIds }
-      } else {
-        const normalized = trimmed.toLowerCase()
-        where.category = {
-          OR: [
-            { name: { equals: normalized, mode: 'insensitive' } },
-            { name: { equals: trimmed, mode: 'insensitive' } },
-          ],
-        }
-      }
-    }
-
-    if (query.search) {
-      const term = query.search.trim()
-      where.OR = [
-        { name: { contains: term, mode: 'insensitive' } },
-        { description: { contains: term, mode: 'insensitive' } },
-        { productCode: { contains: term, mode: 'insensitive' } },
-      ]
-    }
-
-    if (query.tag) {
-      where.tags = { has: query.tag }
-    }
-
-    const orderBy: Prisma.ProductOrderByWithRelationInput[] = []
-    switch (query.sort) {
-      case 'price-asc':
-        orderBy.push({ salePrice: 'asc' })
-        break
-      case 'price-desc':
-        orderBy.push({ salePrice: 'desc' })
-        break
-      case 'newest':
-        orderBy.push({ createdAt: 'desc' })
-        break
-      default:
-        orderBy.push({ name: 'asc' })
-        break
-    }
-
-    const [total, products] = await this.prisma.$transaction([
-      this.prisma.product.count({ where }),
-      this.prisma.product.findMany({
-        where,
-        orderBy,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: {
-          images: {
-            where: { variantId: null },
-            orderBy: { sortOrder: 'asc' },
-          },
-          category: true,
-        },
-      }),
-    ])
-
-    const publishedParametricDefinitions = await this.resolvePublishedParametricDefinitions(products)
-    const data = products.map((product) =>
-      this.toProductSummary(product, publishedParametricDefinitions.get(product.id) ?? null),
-    )
-    const totalPages = Math.max(1, Math.ceil(total / pageSize))
-
-    return {
-      data,
-      total,
+    const cacheKey = `storefront:products:${JSON.stringify({
       page,
       pageSize,
-      totalPages,
-    }
+      category: query.category?.trim() ?? null,
+      search: query.search?.trim() ?? null,
+      sort: query.sort ?? null,
+      tag: query.tag ?? null,
+    })}`
+
+    return this.getOrSetPublicCache(cacheKey, PUBLIC_STOREFRONT_PRODUCTS_CACHE_TTL_MS, async () => {
+      const where: Prisma.ProductWhereInput = { published: true, productType: ProductType.PHYSICAL }
+
+      if (query.category) {
+        const trimmed = query.category.trim()
+        const categoryIds = await this.resolveCategoryHierarchyIds(trimmed)
+        if (categoryIds && categoryIds.length > 0) {
+          where.categoryId = categoryIds.length === 1 ? categoryIds[0] : { in: categoryIds }
+        } else {
+          const normalized = trimmed.toLowerCase()
+          where.category = {
+            OR: [
+              { name: { equals: normalized, mode: 'insensitive' } },
+              { name: { equals: trimmed, mode: 'insensitive' } },
+            ],
+          }
+        }
+      }
+
+      if (query.search) {
+        const term = query.search.trim()
+        where.OR = [
+          { name: { contains: term, mode: 'insensitive' } },
+          { description: { contains: term, mode: 'insensitive' } },
+          { productCode: { contains: term, mode: 'insensitive' } },
+        ]
+      }
+
+      if (query.tag) {
+        where.tags = { has: query.tag }
+      }
+
+      const orderBy: Prisma.ProductOrderByWithRelationInput[] = []
+      switch (query.sort) {
+        case 'price-asc':
+          orderBy.push({ salePrice: 'asc' })
+          break
+        case 'price-desc':
+          orderBy.push({ salePrice: 'desc' })
+          break
+        case 'newest':
+          orderBy.push({ createdAt: 'desc' })
+          break
+        default:
+          orderBy.push({ name: 'asc' })
+          break
+      }
+
+      const [total, products] = await this.prisma.$transaction([
+        this.prisma.product.count({ where }),
+        this.prisma.product.findMany({
+          where,
+          orderBy,
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          include: {
+            images: {
+              where: { variantId: null },
+              orderBy: { sortOrder: 'asc' },
+            },
+            category: true,
+          },
+        }),
+      ])
+
+      const publishedParametricDefinitions = await this.resolvePublishedParametricDefinitions(products)
+      const data = products.map((product) =>
+        this.toProductSummary(product, publishedParametricDefinitions.get(product.id) ?? null),
+      )
+      const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+      return {
+        data,
+        total,
+        page,
+        pageSize,
+        totalPages,
+      }
+    })
   }
 
   async getContentSection(key: string, locale = 'es'): Promise<CmsContentSectionDto> {
-    const section = await this.cms.getPublicSectionByKey(key, locale)
+    return this.getOrSetPublicCache(
+      `storefront:content-section:${locale}:${key.trim().toUpperCase()}`,
+      PUBLIC_STOREFRONT_CACHE_TTL_MS,
+      async () => {
+        const section = await this.cms.getPublicSectionByKey(key, locale)
+        return this.mapCmsContentSection(section)
+      },
+    )
+  }
 
+  async listContentSections(locale = 'es'): Promise<CmsContentSectionDto[]> {
+    return this.getOrSetPublicCache(`storefront:content-sections:${locale}`, PUBLIC_STOREFRONT_CACHE_TTL_MS, async () => {
+      const sections = await this.cms.listPublicSections(locale)
+      return sections.map((section) => this.mapCmsContentSection(section))
+    })
+  }
+
+  private mapCmsContentSection(section: any): CmsContentSectionDto {
     const entries: CmsContentEntryDto[] = section.entries.map((entry) => {
       const primaryAsset = entry.assets[0] ?? null
       const thumbnail = entry.thumbnailUrl
@@ -1616,59 +1702,110 @@ export class StorefrontService implements OnModuleInit {
   }
 
   async getProduct(identifier: string): Promise<ProductDetailDto> {
-    const resolvedProductId = await this.resolveStorefrontProductIdByIdentifier(identifier)
-    if (!resolvedProductId) {
-      throw new NotFoundException('Product not found')
-    }
+    return this.getOrSetPublicCache(
+      `storefront:product:${identifier.trim().toLowerCase()}`,
+      PUBLIC_STOREFRONT_PRODUCTS_CACHE_TTL_MS,
+      async () => {
+        const resolvedProductId = await this.resolveStorefrontProductIdByIdentifier(identifier)
+        if (!resolvedProductId) {
+          throw new NotFoundException('Product not found')
+        }
 
-    const where: Prisma.ProductWhereInput = {
-      id: resolvedProductId,
-      published: true,
-      productType: ProductType.PHYSICAL,
-    }
+        const where: Prisma.ProductWhereInput = {
+          id: resolvedProductId,
+          published: true,
+          productType: ProductType.PHYSICAL,
+        }
 
-    let product: ProductWithVariants | null = null
+        let product: ProductWithVariants | null = null
 
-    try {
-      product = (await this.prisma.product.findFirst({
-        where,
-        include: {
-          images: {
-            where: { variantId: null },
-            orderBy: { sortOrder: 'asc' },
-          },
-          category: true,
-          options: {
-            include: {
-              values: {
-                orderBy: { sortOrder: 'asc' },
-              },
-            },
-            orderBy: { sortOrder: 'asc' },
-          },
-          variants: {
+        try {
+          product = (await this.prisma.product.findFirst({
+            where,
             include: {
               images: {
+                where: { variantId: null },
                 orderBy: { sortOrder: 'asc' },
               },
-              selections: {
+              category: true,
+              options: {
                 include: {
-                  optionValue: {
+                  values: {
+                    orderBy: { sortOrder: 'asc' },
+                  },
+                },
+                orderBy: { sortOrder: 'asc' },
+              },
+              variants: {
+                include: {
+                  images: {
+                    orderBy: { sortOrder: 'asc' },
+                  },
+                  selections: {
                     include: {
-                      option: true,
+                      optionValue: {
+                        include: {
+                          option: true,
+                        },
+                      },
                     },
                   },
                 },
+                orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
               },
             },
-            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          })) as ProductWithVariants | null
+        } catch (error) {
+          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2021') {
+            const minimal = await this.prisma.product.findFirst({
+              where,
+              include: {
+                images: {
+                  where: { variantId: null },
+                  orderBy: { sortOrder: 'asc' },
+                },
+                category: true,
+              },
+            })
+
+            if (minimal) {
+              this.logger.warn(
+                `[storefront] Product option/variant tables missing; returning simplified product for identifier "${identifier}".`,
+              )
+              product = {
+                ...minimal,
+                options: [] as ProductWithVariants['options'],
+                variants: [] as ProductWithVariants['variants'],
+              } as ProductWithVariants
+            }
+          } else {
+            throw error
+          }
+        }
+
+        if (!product) {
+          throw new NotFoundException('Product not found')
+        }
+
+        const publishedParametricDefinition =
+          product.mode === ProductMode.PARAMETRIC
+            ? await this.publishedProductResolver.resolvePublishedParametricProduct(
+                product.id,
+                product.currency,
+                product.salePrice,
+              )
+            : null
+        const detail = this.toProductDetail(product, publishedParametricDefinition)
+
+        const related = await this.prisma.product.findMany({
+          where: {
+            published: true,
+            id: { not: product.id },
+            categoryId: product.categoryId ?? undefined,
+            productType: ProductType.PHYSICAL,
           },
-        },
-      })) as ProductWithVariants | null
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2021') {
-        const minimal = await this.prisma.product.findFirst({
-          where,
+          orderBy: { createdAt: 'desc' },
+          take: 8,
           include: {
             images: {
               where: { variantId: null },
@@ -1678,90 +1815,51 @@ export class StorefrontService implements OnModuleInit {
           },
         })
 
-        if (minimal) {
-          this.logger.warn(
-            `[storefront] Product option/variant tables missing; returning simplified product for identifier "${identifier}".`,
-          )
-          product = {
-            ...minimal,
-            options: [] as ProductWithVariants['options'],
-            variants: [] as ProductWithVariants['variants'],
-          } as ProductWithVariants
-        }
-      } else {
-        throw error
-      }
-    }
-
-    if (!product) {
-      throw new NotFoundException('Product not found')
-    }
-
-    const publishedParametricDefinition =
-      product.mode === ProductMode.PARAMETRIC
-        ? await this.publishedProductResolver.resolvePublishedParametricProduct(
-            product.id,
-            product.currency,
-            product.salePrice,
-          )
-        : null
-    const detail = this.toProductDetail(product, publishedParametricDefinition)
-
-    const related = await this.prisma.product.findMany({
-      where: {
-        published: true,
-        id: { not: product.id },
-        categoryId: product.categoryId ?? undefined,
-        productType: ProductType.PHYSICAL,
+        const relatedPublishedDefinitions = await this.resolvePublishedParametricDefinitions(related)
+        detail.relatedProducts = related.map((item) =>
+          this.toProductSummary(item, relatedPublishedDefinitions.get(item.id) ?? null),
+        )
+        return detail
       },
-      orderBy: { createdAt: 'desc' },
-      take: 8,
-      include: {
-        images: {
-          where: { variantId: null },
-          orderBy: { sortOrder: 'asc' },
-        },
-        category: true,
-      },
-    })
-
-    const relatedPublishedDefinitions = await this.resolvePublishedParametricDefinitions(related)
-    detail.relatedProducts = related.map((item) =>
-      this.toProductSummary(item, relatedPublishedDefinitions.get(item.id) ?? null),
     )
-    return detail
   }
 
   async getRecommendations(productId: number, limit = 8): Promise<ProductSummaryDto[]> {
-    const product = await this.prisma.product.findUnique({
-      where: { id: productId },
-      include: {
-        category: true,
-      },
-    })
-    if (!product || product.productType !== ProductType.PHYSICAL) {
-      throw new NotFoundException('Product not found')
-    }
+    return this.getOrSetPublicCache(
+      `storefront:recommendations:${productId}:${Math.max(1, limit)}`,
+      PUBLIC_STOREFRONT_PRODUCTS_CACHE_TTL_MS,
+      async () => {
+        const product = await this.prisma.product.findUnique({
+          where: { id: productId },
+          include: {
+            category: true,
+          },
+        })
+        if (!product || product.productType !== ProductType.PHYSICAL) {
+          throw new NotFoundException('Product not found')
+        }
 
-    const items = await this.prisma.product.findMany({
-      where: {
-        published: true,
-        id: { not: product.id },
-        categoryId: product.categoryId ?? undefined,
-        productType: ProductType.PHYSICAL,
+        const items = await this.prisma.product.findMany({
+          where: {
+            published: true,
+            id: { not: product.id },
+            categoryId: product.categoryId ?? undefined,
+            productType: ProductType.PHYSICAL,
+          },
+          take: limit,
+          include: {
+            images: {
+              where: { variantId: null },
+              orderBy: { sortOrder: 'asc' },
+            },
+            category: true,
+          },
+        })
+        const publishedParametricDefinitions = await this.resolvePublishedParametricDefinitions(items)
+        return items.map((item) =>
+          this.toProductSummary(item, publishedParametricDefinitions.get(item.id) ?? null),
+        )
       },
-      take: limit,
-      include: {
-        images: {
-          where: { variantId: null },
-          orderBy: { sortOrder: 'asc' },
-        },
-        category: true,
-      },
-    })
-    const publishedParametricDefinitions = await this.resolvePublishedParametricDefinitions(items)
-    return items.map((item) =>
-      this.toProductSummary(item, publishedParametricDefinitions.get(item.id) ?? null),
     )
   }
 
@@ -3044,7 +3142,7 @@ export class StorefrontService implements OnModuleInit {
     return this.toCustomerProfile(updated, wishlistSummary)
   }
 
-  async listCustomerOrders(customerId: number): Promise<OrderSummaryWithReference[]> {
+  async listCustomerOrders(customerId: number): Promise<PublicOrderSummaryWithReference[]> {
     const orders = await this.prisma.order.findMany({
       where: {
         customerId,
@@ -3058,10 +3156,13 @@ export class StorefrontService implements OnModuleInit {
       },
     })
 
-    return orders.map((order) => this.toOrderSummary(order))
+    return orders.map((order) => this.toPublicOrderSummary(this.toOrderSummary(order)))
   }
 
-  async getCustomerOrder(customerId: number, identifier: string): Promise<OrderSummaryWithReference> {
+  async getCustomerOrder(
+    customerId: number,
+    identifier: string,
+  ): Promise<PublicOrderSummaryWithReference> {
     const orderId = await this.resolveCustomerOrderId(customerId, identifier)
     const order = await this.prisma.order.findFirst({
       where: {
@@ -3080,7 +3181,22 @@ export class StorefrontService implements OnModuleInit {
       throw new NotFoundException('Order not found')
     }
 
-    return this.toOrderSummary(order)
+    return this.toPublicOrderSummary(this.toOrderSummary(order))
+  }
+
+  async getPublicOrderReferenceById(
+    orderId: number,
+  ): Promise<Pick<PublicOrderSummaryWithReference, 'uuid' | 'orderNumber' | 'reference'> | null> {
+    const summary = await this.loadOrderSummaryById(orderId)
+    if (!summary) {
+      return null
+    }
+    const publicSummary = this.toPublicOrderSummary(summary)
+    return {
+      uuid: publicSummary.uuid,
+      orderNumber: publicSummary.orderNumber,
+      reference: publicSummary.reference,
+    }
   }
 
   async getCustomerOrderTimeline(customerId: number, identifier: string) {
@@ -3272,11 +3388,13 @@ export class StorefrontService implements OnModuleInit {
       }
     }
 
+    const publicOrderIdentifier = order.uuid?.trim() || this.buildOrderNumber(order)
+
     return {
       order: {
-        id: order.id,
-        customerId: order.customerId,
-        statusId: order.statusId,
+        uuid: order.uuid,
+        orderNumber: this.buildOrderNumber(order),
+        reference: this.buildOrderNumber(order),
         createdAt: order.createdAt.toISOString(),
         updatedAt: order.updatedAt.toISOString(),
         date: order.date.toISOString(),
@@ -3284,8 +3402,16 @@ export class StorefrontService implements OnModuleInit {
         orderCurrency: order.orderCurrency,
         estimatedMin: order.estimatedMin,
         estimatedMax: order.estimatedMax,
+        status: findOrderStatusById(order.statusId ?? null)?.code ?? 'pending',
+        statusLabel: findOrderStatusById(order.statusId ?? null)?.label ?? 'Pendiente',
+        paymentStatus,
+        paymentStatusLabel: resolvePaymentStatusMeta(paymentStatus).label,
+        paymentStatusColor: resolvePaymentStatusMeta(paymentStatus).color,
+        paymentStatusBadgeColor: resolvePaymentStatusMeta(paymentStatus).badge,
+        fulfillmentStatus: findOrderStatusById(order.statusId ?? null)?.code ?? 'pending',
+        fulfillmentStatusLabel: findOrderStatusById(order.statusId ?? null)?.label ?? 'Pendiente',
       },
-      events,
+      events: events.map((event) => this.toPublicOrderTimelineEvent(event, publicOrderIdentifier)),
     }
   }
 
@@ -3460,7 +3586,6 @@ export class StorefrontService implements OnModuleInit {
     const summary: ProductSummaryDto = {
       id: product.id,
       slug: buildProductSlug(product.id, product.name, product.productCode ?? undefined),
-      sku: product.productCode,
       name: product.name,
       shortDescription: product.description,
       price: money(resolvedSalePrice, resolvedCurrency),
@@ -3594,8 +3719,6 @@ export class StorefrontService implements OnModuleInit {
       return {
         id: variant.id,
         key: variant.key,
-        sku: variant.sku ?? null,
-        barcode: variant.barcode ?? null,
         isActive: variant.isActive,
         price: money(variantSalePrice, product.currency ?? 'USD'),
         stock: variantStock,
@@ -3651,18 +3774,11 @@ export class StorefrontService implements OnModuleInit {
     }
   }
 
-  private buildOrderNumber(orderId: number): string {
-    return `ORD-${orderId.toString().padStart(6, '0')}`
-  }
-
-  private buildOrderReference(order: OrderIdentifierCandidate): string {
-    const hash = createHash('sha1')
-      .update(`storefront-order:${order.id}:${order.createdAt.toISOString()}`)
-      .digest('hex')
-    return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(
-      20,
-      32,
-    )}`
+  private buildOrderNumber(order: OrderIdentifierCandidate): string {
+    if (order.uuid && order.uuid.trim().length > 0) {
+      return order.uuid.trim()
+    }
+    return `ORD-${order.id.toString().padStart(6, '0')}`
   }
 
   private toCheckoutLineItem(item: OrderItem, currency: string): CheckoutLineItem {
@@ -3790,8 +3906,8 @@ export class StorefrontService implements OnModuleInit {
     return {
       id: order.id,
       uuid: order.uuid,
-      orderNumber: this.buildOrderNumber(order.id),
-      reference: this.buildOrderReference(order),
+      orderNumber: this.buildOrderNumber(order),
+      reference: this.buildOrderNumber(order),
       placedAt: order.createdAt.toISOString(),
       status: statusCode,
       statusLabel,
@@ -3820,6 +3936,107 @@ export class StorefrontService implements OnModuleInit {
       billingAddress,
       payment: paymentSummary ?? undefined,
     }
+  }
+
+  private toPublicOrderSummary(order: OrderSummaryWithReference): PublicOrderSummaryWithReference {
+    return {
+      uuid: order.uuid,
+      orderNumber: order.orderNumber,
+      reference: order.reference,
+      placedAt: order.placedAt,
+      status: order.status,
+      statusLabel: order.statusLabel,
+      statusColor: order.statusColor,
+      statusBadgeColor: order.statusBadgeColor,
+      paymentStatus: order.paymentStatus,
+      paymentStatusLabel: order.paymentStatusLabel,
+      paymentStatusColor: order.paymentStatusColor,
+      paymentStatusBadgeColor: order.paymentStatusBadgeColor,
+      fulfillmentStatus: order.fulfillmentStatus,
+      fulfillmentStatusLabel: order.fulfillmentStatusLabel,
+      items: order.items,
+      summary: order.summary,
+      delivery: order.delivery,
+      shippingAddress: order.shippingAddress,
+      billingAddress: order.billingAddress,
+      payment: order.payment
+        ? {
+            provider: order.payment.provider,
+            status: order.payment.status,
+            statusDetail: order.payment.statusDetail,
+            paymentId: order.payment.paymentId,
+            amount: order.payment.amount,
+            installments: order.payment.installments,
+            cardBrand: order.payment.cardBrand,
+            cardLastFour: order.payment.cardLastFour,
+            updatedAt: order.payment.updatedAt,
+          }
+        : undefined,
+    }
+  }
+
+  private toPublicOrderTimelineEvent(
+    event: {
+      eventId: string
+      type: string
+      timestamp: string
+      actor?: string | null
+      amount?: number | null
+      currency?: string | null
+      paymentMethod?: string | null
+      remainingAmount?: number | null
+      estimateDate?: string | null
+      statusFrom?: string | null
+      statusTo?: string | null
+      message?: string | null
+      metadata?: unknown
+    },
+    orderIdentifier: string,
+  ) {
+    return {
+      eventId: event.eventId,
+      orderId: orderIdentifier,
+      type: event.type,
+      timestamp: event.timestamp,
+      actor: event.actor ?? null,
+      amount: typeof event.amount === 'number' ? event.amount : null,
+      currency: event.currency ?? null,
+      paymentMethod: event.paymentMethod ?? null,
+      remainingAmount: typeof event.remainingAmount === 'number' ? event.remainingAmount : null,
+      estimateDate: event.estimateDate ?? null,
+      statusFrom: event.statusFrom ?? null,
+      statusTo: event.statusTo ?? null,
+      message: event.message ?? null,
+      metadata: this.sanitizePublicTimelineMetadata(event.metadata),
+    }
+  }
+
+  private sanitizePublicTimelineMetadata(metadata: unknown): PublicOrderTimelineMetadata {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return null
+    }
+
+    const allowedKeys = new Set([
+      'estimate',
+      'previousEstimate',
+      'nextEstimate',
+      'completed',
+      'completedAt',
+      'activityTitle',
+      'activityStart',
+      'activityEnd',
+      'activityAllDay',
+      'activityType',
+      'activityLocation',
+      'action',
+      'linkedAt',
+    ])
+
+    const sanitized = Object.fromEntries(
+      Object.entries(metadata as Record<string, unknown>).filter(([key]) => allowedKeys.has(key)),
+    )
+
+    return Object.keys(sanitized).length > 0 ? sanitized : null
   }
 
   private buildDeliverySummary(order: OrderWithRelations): OrderDeliverySummary | null {
@@ -4147,10 +4364,18 @@ export class StorefrontService implements OnModuleInit {
 
     const shipping = dto.shippingAddress
     if (shipping) {
+      const normalizedStreet = this.normalizeConfigString((shipping as { street?: string | null }).street ?? '')
+      const normalizedNumber = this.normalizeConfigString((shipping as { number?: string | null }).number ?? '')
+      const normalizedApartment = this.normalizeConfigString(
+        (shipping as { apartment?: string | null }).apartment ?? '',
+      )
+      const normalizedCorner = this.normalizeConfigString((shipping as { corner?: string | null }).corner ?? '')
+      const normalizedAddressComments = this.normalizeConfigString(
+        (shipping as { comments?: string | null }).comments ?? '',
+      )
       const { street, number } = splitStreetAndNumber(shipping.line1)
       const normalizedCity = shipping.city?.trim() || 'Montevideo'
       const normalizedCountry = shipping.country?.trim() || 'UY'
-      const normalizedComments = shipping.line2?.trim() || null
 
       const addresses = await this.prisma.customerAddress.findMany({
         where: { customerId: customer.id },
@@ -4158,11 +4383,13 @@ export class StorefrontService implements OnModuleInit {
       })
       const primary = addresses.find((address) => address.isPrimary) ?? addresses[0] ?? null
       const addressData = {
-        street: street || normalizedCity,
-        number: number || 'S/N',
+        street: normalizedStreet || street || normalizedCity,
+        number: normalizedNumber || number || 'S/N',
+        apartment: normalizedApartment,
+        corner: normalizedCorner,
         city: normalizedCity,
         country: normalizedCountry,
-        comments: normalizedComments,
+        comments: normalizedAddressComments,
       }
 
       if (!primary) {
@@ -4177,6 +4404,8 @@ export class StorefrontService implements OnModuleInit {
         const needsUpdate =
           primary.street !== addressData.street ||
           primary.number !== addressData.number ||
+          (primary.apartment ?? null) !== addressData.apartment ||
+          (primary.corner ?? null) !== addressData.corner ||
           primary.city !== addressData.city ||
           primary.country !== addressData.country ||
           (primary.comments ?? null) !== addressData.comments

@@ -1310,6 +1310,9 @@ export class SalesDocumentsService {
       )
       return {
         id: String(o.id),
+        uuid: o.uuid ?? null,
+        orderNumber: o.uuid ?? null,
+        reference: o.uuid ?? null,
         date: Math.floor(new Date(o.date).getTime() / 1000),
         validUntilDate: validity,
         validityDate: validity,
@@ -1737,6 +1740,9 @@ export class SalesDocumentsService {
 
     return {
       id: order.id,
+      uuid: order.uuid ?? null,
+      orderNumber: order.uuid ?? null,
+      reference: order.uuid ?? null,
       date: order.date,
       validUntilDate: validity,
       validityDate: validity,

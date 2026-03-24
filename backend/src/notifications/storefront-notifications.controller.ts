@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Query, Req, Sse, UseGuards } from '@nestjs/common'
 import type { FastifyRequest } from 'fastify'
 import type { Observable } from 'rxjs'
+import { map } from 'rxjs/operators'
 import { StorefrontJwtGuard } from '../storefront/storefront-jwt.guard'
 import { NotificationsService } from './notifications.service'
 import { NotificationStreamService } from './notification-stream.service'
@@ -9,6 +10,11 @@ import { MarkNotificationsReadDto } from './dto/mark-read.dto'
 import { DeleteNotificationsDto } from './dto/delete-notifications.dto'
 import { StorefrontJwtPayload } from '../storefront/storefront-jwt.strategy'
 import { MessageEvent } from '@nestjs/common'
+import type { NotificationListItem } from './notifications.types'
+
+type StorefrontNotificationItem = Omit<NotificationListItem, 'orderId' | 'paymentId'> & {
+  metadata: Record<string, unknown> | null
+}
 
 @UseGuards(StorefrontJwtGuard)
 @Controller('storefront/account/notifications')
@@ -24,7 +30,7 @@ export class StorefrontNotificationsController {
     @Query() query: NotificationQueryDto,
   ) {
     const customerId = Number(req.user?.sub)
-    return this.notifications.listForCustomer(customerId, {
+    const response = await this.notifications.listForCustomer(customerId, {
       page: query.page,
       pageSize: query.pageSize,
       eventType: query.eventType ?? null,
@@ -32,6 +38,10 @@ export class StorefrontNotificationsController {
       unreadOnly: query.unreadOnly ?? false,
       since: query.since ?? null,
     })
+    return {
+      ...response,
+      items: response.items.map((item) => this.toStorefrontNotification(item)),
+    }
   }
 
   @Get('unread-count')
@@ -83,6 +93,49 @@ export class StorefrontNotificationsController {
   @Sse('events')
   streamEvents(@Req() req: FastifyRequest & { user: StorefrontJwtPayload }): Observable<MessageEvent> {
     const customerId = Number(req.user?.sub)
-    return this.stream.streamForCustomer(customerId)
+    return this.stream.streamForCustomer(customerId).pipe(
+      map((event) => ({
+        ...event,
+        data: this.toStorefrontNotification(event.data as NotificationListItem),
+      })),
+    )
+  }
+
+  private toStorefrontNotification(item: NotificationListItem): StorefrontNotificationItem {
+    return {
+      id: item.id,
+      eventType: item.eventType,
+      audience: item.audience,
+      channel: item.channel,
+      deliveryStatus: item.deliveryStatus,
+      title: item.title,
+      body: item.body,
+      metadata: this.sanitizeMetadata(item.metadata),
+      readAt: item.readAt,
+      createdAt: item.createdAt,
+    }
+  }
+
+  private sanitizeMetadata(metadata: Record<string, unknown> | null): Record<string, unknown> | null {
+    if (!metadata) {
+      return null
+    }
+
+    const allowedKeys = new Set([
+      'type',
+      'redirectPath',
+      'orderUuid',
+      'orderNumber',
+      'amount',
+      'currency',
+      'amountFormatted',
+      'method',
+      'status',
+      'statusCode',
+      'previousStatus',
+      'previousStatusCode',
+    ])
+
+    return Object.fromEntries(Object.entries(metadata).filter(([key]) => allowedKeys.has(key)))
   }
 }

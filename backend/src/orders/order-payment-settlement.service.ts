@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { OrderFinanceService } from './order-finance.service'
 import { OrderTimelineService } from './order-timeline.service'
 import { NotificationOrchestratorService } from '../notifications/notification-orchestrator.service'
+import { findPaymentMethodById, matchPaymentMethod } from '../common/constants/payment-methods'
 
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient
 
@@ -20,6 +21,8 @@ export type PaymentSettlementDispatchPlan = {
   notifyPaymentReceived: boolean
   notifyOrderStatusChanged: boolean
 }
+
+const IMMEDIATE_CHECKOUT_NOTIFICATION_WINDOW_MS = 2 * 60 * 1000
 
 @Injectable()
 export class OrderPaymentSettlementService {
@@ -46,6 +49,7 @@ export class OrderPaymentSettlementService {
         currency: true,
         status: true,
         method: true,
+        paymentMethodId: true,
         type: true,
         date: true,
       },
@@ -61,6 +65,7 @@ export class OrderPaymentSettlementService {
         id: true,
         statusId: true,
         orderCurrency: true,
+        createdAt: true,
       },
     })
 
@@ -77,9 +82,10 @@ export class OrderPaymentSettlementService {
     const paymentConfirmed = payment.status === PaymentStatus.CONFIRMED
     const becameConfirmed =
       paymentConfirmed && input.previousPaymentStatus !== PaymentStatus.CONFIRMED
+    let hasPriorConfirmedPayments = false
 
     if (becameConfirmed) {
-      const hasPriorConfirmedPayments =
+      hasPriorConfirmedPayments =
         (await client.payment.count({
           where: {
             orderId: payment.orderId,
@@ -117,6 +123,12 @@ export class OrderPaymentSettlementService {
     const notifyOrderStatusChanged =
       nextStatusId !== previousStatusId && nextStatusId !== null
 
+    const suppressImmediateCheckoutNotifications =
+      becameConfirmed &&
+      this.isImmediateCheckoutPayment(payment.paymentMethodId, payment.method) &&
+      !hasPriorConfirmedPayments &&
+      Date.now() - orderBefore.createdAt.getTime() <= IMMEDIATE_CHECKOUT_NOTIFICATION_WINDOW_MS
+
     if (notifyOrderStatusChanged) {
       await this.timeline.recordStatusTransition(
         {
@@ -140,8 +152,8 @@ export class OrderPaymentSettlementService {
       orderId: payment.orderId,
       previousStatusId,
       nextStatusId,
-      notifyPaymentReceived: becameConfirmed,
-      notifyOrderStatusChanged,
+      notifyPaymentReceived: becameConfirmed && !suppressImmediateCheckoutNotifications,
+      notifyOrderStatusChanged: notifyOrderStatusChanged && !suppressImmediateCheckoutNotifications,
     }
   }
 
@@ -181,5 +193,15 @@ export class OrderPaymentSettlementService {
       a.getMonth() === b.getMonth() &&
       a.getDate() === b.getDate()
     )
+  }
+
+  private isImmediateCheckoutPayment(paymentMethodId?: number | null, methodName?: string | null) {
+    const byId = findPaymentMethodById(paymentMethodId ?? null)
+    if (byId) {
+      return byId.code === 'mercado_pago'
+    }
+
+    const matched = matchPaymentMethod(methodName ?? null)
+    return matched?.code === 'mercado_pago'
   }
 }

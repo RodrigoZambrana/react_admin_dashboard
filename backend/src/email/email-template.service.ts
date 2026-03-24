@@ -653,6 +653,7 @@ export class EmailTemplateService implements OnModuleInit {
         extras?.companyFooter ??
         this.config.get<string>('COMPANY_EMAIL_FOOTER') ??
         'You are receiving this email because you have an active account with us.',
+      companyLogo: extras?.companyLogo ?? null,
     }
 
     const subject = template.subjectCompiler(baseContext)

@@ -36,6 +36,9 @@ import { ORDER_STATUS_CHANGE_ALLOWED, ORDER_STATUS_IDS } from '@/constants/order
 
 type SalesOrderDetailsResponse = {
     id?: string
+    uuid?: string
+    orderNumber?: string
+    reference?: string
     progressStatus?: number
     payementStatus?: number
     dateTime?: number
@@ -188,7 +191,7 @@ const OrderDetails = () => {
             try {
                 const response = await apiGetSalesOrderTimeline<OrderTimelineResponse>(orderId)
                 setTimeline(response?.data ?? null)
-            } catch {
+            } catch (error) {
                 setTimeline(null)
                 setTimelineError(
                     error instanceof Error
@@ -374,10 +377,16 @@ const OrderDetails = () => {
         [data.id, fetchData, resource],
     )
 
+    const displayIdentifier = useMemo(
+        () => data.uuid || data.orderNumber || data.reference || data.id || '',
+        [data.id, data.orderNumber, data.reference, data.uuid],
+    )
+
     const onViewInvoice = useCallback(() => {
-        if (!data.id) return
-        navigate(`${routes.invoice}/${data.id}`)
-    }, [data.id, navigate, routes.invoice])
+        const identifier = displayIdentifier || data.id
+        if (!identifier) return
+        navigate(`${routes.invoice}/${identifier}`)
+    }, [data.id, displayIdentifier, navigate, routes.invoice])
 
     const handleDeleteAttachment = useCallback(
         async (attachmentId: number) => {
@@ -543,7 +552,7 @@ const OrderDetails = () => {
                                                 })}
                                             </span>
                                             <span className="ltr:ml-2 rtl:mr-2">
-                                                #{data.id}
+                                                #{displayIdentifier}
                                             </span>
                                         </h3>
                                         {resource === 'orders' && currentStatusOption ? (
@@ -608,7 +617,7 @@ const OrderDetails = () => {
                                             size="sm"
                                             variant="twoTone"
                                             icon={<HiOutlinePencil />}
-                                            onClick={() => navigate(`${routes.edit}/${data.id}`)}
+                                            onClick={() => navigate(`${routes.edit}/${displayIdentifier || data.id}`)}
                                         >
                                             {t('text.actions.edit')}
                                         </Button>

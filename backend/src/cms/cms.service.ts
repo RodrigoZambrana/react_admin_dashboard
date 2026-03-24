@@ -226,50 +226,18 @@ export class CmsService {
   async getPublicSectionByKey(key: string, locale = 'es') {
     const normalizedKey = this.normalizeSectionKey(key)
     const now = new Date()
-    const section = await this.prisma.cmsSection.findFirst({
-      where: {
-        key: normalizedKey,
-        isActive: true,
-      },
-      include: {
-        entries: {
-          where: {
-            isActive: true,
-            status: CmsEntryStatus.PUBLISHED,
-            locale,
-            OR: [{ startsAt: null }, { startsAt: { lte: now } }],
-            AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: now } }] }],
-          },
-          orderBy: [{ priority: 'desc' }, { publishedAt: 'desc' }, { id: 'desc' }],
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                productCode: true,
-                published: true,
-              },
-            },
-            category: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-            assets: {
-              where: { isActive: true },
-              orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-            },
-          },
-        },
-      },
-    })
+    const section = await this.prisma.cmsSection.findFirst(this.buildPublicSectionsQuery(locale, now, normalizedKey))
 
     if (!section) {
       throw new NotFoundException('CMS section not found')
     }
 
     return section
+  }
+
+  async listPublicSections(locale = 'es') {
+    const now = new Date()
+    return this.prisma.cmsSection.findMany(this.buildPublicSectionsQuery(locale, now))
   }
 
   private async replaceAssets(tx: Prisma.TransactionClient, entryId: number, assets?: CmsEntryDto['assets']) {
@@ -451,6 +419,48 @@ export class CmsService {
     const exists = await this.prisma.productCategory.findUnique({ where: { id }, select: { id: true } })
     if (!exists) {
       throw new NotFoundException('Linked category not found')
+    }
+  }
+
+  private buildPublicSectionsQuery(locale: string, now: Date, key?: string): Prisma.CmsSectionFindManyArgs {
+    return {
+      where: {
+        ...(key ? { key } : {}),
+        isActive: true,
+      },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+      include: {
+        entries: {
+          where: {
+            isActive: true,
+            status: CmsEntryStatus.PUBLISHED,
+            locale,
+            OR: [{ startsAt: null }, { startsAt: { lte: now } }],
+            AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: now } }] }],
+          },
+          orderBy: [{ priority: 'desc' }, { publishedAt: 'desc' }, { id: 'desc' }],
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                productCode: true,
+                published: true,
+              },
+            },
+            category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            assets: {
+              where: { isActive: true },
+              orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+            },
+          },
+        },
+      },
     }
   }
 }

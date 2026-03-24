@@ -30,7 +30,10 @@ async function bootstrap() {
     helmetOptions.contentSecurityPolicy = false
   }
   await app.register(helmet as any, Object.keys(helmetOptions).length ? helmetOptions : undefined)
-const defaultAllowedOrigins = (process.env.DEFAULT_ALLOWED_ORIGINS ?? 'http://localhost:3000')
+const defaultAllowedOrigins = (
+  process.env.DEFAULT_ALLOWED_ORIGINS ??
+  'http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080'
+)
     .split(',')
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0)

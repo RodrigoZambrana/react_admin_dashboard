@@ -28,6 +28,8 @@ const createPrisma = () => ({
   },
   order: {
     findUnique: vi.fn(),
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
     create: vi.fn(),
   },
   customer: {
@@ -1505,5 +1507,151 @@ describe('StorefrontService.reconcileApprovedPaymentIntent', () => {
     )
 
     expect(summary.amount).toEqual({ amount: 875, currency: 'USD' })
+  })
+})
+
+describe('StorefrontService customer-facing order DTOs', () => {
+  let prisma: ReturnType<typeof createPrisma>
+  let service: StorefrontService
+  let timeline: { list: ReturnType<typeof vi.fn> }
+
+  beforeEach(() => {
+    prisma = createPrisma()
+    timeline = {
+      list: vi.fn(),
+    }
+    service = new StorefrontService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      createCurrencyConversion() as any,
+      createNotifications() as any,
+      { sendWelcome: vi.fn().mockResolvedValue(undefined) } as any,
+      createMercadoPago() as any,
+      {} as any,
+      createParametricPricing() as any,
+      timeline as any,
+      { commitStorefrontItems: vi.fn().mockResolvedValue(undefined) } as any,
+      createPaymentSettlement() as any,
+      createPublishedProductResolver() as any,
+      { sendEmailVerification: vi.fn().mockResolvedValue(undefined) } as any,
+      {} as any,
+    )
+  })
+
+  it('omits numeric ids and payment intent ids from customer order responses', async () => {
+    prisma.order.findMany.mockResolvedValue([
+      {
+        id: 42,
+        uuid: '05277d56-b93d-5ccd-9e52-30d720bae805',
+        createdAt: new Date('2026-03-23T18:00:00.000Z'),
+        updatedAt: new Date('2026-03-23T18:05:00.000Z'),
+        date: new Date('2026-03-23T18:00:00.000Z'),
+        documentType: DocumentType.ORDER,
+        customerId: 7,
+        statusId: ORDER_STATUS_CODES.PENDING,
+        orderCurrency: 'USD',
+        paymentMethodId: 1,
+        shippingAddress1: 'Rambla 123',
+        shippingAddress2: null,
+        shippingCity: 'Montevideo',
+        shippingState: 'Montevideo',
+        shippingZip: '11000',
+        billingAddress1: 'Rambla 123',
+        billingAddress2: null,
+        billingCity: 'Montevideo',
+        billingState: 'Montevideo',
+        billingZip: '11000',
+        shippingVendor: 'Envío',
+        deliveryFees: decimal(10),
+        estimatedMin: 1,
+        estimatedMax: 3,
+        subTotal: decimal(100),
+        tax: decimal(22),
+        grandTotal: decimal(132),
+        comment: 'Nota del cliente',
+        items: [],
+        payments: [],
+        storefrontPayments: [
+          {
+            id: 'intent-1',
+            provider: 'mercadopago',
+            status: 'approved',
+            statusDetail: 'accredited',
+            externalPaymentId: '123456789',
+            amount: decimal(132),
+            currency: 'USD',
+            installments: 1,
+            cardBrand: 'visa',
+            cardLastFour: '1111',
+            createdAt: new Date('2026-03-23T18:01:00.000Z'),
+            updatedAt: new Date('2026-03-23T18:02:00.000Z'),
+          },
+        ],
+      },
+    ])
+
+    const [order] = await service.listCustomerOrders(7)
+
+    expect(order).not.toHaveProperty('id')
+    expect(order.payment).not.toHaveProperty('paymentIntentId')
+    expect(order.uuid).toBe('05277d56-b93d-5ccd-9e52-30d720bae805')
+    expect(order.payment?.paymentId).toBe('123456789')
+  })
+
+  it('sanitizes customer timeline metadata and uses public order identifiers', async () => {
+    prisma.order.findFirst
+      .mockResolvedValueOnce({ id: 42 })
+      .mockResolvedValueOnce({
+        id: 42,
+        uuid: '05277d56-b93d-5ccd-9e52-30d720bae805',
+        createdAt: new Date('2026-03-23T18:00:00.000Z'),
+        updatedAt: new Date('2026-03-23T18:05:00.000Z'),
+        date: new Date('2026-03-23T18:00:00.000Z'),
+        customerId: 7,
+        documentType: DocumentType.ORDER,
+        statusId: ORDER_STATUS_CODES.PENDING,
+        orderCurrency: 'USD',
+        estimatedMin: 1,
+        estimatedMax: 3,
+        grandTotal: decimal(132),
+        payments: [],
+        storefrontPayments: [],
+        items: [],
+      })
+
+    timeline.list.mockResolvedValue([
+      {
+        eventId: 'timeline-1',
+        orderId: 42,
+        type: 'PAYMENT_FULL',
+        timestamp: '2026-03-23T18:02:00.000Z',
+        actor: 'provider:system',
+        amount: 132,
+        currency: 'USD',
+        paymentMethod: 'mercadopago',
+        remainingAmount: 0,
+        estimateDate: null,
+        statusFrom: null,
+        statusTo: null,
+        message: 'Payment complete',
+        metadata: {
+          paymentId: 99,
+          source: 'storefront:payment-summary',
+          activityTitle: 'Entrega coordinada',
+          linkedAt: '2026-03-23T18:01:00.000Z',
+        },
+      },
+    ])
+
+    const result = await service.getCustomerOrderTimeline(7, '05277d56-b93d-5ccd-9e52-30d720bae805')
+
+    expect(result.order).not.toHaveProperty('id')
+    expect(result.order.uuid).toBe('05277d56-b93d-5ccd-9e52-30d720bae805')
+    expect(result.events[0]?.orderId).toBe('05277d56-b93d-5ccd-9e52-30d720bae805')
+    expect(result.events[0]?.metadata).toEqual({
+      activityTitle: 'Entrega coordinada',
+      linkedAt: '2026-03-23T18:01:00.000Z',
+    })
   })
 })

@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from 'react'
+import { Fragment, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Table from '@/components/ui/Table'
@@ -58,7 +58,7 @@ const { Tr, Th, Td, THead, TBody } = Table
 
 const columnHelper = createColumnHelper<Product>()
 
-const ProductColumn = ({ row, showSku }: { row: Product; showSku: boolean }) => {
+const ProductColumn = memo(({ row, showSku }: { row: Product; showSku: boolean }) => {
     const details = row.details ?? {}
     const detailKeys = Object.keys(details)
     return (
@@ -86,7 +86,7 @@ const ProductColumn = ({ row, showSku }: { row: Product; showSku: boolean }) => 
             ))}
         </div>
     )
-}
+})
 
 const formatSpecKey = (key: string) =>
     key
@@ -281,22 +281,34 @@ const OrderProducts = ({ data = [], orderCurrency, fxSnapshot }: OrderProductsPr
         () => createSalesDocumentRounder(mode),
         [mode],
     )
-    const formatAmount = (value: number, currency?: string) =>
+    const formatAmount = useCallback((value: number, currency?: string) =>
         formatOrderMoney(value, currency ?? normalizedOrderCurrency, {
             locale: i18n.language,
-        })
-    const table = useReactTable({
-        data,
-        columns: columns(
+        }), [i18n.language, normalizedOrderCurrency])
+    const tableColumns = useMemo(
+        () =>
+            columns(
+                t,
+                formatAmount,
+                normalizedOrderCurrency,
+                fxSnapshot,
+                roundAmount,
+                {
+                    showSpecifications: showProductSpecifications,
+                },
+            ),
+        [
             t,
             formatAmount,
             normalizedOrderCurrency,
             fxSnapshot,
             roundAmount,
-            {
-                showSpecifications: showProductSpecifications,
-            },
-        ),
+            showProductSpecifications,
+        ],
+    )
+    const table = useReactTable({
+        data,
+        columns: tableColumns,
         getCoreRowModel: getCoreRowModel(),
     })
 
@@ -345,4 +357,4 @@ const OrderProducts = ({ data = [], orderCurrency, fxSnapshot }: OrderProductsPr
     )
 }
 
-export default OrderProducts
+export default memo(OrderProducts)

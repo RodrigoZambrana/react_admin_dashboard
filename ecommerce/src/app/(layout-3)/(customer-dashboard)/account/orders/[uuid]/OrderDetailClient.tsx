@@ -105,8 +105,8 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
     return null;
   }
 
-  const orderIdentifier = order.uuid || order.reference || order.orderNumber || String(order.id);
-  const displayOrderId = `#${order.id}`;
+  const orderIdentifier = order.uuid || order.reference || order.orderNumber || "order";
+  const displayOrderId = `#${orderIdentifier}`;
   const placedDate = format(new Date(order.placedAt), "dd MMM, yyyy");
   const subtotal = order.summary.subtotal;
   const shipping = order.summary.shipping;

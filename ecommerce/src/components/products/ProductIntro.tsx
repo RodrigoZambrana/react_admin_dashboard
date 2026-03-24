@@ -1099,6 +1099,7 @@ export default function ProductIntro({
                 color="primary"
                 variant="contained"
                 disabled={addToCartDisabled}
+                data-testid="product-detail-add-to-cart"
                 onClick={handleAddToCart}>
                 {t("product.actions.addToCart", { defaultMessage: "Add to Cart" })}
               </Button>
@@ -1112,6 +1113,7 @@ export default function ProductIntro({
                 size="small"
                 color="primary"
                 variant="outlined"
+                data-testid="product-detail-decrease"
                 onClick={handleDecreaseQuantity}>
                 <IconMinus size={22} />
               </Button>
@@ -1125,6 +1127,7 @@ export default function ProductIntro({
                 size="small"
                 color="primary"
                 variant="outlined"
+                data-testid="product-detail-increase"
                 onClick={handleIncreaseQuantity}>
                 <IconPlus size={22} />
               </Button>

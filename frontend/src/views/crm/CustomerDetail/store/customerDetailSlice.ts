@@ -19,6 +19,9 @@ type PersonalInfo = {
 
 export type CustomerOrder = {
     id: string
+    uuid?: string | null
+    orderNumber?: string | null
+    reference?: string | null
     status: string
     statusCode?: number | null
     amount: number

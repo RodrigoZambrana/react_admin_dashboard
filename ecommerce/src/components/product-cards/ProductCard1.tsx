@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useCallback, useMemo } from "react";
+import { Fragment, memo, useCallback, useMemo } from "react";
 import styled from "styled-components";
 import { IconPlus, IconMinus } from "@tabler/icons-react";
 
@@ -155,7 +155,7 @@ interface ProductCard1Props extends CardProps {
 }
 // =======================================================================
 
-export default function ProductCard1({
+function ProductCard1({
   id,
   off,
   slug,
@@ -243,22 +243,26 @@ export default function ProductCard1({
         type: "CHANGE_CART_AMOUNT",
         payload: {
           id: cartProductId,
+          productId: id ?? slug,
           slug,
           price: effectivePrice,
           currency: productCurrency,
-        imgUrl: primaryImage,
-        name: title,
-        qty: amount,
-        variantLabel: resolvedSelectionSummary,
-        selectionSummary: resolvedSelectionSummary,
-        configuration: resolvedConfiguration
-      }
-    });
-  },
+          imgUrl: primaryImage,
+          name: title,
+          qty: amount,
+          mode,
+          variantKey: variantKey ?? undefined,
+          variantLabel: resolvedSelectionSummary,
+          selectionSummary: resolvedSelectionSummary,
+          configuration: resolvedConfiguration
+        }
+      });
+    },
     [
       configuration,
       dispatch,
       cartProductId,
+      id,
       slug,
       effectivePrice,
       mode,
@@ -266,6 +270,7 @@ export default function ProductCard1({
       productCurrency,
       t,
       title,
+      variantKey,
       variantLabel
     ]
   );
@@ -357,6 +362,7 @@ export default function ProductCard1({
                 color="primary"
                 variant="outlined"
                 borderColor="primary.light"
+                data-testid={`product-card-add-${slug}`}
                 onClick={() => handleCartAmountChange((cartItem?.qty || 0) + 1)}>
                 <IconPlus size={18} />
               </Button>
@@ -373,6 +379,7 @@ export default function ProductCard1({
                     color="primary"
                     variant="outlined"
                     borderColor="primary.light"
+                    data-testid={`product-card-decrease-${slug}`}
                     onClick={() => handleCartAmountChange(cartItem.qty - 1)}>
                     <IconMinus size={18} />
                   </Button>
@@ -386,3 +393,5 @@ export default function ProductCard1({
     </Fragment>
   );
 }
+
+export default memo(ProductCard1);

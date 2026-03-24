@@ -3,9 +3,9 @@
 import FlexBox from "@component/FlexBox";
 import Pagination from "@component/pagination";
 
-import type { OrderSummary } from "@/types/storefront";
+import type { PublicOrderSummary } from "@/types/storefront";
 
-export default function OrdersPagination({ orderList }: { orderList: OrderSummary[] }) {
+export default function OrdersPagination({ orderList }: { orderList: PublicOrderSummary[] }) {
   return (
     <FlexBox justifyContent="center" mt="2.5rem">
       <Pagination

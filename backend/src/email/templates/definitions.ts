@@ -528,16 +528,21 @@ ${heading(
   "{{#if (eq payload.event 'welcome')}}Welcome to {{companyName}}{{else if (eq payload.event 'verify_email')}}Confirm your email{{else if (eq payload.event 'password_changed')}}Your password was updated{{else if (eq payload.event 'recovery_notice')}}Password recovery requested{{else}}Reset your password{{/if}}",
 )}
 ${paragraph(
-  "{{#if (eq payload.event 'welcome')}}Hello {{payload.displayName}}, your account is ready. You can now review your orders, addresses, and profile details from your customer account.{{else if (eq payload.event 'verify_email')}}Hello {{payload.displayName}}, please confirm your email address to complete the activation of your account.{{#if payload.expiresAt}} This link expires on {{payload.expiresAt}}.{{/if}}{{else if (eq payload.event 'password_changed')}}Hello {{payload.displayName}}, your password was just updated. If you did not make this change, secure your account immediately.{{else if (eq payload.event 'recovery_notice')}}Hello {{payload.displayName}}, we received a request to recover access to your account. If it was you, follow the steps below. If not, secure your account to keep it safe.{{else}}Hello {{payload.displayName}}, we received a request to reset your password. Use the button below to choose a new one.{{#if payload.expiresAt}} This link expires on {{payload.expiresAt}}.{{/if}}{{/if}}",
+  "{{#if (eq payload.event 'welcome')}}Hello {{payload.displayName}}, your account is ready. From now on you can follow orders, manage saved addresses and discover everything available in the store from one place.{{else if (eq payload.event 'verify_email')}}Hello {{payload.displayName}}, confirm your email address to finish activating your account and receive updates about orders, payments and account activity.{{#if payload.expiresAt}} This link expires on {{payload.expiresAt}}.{{/if}}{{else if (eq payload.event 'password_changed')}}Hello {{payload.displayName}}, your password was just updated. If you did not make this change, secure your account immediately.{{else if (eq payload.event 'recovery_notice')}}Hello {{payload.displayName}}, we received a request to recover access to your account. If it was you, follow the steps below. If not, secure your account to keep it safe.{{else}}Hello {{payload.displayName}}, we received a request to reset your password. Use the button below to choose a new one.{{#if payload.expiresAt}} This link expires on {{payload.expiresAt}}.{{/if}}{{/if}}",
 )}
 {{#if (eq payload.event 'welcome')}}
   {{#if payload.accountUrl}}
     ${buildButton('{{payload.accountUrl}}', 'Go to my account')}
   {{/if}}
+  ${paragraph('Use your account to track purchases, manage delivery details and continue browsing the products and solutions available on the site.', styles.muted)}
 {{else if (eq payload.event 'verify_email')}}
   {{#if payload.resetUrl}}
     ${buildButton('{{payload.resetUrl}}', 'Confirm email')}
   {{/if}}
+  {{#if payload.accountUrl}}
+    ${buildButton('{{payload.accountUrl}}', 'Open my account')}
+  {{/if}}
+  ${paragraph('Once your email is confirmed, we will use it as the main channel for order updates and account security notifications.', styles.muted)}
 {{else if payload.resetUrl}}
   ${buildButton(
     '{{payload.resetUrl}}',
@@ -555,16 +560,21 @@ ${heading(
   "{{#if (eq payload.event 'welcome')}}Bienvenido a {{companyName}}{{else if (eq payload.event 'verify_email')}}Confirmá tu correo electrónico{{else if (eq payload.event 'password_changed')}}Tu contraseña fue actualizada{{else if (eq payload.event 'recovery_notice')}}Solicitud de recuperación{{else}}Restablecé tu contraseña{{/if}}",
 )}
 ${paragraph(
-  "{{#if (eq payload.event 'welcome')}}Hola {{payload.displayName}}, tu cuenta ya está lista. Desde tu perfil podés seguir tus pedidos, administrar tus direcciones y actualizar tus datos.{{else if (eq payload.event 'verify_email')}}Hola {{payload.displayName}}, confirmá tu correo electrónico para terminar de activar tu cuenta.{{#if payload.expiresAt}} Este enlace vence el {{payload.expiresAt}}.{{/if}}{{else if (eq payload.event 'password_changed')}}Hola {{payload.displayName}}, acabamos de actualizar tu contraseña. Si no fuiste vos, asegurá tu cuenta de inmediato.{{else if (eq payload.event 'recovery_notice')}}Hola {{payload.displayName}}, recibimos una solicitud para recuperar el acceso a tu cuenta. Si fuiste vos, seguí los pasos a continuación. Si no la hiciste, protegé tu cuenta.{{else}}Hola {{payload.displayName}}, recibimos una solicitud para restablecer tu contraseña. Utilizá el siguiente botón para crear una nueva.{{#if payload.expiresAt}} El enlace vence el {{payload.expiresAt}}.{{/if}}{{/if}}",
+  "{{#if (eq payload.event 'welcome')}}Hola {{payload.displayName}}, tu cuenta ya está lista. Desde ahora podés seguir tus pedidos, administrar direcciones guardadas y descubrir todo lo que ya podés comprar en el sitio desde un mismo lugar.{{else if (eq payload.event 'verify_email')}}Hola {{payload.displayName}}, confirmá tu correo electrónico para terminar de activar tu cuenta y recibir novedades sobre pedidos, pagos y movimientos de tu cuenta.{{#if payload.expiresAt}} Este enlace vence el {{payload.expiresAt}}.{{/if}}{{else if (eq payload.event 'password_changed')}}Hola {{payload.displayName}}, acabamos de actualizar tu contraseña. Si no fuiste vos, asegurá tu cuenta de inmediato.{{else if (eq payload.event 'recovery_notice')}}Hola {{payload.displayName}}, recibimos una solicitud para recuperar el acceso a tu cuenta. Si fuiste vos, seguí los pasos a continuación. Si no la hiciste, protegé tu cuenta.{{else}}Hola {{payload.displayName}}, recibimos una solicitud para restablecer tu contraseña. Utilizá el siguiente botón para crear una nueva.{{#if payload.expiresAt}} El enlace vence el {{payload.expiresAt}}.{{/if}}{{/if}}",
 )}
 {{#if (eq payload.event 'welcome')}}
   {{#if payload.accountUrl}}
     ${buildButton('{{payload.accountUrl}}', 'Ir a mi cuenta')}
   {{/if}}
+  ${paragraph('Usá tu cuenta para seguir compras, gestionar entregas y seguir explorando productos y soluciones publicadas en el sitio.', styles.muted)}
 {{else if (eq payload.event 'verify_email')}}
   {{#if payload.resetUrl}}
     ${buildButton('{{payload.resetUrl}}', 'Confirmar correo')}
   {{/if}}
+  {{#if payload.accountUrl}}
+    ${buildButton('{{payload.accountUrl}}', 'Acceder a mi cuenta')}
+  {{/if}}
+  ${paragraph('Una vez confirmado tu correo, lo usaremos como canal principal para avisos de pedidos y notificaciones de seguridad de tu cuenta.', styles.muted)}
 {{else if payload.resetUrl}}
   ${buildButton(
     '{{payload.resetUrl}}',

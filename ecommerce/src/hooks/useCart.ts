@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 
 import { normalizeMoney } from "@/lib/utils/format";
 import { useStorefrontCart, type CartProductSnapshot, type CartLineItem } from "@/state/cart-context";
+import { extractProductIdFromCartLineId } from "@/lib/checkout/order-items";
 import type {
   InventoryStatus,
   Money,
@@ -37,6 +38,7 @@ type LegacyCartItem = {
   price: number;
   imgUrl?: string;
   id: string | number;
+  productId?: string | number;
   currency?: Money["currency"];
   salePrice?: number | null;
   mode?: ProductMode;
@@ -121,6 +123,7 @@ export default function useCart(): UseCartReturn {
 
       const {
         id,
+        productId: payloadProductId,
         qty,
         price,
         slug,
@@ -138,6 +141,8 @@ export default function useCart(): UseCartReturn {
         inventoryStatus
       } = action.payload;
       const normalizedId = typeof id === "number" ? String(id) : id;
+      const normalizedProductId =
+        payloadProductId ?? extractProductIdFromCartLineId(normalizedId) ?? normalizedId;
       const nextQuantity = Math.max(0, qty);
 
       if (nextQuantity === 0) {
@@ -187,7 +192,7 @@ export default function useCart(): UseCartReturn {
 
       const snapshot: CartProductSnapshot = {
         id: String(normalizedId),
-        productId: normalizedId,
+        productId: normalizedProductId,
         mode: productPatch.mode,
         variantId,
         variantKey: resolvedVariantKey,

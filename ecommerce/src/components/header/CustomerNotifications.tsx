@@ -67,9 +67,9 @@ const formatNotificationCopy = (
 
   const metadata = notification.metadata ?? {};
   const orderNumber =
+    (typeof metadata.orderUuid === "string" && metadata.orderUuid.trim()) ||
     (typeof metadata.orderNumber === "string" && metadata.orderNumber.trim()) ||
-    (typeof metadata.orderId === "string" && metadata.orderId.trim()) ||
-    (typeof metadata.orderId === "number" ? String(metadata.orderId) : "");
+    "";
   const status = resolveOrderStatusLabel(notification, locale);
 
   if (!orderNumber || !status) {
@@ -88,15 +88,11 @@ const formatNotificationCopy = (
 
 const formatSummary = (notification: CustomerNotification, t: TranslateFn): string | null => {
   const metadata = notification.metadata ?? {};
+  if (metadata.orderUuid) {
+    return `#${metadata.orderUuid}`;
+  }
   if (metadata.orderNumber) {
     return `#${metadata.orderNumber}`;
-  }
-  if (metadata.orderId) {
-    return `#${metadata.orderId}`;
-  }
-  const paymentId = metadata.paymentId;
-  if (hasEntityId(paymentId)) {
-    return t("notifications.summary.payment", { values: { paymentId } });
   }
   return null;
 };
@@ -121,13 +117,6 @@ const extractOrderPathSegment = (notification: CustomerNotification): string | n
   if (typeof orderNumber === "string" && orderNumber.trim()) {
     return orderNumber.trim();
   }
-  const metadataOrderId = metadata.orderId;
-  if (hasEntityId(metadataOrderId)) {
-    return String(metadataOrderId);
-  }
-  if (hasEntityId(notification.orderId)) {
-    return String(notification.orderId);
-  }
   return null;
 };
 
@@ -142,12 +131,6 @@ const resolveNotificationPath = (notification: CustomerNotification): string => 
   if (rawType === "order" || rawType === "payment") {
     const segment = extractOrderPathSegment(notification);
     if (segment) {
-      if (rawType === "payment") {
-        const paymentId = metadata.paymentId ?? notification.paymentId;
-        if (hasEntityId(paymentId)) {
-          return `/account/orders/${segment}?payment=${paymentId}`;
-        }
-      }
       return `/account/orders/${segment}`;
     }
     return "/account/orders";

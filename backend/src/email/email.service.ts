@@ -23,6 +23,7 @@ import {
 } from './email.types'
 import { findOrderStatusById } from '../common/constants/order-statuses'
 import { findPaymentMethodById } from '../common/constants/payment-methods'
+import { buildImageDataUrl, ensureNodeBuffer } from '../common/images/image.utils'
 
 type OrderEmailOptions = {
   orderId: number
@@ -87,7 +88,10 @@ type TestEmailOptions = {
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name)
-  private companyCache: { expiresAt: number; data: { companyName: string; companyFooter: string } } | null = null
+  private companyCache: {
+    expiresAt: number
+    data: { companyName: string; companyFooter: string; companyLogo: string | null }
+  } | null = null
 
   constructor(
     private readonly prisma: PrismaService,
@@ -471,9 +475,7 @@ export class EmailService {
       event: 'welcome',
       resetUrl: null,
       supportUrl: null,
-      accountUrl:
-        options.accountUrl ??
-        this.joinUrl(this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null, '/account/profile'),
+      accountUrl: options.accountUrl ?? this.joinUrl(this.getStorefrontBaseUrl(), '/account/profile'),
       expiresAt: null,
       displayName,
       locale,
@@ -518,8 +520,7 @@ export class EmailService {
       event: 'verify_email',
       resetUrl: options.verificationUrl,
       supportUrl: null,
-      accountUrl:
-        this.joinUrl(this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null, '/account/profile'),
+      accountUrl: this.joinUrl(this.getStorefrontBaseUrl(), '/account/profile'),
       expiresAt: options.expiresAt ? this.formatDate(options.expiresAt, locale) : null,
       displayName,
       locale,
@@ -821,7 +822,7 @@ export class EmailService {
     )
     const payload: OrderEmailContext = {
       orderId: order.id,
-      orderNumber: order.uuid || String(order.id),
+      orderNumber: this.resolveDocumentIdentifier(order),
       documentType: documentType,
       event: 'order.update',
       orderDate: this.formatDate(order.date, locale),
@@ -837,7 +838,7 @@ export class EmailService {
       items,
       totals,
       paymentUrl: null,
-      portalUrl: this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null,
+      portalUrl: this.getStorefrontBaseUrl(),
       adminUrl: this.config.get<string>('ADMIN_PORTAL_URL') ?? null,
       links,
       validUntil: order.validUntil ? this.formatDate(order.validUntil, locale) : null,
@@ -910,7 +911,7 @@ export class EmailService {
     return {
       paymentId: payment.id,
       orderId: order.id,
-      orderNumber: order.uuid || String(order.id),
+      orderNumber: this.resolveDocumentIdentifier(order),
       orderDate: this.formatDate(order.date, locale),
       amount: this.formatAmount(payment.amount, locale),
       amountRaw: Number(paymentAmountDecimal.toFixed(2)),
@@ -944,7 +945,7 @@ export class EmailService {
         customer: links?.customer ?? null,
         admin: links?.admin ?? null,
       },
-      portalUrl: this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null,
+      portalUrl: this.getStorefrontBaseUrl(),
       adminUrl: this.config.get<string>('ADMIN_PORTAL_URL') ?? null,
       locale,
     }
@@ -1008,9 +1009,11 @@ export class EmailService {
     if (profile.phone) footerParts.push(profile.phone)
     if (profile.website) footerParts.push(profile.website)
     const companyFooter = footerParts.length ? footerParts.join(' • ') : companyName
+    const logoBuffer = ensureNodeBuffer(profile.logo)
+    const companyLogo = logoBuffer ? buildImageDataUrl(logoBuffer) : null
     this.companyCache = {
       expiresAt: now + 5 * 60 * 1000,
-      data: { companyName, companyFooter },
+      data: { companyName, companyFooter, companyLogo },
     }
     return this.companyCache.data
   }
@@ -1092,7 +1095,7 @@ export class EmailService {
         currency: 'USD',
       },
       paymentUrl: null,
-      portalUrl: this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null,
+      portalUrl: this.getStorefrontBaseUrl(),
       links: {
         customer: 'https://example.com/orders/ORD-1001',
         admin: 'https://admin.example.com/orders/1001',
@@ -1263,7 +1266,7 @@ export class EmailService {
         currency: 'USD',
       },
       paymentUrl: null,
-      portalUrl: this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null,
+      portalUrl: this.getStorefrontBaseUrl(),
       links: {
         customer: 'https://example.com/budgets/BUD-2024-001',
         admin: 'https://admin.example.com/budgets/5001',
@@ -1379,7 +1382,7 @@ export class EmailService {
         customer: 'https://example.com/orders/ORD-1001',
         admin: 'https://admin.example.com/orders/1001',
       },
-      portalUrl: this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null,
+      portalUrl: this.getStorefrontBaseUrl(),
       adminUrl: this.config.get<string>('ADMIN_PORTAL_URL') ?? null,
       locale,
     }
@@ -1518,16 +1521,26 @@ export class EmailService {
     order: Prisma.OrderGetPayload<{ include: { customer: true; items: true } }>,
     documentType: OrderEmailContext['documentType'],
   ): OrderEmailContext['links'] {
-    const customerBase = this.config.get<string>('CUSTOMER_PORTAL_URL') ?? null
+    const customerBase = this.getStorefrontBaseUrl()
     const adminBase = this.config.get<string>('ADMIN_PORTAL_URL') ?? null
-    const identifier = order.uuid || String(order.id)
-    const customerPath = documentType === 'BUDGET' ? `/budgets/${identifier}` : `/orders/${identifier}`
-    const adminPath = documentType === 'BUDGET' ? `/admin/budgets/${order.id}` : `/admin/orders/${order.id}`
+    const identifier = this.resolveDocumentIdentifier(order)
+    const customerPath = documentType === 'BUDGET' ? `/account/budgets/${identifier}` : `/account/orders/${identifier}`
+    const adminPath =
+      documentType === 'BUDGET'
+        ? `/app/sales/budget-details/${identifier}`
+        : `/app/sales/order-details/${identifier}`
     return {
       customer: this.joinUrl(customerBase, customerPath),
       admin: this.joinUrl(adminBase, adminPath),
       payment: null,
     }
+  }
+
+  private resolveDocumentIdentifier(order: { id: number; uuid?: string | null }) {
+    if (typeof order.uuid === 'string' && order.uuid.trim().length > 0) {
+      return order.uuid.trim()
+    }
+    return String(order.id)
   }
 
   private joinUrl(base: string | null, path: string) {
@@ -1537,6 +1550,33 @@ export class EmailService {
     const trimmedBase = base.endsWith('/') ? base.slice(0, -1) : base
     const normalizedPath = path.startsWith('/') ? path : `/${path}`
     return `${trimmedBase}${normalizedPath}`
+  }
+
+  private getStorefrontBaseUrl() {
+    const configured =
+      this.config.get<string>('STOREFRONT_BASE_URL') ||
+      this.config.get<string>('CUSTOMER_PORTAL_URL') ||
+      this.config.get<string>('NEXT_PUBLIC_STOREFRONT_SITE_URL') ||
+      this.config.get<string>('NEXT_PUBLIC_SITE_URL')
+
+    if (configured) {
+      return configured
+    }
+
+    const defaultAllowedOrigins = this.config.get<string>('DEFAULT_ALLOWED_ORIGINS') ?? ''
+    const firstAllowedOrigin = defaultAllowedOrigins
+      .split(',')
+      .map((value) => value.trim())
+      .find((value) => value.length > 0)
+    if (firstAllowedOrigin) {
+      return firstAllowedOrigin
+    }
+
+    if ((this.config.get<string>('NODE_ENV') ?? '').toLowerCase() !== 'production') {
+      return 'http://localhost:3000'
+    }
+
+    return null
   }
 
   private resolveStatusEventKey(documentType: OrderEmailContext['documentType'], statusCode: string | null) {

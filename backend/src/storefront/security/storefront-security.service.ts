@@ -760,7 +760,7 @@ export class StorefrontSecurityService {
   }
 
   private buildResetUrl(token: string) {
-    const base = this.config.get<string>('STOREFRONT_BASE_URL') ?? ''
+    const base = this.getStorefrontBaseUrl()
     if (!base) {
       return `https://example.com/reset-password?token=${encodeURIComponent(token)}`
     }
@@ -769,7 +769,7 @@ export class StorefrontSecurityService {
   }
 
   private buildSecurityAlertUrl() {
-    const base = this.config.get<string>('STOREFRONT_BASE_URL') ?? ''
+    const base = this.getStorefrontBaseUrl()
     if (!base) {
       return 'https://example.com/support/security'
     }
@@ -778,12 +778,39 @@ export class StorefrontSecurityService {
   }
 
   private buildEmailVerificationUrl(token: string) {
-    const base = this.config.get<string>('STOREFRONT_BASE_URL') ?? ''
+    const base = this.getStorefrontBaseUrl()
     if (!base) {
       return `https://example.com/account/verify-email?token=${encodeURIComponent(token)}`
     }
     const normalized = base.endsWith('/') ? base.slice(0, -1) : base
     return `${normalized}/account/verify-email?token=${encodeURIComponent(token)}`
+  }
+
+  private getStorefrontBaseUrl() {
+    const configured =
+      this.config.get<string>('STOREFRONT_BASE_URL') ||
+      this.config.get<string>('CUSTOMER_PORTAL_URL') ||
+      this.config.get<string>('NEXT_PUBLIC_STOREFRONT_SITE_URL') ||
+      this.config.get<string>('NEXT_PUBLIC_SITE_URL')
+
+    if (configured) {
+      return configured
+    }
+
+    const defaultAllowedOrigins = this.config.get<string>('DEFAULT_ALLOWED_ORIGINS') ?? ''
+    const firstAllowedOrigin = defaultAllowedOrigins
+      .split(',')
+      .map((value) => value.trim())
+      .find((value) => value.length > 0)
+    if (firstAllowedOrigin) {
+      return firstAllowedOrigin
+    }
+
+    if ((this.config.get<string>('NODE_ENV') ?? '').toLowerCase() !== 'production') {
+      return 'http://localhost:3000'
+    }
+
+    return ''
   }
 
   private validatePassword(password: string) {

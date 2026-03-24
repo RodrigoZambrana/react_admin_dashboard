@@ -188,6 +188,7 @@ export class MercadoPagoService implements OnModuleInit {
 
   async onModuleInit() {
     await this.maybeCleanupObsoleteCheckoutSnapshots('module-init')
+    await this.refreshConfig()
   }
 
   private providerEnabled(): boolean {

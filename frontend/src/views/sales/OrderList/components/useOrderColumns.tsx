@@ -9,6 +9,9 @@ import { formatOrderMoney } from '@/utils/orderMoney'
 
 export type Order = {
     id: string
+    uuid?: string
+    orderNumber?: string
+    reference?: string
     date: number
     customer: string
     status: number
@@ -33,6 +36,12 @@ export type Order = {
     }
 }
 
+const resolveDisplayIdentifier = (order: Order): string =>
+    order.uuid?.trim() ||
+    order.orderNumber?.trim() ||
+    order.reference?.trim() ||
+    order.id
+
 type Params = {
     t: (k: string) => string
     statuses: { id: number; name: string; dotClass: string; textClass: string; customColor?: string }[]
@@ -53,12 +62,13 @@ export function useOrderColumns({ t, statuses, onChangeStatus, selectOnly: _sele
                 accessorKey: 'id',
                 cell: (props) => {
                     const row = props.row.original
+                    const displayIdentifier = resolveDisplayIdentifier(row)
                     return (
                         <span
                             className={`cursor-pointer select-none font-semibold hover:${textTheme}`}
-                            onClick={() => navigate(`/app/sales/order-details/${row.id}`)}
+                            onClick={() => navigate(`/app/sales/order-details/${displayIdentifier}`)}
                         >
-                            #{row.id}
+                            #{displayIdentifier}
                         </span>
                     )
                 },

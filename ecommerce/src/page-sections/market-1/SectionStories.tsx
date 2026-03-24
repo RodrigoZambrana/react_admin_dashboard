@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import Link from "next/link";
 import styled from "styled-components";
 import SlickCarousel, { CustomArrowProps, Settings } from "react-slick";
@@ -261,7 +261,7 @@ function StoryRailPrevArrow({ onClick }: CustomArrowProps) {
   );
 }
 
-export default function SectionStories({ stories }: Props) {
+function SectionStories({ stories }: Props) {
   const t = useTranslation();
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [activeAssetIndex, setActiveAssetIndex] = useState(0);
@@ -564,3 +564,5 @@ export default function SectionStories({ stories }: Props) {
     </>
   );
 }
+
+export default memo(SectionStories);

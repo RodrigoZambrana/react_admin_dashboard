@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback } from "react";
+import { Fragment, memo, useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import Grid from "@component/grid/Grid";
@@ -24,7 +24,7 @@ interface Props {
 }
 // ==============================================================
 
-export default function SaleProducts({
+function SaleProducts({
   products,
   meta,
   selectedCategorySlug,
@@ -125,3 +125,5 @@ export default function SaleProducts({
     </Fragment>
   );
 }
+
+export default memo(SaleProducts);

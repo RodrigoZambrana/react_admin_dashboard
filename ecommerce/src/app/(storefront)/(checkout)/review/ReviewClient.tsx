@@ -175,7 +175,7 @@ const formatAddress = (address: {
 
 export default function ReviewClient() {
   const router = useRouter();
-  const { state: cartState, clearCart } = useStorefrontCart();
+  const { state: cartState, clearCart, isHydrated: isCartHydrated } = useStorefrontCart();
   const {
     contact,
     shippingAddress,
@@ -231,10 +231,11 @@ export default function ReviewClient() {
   }, [cartState.items, preparedSummary?.items, t]);
 
   useEffect(() => {
+    if (!isCartHydrated) return;
     if (!lastOrder && cartState.items.length === 0) {
       router.replace("/cart");
     }
-  }, [cartState.items.length, lastOrder, router]);
+  }, [cartState.items.length, isCartHydrated, lastOrder, router]);
 
   useEffect(() => {
     if (!lastOrder && !hasPayment) {
@@ -265,6 +266,11 @@ export default function ReviewClient() {
       shippingAddress: {
         line1: shippingAddress.line1,
         line2: shippingAddress.line2 || undefined,
+        street: shippingAddress.street || undefined,
+        number: shippingAddress.number || undefined,
+        corner: shippingAddress.corner || undefined,
+        apartment: shippingAddress.apartment || undefined,
+        comments: shippingAddress.comments || undefined,
         city: shippingAddress.city,
         state: shippingAddress.state || undefined,
         zip: resolvedZip,
@@ -291,9 +297,14 @@ export default function ReviewClient() {
     orderItemsData.items,
     shippingAddress.city,
     shippingAddress.country,
+    shippingAddress.corner,
+    shippingAddress.apartment,
+    shippingAddress.comments,
     shippingAddress.line1,
     shippingAddress.line2,
+    shippingAddress.number,
     shippingAddress.state,
+    shippingAddress.street,
     shippingAddress.zip,
     shippingOption?.id
   ]);
@@ -444,6 +455,11 @@ export default function ReviewClient() {
       const shippingAddressPayload: CreateOrderPayload["shippingAddress"] = {
         line1: shippingAddress.line1,
         line2: shippingAddress.line2 || undefined,
+        street: shippingAddress.street || undefined,
+        number: shippingAddress.number || undefined,
+        corner: shippingAddress.corner || undefined,
+        apartment: shippingAddress.apartment || undefined,
+        comments: shippingAddress.comments || undefined,
         city: shippingAddress.city,
         state: shippingAddress.state || undefined,
         zip: resolvedZip,
@@ -483,7 +499,7 @@ export default function ReviewClient() {
       clearCart();
       reset();
       setLastOrder(order);
-      const orderLabel = order.orderNumber || `#${order.id}`;
+      const orderLabel = order.orderNumber || order.reference || `#${order.uuid}`;
       const isCashOrder = normalizedPayment?.method === "cod";
       toast.success({
         title: t(
@@ -541,8 +557,13 @@ export default function ReviewClient() {
     setLastOrder,
     shippingAddress.city,
     shippingAddress.country,
+    shippingAddress.corner,
     shippingAddress.line1,
     shippingAddress.line2,
+    shippingAddress.number,
+    shippingAddress.apartment,
+    shippingAddress.comments,
+    shippingAddress.street,
     shippingAddress.state,
     shippingAddress.zip,
     fulfillmentMode,
@@ -845,6 +866,7 @@ export default function ReviewClient() {
               color="primary"
               fullWidth
               mt="1.5rem"
+              data-testid="review-place-order"
               disabled={isSubmitting || !canPlaceOrder}
               onClick={handlePlaceOrder}>
               {isSubmitting
@@ -856,6 +878,7 @@ export default function ReviewClient() {
               color="primary"
               fullWidth
               mt="0.75rem"
+              data-testid="review-back-to-payment"
               onClick={() => router.push("/payment")}>
               {t("checkout.review.actions.backToPayment")}
             </Button>

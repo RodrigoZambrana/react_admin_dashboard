@@ -178,8 +178,6 @@ export interface ProductVariantAttribute {
 export interface ProductVariant {
   id: number;
   key: string;
-  sku?: string | null;
-  barcode?: string | null;
   label?: string | null;
   price: Money;
   stock?: number | null;
@@ -278,7 +276,6 @@ export interface ProductImage extends ImageAsset {
 export interface ProductSummary {
   id: number;
   slug: string;
-  sku?: string | null;
   name: string;
   shortDescription?: string | null;
   price: Money;
@@ -668,6 +665,8 @@ export interface OrderPaymentSummary {
   updatedAt?: string;
 }
 
+export interface PublicOrderPaymentSummary extends Omit<OrderPaymentSummary, "paymentIntentId"> {}
+
 export interface CustomerNotification {
   id: number;
   eventType: string | null;
@@ -679,8 +678,6 @@ export interface CustomerNotification {
   metadata: Record<string, unknown> | null;
   readAt: string | null;
   createdAt: string;
-  orderId: number | null;
-  paymentId: number | null;
 }
 
 export interface CustomerNotificationList {
@@ -704,6 +701,11 @@ export interface CreateOrderPayload {
   shippingAddress: {
     line1: string;
     line2?: string;
+    street?: string;
+    number?: string;
+    corner?: string;
+    apartment?: string;
+    comments?: string;
     city: string;
     state?: string;
     zip?: string;
@@ -712,6 +714,11 @@ export interface CreateOrderPayload {
   billingAddress?: {
     line1: string;
     line2?: string;
+    street?: string;
+    number?: string;
+    corner?: string;
+    apartment?: string;
+    comments?: string;
     city: string;
     state?: string;
     zip?: string;
@@ -750,4 +757,8 @@ export interface OrderSummary {
   shippingAddress: CreateOrderPayload["shippingAddress"];
   billingAddress?: CreateOrderPayload["billingAddress"];
   payment?: OrderPaymentSummary | null;
+}
+
+export interface PublicOrderSummary extends Omit<OrderSummary, "id" | "payment"> {
+  payment?: PublicOrderPaymentSummary | null;
 }

@@ -1,10 +1,11 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Put,
@@ -20,11 +21,41 @@ import { CreateOrderDto } from '../sales/dto/order.dto'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { BudgetsFeatureGuard } from './guards/budgets-feature.guard'
 import { parseSingleFileMultipart } from '../common/uploads/multipart'
+import { PrismaService } from '../prisma/prisma.service'
 
 @UseGuards(JwtAuthGuard, BudgetsFeatureGuard)
 @Controller('budgets')
 export class BudgetsController {
-  constructor(private readonly documents: SalesDocumentsService) {}
+  constructor(
+    private readonly documents: SalesDocumentsService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  private async resolveBudgetIdentifier(identifier: string): Promise<number> {
+    const trimmed = identifier.trim()
+    if (!trimmed) {
+      throw new BadRequestException('sales.budgets.validation.notFound')
+    }
+
+    const numericId = Number(trimmed)
+    if (Number.isFinite(numericId) && String(numericId) === trimmed) {
+      return numericId
+    }
+
+    const budget = await this.prisma.order.findFirst({
+      where: {
+        documentType: DocumentType.BUDGET,
+        uuid: trimmed,
+      },
+      select: { id: true },
+    })
+
+    if (!budget) {
+      throw new NotFoundException('sales.budgets.validation.notFound')
+    }
+
+    return budget.id
+  }
 
   @Get()
   listBudgets(@Query() q: any) {
@@ -47,12 +78,14 @@ export class BudgetsController {
   }
 
   @Get(':id/details')
-  getBudgetDetails(@Param('id', ParseIntPipe) id: number) {
+  async getBudgetDetails(@Param('id') identifier: string) {
+    const id = await this.resolveBudgetIdentifier(identifier)
     return this.documents.getDocumentDetails(DocumentType.BUDGET, id)
   }
 
   @Get(':id/pdf')
-  getBudgetPdf(@Param('id', ParseIntPipe) id: number) {
+  async getBudgetPdf(@Param('id') identifier: string) {
+    const id = await this.resolveBudgetIdentifier(identifier)
     return this.documents.getDocumentPdf(DocumentType.BUDGET, id)
   }
 
@@ -62,45 +95,52 @@ export class BudgetsController {
   }
 
   @Put(':id')
-  replaceBudget(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateOrderDto) {
+  async replaceBudget(@Param('id') identifier: string, @Body() dto: CreateOrderDto) {
+    const id = await this.resolveBudgetIdentifier(identifier)
     return this.documents.replaceDocument(DocumentType.BUDGET, id, dto)
   }
 
   @Patch(':id/comment')
-  updateBudgetComment(@Param('id', ParseIntPipe) id: number, @Body() body: { comment?: string }) {
+  async updateBudgetComment(@Param('id') identifier: string, @Body() body: { comment?: string }) {
+    const id = await this.resolveBudgetIdentifier(identifier)
     return this.documents.updateDocumentComment(DocumentType.BUDGET, id, body)
   }
 
   @Put(':id/status')
-  updateBudgetStatus(
-    @Param('id', ParseIntPipe) id: number,
+  async updateBudgetStatus(
+    @Param('id') identifier: string,
     @Body() body: { status: number; force?: boolean },
   ) {
+    const id = await this.resolveBudgetIdentifier(identifier)
     return this.documents.updateDocumentStatus(DocumentType.BUDGET, id, body)
   }
 
   @Put(':id/payment-method')
-  updateBudgetPaymentMethod(
-    @Param('id', ParseIntPipe) id: number,
+  async updateBudgetPaymentMethod(
+    @Param('id') identifier: string,
     @Body() body: { paymentMehod?: string | number | null },
   ) {
+    const id = await this.resolveBudgetIdentifier(identifier)
     return this.documents.updateDocumentPaymentMethod(DocumentType.BUDGET, id, body)
   }
 
   @Post(':id/document')
-  async uploadBudgetDocument(@Param('id', ParseIntPipe) id: number, @Req() req: FastifyRequest) {
+  async uploadBudgetDocument(@Param('id') identifier: string, @Req() req: FastifyRequest) {
+    const id = await this.resolveBudgetIdentifier(identifier)
     const { file } = await parseSingleFileMultipart(req)
     return this.documents.persistDocumentFile(DocumentType.BUDGET, id, file)
   }
 
   @Post(':id/send')
-  sendBudget(@Param('id', ParseIntPipe) id: number, @Req() req: FastifyRequest) {
+  async sendBudget(@Param('id') identifier: string, @Req() req: FastifyRequest) {
+    const id = await this.resolveBudgetIdentifier(identifier)
     const userId = (req as FastifyRequest & { user?: { id?: number } }).user?.id ?? null
     return this.documents.sendBudget(id, userId)
   }
 
   @Post(':id/confirm')
-  confirmBudget(@Param('id', ParseIntPipe) id: number, @Req() req: FastifyRequest) {
+  async confirmBudget(@Param('id') identifier: string, @Req() req: FastifyRequest) {
+    const id = await this.resolveBudgetIdentifier(identifier)
     const userId = (req as FastifyRequest & { user?: { id?: number } }).user?.id ?? null
     return this.documents.confirmBudget(id, userId)
   }

@@ -607,6 +607,21 @@ export function adaptOrderToDetailsView(
   )
   return {
     id: String(o.id),
+    uuid: typeof o.uuid === 'string' && o.uuid.trim().length > 0 ? o.uuid.trim() : undefined,
+    orderNumber:
+      typeof o.orderNumber === 'string' && o.orderNumber.trim().length > 0
+        ? o.orderNumber.trim()
+        : typeof o.uuid === 'string' && o.uuid.trim().length > 0
+          ? o.uuid.trim()
+          : undefined,
+    reference:
+      typeof o.reference === 'string' && o.reference.trim().length > 0
+        ? o.reference.trim()
+        : typeof o.orderNumber === 'string' && o.orderNumber.trim().length > 0
+          ? o.orderNumber.trim()
+          : typeof o.uuid === 'string' && o.uuid.trim().length > 0
+            ? o.uuid.trim()
+            : undefined,
     progressStatus: paymentAwareStatusId ?? 0,
     payementStatus,
     dateTime,
