@@ -69,7 +69,7 @@ const createService = () => {
 
   const service = new EmailService(prisma, templateService as any, queue as any, settings as any, config, clientConfig)
 
-  return { service, prisma, templateService, queue, settings }
+  return { service, prisma, templateService, queue, settings, config }
 }
 
 const extractMessage = (mock: ReturnType<typeof vi.fn>, index: number): EmailMessage => {
@@ -323,6 +323,26 @@ describe('EmailService', () => {
       resetUrl: null,
       accountUrl: 'https://store.example.com/account/profile',
       displayName: 'Sofía Cliente',
+    })
+  })
+
+  it('falls back to storefront site url when customer portal url is not configured', async () => {
+    const { service, queue, config } = createService()
+    config.get.mockImplementation((key: string) => {
+      if (key === 'NEXT_PUBLIC_SITE_URL') return 'http://localhost:3000'
+      return undefined
+    })
+
+    await service.sendWelcome({
+      email: 'fallback@example.com',
+      locale: 'es',
+      displayName: 'Cliente',
+    })
+
+    const message = extractMessage(queue.enqueue, 0)
+    expect(message.payload).toMatchObject({
+      event: 'welcome',
+      accountUrl: 'http://localhost:3000/account/profile',
     })
   })
 })

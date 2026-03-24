@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import styled from "styled-components";
 import { IconAdjustmentsHorizontal } from "@tabler/icons-react";
@@ -71,7 +71,7 @@ const DrawerHeader = styled(FlexBox)`
   margin-bottom: 1rem;
 `;
 
-export default function ShopProductArea({
+function ShopProductArea({
   products,
   meta,
   filters,
@@ -158,3 +158,5 @@ export default function ShopProductArea({
     </>
   );
 }
+
+export default memo(ShopProductArea);

@@ -1022,6 +1022,9 @@ export class CustomersController {
       const currency = currencyRaw.length ? currencyRaw : undefined
       return {
         id: String(o.id),
+        uuid: o.uuid ?? null,
+        orderNumber: o.uuid ?? String(o.id),
+        reference: o.uuid ?? String(o.id),
         status: status?.label || '',
         statusCode: status?.id ?? null,
         amount,
@@ -1043,6 +1046,9 @@ export class CustomersController {
       const currency = currencyRaw.length ? currencyRaw : undefined
       return {
         id: String(o.id),
+        uuid: o.uuid ?? null,
+        orderNumber: o.uuid ?? String(o.id),
+        reference: o.uuid ?? String(o.id),
         status: status?.label || '',
         statusCode: status?.id ?? null,
         amount,

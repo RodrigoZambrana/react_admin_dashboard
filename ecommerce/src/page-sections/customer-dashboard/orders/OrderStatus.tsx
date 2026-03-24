@@ -193,6 +193,9 @@ const computeOrderEstimate = (order?: OrderTimelineResponse["order"]) => {
   };
 };
 
+const getOrderIdentifier = (order: OrderTimelineResponse["order"]) =>
+  order.uuid || order.reference || order.orderNumber || "order";
+
 const dedupeByEventId = (events: OrderTimelineEvent[]) => {
   const seen = new Set<string>();
   const result: OrderTimelineEvent[] = [];
@@ -338,8 +341,8 @@ const ensurePaymentEvents = (
   }
 
   const synthetic: OrderTimelineEvent = {
-    eventId: `synthetic:order:${order.id}:${paymentType.toLowerCase()}`,
-    orderId: order.id,
+    eventId: `synthetic:order:${getOrderIdentifier(order)}:${paymentType.toLowerCase()}`,
+    orderId: getOrderIdentifier(order),
     type: paymentType,
     timestamp,
     actor: paymentInfo.provider ?? "system",
@@ -363,8 +366,8 @@ const ensurePaymentEvents = (
   if (paymentType === "PAYMENT_FULL" && hasPriorPartialPayment) {
     const summaryTimestamp = dayjs(timestamp).add(1, "millisecond").toISOString();
     augmented.push({
-      eventId: `synthetic:order:${order.id}:payment_full_summary`,
-      orderId: order.id,
+      eventId: `synthetic:order:${getOrderIdentifier(order)}:payment_full_summary`,
+      orderId: getOrderIdentifier(order),
       type: "PAYMENT_FULL_SUMMARY",
       timestamp: summaryTimestamp,
       actor: paymentInfo.provider ?? "system",
@@ -760,8 +763,8 @@ const buildTimelineSummary = (
     sorted.find((event) => (event.type || "").toUpperCase() === "ORDER_RECEIVED") ?? null;
   if (!startEvent) {
     startEvent = {
-      eventId: `synthetic:order_received:${order.id}`,
-      orderId: order.id,
+      eventId: `synthetic:order_received:${getOrderIdentifier(order)}`,
+      orderId: getOrderIdentifier(order),
       type: "ORDER_RECEIVED",
       timestamp: order.createdAt,
       actor: "system",
@@ -801,8 +804,8 @@ const buildTimelineSummary = (
         ? dayjs(fallbackTimestampSource).toISOString()
         : computed.estimateDate.toISOString();
       const syntheticEstimate = {
-        eventId: `synthetic:estimate:${order.id}`,
-        orderId: order.id,
+        eventId: `synthetic:estimate:${getOrderIdentifier(order)}`,
+        orderId: getOrderIdentifier(order),
         type: "ESTIMATE_SET",
         timestamp: syntheticTimestamp,
         actor: "system",
@@ -863,8 +866,8 @@ const buildTimelineSummary = (
         ? dayjs(fallbackTimestampSource).toISOString()
         : new Date().toISOString();
       timelineWithPayments.push({
-        eventId: `synthetic:order:${order.id}:payment_waiting`,
-        orderId: order.id,
+        eventId: `synthetic:order:${getOrderIdentifier(order)}:payment_waiting`,
+        orderId: getOrderIdentifier(order),
         type: "PAYMENT_WAITING",
         timestamp: fallbackTimestamp,
         actor: "system",

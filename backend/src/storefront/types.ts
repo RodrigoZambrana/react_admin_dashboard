@@ -170,8 +170,6 @@ export interface ProductVariantSelectionDto {
 export interface ProductVariantDto {
   id: number
   key: string
-  sku?: string | null
-  barcode?: string | null
   isActive: boolean
   price: MoneyDto
   stock?: number | null
@@ -183,7 +181,6 @@ export interface ProductVariantDto {
 export interface ProductSummaryDto {
   id: number
   slug: string
-  sku?: string | null
   name: string
   shortDescription?: string | null
   price: MoneyDto
@@ -376,6 +373,8 @@ export interface OrderPaymentSummary {
   updatedAt?: string
 }
 
+export interface PublicOrderPaymentSummary extends Omit<OrderPaymentSummary, 'paymentIntentId'> {}
+
 export interface OrderSummary {
   id: number
   uuid: string
@@ -398,6 +397,10 @@ export interface OrderSummary {
   shippingAddress: CreateOrderInput['shippingAddress']
   billingAddress?: CreateOrderInput['billingAddress']
   payment?: OrderPaymentSummary | null
+}
+
+export interface PublicOrderSummary extends Omit<OrderSummary, 'id' | 'payment'> {
+  payment?: PublicOrderPaymentSummary | null
 }
 
 export interface WishlistItemDto {

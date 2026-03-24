@@ -35,6 +35,9 @@ import { formatOrderMoney } from '@/utils/orderMoney'
 
 type Order = {
     id: string
+    uuid?: string
+    orderNumber?: string
+    reference?: string
     date: number
     customer: string
     status: number | string
@@ -60,6 +63,12 @@ type Order = {
     }
 }
 
+const resolveDisplayIdentifier = (order: Order): string =>
+    order.uuid?.trim() ||
+    order.orderNumber?.trim() ||
+    order.reference?.trim() ||
+    order.id
+
 const sortKeyMap: Record<string, string> = {
     id: 'id',
     date: 'date',
@@ -81,12 +90,13 @@ const normalizeSort = (s?: OnSortParam | { key?: string; order?: string } | null
 
 const OrderColumnCell = ({ row, onView }: { row: Order; onView: () => void }) => {
     const { textTheme } = useThemeClass()
+    const displayIdentifier = resolveDisplayIdentifier(row)
     return (
         <span
             className={`cursor-pointer select-none font-semibold hover:${textTheme}`}
             onClick={onView}
         >
-            #{row.id}
+            #{displayIdentifier}
         </span>
     )
 }
@@ -293,7 +303,7 @@ const OrdersTable = () => {
                 cell: (p) => (
                     <OrderColumnCell
                         row={p.row.original}
-                        onView={() => handleView(p.row.original.id)}
+                        onView={() => handleView(resolveDisplayIdentifier(p.row.original))}
                     />
                 ),
             },
@@ -449,17 +459,20 @@ const OrdersTable = () => {
             header: '',
             id: 'action',
             enableSorting: false,
-            cell: (p) => (
-                <ActionColumnCell
-                    onView={() => handleView(p.row.original.id)}
-                    onEdit={() => handleEdit(p.row.original.id)}
-                    onInvoice={() => handleInvoice(p.row.original.id)}
-                    onDelete={() => handleDelete(p.row.original.id)}
-                    invoiceLabel={tDoc('invoiceAction', {
-                        defaultValue: 'Documento',
-                    })}
-                />
-            ),
+            cell: (p) => {
+                const displayIdentifier = resolveDisplayIdentifier(p.row.original)
+                return (
+                    <ActionColumnCell
+                        onView={() => handleView(displayIdentifier)}
+                        onEdit={() => handleEdit(displayIdentifier)}
+                        onInvoice={() => handleInvoice(displayIdentifier)}
+                        onDelete={() => handleDelete(p.row.original.id)}
+                        invoiceLabel={tDoc('invoiceAction', {
+                            defaultValue: 'Documento',
+                        })}
+                    />
+                )
+            },
         })
 
         return baseColumns

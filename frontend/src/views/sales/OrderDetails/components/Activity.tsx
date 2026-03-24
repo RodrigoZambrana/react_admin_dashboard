@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import classNames from 'classnames'
 import Timeline from '@/components/ui/Timeline'
 import Badge from '@/components/ui/Badge'
@@ -946,4 +946,4 @@ const Activity = ({ timeline, loading = false, error = null }: ActivityProps) =>
     )
 }
 
-export default Activity
+export default memo(Activity)

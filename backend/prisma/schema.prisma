@@ -237,6 +237,9 @@ model Notification {
   @@index([recipientId, readAt], map: "notification_recipient_read_at_idx")
   @@index([customerId, readAt], map: "notification_customer_read_at_idx")
   @@index([eventType, audience, channel], map: "notification_event_audience_channel_idx")
+  @@index([customerId, audience, createdAt], map: "notification_customer_audience_created_at_idx")
+  @@index([recipientId, audience, createdAt], map: "notification_recipient_audience_created_at_idx")
+  @@index([orderId, id], map: "notification_order_id_id_idx")
 }
 
 model NotificationSetting {
@@ -781,6 +784,7 @@ model Order {
   @@index([activityId])
   @@index([documentType, statusId, customerId, createdAt])
   @@index([documentType, createdAt])
+  @@index([customerId, documentType, date])
   @@index([validUntil])
 }
 
@@ -806,6 +810,7 @@ model OrderTimelineEvent {
 
   @@index([orderId, timestamp])
   @@index([orderId, type])
+  @@index([orderId, timestamp, id], map: "order_timeline_order_timestamp_id_idx")
 }
 
 model OrderItem {
@@ -864,6 +869,7 @@ model Payment {
 
   @@index([orderId])
   @@index([status, type])
+  @@index([orderId, status, date])
   @@index([paymentMethodId])
 }
 
@@ -1004,6 +1010,8 @@ model StorefrontPaymentIntent {
 
   @@index([externalPaymentId])
   @@index([orderId])
+  @@index([cartId])
+  @@index([payerEmail])
   @@index([status])
   @@index([provider, status])
 }
@@ -1426,6 +1434,7 @@ model EmailLog {
   updatedAt         DateTime           @updatedAt
 
   @@index([category, status, createdAt])
+  @@index([toAddress, createdAt])
   @@index([templateId])
 }
 

@@ -9,6 +9,7 @@ import type {
   CustomerWishlist,
   HomeLayoutDefinition,
   OrderSummary,
+  PublicOrderSummary,
   ParametricConfigSnapshot,
   ParametricQuoteRequest,
   ParametricQuoteResult,
@@ -126,14 +127,15 @@ export interface MercadoPagoChargeResponse {
   paymentId?: string | null;
   paymentIntentId: string;
   cartId?: string | null;
-  orderId?: number | null;
+  orderUuid?: string | null;
+  orderNumber?: string | null;
+  reference?: string | null;
   amount: number;
   currency: string;
   installments?: number | null;
   cardBrand?: string | null;
   cardLastFour?: string | null;
   cardholderName?: string | null;
-  checkoutSnapshot?: CheckoutSnapshotPayload | null;
   createdAt: string;
 }
 
@@ -187,6 +189,13 @@ export const StorefrontApi = {
 
   async getContentSection(sectionKey: string, locale?: string): Promise<CmsContentSection> {
     return apiFetch<CmsContentSection>(`content/sections/${encodeURIComponent(sectionKey)}`, {
+      params: locale ? { locale } : undefined,
+      cache: "no-store"
+    });
+  },
+
+  async listContentSections(locale?: string): Promise<CmsContentSection[]> {
+    return apiFetch<CmsContentSection[]>("content/sections", {
       params: locale ? { locale } : undefined,
       cache: "no-store"
     });
@@ -524,8 +533,8 @@ export const StorefrontApi = {
     });
   },
 
-  async listOrders(token: string): Promise<OrderSummary[]> {
-    return apiFetch<OrderSummary[]>("account/orders", {
+  async listOrders(token: string): Promise<PublicOrderSummary[]> {
+    return apiFetch<PublicOrderSummary[]>("account/orders", {
       headers: {
         Authorization: `Bearer ${token}`
       },
@@ -533,8 +542,8 @@ export const StorefrontApi = {
     });
   },
 
-  async getOrder(token: string, identifier: string): Promise<OrderSummary> {
-    return apiFetch<OrderSummary>(`account/orders/${encodeURIComponent(identifier)}`, {
+  async getOrder(token: string, identifier: string): Promise<PublicOrderSummary> {
+    return apiFetch<PublicOrderSummary>(`account/orders/${encodeURIComponent(identifier)}`, {
       headers: {
         Authorization: `Bearer ${token}`
       },

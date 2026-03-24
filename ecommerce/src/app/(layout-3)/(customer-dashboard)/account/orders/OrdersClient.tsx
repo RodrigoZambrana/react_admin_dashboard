@@ -114,7 +114,7 @@ export default function OrdersClient() {
 
       {orders.map((order) => {
         const key =
-          order.uuid || order.reference || order.orderNumber || `order-${order.id}`;
+          order.uuid || order.reference || order.orderNumber || "order";
         return <OrderRow order={order} key={key} />;
       })}
 

@@ -98,7 +98,10 @@ function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: C
   const detailHref = buildPublishedParametricDetailHref(item.product.slug, item.product.configuration);
 
   return (
-    <CartLineItemWrapper {...rest}>
+    <CartLineItemWrapper
+      {...rest}
+      data-testid={`cart-line-${String(item.product.id).replace(/[^a-zA-Z0-9_-]/g, "-")}`}
+    >
       {hasImage ? (
         <LazyImage alt={item.product.name} width={140} height={140} src={thumbnailSrc!} />
       ) : (
@@ -151,6 +154,7 @@ function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: C
               variant="outlined"
               disabled={item.quantity === 1}
               borderColor="primary.light"
+              data-testid={`cart-line-decrease-${String(item.product.id).replace(/[^a-zA-Z0-9_-]/g, "-")}`}
               onClick={onDecrease}>
               <IconMinus size={16} />
             </Button>
@@ -165,6 +169,7 @@ function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: C
               color="primary"
               variant="outlined"
               borderColor="primary.light"
+              data-testid={`cart-line-increase-${String(item.product.id).replace(/[^a-zA-Z0-9_-]/g, "-")}`}
               onClick={onIncrease}>
               <IconPlus size={16} />
             </Button>

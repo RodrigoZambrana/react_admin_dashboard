@@ -32,6 +32,7 @@ export const STOREFRONT_ROUTE_INVENTORY = {
     "/auth/complete",
     "/account/login",
     "/account/register",
+    "/terms-and-conditions",
     "/account/forgot-password",
     "/account/verify-email",
     "/reset-password",

@@ -17,6 +17,27 @@ export const PARAMETRIC_LINE_MARKER = ":PARAM:";
 export const isParametricCartLineId = (value: unknown): boolean =>
   typeof value === "string" && value.includes(PARAMETRIC_LINE_MARKER);
 
+export const extractProductIdFromCartLineId = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const baseSegment = trimmed.includes(PARAMETRIC_LINE_MARKER)
+    ? trimmed.split(PARAMETRIC_LINE_MARKER)[0]
+    : trimmed;
+  const parsed = Number(baseSegment);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const normalizeParametricConfiguration = (
   item: CartLineItem
 ): { config?: Record<string, unknown>; error?: string } => {
@@ -86,9 +107,13 @@ export const buildCheckoutOrderItems = (items: CartLineItem[]): CheckoutOrderIte
 
   const normalizedItems = items
     .map((item) => {
-      const productIdValue = item.product.productId ?? item.product.id;
-      const productId = Number(productIdValue);
-      if (!Number.isFinite(productId)) {
+      const productId =
+        extractProductIdFromCartLineId(item.product.productId ?? null) ??
+        extractProductIdFromCartLineId(item.product.id);
+      if (!productId) {
+        configError =
+          configError ??
+          `Un artículo (“${item.product.name}”) tiene una referencia inválida. Volvé a agregarlo al carrito antes de continuar.`;
         return null;
       }
 

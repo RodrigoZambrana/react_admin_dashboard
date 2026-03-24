@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormik } from "formik";
@@ -313,9 +314,11 @@ export default function RegisterClient() {
                   defaultMessage: "By creating an account, you agree to our"
                 })}{" "}
               </SemiSpan>
-              <H6 ml="0.5rem" borderBottom="1px solid" borderColor="gray.900">
-                {t("auth.register.terms", { defaultMessage: "Terms & Conditions" })}
-              </H6>
+              <Link href="/terms-and-conditions">
+                <H6 ml="0.5rem" borderBottom="1px solid" borderColor="gray.900">
+                  {t("auth.register.terms", { defaultMessage: "Terms & Conditions" })}
+                </H6>
+              </Link>
             </FlexBox>
           }
         />

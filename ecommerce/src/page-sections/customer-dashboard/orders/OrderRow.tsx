@@ -12,13 +12,13 @@ import TableRow from "@component/TableRow";
 import { IconButton } from "@component/buttons";
 import Typography, { H5, Small } from "@component/Typography";
 
-import type { OrderSummary } from "@/types/storefront";
+import type { PublicOrderSummary } from "@/types/storefront";
 import { getBadgePalette, resolveOrderBadgeDescriptor, formatOrderBadgeLabel } from "@/lib/utils/order-status";
 import { useTranslation } from "@/state/i18n-context";
 import { formatOrderMoney } from "@common/currency/orderMoney";
 
 // =================================================
-type OrderRowProps = { order: OrderSummary };
+type OrderRowProps = { order: PublicOrderSummary };
 // =================================================
 
 export default function OrderRow({ order }: OrderRowProps) {
@@ -36,9 +36,9 @@ export default function OrderRow({ order }: OrderRowProps) {
     () => formatOrderMoney(total.amount, total.currency),
     [total]
   );
-  const orderUuid = order.uuid || order.reference || order.orderNumber || String(order.id);
+  const orderUuid = order.uuid || order.reference || order.orderNumber || "order";
   const encodedIdentifier = encodeURIComponent(orderUuid);
-  const displayIdentifier = `#${order.id}`;
+  const displayIdentifier = `#${orderUuid}`;
 
   return (
     <Link href={`/orders/${encodedIdentifier}`}>

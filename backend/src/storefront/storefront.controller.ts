@@ -83,6 +83,11 @@ export class StorefrontController {
     return this.storefront.getHomeLayout(key)
   }
 
+  @Get('content/sections')
+  listContentSections(@Query('locale') locale?: string) {
+    return this.storefront.listContentSections(locale)
+  }
+
   @Get('categories')
   listCategories(): Promise<StorefrontCategoryTree[]> {
     return this.storefront.listCategories()
@@ -402,24 +407,25 @@ export class StorefrontController {
       },
     )
 
+    const publicOrder = record.orderId
+      ? await this.storefront.getPublicOrderReferenceById(record.orderId)
+      : null
+
     return {
       status: record.status,
       statusDetail: record.statusDetail,
       paymentId: record.externalPaymentId,
       paymentIntentId: record.id,
       cartId: record.cartId,
-      orderId: record.orderId,
+      orderUuid: publicOrder?.uuid ?? null,
+      orderNumber: publicOrder?.orderNumber ?? null,
+      reference: publicOrder?.reference ?? null,
       amount: decimalToNumber(record.amount),
       currency: record.currency,
       installments: record.installments,
       cardBrand: record.cardBrand,
       cardLastFour: record.cardLastFour,
       cardholderName: record.cardholderName,
-      checkoutSnapshot:
-        record.metadata && typeof record.metadata === 'object'
-          ? ((record.metadata as Record<string, unknown>).checkoutSnapshot as Record<string, unknown> | undefined) ??
-            null
-          : null,
       createdAt: record.createdAt,
     }
   }
@@ -438,6 +444,16 @@ export class StorefrontController {
 
     const reconciledOrder =
       !record.orderId ? await this.storefront.reconcileApprovedPaymentIntent(record.id) : null
+    const publicOrder =
+      reconciledOrder
+        ? {
+            uuid: reconciledOrder.uuid,
+            orderNumber: reconciledOrder.orderNumber,
+            reference: reconciledOrder.reference,
+          }
+        : record.orderId
+          ? await this.storefront.getPublicOrderReferenceById(record.orderId)
+          : null
 
     return {
       status: record.status,
@@ -445,18 +461,15 @@ export class StorefrontController {
       paymentId: record.externalPaymentId,
       paymentIntentId: record.id,
       cartId: record.cartId,
-      orderId: reconciledOrder?.id ?? record.orderId,
+      orderUuid: publicOrder?.uuid ?? null,
+      orderNumber: publicOrder?.orderNumber ?? null,
+      reference: publicOrder?.reference ?? null,
       amount: decimalToNumber(record.amount),
       currency: record.currency,
       installments: record.installments,
       cardBrand: record.cardBrand,
       cardLastFour: record.cardLastFour,
       cardholderName: record.cardholderName,
-      checkoutSnapshot:
-        record.metadata && typeof record.metadata === 'object'
-          ? ((record.metadata as Record<string, unknown>).checkoutSnapshot as Record<string, unknown> | undefined) ??
-            null
-          : null,
       createdAt: record.createdAt,
     }
   }

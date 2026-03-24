@@ -35,6 +35,11 @@ export type CheckoutContact = {
 export type CheckoutAddress = {
   line1: string;
   line2?: string;
+  street?: string;
+  number?: string;
+  corner?: string;
+  apartment?: string;
+  comments?: string;
   city: string;
   state?: string;
   zip?: string;
@@ -123,6 +128,11 @@ const createInitialState = (): CheckoutState => ({
   shippingAddress: {
     line1: "",
     line2: "",
+    street: "",
+    number: "",
+    corner: "",
+    apartment: "",
+    comments: "",
     city: "",
     state: "",
     zip: "",

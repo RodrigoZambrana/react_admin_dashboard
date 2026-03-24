@@ -45,7 +45,6 @@ interface Product {
     id: number;
     key: string;
     label?: string;
-    sku?: string | null;
     price: number;
     currency: string;
     inventoryStatus: InventoryStatus;

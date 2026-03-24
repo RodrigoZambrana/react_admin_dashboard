@@ -95,7 +95,6 @@ export const mapProductDetailToProduct = (product: ProductDetail): Product => {
       id: variant.id,
       key: variant.key,
       label: variant.label ?? undefined,
-      sku: variant.sku ?? null,
       price: variantPrice.amount,
       currency: variantPrice.currency,
       inventoryStatus: variant.inventoryStatus ?? product.inventoryStatus ?? "in-stock",

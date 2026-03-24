@@ -16,7 +16,7 @@ export type OrderTimelineEventType =
 
 export interface OrderTimelineEvent {
   eventId: string;
-  orderId: number;
+  orderId?: number | string;
   type: OrderTimelineEventType | string;
   timestamp: string;
   actor?: string | null;
@@ -32,9 +32,9 @@ export interface OrderTimelineEvent {
 }
 
 export interface OrderTimelineOrderSnapshot {
-  id: number;
-  customerId?: number | null;
-  statusId?: number | null;
+  uuid: string;
+  orderNumber: string;
+  reference?: string | null;
   status?: string | null;
   statusLabel?: string | null;
   paymentStatus?: string | null;

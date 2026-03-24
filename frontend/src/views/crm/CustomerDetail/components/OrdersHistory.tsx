@@ -29,6 +29,9 @@ const statusColor: Record<string, string> = {
 
 const columnHelper = createColumnHelper<CustomerOrder>()
 
+const resolveDisplayIdentifier = (row: CustomerOrder) =>
+    row.uuid?.trim() || row.orderNumber?.trim() || row.reference?.trim() || row.id
+
 const buildColumns = (
     t: (k: string) => string,
     formatAmount: (value?: number, currency?: string) => string,
@@ -38,12 +41,13 @@ const buildColumns = (
         header: t('text.columns.reference'),
         cell: (props) => {
             const row = props.row.original
+            const displayIdentifier = resolveDisplayIdentifier(row)
             return (
                 <Link
-                    to={`${options.detailsPath}/${row.id}`}
+                    to={`${options.detailsPath}/${displayIdentifier}`}
                     className="text-primary-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded-sm"
                 >
-                    #{row.id}
+                    #{displayIdentifier}
                 </Link>
             )
         },
@@ -89,9 +93,10 @@ const buildColumns = (
         header: t('text.columns.actions'),
         cell: (props) => {
             const row = props.row.original
+            const displayIdentifier = resolveDisplayIdentifier(row)
             return (
                 <div className="flex justify-end">
-                    <Link to={`${options.detailsPath}/${row.id}`}>
+                    <Link to={`${options.detailsPath}/${displayIdentifier}`}>
                         <Button size="xs" variant="twoTone">
                             {t('text.actions.view')}
                         </Button>

@@ -295,7 +295,6 @@ function PaymentSuccessContent() {
           cardBrand: paymentRecord.cardBrand ?? undefined,
           cardLastFour: paymentRecord.cardLastFour ?? undefined,
           cardholderName: paymentRecord.cardholderName ?? undefined,
-          checkoutSnapshot: paymentRecord.checkoutSnapshot ?? undefined,
           updatedAt: paymentRecord.createdAt
         };
         setPayment(resolvedPayment);
@@ -431,7 +430,7 @@ function PaymentSuccessContent() {
     t
   ]);
 
-  const orderLabel = createdOrder ? `#${createdOrder.orderNumber ?? createdOrder.id}` : null;
+  const orderLabel = createdOrder ? `#${createdOrder.orderNumber ?? createdOrder.uuid}` : null;
   const orderTotalLabel = createdOrder
     ? new Intl.NumberFormat(locale === "en" ? "en-US" : "es-UY", {
         style: "currency",

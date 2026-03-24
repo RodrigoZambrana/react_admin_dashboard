@@ -144,17 +144,45 @@ const normalizeCountryCode = (value?: string | null) => {
   return "UY";
 };
 
-export default function CheckoutForm() {
+export default function CheckoutForm({
+  initialShippingOptions = []
+}: {
+  initialShippingOptions?: StorefrontShippingOption[];
+}) {
   const router = useRouter();
-  const { state: cartState } = useStorefrontCart();
+  const { state: cartState, isHydrated: isCartHydrated } = useStorefrontCart();
   const { contact, shippingAddress, shippingOption, setDetails } = useCheckout();
   const { getCitiesForCountry, loading: locationLoading, error: locationError } = useCountryCityData();
   const t = useTranslation();
   const { locale } = useI18n();
   const checkoutSchema = useMemo(() => buildCheckoutSchema(t), [t]);
-  const [shippingOptions, setShippingOptions] = useState<StorefrontShippingOption[]>([]);
-  const [shippingOptionsLoading, setShippingOptionsLoading] = useState(true);
+  const [shippingOptions, setShippingOptions] = useState<StorefrontShippingOption[]>(initialShippingOptions);
+  const [shippingOptionsLoading, setShippingOptionsLoading] = useState(initialShippingOptions.length === 0);
   const [shippingOptionsError, setShippingOptionsError] = useState<string | null>(null);
+
+  const loadShippingOptions = useCallback(async () => {
+    setShippingOptionsLoading(true);
+    setShippingOptionsError(null);
+
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const options = await StorefrontApi.listShippingOptions();
+        setShippingOptions(options);
+        setShippingOptionsError(null);
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    setShippingOptions([]);
+    setShippingOptionsError("Failed to load shipping options");
+    if (lastError) {
+      console.warn("[checkout] failed to load shipping options", lastError);
+    }
+  }, []);
 
   const getDefaultDepartment = useCallback(
     (countryCode: string) => {
@@ -170,37 +198,39 @@ export default function CheckoutForm() {
   );
 
   useEffect(() => {
+    if (!isCartHydrated) return;
     if (cartState.items.length === 0) {
       router.replace("/cart");
     }
-  }, [cartState.items.length, router]);
+  }, [cartState.items.length, isCartHydrated, router]);
 
   useEffect(() => {
     let cancelled = false;
 
-    setShippingOptionsLoading(true);
-    setShippingOptionsError(null);
+    if (initialShippingOptions.length > 0) {
+      setShippingOptions(initialShippingOptions);
+      setShippingOptionsLoading(false);
+      setShippingOptionsError(null);
+      return () => {
+        cancelled = true;
+      };
+    }
 
     (async () => {
       try {
-        const options = await StorefrontApi.listShippingOptions();
-        if (cancelled) return;
-        setShippingOptions(options);
+        await loadShippingOptions();
       } catch (error) {
         if (cancelled) return;
-        setShippingOptions([]);
-        setShippingOptionsError("Failed to load shipping options");
       } finally {
-        if (!cancelled) {
-          setShippingOptionsLoading(false);
-        }
+        if (cancelled) return;
+        setShippingOptionsLoading(false);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialShippingOptions, loadShippingOptions]);
 
   const initialValues = useMemo<CheckoutDetailsFormValues>(() => {
     const { street, number } = parseLine1(shippingAddress.line1);
@@ -254,6 +284,7 @@ export default function CheckoutForm() {
       DEFAULT_POSTAL_CODE_BY_COUNTRY[normalizedCountry] ??
       DEFAULT_POSTAL_CODE_BY_COUNTRY.UY ??
       POSTAL_CODE_FALLBACK;
+    const addressLine2 = [trimmed.apartment, trimmed.corner].filter(Boolean).join(", ");
     const selectedShippingOption = shippingOptions.find(
       (option) => String(option.id) === trimmed.shippingOptionId
     );
@@ -271,7 +302,11 @@ export default function CheckoutForm() {
       },
       {
         line1: `${trimmed.street} ${trimmed.number}`.trim(),
-        line2: [trimmed.apartment, trimmed.corner].filter(Boolean).join(", ") || "",
+        line2: addressLine2 || "",
+        street: trimmed.street,
+        number: trimmed.number,
+        corner: trimmed.corner || "",
+        apartment: trimmed.apartment || "",
         city: department,
         state: department,
         zip: postalCode,
@@ -502,6 +537,7 @@ export default function CheckoutForm() {
                     {t("Delivery option")}
                   </Typography>
                   <Select
+                    data-testid="checkout-shipping-option"
                     options={shippingOptionChoices}
                     placeholder={t("Select a delivery option")}
                     value={
@@ -519,9 +555,25 @@ export default function CheckoutForm() {
                     }}
                   />
                   {shippingOptionsError ? (
-                    <Typography color="error.main" fontSize="12px" mt="0.5rem">
-                      {t(shippingOptionsError)}
-                    </Typography>
+                    <Grid container spacing={2} alignItems="center" mt="0.25rem">
+                      <Grid item xs={12} sm={8}>
+                        <Typography color="error.main" fontSize="12px">
+                          {t(shippingOptionsError)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <Button
+                          variant="text"
+                          color="primary"
+                          type="button"
+                          size="small"
+                          onClick={() => {
+                            void loadShippingOptions().finally(() => setShippingOptionsLoading(false));
+                          }}>
+                          {t("Refresh")}
+                        </Button>
+                      </Grid>
+                    </Grid>
                   ) : null}
                 </Grid>
               </Grid>
@@ -537,11 +589,26 @@ export default function CheckoutForm() {
               </Grid>
 
               <Grid item sm={6} xs={12}>
-                <Button variant="contained" color="primary" type="submit" fullWidth>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  type="submit"
+                  fullWidth
+                  data-testid="checkout-continue-to-payment"
+                >
                   Continue to payment
                 </Button>
               </Grid>
             </Grid>
+
+            <Typography color="text.muted" fontSize="12px" mt="1rem" textAlign="center">
+              {t("checkout.terms.notice", {
+                defaultMessage: "Al continuar aceptas nuestros términos y condiciones."
+              })}{" "}
+              <Link href="/terms-and-conditions">
+                {t("Terms & Conditions")}
+              </Link>
+            </Typography>
           </form>
         );
       }}

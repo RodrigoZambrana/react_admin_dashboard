@@ -115,6 +115,7 @@ export default function StorefrontProductCard({
       type: "CHANGE_CART_AMOUNT",
       payload: {
         id: cartLineId,
+        productId: id,
         slug,
         price,
         currency: currencyCode ?? baseCurrency,
@@ -138,6 +139,7 @@ export default function StorefrontProductCard({
     configuration,
     currencyCode,
     dispatch,
+    id,
     inventoryStatus,
     mode,
     primaryImage,

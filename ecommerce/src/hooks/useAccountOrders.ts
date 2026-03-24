@@ -4,14 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { extractApiErrorMessage } from "@/lib/api/errors";
-import type { OrderSummary } from "@/types/storefront";
+import type { PublicOrderSummary } from "@/types/storefront";
 import type { OrderTimelineResponse } from "@/types/orderTimeline";
 import { useSession } from "@/state/session-context";
 import { useToast } from "@/contexts/ToastContext";
 import { useTranslation } from "@/state/i18n-context";
 
 interface UseAccountOrdersResult {
-  orders: OrderSummary[];
+  orders: PublicOrderSummary[];
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -21,7 +21,7 @@ interface UseAccountOrdersResult {
 
 export function useAccountOrders(): UseAccountOrdersResult {
   const { session, status, logout } = useSession();
-  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [orders, setOrders] = useState<PublicOrderSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsReauthentication, setNeedsReauthentication] = useState(false);
@@ -97,7 +97,7 @@ export function useAccountOrders(): UseAccountOrdersResult {
 }
 
 interface UseAccountOrderResult {
-  order: OrderSummary | null;
+  order: PublicOrderSummary | null;
   timeline: OrderTimelineResponse | null;
   loading: boolean;
   timelineLoading: boolean;
@@ -110,7 +110,7 @@ interface UseAccountOrderResult {
 
 export function useAccountOrder(identifier: string): UseAccountOrderResult {
   const { session, status, logout } = useSession();
-  const [order, setOrder] = useState<OrderSummary | null>(null);
+  const [order, setOrder] = useState<PublicOrderSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<OrderTimelineResponse | null>(null);

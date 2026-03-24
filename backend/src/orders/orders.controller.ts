@@ -6,7 +6,6 @@ import {
   Get,
   NotFoundException,
   Param,
-  ParseIntPipe,
   Patch,
   Post,
   Put,
@@ -23,6 +22,7 @@ import { CreateOrderDto } from '../sales/dto/order.dto'
 import { parseSingleFileMultipart } from '../common/uploads/multipart'
 import { OrderTimelineService } from './order-timeline.service'
 import { UpdateOrderDeliveryDto } from './dto/update-delivery.dto'
+import { PrismaService } from '../prisma/prisma.service'
 
 @UseGuards(JwtAuthGuard)
 @Controller('orders')
@@ -30,7 +30,34 @@ export class OrdersController {
   constructor(
     private readonly documents: SalesDocumentsService,
     private readonly timeline: OrderTimelineService,
+    private readonly prisma: PrismaService,
   ) {}
+
+  private async resolveOrderIdentifier(identifier: string): Promise<number> {
+    const trimmed = identifier.trim()
+    if (!trimmed) {
+      throw new BadRequestException('sales.orders.validation.notFound')
+    }
+
+    const numericId = Number(trimmed)
+    if (Number.isFinite(numericId) && String(numericId) === trimmed) {
+      return numericId
+    }
+
+    const order = await this.prisma.order.findFirst({
+      where: {
+        documentType: DocumentType.ORDER,
+        uuid: trimmed,
+      },
+      select: { id: true },
+    })
+
+    if (!order) {
+      throw new NotFoundException('sales.orders.validation.notFound')
+    }
+
+    return order.id
+  }
 
   @Get()
   listOrders(@Query() q: any) {
@@ -53,12 +80,14 @@ export class OrdersController {
   }
 
   @Get(':id/details')
-  getOrderDetails(@Param('id', ParseIntPipe) id: number) {
+  async getOrderDetails(@Param('id') identifier: string) {
+    const id = await this.resolveOrderIdentifier(identifier)
     return this.documents.getDocumentDetails(DocumentType.ORDER, id)
   }
 
   @Get(':id/timeline')
-  async getOrderTimeline(@Param('id', ParseIntPipe) id: number) {
+  async getOrderTimeline(@Param('id') identifier: string) {
+    const id = await this.resolveOrderIdentifier(identifier)
     const timeline = await this.timeline.getOrderTimeline(id)
     if (!timeline || timeline.order.documentType !== DocumentType.ORDER) {
       throw new NotFoundException('sales.orders.validation.notFound')
@@ -82,7 +111,8 @@ export class OrdersController {
   }
 
   @Get(':id/pdf')
-  getOrderPdf(@Param('id', ParseIntPipe) id: number) {
+  async getOrderPdf(@Param('id') identifier: string) {
+    const id = await this.resolveOrderIdentifier(identifier)
     return this.documents.getDocumentPdf(DocumentType.ORDER, id)
   }
 
@@ -92,48 +122,54 @@ export class OrdersController {
   }
 
   @Put(':id')
-  replaceOrder(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateOrderDto) {
+  async replaceOrder(@Param('id') identifier: string, @Body() dto: CreateOrderDto) {
+    const id = await this.resolveOrderIdentifier(identifier)
     return this.documents.replaceDocument(DocumentType.ORDER, id, dto)
   }
 
   @Patch(':id/comment')
-  updateOrderComment(@Param('id', ParseIntPipe) id: number, @Body() body: { comment?: string }) {
+  async updateOrderComment(@Param('id') identifier: string, @Body() body: { comment?: string }) {
+    const id = await this.resolveOrderIdentifier(identifier)
     return this.documents.updateDocumentComment(DocumentType.ORDER, id, body)
   }
 
   @Patch(':id/delivery')
-  updateOrderDelivery(
-    @Param('id', ParseIntPipe) id: number,
+  async updateOrderDelivery(
+    @Param('id') identifier: string,
     @Body() dto: UpdateOrderDeliveryDto,
   ) {
+    const id = await this.resolveOrderIdentifier(identifier)
     return this.documents.updateOrderDeliveryDetails(id, dto)
   }
 
   @Put(':id/status')
-  updateOrderStatus(
-    @Param('id', ParseIntPipe) id: number,
+  async updateOrderStatus(
+    @Param('id') identifier: string,
     @Body() body: { status: number; force?: boolean },
   ) {
+    const id = await this.resolveOrderIdentifier(identifier)
     return this.documents.updateDocumentStatus(DocumentType.ORDER, id, body)
   }
 
   @Put(':id/payment-method')
-  updateOrderPaymentMethod(
-    @Param('id', ParseIntPipe) id: number,
+  async updateOrderPaymentMethod(
+    @Param('id') identifier: string,
     @Body() body: { paymentMehod?: string | number | null },
   ) {
+    const id = await this.resolveOrderIdentifier(identifier)
     return this.documents.updateDocumentPaymentMethod(DocumentType.ORDER, id, body)
   }
 
   @Post(':id/document')
-  async uploadOrderDocument(@Param('id', ParseIntPipe) id: number, @Req() req: FastifyRequest) {
+  async uploadOrderDocument(@Param('id') identifier: string, @Req() req: FastifyRequest) {
+    const id = await this.resolveOrderIdentifier(identifier)
     const { file } = await parseSingleFileMultipart(req)
     return this.documents.persistDocumentFile(DocumentType.ORDER, id, file)
   }
 
   @Post(':id/timeline')
   async appendOrderTimelineEvent(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') identifier: string,
     @Body()
     body: {
       type?: string
@@ -143,6 +179,7 @@ export class OrdersController {
       metadata?: Record<string, unknown> | string | null
     },
   ) {
+    const id = await this.resolveOrderIdentifier(identifier)
     const type = body.type?.trim()?.toUpperCase()
     if (!type) {
       throw new BadRequestException('orders.timeline.validation.typeRequired')

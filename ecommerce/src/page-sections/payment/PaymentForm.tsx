@@ -150,7 +150,7 @@ export default function PaymentForm() {
   const t = useTranslation();
   const { locale } = useI18n();
   const { convertMoney, baseCurrency } = useCurrency();
-  const { state: cartState } = useStorefrontCart();
+  const { state: cartState, isHydrated: isCartHydrated } = useStorefrontCart();
   const { totals } = useCheckoutTotals();
   const storefrontConfig = useStorefrontConfig();
   const {
@@ -239,10 +239,11 @@ export default function PaymentForm() {
   }, [resetMercadoPagoSession]);
 
   useEffect(() => {
+    if (!isCartHydrated) return;
     if (cartState.items.length === 0) {
       router.replace("/cart");
     }
-  }, [cartState.items.length, router]);
+  }, [cartState.items.length, isCartHydrated, router]);
 
   useEffect(() => {
     if (!hasDetails) {
@@ -332,6 +333,11 @@ export default function PaymentForm() {
       shippingAddress: {
         line1: shippingAddress.line1,
         line2: shippingAddress.line2 || undefined,
+        street: shippingAddress.street || undefined,
+        number: shippingAddress.number || undefined,
+        corner: shippingAddress.corner || undefined,
+        apartment: shippingAddress.apartment || undefined,
+        comments: shippingAddress.comments || undefined,
         city: shippingAddress.city,
         state: shippingAddress.state || undefined,
         zip: shippingAddress.zip || undefined,
@@ -355,10 +361,15 @@ export default function PaymentForm() {
     orderItemsSnapshot.error,
     orderItemsSnapshot.items,
     shippingAddress.city,
+    shippingAddress.corner,
     shippingAddress.country,
+    shippingAddress.apartment,
+    shippingAddress.comments,
     shippingAddress.line1,
     shippingAddress.line2,
+    shippingAddress.number,
     shippingAddress.state,
+    shippingAddress.street,
     shippingAddress.zip,
     shippingOption?.id,
     totals.total.currency
@@ -639,7 +650,7 @@ export default function PaymentForm() {
           cardBrand: response.cardBrand ?? undefined,
           cardLastFour: response.cardLastFour ?? undefined,
           cardholderName: response.cardholderName ?? payerName,
-          checkoutSnapshot: response.checkoutSnapshot ?? checkoutSnapshot,
+          checkoutSnapshot,
           updatedAt: response.createdAt ?? new Date().toISOString()
         };
 
@@ -923,6 +934,7 @@ export default function PaymentForm() {
           color="secondary"
           name="paymentMethod"
           value="mercadopago"
+          data-testid="payment-method-mercadopago"
           onChange={(event) => handleMethodChange(event.target.value as PaymentMethod)}
           checked={selectedMethod === "mercadopago"}
           label={
@@ -1018,6 +1030,7 @@ export default function PaymentForm() {
           color="secondary"
           name="paymentMethod"
           value="cod"
+          data-testid="payment-method-cod"
           onChange={(event) => handleMethodChange(event.target.value as PaymentMethod)}
           checked={selectedMethod === "cod"}
           label={
@@ -1053,6 +1066,7 @@ export default function PaymentForm() {
             color="primary"
             type="button"
             fullWidth
+            data-testid="payment-continue-to-review"
             disabled={isProcessingPayment || !canProceedToReview || paymentButtonBlocked}
             onClick={handleContinue}
           >

@@ -69,6 +69,9 @@ const formatMetadataSummary = (item: NotificationItem): string | null => {
     if (!item.metadata) {
         return null
     }
+    if (item.metadata.orderUuid) {
+        return `#${item.metadata.orderUuid}`
+    }
     if (item.metadata.orderNumber) {
         return `#${item.metadata.orderNumber}`
     }
@@ -101,11 +104,16 @@ const resolveNotificationPath = (item: NotificationItem): string => {
         (typeof metadata.type === 'string' && metadata.type) ||
         (typeof item.eventType === 'string' ? item.eventType.toLowerCase() : '')
     const type = rawType ? rawType.toLowerCase() : ''
+    const orderSegment =
+        metadata.orderUuid ??
+        metadata.orderNumber ??
+        metadata.orderId ??
+        item.orderId ??
+        null
     const entityId =
         metadata.entityId ??
-        metadata.orderId ??
+        orderSegment ??
         metadata.paymentId ??
-        item.orderId ??
         item.paymentId ??
         null
 
