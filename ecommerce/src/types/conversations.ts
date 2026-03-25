@@ -14,6 +14,14 @@ export type WebchatSession = {
   context: {
     page: string | null;
   };
+  messages?: WebchatTranscriptMessage[];
+};
+
+export type WebchatTranscriptMessage = {
+  id: string;
+  role: "customer" | "agent";
+  text: string;
+  createdAt: string;
 };
 
 export type WebchatAiResponse = {

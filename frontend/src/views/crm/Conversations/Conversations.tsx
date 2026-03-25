@@ -5,8 +5,12 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Spinner from '@/components/ui/Spinner'
 import Badge from '@/components/ui/Badge'
+import useResponsive from '@/utils/hooks/useResponsive'
+import { apiGetUsers } from '@/services/UsersService'
+import { HiOutlineArrowLeft, HiOutlineReply } from 'react-icons/hi'
 import ConversationsService, {
     type ConversationDetail,
+    type ConversationQueueSummary,
     type ConversationSummary,
     type InboxSummary,
 } from '@/services/ConversationsService'
@@ -31,6 +35,25 @@ const titleCase = (value?: string | null) => {
             segment ? segment[0].toUpperCase() + segment.slice(1) : segment,
         )
         .join(' ')
+}
+
+const getConversationDisplayTitle = (conversation: {
+    scope: string
+    subject: string | null
+    customer?: { name: string } | null
+    participants?: Array<{ displayName: string | null }> | null
+    externalUserId?: string | null
+}) => {
+    if (conversation.scope === 'admin_internal') {
+        return formatTitle(conversation.subject)
+    }
+
+    return (
+        conversation.customer?.name ||
+        conversation.participants?.[0]?.displayName ||
+        conversation.externalUserId ||
+        'Sin participante'
+    )
 }
 
 const toneByStatus = (status: string) => {
@@ -61,6 +84,24 @@ const toneByAuthor = (authorType: string) => {
     }
 }
 
+const getSlaTone = (minutes: number) => {
+    if (minutes >= 120) {
+        return 'bg-red-100 text-red-700'
+    }
+    if (minutes >= 30) {
+        return 'bg-amber-100 text-amber-700'
+    }
+    return 'bg-emerald-100 text-emerald-700'
+}
+
+const getMessageMetadataValue = (
+    metadata: Record<string, unknown> | null | undefined,
+    key: string,
+) => {
+    const value = metadata?.[key]
+    return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
 const channelOptions = [
     { key: 'all', label: 'Inbox completo' },
     { key: 'webchat', label: 'Webchat' },
@@ -71,14 +112,32 @@ const channelOptions = [
     { key: 'admin_chat', label: 'Chat interno' },
 ] as const
 
+const scopeOptions = [
+    { key: 'all', label: 'Todo' },
+    { key: 'customer_public', label: 'Cliente' },
+    { key: 'admin_internal', label: 'Interno' },
+] as const
+
+type OperatorSummary = {
+    id: number
+    name: string
+    email: string
+}
+
+type MobilePane = 'filters' | 'list' | 'detail'
+
 const Conversations = () => {
     const navigate = useNavigate()
     const params = useParams<{ conversationId?: string }>()
     const routeConversationId = params.conversationId ?? null
+    const { smaller } = useResponsive()
+    const isMobile = smaller.lg
 
     const [search, setSearch] = useState('')
     const [items, setItems] = useState<ConversationSummary[]>([])
     const [inboxes, setInboxes] = useState<InboxSummary[]>([])
+    const [queues, setQueues] = useState<ConversationQueueSummary[]>([])
+    const [operators, setOperators] = useState<OperatorSummary[]>([])
     const [listLoading, setListLoading] = useState(true)
     const [detailLoading, setDetailLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -89,11 +148,19 @@ const Conversations = () => {
     const [selectedConversation, setSelectedConversation] =
         useState<ConversationDetail | null>(null)
     const [selectedChannel, setSelectedChannel] = useState<string>('all')
+    const [selectedScope, setSelectedScope] = useState<string>('all')
     const [selectedInboxId, setSelectedInboxId] = useState<string>('all')
+    const [selectedQueueSlug, setSelectedQueueSlug] = useState<string>('all')
+    const [selectedOwnerId, setSelectedOwnerId] = useState<string>('all')
     const [handoffNotes, setHandoffNotes] = useState('')
     const [replyDraft, setReplyDraft] = useState('')
     const [assignUserId, setAssignUserId] = useState('')
     const [actionLoading, setActionLoading] = useState<null | string>(null)
+    const [mobilePane, setMobilePane] = useState<MobilePane>('list')
+    const [newInternalSubject, setNewInternalSubject] = useState('')
+    const [newInternalMessage, setNewInternalMessage] = useState('')
+    const [showConversationManagement, setShowConversationManagement] =
+        useState(false)
 
     const effectiveConversationId = routeConversationId ?? selectedConversationId
 
@@ -101,17 +168,22 @@ const Conversations = () => {
         setListLoading(true)
         setError(null)
         try {
-            const [conversationData, inboxData] = await Promise.all([
-                ConversationsService.fetchConversations({
-                    page: 1,
-                    pageSize: 100,
-                    search: search.trim() || undefined,
-                }),
-                ConversationsService.fetchInboxes(),
-            ])
+            const [conversationData, inboxData, queueData, usersResponse] =
+                await Promise.all([
+                    ConversationsService.fetchConversations({
+                        page: 1,
+                        pageSize: 100,
+                        search: search.trim() || undefined,
+                    }),
+                    ConversationsService.fetchInboxes(),
+                    ConversationsService.fetchQueues(),
+                    apiGetUsers<OperatorSummary[]>(),
+                ])
 
             setItems(conversationData.items ?? [])
             setInboxes(inboxData ?? [])
+            setQueues(queueData ?? [])
+            setOperators(usersResponse.data ?? [])
         } catch (loadError) {
             console.error(loadError)
             setError('No fue posible cargar el inbox de conversaciones.')
@@ -142,6 +214,8 @@ const Conversations = () => {
 
     const visibleItems = useMemo(() => {
         return items.filter((conversation) => {
+            const matchesScope =
+                selectedScope === 'all' || conversation.scope === selectedScope
             const matchesChannel =
                 selectedChannel === 'all' || conversation.channel === selectedChannel
             const matchesInbox =
@@ -150,10 +224,29 @@ const Conversations = () => {
                 (selectedInboxId === 'virtual:webchat' &&
                     conversation.channel === 'webchat' &&
                     !conversation.inboxAccount)
+            const matchesQueue =
+                selectedQueueSlug === 'all' ||
+                conversation.queue?.slug === selectedQueueSlug
+            const matchesOwner =
+                selectedOwnerId === 'all' ||
+                String(conversation.assignedToUser?.id ?? '') === selectedOwnerId
 
-            return matchesChannel && matchesInbox
+            return (
+                matchesScope &&
+                matchesChannel &&
+                matchesInbox &&
+                matchesQueue &&
+                matchesOwner
+            )
         })
-    }, [items, selectedChannel, selectedInboxId])
+    }, [
+        items,
+        selectedScope,
+        selectedChannel,
+        selectedInboxId,
+        selectedOwnerId,
+        selectedQueueSlug,
+    ])
 
     useEffect(() => {
         if (visibleItems.length === 0) {
@@ -174,7 +267,9 @@ const Conversations = () => {
             return
         }
         setSelectedConversationId(nextId)
-        void navigate(`/app/crm/conversations/${nextId}`, { replace: !routeConversationId })
+        void navigate(`/app/crm/conversations/${nextId}`, {
+            replace: !routeConversationId,
+        })
     }, [navigate, routeConversationId, selectedConversationId, visibleItems])
 
     useEffect(() => {
@@ -184,6 +279,19 @@ const Conversations = () => {
         }
         void loadDetail(effectiveConversationId)
     }, [effectiveConversationId, loadDetail])
+
+    useEffect(() => {
+        setShowConversationManagement(false)
+    }, [effectiveConversationId])
+
+    useEffect(() => {
+        if (!isMobile) {
+            return
+        }
+        if (effectiveConversationId) {
+            setMobilePane('detail')
+        }
+    }, [effectiveConversationId, isMobile])
 
     const selectedConversationMeta = useMemo(
         () =>
@@ -234,6 +342,43 @@ const Conversations = () => {
         [syncConversation],
     )
 
+    const createInternalConversation = useCallback(async () => {
+        setActionLoading('create-internal')
+        setDetailError(null)
+        try {
+            const detail =
+                await ConversationsService.createAdminInternalConversation({
+                    subject: newInternalSubject.trim(),
+                    message: newInternalMessage.trim(),
+                })
+            syncConversation(detail)
+            setItems((current) =>
+                current.some((item) => item.id === detail.id)
+                    ? current
+                    : [detail, ...current],
+            )
+            setSelectedConversationId(detail.id)
+            setSelectedConversation(detail)
+            setNewInternalSubject('')
+            setNewInternalMessage('')
+            if (isMobile) {
+                setMobilePane('detail')
+            }
+            void navigate(`/app/crm/conversations/${detail.id}`)
+        } catch (actionError) {
+            console.error(actionError)
+            setDetailError('No fue posible crear el chat interno.')
+        } finally {
+            setActionLoading(null)
+        }
+    }, [
+        isMobile,
+        navigate,
+        newInternalMessage,
+        newInternalSubject,
+        syncConversation,
+    ])
+
     const renderList = () => {
         if (listLoading) {
             return (
@@ -271,22 +416,22 @@ const Conversations = () => {
                 <button
                     key={conversation.id}
                     type="button"
-                    className={`flex w-full flex-col gap-2 border-b border-gray-100 px-5 py-4 text-left transition ${
+                    className={`flex w-full flex-col gap-2 border-b border-gray-100 px-4 py-4 text-left transition ${
                         isSelected ? 'bg-sky-50' : 'bg-white hover:bg-gray-50'
                     }`}
                     data-testid={`admin-conversation-${conversation.id}`}
                     onClick={() => {
                         setSelectedConversationId(conversation.id)
+                        if (isMobile) {
+                            setMobilePane('detail')
+                        }
                         void navigate(`/app/crm/conversations/${conversation.id}`)
                     }}
                 >
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                             <div className="truncate font-medium text-gray-900">
-                                {conversation.customer?.name ||
-                                    conversation.participants[0]?.displayName ||
-                                    conversation.externalUserId ||
-                                    'Sin participante'}
+                                {getConversationDisplayTitle(conversation)}
                             </div>
                             <div className="truncate text-xs text-gray-500">
                                 {formatTitle(conversation.subject)}
@@ -305,17 +450,21 @@ const Conversations = () => {
                         <Badge className="bg-slate-100 text-slate-700">
                             {titleCase(conversation.channel)}
                         </Badge>
-                        <span>
+                        {conversation.queue ? (
+                            <Badge className="bg-amber-100 text-amber-700">
+                                {conversation.queue.name}
+                            </Badge>
+                        ) : null}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
+                        <span className="truncate">
                             {conversation.inboxAccount?.displayName ||
                                 conversation.inboxAccount?.address ||
                                 (conversation.channel === 'webchat'
                                     ? 'Webchat directo'
                                     : 'Canal directo')}
                         </span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
-                        <span>{titleCase(conversation.controlMode)}</span>
                         <span>
                             {formatDateTime(
                                 conversation.lastMessageAt ?? conversation.updatedAt,
@@ -331,22 +480,71 @@ const Conversations = () => {
         })
     }
 
+    const paneClass = (pane: MobilePane) =>
+        isMobile
+            ? mobilePane === pane
+                ? 'flex'
+                : 'hidden'
+            : 'flex'
+
+    const detailSlaMinutes = selectedConversation?.lastInboundAt
+        ? Math.max(
+              0,
+              Math.round(
+                  (Date.now() -
+                      new Date(selectedConversation.lastInboundAt).getTime()) /
+                      60000,
+              ),
+          )
+        : null
+
     return (
         <AdaptableCard
-            className="h-full overflow-hidden"
-            bodyClass="p-0 h-full absolute inset-0 flex min-w-0 overflow-hidden"
+            className="h-full min-h-0 overflow-hidden"
+            bodyClass="p-0 h-full absolute inset-0 flex min-h-0 min-w-0 overflow-hidden"
             data-testid="admin-conversations-page"
         >
+            {isMobile ? (
+                <div className="absolute inset-x-0 top-0 z-10 border-b border-gray-200 bg-white px-3 py-3">
+                    <div className="grid grid-cols-3 gap-2">
+                        <Button
+                            size="sm"
+                            variant={mobilePane === 'filters' ? 'solid' : 'twoTone'}
+                            onClick={() => setMobilePane('filters')}
+                        >
+                            Filtros
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant={mobilePane === 'list' ? 'solid' : 'twoTone'}
+                            onClick={() => setMobilePane('list')}
+                        >
+                            Lista
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant={mobilePane === 'detail' ? 'solid' : 'twoTone'}
+                            onClick={() => setMobilePane('detail')}
+                            disabled={!effectiveConversationId}
+                        >
+                            Detalle
+                        </Button>
+                    </div>
+                </div>
+            ) : null}
+
             <div
-                className="w-full max-w-[280px] shrink-0 border-r border-gray-200 bg-white"
+                className={`${paneClass('filters')} w-full min-h-0 shrink-0 flex-col border-r border-gray-200 bg-white lg:max-w-[290px] ${
+                    isMobile ? 'pt-[72px]' : ''
+                }`}
                 data-testid="admin-conversations-sidebar"
             >
-                <div className="border-b border-gray-200 px-5 py-4">
+                <div className="border-b border-gray-200 px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
                         <div>
                             <h4 className="text-base font-semibold">Inbox CRM</h4>
                             <p className="text-xs text-gray-500">
-                                Vista unificada por canal y buzón.
+                                Vista unificada por canal, buzón y cola.
                             </p>
                         </div>
                         <Button
@@ -370,6 +568,76 @@ const Conversations = () => {
                 </div>
 
                 <div className="overflow-y-auto px-4 py-4">
+                    <div>
+                        <div className="px-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                            Nuevo chat interno
+                        </div>
+                        <div className="mt-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="space-y-2">
+                                <Input
+                                    value={newInternalSubject}
+                                    onChange={(event) =>
+                                        setNewInternalSubject(event.target.value)
+                                    }
+                                    placeholder="Asunto interno"
+                                    data-testid="admin-conversations-internal-subject"
+                                />
+                                <textarea
+                                    className="input min-h-[96px] w-full resize-y"
+                                    value={newInternalMessage}
+                                    onChange={(event) =>
+                                        setNewInternalMessage(event.target.value)
+                                    }
+                                    placeholder="Describe la consulta o acción que querés pedirle a la IA"
+                                    data-testid="admin-conversations-internal-message"
+                                />
+                                <Button
+                                    block
+                                    variant="solid"
+                                    loading={actionLoading === 'create-internal'}
+                                    disabled={
+                                        newInternalSubject.trim().length < 2 ||
+                                        newInternalMessage.trim().length < 2
+                                    }
+                                    onClick={() =>
+                                        void createInternalConversation()
+                                    }
+                                    data-testid="admin-conversations-internal-create"
+                                >
+                                    Crear chat interno
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="mt-6">
+                        <div className="px-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                            Scope
+                        </div>
+                        <div className="mt-2 grid grid-cols-3 gap-2">
+                            {scopeOptions.map((scope) => (
+                                <Button
+                                    key={scope.key}
+                                    size="sm"
+                                    variant={
+                                        selectedScope === scope.key
+                                            ? 'solid'
+                                            : 'twoTone'
+                                    }
+                                    onClick={() => {
+                                        setSelectedScope(scope.key)
+                                        if (isMobile) {
+                                            setMobilePane('list')
+                                        }
+                                    }}
+                                    data-testid={`admin-conversations-scope-${scope.key}`}
+                                >
+                                    {scope.label}
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+
                     <div>
                         <div className="px-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
                             Canales
@@ -403,9 +671,15 @@ const Conversations = () => {
                                                 const inbox = inboxes.find(
                                                     (item) => item.id === selectedInboxId,
                                                 )
-                                                if (inbox && inbox.channel !== channel.key) {
+                                                if (
+                                                    inbox &&
+                                                    inbox.channel !== channel.key
+                                                ) {
                                                     setSelectedInboxId('all')
                                                 }
+                                            }
+                                            if (isMobile) {
+                                                setMobilePane('list')
                                             }
                                         }}
                                     >
@@ -435,7 +709,12 @@ const Conversations = () => {
                                         : 'text-gray-700 hover:bg-gray-50'
                                 }`}
                                 data-testid="admin-conversations-inbox-all"
-                                onClick={() => setSelectedInboxId('all')}
+                                onClick={() => {
+                                    setSelectedInboxId('all')
+                                    if (isMobile) {
+                                        setMobilePane('list')
+                                    }
+                                }}
                             >
                                 <span>Inbox completo</span>
                                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
@@ -453,6 +732,9 @@ const Conversations = () => {
                                 onClick={() => {
                                     setSelectedChannel('webchat')
                                     setSelectedInboxId('virtual:webchat')
+                                    if (isMobile) {
+                                        setMobilePane('list')
+                                    }
                                 }}
                             >
                                 <span>Webchat directo</span>
@@ -489,6 +771,9 @@ const Conversations = () => {
                                             onClick={() => {
                                                 setSelectedChannel(inbox.channel)
                                                 setSelectedInboxId(inbox.id)
+                                                if (isMobile) {
+                                                    setMobilePane('list')
+                                                }
                                             }}
                                         >
                                             <div className="min-w-0">
@@ -510,19 +795,69 @@ const Conversations = () => {
                             )}
                         </div>
                     </div>
+
+                    <div className="mt-6">
+                        <div className="px-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                            Cola y ownership
+                        </div>
+                        <div className="mt-2 space-y-3">
+                            <select
+                                className="input w-full"
+                                value={selectedQueueSlug}
+                                onChange={(event) => {
+                                    setSelectedQueueSlug(event.target.value)
+                                    if (isMobile) {
+                                        setMobilePane('list')
+                                    }
+                                }}
+                                data-testid="admin-conversations-queue-filter"
+                            >
+                                <option value="all">Todas las colas</option>
+                                {queues.map((queue) => (
+                                    <option key={queue.id} value={queue.slug}>
+                                        {queue.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <select
+                                className="input w-full"
+                                value={selectedOwnerId}
+                                onChange={(event) => {
+                                    setSelectedOwnerId(event.target.value)
+                                    if (isMobile) {
+                                        setMobilePane('list')
+                                    }
+                                }}
+                                data-testid="admin-conversations-owner-filter"
+                            >
+                                <option value="all">Todos los operadores</option>
+                                {operators.map((operator) => (
+                                    <option key={operator.id} value={String(operator.id)}>
+                                        {operator.name || operator.email}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div className="flex min-w-0 flex-1" data-testid="admin-inbox-body">
+            <div className="flex min-w-0 flex-1">
                 <div
-                    className="w-full max-w-[380px] shrink-0 border-r border-gray-200 bg-white"
+                    className={`${paneClass('list')} w-full min-h-0 shrink-0 flex-col border-r border-gray-200 bg-white lg:max-w-[380px] ${
+                        isMobile ? 'pt-[72px]' : ''
+                    }`}
                     data-testid="admin-conversations-list"
                 >
-                    {renderList()}
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                        {renderList()}
+                    </div>
                 </div>
 
                 <div
-                    className="flex min-w-0 flex-1 flex-col bg-gray-50"
+                    className={`${paneClass('detail')} min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-50 ${
+                        isMobile ? 'pt-[72px]' : ''
+                    }`}
                     data-testid="admin-conversation-detail"
                 >
                     {!effectiveConversationId ? (
@@ -542,27 +877,79 @@ const Conversations = () => {
                             La conversación seleccionada no está disponible.
                         </div>
                     ) : (
-                        <>
-                            <div className="border-b border-gray-200 bg-white px-6 py-5">
+                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                            <div className="relative z-10 flex min-h-[55px] shrink-0 items-center border-b border-gray-200 bg-white px-4 shadow-sm">
+                                <div className="flex w-full items-center justify-between gap-3">
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        {isMobile ? (
+                                            <Button
+                                                shape="circle"
+                                                size="sm"
+                                                variant="plain"
+                                                icon={<HiOutlineArrowLeft />}
+                                                onClick={() => setMobilePane('list')}
+                                                data-testid="admin-conversation-mobile-back"
+                                            />
+                                        ) : null}
+                                        <div className="min-w-0">
+                                            <h3
+                                                className="truncate text-base font-semibold lg:text-lg"
+                                                data-testid="admin-conversation-detail-title"
+                                            >
+                                                {getConversationDisplayTitle(
+                                                    selectedConversation,
+                                                )}
+                                            </h3>
+                                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 lg:text-sm">
+                                                <Badge className="bg-slate-100 text-slate-700">
+                                                    {titleCase(selectedConversation.channel)}
+                                                </Badge>
+                                                {selectedConversation.queue ? (
+                                                    <Badge className="bg-amber-100 text-amber-700">
+                                                        {selectedConversation.queue.name}
+                                                    </Badge>
+                                                ) : null}
+                                                {detailSlaMinutes !== null ? (
+                                                    <Badge
+                                                        className={getSlaTone(
+                                                            detailSlaMinutes,
+                                                        )}
+                                                        data-testid="admin-conversation-sla"
+                                                    >
+                                                        SLA {detailSlaMinutes}m
+                                                    </Badge>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant="default"
+                                            icon={<HiOutlineReply />}
+                                            onClick={() => {
+                                                const input =
+                                                    document.querySelector<HTMLInputElement>(
+                                                        '[data-testid="admin-conversation-reply-input"]',
+                                                    )
+                                                input?.focus()
+                                            }}
+                                        >
+                                            <span className="hidden sm:block">
+                                                Reply
+                                            </span>
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="shrink-0 border-b border-gray-200 bg-white px-4 py-4 lg:px-6 lg:py-5">
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div className="space-y-2">
-                                        <h3
-                                            className="text-lg font-semibold"
-                                            data-testid="admin-conversation-detail-title"
-                                        >
-                                            {selectedConversation.customer?.name ||
-                                                selectedConversation.participants[0]
-                                                    ?.displayName ||
-                                                selectedConversation.externalUserId ||
-                                                'Conversación'}
-                                        </h3>
+                                        <div className="text-sm text-gray-600">
+                                            {formatTitle(selectedConversation.subject)}
+                                        </div>
                                         <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
-                                            <span>
-                                                {formatTitle(selectedConversation.subject)}
-                                            </span>
-                                            <Badge className="bg-slate-100 text-slate-700">
-                                                {titleCase(selectedConversation.channel)}
-                                            </Badge>
                                             <Badge className="bg-slate-100 text-slate-700">
                                                 {titleCase(selectedConversation.scope)}
                                             </Badge>
@@ -586,7 +973,7 @@ const Conversations = () => {
                                     </div>
                                 </div>
 
-                                <div className="mt-4 grid gap-3 md:grid-cols-4">
+                                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                                     <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
                                         <div className="text-xs uppercase tracking-wide text-gray-400">
                                             Cliente
@@ -618,187 +1005,352 @@ const Conversations = () => {
                                     </div>
                                     <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
                                         <div className="text-xs uppercase tracking-wide text-gray-400">
-                                            Operación
+                                            Operador
                                         </div>
                                         <div className="mt-1 text-sm text-gray-700">
                                             <span data-testid="admin-conversation-assignee">
                                                 {selectedConversation.assignedToUser?.name ||
+                                                    selectedConversation.assignedToUser
+                                                        ?.email ||
                                                     'Sin operador asignado'}
                                             </span>
                                         </div>
                                     </div>
                                 </div>
 
-                                {selectedConversationMeta?.latestMessage ? (
-                                    <div className="mt-4">
-                                        <Badge className="bg-slate-100 text-slate-700">
-                                            Último mensaje:{' '}
-                                            {formatDateTime(
-                                                selectedConversationMeta.latestMessage.createdAt,
-                                            )}
-                                        </Badge>
-                                    </div>
-                                ) : null}
-
-                                <div
-                                    className="mt-5 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[1fr_auto]"
-                                    data-testid="admin-conversation-actions"
-                                >
-                                    <div className="space-y-3">
+                                <div className="mt-5">
+                                    <button
+                                        type="button"
+                                        className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:bg-slate-100"
+                                        onClick={() =>
+                                            setShowConversationManagement(
+                                                (current) => !current,
+                                            )
+                                        }
+                                        data-testid="admin-conversation-management-toggle"
+                                    >
                                         <div>
-                                            <div className="text-xs uppercase tracking-wide text-slate-400">
-                                                Handoff / notas
+                                            <div className="text-sm font-semibold text-slate-800">
+                                                Contexto y gestión
                                             </div>
-                                            <Input
-                                                value={handoffNotes}
-                                                onChange={(event) =>
-                                                    setHandoffNotes(event.target.value)
-                                                }
-                                                placeholder="Notas opcionales para takeover, release o assign"
-                                                data-testid="admin-conversation-handoff-notes"
-                                            />
+                                            <div className="mt-1 text-xs text-slate-500">
+                                                Último mensaje, handoff, asignación y control de AI.
+                                            </div>
                                         </div>
-                                        <div>
-                                            <div className="text-xs uppercase tracking-wide text-slate-400">
-                                                Asignar usuario
-                                            </div>
-                                            <div className="mt-1 flex gap-2">
+                                        <Badge className="bg-white text-slate-700">
+                                            {showConversationManagement
+                                                ? 'Ocultar'
+                                                : 'Mostrar'}
+                                        </Badge>
+                                    </button>
+
+                                    {showConversationManagement ? (
+                                        <div
+                                            className="mt-3 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                                            data-testid="admin-conversation-actions"
+                                        >
+                                            {selectedConversationMeta?.latestMessage ? (
+                                                <div>
+                                                    <div className="text-xs uppercase tracking-wide text-slate-400">
+                                                        Último mensaje
+                                                    </div>
+                                                    <div className="mt-1 text-sm text-slate-700">
+                                                        {formatDateTime(
+                                                            selectedConversationMeta
+                                                                .latestMessage.createdAt,
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ) : null}
+
+                                            <div>
+                                                <div className="text-xs uppercase tracking-wide text-slate-400">
+                                                    Handoff / notas
+                                                </div>
                                                 <Input
-                                                    value={assignUserId}
+                                                    value={handoffNotes}
                                                     onChange={(event) =>
-                                                        setAssignUserId(event.target.value)
+                                                        setHandoffNotes(event.target.value)
                                                     }
-                                                    placeholder="ID usuario"
-                                                    data-testid="admin-conversation-assign-user"
+                                                    placeholder="Notas opcionales para takeover, release o assign"
+                                                    data-testid="admin-conversation-handoff-notes"
                                                 />
+                                            </div>
+
+                                            <div>
+                                                <div className="text-xs uppercase tracking-wide text-slate-400">
+                                                    Asignar usuario
+                                                </div>
+                                                <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                                                    <select
+                                                        className="input w-full"
+                                                        value={assignUserId}
+                                                        onChange={(event) =>
+                                                            setAssignUserId(
+                                                                event.target.value,
+                                                            )
+                                                        }
+                                                        data-testid="admin-conversation-assign-user"
+                                                    >
+                                                        <option value="">
+                                                            Seleccionar operador
+                                                        </option>
+                                                        {operators.map((operator) => (
+                                                            <option
+                                                                key={operator.id}
+                                                                value={String(operator.id)}
+                                                            >
+                                                                {operator.name ||
+                                                                    operator.email}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <Button
+                                                        variant="solid"
+                                                        loading={actionLoading === 'assign'}
+                                                        disabled={!assignUserId.trim()}
+                                                        onClick={() =>
+                                                            effectiveConversationId
+                                                                ? void runAction(
+                                                                      'assign',
+                                                                      () =>
+                                                                          ConversationsService.assignConversation(
+                                                                              effectiveConversationId,
+                                                                              Number(
+                                                                                  assignUserId,
+                                                                              ),
+                                                                              handoffNotes.trim() ||
+                                                                                  undefined,
+                                                                          ),
+                                                                      'No fue posible asignar la conversación.',
+                                                                  )
+                                                                : undefined
+                                                        }
+                                                        data-testid="admin-conversation-assign"
+                                                    >
+                                                        Asignar
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-start gap-2">
                                                 <Button
                                                     variant="solid"
-                                                    loading={actionLoading === 'assign'}
-                                                    disabled={!assignUserId.trim()}
+                                                    loading={actionLoading === 'takeover'}
                                                     onClick={() =>
                                                         effectiveConversationId
                                                             ? void runAction(
-                                                                  'assign',
+                                                                  'takeover',
                                                                   () =>
-                                                                      ConversationsService.assignConversation(
+                                                                      ConversationsService.takeoverConversation(
                                                                           effectiveConversationId,
-                                                                          Number(assignUserId),
                                                                           handoffNotes.trim() ||
                                                                               undefined,
                                                                       ),
-                                                                  'No fue posible asignar la conversación.',
+                                                                  'No fue posible tomar el control de la conversación.',
                                                               )
                                                             : undefined
                                                     }
-                                                    data-testid="admin-conversation-assign"
+                                                    data-testid="admin-conversation-takeover"
                                                 >
-                                                    Asignar
+                                                    Tomar control
+                                                </Button>
+                                                <Button
+                                                    variant="twoTone"
+                                                    loading={actionLoading === 'release'}
+                                                    onClick={() =>
+                                                        effectiveConversationId
+                                                            ? void runAction(
+                                                                  'release',
+                                                                  () =>
+                                                                      ConversationsService.releaseConversation(
+                                                                          effectiveConversationId,
+                                                                          handoffNotes.trim() ||
+                                                                              undefined,
+                                                                      ),
+                                                                  'No fue posible liberar la conversación.',
+                                                              )
+                                                            : undefined
+                                                    }
+                                                    data-testid="admin-conversation-release"
+                                                >
+                                                    Liberar a AI
                                                 </Button>
                                             </div>
-                                        </div>
-                                    </div>
 
-                                    <div className="flex flex-wrap items-start gap-2">
-                                        <Button
-                                            variant="solid"
-                                            loading={actionLoading === 'takeover'}
-                                            onClick={() =>
-                                                effectiveConversationId
-                                                    ? void runAction(
-                                                          'takeover',
-                                                          () =>
-                                                              ConversationsService.takeoverConversation(
-                                                                  effectiveConversationId,
-                                                                  handoffNotes.trim() ||
-                                                                      undefined,
-                                                              ),
-                                                          'No fue posible tomar el control de la conversación.',
-                                                      )
-                                                    : undefined
-                                            }
-                                            data-testid="admin-conversation-takeover"
-                                        >
-                                            Tomar control
-                                        </Button>
-                                        <Button
-                                            variant="twoTone"
-                                            loading={actionLoading === 'release'}
-                                            onClick={() =>
-                                                effectiveConversationId
-                                                    ? void runAction(
-                                                          'release',
-                                                          () =>
-                                                              ConversationsService.releaseConversation(
-                                                                  effectiveConversationId,
-                                                                  handoffNotes.trim() ||
-                                                                      undefined,
-                                                              ),
-                                                          'No fue posible liberar la conversación.',
-                                                      )
-                                                    : undefined
-                                            }
-                                            data-testid="admin-conversation-release"
-                                        >
-                                            Liberar a AI
-                                        </Button>
-                                    </div>
+                                            {selectedConversation.handoffEvents.length ? (
+                                                <div
+                                                    className="space-y-2 border-t border-slate-200 pt-3"
+                                                    data-testid="admin-conversation-handoffs"
+                                                >
+                                                    <div className="text-xs uppercase tracking-wide text-slate-400">
+                                                        Historial de control
+                                                    </div>
+                                                    {selectedConversation.handoffEvents.map(
+                                                        (event) => (
+                                                            <div
+                                                                key={event.id}
+                                                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
+                                                            >
+                                                                <div className="font-medium text-slate-700">
+                                                                    {titleCase(
+                                                                        event.type,
+                                                                    )}
+                                                                </div>
+                                                                <div>
+                                                                    {event.actorUser
+                                                                        ?.name ||
+                                                                        event.actorUser
+                                                                            ?.email ||
+                                                                        'Sistema'}{' '}
+                                                                    ·{' '}
+                                                                    {formatDateTime(
+                                                                        event.createdAt,
+                                                                    )}
+                                                                </div>
+                                                                {event.notes ? (
+                                                                    <div className="mt-1">
+                                                                        {event.notes}
+                                                                    </div>
+                                                                ) : null}
+                                                            </div>
+                                                        ),
+                                                    )}
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    ) : null}
                                 </div>
                             </div>
 
                             <div
-                                className="flex-1 overflow-y-auto px-6 py-5"
+                                className="min-h-0 flex-1 overflow-y-auto bg-gray-50 px-4 py-4 lg:px-6 lg:py-5"
                                 data-testid="admin-conversation-messages"
                             >
-                                {selectedConversation.messages.length === 0 ? (
-                                    <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-8 text-center text-sm text-gray-500">
-                                        No hay mensajes persistidos todavía.
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {selectedConversation.messages.map((message) => (
-                                            <div
-                                                key={message.id}
-                                                className={`rounded-2xl border px-4 py-3 ${toneByAuthor(
-                                                    message.authorType,
-                                                )}`}
-                                                data-testid={`admin-conversation-message-${message.id}`}
-                                            >
-                                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                                    <div className="font-medium text-gray-800">
-                                                        {titleCase(message.authorType)}
+                                <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col gap-5">
+                                    {selectedConversation.messages.length === 0 ? (
+                                        <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-8 text-center text-sm text-gray-500">
+                                            No hay mensajes persistidos todavía.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {selectedConversation.messages.map((message) => {
+                                                const deliveryStatus =
+                                                    getMessageMetadataValue(
+                                                        message.metadata,
+                                                        'deliveryStatus',
+                                                    )
+                                                const provider =
+                                                    getMessageMetadataValue(
+                                                        message.metadata,
+                                                        'provider',
+                                                    )
+
+                                                return (
+                                                <div
+                                                    key={message.id}
+                                                    className={`rounded-2xl border px-4 py-3 shadow-sm ${toneByAuthor(
+                                                        message.authorType,
+                                                    )}`}
+                                                    data-testid={`admin-conversation-message-${message.id}`}
+                                                >
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <div className="font-medium text-gray-800">
+                                                            {titleCase(message.authorType)}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">
+                                                            {formatDateTime(message.createdAt)}
+                                                        </div>
                                                     </div>
-                                                    <div className="text-xs text-gray-500">
-                                                        {formatDateTime(message.createdAt)}
+                                                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                                                        <span>{titleCase(message.kind)}</span>
+                                                        {message.queue ? (
+                                                            <Badge className="bg-amber-100 text-amber-700">
+                                                                {message.queue.name}
+                                                            </Badge>
+                                                        ) : null}
+                                                        {deliveryStatus ? (
+                                                            <Badge className="bg-emerald-100 text-emerald-700">
+                                                                {titleCase(
+                                                                    deliveryStatus,
+                                                                )}
+                                                            </Badge>
+                                                        ) : null}
+                                                        {provider ? (
+                                                            <Badge className="bg-slate-100 text-slate-700">
+                                                                {provider}
+                                                            </Badge>
+                                                        ) : null}
+                                                    </div>
+                                                    <div className="mt-3 whitespace-pre-wrap text-sm text-gray-700">
+                                                        {message.body ||
+                                                            message.normalizedText ||
+                                                            JSON.stringify(
+                                                                message.payload ?? {},
+                                                                null,
+                                                                2,
+                                                            )}
                                                     </div>
                                                 </div>
-                                                <div className="mt-1 text-xs text-gray-500">
-                                                    {titleCase(message.kind)}
-                                                </div>
-                                                <div className="mt-3 whitespace-pre-wrap text-sm text-gray-700">
-                                                    {message.body ||
-                                                        message.normalizedText ||
-                                                        JSON.stringify(
-                                                            message.payload ?? {},
-                                                            null,
-                                                            2,
-                                                        )}
-                                                </div>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {selectedConversation.toolCalls.length ? (
+                                        <div
+                                            className="space-y-2"
+                                            data-testid="admin-conversation-tool-calls"
+                                        >
+                                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                                Tool calls
                                             </div>
-                                        ))}
-                                    </div>
-                                )}
+                                            {selectedConversation.toolCalls.map((toolCall) => (
+                                                <div
+                                                    key={toolCall.id}
+                                                    className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 text-xs text-violet-900"
+                                                >
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <span className="font-medium">
+                                                            {toolCall.toolName}
+                                                        </span>
+                                                        <Badge className="bg-violet-100 text-violet-700">
+                                                            {titleCase(toolCall.status)}
+                                                        </Badge>
+                                                    </div>
+                                                    {toolCall.validatedPayload ? (
+                                                        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-[11px]">
+                                                            {JSON.stringify(
+                                                                toolCall.validatedPayload,
+                                                                null,
+                                                                2,
+                                                            )}
+                                                        </pre>
+                                                    ) : null}
+                                                    {toolCall.errorMessage ? (
+                                                        <div className="mt-2 text-red-600">
+                                                            {toolCall.errorMessage}
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : null}
+                                </div>
                             </div>
 
-                            <div className="border-t border-gray-200 bg-white px-6 py-4">
+                            <div className="shrink-0 border-t border-gray-200 bg-white px-4 py-4 lg:px-6">
                                 <div className="mb-3">
                                     <div className="text-xs uppercase tracking-wide text-slate-400">
                                         Responder como operador
                                     </div>
                                 </div>
-                                <div className="flex gap-3">
+                                <div className="flex flex-col gap-3 sm:flex-row">
                                     <Input
                                         value={replyDraft}
-                                        onChange={(event) => setReplyDraft(event.target.value)}
+                                        onChange={(event) =>
+                                            setReplyDraft(event.target.value)
+                                        }
                                         placeholder="Escribe la respuesta para el cliente"
                                         data-testid="admin-conversation-reply-input"
                                     />
@@ -825,34 +1377,8 @@ const Conversations = () => {
                                     </Button>
                                 </div>
 
-                                {selectedConversation.handoffEvents.length ? (
-                                    <div
-                                        className="mt-4 space-y-2"
-                                        data-testid="admin-conversation-handoffs"
-                                    >
-                                        {selectedConversation.handoffEvents.map((event) => (
-                                            <div
-                                                key={event.id}
-                                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600"
-                                            >
-                                                <div className="font-medium text-slate-700">
-                                                    {titleCase(event.type)}
-                                                </div>
-                                                <div>
-                                                    {event.actorUser?.name ||
-                                                        event.actorUser?.email ||
-                                                        'Sistema'}{' '}
-                                                    · {formatDateTime(event.createdAt)}
-                                                </div>
-                                                {event.notes ? (
-                                                    <div className="mt-1">{event.notes}</div>
-                                                ) : null}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : null}
                             </div>
-                        </>
+                        </div>
                     )}
                 </div>
             </div>

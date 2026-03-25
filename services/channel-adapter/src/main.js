@@ -15,6 +15,12 @@ const config = {
   aiAgentBaseUrl: process.env.AI_AGENT_BASE_URL || 'http://ai-agent-service:4100',
   redisUrl: process.env.REDIS_URL || 'redis://redis:6379',
   internalToken: process.env.AI_INTERNAL_TOKEN || 'local-ai-internal-token',
+  metaVerifyToken: process.env.META_VERIFY_TOKEN || '',
+  metaAppSecret: process.env.META_APP_SECRET || '',
+  whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+  whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
+  instagramAccessToken: process.env.INSTAGRAM_ACCESS_TOKEN || '',
+  messengerPageAccessToken: process.env.MESSENGER_PAGE_ACCESS_TOKEN || '',
 }
 
 const json = (res, statusCode, body) => {
@@ -44,8 +50,8 @@ const clients = {
 }
 
 const webchatAdapter = new WebchatAdapter(clients)
-const emailAdapter = new EmailAdapter()
-const metaAdapter = new MetaAdapter()
+const emailAdapter = new EmailAdapter(clients)
+const metaAdapter = new MetaAdapter(clients, config)
 
 const server = http.createServer(async (req, res) => {
   if (!req.url) {
@@ -105,10 +111,41 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && req.url === '/webhooks/meta') {
     const body = await readBody(req)
-    const result = await metaAdapter.handleInbound(body)
+    const hasStatuses =
+      Array.isArray(body?.statuses) ||
+      Boolean(
+        body?.entry?.some((entry) =>
+          (entry?.changes || []).some(
+            (change) => Array.isArray(change?.value?.statuses) && change.value.statuses.length,
+          ),
+        ),
+      )
+    const result =
+      hasStatuses
+        ? await metaAdapter.handleStatus(body)
+        : await metaAdapter.handleInbound(body)
     json(res, 202, {
       ok: true,
       status: 'accepted',
+      ...result,
+    })
+    return
+  }
+
+  if (req.method === 'POST' && req.url === '/dispatch/meta') {
+    const token = req.headers['x-ai-internal-token']
+    if (token !== config.internalToken) {
+      json(res, 401, {
+        ok: false,
+        message: 'unauthorized',
+      })
+      return
+    }
+
+    const body = await readBody(req)
+    const result = await metaAdapter.sendOutbound(body)
+    json(res, 200, {
+      ok: true,
       ...result,
     })
     return

@@ -11,7 +11,10 @@ import {
 } from "react";
 
 import { ConversationsApi } from "@/lib/api/conversations";
-import type { WebchatSession } from "@/types/conversations";
+import type {
+  WebchatSession,
+  WebchatTranscriptMessage,
+} from "@/types/conversations";
 import { useSession } from "@/state/session-context";
 
 type WebchatMessage = {
@@ -51,6 +54,15 @@ const makeMessage = (
   createdAt: new Date().toISOString(),
 });
 
+const mapTranscriptMessage = (
+  message: WebchatTranscriptMessage,
+): WebchatMessage => ({
+  id: message.id,
+  role: message.role,
+  text: message.text,
+  createdAt: message.createdAt,
+});
+
 const resolveCustomerDisplayName = (
   customer?: {
     firstName?: string | null;
@@ -80,18 +92,31 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === "undefined") {
       return;
     }
-    try {
+    const restoreSession = async () => {
       const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as WebchatSession;
-        setSession(parsed);
-        guestIdRef.current = parsed.participant.guestId;
+      if (!stored) {
+        setIsReady(true);
+        return;
       }
-    } catch (loadError) {
-      console.warn("[webchat] Unable to restore session", loadError);
-    } finally {
-      setIsReady(true);
-    }
+      try {
+        const parsed = JSON.parse(stored) as WebchatSession;
+        guestIdRef.current = parsed.participant.guestId;
+        const hydrated = await ConversationsApi.getWebchatSession({
+          conversationId: parsed.conversationId,
+          guestId: parsed.participant.guestId,
+        });
+        setSession(hydrated);
+        setMessages((hydrated.messages ?? []).map(mapTranscriptMessage));
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(hydrated));
+      } catch (loadError) {
+        console.warn("[webchat] Unable to restore session", loadError);
+        window.localStorage.removeItem(STORAGE_KEY);
+      } finally {
+        setIsReady(true);
+      }
+    };
+
+    void restoreSession();
   }, []);
 
   const ensureSession = useCallback(async () => {
@@ -112,6 +137,7 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
     });
 
     setSession(nextSession);
+    setMessages((nextSession.messages ?? []).map(mapTranscriptMessage));
     if (typeof window !== "undefined") {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextSession));
     }

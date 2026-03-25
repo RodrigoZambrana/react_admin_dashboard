@@ -59,7 +59,15 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/capabilities') {
     json(res, 200, {
       scope: ['customer_public', 'admin_internal'],
-      tools: ['search_products'],
+      tools: [
+        'search_products',
+        'create_customer',
+        'create_appointment',
+        'create_product',
+        'create_order',
+        'create_quote',
+        'create_payment',
+      ],
       model: {
         provider: runtime.provider.providerName,
         name: runtime.provider.modelName,

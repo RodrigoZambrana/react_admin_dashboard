@@ -33,6 +33,11 @@ export type ConversationSummary = {
         address: string | null
         channel: string
     } | null
+    queue: {
+        id: string
+        slug: string
+        name: string
+    } | null
     participants: Array<{
         id: string
         role: string
@@ -70,6 +75,11 @@ export type ConversationDetail = ConversationSummary & {
         sentAt: string | null
         receivedAt: string | null
         createdAt: string
+        queue: {
+            id: string
+            slug: string
+            name: string
+        } | null
     }>
     handoffEvents: Array<{
         id: string
@@ -84,6 +94,18 @@ export type ConversationDetail = ConversationSummary & {
             email: string
         } | null
     }>
+    toolCalls: Array<{
+        id: string
+        messageId: string | null
+        toolName: string
+        status: string
+        validatedPayload: Record<string, unknown> | null
+        resultPayload: Record<string, unknown> | string | null
+        errorCode: string | null
+        errorMessage: string | null
+        createdAt: string
+        updatedAt: string
+    }>
 }
 
 export type ConversationListResponse = {
@@ -97,6 +119,9 @@ export type ConversationListResponse = {
         controlMode: string | null
         status: string | null
         assignedToMe: boolean
+        assignedUserId: string | null
+        inboxAccountId: string | null
+        queueSlug: string | null
         search: string | null
     }
 }
@@ -109,6 +134,21 @@ export type InboxSummary = {
     active: boolean
     updatedAt: string
     scope: string
+}
+
+export type ConversationQueueSummary = {
+    id: string
+    slug: string
+    name: string
+    description: string | null
+    isActive: boolean
+    conversationCount: number
+}
+
+export type CreateAdminInternalConversationInput = {
+    tenantKey?: string
+    subject: string
+    message: string
 }
 
 const ConversationsService = {
@@ -132,6 +172,14 @@ const ConversationsService = {
     async fetchInboxes() {
         const response = await ApiService.fetchData<InboxSummary[]>({
             url: '/conversations/inboxes',
+            method: 'get',
+        })
+        return response.data
+    },
+
+    async fetchQueues() {
+        const response = await ApiService.fetchData<ConversationQueueSummary[]>({
+            url: '/conversations/queues',
             method: 'get',
         })
         return response.data
@@ -169,6 +217,17 @@ const ConversationsService = {
             url: `/conversations/${id}/reply`,
             method: 'post',
             data: { body, kind: 'text' },
+        })
+        return response.data
+    },
+
+    async createAdminInternalConversation(
+        data: CreateAdminInternalConversationInput,
+    ) {
+        const response = await ApiService.fetchData<ConversationDetail>({
+            url: '/conversations/admin-internal/session',
+            method: 'post',
+            data,
         })
         return response.data
     },

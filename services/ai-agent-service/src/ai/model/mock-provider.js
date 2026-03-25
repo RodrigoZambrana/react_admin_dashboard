@@ -1,12 +1,42 @@
+const shouldSearchProducts = (input) =>
+  [
+    'producto',
+    'cortina',
+    'roller',
+    'persiana',
+    'mosquitero',
+    'abertura',
+    'precio',
+    'catálogo',
+  ].some((token) => input.includes(token))
+
 export class MockProvider {
   constructor(config) {
     this.providerName = 'mock'
     this.modelName = config.modelName
   }
 
-  async generate({ input, toolResults }) {
-    if (toolResults?.length) {
-      const products = toolResults[0]?.result ?? []
+  async generate({ input, tools = [] }) {
+    const normalized = input.trim().toLowerCase()
+    let executedToolCalls = []
+
+    if (shouldSearchProducts(normalized)) {
+      const searchTool = tools.find((tool) => tool.name === 'search_products')
+      if (searchTool) {
+        const result = await searchTool.invoke({ query: input, limit: 5 })
+        executedToolCalls = [
+          {
+            name: 'search_products',
+            arguments: { query: input, limit: 5 },
+            result,
+            status: 'executed',
+          },
+        ]
+      }
+    }
+
+    if (executedToolCalls?.length) {
+      const products = executedToolCalls[0]?.result ?? []
       if (products.length) {
         const lines = products
           .slice(0, 3)
@@ -19,15 +49,16 @@ export class MockProvider {
           })
         return {
           text: `Encontré estas opciones relacionadas:\n${lines.join('\n')}`,
-          toolCalls: toolResults.map((item) => ({
+          toolCalls: executedToolCalls.map((item) => ({
             name: item.name,
             arguments: item.arguments,
+            result: item.result,
+            status: item.status,
           })),
         }
       }
     }
 
-    const normalized = input.trim().toLowerCase()
     if (normalized.includes('presupuesto')) {
       return {
         text: 'Puedo ayudarte a preparar un presupuesto. Necesito el producto, medidas y cualquier detalle adicional para avanzar.',

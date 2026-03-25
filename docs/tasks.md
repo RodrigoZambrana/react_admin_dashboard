@@ -2,20 +2,16 @@
 
 ## Backlog
 
-- Expand conversation hub projections for email/meta/admin chat
-- Add richer operator assignment selector and queue ownership
-- Add generic AI business tools beyond the initial reusable action layer
-- Hydrate historical transcripts into storefront webchat
-- Add cross-project E2E for unified inbox filters and reply flows
-- Add durable tool-call audit persistence for AI actions
 - Add admin runtime usage charts and provider health diagnostics
 - Add secure rotation flow for provider credentials and secret provenance
+- Deepen queue ownership rules and SLA indicators
+- Add outbound delivery/state webhook coverage for real Meta providers once credentials are available
+- Add richer confirmation UX for destructive AI tools in `admin_internal`
 
 ## In Progress
 
 - Expand `data-testid` coverage for inbox/conversation/channel filters
-- Connect generic AI action tools from `ai-agent-service` to backend `ai` endpoints
-- Project email and Meta channel traffic into the canonical conversation hub
+- Connect remaining generic AI action paths to richer conversational prompts and confirmation flows
 
 ## Done
 
@@ -30,3 +26,16 @@
 - Implemented reusable backend `ai` action catalog and generic endpoints
 - Added admin AI runtime settings UI with secure config persistence, usage messaging and near-limit warnings
 - Added E2E coverage for AI settings, conversations, conversation actions and storefront webchat
+- Projected inbound email and Meta traffic into the canonical conversation hub
+- Connected `ai-agent-service` to backend `/api/ai/*` tools with backend-enforced validation
+- Added durable `ConversationToolCall` persistence linked to agent replies
+- Hydrated persisted transcript history into storefront webchat sessions
+- Improved admin inbox for mobile usage with filters/list/detail pane switching
+- Added queue filtering and real operator selector in conversations admin UI
+- Added multichannel inbox E2E coverage for projected email conversations
+- Fixed mobile detail pane scroll/visibility in CRM conversations
+- Added visible delivery/provider badges to conversation messages
+- Connected email replies from the unified hub to real outbound sending through `InboxService`
+- Added Meta outbound dispatch contract plus canonical delivery-status sync endpoint
+- Added admin-internal conversation creation and AI response loop in the unified inbox
+- Added E2E coverage for mobile detail, outbound email reply and admin internal AI chat

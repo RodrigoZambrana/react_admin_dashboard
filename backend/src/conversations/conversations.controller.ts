@@ -24,6 +24,10 @@ import { ConversationHandoffDto } from './dto/conversation-handoff.dto'
 import { CreateWebchatMessageDto } from './dto/create-webchat-message.dto'
 import { AgentReplyDto } from './dto/agent-reply.dto'
 import { DispatchWebchatMessageDto } from './dto/dispatch-webchat-message.dto'
+import { GetWebchatSessionDto } from './dto/get-webchat-session.dto'
+import { IngestInboundMessageDto } from './dto/ingest-inbound-message.dto'
+import { SyncOutboundStatusDto } from './dto/sync-outbound-status.dto'
+import { CreateAdminInternalSessionDto } from './dto/create-admin-internal-session.dto'
 
 @Controller('conversations')
 export class ConversationsController {
@@ -35,8 +39,11 @@ export class ConversationsController {
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  list(@Query() query: ListConversationsDto) {
-    return this.conversations.listConversations(query)
+  list(
+    @Query() query: ListConversationsDto,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.listConversations(query, Number(req.user?.sub))
   }
 
   @Get('inboxes')
@@ -44,6 +51,13 @@ export class ConversationsController {
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
   listInboxes() {
     return this.conversations.listInboxes()
+  }
+
+  @Get('queues')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  listQueues() {
+    return this.conversations.listQueues()
   }
 
   @Get(':id')
@@ -57,9 +71,27 @@ export class ConversationsController {
     return conversation
   }
 
+  @Post('admin-internal/session')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  createAdminInternalSession(
+    @Body() dto: CreateAdminInternalSessionDto,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.createAdminInternalSession(dto, Number(req.user?.sub))
+  }
+
   @Post('webchat/session')
   createWebchatSession(@Body() dto: CreateWebchatSessionDto) {
     return this.conversations.createWebchatSession(dto)
+  }
+
+  @Get('webchat/session/:id')
+  getWebchatSession(
+    @Param('id') id: string,
+    @Query() query: GetWebchatSessionDto,
+  ) {
+    return this.conversations.getWebchatSession(id, query)
   }
 
   @Post('webchat/message')
@@ -70,6 +102,38 @@ export class ConversationsController {
   @Post('webchat/dispatch')
   dispatchWebchatMessage(@Body() dto: DispatchWebchatMessageDto) {
     return this.conversations.dispatchWebchatMessage(dto)
+  }
+
+  @Post('internal/inbound')
+  ingestInbound(
+    @Body() dto: IngestInboundMessageDto,
+    @Headers('x-ai-internal-token') token?: string,
+  ) {
+    const expectedToken =
+      this.config.get<string>('AI_INTERNAL_TOKEN') ||
+      'local-ai-internal-token'
+
+    if (!token || token !== expectedToken) {
+      throw new NotFoundException('conversation.notFound')
+    }
+
+    return this.conversations.ingestInboundMessage(dto)
+  }
+
+  @Post('internal/outbound-status')
+  syncOutboundStatus(
+    @Body() dto: SyncOutboundStatusDto,
+    @Headers('x-ai-internal-token') token?: string,
+  ) {
+    const expectedToken =
+      this.config.get<string>('AI_INTERNAL_TOKEN') ||
+      'local-ai-internal-token'
+
+    if (!token || token !== expectedToken) {
+      throw new NotFoundException('conversation.notFound')
+    }
+
+    return this.conversations.syncOutboundStatus(dto)
   }
 
   @Post(':id/takeover')

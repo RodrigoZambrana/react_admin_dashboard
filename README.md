@@ -22,9 +22,9 @@ root/
 │   ├── docker-compose.testing.yml
 │   ├── docker-compose.prod.yml
 │   └── env/                  # Archivos de entorno (no versionados)
+├── docs/                     # Base documental unificada (arquitectura, roadmap, QA, seguridad)
 ├── .github/workflows/        # CI/CD (FE, BE, despliegues testing/prod)
 ├── Makefile                  # Comandos de conveniencia
-├── SECURITY.md               # Buenas prácticas y manejo de secretos
 └── README.md
 ```
 

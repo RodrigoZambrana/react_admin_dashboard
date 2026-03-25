@@ -31,6 +31,7 @@ export class WebchatAdapter {
           model: aiResult?.response?.model || null,
           channel: 'webchat',
         },
+        toolCalls: aiResult?.response?.toolCalls ?? [],
       })
     }
 
