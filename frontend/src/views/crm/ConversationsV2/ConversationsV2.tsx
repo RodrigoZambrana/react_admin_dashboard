@@ -33,6 +33,16 @@ import {
     TbDownload,
     TbFolder,
     TbVideo,
+    TbBrandFacebook,
+    TbBrandInstagram,
+    TbBrandLinkedin,
+    TbBrandX,
+    TbMailHeart,
+    TbPhoneCheck,
+    TbUserCheck,
+    TbBrandHipchat,
+    TbPlayerPlayFilled,
+    TbX,
 } from 'react-icons/tb'
 import './conversations-v2.css'
 
@@ -275,6 +285,20 @@ const formatBytes = (value: number | null) => {
     return `${value} B`
 }
 
+const drawerQuickActions = [
+    { key: 'audio', label: 'Audio', icon: TbPhoneCall },
+    { key: 'video', label: 'Video', icon: TbVideo },
+    { key: 'chat', label: 'Chat', icon: TbBrandHipchat },
+    { key: 'search', label: 'Search', icon: TbSearch },
+]
+
+const socialActions = [
+    { key: 'facebook', label: 'Facebook', icon: TbBrandFacebook },
+    { key: 'x', label: 'X', icon: TbBrandX },
+    { key: 'instagram', label: 'Instagram', icon: TbBrandInstagram },
+    { key: 'linkedin', label: 'LinkedIn', icon: TbBrandLinkedin },
+]
+
 const ConversationsV2 = () => {
     const { conversationId = '' } = useParams<{ conversationId?: string }>()
     const navigate = useNavigate()
@@ -307,7 +331,7 @@ const ConversationsV2 = () => {
                 setItems(response.items)
 
                 if (!conversationId && response.items[0]) {
-                    navigate(`/app/crm/conversations-v2/${response.items[0].id}`, {
+                    navigate(`/app/crm/conversations/${response.items[0].id}`, {
                         replace: true,
                     })
                 }
@@ -445,7 +469,7 @@ const ConversationsV2 = () => {
     )
 
     const handleSelectConversation = (id: string) => {
-        navigate(`/app/crm/conversations-v2/${id}`)
+        navigate(`/app/crm/conversations/${id}`)
         if (isMobile) {
             setIsMobileListOpen(false)
         }
@@ -612,7 +636,7 @@ const ConversationsV2 = () => {
                             return (
                                 <div className="chat-list" key={conversation.id}>
                                     <button
-                                        className={`chat-user-list ${isActive ? 'is-active' : ''}`}
+                                        className={`chat-user-list ${isActive ? 'is-active' : ''} ${conversation.operational.needsAssignment ? 'is-unread' : ''}`}
                                         type="button"
                                         onClick={() => handleSelectConversation(conversation.id)}
                                     >
@@ -741,10 +765,15 @@ const ConversationsV2 = () => {
                                         </button>
                                     </li>
                                     <li>
+                                        <button type="button" aria-label="Llamada">
+                                            <TbPhoneCall size={20} />
+                                        </button>
+                                    </li>
+                                    <li>
                                         <button
                                             type="button"
                                             aria-label="Volver"
-                                            onClick={() => navigate('/app/crm/conversations-v2')}
+                                            onClick={() => navigate('/app/crm/conversations')}
                                         >
                                             <TbArrowLeft size={20} />
                                         </button>
@@ -917,125 +946,227 @@ const ConversationsV2 = () => {
                 >
                     <div className="crm-conversations-v2 details-panel">
                         {selectedConversation ? (
-                            <>
-                                <div className="details-card">
-                                    <h5>Conversation Info</h5>
-                                    <div className="mb-4 flex items-center gap-3">
-                                        <img
-                                            src={
-                                                getTemplateAvatar(selectedConversation.id) ||
-                                                undefined
-                                            }
-                                            alt={getConversationDisplayTitle(selectedConversation)}
-                                            style={{
-                                                width: 64,
-                                                height: 64,
-                                                borderRadius: '999px',
-                                                objectFit: 'cover',
-                                            }}
-                                        />
-                                        <div>
-                                            <div className="text-base font-semibold text-slate-900">
-                                                {getConversationDisplayTitle(
-                                                    selectedConversation,
-                                                )}
-                                            </div>
-                                            <div className="text-sm text-slate-500">
-                                                {selectedConversation.customer?.email ||
-                                                    selectedConversation.externalUserId ||
-                                                    'Sin identificador externo'}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="details-grid">
-                                        <div>
-                                            <div className="details-item-label">Subject</div>
-                                            <div className="details-item-value">
-                                                {formatTitle(selectedConversation.subject)}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="details-item-label">Status</div>
-                                            <div className="details-item-value">
-                                                {titleCase(selectedConversation.status)}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="details-item-label">Control mode</div>
-                                            <div className="details-item-value">
-                                                {titleCase(selectedConversation.controlMode)}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="details-item-label">Scope</div>
-                                            <div className="details-item-value">
-                                                {titleCase(selectedConversation.scope)}
-                                            </div>
-                                        </div>
-                                    </div>
+                            <div className="chat-offcanvas">
+                                <div className="offcanvas-header">
+                                    <h4>Contact Info</h4>
+                                    <button
+                                        className="offcanvas-close"
+                                        type="button"
+                                        onClick={() => setIsDetailsOpen(false)}
+                                        aria-label="Cerrar detalles"
+                                    >
+                                        <TbX size={18} />
+                                    </button>
                                 </div>
-                                <div className="details-card">
-                                    <h5>Routing</h5>
-                                    <div className="details-grid">
-                                        <div>
-                                            <div className="details-item-label">Channel</div>
-                                            <div className="details-item-value">
-                                                {titleCase(selectedConversation.channel)}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="details-item-label">Inbox</div>
-                                            <div className="details-item-value">
-                                                {selectedConversation.inboxAccount?.displayName ||
-                                                    selectedConversation.inboxAccount?.address ||
-                                                    'Webchat directo'}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="details-item-label">Queue</div>
-                                            <div className="details-item-value">
-                                                {selectedConversation.queue?.name || 'Sin cola'}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="details-item-label">Operator</div>
-                                            <div className="details-item-value">
-                                                {selectedConversation.assignedToUser?.name ||
-                                                    selectedConversation.assignedToUser?.email ||
-                                                    'Sin operador asignado'}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="details-card">
-                                    <h5>Customer</h5>
-                                    <div className="details-grid">
-                                        <div>
-                                            <div className="details-item-label">Name</div>
-                                            <div className="details-item-value">
-                                                {selectedConversation.customer?.name ||
-                                                    getConversationDisplayTitle(
+                                <div className="offcanvas-body">
+                                    <div className="chat-contact-info">
+                                        <div className="profile-content">
+                                            <div className="contact-profile-info">
+                                                <div className="avatar avatar-xxl online mb-2">
+                                                    <img
+                                                        src={
+                                                            getTemplateAvatar(
+                                                                selectedConversation.id,
+                                                            ) || undefined
+                                                        }
+                                                        alt={getConversationDisplayTitle(
+                                                            selectedConversation,
+                                                        )}
+                                                        style={{
+                                                            width: 96,
+                                                            height: 96,
+                                                            borderRadius: '999px',
+                                                            objectFit: 'cover',
+                                                        }}
+                                                    />
+                                                </div>
+                                                <h6>
+                                                    {getConversationDisplayTitle(
                                                         selectedConversation,
                                                     )}
+                                                </h6>
+                                                <p>
+                                                    Last seen at{' '}
+                                                    {formatDateTime(
+                                                        selectedConversation.lastMessageAt ||
+                                                            selectedConversation.updatedAt,
+                                                    )}
+                                                </p>
                                             </div>
-                                        </div>
-                                        <div>
-                                            <div className="details-item-label">Email</div>
-                                            <div className="details-item-value">
-                                                {selectedConversation.customer?.email ||
-                                                    'Sin email'}
+
+                                            <div className="action-grid">
+                                                {drawerQuickActions.map((action) => {
+                                                    const Icon = action.icon
+                                                    return (
+                                                        <button
+                                                            key={action.key}
+                                                            className="action-wrap"
+                                                            type="button"
+                                                            aria-label={action.label}
+                                                        >
+                                                            <Icon size={16} />
+                                                            <p>{action.label}</p>
+                                                        </button>
+                                                    )
+                                                })}
                                             </div>
-                                        </div>
-                                        <div>
-                                            <div className="details-item-label">Phone</div>
-                                            <div className="details-item-value">
-                                                {selectedConversation.customer?.phoneNumber ||
-                                                    'Sin teléfono'}
+
+                                            <div className="content-wrapper">
+                                                <h5 className="sub-title">Profile Info</h5>
+                                                <div className="card">
+                                                    <div className="card-body">
+                                                        <ul className="profile-item">
+                                                            <li className="list-group-item">
+                                                                <div className="profile-info">
+                                                                    <h6>Name</h6>
+                                                                    <p>
+                                                                        {selectedConversation.customer
+                                                                            ?.name ||
+                                                                            getConversationDisplayTitle(
+                                                                                selectedConversation,
+                                                                            )}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="profile-icon">
+                                                                    <TbUserCheck size={18} />
+                                                                </div>
+                                                            </li>
+                                                            <li className="list-group-item">
+                                                                <div className="info">
+                                                                    <h6>Email Address</h6>
+                                                                    <p>
+                                                                        {selectedConversation.customer
+                                                                            ?.email ||
+                                                                            'Sin email'}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="icon">
+                                                                    <TbMailHeart size={18} />
+                                                                </div>
+                                                            </li>
+                                                            <li className="list-group-item">
+                                                                <div className="info">
+                                                                    <h6>Phone</h6>
+                                                                    <p>
+                                                                        {selectedConversation.customer
+                                                                            ?.phoneNumber ||
+                                                                            'Sin teléfono'}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="icon">
+                                                                    <TbPhoneCheck size={18} />
+                                                                </div>
+                                                            </li>
+                                                            <li className="list-group-item">
+                                                                <div className="info">
+                                                                    <h6>Bio</h6>
+                                                                    <p>
+                                                                        {formatTitle(
+                                                                            selectedConversation.subject,
+                                                                        )}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="icon">
+                                                                    <TbInfoCircle size={18} />
+                                                                </div>
+                                                            </li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="content-wrapper">
+                                                <h5 className="sub-title">Social Profiles</h5>
+                                                <div className="card">
+                                                    <div className="card-body">
+                                                        <div className="social-icon">
+                                                            {socialActions.map((action) => {
+                                                                const Icon = action.icon
+                                                                return (
+                                                                    <button
+                                                                        key={action.key}
+                                                                        type="button"
+                                                                        aria-label={action.label}
+                                                                    >
+                                                                        <Icon size={16} />
+                                                                    </button>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="content-wrapper">
+                                                <h5 className="sub-title">Media Details</h5>
+                                                <div className="card">
+                                                    <div className="card-body">
+                                                        <div className="document-item">
+                                                            <div className="document-icon">
+                                                                <TbFileDescription size={20} />
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <h6>
+                                                                    {selectedConversation
+                                                                        .messages.length}{' '}
+                                                                    mensajes
+                                                                </h6>
+                                                                <p>
+                                                                    Canal{' '}
+                                                                    {titleCase(
+                                                                        selectedConversation.channel,
+                                                                    )}
+                                                                </p>
+                                                            </div>
+                                                            <span className="download-icon">
+                                                                <TbDotsVertical size={16} />
+                                                            </span>
+                                                        </div>
+                                                        <div className="document-item">
+                                                            <div className="document-icon">
+                                                                <TbFolder size={20} />
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <h6>
+                                                                    {selectedConversation.queue
+                                                                        ?.name || 'Sin cola'}
+                                                                </h6>
+                                                                <p>
+                                                                    Operador:{' '}
+                                                                    {selectedConversation
+                                                                        .assignedToUser?.name ||
+                                                                        selectedConversation
+                                                                            .assignedToUser
+                                                                            ?.email ||
+                                                                        'Sin asignar'}
+                                                                </p>
+                                                            </div>
+                                                            <span className="download-icon">
+                                                                <TbInfoCircle size={16} />
+                                                            </span>
+                                                        </div>
+                                                        <div className="chat-video mt-4">
+                                                            <button
+                                                                className="video-img"
+                                                                type="button"
+                                                                aria-label="Abrir vista previa del video"
+                                                            >
+                                                                <img
+                                                                    src="/mock/dreamschat/video/video.jpg"
+                                                                    alt="video preview"
+                                                                />
+                                                                <span>
+                                                                    <TbPlayerPlayFilled size={12} />
+                                                                </span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </>
+                            </div>
                         ) : (
                             <div className="empty-state">Sin datos para mostrar.</div>
                         )}
