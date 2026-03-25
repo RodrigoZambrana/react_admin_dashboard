@@ -37,6 +37,8 @@ import { IngestInboundMessageDto } from './dto/ingest-inbound-message.dto'
 import { SyncOutboundStatusDto } from './dto/sync-outbound-status.dto'
 import { CreateAdminInternalSessionDto } from './dto/create-admin-internal-session.dto'
 import { RerouteConversationDto } from './dto/reroute-conversation.dto'
+import { ListConversationContactsDto } from './dto/list-conversation-contacts.dto'
+import { StartContactConversationDto } from './dto/start-contact-conversation.dto'
 
 type OutboundDispatchResult = {
   kind: ConversationMessageKind
@@ -46,6 +48,16 @@ type OutboundDispatchResult = {
   metadata?: Record<string, unknown>
   queueId?: string | null
 }
+
+type ConversationReadStateSummary = {
+  lastReadAt: Date | null
+  unreadCount: number
+  isRead: boolean
+  manualUnread: boolean
+}
+
+const INTERNAL_ASSISTANT_CONTACT_KEY = 'internal:assistant'
+const INTERNAL_ASSISTANT_CONTACT_LABEL = 'Asistente interno'
 
 @Injectable()
 export class ConversationsService {
@@ -198,8 +210,18 @@ export class ConversationsService {
       this.prisma.conversation.count({ where }),
     ])
 
+    const readStateByConversationId = await this.buildReadStateMap(
+      items.map((item) => item.id),
+      currentUserId,
+    )
+
     return {
-      items: items.map((item) => this.mapConversationSummary(item)),
+      items: items.map((item) =>
+        this.mapConversationSummary(
+          item,
+          readStateByConversationId.get(item.id) ?? null,
+        ),
+      ),
       total,
       page,
       pageSize,
@@ -217,7 +239,7 @@ export class ConversationsService {
     }
   }
 
-  async getConversation(id: string) {
+  async getConversation(id: string, currentUserId?: number) {
     const conversation = await this.prisma.conversation.findUnique({
       where: { id },
       include: {
@@ -350,8 +372,15 @@ export class ConversationsService {
       return null
     }
 
+    const readState =
+      currentUserId != null
+        ? await this.buildReadStateMap([conversation.id], currentUserId).then(
+            (result) => result.get(conversation.id) ?? null,
+          )
+        : null
+
     return {
-      ...this.mapConversationSummary(conversation),
+      ...this.mapConversationSummary(conversation, readState),
       messages: conversation.messages.map((message) => ({
         id: message.id,
         authorType: this.normalizeEnum(message.authorType),
@@ -612,35 +641,151 @@ export class ConversationsService {
     }))
   }
 
+  async listContacts(query: ListConversationContactsDto, actorUserId: number) {
+    const search = query.search?.trim() || ''
+    const limit = query.limit ?? 20
+    const normalizedSearch = search.toLowerCase()
+
+    const [customers, internalConversation] = await Promise.all([
+      this.prisma.customer.findMany({
+        where: search
+          ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+                { phoneNumber: { contains: search, mode: 'insensitive' } },
+              ],
+            }
+          : undefined,
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+        take: limit,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
+        },
+      }),
+      this.prisma.conversation.findFirst({
+        where: {
+          scope: ConversationScope.ADMIN_INTERNAL,
+          externalUserId: `admin:${actorUserId}`,
+          status: { not: ConversationStatus.CLOSED },
+          metadata: {
+            path: ['contactKey'],
+            equals: INTERNAL_ASSISTANT_CONTACT_KEY,
+          },
+        },
+        orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+        select: {
+          id: true,
+          updatedAt: true,
+        },
+      }),
+    ])
+
+    const customerIds = customers.map((customer) => customer.id)
+    const customerConversations = customerIds.length
+      ? await this.prisma.conversation.findMany({
+          where: {
+            customerId: { in: customerIds },
+            scope: ConversationScope.CUSTOMER_PUBLIC,
+            status: { not: ConversationStatus.CLOSED },
+          },
+          orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+          select: {
+            id: true,
+            customerId: true,
+            channel: true,
+            lastMessageAt: true,
+            updatedAt: true,
+          },
+        })
+      : []
+
+    const latestConversationByCustomer = new Map<
+      number,
+      {
+        id: string
+        channel: ConversationChannel
+        lastMessageAt: Date | null
+        updatedAt: Date
+      }
+    >()
+
+    for (const conversation of customerConversations) {
+      if (!conversation.customerId) {
+        continue
+      }
+
+      if (!latestConversationByCustomer.has(conversation.customerId)) {
+        latestConversationByCustomer.set(conversation.customerId, {
+          id: conversation.id,
+          channel: conversation.channel,
+          lastMessageAt: conversation.lastMessageAt,
+          updatedAt: conversation.updatedAt,
+        })
+      }
+    }
+
+    const internalMatches =
+      !normalizedSearch ||
+      INTERNAL_ASSISTANT_CONTACT_LABEL.toLowerCase().includes(normalizedSearch) ||
+      'chat interno ia operativa'.includes(normalizedSearch)
+
+    return {
+      items: [
+        ...(internalMatches
+          ? [
+              {
+                key: INTERNAL_ASSISTANT_CONTACT_KEY,
+                kind: 'internal' as const,
+                label: INTERNAL_ASSISTANT_CONTACT_LABEL,
+                description: 'Chat interno con IA operativa',
+                email: null,
+                phoneNumber: null,
+                channel: 'admin_chat' as const,
+                conversationId: internalConversation?.id ?? null,
+                hasDeliveryChannel: true,
+                updatedAt: internalConversation?.updatedAt ?? null,
+              },
+            ]
+          : []),
+        ...customers.map((customer) => {
+          const latestConversation = latestConversationByCustomer.get(customer.id)
+          const preferredChannel =
+            customer.email?.trim() ? 'email' : latestConversation?.channel
+          return {
+            key: `customer:${customer.id}`,
+            kind: 'customer' as const,
+            customerId: customer.id,
+            label: customer.name || customer.email || `Cliente ${customer.id}`,
+            description: customer.email || customer.phoneNumber || 'Sin canal configurado',
+            email: customer.email ?? null,
+            phoneNumber: customer.phoneNumber ?? null,
+            channel: preferredChannel
+              ? this.normalizeEnum(preferredChannel)
+              : null,
+            conversationId: latestConversation?.id ?? null,
+            hasDeliveryChannel: Boolean(customer.email?.trim()),
+            updatedAt:
+              latestConversation?.lastMessageAt ??
+              latestConversation?.updatedAt ??
+              null,
+          }
+        }),
+      ],
+    }
+  }
+
   async createAdminInternalSession(
     input: CreateAdminInternalSessionDto,
     actorUserId: number,
   ) {
-    const conversation = await this.prisma.conversation.create({
-      data: {
-        tenantKey: input.tenantKey?.trim() || 'default',
-        scope: ConversationScope.ADMIN_INTERNAL,
-        channel: ConversationChannel.ADMIN_CHAT,
-        status: ConversationStatus.WAITING_INTERNAL,
-        controlMode: ConversationControlMode.AI,
-        subject: input.subject.trim(),
-        assignedToUserId: actorUserId,
-        externalUserId: `admin:${actorUserId}`,
-        externalThreadId: `admin-chat:${randomUUID()}`,
-        metadata: {
-          source: 'admin-internal',
-        },
-        participants: {
-          create: {
-            role: ConversationParticipantRole.OPERATOR,
-            userId: actorUserId,
-            displayName: 'Operador interno',
-          },
-        },
-      },
-      select: {
-        id: true,
-      },
+    const conversation = await this.createAdminInternalConversationRecord({
+      tenantKey: input.tenantKey?.trim() || 'default',
+      actorUserId,
+      subject: input.subject.trim(),
     })
 
     return this.replyAsOperator(
@@ -651,6 +796,195 @@ export class ConversationsService {
       },
       actorUserId,
     )
+  }
+
+  async startConversationFromContact(
+    input: StartContactConversationDto,
+    actorUserId: number,
+  ) {
+    if (input.contactType === 'internal') {
+      const conversation =
+        (await this.findAdminInternalAssistantConversation(actorUserId)) ??
+        (await this.createAdminInternalConversationRecord({
+          tenantKey: input.tenantKey?.trim() || 'default',
+          actorUserId,
+          subject: INTERNAL_ASSISTANT_CONTACT_LABEL,
+          contactKey: INTERNAL_ASSISTANT_CONTACT_KEY,
+          contactLabel: INTERNAL_ASSISTANT_CONTACT_LABEL,
+        }))
+
+      const message = input.message?.trim()
+      if (!message) {
+        return this.getConversation(conversation.id, actorUserId)
+      }
+
+      return this.replyAsOperator(
+        conversation.id,
+        {
+          body: message,
+          kind: 'text',
+        },
+        actorUserId,
+      )
+    }
+
+    if (!input.customerId) {
+      throw new BadRequestException('conversation.customerRequired')
+    }
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: input.customerId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phoneNumber: true,
+      },
+    })
+
+    if (!customer) {
+      throw new NotFoundException('conversation.customerNotFound')
+    }
+
+    let conversation = await this.prisma.conversation.findFirst({
+      where: {
+        customerId: customer.id,
+        scope: ConversationScope.CUSTOMER_PUBLIC,
+        status: { not: ConversationStatus.CLOSED },
+      },
+      orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+      select: { id: true },
+    })
+
+    if (!conversation) {
+      const emailInbox = customer.email?.trim()
+        ? await this.prisma.inboxAccount.findFirst({
+            where: {
+              active: true,
+              channel: InboxChannelType.EMAIL,
+            },
+            orderBy: [{ updatedAt: 'desc' }],
+            select: { id: true },
+          })
+        : null
+
+      const channel = emailInbox
+        ? ConversationChannel.EMAIL
+        : ConversationChannel.ADMIN_CHAT
+
+      conversation = await this.prisma.conversation.create({
+        data: {
+          tenantKey:
+            input.tenantKey?.trim() ||
+            this.config.get<string>('CLIENT_SLUG') ||
+            'default',
+          scope: ConversationScope.CUSTOMER_PUBLIC,
+          channel,
+          status: ConversationStatus.OPEN,
+          controlMode: ConversationControlMode.HUMAN,
+          subject: customer.name || customer.email || `Cliente ${customer.id}`,
+          customerId: customer.id,
+          inboxAccountId: emailInbox?.id ?? null,
+          assignedToUserId: actorUserId,
+          externalUserId:
+            customer.email?.trim().toLowerCase() || `customer:${customer.id}`,
+          externalThreadId:
+            customer.email?.trim().toLowerCase()
+              ? `email:${customer.email.trim().toLowerCase()}`
+              : `customer:${customer.id}`,
+          externalChannelRef: customer.email?.trim() || null,
+          metadata: {
+            source: 'admin-contact-start',
+            contactKey: `customer:${customer.id}`,
+            missingDeliveryChannel: emailInbox ? false : true,
+          },
+          participants: {
+            create: {
+              role: ConversationParticipantRole.CUSTOMER,
+              customerId: customer.id,
+              externalUserId:
+                customer.email?.trim().toLowerCase() || `customer:${customer.id}`,
+              displayName:
+                customer.name || customer.email || `Cliente ${customer.id}`,
+              metadata: {
+                email: customer.email ?? null,
+                phoneNumber: customer.phoneNumber ?? null,
+              },
+            },
+          },
+        },
+        select: { id: true },
+      })
+    }
+
+    const message = input.message?.trim()
+    if (!message) {
+      return this.getConversation(conversation.id, actorUserId)
+    }
+
+    return this.replyAsOperator(
+      conversation.id,
+      {
+        body: message,
+        kind: 'text',
+      },
+      actorUserId,
+    )
+  }
+
+  private async findAdminInternalAssistantConversation(actorUserId: number) {
+    return this.prisma.conversation.findFirst({
+      where: {
+        scope: ConversationScope.ADMIN_INTERNAL,
+        externalUserId: `admin:${actorUserId}`,
+        status: { not: ConversationStatus.CLOSED },
+        metadata: {
+          path: ['contactKey'],
+          equals: INTERNAL_ASSISTANT_CONTACT_KEY,
+        },
+      },
+      orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+      select: {
+        id: true,
+      },
+    })
+  }
+
+  private async createAdminInternalConversationRecord(input: {
+    tenantKey: string
+    actorUserId: number
+    subject: string
+    contactKey?: string
+    contactLabel?: string
+  }) {
+    return this.prisma.conversation.create({
+      data: {
+        tenantKey: input.tenantKey,
+        scope: ConversationScope.ADMIN_INTERNAL,
+        channel: ConversationChannel.ADMIN_CHAT,
+        status: ConversationStatus.WAITING_INTERNAL,
+        controlMode: ConversationControlMode.AI,
+        subject: input.subject,
+        assignedToUserId: input.actorUserId,
+        externalUserId: `admin:${input.actorUserId}`,
+        externalThreadId: `admin-chat:${randomUUID()}`,
+        metadata: {
+          source: 'admin-internal',
+          contactKey: input.contactKey ?? null,
+          contactLabel: input.contactLabel ?? null,
+        },
+        participants: {
+          create: {
+            role: ConversationParticipantRole.OPERATOR,
+            userId: input.actorUserId,
+            displayName: input.contactLabel || 'Operador interno',
+          },
+        },
+      },
+      select: {
+        id: true,
+      },
+    })
   }
 
   async createWebchatSession(input: CreateWebchatSessionDto) {
@@ -1179,7 +1513,7 @@ export class ConversationsService {
       })
     })
 
-    return this.getConversation(id)
+    return this.getConversation(id, actorUserId)
   }
 
   async releaseConversation(
@@ -1217,7 +1551,7 @@ export class ConversationsService {
       })
     })
 
-    return this.getConversation(id)
+    return this.getConversation(id, actorUserId)
   }
 
   async assignConversation(
@@ -1255,7 +1589,7 @@ export class ConversationsService {
       })
     })
 
-    return this.getConversation(id)
+    return this.getConversation(id, actorUserId)
   }
 
   async rerouteConversation(
@@ -1362,7 +1696,7 @@ export class ConversationsService {
       })
     })
 
-    return this.getConversation(id)
+    return this.getConversation(id, actorUserId)
   }
 
   async replyAsOperator(
@@ -1418,13 +1752,32 @@ export class ConversationsService {
               : ConversationStatus.WAITING_CUSTOMER,
         },
       })
+
+      await tx.conversationReadState.upsert({
+        where: {
+          conversationId_userId: {
+            conversationId: id,
+            userId: actorUserId,
+          },
+        },
+        update: {
+          lastReadAt: message.createdAt,
+          manualUnread: false,
+        },
+        create: {
+          conversationId: id,
+          userId: actorUserId,
+          lastReadAt: message.createdAt,
+          manualUnread: false,
+        },
+      })
     })
 
     if (conversation.scope === ConversationScope.ADMIN_INTERNAL) {
       await this.respondToAdminInternalMessage(conversation, actorUserId, input.body)
     }
 
-    return this.getConversation(id)
+    return this.getConversation(id, actorUserId)
   }
 
   async replyAsAgent(id: string, input: AgentReplyDto) {
@@ -1589,6 +1942,179 @@ export class ConversationsService {
     })
   }
 
+  async markConversationRead(id: string, userId: number) {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id },
+      select: { id: true, lastMessageAt: true },
+    })
+
+    if (!conversation) {
+      throw new NotFoundException('conversation.notFound')
+    }
+
+    await this.upsertConversationReadState(id, userId, {
+      lastReadAt: conversation.lastMessageAt ?? new Date(),
+      manualUnread: false,
+    })
+
+    return this.getConversation(id, userId)
+  }
+
+  async markConversationUnread(id: string, userId: number) {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id },
+      select: { id: true, lastMessageAt: true },
+    })
+
+    if (!conversation) {
+      throw new NotFoundException('conversation.notFound')
+    }
+
+    await this.upsertConversationReadState(id, userId, {
+      lastReadAt: conversation.lastMessageAt ?? null,
+      manualUnread: true,
+    })
+
+    return this.getConversation(id, userId)
+  }
+
+  async pinConversation(id: string, actorUserId: number) {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id },
+      select: { id: true },
+    })
+
+    if (!conversation) {
+      throw new NotFoundException('conversation.notFound')
+    }
+
+    await this.prisma.conversation.update({
+      where: { id },
+      data: {
+        pinnedAt: new Date(),
+      },
+    })
+
+    return this.getConversation(id, actorUserId)
+  }
+
+  async unpinConversation(id: string, actorUserId: number) {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id },
+      select: { id: true },
+    })
+
+    if (!conversation) {
+      throw new NotFoundException('conversation.notFound')
+    }
+
+    await this.prisma.conversation.update({
+      where: { id },
+      data: {
+        pinnedAt: null,
+      },
+    })
+
+    return this.getConversation(id, actorUserId)
+  }
+
+  private async upsertConversationReadState(
+    conversationId: string,
+    userId: number,
+    data: {
+      lastReadAt: Date | null
+      manualUnread: boolean
+    },
+  ) {
+    await this.prisma.conversationReadState.upsert({
+      where: {
+        conversationId_userId: {
+          conversationId,
+          userId,
+        },
+      },
+      update: {
+        lastReadAt: data.lastReadAt,
+        manualUnread: data.manualUnread,
+      },
+      create: {
+        conversationId,
+        userId,
+        lastReadAt: data.lastReadAt,
+        manualUnread: data.manualUnread,
+      },
+    })
+  }
+
+  private async buildReadStateMap(
+    conversationIds: string[],
+    currentUserId?: number,
+  ) {
+    const readStateMap = new Map<string, ConversationReadStateSummary>()
+
+    if (!currentUserId || conversationIds.length === 0) {
+      return readStateMap
+    }
+
+    const readStates = await this.prisma.conversationReadState.findMany({
+      where: {
+        userId: currentUserId,
+        conversationId: { in: conversationIds },
+      },
+      select: {
+        conversationId: true,
+        lastReadAt: true,
+        manualUnread: true,
+      },
+    })
+
+    const readStateById = new Map(
+      readStates.map((state) => [state.conversationId, state] as const),
+    )
+
+    const unreadCounts = await Promise.all(
+      conversationIds.map(async (conversationId) => {
+        const readState = readStateById.get(conversationId)
+        const unreadCount = await this.prisma.conversationMessage.count({
+          where: {
+            conversationId,
+            ...(readState?.lastReadAt
+              ? {
+                  createdAt: {
+                    gt: readState.lastReadAt,
+                  },
+                }
+              : {}),
+            NOT: {
+              authorUserId: currentUserId,
+            },
+          },
+        })
+
+        return {
+          conversationId,
+          unreadCount,
+          readState,
+        }
+      }),
+    )
+
+    unreadCounts.forEach(({ conversationId, unreadCount, readState }) => {
+      const effectiveUnreadCount = readState?.manualUnread
+        ? Math.max(unreadCount, 1)
+        : unreadCount
+
+      readStateMap.set(conversationId, {
+        lastReadAt: readState?.lastReadAt ?? null,
+        manualUnread: readState?.manualUnread ?? false,
+        unreadCount: effectiveUnreadCount,
+        isRead: effectiveUnreadCount === 0,
+      })
+    })
+
+    return readStateMap
+  }
+
   private mapConversationSummary(
     conversation: Prisma.ConversationGetPayload<{
       include: {
@@ -1636,6 +2162,7 @@ export class ConversationsService {
         }
       }
     }>,
+    readState?: ConversationReadStateSummary | null,
   ) {
     const latestMessage = conversation.messages.reduce<
       (typeof conversation.messages)[number] | null
@@ -1677,6 +2204,8 @@ export class ConversationsService {
       externalUserId: conversation.externalUserId ?? null,
       externalThreadId: conversation.externalThreadId ?? null,
       externalChannelRef: conversation.externalChannelRef ?? null,
+      isPinned: conversation.pinnedAt != null,
+      pinnedAt: conversation.pinnedAt ?? null,
       lastMessageAt: conversation.lastMessageAt,
       lastInboundAt: conversation.lastInboundAt,
       lastOutboundAt: conversation.lastOutboundAt,
@@ -1706,6 +2235,19 @@ export class ConversationsService {
         slaAgeMinutes,
         slaTargetMinutes,
       },
+      readState: readState
+        ? {
+            lastReadAt: readState.lastReadAt,
+            unreadCount: readState.unreadCount,
+            isRead: readState.isRead,
+            manualUnread: readState.manualUnread,
+          }
+        : {
+            lastReadAt: null,
+            unreadCount: 0,
+            isRead: true,
+            manualUnread: false,
+          },
       participants: conversation.participants.map((participant) => ({
         id: participant.id,
         role: this.normalizeEnum(participant.role),

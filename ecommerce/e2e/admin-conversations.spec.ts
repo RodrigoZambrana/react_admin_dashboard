@@ -56,6 +56,7 @@ test("admin can open the conversations hub and inspect a webchat session", async
   await expect(page.getByTestId("admin-conversation-detail-title")).toContainText(
     "Test Conversation"
   );
+  await page.getByTestId("admin-conversations-rail-directory").click();
   await expect(page.getByTestId("admin-conversations-inboxes")).toBeVisible();
   await expect(
     page.locator('[data-testid^="admin-conversation-message-"]').first()

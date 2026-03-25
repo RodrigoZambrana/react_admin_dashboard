@@ -6,6 +6,7 @@ import {
     HiOutlineDocumentText,
     HiOutlineHome,
     HiOutlineMenuAlt2,
+    HiOutlineChatAlt2,
     HiOutlinePlusCircle,
     HiOutlineUserAdd,
 } from 'react-icons/hi'
@@ -38,6 +39,10 @@ const MobileBottomNav = () => {
     const location = useLocation()
 
     const [isCustomerDrawerOpen, setCustomerDrawerOpen] = useState(false)
+    const isConversationRoute = location.pathname.startsWith(
+        '/app/crm/conversations',
+    )
+    const isMailRoute = location.pathname.startsWith('/app/crm/mail')
 
     const broadcastDrawerClose = useCallback(() => {
         window.dispatchEvent(new Event('app:drawer-close-all'))
@@ -71,6 +76,14 @@ const MobileBottomNav = () => {
                 label: t('text.mobileNav.home', { defaultValue: 'Home' }),
                 icon: HiOutlineHome,
                 to: '/app/sales/dashboard',
+            },
+            {
+                key: 'messages',
+                label: t('text.mobileNav.messages', {
+                    defaultValue: 'Messages',
+                }),
+                icon: HiOutlineChatAlt2,
+                to: '/app/crm/conversations',
             },
             {
                 key: 'agenda',
@@ -109,6 +122,44 @@ const MobileBottomNav = () => {
         })
         return items
     }, [openCustomerDrawer, openMobileMenu, t])
+
+    const messagingNavItems = useMemo<MobileNavItem[]>(
+        () => [
+            {
+                key: 'messagesChats',
+                label: t('text.mobileNav.messages', {
+                    defaultValue: 'Messages',
+                }),
+                icon: HiOutlineChatAlt2,
+                to: '/app/crm/conversations',
+            },
+            {
+                key: 'messagesMail',
+                label: t('crm.mail.mailbox', {
+                    defaultValue: 'Mailbox',
+                }),
+                icon: HiOutlineDocumentText,
+                to: '/app/crm/mail/inbox',
+            },
+            {
+                key: 'messagesAi',
+                label: t('text.mobileNav.ai', {
+                    defaultValue: 'AI',
+                }),
+                icon: HiOutlinePlusCircle,
+                to: '/app/settings/ai',
+            },
+            {
+                key: 'messagesGeneral',
+                label: t('text.mobileNav.general', {
+                    defaultValue: 'General',
+                }),
+                icon: HiOutlineHome,
+                to: '/app/crm/customers',
+            },
+        ],
+        [t],
+    )
 
     const handleItemClick = (item: MobileNavItem) => {
         if (item.action) {
@@ -159,7 +210,7 @@ const MobileBottomNav = () => {
         }
     }, [showNav])
 
-    if (!showNav) {
+    if (!showNav || isConversationRoute) {
         return null
     }
 
@@ -180,7 +231,7 @@ const MobileBottomNav = () => {
                 }}
             >
                 <ul className="flex h-full items-center justify-between px-2 pt-2 pb-3">
-                    {navItems.map((item) => {
+                    {(isMailRoute ? messagingNavItems : navItems).map((item) => {
                         const ActiveIcon = item.icon
                         const active =
                             item.key === 'addCustomer'

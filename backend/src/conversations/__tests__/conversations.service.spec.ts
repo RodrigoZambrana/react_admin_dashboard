@@ -5,6 +5,8 @@ const createPrisma = () => ({
   $transaction: vi.fn(),
   customer: {
     findFirst: vi.fn(),
+    findMany: vi.fn(),
+    findUnique: vi.fn(),
   },
   conversation: {
     findMany: vi.fn(),
@@ -17,8 +19,13 @@ const createPrisma = () => ({
   conversationMessage: {
     findFirst: vi.fn(),
     findMany: vi.fn(),
+    count: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+  },
+  conversationReadState: {
+    findMany: vi.fn(),
+    upsert: vi.fn(),
   },
   conversationParticipant: {
     findFirst: vi.fn(),
@@ -33,6 +40,7 @@ const createPrisma = () => ({
   inboxAccount: {
     findMany: vi.fn(),
     findUnique: vi.fn(),
+    findFirst: vi.fn(),
     upsert: vi.fn(),
   },
   inboxQueue: {
@@ -63,6 +71,9 @@ describe('ConversationsService', () => {
   beforeEach(() => {
     prisma = createPrisma()
     config = createConfig()
+    prisma.conversationReadState.findMany.mockResolvedValue([])
+    prisma.conversationReadState.upsert.mockResolvedValue({})
+    prisma.conversationMessage.count.mockResolvedValue(0)
     prisma.$transaction.mockImplementation(
       (
         input:
@@ -1309,5 +1320,78 @@ describe('ConversationsService', () => {
         }),
       }),
     })
+  })
+
+  it('lists messaging contacts including the internal assistant contact', async () => {
+    prisma.customer.findMany.mockResolvedValue([
+      {
+        id: 22,
+        name: 'Cliente Demo',
+        email: 'cliente@example.com',
+        phoneNumber: '+59899111222',
+      },
+    ])
+    prisma.conversation.findFirst
+      .mockResolvedValueOnce({
+        id: 'conv_internal',
+        updatedAt: new Date('2026-03-25T12:00:00.000Z'),
+      })
+    prisma.conversation.findMany.mockResolvedValue([
+      {
+        id: 'conv_customer',
+        customerId: 22,
+        channel: 'EMAIL',
+        lastMessageAt: new Date('2026-03-25T12:30:00.000Z'),
+        updatedAt: new Date('2026-03-25T12:30:00.000Z'),
+      },
+    ])
+
+    const result = await service.listContacts(
+      { limit: 10 },
+      7,
+    )
+
+    expect(result.items[0]).toMatchObject({
+      key: 'internal:assistant',
+      kind: 'internal',
+      label: 'Asistente interno',
+      conversationId: 'conv_internal',
+    })
+    expect(result.items[1]).toMatchObject({
+      key: 'customer:22',
+      kind: 'customer',
+      customerId: 22,
+      label: 'Cliente Demo',
+      conversationId: 'conv_customer',
+      hasDeliveryChannel: true,
+      channel: 'email',
+    })
+  })
+
+  it('opens the internal assistant conversation and sends the first message', async () => {
+    const replyAsOperatorSpy = vi
+      .spyOn(service, 'replyAsOperator')
+      .mockResolvedValue({ id: 'conv_internal' } as never)
+
+    prisma.conversation.findFirst.mockResolvedValue({
+      id: 'conv_internal',
+    })
+
+    await service.startConversationFromContact(
+      {
+        contactType: 'internal',
+        message: 'Necesito ayuda con un presupuesto',
+      },
+      9,
+    )
+
+    expect(replyAsOperatorSpy).toHaveBeenCalledWith(
+      'conv_internal',
+      {
+        body: 'Necesito ayuda con un presupuesto',
+        kind: 'text',
+      },
+      9,
+    )
   })
 })

@@ -2,26 +2,28 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Drawer from '@/components/ui/Drawer'
+import Dialog from '@/components/ui/Dialog'
 import Spinner from '@/components/ui/Spinner'
+import { APP_PREFIX_PATH } from '@/constants/route.constant'
 import useResponsive from '@/utils/hooks/useResponsive'
+import { apiGetUsers } from '@/services/UsersService'
 import ConversationsService, {
+    type ConversationContact,
     type ConversationDetail,
+    type ConversationQueueSummary,
+    type InboxSummary,
     type ConversationSummary,
 } from '@/services/ConversationsService'
-import {
-    getTemplateAvatar,
-    templateEmojiIcons,
-} from './templateAssets'
+import { apiGetCustomerDetails } from '@/services/CustomersService'
+import { getTemplateAvatar } from './templateAssets'
 import {
     TbMessage2Heart,
     TbUsersGroup,
     TbPhoneCall,
     TbSettings,
-    TbUserCircle,
     TbPlus,
     TbDotsVertical,
     TbSearch,
-    TbMenu2,
     TbArrowLeft,
     TbInfoCircle,
     TbSend2,
@@ -29,7 +31,6 @@ import {
     TbFileDescription,
     TbMicrophone,
     TbMoodSmile,
-    TbRefresh,
     TbDownload,
     TbFolder,
     TbVideo,
@@ -41,8 +42,16 @@ import {
     TbPhoneCheck,
     TbUserCheck,
     TbBrandHipchat,
-    TbPlayerPlayFilled,
     TbX,
+    TbChecks,
+    TbPinned,
+    TbFilter,
+    TbMessageReply,
+    TbUserPlus,
+    TbArrowsExchange,
+    TbRobot,
+    TbLayoutGrid,
+    TbRefresh,
 } from 'react-icons/tb'
 import './conversations-v2.css'
 
@@ -52,6 +61,39 @@ type ConversationAsset = {
     contentType: string | null
     size: number | null
     posterUrl?: string | null
+}
+
+type OperatorSummary = {
+    id: number
+    name: string
+    email: string
+}
+
+type CustomerDetailSnapshot = {
+    id: number
+    name?: string
+    firstName?: string
+    lastName?: string
+    email?: string | null
+    phoneNumber?: string | null
+    phoneNumbers?: string[]
+    personalInfo?: {
+        phoneNumber?: string | null
+        phoneNumbers?: string[]
+        location?: string | null
+    } | null
+    addresses?: Array<{
+        id?: number
+        label?: string | null
+        street?: string | null
+        number?: string | null
+        corner?: string | null
+        apartment?: string | null
+        city?: string | null
+        country?: string | null
+        comments?: string | null
+        isPrimary?: boolean
+    }> | null
 }
 
 const formatDateTime = (value?: string | null) => {
@@ -93,6 +135,65 @@ const titleCase = (value?: string | null) => {
         .join(' ')
 }
 
+const getInboxSecondaryLabel = (inbox: InboxSummary) => {
+    if (inbox.channel === 'email') {
+        return inbox.address || 'Cuenta de correo'
+    }
+
+    return titleCase(inbox.channel)
+}
+
+const parseDateMs = (value?: string | null) => {
+    if (!value) return 0
+    const parsed = Date.parse(value)
+    return Number.isNaN(parsed) ? 0 : parsed
+}
+
+const buildReadStateAsRead = <
+    T extends {
+        lastMessageAt?: string | null
+        latestMessage?: { createdAt?: string | null } | null
+        readState?: {
+            lastReadAt: string | null
+            unreadCount: number
+            isRead: boolean
+            manualUnread: boolean
+        }
+    },
+>(
+    conversation: T,
+) => {
+    const lastReadAt =
+        conversation.lastMessageAt ||
+        conversation.latestMessage?.createdAt ||
+        new Date().toISOString()
+
+    return {
+        ...conversation,
+        readState: {
+            lastReadAt,
+            unreadCount: 0,
+            isRead: true,
+            manualUnread: false,
+        },
+    }
+}
+
+const getInitials = (value?: string | null) => {
+    const normalized = value?.trim()
+    if (!normalized) return 'NA'
+
+    const parts = normalized
+        .split(/\s+/)
+        .map((segment) => segment.trim())
+        .filter(Boolean)
+
+    if (parts.length === 0) return 'NA'
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+
+    return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase()
+}
+
 const getConversationDisplayTitle = (conversation: {
     scope: string
     subject: string | null
@@ -132,10 +233,24 @@ const colorByChannel = (channel: string) => {
 const previewByConversation = (conversation: ConversationSummary) => {
     const latest = conversation.latestMessage
     if (!latest) return 'Sin mensajes todavía'
-    if (latest.kind === 'image') return 'Photo'
+    if (latest.kind === 'image') return 'Imagen'
     if (latest.kind === 'audio') return 'Audio'
-    if (latest.kind === 'attachment') return 'Document'
+    if (latest.kind === 'attachment') return 'Adjunto'
     return latest.body || 'Mensaje sin texto'
+}
+
+const getConversationOwnerState = (conversation: ConversationSummary) => {
+    if (conversation.controlMode === 'human') {
+        return {
+            label: conversation.assignedToUser?.name || 'Administrador',
+            tone: 'admin' as const,
+        }
+    }
+
+    return {
+        label: 'Agente IA',
+        tone: 'agent' as const,
+    }
 }
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
@@ -285,11 +400,34 @@ const formatBytes = (value: number | null) => {
     return `${value} B`
 }
 
+const formatCustomerAddress = (
+    address:
+        | CustomerDetailSnapshot['addresses'][number]
+        | null
+        | undefined,
+) => {
+    if (!address) return null
+
+    const line1 = [address.street, address.number]
+        .filter((value) => value && String(value).trim())
+        .join(' ')
+    const line2 = [address.city, address.country]
+        .filter((value) => value && String(value).trim())
+        .join(', ')
+    const extra = [address.corner, address.apartment]
+        .filter((value) => value && String(value).trim())
+        .join(' · ')
+
+    return [line1, line2, extra, address.comments]
+        .filter((value) => value && String(value).trim())
+        .join(' · ')
+}
+
 const drawerQuickActions = [
     { key: 'audio', label: 'Audio', icon: TbPhoneCall },
     { key: 'video', label: 'Video', icon: TbVideo },
     { key: 'chat', label: 'Chat', icon: TbBrandHipchat },
-    { key: 'search', label: 'Search', icon: TbSearch },
+    { key: 'search', label: 'Buscar', icon: TbSearch },
 ]
 
 const socialActions = [
@@ -299,6 +437,65 @@ const socialActions = [
     { key: 'linkedin', label: 'LinkedIn', icon: TbBrandLinkedin },
 ]
 
+const conversationStatusText = (conversation: ConversationSummary | ConversationDetail) => {
+    if (conversation.status === 'open') {
+        return 'En línea'
+    }
+    return titleCase(conversation.status)
+}
+
+const messageVariantByAuthor = (authorType: string) => {
+    if (authorType === 'operator') return 'operator'
+    if (authorType === 'agent') return 'agent'
+    return 'customer'
+}
+
+const conversationScopeOptions = [
+    { value: '', label: 'Todos los scopes' },
+    { value: 'customer_public', label: 'Cliente' },
+    { value: 'admin_internal', label: 'Interno' },
+]
+
+const conversationChannelOptions = [
+    { value: '', label: 'Todos los canales' },
+    { value: 'webchat', label: 'Webchat' },
+    { value: 'whatsapp', label: 'WhatsApp' },
+    { value: 'facebook', label: 'Facebook' },
+    { value: 'instagram', label: 'Instagram' },
+    { value: 'admin_chat', label: 'Admin chat' },
+]
+
+const conversationStatusOptions = [
+    { value: '', label: 'Todos los estados' },
+    { value: 'open', label: 'Abierto' },
+    { value: 'waiting_customer', label: 'Esperando cliente' },
+    { value: 'waiting_internal', label: 'Esperando interno' },
+    { value: 'closed', label: 'Cerrado' },
+]
+
+const sidebarChannelOptions = [
+    { key: 'all', label: 'Inbox completo' },
+    { key: 'webchat', label: 'Webchat' },
+    { key: 'whatsapp', label: 'WhatsApp' },
+    { key: 'facebook', label: 'Facebook' },
+    { key: 'instagram', label: 'Instagram' },
+    { key: 'admin_chat', label: 'Chat interno' },
+] as const
+
+type ConversationListFilters = {
+    scope: string
+    channel: string
+    status: string
+    searchText: string
+}
+
+const defaultFilters: ConversationListFilters = {
+    scope: '',
+    channel: '',
+    status: '',
+    searchText: '',
+}
+
 const ConversationsV2 = () => {
     const { conversationId = '' } = useParams<{ conversationId?: string }>()
     const navigate = useNavigate()
@@ -306,6 +503,9 @@ const ConversationsV2 = () => {
     const isMobile = responsive.smaller.lg
 
     const [items, setItems] = useState<ConversationSummary[]>([])
+    const [inboxes, setInboxes] = useState<InboxSummary[]>([])
+    const [queues, setQueues] = useState<ConversationQueueSummary[]>([])
+    const [operators, setOperators] = useState<OperatorSummary[]>([])
     const [listLoading, setListLoading] = useState(true)
     const [listError, setListError] = useState<string | null>(null)
     const [selectedConversation, setSelectedConversation] =
@@ -315,22 +515,156 @@ const ConversationsV2 = () => {
     const [search, setSearch] = useState('')
     const [replyBody, setReplyBody] = useState('')
     const [replying, setReplying] = useState(false)
-    const [isMobileListOpen, setIsMobileListOpen] = useState(false)
     const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+    const [isDirectoryOpen, setIsDirectoryOpen] = useState(false)
+    const [isConversationMenuOpen, setIsConversationMenuOpen] = useState(false)
+    const [menuConversationId, setMenuConversationId] = useState<string | null>(null)
+    const [isFilterOpen, setIsFilterOpen] = useState(false)
+    const [isNewChatOpen, setIsNewChatOpen] = useState(false)
+    const [filters, setFilters] = useState<ConversationListFilters>(defaultFilters)
+    const [filterDraft, setFilterDraft] =
+        useState<ConversationListFilters>(defaultFilters)
+    const [creatingChat, setCreatingChat] = useState(false)
+    const [selectedChannel, setSelectedChannel] = useState('all')
+    const [selectedInboxId, setSelectedInboxId] = useState('all')
+    const [isChatSearchOpen, setIsChatSearchOpen] = useState(false)
+    const [chatSearch, setChatSearch] = useState('')
+    const [handoffNotes, setHandoffNotes] = useState('')
+    const [assignUserId, setAssignUserId] = useState('')
+    const [overrideQueueSlug, setOverrideQueueSlug] = useState('')
+    const [overrideUserId, setOverrideUserId] = useState('')
+    const [actionLoading, setActionLoading] = useState<string | null>(null)
+    const [contacts, setContacts] = useState<ConversationContact[]>([])
+    const [contactsLoading, setContactsLoading] = useState(false)
+    const [contactSearch, setContactSearch] = useState('')
+    const [selectedContactKey, setSelectedContactKey] = useState('')
+    const [newChatForm, setNewChatForm] = useState({
+        message: '',
+    })
+    const [newChatError, setNewChatError] = useState<string | null>(null)
+    const [bulkSelectionMode, setBulkSelectionMode] = useState(false)
+    const [bulkSelectionIds, setBulkSelectionIds] = useState<string[]>([])
+    const [customerProfile, setCustomerProfile] =
+        useState<CustomerDetailSnapshot | null>(null)
+    const [customerProfileLoading, setCustomerProfileLoading] = useState(false)
+
+    const isConversationPinned = useCallback(
+        (conversationIdToCheck: string) =>
+            items.find((item) => item.id === conversationIdToCheck)?.isPinned ??
+            false,
+        [items],
+    )
+
+    const getUnreadCount = useCallback(
+        (conversationIdToCheck: string) =>
+            items.find((item) => item.id === conversationIdToCheck)?.readState
+                ?.unreadCount ?? 0,
+        [items],
+    )
+
+    const getDisplayUnreadCount = useCallback(
+        (conversation: ConversationSummary) => {
+            const unreadCount = conversation.readState?.unreadCount ?? 0
+            if (unreadCount > 0) {
+                return unreadCount
+            }
+
+            if (conversation.readState?.manualUnread) {
+                return 1
+            }
+
+            const latestCreatedAt = parseDateMs(
+                conversation.latestMessage?.createdAt ?? conversation.lastMessageAt,
+            )
+            const lastReadAt = parseDateMs(conversation.readState?.lastReadAt)
+            const latestAuthorType = conversation.latestMessage?.authorType ?? ''
+            const isInboundLatest =
+                latestAuthorType === 'customer' || latestAuthorType === 'agent'
+
+            if (isInboundLatest && latestCreatedAt > lastReadAt) {
+                return 1
+            }
+
+            return 0
+        },
+        [],
+    )
+
+    const renderAvatar = useCallback(
+        ({
+            seed,
+            label,
+            size,
+            borderColor,
+            className,
+            preferInitials = false,
+            inset = 6,
+        }: {
+            seed: string
+            label: string
+            size: number
+            borderColor?: string
+            className?: string
+            preferInitials?: boolean
+            inset?: number
+        }) => {
+            const src = preferInitials ? null : getTemplateAvatar(seed)
+            const initials = getInitials(label)
+
+            return (
+                <div
+                    className={`conversation-avatar-shell ${className ?? ''}`.trim()}
+                    aria-label={label}
+                    style={{
+                        width: size,
+                        height: size,
+                        minWidth: size,
+                        borderColor: borderColor || '#edeff5',
+                    }}
+                >
+                    {src ? (
+                        <img
+                            src={src}
+                            alt={label}
+                            className="conversation-avatar-image"
+                            style={{ width: size - inset, height: size - inset }}
+                        />
+                    ) : (
+                        <span className="conversation-avatar-initials">
+                            {initials}
+                        </span>
+                    )}
+                </div>
+            )
+        },
+        [],
+    )
 
     const loadList = useCallback(
         async (searchValue = search) => {
             setListLoading(true)
             setListError(null)
             try {
-                const response = await ConversationsService.fetchConversations({
-                    page: 1,
-                    pageSize: 50,
-                    search: searchValue.trim() || undefined,
-                })
+                const [response, inboxResponse, queueResponse, usersResponse] =
+                    await Promise.all([
+                    ConversationsService.fetchConversations({
+                        page: 1,
+                        pageSize: 50,
+                        search: searchValue.trim() || undefined,
+                        scope: filters.scope || undefined,
+                        channel: filters.channel || undefined,
+                        status: filters.status || undefined,
+                    }),
+                    ConversationsService.fetchInboxes(),
+                    ConversationsService.fetchQueues(),
+                    apiGetUsers<OperatorSummary[]>(),
+                ])
                 setItems(response.items)
+                setInboxes(inboxResponse)
+                setQueues(queueResponse)
+                setOperators(usersResponse.data ?? [])
 
-                if (!conversationId && response.items[0]) {
+                if (!isMobile && !conversationId && response.items[0]) {
                     navigate(`/app/crm/conversations/${response.items[0].id}`, {
                         replace: true,
                     })
@@ -342,7 +676,15 @@ const ConversationsV2 = () => {
                 setListLoading(false)
             }
         },
-        [conversationId, navigate, search],
+        [
+            conversationId,
+            filters.channel,
+            filters.scope,
+            filters.status,
+            isMobile,
+            navigate,
+            search,
+        ],
     )
 
     const loadConversation = useCallback(async (id: string) => {
@@ -361,11 +703,26 @@ const ConversationsV2 = () => {
     }, [])
 
     useEffect(() => {
+        if (selectedChannel === 'email') {
+            setSelectedChannel('all')
+        }
+    }, [selectedChannel])
+
+    useEffect(() => {
+        if (filters.channel === 'email') {
+            setFilters((previous) => ({ ...previous, channel: '' }))
+        }
+        if (filterDraft.channel === 'email') {
+            setFilterDraft((previous) => ({ ...previous, channel: '' }))
+        }
+    }, [filterDraft.channel, filters.channel])
+
+    useEffect(() => {
         const timeout = window.setTimeout(() => {
             void loadList(search)
         }, 220)
         return () => window.clearTimeout(timeout)
-    }, [loadList, search])
+    }, [filters, loadList, search])
 
     useEffect(() => {
         if (!conversationId) {
@@ -375,7 +732,222 @@ const ConversationsV2 = () => {
         void loadConversation(conversationId)
     }, [conversationId, loadConversation])
 
-    const recentChats = useMemo(() => items.slice(0, 8), [items])
+    const hasActiveFilters = useMemo(
+        () => Boolean(filters.scope || filters.channel || filters.status),
+        [filters.channel, filters.scope, filters.status],
+    )
+    const channelCounts = useMemo(() => {
+        return items.reduce<Record<string, number>>((accumulator, conversation) => {
+            accumulator[conversation.channel] =
+                (accumulator[conversation.channel] ?? 0) + 1
+            return accumulator
+        }, {})
+    }, [items])
+    const visibleItems = useMemo(() => {
+        return items
+            .filter((conversation) => {
+                const matchesChannel =
+                    selectedChannel === 'all' || conversation.channel === selectedChannel
+                const matchesInbox =
+                    selectedInboxId === 'all' ||
+                    conversation.inboxAccount?.id === selectedInboxId ||
+                    (selectedInboxId === 'virtual:webchat' &&
+                        conversation.channel === 'webchat' &&
+                        !conversation.inboxAccount)
+
+                return matchesChannel && matchesInbox
+            })
+            .sort((left, right) => {
+                const leftPinned = isConversationPinned(left.id) ? 1 : 0
+                const rightPinned = isConversationPinned(right.id) ? 1 : 0
+                if (leftPinned !== rightPinned) {
+                    return rightPinned - leftPinned
+                }
+
+                const leftActivity = parseDateMs(left.lastMessageAt ?? left.updatedAt)
+                const rightActivity = parseDateMs(right.lastMessageAt ?? right.updatedAt)
+                if (leftActivity !== rightActivity) {
+                    return rightActivity - leftActivity
+                }
+
+                return left.id.localeCompare(right.id)
+            })
+    }, [isConversationPinned, items, selectedChannel, selectedInboxId])
+    const recentVisibleChats = useMemo(() => visibleItems.slice(0, 8), [visibleItems])
+    const menuConversation = useMemo(
+        () => items.find((conversation) => conversation.id === menuConversationId) ?? null,
+        [items, menuConversationId],
+    )
+    const selectedContact = useMemo(
+        () => contacts.find((contact) => contact.key === selectedContactKey) ?? null,
+        [contacts, selectedContactKey],
+    )
+    const selectedCount = bulkSelectionIds.length
+    const filteredMessages = useMemo(() => {
+        if (!selectedConversation) {
+            return []
+        }
+
+        const query = chatSearch.trim().toLowerCase()
+        if (!query) {
+            return selectedConversation.messages
+        }
+
+        return selectedConversation.messages.filter((message) => {
+            const body = `${message.body ?? ''} ${message.normalizedText ?? ''}`.toLowerCase()
+            return body.includes(query)
+        })
+    }, [chatSearch, selectedConversation])
+    const selectedQueueDiagnostics = useMemo(
+        () =>
+            queues.find(
+                (queue) =>
+                    queue.slug ===
+                    (overrideQueueSlug || selectedConversation?.queue?.slug),
+            ) ?? null,
+        [overrideQueueSlug, queues, selectedConversation?.queue?.slug],
+    )
+    const detailSlaMinutes = selectedConversation?.lastInboundAt
+        ? Math.max(
+              0,
+              Math.round(
+                  (Date.now() -
+                      new Date(selectedConversation.lastInboundAt).getTime()) /
+                      60000,
+              ),
+          )
+        : null
+    const detailSlaLabel =
+        detailSlaMinutes === null || !selectedQueueDiagnostics
+            ? 'Sin SLA calculado'
+            : detailSlaMinutes >= selectedQueueDiagnostics.slaTargetMinutes
+              ? `SLA vencido por ${Math.max(
+                    detailSlaMinutes - selectedQueueDiagnostics.slaTargetMinutes,
+                    0,
+                )}m`
+              : `Vence en ${Math.max(
+                    selectedQueueDiagnostics.slaTargetMinutes - detailSlaMinutes,
+                    0,
+                )}m`
+    const customerDisplayName =
+        [customerProfile?.firstName, customerProfile?.lastName]
+            .filter(Boolean)
+            .join(' ') ||
+        customerProfile?.name ||
+        selectedConversation?.customer?.name ||
+        (selectedConversation
+            ? getConversationDisplayTitle(selectedConversation)
+            : 'Sin participante')
+    const customerPhones = Array.from(
+        new Set(
+            [
+                ...(customerProfile?.phoneNumbers ?? []),
+                ...(customerProfile?.personalInfo?.phoneNumbers ?? []),
+                customerProfile?.phoneNumber ?? null,
+                customerProfile?.personalInfo?.phoneNumber ?? null,
+                selectedConversation?.customer?.phoneNumber ?? null,
+            ].filter(
+                (value): value is string =>
+                    typeof value === 'string' && value.trim().length > 0,
+            ),
+        ),
+    )
+    const primaryAddress =
+        customerProfile?.addresses?.find((address) => address?.isPrimary) ??
+        customerProfile?.addresses?.[0] ??
+        null
+    const customerLocation =
+        customerProfile?.personalInfo?.location ||
+        formatCustomerAddress(primaryAddress) ||
+        null
+
+    useEffect(() => {
+        setAssignUserId(
+            selectedConversation?.assignedToUser?.id
+                ? String(selectedConversation.assignedToUser.id)
+                : '',
+        )
+        setOverrideUserId(
+            selectedConversation?.assignedToUser?.id
+                ? String(selectedConversation.assignedToUser.id)
+                : '',
+        )
+        setOverrideQueueSlug(selectedConversation?.queue?.slug ?? '')
+    }, [selectedConversation])
+
+    useEffect(() => {
+        if (!selectedConversation) {
+            return
+        }
+
+        if (
+            selectedConversation.readState?.unreadCount > 0 &&
+            !selectedConversation.readState?.manualUnread
+        ) {
+            void ConversationsService.markConversationRead(selectedConversation.id)
+                .then((detail) => {
+                    setSelectedConversation(detail)
+                    setItems((current) =>
+                        current.map((item) => (item.id === detail.id ? detail : item)),
+                    )
+                })
+                .catch((error) => {
+                    console.error(error)
+                })
+        }
+    }, [selectedConversation])
+
+    useEffect(() => {
+        if (!bulkSelectionMode) {
+            if (bulkSelectionIds.length > 0) {
+                setBulkSelectionIds([])
+            }
+            return
+        }
+
+        setBulkSelectionIds((current) =>
+            current.filter((conversationIdToKeep) =>
+                items.some((conversation) => conversation.id === conversationIdToKeep),
+            ),
+        )
+    }, [bulkSelectionIds.length, bulkSelectionMode, items])
+
+    useEffect(() => {
+        const customerId = selectedConversation?.customer?.id
+        if (!customerId) {
+            setCustomerProfile(null)
+            setCustomerProfileLoading(false)
+            return
+        }
+
+        let cancelled = false
+        setCustomerProfileLoading(true)
+
+        void apiGetCustomerDetails<CustomerDetailSnapshot, { id: string }>({
+            id: String(customerId),
+        })
+            .then((response) => {
+                if (cancelled) {
+                    return
+                }
+                setCustomerProfile(response.data ?? null)
+            })
+            .catch((error) => {
+                console.error(error)
+                if (!cancelled) {
+                    setCustomerProfile(null)
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setCustomerProfileLoading(false)
+                }
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [selectedConversation?.customer?.id])
 
     const renderMessageBody = useCallback(
         (
@@ -385,9 +957,7 @@ const ConversationsV2 = () => {
             const body = message.body || message.normalizedText || ''
             const assets = getMessageAssets(message.payload, message.metadata)
             const bodyColorClass =
-                authorType === 'operator' || authorType === 'agent'
-                    ? 'text-white/90'
-                    : 'text-slate-700'
+                authorType === 'operator' ? 'text-white/90' : 'text-slate-700'
 
             const attachmentNodes = assets.attachments.map((attachment) => (
                 <div
@@ -468,12 +1038,104 @@ const ConversationsV2 = () => {
         [],
     )
 
-    const handleSelectConversation = (id: string) => {
-        navigate(`/app/crm/conversations/${id}`)
-        if (isMobile) {
-            setIsMobileListOpen(false)
+    useEffect(() => {
+        if (!conversationId) {
+            if (isMobile) {
+                return
+            }
+            if (visibleItems[0]) {
+                navigate(`/app/crm/conversations/${visibleItems[0].id}`, {
+                    replace: true,
+                })
+            }
+            return
         }
+
+        if (
+            visibleItems.length > 0 &&
+            !visibleItems.some((conversation) => conversation.id === conversationId)
+        ) {
+            navigate(`/app/crm/conversations/${visibleItems[0].id}`, {
+                replace: true,
+            })
+        }
+    }, [conversationId, isMobile, navigate, visibleItems])
+
+    const handleSelectConversation = (id: string) => {
+        if (bulkSelectionMode) {
+            setBulkSelectionIds((current) =>
+                current.includes(id)
+                    ? current.filter((entry) => entry !== id)
+                    : [...current, id],
+            )
+            return
+        }
+
+        const targetConversation =
+            items.find((conversation) => conversation.id === id) ?? null
+
+        if (targetConversation && getDisplayUnreadCount(targetConversation) > 0) {
+            const optimisticConversation = buildReadStateAsRead(targetConversation)
+            setItems((current) =>
+                current.map((conversation) =>
+                    conversation.id === id ? optimisticConversation : conversation,
+                ),
+            )
+
+            if (selectedConversation?.id === id) {
+                setSelectedConversation((current) =>
+                    current ? buildReadStateAsRead(current) : current,
+                )
+            }
+
+            void ConversationsService.markConversationRead(id)
+                .then((detail) => {
+                    syncConversation(detail)
+                })
+                .catch((error) => {
+                    console.error(error)
+                    void loadList()
+                })
+        }
+
+        navigate(`/app/crm/conversations/${id}`)
     }
+
+    const handleBulkOwnerAction = useCallback(
+        async (mode: 'takeover' | 'release') => {
+            if (bulkSelectionIds.length === 0) {
+                return
+            }
+
+            setActionLoading(mode === 'takeover' ? 'bulk-takeover' : 'bulk-release')
+            try {
+                await Promise.all(
+                    bulkSelectionIds.map((conversationIdToUpdate) =>
+                        mode === 'takeover'
+                            ? ConversationsService.takeoverConversation(
+                                  conversationIdToUpdate,
+                                  handoffNotes.trim() || undefined,
+                              )
+                            : ConversationsService.releaseConversation(
+                                  conversationIdToUpdate,
+                                  handoffNotes.trim() || undefined,
+                              ),
+                    ),
+                )
+                setBulkSelectionIds([])
+                setBulkSelectionMode(false)
+                await loadList(search)
+                if (conversationId) {
+                    await loadConversation(conversationId)
+                }
+            } catch (error) {
+                console.error(error)
+            } finally {
+                setActionLoading(null)
+            }
+        },
+        [bulkSelectionIds, conversationId, handoffNotes, loadConversation, loadList, search],
+    )
 
     const handleReply = async () => {
         if (!selectedConversation || !replyBody.trim()) {
@@ -495,56 +1157,535 @@ const ConversationsV2 = () => {
         }
     }
 
-    const rail = (
-        <div className="sidebar-menu">
-            <div className="logo-mark">AI</div>
-            <div className="menu-icons">
-                <button className="menu-icon-btn is-active" type="button" aria-label="Chats">
-                    <TbMessage2Heart size={24} />
+    const syncConversation = useCallback((detail: ConversationDetail) => {
+        setSelectedConversation(detail)
+        setItems((current) =>
+            current.map((item) => (item.id === detail.id ? detail : item)),
+        )
+    }, [])
+
+    const runAction = useCallback(
+        async (
+            actionId: string,
+            action: () => Promise<ConversationDetail>,
+            onSuccess?: (detail: ConversationDetail) => void,
+        ) => {
+            setActionLoading(actionId)
+            try {
+                const detail = await action()
+                syncConversation(detail)
+                setHandoffNotes('')
+                onSuccess?.(detail)
+            } catch (error) {
+                console.error(error)
+            } finally {
+                setActionLoading(null)
+            }
+        },
+        [syncConversation],
+    )
+
+    const focusReplyInput = useCallback(() => {
+        const input = document.querySelector<HTMLInputElement>(
+            '[data-testid="admin-conversation-reply-input"]',
+        )
+        input?.focus()
+    }, [])
+
+    const handleApplyFilters = async () => {
+        setFilters(filterDraft)
+        setSearch(filterDraft.searchText)
+        setIsFilterOpen(false)
+    }
+
+    const handleResetFilters = async () => {
+        setFilterDraft(defaultFilters)
+        setFilters(defaultFilters)
+        setSearch('')
+        setIsFilterOpen(false)
+    }
+
+    const handleCreateNewChat = async () => {
+        const selectedContact =
+            contacts.find((contact) => contact.key === selectedContactKey) ?? null
+        const message = newChatForm.message.trim()
+
+        if (!selectedContact) {
+            setNewChatError('Selecciona un contacto para iniciar el mensaje.')
+            return
+        }
+
+        setCreatingChat(true)
+        setNewChatError(null)
+
+        try {
+            const created = await ConversationsService.startConversationFromContact({
+                contactType: selectedContact.kind,
+                customerId: selectedContact.customerId,
+                message: message || undefined,
+            })
+
+            setIsNewChatOpen(false)
+            setSelectedContactKey('')
+            setContactSearch('')
+            setNewChatForm({ message: '' })
+            await loadList(search)
+            navigate(`/app/crm/conversations/${created.id}`)
+        } catch (error) {
+            console.error(error)
+            setNewChatError('No fue posible iniciar el mensaje.')
+        } finally {
+            setCreatingChat(false)
+        }
+    }
+
+    const openFilters = () => {
+        setFilterDraft({
+            ...filters,
+            searchText: search,
+        })
+        setIsFilterOpen(true)
+    }
+
+    const openNewMessage = () => {
+        setIsNewChatOpen(true)
+        setNewChatError(null)
+        setContactSearch('')
+        setSelectedContactKey('')
+        setNewChatForm({ message: '' })
+    }
+
+    const selectChannel = (channel: string, options?: { closeDirectory?: boolean }) => {
+        setSelectedChannel(channel)
+        setSelectedInboxId('all')
+        if (channel !== 'all' && selectedInboxId !== 'all') {
+            const selectedInbox = inboxes.find((item) => item.id === selectedInboxId)
+            if (selectedInbox && selectedInbox.channel !== channel) {
+                setSelectedInboxId('all')
+            }
+        }
+        if (options?.closeDirectory) {
+            setIsDirectoryOpen(false)
+            if (isMobile) {
+                navigate(`${APP_PREFIX_PATH}/crm/conversations`)
+            }
+        }
+    }
+
+    const selectInbox = (
+        inboxId: string,
+        channel?: string,
+        options?: { closeDirectory?: boolean },
+    ) => {
+        if (channel) {
+            setSelectedChannel(channel)
+        }
+        setSelectedInboxId(inboxId)
+        if (options?.closeDirectory) {
+            setIsDirectoryOpen(false)
+            if (isMobile) {
+                navigate(`${APP_PREFIX_PATH}/crm/conversations`)
+            }
+        }
+    }
+
+    const openInboxDestination = (inbox: InboxSummary) => {
+        if (inbox.channel === 'email') {
+            setIsDirectoryOpen(false)
+            navigate(
+                `${APP_PREFIX_PATH}/crm/mail/inbox?account=${encodeURIComponent(
+                    inbox.id,
+                )}`,
+            )
+            return
+        }
+
+        selectInbox(inbox.id, inbox.channel, { closeDirectory: true })
+    }
+
+    const openConversationMenu = (conversationId: string) => {
+        setMenuConversationId(conversationId)
+        setIsConversationMenuOpen(true)
+    }
+
+    useEffect(() => {
+        if (!isNewChatOpen) {
+            return
+        }
+
+        let cancelled = false
+        setContactsLoading(true)
+
+        const timeout = window.setTimeout(() => {
+            void ConversationsService.fetchContacts({
+                search: contactSearch.trim() || undefined,
+                limit: 40,
+            })
+                .then((response) => {
+                    if (cancelled) {
+                        return
+                    }
+                    setContacts(response.items)
+                    setSelectedContactKey((previous) => {
+                        if (
+                            previous &&
+                            response.items.some((contact) => contact.key === previous)
+                        ) {
+                            return previous
+                        }
+                        return response.items[0]?.key ?? ''
+                    })
+                })
+                .catch((error) => {
+                    console.error(error)
+                    if (!cancelled) {
+                        setContacts([])
+                    }
+                })
+                .finally(() => {
+                    if (!cancelled) {
+                        setContactsLoading(false)
+                    }
+                })
+        }, 180)
+
+        return () => {
+            cancelled = true
+            window.clearTimeout(timeout)
+        }
+    }, [contactSearch, isNewChatOpen])
+
+    const conversationManagementContent = selectedConversation ? (
+        <div className="management-stack">
+            {selectedConversation.latestMessage ? (
+                <div className="management-block">
+                    <div className="management-label">Último mensaje</div>
+                    <div className="management-value">
+                        {formatDateTime(
+                            selectedConversation.lastMessageAt ||
+                                selectedConversation.latestMessage.createdAt,
+                        )}
+                    </div>
+                </div>
+            ) : null}
+
+            <div className="management-block">
+                <div className="management-label">Notas operativas</div>
+                <input
+                    className="management-input"
+                    data-testid="admin-conversation-handoff-notes"
+                    value={handoffNotes}
+                    onChange={(event) => setHandoffNotes(event.target.value)}
+                    placeholder="Notas para takeover, release u override"
+                />
+            </div>
+
+            <div className="management-block">
+                <div className="management-label">Asignar operador</div>
+                <div className="management-grid">
+                    <select
+                        className="management-input"
+                        value={assignUserId}
+                        onChange={(event) => setAssignUserId(event.target.value)}
+                    >
+                        <option value="">Seleccionar operador</option>
+                        {operators.map((operator) => (
+                            <option key={operator.id} value={String(operator.id)}>
+                                {operator.name || operator.email}
+                            </option>
+                        ))}
+                    </select>
+                    <button
+                        className="drawer-primary-btn"
+                        type="button"
+                        disabled={!assignUserId.trim() || actionLoading === 'assign'}
+                        onClick={() =>
+                            void runAction('assign', () =>
+                                ConversationsService.assignConversation(
+                                    selectedConversation.id,
+                                    Number(assignUserId),
+                                    handoffNotes.trim() || undefined,
+                                ),
+                            )
+                        }
+                    >
+                        Asignar
+                    </button>
+                </div>
+            </div>
+
+            <div className="management-block">
+                <div className="management-label">Override supervisor</div>
+                <div className="management-grid management-grid-stacked">
+                    <select
+                        className="management-input"
+                        value={overrideQueueSlug}
+                        onChange={(event) => setOverrideQueueSlug(event.target.value)}
+                    >
+                        <option value="">Mantener cola actual</option>
+                        {queues.map((queue) => (
+                            <option key={queue.id} value={queue.slug}>
+                                {queue.name}
+                            </option>
+                        ))}
+                    </select>
+                    <select
+                        className="management-input"
+                        value={overrideUserId}
+                        onChange={(event) => setOverrideUserId(event.target.value)}
+                    >
+                        <option value="">Auto / mantener operador</option>
+                        {operators.map((operator) => (
+                            <option key={operator.id} value={String(operator.id)}>
+                                {operator.name || operator.email}
+                            </option>
+                        ))}
+                    </select>
+                    <button
+                        className="drawer-secondary-btn"
+                        type="button"
+                        disabled={actionLoading === 'reroute'}
+                        onClick={() =>
+                            void runAction('reroute', () =>
+                                ConversationsService.rerouteConversation(
+                                    selectedConversation.id,
+                                    {
+                                        queueSlug: overrideQueueSlug.trim() || undefined,
+                                        userId: overrideUserId.trim()
+                                            ? Number(overrideUserId)
+                                            : undefined,
+                                        notes: handoffNotes.trim() || 'Override supervisor',
+                                    },
+                                ),
+                            )
+                        }
+                    >
+                        Aplicar override
+                    </button>
+                </div>
+            </div>
+
+            <div className="management-actions">
+                <button
+                    className="drawer-primary-btn"
+                    type="button"
+                    data-testid="admin-conversation-takeover"
+                    disabled={actionLoading === 'takeover'}
+                    onClick={() =>
+                        void runAction('takeover', () =>
+                            ConversationsService.takeoverConversation(
+                                selectedConversation.id,
+                                handoffNotes.trim() || undefined,
+                            ),
+                        )
+                    }
+                >
+                    Tomar control
                 </button>
-                <button className="menu-icon-btn" type="button" aria-label="Contacts">
-                    <TbUserCircle size={24} />
-                </button>
-                <button className="menu-icon-btn" type="button" aria-label="Groups">
-                    <TbUsersGroup size={24} />
-                </button>
-                <button className="menu-icon-btn" type="button" aria-label="Calls">
-                    <TbPhoneCall size={24} />
+                <button
+                    className="drawer-secondary-btn"
+                    type="button"
+                    data-testid="admin-conversation-release"
+                    disabled={actionLoading === 'release'}
+                    onClick={() =>
+                        void runAction('release', () =>
+                            ConversationsService.releaseConversation(
+                                selectedConversation.id,
+                                handoffNotes.trim() || undefined,
+                            ),
+                        )
+                    }
+                >
+                    Liberar a IA
                 </button>
             </div>
-            <div className="profile-icons">
-                <button className="menu-icon-btn" type="button" aria-label="Settings">
-                    <TbSettings size={24} />
-                </button>
+        </div>
+    ) : null
+
+    const rail = (
+        <div className="sidebar-menu">
+            <button
+                className="logo-mark"
+                type="button"
+                aria-label="Mensajes"
+                onClick={() => navigate(`${APP_PREFIX_PATH}/crm/conversations`)}
+            >
+                AI
+            </button>
+            <div className="menu-wrap">
+                <div className="main-menu">
+                    <ul className="nav" role="tablist">
+                        <li title="Chats">
+                            <button
+                                className="menu-icon-btn is-active"
+                                type="button"
+                                aria-label="Chats"
+                                data-testid="admin-conversations-rail-chats"
+                            >
+                                <TbMessage2Heart size={24} />
+                            </button>
+                        </li>
+                        <li title="Nuevo mensaje">
+                            <button
+                                className="menu-icon-btn"
+                                type="button"
+                                aria-label="Nuevo mensaje"
+                                data-testid="admin-conversations-rail-new"
+                                onClick={openNewMessage}
+                            >
+                                <TbPlus size={24} />
+                            </button>
+                        </li>
+                        <li title="Canales e inboxes">
+                            <button
+                                className="menu-icon-btn"
+                                type="button"
+                                aria-label="Canales e inboxes"
+                                data-testid="admin-conversations-rail-directory"
+                                onClick={() => setIsDirectoryOpen(true)}
+                            >
+                                <TbUsersGroup size={24} />
+                            </button>
+                        </li>
+                        <li title="Inbox de correo">
+                            <button
+                                className="menu-icon-btn"
+                                type="button"
+                                aria-label="Inbox de correo"
+                                data-testid="admin-conversations-rail-mail"
+                                onClick={() => navigate(`${APP_PREFIX_PATH}/crm/mail`)}
+                            >
+                                <TbMailHeart size={24} />
+                            </button>
+                        </li>
+                        <li title="Actualizar mensajes">
+                            <button
+                                className="menu-icon-btn"
+                                type="button"
+                                aria-label="Actualizar mensajes"
+                                data-testid="admin-conversations-rail-refresh"
+                                onClick={() => void loadList()}
+                            >
+                                <TbRefresh size={24} />
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                <div className="profile-menu">
+                    <ul>
+                        <li title="Filtros">
+                            <button
+                                className="menu-icon-btn"
+                                type="button"
+                                aria-label="Filtros"
+                                data-testid="admin-conversations-rail-filters"
+                                onClick={openFilters}
+                            >
+                                <TbFilter size={24} />
+                            </button>
+                        </li>
+                        <li title="Configuración IA">
+                            <button
+                                className="menu-icon-btn"
+                                type="button"
+                                aria-label="Configuración IA"
+                                data-testid="admin-conversations-rail-settings"
+                                onClick={() => navigate(`${APP_PREFIX_PATH}/settings/ai`)}
+                            >
+                                <TbSettings size={24} />
+                            </button>
+                        </li>
+                        <li title="Menú general">
+                            <button
+                                className="menu-icon-btn"
+                                type="button"
+                                aria-label="Menú general"
+                                data-testid="admin-conversations-rail-general"
+                                onClick={() => navigate(`${APP_PREFIX_PATH}/crm/customers`)}
+                            >
+                                <TbLayoutGrid size={24} />
+                            </button>
+                        </li>
+                    </ul>
+                </div>
             </div>
         </div>
     )
 
+    const mobileBottomNav = (
+        <div className="messaging-mobile-nav-wrap">
+            <div className="messaging-mobile-nav-spacer" aria-hidden="true" />
+            <nav
+                className="messaging-mobile-nav"
+                data-testid="admin-conversations-mobile-nav"
+            >
+                <button
+                    type="button"
+                    className={`messaging-mobile-nav-btn ${!conversationId ? 'is-active' : ''}`}
+                    onClick={() => navigate(`${APP_PREFIX_PATH}/crm/conversations`)}
+                >
+                    <TbMessage2Heart size={22} />
+                    <span>Chats</span>
+                </button>
+                <button
+                    type="button"
+                    className="messaging-mobile-nav-btn"
+                    onClick={openNewMessage}
+                >
+                    <TbPlus size={22} />
+                    <span>Nuevo</span>
+                </button>
+                <button
+                    type="button"
+                    className={`messaging-mobile-nav-btn ${isDirectoryOpen ? 'is-active' : ''}`}
+                    onClick={() => setIsDirectoryOpen(true)}
+                >
+                    <TbUsersGroup size={22} />
+                    <span>Canales</span>
+                </button>
+                <button
+                    type="button"
+                    className={`messaging-mobile-nav-btn ${isFilterOpen ? 'is-active' : ''}`}
+                    onClick={openFilters}
+                >
+                    <TbFilter size={22} />
+                    <span>Filtros</span>
+                </button>
+                <button
+                    type="button"
+                    className="messaging-mobile-nav-btn"
+                    onClick={() => navigate(`${APP_PREFIX_PATH}/crm/customers`)}
+                >
+                    <TbLayoutGrid size={22} />
+                    <span>General</span>
+                </button>
+            </nav>
+        </div>
+    )
+
     const sidebar = (
-        <div className="sidebar-content" data-testid="admin-conversations-list">
+        <div
+            className="sidebar-content"
+            data-testid="admin-conversations-sidebar"
+        >
             <div className="chat-search-header">
                 <div className="header-title">
-                    <h4>Chats</h4>
+                    <h4>Mensajes</h4>
                     <div className="header-actions">
                         <button
                             className="header-action-btn is-primary"
                             type="button"
-                            aria-label="Nuevo chat"
+                            aria-label="Nuevo mensaje"
+                            data-testid="admin-conversations-new-chat"
+                            onClick={openNewMessage}
                         >
                             <TbPlus size={18} />
                         </button>
                         <button
                             className="header-action-btn"
                             type="button"
-                            aria-label="Refrescar"
-                            onClick={() => void loadList()}
-                        >
-                            <TbRefresh size={18} />
-                        </button>
-                        <button
-                            className="header-action-btn"
-                            type="button"
                             aria-label="Más opciones"
+                            onClick={() => void loadList()}
                         >
                             <TbDotsVertical size={18} />
                         </button>
@@ -554,9 +1695,10 @@ const ConversationsV2 = () => {
                     <div className="input-group">
                         <input
                             type="text"
+                            data-testid="admin-conversations-search-input"
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Search For Contacts or Messages"
+                            placeholder="Buscar contactos o mensajes"
                         />
                         <span className="input-group-text">
                             <TbSearch size={18} />
@@ -567,34 +1709,43 @@ const ConversationsV2 = () => {
 
             <div className="top-online-contacts">
                 <div className="top-online-contacts-header">
-                    <h5>Recent Chats</h5>
+                    <h5>Recientes</h5>
                     <button className="header-action-btn" type="button" aria-label="Más recientes">
                         <TbDotsVertical size={18} />
                     </button>
                 </div>
                 <div className="recent-chat-strip">
-                    {recentChats.map((conversation) => {
+                    {recentVisibleChats.map((conversation) => {
                         const title = getConversationDisplayTitle(conversation)
                         const color = colorByChannel(conversation.channel)
+                        const isPinned = isConversationPinned(conversation.id)
                         return (
                             <button
-                                className="chat-status"
+                                className={`chat-status ${isPinned ? 'is-pinned' : ''}`}
                                 key={`recent-${conversation.id}`}
                                 type="button"
+                                data-testid={`admin-conversation-recent-${conversation.id}`}
                                 onClick={() => handleSelectConversation(conversation.id)}
                             >
-                                <div className="avatar avatar-lg avatar-rounded">
-                                    <img
-                                        src={getTemplateAvatar(conversation.id) || undefined}
-                                        alt={title}
-                                        style={{
-                                            width: 56,
-                                            height: 56,
-                                            borderRadius: '999px',
-                                            objectFit: 'cover',
-                                            border: `2px solid ${color}20`,
-                                        }}
-                                    />
+                                <div className="recent-chat-avatar-wrap">
+                                    {renderAvatar({
+                                        seed: conversation.id,
+                                        label: title,
+                                        size: 58,
+                                        inset: 0,
+                                        className: 'recent-chat-avatar',
+                                        borderColor: `${color}30`,
+                                        preferInitials:
+                                            conversation.scope === 'admin_internal',
+                                    })}
+                                    {isPinned ? (
+                                        <span
+                                            className="recent-chat-pin"
+                                            data-testid={`admin-conversation-pin-badge-${conversation.id}`}
+                                        >
+                                            <TbPinned size={12} />
+                                        </span>
+                                    ) : null}
                                 </div>
                                 <p>{title}</p>
                             </button>
@@ -603,27 +1754,78 @@ const ConversationsV2 = () => {
                 </div>
             </div>
 
-            <div className="sidebar-body">
+            <div className="sidebar-body" data-testid="admin-conversations-list">
                 <div className="sidebar-body-header">
-                    <h5 className="chat-title">All Chats</h5>
-                    <button className="header-action-btn" type="button" aria-label="Filtros">
-                        <TbDotsVertical size={18} />
-                    </button>
+                    <h5 className="chat-title">
+                        {bulkSelectionMode
+                            ? `${selectedCount} seleccionados`
+                            : 'Conversaciones'}
+                    </h5>
+                    <div className="header-actions">
+                        <button
+                            className={`header-action-btn ${bulkSelectionMode ? 'is-active-filter' : ''}`}
+                            type="button"
+                            aria-label="Selección masiva"
+                            data-testid="admin-conversations-bulk-toggle"
+                            onClick={() => {
+                                setBulkSelectionMode((previous) => !previous)
+                                setBulkSelectionIds([])
+                            }}
+                        >
+                            <TbChecks size={18} />
+                        </button>
+                        <button
+                            className={`header-action-btn ${hasActiveFilters ? 'is-active-filter' : ''}`}
+                            type="button"
+                            aria-label="Filtros"
+                            onClick={openFilters}
+                        >
+                            <TbFilter size={18} />
+                        </button>
+                    </div>
                 </div>
+                {bulkSelectionMode ? (
+                    <div className="bulk-actions-bar" data-testid="admin-conversations-bulk-bar">
+                        <button
+                            className="drawer-primary-btn"
+                            type="button"
+                            data-testid="admin-conversations-bulk-takeover"
+                            disabled={selectedCount === 0 || actionLoading === 'bulk-takeover'}
+                            onClick={() => void handleBulkOwnerAction('takeover')}
+                        >
+                            Tomar control
+                        </button>
+                        <button
+                            className="drawer-secondary-btn"
+                            type="button"
+                            data-testid="admin-conversations-bulk-release"
+                            disabled={selectedCount === 0 || actionLoading === 'bulk-release'}
+                            onClick={() => void handleBulkOwnerAction('release')}
+                        >
+                            Volver a IA
+                        </button>
+                    </div>
+                ) : null}
                 {listLoading ? (
                     <div className="empty-state">
                         <Spinner size={28} />
                     </div>
                 ) : listError ? (
                     <div className="empty-state">{listError}</div>
-                ) : items.length === 0 ? (
+                ) : visibleItems.length === 0 ? (
                     <div className="empty-state">No hay conversaciones disponibles.</div>
                 ) : (
                     <div className="chat-users-wrap">
-                        {items.map((conversation) => {
+                        {visibleItems.map((conversation) => {
                             const title = getConversationDisplayTitle(conversation)
                             const isActive = conversation.id === conversationId
                             const preview = previewByConversation(conversation)
+                            const unreadCount = getDisplayUnreadCount(conversation)
+                            const isPinned = isConversationPinned(conversation.id)
+                            const ownerState = getConversationOwnerState(conversation)
+                            const isSelectedForBulk = bulkSelectionIds.includes(
+                                conversation.id,
+                            )
                             const previewIcon =
                                 conversation.latestMessage?.kind === 'image' ? (
                                     <TbPhoto size={14} />
@@ -635,31 +1837,55 @@ const ConversationsV2 = () => {
 
                             return (
                                 <div className="chat-list" key={conversation.id}>
+                                    {bulkSelectionMode ? (
+                                        <button
+                                            className={`chat-select-toggle ${isSelectedForBulk ? 'is-selected' : ''}`}
+                                            type="button"
+                                            data-testid={`admin-conversation-bulk-toggle-${conversation.id}`}
+                                            aria-label={
+                                                isSelectedForBulk
+                                                    ? 'Quitar de selección'
+                                                    : 'Agregar a selección'
+                                            }
+                                            onClick={() =>
+                                                setBulkSelectionIds((current) =>
+                                                    current.includes(conversation.id)
+                                                        ? current.filter(
+                                                              (entry) =>
+                                                                  entry !== conversation.id,
+                                                          )
+                                                        : [...current, conversation.id],
+                                                )
+                                            }
+                                        >
+                                            <TbChecks size={16} />
+                                        </button>
+                                    ) : null}
                                     <button
-                                        className={`chat-user-list ${isActive ? 'is-active' : ''} ${conversation.operational.needsAssignment ? 'is-unread' : ''}`}
+                                        className={`chat-user-list ${isActive ? 'is-active' : ''} ${unreadCount > 0 ? 'is-unread' : ''} ${isPinned ? 'is-pinned' : ''} ${isSelectedForBulk ? 'is-bulk-selected' : ''}`}
                                         type="button"
+                                        data-testid={`admin-conversation-${conversation.id}`}
                                         onClick={() => handleSelectConversation(conversation.id)}
                                     >
-                                        <div className="avatar avatar-lg me-2">
-                                            <img
-                                                src={
-                                                    getTemplateAvatar(conversation.id) ||
-                                                    undefined
-                                                }
-                                                alt={title}
-                                                style={{
-                                                    width: 52,
-                                                    height: 52,
-                                                    minWidth: 52,
-                                                    borderRadius: '999px',
-                                                    objectFit: 'cover',
-                                                    border: `2px solid ${colorByChannel(conversation.channel)}18`,
-                                                }}
-                                            />
+                                        <div className="me-2">
+                                            {renderAvatar({
+                                                seed: conversation.id,
+                                                label: title,
+                                                size: 52,
+                                                borderColor: `${colorByChannel(conversation.channel)}24`,
+                                            })}
                                         </div>
                                         <div className="chat-user-info">
                                             <div className="chat-user-msg">
                                                 <h6>{title}</h6>
+                                                <div className="chat-user-owner-row">
+                                                    <span
+                                                        className={`conversation-owner-pill is-${ownerState.tone}`}
+                                                        data-testid={`admin-conversation-owner-${conversation.id}`}
+                                                    >
+                                                        {ownerState.label}
+                                                    </span>
+                                                </div>
                                                 <p>
                                                     {previewIcon}
                                                     <span>{preview}</span>
@@ -673,10 +1899,27 @@ const ConversationsV2 = () => {
                                                     )}
                                                 </span>
                                                 <div className="chat-pin">
-                                                    {conversation.operational
-                                                        .needsAssignment ? (
-                                                        <span className="count-message">1</span>
+                                                    {isPinned ? (
+                                                        <TbPinned
+                                                            size={14}
+                                                            data-testid={`admin-conversation-pin-indicator-${conversation.id}`}
+                                                        />
                                                     ) : null}
+                                                    {unreadCount > 0 ? (
+                                                        <span
+                                                            className="count-message"
+                                                            data-testid={`admin-conversation-unread-count-${conversation.id}`}
+                                                        >
+                                                            {unreadCount > 9
+                                                                ? '9+'
+                                                                : unreadCount}
+                                                        </span>
+                                                    ) : (
+                                                        <TbChecks
+                                                            size={16}
+                                                            className="chat-read-icon"
+                                                        />
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -684,7 +1927,12 @@ const ConversationsV2 = () => {
                                     <button
                                         className="chat-dropdown-btn"
                                         type="button"
-                                        aria-label="Más opciones"
+                                        aria-label="Acciones del chat"
+                                        data-testid={`admin-conversation-menu-open-${conversation.id}`}
+                                        onClick={(event) => {
+                                            event.stopPropagation()
+                                            openConversationMenu(conversation.id)
+                                        }}
                                     >
                                         <TbDotsVertical size={18} />
                                     </button>
@@ -711,122 +1959,159 @@ const ConversationsV2 = () => {
                 <div className="empty-state">La conversación seleccionada no está disponible.</div>
             ) : (
                 <>
-                    <div>
+                    <div className="chat-stage">
                         <div className="chat-header">
                             <div className="user-details">
                                 {isMobile ? (
                                     <button
                                         className="header-action-btn"
                                         type="button"
-                                        aria-label="Abrir lista"
-                                        onClick={() => setIsMobileListOpen(true)}
+                                        aria-label="Volver a la lista"
+                                        onClick={() => navigate('/app/crm/conversations')}
                                     >
-                                        <TbMenu2 size={20} />
+                                        <TbArrowLeft size={20} />
                                     </button>
                                 ) : null}
-                                <img
-                                    src={
-                                        getTemplateAvatar(selectedConversation.id) ||
-                                        undefined
-                                    }
-                                    alt={getConversationDisplayTitle(selectedConversation)}
+                                <div
                                     style={{
-                                        width: 48,
-                                        height: 48,
-                                        minWidth: 48,
-                                        borderRadius: '999px',
-                                        objectFit: 'cover',
                                         marginLeft: isMobile ? 8 : 0,
-                                        border: `2px solid ${colorByChannel(selectedConversation.channel)}18`,
                                     }}
-                                />
+                                >
+                                    {renderAvatar({
+                                        seed: selectedConversation.id,
+                                        label: getConversationDisplayTitle(
+                                            selectedConversation,
+                                        ),
+                                        size: 48,
+                                        borderColor: `${colorByChannel(selectedConversation.channel)}24`,
+                                        preferInitials:
+                                            selectedConversation.scope === 'admin_internal',
+                                    })}
+                                </div>
                                 <div className="ms-2 overflow-hidden">
                                     <h6 data-testid="admin-conversation-detail-title">
                                         {getConversationDisplayTitle(selectedConversation)}
                                     </h6>
-                                    <span className="last-seen">
-                                        <span className="status-pill is-online">
-                                            {titleCase(selectedConversation.channel)}
+                                    <div className="conversation-header-meta">
+                                        <span className="last-seen">
+                                            {conversationStatusText(selectedConversation)}
                                         </span>
-                                        <span>{formatTitle(selectedConversation.subject)}</span>
-                                    </span>
+                                        <span
+                                            className={`conversation-owner-pill is-${getConversationOwnerState(selectedConversation).tone}`}
+                                            data-testid="admin-conversation-owner-current"
+                                        >
+                                            {getConversationOwnerState(selectedConversation).label}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                             <div className="chat-options">
                                 <ul>
                                     <li>
-                                        <button type="button" aria-label="Buscar">
-                                            <TbSearch size={20} />
-                                        </button>
-                                    </li>
-                                    <li>
-                                        <button type="button" aria-label="Videollamada">
-                                            <TbVideo size={20} />
-                                        </button>
-                                    </li>
-                                    <li>
-                                        <button type="button" aria-label="Llamada">
-                                            <TbPhoneCall size={20} />
-                                        </button>
-                                    </li>
-                                    <li>
                                         <button
                                             type="button"
-                                            aria-label="Volver"
-                                            onClick={() => navigate('/app/crm/conversations')}
+                                            aria-label="Buscar"
+                                            className={
+                                                isChatSearchOpen ? 'is-active-search' : ''
+                                            }
+                                            onClick={() =>
+                                                setIsChatSearchOpen((previous) => !previous)
+                                            }
                                         >
-                                            <TbArrowLeft size={20} />
+                                            <TbSearch size={20} />
                                         </button>
                                     </li>
                                     <li>
                                         <button
                                             type="button"
                                             aria-label="Detalles"
+                                            data-testid="admin-conversation-details-open"
                                             onClick={() => setIsDetailsOpen(true)}
                                         >
                                             <TbInfoCircle size={20} />
                                         </button>
                                     </li>
+                                    <li>
+                                        <button
+                                            type="button"
+                                            aria-label="Más opciones"
+                                            onClick={() =>
+                                                openConversationMenu(selectedConversation.id)
+                                            }
+                                        >
+                                            <TbDotsVertical size={20} />
+                                        </button>
+                                    </li>
                                 </ul>
                             </div>
                         </div>
+                        {isChatSearchOpen ? (
+                            <div className="chat-search search-wrap contact-search">
+                                <form
+                                    onSubmit={(event) => {
+                                        event.preventDefault()
+                                    }}
+                                >
+                                    <div className="input-group">
+                                        <input
+                                            type="text"
+                                            value={chatSearch}
+                                            onChange={(event) =>
+                                                setChatSearch(event.target.value)
+                                            }
+                                        placeholder="Buscar en el chat"
+                                        />
+                                        <span className="input-group-text">
+                                            <TbSearch size={18} />
+                                        </span>
+                                    </div>
+                                </form>
+                            </div>
+                        ) : null}
                         <div className="chat-body chat-page-group" data-testid="admin-conversation-messages">
                             <div className="messages">
-                                {selectedConversation.messages.map((message) => {
+                                {filteredMessages.map((message) => {
                                     const isRight =
                                         message.authorType === 'operator' ||
                                         message.authorType === 'agent'
+                                    const authorLabel =
+                                        message.authorType === 'operator'
+                                            ? 'Administrador'
+                                            : titleCase(message.authorType)
+                                    const messageVariant = messageVariantByAuthor(
+                                        message.authorType,
+                                    )
                                     return (
                                         <div
                                             className={`chats ${isRight ? 'chats-right' : ''}`}
                                             key={message.id}
+                                            data-testid={`admin-conversation-message-${message.id}`}
                                         >
                                             <div className="chat-avatar">
-                                                <img
-                                                    src={
-                                                        getTemplateAvatar(
-                                                            `${selectedConversation.id}:${message.authorType}`,
-                                                        ) || undefined
-                                                    }
-                                                    alt={titleCase(message.authorType)}
-                                                    style={{
-                                                        width: 40,
-                                                        height: 40,
-                                                        borderRadius: '999px',
-                                                        objectFit: 'cover',
-                                                    }}
-                                                />
+                                                {renderAvatar({
+                                                    seed: `${selectedConversation.id}:${message.authorType}`,
+                                                    label: authorLabel,
+                                                    size: 40,
+                                                    preferInitials:
+                                                        message.authorType ===
+                                                            'operator' ||
+                                                        message.authorType ===
+                                                            'agent',
+                                                    borderColor:
+                                                        messageVariant === 'customer'
+                                                            ? '#e5e7eb'
+                                                            : messageVariant ===
+                                                                  'agent'
+                                                              ? '#dbeafe'
+                                                              : '#e9d5ff',
+                                                })}
                                             </div>
                                             <div className="chat-content">
                                                 <div
                                                     className={`chat-profile-name ${isRight ? 'text-end' : ''}`}
                                                 >
                                                     <h6>
-                                                        {message.authorType === 'operator'
-                                                            ? 'You'
-                                                            : titleCase(
-                                                                  message.authorType,
-                                                              )}
+                                                        {authorLabel}
                                                         <span className="chat-time">
                                                             {formatDateTime(message.createdAt)}
                                                         </span>
@@ -840,7 +2125,9 @@ const ConversationsV2 = () => {
                                                             </button>
                                                         </div>
                                                     ) : null}
-                                                    <div className="message-content">
+                                                    <div
+                                                        className={`message-content message-content-${messageVariant}`}
+                                                    >
                                                         {renderMessageBody(
                                                             message,
                                                             message.authorType,
@@ -863,48 +2150,72 @@ const ConversationsV2 = () => {
                     </div>
                     <div className="chat-footer">
                         <form
+                            className="footer-form"
                             onSubmit={(event) => {
                                 event.preventDefault()
                                 void handleReply()
                             }}
                         >
-                            <button className="action-circle" type="button" aria-label="Audio">
-                                <TbMicrophone size={18} />
-                            </button>
-                            <div className="form-wrap">
-                                <input
-                                    className="form-control"
-                                    data-testid="admin-conversation-reply-input"
-                                    type="text"
-                                    value={replyBody}
-                                    onChange={(event) => setReplyBody(event.target.value)}
-                                    placeholder="Type Your Message"
-                                />
-                            </div>
-                            <button className="action-circle" type="button" aria-label="Emoji">
-                                <TbMoodSmile size={18} />
-                            </button>
-                            <button className="action-circle" type="button" aria-label="Adjuntar">
-                                <TbFolder size={18} />
-                            </button>
-                            <div className="hidden xl:flex items-center gap-2 pr-1">
-                                {templateEmojiIcons.map((icon) => (
-                                    <img
-                                        key={icon}
-                                        src={icon}
-                                        alt="emoji"
-                                        style={{ width: 18, height: 18 }}
+                            <div className="chat-footer-wrap">
+                                <div className="form-item">
+                                    <button
+                                        className="action-circle"
+                                        type="button"
+                                        aria-label="Audio"
+                                    >
+                                        <TbMicrophone size={18} />
+                                    </button>
+                                </div>
+                                <div className="form-wrap">
+                                    <input
+                                        className="form-control"
+                                        data-testid="admin-conversation-reply-input"
+                                        type="text"
+                                        value={replyBody}
+                                        onChange={(event) => setReplyBody(event.target.value)}
+                                        placeholder="Escribe tu respuesta"
+                                        disabled={replying || !selectedConversation}
                                     />
-                                ))}
+                                </div>
+                                <div className="form-item emoj-action-foot">
+                                    <button
+                                        className="action-circle"
+                                        type="button"
+                                        aria-label="Emoji"
+                                    >
+                                        <TbMoodSmile size={18} />
+                                    </button>
+                                </div>
+                                <div className="form-item position-relative d-flex items-center justify-center">
+                                    <button
+                                        className="action-circle file-action"
+                                        type="button"
+                                        aria-label="Adjuntar"
+                                    >
+                                        <TbFolder size={18} />
+                                    </button>
+                                </div>
+                                <div className="form-item">
+                                    <button
+                                        className="more-action-btn"
+                                        type="button"
+                                        aria-label="Más acciones"
+                                    >
+                                        <TbDotsVertical size={18} />
+                                    </button>
+                                </div>
+                                <div className="form-btn">
+                                    <button
+                                        className="send-btn"
+                                        type="submit"
+                                        data-testid="admin-conversation-reply-submit"
+                                        aria-label="Enviar"
+                                        disabled={replying || !replyBody.trim()}
+                                    >
+                                        <TbSend2 size={20} />
+                                    </button>
+                                </div>
                             </div>
-                            <button
-                                className="send-btn"
-                                type="submit"
-                                aria-label="Enviar"
-                                disabled={replying || !replyBody.trim()}
-                            >
-                                <TbSend2 size={20} />
-                            </button>
                         </form>
                     </div>
                 </>
@@ -920,21 +2231,631 @@ const ConversationsV2 = () => {
         >
             <div className="crm-conversations-v2 h-full w-full">
                 <div className="main-chat-blk">
-                    {!isMobile ? rail : null}
-                    {!isMobile ? sidebar : null}
-                    {detail}
+                    {isMobile ? (
+                        conversationId ? (
+                            <>
+                                {detail}
+                                {mobileBottomNav}
+                            </>
+                        ) : (
+                            <>
+                                <div className="mobile-list-screen">{sidebar}</div>
+                                {mobileBottomNav}
+                            </>
+                        )
+                    ) : (
+                        <>
+                            {rail}
+                            {sidebar}
+                            {detail}
+                        </>
+                    )}
                 </div>
                 <Drawer
                     bodyClass="p-0"
                     title={null}
-                    isOpen={isMobileListOpen}
+                    isOpen={isDirectoryOpen}
                     placement="left"
                     width={360}
-                    onClose={() => setIsMobileListOpen(false)}
-                    onRequestClose={() => setIsMobileListOpen(false)}
+                    onClose={() => setIsDirectoryOpen(false)}
+                    onRequestClose={() => setIsDirectoryOpen(false)}
                 >
-                    <div className="crm-conversations-v2 h-full">{sidebar}</div>
+                    <div className="crm-conversations-v2 conversation-directory-drawer">
+                        <div className="offcanvas-header">
+                            <h4>Canales e inboxes</h4>
+                            <button
+                                className="offcanvas-close"
+                                type="button"
+                                onClick={() => setIsDirectoryOpen(false)}
+                                aria-label="Cerrar menú"
+                            >
+                                <TbX size={18} />
+                            </button>
+                        </div>
+                        <div className="offcanvas-body">
+                            <div className="directory-block">
+                                <div className="directory-label">Canales</div>
+                                <div
+                                    className="directory-list"
+                                    data-testid="admin-conversations-channels"
+                                >
+                                    {sidebarChannelOptions.map((channel) => {
+                                        const isActive = selectedChannel === channel.key
+                                        const count =
+                                            channel.key === 'all'
+                                                ? items.length
+                                                : (channelCounts[channel.key] ?? 0)
+                                        return (
+                                            <button
+                                                key={channel.key}
+                                                type="button"
+                                                className={`directory-item ${isActive ? 'is-active' : ''}`}
+                                                data-testid={`admin-conversations-channel-${channel.key}`}
+                                                onClick={() =>
+                                                    selectChannel(channel.key, {
+                                                        closeDirectory: true,
+                                                    })
+                                                }
+                                            >
+                                                <div className="directory-item-copy">
+                                                    <span>{channel.label}</span>
+                                                    <small>
+                                                        {channel.key === 'all'
+                                                            ? 'Todas las conversaciones'
+                                                            : `Canal ${channel.label.toLowerCase()}`}
+                                                    </small>
+                                                </div>
+                                                <span className="directory-count">{count}</span>
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                            <div className="directory-block">
+                                <div className="directory-label">Inboxes</div>
+                                <div
+                                    className="directory-list"
+                                    data-testid="admin-conversations-inboxes"
+                                >
+                                    <button
+                                        type="button"
+                                        className={`directory-item ${selectedInboxId === 'all' ? 'is-active' : ''}`}
+                                        data-testid="admin-conversations-inbox-all"
+                                        onClick={() =>
+                                            selectInbox('all', undefined, {
+                                                closeDirectory: true,
+                                            })
+                                        }
+                                    >
+                                        <div className="directory-item-copy">
+                                            <span>Inbox completo</span>
+                                            <small>Vista consolidada multicanal</small>
+                                        </div>
+                                        <span className="directory-count">{items.length}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`directory-item ${selectedInboxId === 'virtual:webchat' ? 'is-active' : ''}`}
+                                        data-testid="admin-conversations-inbox-virtual-webchat"
+                                        onClick={() =>
+                                            selectInbox('virtual:webchat', 'webchat', {
+                                                closeDirectory: true,
+                                            })
+                                        }
+                                    >
+                                        <div className="directory-item-copy">
+                                            <span>Webchat directo</span>
+                                            <small>Conversaciones web sin inbox asociado</small>
+                                        </div>
+                                        <span className="directory-count">
+                                            {
+                                                items.filter(
+                                                    (item) =>
+                                                        item.channel === 'webchat' &&
+                                                        !item.inboxAccount,
+                                                ).length
+                                            }
+                                        </span>
+                                    </button>
+                                    {inboxes.length === 0 ? (
+                                        <div className="directory-empty">
+                                            Sin buzones configurados
+                                        </div>
+                                    ) : (
+                                        inboxes.map((inbox) => {
+                                            const count = items.filter(
+                                                (item) => item.inboxAccount?.id === inbox.id,
+                                            ).length
+                                            return (
+                                                <button
+                                                    key={inbox.id}
+                                                    type="button"
+                                                    className={`directory-item ${selectedInboxId === inbox.id ? 'is-active' : ''}`}
+                                                    data-testid={`admin-conversations-inbox-${inbox.id}`}
+                                                    onClick={() =>
+                                                        openInboxDestination(inbox)
+                                                    }
+                                                >
+                                                    <div className="directory-item-copy">
+                                                        <span>
+                                                            {inbox.displayName ||
+                                                                inbox.address ||
+                                                                titleCase(inbox.channel)}
+                                                        </span>
+                                                        <small>
+                                                            {getInboxSecondaryLabel(inbox)}
+                                                        </small>
+                                                    </div>
+                                                    <span className="directory-count">
+                                                        {count}
+                                                    </span>
+                                                </button>
+                                            )
+                                        })
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </Drawer>
+                <Drawer
+                    bodyClass="p-0"
+                    title={null}
+                    isOpen={isFilterOpen}
+                    placement="right"
+                    width={360}
+                    onClose={() => setIsFilterOpen(false)}
+                    onRequestClose={() => setIsFilterOpen(false)}
+                >
+                    <div className="crm-conversations-v2 conversation-config-drawer">
+                        <div className="offcanvas-header">
+                            <h4>Filtrar chats</h4>
+                            <button
+                                className="offcanvas-close"
+                                type="button"
+                                onClick={() => setIsFilterOpen(false)}
+                                aria-label="Cerrar filtros"
+                            >
+                                <TbX size={18} />
+                            </button>
+                        </div>
+                        <div className="offcanvas-body">
+                            <div className="conversation-filter-form">
+                                <div className="filter-field">
+                                    <label htmlFor="conversation-filter-search">
+                                        Texto
+                                    </label>
+                                    <input
+                                        id="conversation-filter-search"
+                                        data-testid="admin-conversations-filter-search"
+                                        type="text"
+                                        value={filterDraft.searchText}
+                                        onChange={(event) =>
+                                            setFilterDraft((previous) => ({
+                                                ...previous,
+                                                searchText: event.target.value,
+                                            }))
+                                        }
+                                        placeholder="Buscar por contacto, asunto o mensaje"
+                                    />
+                                </div>
+                                <div className="filter-field">
+                                    <label htmlFor="conversation-filter-scope">Scope</label>
+                                    <select
+                                        id="conversation-filter-scope"
+                                        data-testid="admin-conversations-filter-scope"
+                                        value={filterDraft.scope}
+                                        onChange={(event) =>
+                                            setFilterDraft((previous) => ({
+                                                ...previous,
+                                                scope: event.target.value,
+                                            }))
+                                        }
+                                    >
+                                        {conversationScopeOptions.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="filter-field">
+                                    <label htmlFor="conversation-filter-channel">Canal</label>
+                                    <select
+                                        id="conversation-filter-channel"
+                                        data-testid="admin-conversations-filter-channel"
+                                        value={filterDraft.channel}
+                                        onChange={(event) =>
+                                            setFilterDraft((previous) => ({
+                                                ...previous,
+                                                channel: event.target.value,
+                                            }))
+                                        }
+                                    >
+                                        {conversationChannelOptions.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="filter-field">
+                                    <label htmlFor="conversation-filter-status">Estado</label>
+                                    <select
+                                        id="conversation-filter-status"
+                                        data-testid="admin-conversations-filter-status"
+                                        value={filterDraft.status}
+                                        onChange={(event) =>
+                                            setFilterDraft((previous) => ({
+                                                ...previous,
+                                                status: event.target.value,
+                                            }))
+                                        }
+                                    >
+                                        {conversationStatusOptions.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="filter-actions">
+                                    <button
+                                        className="drawer-secondary-btn"
+                                        type="button"
+                                        data-testid="admin-conversations-filter-reset"
+                                        onClick={() => void handleResetFilters()}
+                                    >
+                                        Limpiar
+                                    </button>
+                                    <button
+                                        className="drawer-primary-btn"
+                                        type="button"
+                                        data-testid="admin-conversations-filter-apply"
+                                        onClick={() => void handleApplyFilters()}
+                                    >
+                                        Aplicar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </Drawer>
+                <Drawer
+                    bodyClass="p-0"
+                    title={null}
+                    isOpen={isConversationMenuOpen}
+                    placement="right"
+                    width={360}
+                    onClose={() => setIsConversationMenuOpen(false)}
+                    onRequestClose={() => setIsConversationMenuOpen(false)}
+                >
+                    <div className="crm-conversations-v2 conversation-directory-drawer">
+                        <div className="offcanvas-header">
+                            <h4>Acciones del chat</h4>
+                            <button
+                                className="offcanvas-close"
+                                type="button"
+                                onClick={() => setIsConversationMenuOpen(false)}
+                                aria-label="Cerrar acciones"
+                            >
+                                <TbX size={18} />
+                            </button>
+                        </div>
+                        <div className="offcanvas-body">
+                            {menuConversation ? (
+                                <div className="directory-block">
+                                    <div className="directory-card">
+                                        <div className="directory-card-title">
+                                            {getConversationDisplayTitle(menuConversation)}
+                                        </div>
+                                        <div className="directory-card-copy">
+                                            {formatTitle(menuConversation.subject)}
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="directory-item"
+                                        data-testid={`admin-conversation-menu-call-${menuConversation.id}`}
+                                        onClick={() => {
+                                            handleSelectConversation(menuConversation.id)
+                                            setIsConversationMenuOpen(false)
+                                            window.setTimeout(() => {
+                                                focusReplyInput()
+                                            }, 0)
+                                        }}
+                                    >
+                                        <span className="directory-action-label">
+                                            <TbMessageReply size={16} />
+                                            Responder
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="directory-item"
+                                        data-testid={`admin-conversation-menu-video-${menuConversation.id}`}
+                                        onClick={() => {
+                                            handleSelectConversation(menuConversation.id)
+                                            setIsConversationMenuOpen(false)
+                                            setIsDetailsOpen(true)
+                                        }}
+                                    >
+                                        <span className="directory-action-label">
+                                            <TbInfoCircle size={16} />
+                                            Ver detalles
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="directory-item"
+                                        onClick={() => {
+                                            handleSelectConversation(menuConversation.id)
+                                            setIsConversationMenuOpen(false)
+                                        }}
+                                    >
+                                        <span className="directory-action-label">
+                                            <TbPhoneCall size={16} />
+                                            Llamada
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="directory-item"
+                                        onClick={() => {
+                                            handleSelectConversation(menuConversation.id)
+                                            setIsConversationMenuOpen(false)
+                                        }}
+                                    >
+                                        <span className="directory-action-label">
+                                            <TbVideo size={16} />
+                                            Videollamada
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="directory-item"
+                                        data-testid={`admin-conversation-menu-pin-${menuConversation.id}`}
+                                        onClick={async () => {
+                                            const updated = isConversationPinned(
+                                                menuConversation.id,
+                                            )
+                                                ? await ConversationsService.unpinConversation(
+                                                      menuConversation.id,
+                                                  )
+                                                : await ConversationsService.pinConversation(
+                                                      menuConversation.id,
+                                                  )
+                                            syncConversation(updated)
+                                            setIsConversationMenuOpen(false)
+                                        }}
+                                    >
+                                        <span className="directory-action-label">
+                                            <TbPinned size={16} />
+                                            {isConversationPinned(menuConversation.id)
+                                                ? 'Quitar fijado'
+                                                : 'Fijar chat'}
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="directory-item"
+                                        data-testid={`admin-conversation-menu-read-toggle-${menuConversation.id}`}
+                                        onClick={async () => {
+                                            const updated =
+                                                getUnreadCount(menuConversation.id) > 0
+                                                    ? await ConversationsService.markConversationRead(
+                                                          menuConversation.id,
+                                                      )
+                                                    : await ConversationsService.markConversationUnread(
+                                                          menuConversation.id,
+                                                      )
+                                            syncConversation(updated)
+                                            setIsConversationMenuOpen(false)
+                                        }}
+                                    >
+                                        <span className="directory-action-label">
+                                            <TbChecks size={16} />
+                                            {getUnreadCount(menuConversation.id) > 0
+                                                ? 'Marcar como leído'
+                                                : 'Marcar como no leído'}
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="directory-item"
+                                        onClick={() => {
+                                            handleSelectConversation(menuConversation.id)
+                                            setIsConversationMenuOpen(false)
+                                            void runAction('takeover', () =>
+                                                ConversationsService.takeoverConversation(
+                                                    menuConversation.id,
+                                                ),
+                                            )
+                                        }}
+                                    >
+                                        <span className="directory-action-label">
+                                            <TbUserPlus size={16} />
+                                            Tomar control
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="directory-item"
+                                        onClick={() => {
+                                            handleSelectConversation(menuConversation.id)
+                                            setIsConversationMenuOpen(false)
+                                            void runAction('release', () =>
+                                                ConversationsService.releaseConversation(
+                                                    menuConversation.id,
+                                                ),
+                                            )
+                                        }}
+                                    >
+                                        <span className="directory-action-label">
+                                            <TbRobot size={16} />
+                                            Liberar a IA
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="directory-item"
+                                        onClick={async () => {
+                                            await navigator.clipboard.writeText(
+                                                menuConversation.id,
+                                            )
+                                            setIsConversationMenuOpen(false)
+                                        }}
+                                    >
+                                        <span className="directory-action-label">
+                                            <TbArrowsExchange size={16} />
+                                            Copiar ID de conversación
+                                        </span>
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="directory-empty">
+                                    Sin conversación seleccionada.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </Drawer>
+                <Dialog
+                    isOpen={isNewChatOpen}
+                    onRequestClose={() => setIsNewChatOpen(false)}
+                    onClose={() => setIsNewChatOpen(false)}
+                    shouldCloseOnEsc
+                    shouldCloseOnOverlayClick
+                    contentClassName="conversation-modal"
+                    width={520}
+                >
+                    <div className="crm-conversations-v2 conversation-modal-content">
+                        <div className="conversation-modal-header">
+                            <div>
+                                <h4>Nuevo mensaje</h4>
+                                <p>
+                                    Selecciona un contacto para iniciar o retomar una
+                                    conversación, incluida la IA operativa.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="conversation-modal-body">
+                            <div className="filter-field">
+                                <label htmlFor="new-chat-contact-search">
+                                    Buscar contacto
+                                </label>
+                                <input
+                                    id="new-chat-contact-search"
+                                    data-testid="admin-conversations-contact-search"
+                                    type="text"
+                                    value={contactSearch}
+                                    onChange={(event) =>
+                                        setContactSearch(event.target.value)
+                                    }
+                                    placeholder="Buscar clientes o IA"
+                                />
+                            </div>
+                            <div
+                                className="conversation-contact-list"
+                                data-testid="admin-conversations-contact-list"
+                            >
+                                {contactsLoading ? (
+                                    <div className="directory-empty">
+                                        Cargando contactos...
+                                    </div>
+                                ) : contacts.length === 0 ? (
+                                    <div className="directory-empty">
+                                        No hay contactos disponibles.
+                                    </div>
+                                ) : (
+                                    contacts.map((contact) => (
+                                        <button
+                                            key={contact.key}
+                                            type="button"
+                                            className={`conversation-contact-option ${selectedContactKey === contact.key ? 'is-active' : ''}`}
+                                            data-testid={`admin-conversations-contact-${contact.key.replace(/[^a-zA-Z0-9_-]/g, '-')}`}
+                                            onClick={() =>
+                                                setSelectedContactKey(contact.key)
+                                            }
+                                        >
+                                            <div className="conversation-contact-avatar">
+                                                {renderAvatar({
+                                                    seed: contact.label,
+                                                    label: contact.label,
+                                                    size: 44,
+                                                    preferInitials:
+                                                        contact.kind === 'internal',
+                                                })}
+                                            </div>
+                                            <div className="conversation-contact-copy">
+                                                <strong>{contact.label}</strong>
+                                                <span>
+                                                    {contact.description ||
+                                                        (contact.kind === 'internal'
+                                                            ? 'Contacto interno'
+                                                            : 'Sin descripción')}
+                                                </span>
+                                            </div>
+                                            <div className="conversation-contact-meta">
+                                                <small>
+                                                    {contact.conversationId
+                                                        ? 'Existente'
+                                                        : 'Nuevo'}
+                                                </small>
+                                            </div>
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                            <div className="filter-field">
+                                <label htmlFor="new-chat-message">Primer mensaje</label>
+                                <textarea
+                                    id="new-chat-message"
+                                    data-testid="admin-conversations-message-body"
+                                    value={newChatForm.message}
+                                    onChange={(event) =>
+                                        setNewChatForm((previous) => ({
+                                            ...previous,
+                                            message: event.target.value,
+                                        }))
+                                    }
+                                    placeholder={
+                                        selectedContact?.conversationId
+                                            ? 'Escribe una respuesta o deja vacío para abrir la conversación'
+                                            : 'Escribe el primer mensaje para iniciar el chat'
+                                    }
+                                    rows={5}
+                                />
+                            </div>
+                            {newChatError ? (
+                                <div className="conversation-modal-error">{newChatError}</div>
+                            ) : null}
+                        </div>
+                        <div className="conversation-modal-footer">
+                            <button
+                                className="drawer-secondary-btn"
+                                type="button"
+                                onClick={() => setIsNewChatOpen(false)}
+                                disabled={creatingChat}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                className="drawer-primary-btn"
+                                type="button"
+                                data-testid="admin-conversations-start-message"
+                                onClick={() => void handleCreateNewChat()}
+                                disabled={creatingChat}
+                            >
+                                {creatingChat
+                                    ? 'Abriendo...'
+                                    : selectedContact?.conversationId
+                                      ? 'Abrir conversación'
+                                      : 'Iniciar mensaje'}
+                            </button>
+                        </div>
+                    </div>
+                </Dialog>
                 <Drawer
                     bodyClass="p-0"
                     title={null}
@@ -948,7 +2869,7 @@ const ConversationsV2 = () => {
                         {selectedConversation ? (
                             <div className="chat-offcanvas">
                                 <div className="offcanvas-header">
-                                    <h4>Contact Info</h4>
+                                    <h4>Detalles del contacto</h4>
                                     <button
                                         className="offcanvas-close"
                                         type="button"
@@ -962,31 +2883,21 @@ const ConversationsV2 = () => {
                                     <div className="chat-contact-info">
                                         <div className="profile-content">
                                             <div className="contact-profile-info">
-                                                <div className="avatar avatar-xxl online mb-2">
-                                                    <img
-                                                        src={
-                                                            getTemplateAvatar(
-                                                                selectedConversation.id,
-                                                            ) || undefined
-                                                        }
-                                                        alt={getConversationDisplayTitle(
-                                                            selectedConversation,
-                                                        )}
-                                                        style={{
-                                                            width: 96,
-                                                            height: 96,
-                                                            borderRadius: '999px',
-                                                            objectFit: 'cover',
-                                                        }}
-                                                    />
+                                                <div className="contact-profile-avatar mb-2">
+                                                    {renderAvatar({
+                                                        seed: selectedConversation.id,
+                                                        label: customerDisplayName,
+                                                        size: 96,
+                                                        inset: 8,
+                                                        borderColor: `${colorByChannel(selectedConversation.channel)}24`,
+                                                        preferInitials:
+                                                            selectedConversation.scope ===
+                                                            'admin_internal',
+                                                    })}
                                                 </div>
-                                                <h6>
-                                                    {getConversationDisplayTitle(
-                                                        selectedConversation,
-                                                    )}
-                                                </h6>
+                                                <h6>{customerDisplayName}</h6>
                                                 <p>
-                                                    Last seen at{' '}
+                                                    Última actividad{' '}
                                                     {formatDateTime(
                                                         selectedConversation.lastMessageAt ||
                                                             selectedConversation.updatedAt,
@@ -1012,20 +2923,14 @@ const ConversationsV2 = () => {
                                             </div>
 
                                             <div className="content-wrapper">
-                                                <h5 className="sub-title">Profile Info</h5>
+                                                <h5 className="sub-title">Perfil</h5>
                                                 <div className="card">
                                                     <div className="card-body">
                                                         <ul className="profile-item">
                                                             <li className="list-group-item">
                                                                 <div className="profile-info">
-                                                                    <h6>Name</h6>
-                                                                    <p>
-                                                                        {selectedConversation.customer
-                                                                            ?.name ||
-                                                                            getConversationDisplayTitle(
-                                                                                selectedConversation,
-                                                                            )}
-                                                                    </p>
+                                                                    <h6>Nombre</h6>
+                                                                    <p>{customerDisplayName}</p>
                                                                 </div>
                                                                 <div className="profile-icon">
                                                                     <TbUserCheck size={18} />
@@ -1033,11 +2938,16 @@ const ConversationsV2 = () => {
                                                             </li>
                                                             <li className="list-group-item">
                                                                 <div className="info">
-                                                                    <h6>Email Address</h6>
+                                                                    <h6>Correo</h6>
                                                                     <p>
-                                                                        {selectedConversation.customer
-                                                                            ?.email ||
-                                                                            'Sin email'}
+                                                                        {customerProfileLoading
+                                                                            ? 'Cargando...'
+                                                                            : customerProfile
+                                                                                  ?.email ||
+                                                                              selectedConversation
+                                                                                  .customer
+                                                                                  ?.email ||
+                                                                              'Sin email'}
                                                                     </p>
                                                                 </div>
                                                                 <div className="icon">
@@ -1046,11 +2956,12 @@ const ConversationsV2 = () => {
                                                             </li>
                                                             <li className="list-group-item">
                                                                 <div className="info">
-                                                                    <h6>Phone</h6>
+                                                                    <h6>Teléfono</h6>
                                                                     <p>
-                                                                        {selectedConversation.customer
-                                                                            ?.phoneNumber ||
-                                                                            'Sin teléfono'}
+                                                                        {customerProfileLoading
+                                                                            ? 'Cargando...'
+                                                                            : customerPhones[0] ||
+                                                                              'Sin teléfono'}
                                                                     </p>
                                                                 </div>
                                                                 <div className="icon">
@@ -1059,7 +2970,21 @@ const ConversationsV2 = () => {
                                                             </li>
                                                             <li className="list-group-item">
                                                                 <div className="info">
-                                                                    <h6>Bio</h6>
+                                                                    <h6>Ubicación</h6>
+                                                                    <p>
+                                                                        {customerProfileLoading
+                                                                            ? 'Cargando...'
+                                                                            : customerLocation ||
+                                                                              'Sin ubicación'}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="icon">
+                                                                    <TbInfoCircle size={18} />
+                                                                </div>
+                                                            </li>
+                                                            <li className="list-group-item">
+                                                                <div className="info">
+                                                                    <h6>Contexto</h6>
                                                                     <p>
                                                                         {formatTitle(
                                                                             selectedConversation.subject,
@@ -1076,7 +3001,7 @@ const ConversationsV2 = () => {
                                             </div>
 
                                             <div className="content-wrapper">
-                                                <h5 className="sub-title">Social Profiles</h5>
+                                                <h5 className="sub-title">Perfiles sociales</h5>
                                                 <div className="card">
                                                     <div className="card-body">
                                                         <div className="social-icon">
@@ -1098,7 +3023,7 @@ const ConversationsV2 = () => {
                                             </div>
 
                                             <div className="content-wrapper">
-                                                <h5 className="sub-title">Media Details</h5>
+                                                <h5 className="sub-title">Actividad y operación</h5>
                                                 <div className="card">
                                                     <div className="card-body">
                                                         <div className="document-item">
@@ -1133,12 +3058,15 @@ const ConversationsV2 = () => {
                                                                 </h6>
                                                                 <p>
                                                                     Operador:{' '}
-                                                                    {selectedConversation
-                                                                        .assignedToUser?.name ||
-                                                                        selectedConversation
+                                                                    <span data-testid="admin-conversation-assignee">
+                                                                        {selectedConversation
                                                                             .assignedToUser
-                                                                            ?.email ||
-                                                                        'Sin asignar'}
+                                                                            ?.name ||
+                                                                            selectedConversation
+                                                                                .assignedToUser
+                                                                                ?.email ||
+                                                                            'Sin asignar'}
+                                                                    </span>
                                                                 </p>
                                                             </div>
                                                             <span className="download-icon">
@@ -1146,23 +3074,53 @@ const ConversationsV2 = () => {
                                                             </span>
                                                         </div>
                                                         <div className="chat-video mt-4">
-                                                            <button
-                                                                className="video-img"
-                                                                type="button"
-                                                                aria-label="Abrir vista previa del video"
-                                                            >
-                                                                <img
-                                                                    src="/mock/dreamschat/video/video.jpg"
-                                                                    alt="video preview"
-                                                                />
-                                                                <span>
-                                                                    <TbPlayerPlayFilled size={12} />
-                                                                </span>
-                                                            </button>
+                                                            <div className="management-inline-card">
+                                                                <div className="management-label">
+                                                                    SLA operativo
+                                                                </div>
+                                                                <div className="management-value">
+                                                                    {detailSlaLabel}
+                                                                </div>
+                                                            </div>
+                                                            {conversationManagementContent}
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
+
+                                            {customerPhones.slice(1).length ? (
+                                                <div className="content-wrapper">
+                                                    <h5 className="sub-title">
+                                                        Teléfonos adicionales
+                                                    </h5>
+                                                    <div className="card">
+                                                        <div className="card-body">
+                                                            <ul className="profile-item">
+                                                                {customerPhones
+                                                                    .slice(1)
+                                                                    .map((phone, index) => (
+                                                                        <li
+                                                                            className="list-group-item"
+                                                                            key={`${phone}-${index}`}
+                                                                        >
+                                                                            <div className="info">
+                                                                                <h6>
+                                                                                    Teléfono
+                                                                                </h6>
+                                                                                <p>{phone}</p>
+                                                                            </div>
+                                                                            <div className="icon">
+                                                                                <TbPhoneCheck
+                                                                                    size={18}
+                                                                                />
+                                                                            </div>
+                                                                        </li>
+                                                                    ))}
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : null}
                                         </div>
                                     </div>
                                 </div>

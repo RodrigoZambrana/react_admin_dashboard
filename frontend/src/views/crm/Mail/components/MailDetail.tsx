@@ -24,8 +24,15 @@ import {
     normalizeSubject,
     normalizeString,
 } from '../utils/conversations'
+import {
+    hasRealMailboxSelection,
+    isInboxCategorySelection,
+} from '../utils/category'
 import { upsertMailLocalState } from '../utils/localMailState'
 import type { Mail as MailType } from '../store'
+
+const isSyntheticThreadId = (value: string) =>
+    value.trim().startsWith('message-chain:')
 
 const MailDetail = () => {
     const query = useQuery()
@@ -53,6 +60,12 @@ const MailDetail = () => {
     const isReply = mailState.reply
     const mailList = mailState.mailList
     const selectedCategory = mailState.selectedCategory
+    const hasRealMailboxContext = hasRealMailboxSelection({
+        accountId: mailState.inbox.selectedAccountId,
+        mailboxId: mailState.inbox.selectedMailboxId,
+    })
+    const isInboxCategory =
+        isInboxCategorySelection(selectedCategory) || hasRealMailboxContext
 
     const formSubmit = () => {
         mailEditorRef.current?.formikRef?.submitForm()
@@ -122,17 +135,30 @@ const MailDetail = () => {
             return
         }
         const normalizedId = String(mailId)
-        if (selectedCategory.category === 'inbox') {
+        if (isInboxCategory) {
             const selectedInboxMail = mailList.find(
                 (entry) => String(entry.id) === normalizedId,
             )
             if (selectedInboxMail) {
                 dispatch(updateMail(selectedInboxMail))
+            } else {
+                dispatch(updateMail({}))
+            }
+            return
+        }
+        if (isSyntheticThreadId(normalizedId)) {
+            const selectedThreadMail = mailList.find(
+                (entry) => String(entry.id) === normalizedId,
+            )
+            if (selectedThreadMail) {
+                dispatch(updateMail(selectedThreadMail))
+            } else {
+                dispatch(updateMail({}))
             }
             return
         }
         dispatch(getMail({ id: normalizedId }))
-    }, [dispatch, mailId, mailList, selectedCategory.category])
+    }, [dispatch, isInboxCategory, mailId, mailList])
 
     useEffect(() => {
         if (!mailId) {
@@ -168,7 +194,7 @@ const MailDetail = () => {
         if (!mail || isEmpty(mail)) {
             return mail
         }
-        if (selectedCategory.category === 'inbox') {
+        if (isInboxCategory) {
             return mail
         }
         if (!Array.isArray(mailList) || mailList.length === 0) {
@@ -251,13 +277,32 @@ const MailDetail = () => {
             ...mail,
             message: mergedMessages,
         }
-    }, [mail, mailList, selectedCategory.category])
+    }, [isInboxCategory, mail, mailList])
+
+    useEffect(() => {
+        if (!isInboxCategory || !id || !resolvedMail) {
+            return
+        }
+
+        const conversationId =
+            (resolvedMail as { conversationId?: string | null }).conversationId ??
+            ((resolvedMail.metadata as Record<string, unknown> | null)
+                ?.conversationId as string | null | undefined) ??
+            null
+
+        if (!conversationId) {
+            return
+        }
+
+        navigate(`/app/crm/conversations/${conversationId}`, { replace: true })
+    }, [id, isInboxCategory, navigate, resolvedMail])
 
     const hasMail = !isEmpty(resolvedMail)
     const showMailContainer = Boolean(id) && (hasMail || mailLoading)
 
     return (
         <div
+            data-testid="admin-inbox-detail"
             className={classNames(
                 showMailContainer
                     ? 'block xl:flex'

@@ -23,6 +23,8 @@ import {
     updateReply,
     fetchInboxMailboxes,
     fetchInboxThreads,
+    setSelectedInboxContext,
+    setSelectedInboxMailbox,
     useAppDispatch,
     useAppSelector,
 } from '../store'
@@ -34,6 +36,10 @@ import type { MouseEvent } from 'react'
 import type { Mail } from '../store'
 import { getAttachmentIcon } from '../utils/attachments'
 import { buildConversationKey, normalizeString } from '../utils/conversations'
+import {
+    hasRealMailboxSelection,
+    isInboxCategorySelection,
+} from '../utils/category'
 import { upsertMailLocalState } from '../utils/localMailState'
 import { apiSyncInboxAccount } from '@/services/InboxService'
 
@@ -267,9 +273,20 @@ const MailList = () => {
             typeof remoteMailboxCount === 'number' &&
             remoteMailboxCount > 0
         ) {
-            historyParts.push(`${localMailboxCount ?? mails.length}/${remoteMailboxCount}`)
+            historyParts.push(
+                t('crm.mail.syncedMessagesCount', {
+                    defaultValue: 'Mensajes sincronizados {{local}}/{{remote}}',
+                    local: localMailboxCount ?? mails.length,
+                    remote: remoteMailboxCount,
+                }),
+            )
         } else if ((localMailboxCount ?? mails.length) > 0) {
-            historyParts.push(String(localMailboxCount ?? mails.length))
+            historyParts.push(
+                t('crm.mail.syncedMessagesSingleCount', {
+                    defaultValue: 'Mensajes sincronizados {{count}}',
+                    count: localMailboxCount ?? mails.length,
+                }),
+            )
         }
         if (
             mailboxSyncMeta &&
@@ -323,6 +340,62 @@ const MailList = () => {
 
     const navigate = useNavigate()
     const location = useLocation()
+    const queryAccountId = useMemo(() => {
+        const params = new URLSearchParams(location.search)
+        return params.get('account')?.trim() ?? ''
+    }, [location.search])
+    const queryMailboxId = useMemo(() => {
+        const params = new URLSearchParams(location.search)
+        return params.get('mailbox')?.trim() ?? ''
+    }, [location.search])
+    const hasRealMailboxContext = hasRealMailboxSelection({
+        accountId: selectedInboxAccountId || queryAccountId,
+        mailboxId: selectedInboxMailboxId || queryMailboxId,
+    })
+    const isInboxCategory =
+        isInboxCategorySelection(selectedCategory) || hasRealMailboxContext
+
+    useEffect(() => {
+        if (!queryAccountId) {
+            return
+        }
+        if (selectedInboxAccountId !== queryAccountId) {
+            dispatch(
+                setSelectedInboxContext({
+                    accountId: queryAccountId,
+                    mailboxId: queryMailboxId || undefined,
+                }),
+            )
+            return
+        }
+        if (queryMailboxId && selectedInboxMailboxId !== queryMailboxId) {
+            dispatch(setSelectedInboxMailbox(queryMailboxId))
+        }
+    }, [
+        dispatch,
+        queryAccountId,
+        queryMailboxId,
+        selectedInboxAccountId,
+        selectedInboxMailboxId,
+    ])
+
+    useEffect(() => {
+        if (
+            !queryMailboxId ||
+            !queryAccountId ||
+            selectedInboxAccountId !== queryAccountId ||
+            selectedInboxMailboxId === queryMailboxId
+        ) {
+            return
+        }
+        dispatch(setSelectedInboxMailbox(queryMailboxId))
+    }, [
+        dispatch,
+        queryAccountId,
+        queryMailboxId,
+        selectedInboxAccountId,
+        selectedInboxMailboxId,
+    ])
 
     const fetchData = (data: { category: string }) => {
         dispatch(getMails(data))
@@ -336,15 +409,14 @@ const MailList = () => {
         const path = location.pathname.substring(
             location.pathname.lastIndexOf('/') + 1,
         )
-        const category = { category: path }
-
-        if (path === 'mail') {
-            category.category = 'inbox'
+        if (path === 'inbox' || path === 'mail' || hasRealMailboxContext) {
+            return
         }
 
+        const category = { category: path }
         fetchData(category)
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [location.pathname])
+    }, [hasRealMailboxContext, location.pathname])
 
     useEffect(() => {
         if (!selectedInboxAccountId || !selectedInboxMailboxId) {
@@ -508,7 +580,7 @@ const MailList = () => {
     }
 
     const aggregatedMails = useMemo<AggregatedMail[]>(() => {
-        if (selectedCategory.category === 'inbox') {
+        if (isInboxCategory) {
             return mails.map((mail) => ({
                 ...mail,
                 conversationMailIds: [mail.id],
@@ -683,7 +755,7 @@ const MailList = () => {
                 flagged: hasFlagged,
             }),
         )
-    }, [mails, selectedCategory.category])
+    }, [isInboxCategory, mails])
 
     const sortedMails = useMemo(() => {
         const clone = [...aggregatedMails]
@@ -691,8 +763,31 @@ const MailList = () => {
         return clone
     }, [aggregatedMails])
 
+    const visibleThreadsLabel = useMemo(() => {
+        if (!selectedInboxAccountId || !selectedInboxMailboxId) {
+            return null
+        }
+        return t('crm.mail.visibleThreadsCount', {
+            defaultValue: 'Hilos visibles {{count}}',
+            count: sortedMails.length,
+        })
+    }, [selectedInboxAccountId, selectedInboxMailboxId, sortedMails.length, t])
+
     const onMailClick = (e: MouseEvent<HTMLDivElement>, mail: AggregatedMail) => {
         e.stopPropagation()
+        const conversationId =
+            (mail as { conversationId?: string | null }).conversationId ??
+            ((mail.metadata as Record<string, unknown> | null)?.conversationId as
+                | string
+                | null
+                | undefined) ??
+            null
+
+        if (conversationId) {
+            navigate(`/app/crm/conversations/${conversationId}`)
+            return
+        }
+
         const unreadIds = mail.conversationMailIds.filter((sourceId) => {
             const entry = mails.find((item) => item.id === sourceId)
             return entry?.isRead === false
@@ -718,7 +813,9 @@ const MailList = () => {
         })
         dispatch(updateMailId(mail.id))
         dispatch(updateReply(false))
-        navigate(`${location.pathname}?mail=${mail.id}`, { replace: true })
+        const params = new URLSearchParams(location.search)
+        params.set('mail', String(mail.id))
+        navigate(`${location.pathname}?${params.toString()}`, { replace: true })
     }
 
     return (
@@ -753,6 +850,11 @@ const MailList = () => {
                             {syncStatusDetail ? (
                                 <div className="text-[11px] text-gray-500 dark:text-gray-400">
                                     {syncStatusDetail}
+                                </div>
+                            ) : null}
+                            {visibleThreadsLabel ? (
+                                <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                                    {visibleThreadsLabel}
                                 </div>
                             ) : null}
                         </div>
@@ -804,11 +906,25 @@ const MailList = () => {
                                 {historySyncError}
                             </div>
                         ) : null}
-                        {sortedMails.length === 0 && !loading && selectedMessagesStatus !== 'failed' && (
+                        {!selectedInboxAccountId || !selectedInboxMailboxId ? (
+                            <div
+                                className="px-6 py-4 text-sm text-gray-500"
+                                data-testid="admin-inbox-select-account"
+                            >
+                                {t('crm.mail.loadingMailboxContext', {
+                                    defaultValue: 'Resolviendo cuenta y buzón...',
+                                })}
+                            </div>
+                        ) : null}
+                        {sortedMails.length === 0 &&
+                        !loading &&
+                        selectedMessagesStatus !== 'failed' &&
+                        selectedInboxAccountId &&
+                        selectedInboxMailboxId ? (
                             <div className="px-6 py-4 text-sm text-gray-500" data-testid="admin-inbox-empty">
                                 {t('crm.mail.noMails', { defaultValue: 'No messages yet.' })}
                             </div>
-                        )}
+                        ) : null}
                         {sortedMails.map((mail) => {
                             const latestMessage = mail.message?.[0]
                             const attachments =

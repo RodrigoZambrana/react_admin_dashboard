@@ -75,6 +75,7 @@ export type InboxThreadSummaryDto = {
     accountId: string
     mailbox: string
     canonicalThreadKey: string
+    conversationId?: string | null
     subject?: string | null
     previewText?: string | null
     snippet?: string | null

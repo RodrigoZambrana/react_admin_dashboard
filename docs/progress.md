@@ -46,6 +46,11 @@ The AI foundation now includes:
 - the messaging migration strategy is now inverted:
   - the new template-driven inbox becomes the principal admin conversations route
   - the existing conversations surface remains available in parallel as `Conversations V2` until the migration is accepted and the previous view can be removed
+- operator read/unread state is now persisted in backend per conversation and operator
+- conversation pinning is now moving to backend as a shared team signal instead of staying only in local UI storage
+- message-level actions are now staged in `docs/messaging-actions-roadmap.md` so reactions/favorites/attachments/edit/delete can be introduced later without breaking canonical provider integration
+- the legacy `Mail` route is now treated as a compatibility entry point that should resolve to canonical conversation detail whenever a thread is already linked to the conversation hub
+- the admin `Mail` surface now preserves `account`, `mailbox` and `mail` together in the URL instead of dropping mailbox context when a thread is opened
 
 ## This Iteration Focus
 
@@ -86,8 +91,53 @@ The AI foundation now includes:
 - completed impact analysis of the external `dreamschat-v2.8.4` messaging template for future admin/storefront reuse decisions
 - started the parallel `Conversations`/`Conversations V2` migration strategy so the new layout can move forward without overwriting the current operational view immediately
 - copied the required chat visual assets from the external template into the current repo under `frontend/public/mock/dreamschat`
+- stabilized the real admin `Mail` inbox flow:
+  - fixed inbox-category detection so the real inbox path is handled as canonical inbox state
+  - fixed thread opening so selecting a mail preserves `account + mailbox` in the URL
+  - clarified the status line by separating synced-message counts from visible thread counts
+  - added frontend regression coverage for inbox category handling and a Playwright smoke over the real-account inbox detail flow
 - switched the principal admin conversations route to the new template-driven React reimplementation while keeping the previous view available as `Conversations V2`
 - validated the new principal route against local image/audio/video/attachment assets with passing E2E coverage
+- corrected the new principal route so conversation selection stays under `/app/crm/conversations/:conversationId` instead of bouncing back to the legacy path
+- advanced the template parity pass in the principal admin chat route:
+  - list row states and unread cues
+  - chat header action sequence
+  - composer structure aligned to the template `chat-footer-wrap`
+  - detail offcanvas closer to the original contact-profile panel
+- added a stronger operational header to the new principal chat route:
+  - in-chat search toggle and search field
+  - global new internal chat flow from the principal surface
+  - stable reply path from the selected conversation
+- reintroduced channel and inbox navigation into the new principal inbox flow through a dedicated directory drawer, while keeping the icon rail available for mobile and desktop navigation
+- aligned the new principal route with existing admin conversation test selectors so migration can continue without losing regression coverage
+- promoted `Mensajes` as the canonical global admin navigation entry for the new conversation route
+- replaced the old ad-hoc icon strip with a template-style contextual rail in the principal messaging route:
+  - chats
+  - new chat
+  - channels/inboxes
+  - email inbox
+  - refresh
+  - filters
+  - AI settings
+  - return to general admin flow
+- kept the contextual messaging rail available in mobile through the existing list drawer so the same action model survives across breakpoints
+- expanded regression coverage for the new messaging route:
+  - added `admin-messaging-regression.spec.ts` covering filters drawer presence, shared pin, reply flow, read/unread menu contract and navigation to `Mail`
+  - aligned `admin-conversations.spec.ts` and `admin-conversation-actions.spec.ts` with the current template-driven UI
+  - restored stable `data-testid` hooks for detail open, handoff notes, takeover, release and assignee summary
+  - validated a green messaging block with `admin-messaging-regression`, `admin-conversations`, `admin-conversation-actions` and `admin-mail-inbox-real-account`
+- search-result matching inside the filters drawer is intentionally not a hard E2E acceptance contract yet; only the filter controls and reset/apply flow are being locked down until backend search semantics are more stable
+- promoted ownership visibility in the new admin inbox:
+  - each conversation now shows whether it is currently under `Agente IA` or an `Administrador`
+  - the active conversation header also exposes the current owner state
+- added bulk owner operations in the admin inbox list so operators can take control or return multiple chats to AI from the same surface
+- fixed the active-conversation read-state loop so `Marcar como no leído` no longer gets auto-reverted immediately by the detail view
+- hardened pin regression coverage to validate both pin and unpin on the new template-driven route
+- fixed real mailbox handling for non-`INBOX` folders so `Sent`, `Junk` and similar account mailboxes stay in the real inbox flow instead of falling back into legacy category fetches
+- added a strict E2E contract for admin messaging search matching in `admin-messaging-search-matching.spec.ts`
+- improved mobile messaging ergonomics:
+  - composer now leaves space for the contextual bottom nav
+  - new-message dialog stays within a normal popup footprint
 
 ## Risks Being Managed
 
@@ -120,6 +170,10 @@ The AI foundation now includes:
    - canonical thread grouping
    - read/reply over backend-first thread list
    - message types rendered cleanly in transcript
+   - exact list/header/composer/detail parity against the template-driven route
+   - keep global navigation coherent:
+     - `Mensajes` in the admin menu
+     - contextual messaging rail inside the section
 2. Run exploratory testing on the admin messaging surfaces and capture changes/needs
 3. Keep `ownership / routing / SLA` as documented follow-up recommendations after exploratory validation
 4. Execute `P0` endpoint hardening audit before broader channel expansion

@@ -115,6 +115,7 @@ type ThreadSummaryDto = {
   accountId: string
   mailbox: string
   canonicalThreadKey: string
+  conversationId?: string | null
   subject?: string | null
   previewText?: string | null
   snippet?: string | null
@@ -372,6 +373,12 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
             name: true,
           },
         },
+        conversationMessages: {
+          select: {
+            conversationId: true,
+          },
+          take: 1,
+        },
       },
       take: 5000,
     })
@@ -419,6 +426,8 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
           accountId: summary.accountId,
           mailbox,
           canonicalThreadKey: threadKey,
+          conversationId:
+            record.conversationMessages[0]?.conversationId ?? null,
           subject: summary.subject ?? null,
           previewText: summary.previewText ?? null,
           snippet: summary.snippet ?? null,
@@ -442,6 +451,10 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
 
       existing.messages.push(threadMessage)
       existing.messageCount += 1
+      existing.conversationId =
+        existing.conversationId ??
+        record.conversationMessages[0]?.conversationId ??
+        null
       existing.isRead = existing.isRead && summary.isRead
       existing.isStarred = existing.isStarred || summary.isStarred
       existing.isSpam = existing.isSpam || summary.isSpam

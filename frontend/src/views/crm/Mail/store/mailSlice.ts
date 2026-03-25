@@ -64,6 +64,7 @@ export type Mail = {
     messageUid?: string | null
     threadRemoteId?: string | null
     canonicalThreadKey?: string | null
+    conversationId?: string | null
     remoteId?: string | null
     queueId?: string | null
     queueSlug?: string | null
@@ -290,6 +291,7 @@ const buildMailFromInboxThread = (
         messageUid: null,
         threadRemoteId: thread.threadRemoteId ?? null,
         canonicalThreadKey: thread.canonicalThreadKey,
+        conversationId: thread.conversationId ?? null,
         remoteId: thread.latestRemoteId ?? thread.id,
         queueId: null,
         queueSlug: null,
@@ -304,6 +306,7 @@ const buildMailFromInboxThread = (
             accountId: thread.accountId,
             mailbox: thread.mailbox,
             canonicalThreadKey: thread.canonicalThreadKey,
+            conversationId: thread.conversationId ?? null,
             messageCount: thread.messageCount,
             latestMessageId: thread.latestMessageId ?? null,
         },
@@ -923,6 +926,29 @@ const mailSlice = createSlice({
             state.selectedCategory = action.payload
             state.mailList = []
             state.mailListLoading = true
+        },
+        setSelectedInboxContext: (
+            state,
+            action: PayloadAction<{
+                accountId?: string
+                mailboxId?: string
+            }>,
+        ) => {
+            const nextAccountId = action.payload.accountId
+            const nextMailboxId = action.payload.mailboxId
+            if (
+                state.inbox.selectedAccountId === nextAccountId &&
+                state.inbox.selectedMailboxId === nextMailboxId
+            ) {
+                return
+            }
+            state.inbox.selectedAccountId = nextAccountId
+            state.inbox.selectedMailboxId = nextMailboxId
+            state.mailList = []
+            state.mailListLoading = true
+            state.mailLoading = false
+            state.mail = {}
+            state.selectedMailId = ''
         },
         setSelectedInboxAccount: (state, action) => {
             if (state.inbox.selectedAccountId === action.payload) {
@@ -1545,6 +1571,7 @@ export const {
     toggleMobileSidebar,
     toggleNewMessageDialog,
     updateSelectedCategory,
+    setSelectedInboxContext,
     setSelectedInboxAccount,
     setSelectedInboxMailbox,
     ingestInboxEvent,

@@ -142,6 +142,9 @@ Rule:
    - complete/partial visibility and thread readability
    - read/reply over the canonical thread list
    - transcript rendering for text, attachment, image and audio with the new layout language
+   - exact parity pass on list, header, composer and detail drawer in the principal route
+   - keep `Mensajes` as the global entry point while the contextual messaging rail drives in-section actions
+   - keep global new-chat, in-chat search and channels/inboxes navigation stable during migration
 2. Run exploratory testing on admin messaging and capture gaps
 3. Apply the visual closure pass for admin messaging using the external template as design reference only
 4. Keep `ownership / routing / SLA` as the next hardening layer after exploratory validation:
