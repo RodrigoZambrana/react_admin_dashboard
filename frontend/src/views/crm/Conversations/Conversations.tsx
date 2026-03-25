@@ -12,6 +12,7 @@ import {
     HiOutlinePaperAirplane,
     HiOutlineArrowLeft,
     HiOutlineMenuAlt2,
+    HiOutlineReply,
 } from 'react-icons/hi'
 import ConversationsService, {
     type ConversationDetail,
@@ -1199,7 +1200,7 @@ const Conversations = () => {
                                             shape="circle"
                                             size="sm"
                                             variant="default"
-                                            icon={<HiOutlinePaperAirplane />}
+                                            icon={<HiOutlineReply />}
                                             onClick={() => {
                                                 const input =
                                                     document.querySelector<HTMLInputElement>(
