@@ -126,6 +126,28 @@ const baseAppsRoute: Routes = [
         },
     },
     {
+        key: 'appsCrm.conversations',
+        path: `${APP_PREFIX_PATH}/crm/conversations`,
+        component: lazy(() => import('@/views/crm/Conversations')),
+        authority: getRolesForFeature(FEATURES.CUSTOMERS),
+        meta: {
+            pageContainerType: 'gutterless',
+            footer: false,
+            header: 'Conversations',
+        },
+    },
+    {
+        key: 'appsCrm.conversationDetails',
+        path: `${APP_PREFIX_PATH}/crm/conversations/:conversationId`,
+        component: lazy(() => import('@/views/crm/Conversations')),
+        authority: getRolesForFeature(FEATURES.CUSTOMERS),
+        meta: {
+            pageContainerType: 'gutterless',
+            footer: false,
+            header: 'Conversations',
+        },
+    },
+    {
         key: 'appsSales.dashboard',
         path: `${APP_PREFIX_PATH}/sales/dashboard`,
         component: lazy(() => import('@/views/sales/SalesDashboard')),
@@ -171,6 +193,15 @@ const baseAppsRoute: Routes = [
         authority: getRolesForFeature(FEATURES.SETTINGS),
         meta: {
             header: 'QA Center',
+        },
+    },
+    {
+        key: 'appsSettings.ai',
+        path: `${APP_PREFIX_PATH}/settings/ai`,
+        component: lazy(() => import('@/views/settings/AiRuntimeSettings')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'AI Runtime',
         },
     },
     ...(hasParametricProducts

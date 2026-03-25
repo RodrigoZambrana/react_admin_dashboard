@@ -4,6 +4,8 @@ import { getStorefrontConfig } from "@/lib/storefront-config";
 import { StorefrontSessionProvider } from "@/state/session-context";
 import { WishlistProvider } from "@/state/wishlist-context";
 import { StorefrontCurrencyProvider } from "@/state/currency-context";
+import { WebchatProvider } from "@/state/webchat-context";
+import WebchatRoot from "@/components/ai-chat/WebchatRoot";
 
 import { StorefrontConfigProvider } from "./storefront-context";
 
@@ -25,7 +27,12 @@ export default async function StorefrontLayout({ children }: StorefrontLayoutPro
     <StorefrontConfigProvider config={clientConfig}>
       <StorefrontSessionProvider>
         <StorefrontCurrencyProvider>
-          <WishlistProvider>{children}</WishlistProvider>
+          <WishlistProvider>
+            <WebchatProvider>
+              {children}
+              <WebchatRoot />
+            </WebchatProvider>
+          </WishlistProvider>
         </StorefrontCurrencyProvider>
       </StorefrontSessionProvider>
     </StorefrontConfigProvider>

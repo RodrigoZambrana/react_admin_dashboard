@@ -1,0 +1,135 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common'
+import type { FastifyRequest } from 'fastify'
+import { ConfigService } from '@nestjs/config'
+import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { Roles, ROLES } from '../auth/roles.decorator'
+import { RolesGuard } from '../auth/roles.guard'
+import { ConversationsService } from './conversations.service'
+import { ListConversationsDto } from './dto/list-conversations.dto'
+import { CreateWebchatSessionDto } from './dto/create-webchat-session.dto'
+import { ReplyConversationDto } from './dto/reply-conversation.dto'
+import { AssignConversationDto } from './dto/assign-conversation.dto'
+import { ConversationHandoffDto } from './dto/conversation-handoff.dto'
+import { CreateWebchatMessageDto } from './dto/create-webchat-message.dto'
+import { AgentReplyDto } from './dto/agent-reply.dto'
+import { DispatchWebchatMessageDto } from './dto/dispatch-webchat-message.dto'
+
+@Controller('conversations')
+export class ConversationsController {
+  constructor(
+    private readonly conversations: ConversationsService,
+    private readonly config: ConfigService,
+  ) {}
+
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  list(@Query() query: ListConversationsDto) {
+    return this.conversations.listConversations(query)
+  }
+
+  @Get('inboxes')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  listInboxes() {
+    return this.conversations.listInboxes()
+  }
+
+  @Get(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  async getById(@Param('id') id: string) {
+    const conversation = await this.conversations.getConversation(id)
+    if (!conversation) {
+      throw new NotFoundException('conversation.notFound')
+    }
+    return conversation
+  }
+
+  @Post('webchat/session')
+  createWebchatSession(@Body() dto: CreateWebchatSessionDto) {
+    return this.conversations.createWebchatSession(dto)
+  }
+
+  @Post('webchat/message')
+  createWebchatMessage(@Body() dto: CreateWebchatMessageDto) {
+    return this.conversations.createWebchatMessage(dto)
+  }
+
+  @Post('webchat/dispatch')
+  dispatchWebchatMessage(@Body() dto: DispatchWebchatMessageDto) {
+    return this.conversations.dispatchWebchatMessage(dto)
+  }
+
+  @Post(':id/takeover')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  takeover(
+    @Param('id') id: string,
+    @Body() dto: ConversationHandoffDto,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.takeoverConversation(id, Number(req.user?.sub), dto)
+  }
+
+  @Post(':id/release')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  release(
+    @Param('id') id: string,
+    @Body() dto: ConversationHandoffDto,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.releaseConversation(id, Number(req.user?.sub), dto)
+  }
+
+  @Post(':id/assign')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  assign(
+    @Param('id') id: string,
+    @Body() dto: AssignConversationDto,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.assignConversation(id, dto, Number(req.user?.sub))
+  }
+
+  @Post(':id/reply')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  reply(
+    @Param('id') id: string,
+    @Body() dto: ReplyConversationDto,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.replyAsOperator(id, dto, Number(req.user?.sub))
+  }
+
+  @Post(':id/agent-reply')
+  async replyAsAgent(
+    @Param('id') id: string,
+    @Body() dto: AgentReplyDto,
+    @Headers('x-ai-internal-token') token?: string,
+  ) {
+    const expectedToken =
+      this.config.get<string>('AI_INTERNAL_TOKEN') ||
+      'local-ai-internal-token'
+
+    if (!token || token !== expectedToken) {
+      throw new NotFoundException('conversation.notFound')
+    }
+
+    return this.conversations.replyAsAgent(id, dto)
+  }
+}

@@ -4,6 +4,8 @@ secrets into the following files before running Docker Compose:
 - `backend.dev.env` / `frontend.dev.env` / `storefront.dev.env` (desarrollo local)
 - `backend.testing.env` / `frontend.testing.env` / `storefront.testing.env`
 - `backend.prod.env` / `frontend.prod.env` / `storefront.prod.env`
+- `ai-agent.dev.env` / `channel-adapter.dev.env` (stack AI opcional)
+- `ai-agent.prod.env` / `channel-adapter.prod.env`
 
 Every environment has a matching `.example` file with the full list of required keys.
 Bootstrap the real files by copying the examples and completing the values:
@@ -18,6 +20,10 @@ cp deploy/env/storefront.testing.env.example deploy/env/storefront.testing.env
 cp deploy/env/backend.prod.env.example deploy/env/backend.prod.env
 cp deploy/env/frontend.prod.env.example deploy/env/frontend.prod.env
 cp deploy/env/storefront.prod.env.example deploy/env/storefront.prod.env
+cp deploy/env/ai-agent.dev.env.example deploy/env/ai-agent.dev.env
+cp deploy/env/channel-adapter.dev.env.example deploy/env/channel-adapter.dev.env
+cp deploy/env/ai-agent.prod.env.example deploy/env/ai-agent.prod.env
+cp deploy/env/channel-adapter.prod.env.example deploy/env/channel-adapter.prod.env
 ```
 
 Update the copied files with the values that apply to your environment.
@@ -40,6 +46,15 @@ archivos de entorno. El frontend controla además variables de Vite como
 
 Run `node scripts/check-env.mjs` to validate that all `.env` files contain the keys
 declared in `env.schema.json` before building or deploying.
+
+AI optional stack
+- the AI stack should be enabled as an overlay, not mixed directly into the base compose
+- use `deploy/docker-compose.ai-agent.yml` as the starting point
+- Redis should be enabled from the first AI-capable stack execution
+- keep Postgres outside this overlay, as it is today, so database lifecycle, backup and recovery remain independent
+- production should run with Redis using:
+  - `AI_MEMORY_DRIVER=redis`
+  - `REDIS_ENABLED=true`
 
 Backend + Prisma migration flow
 - Local outside Docker:

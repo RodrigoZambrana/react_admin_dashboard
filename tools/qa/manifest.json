@@ -4,11 +4,13 @@
     "storefront-e2e-critical",
     "storefront-e2e-auth-content",
     "storefront-e2e-admin-cross-project",
+    "storefront-e2e-ai-conversations",
     "storefront-e2e-account-notifications",
     "storefront-e2e-account-checkout",
     "backend-domain-core",
     "backend-domain-extended",
     "frontend-admin-extended",
+    "ai-runtime-smoke",
     "quality-static"
   ],
   "blocks": [
@@ -53,11 +55,33 @@
         "test:e2e",
         "--",
         "admin-signin-smoke.spec.ts",
+        "admin-ai-settings.spec.ts",
+        "admin-conversations.spec.ts",
+        "admin-conversation-actions.spec.ts",
         "admin-order-detail-cross-project.spec.ts",
         "admin-commercial-surfaces.spec.ts"
       ],
       "estimatedMinutes": 6,
       "tags": ["cross-project", "admin", "storefront", "backend", "e2e"]
+    },
+    {
+      "id": "storefront-e2e-ai-conversations",
+      "name": "AI Conversations E2E",
+      "description": "Widget webchat en storefront y handoff humano/AI en la vista unificada de conversaciones.",
+      "kind": "e2e",
+      "cwd": "ecommerce",
+      "command": [
+        "npm",
+        "run",
+        "test:e2e",
+        "--",
+        "storefront-webchat.spec.ts",
+        "admin-ai-settings.spec.ts",
+        "admin-conversations.spec.ts",
+        "admin-conversation-actions.spec.ts"
+      ],
+      "estimatedMinutes": 6,
+      "tags": ["ai", "conversations", "webchat", "admin", "cross-project", "e2e"]
     },
     {
       "id": "storefront-e2e-account-checkout",
@@ -122,6 +146,7 @@
         "--",
         "src/orders/__tests__/order-finance.service.spec.ts",
         "src/orders/__tests__/order-stock-integrity.service.spec.ts",
+        "src/conversations/__tests__/conversations.service.spec.ts",
         "src/storefront/oauth/__tests__/google-oauth.service.spec.ts",
         "src/sales/utils/pricing.spec.ts",
         "src/common/privacy/__tests__/masking.spec.ts",
@@ -162,6 +187,21 @@
       ],
       "estimatedMinutes": 2,
       "tags": ["admin", "frontend", "unit", "crm", "identifiers"]
+    },
+    {
+      "id": "ai-runtime-smoke",
+      "name": "AI Runtime Smoke",
+      "description": "Valida Redis y los servicios base del stack AI levantados por Docker.",
+      "kind": "quality",
+      "cwd": ".",
+      "steps": [
+        { "cwd": ".", "command": ["docker", "exec", "dashboard-redis-dev", "redis-cli", "ping"] },
+        { "cwd": ".", "command": ["docker", "exec", "dashboard-ai-agent-dev", "wget", "-q", "-O", "-", "http://127.0.0.1:4100/health"] },
+        { "cwd": ".", "command": ["docker", "exec", "dashboard-channel-adapter-dev", "wget", "-q", "-O", "-", "http://127.0.0.1:4200/health"] },
+        { "cwd": ".", "command": ["docker", "exec", "dashboard-channel-adapter-dev", "wget", "-q", "-O", "-", "http://127.0.0.1:4200/channels"] }
+      ],
+      "estimatedMinutes": 1,
+      "tags": ["ai", "redis", "docker", "smoke"]
     },
     {
       "id": "quality-static",

@@ -129,6 +129,74 @@ enum InboxMessageEventType {
   ERROR
 }
 
+enum ConversationScope {
+  CUSTOMER_PUBLIC
+  ADMIN_INTERNAL
+}
+
+enum ConversationChannel {
+  WEBCHAT
+  EMAIL
+  WHATSAPP
+  FACEBOOK
+  INSTAGRAM
+  ADMIN_CHAT
+}
+
+enum ConversationControlMode {
+  AI
+  HUMAN
+  HYBRID
+}
+
+enum ConversationStatus {
+  OPEN
+  CLOSED
+  WAITING_CUSTOMER
+  WAITING_INTERNAL
+}
+
+enum ConversationParticipantRole {
+  CUSTOMER
+  OPERATOR
+  AGENT
+  SYSTEM
+}
+
+enum ConversationMessageAuthorType {
+  CUSTOMER
+  OPERATOR
+  AGENT
+  SYSTEM
+}
+
+enum ConversationMessageKind {
+  TEXT
+  EMAIL
+  IMAGE
+  FILE
+  SYSTEM_EVENT
+  TOOL_RESULT
+}
+
+enum ConversationToolCallStatus {
+  REQUESTED
+  VALIDATED
+  REJECTED
+  CONFIRMED
+  EXECUTED
+  FAILED
+}
+
+enum ConversationHandoffEventType {
+  HUMAN_TAKEOVER
+  HUMAN_RELEASE
+  AI_SUGGEST_ONLY
+  AI_RESUME
+  ASSIGNED
+  UNASSIGNED
+}
+
 enum EmailCategory {
   ORDERS
   PAYMENTS
@@ -285,6 +353,11 @@ model User {
   convertedOrders          Order[]                @relation("OrderConvertedBy")
   assignedProductionOrders ProductionOrder[]      @relation("ProductionOrderAssignedTo")
   passwordResetTokens      PasswordResetToken[]
+  assignedConversations    Conversation[]         @relation("ConversationAssignedOperator")
+  conversationParticipants ConversationParticipant[] @relation("ConversationParticipantUser")
+  authoredConversationMessages ConversationMessage[] @relation("ConversationMessageAuthorUser")
+  conversationHandoffEvents ConversationHandoffEvent[] @relation("ConversationHandoffActorUser")
+  requestedConversationToolCalls ConversationToolCall[] @relation("ConversationToolRequestedByUser")
 }
 
 model UserDevice {
@@ -356,6 +429,9 @@ model Customer {
   status                        CustomerStatus?         @relation(fields: [statusId], references: [id], onDelete: SetNull)
   wishlist                      Wishlist?
   oauthAccounts                 CustomerOAuthAccount[]
+  conversations                 Conversation[]          @relation("ConversationCustomer")
+  conversationParticipants      ConversationParticipant[] @relation("ConversationParticipantCustomer")
+  authoredConversationMessages  ConversationMessage[]   @relation("ConversationMessageAuthorCustomer")
 }
 
 model CustomerEmailVerificationToken {
@@ -1285,6 +1361,7 @@ model InboxAccount {
   updatedAt   DateTime         @updatedAt
   messages    InboxMessage[]
   syncStates  InboxSyncState[]
+  conversations Conversation[] @relation("ConversationInboxAccount")
 
   @@unique([channel, address])
 }
@@ -1321,6 +1398,7 @@ model InboxMessage {
   metadata         Json?
   attachments      InboxAttachment[]
   events           InboxMessageEvent[]
+  conversationMessages ConversationMessage[] @relation("ConversationMessageInboxMessage")
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
@@ -1380,6 +1458,126 @@ model InboxMessageEvent {
   occurredAt DateTime              @default(now())
 
   @@index([messageId, occurredAt])
+}
+
+model Conversation {
+  id                 String                   @id @default(cuid())
+  tenantKey          String
+  scope              ConversationScope
+  channel            ConversationChannel
+  status             ConversationStatus       @default(OPEN)
+  controlMode        ConversationControlMode  @default(AI)
+  subject            String?
+  customerId         Int?
+  customer           Customer?                @relation("ConversationCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  assignedToUserId   Int?
+  assignedToUser     User?                    @relation("ConversationAssignedOperator", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  inboxAccountId     String?
+  inboxAccount       InboxAccount?            @relation("ConversationInboxAccount", fields: [inboxAccountId], references: [id], onDelete: SetNull)
+  externalUserId     String?
+  externalThreadId   String?
+  externalChannelRef String?
+  metadata           Json?
+  lastMessageAt      DateTime?
+  lastInboundAt      DateTime?
+  lastOutboundAt     DateTime?
+  closedAt           DateTime?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  participants       ConversationParticipant[]
+  messages           ConversationMessage[]
+  handoffEvents      ConversationHandoffEvent[]
+  toolCalls          ConversationToolCall[]
+
+  @@index([tenantKey, scope, channel, status])
+  @@index([assignedToUserId, status, lastMessageAt])
+  @@index([customerId, lastMessageAt])
+  @@index([inboxAccountId, channel, lastMessageAt])
+  @@unique([tenantKey, channel, externalThreadId])
+}
+
+model ConversationParticipant {
+  id             String                      @id @default(cuid())
+  conversationId String
+  conversation   Conversation                @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           ConversationParticipantRole
+  userId         Int?
+  user           User?                       @relation("ConversationParticipantUser", fields: [userId], references: [id], onDelete: SetNull)
+  customerId     Int?
+  customer       Customer?                   @relation("ConversationParticipantCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  externalUserId String?
+  displayName    String?
+  metadata       Json?
+  createdAt      DateTime                    @default(now())
+
+  @@index([conversationId, role])
+  @@index([userId])
+  @@index([customerId])
+}
+
+model ConversationMessage {
+  id                String                        @id @default(cuid())
+  conversationId    String
+  conversation      Conversation                  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  authorType        ConversationMessageAuthorType
+  kind              ConversationMessageKind       @default(TEXT)
+  authorUserId      Int?
+  authorUser        User?                         @relation("ConversationMessageAuthorUser", fields: [authorUserId], references: [id], onDelete: SetNull)
+  authorCustomerId  Int?
+  authorCustomer    Customer?                     @relation("ConversationMessageAuthorCustomer", fields: [authorCustomerId], references: [id], onDelete: SetNull)
+  externalMessageId String?
+  inboxMessageId    String?
+  inboxMessage      InboxMessage?                 @relation("ConversationMessageInboxMessage", fields: [inboxMessageId], references: [id], onDelete: SetNull)
+  body              String?
+  normalizedText    String?
+  payload           Json?
+  metadata          Json?
+  sentAt            DateTime?
+  receivedAt        DateTime?
+  createdAt         DateTime                      @default(now())
+  toolCalls         ConversationToolCall[]
+
+  @@index([conversationId, createdAt])
+  @@index([externalMessageId])
+  @@index([inboxMessageId])
+}
+
+model ConversationHandoffEvent {
+  id             String                   @id @default(cuid())
+  conversationId String
+  conversation   Conversation             @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  type           ConversationHandoffEventType
+  actorUserId    Int?
+  actorUser      User?                    @relation("ConversationHandoffActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  previousMode   ConversationControlMode?
+  nextMode       ConversationControlMode?
+  notes          String?
+  metadata       Json?
+  createdAt      DateTime                 @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+model ConversationToolCall {
+  id                String                   @id @default(cuid())
+  conversationId    String
+  conversation      Conversation             @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  messageId         String?
+  message           ConversationMessage?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  toolName          String
+  status            ConversationToolCallStatus @default(REQUESTED)
+  requestedBy       ConversationMessageAuthorType
+  requestedByUserId Int?
+  requestedByUser   User?                    @relation("ConversationToolRequestedByUser", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  validatedPayload  Json?
+  resultPayload     Json?
+  errorCode         String?
+  errorMessage      String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@index([conversationId, status, createdAt])
+  @@index([messageId])
 }
 
 model EmailSetting {

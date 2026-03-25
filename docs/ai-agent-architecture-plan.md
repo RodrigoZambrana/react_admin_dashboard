@@ -88,6 +88,17 @@ Recommended new backend module:
 
 - `backend/src/conversations`
 
+Current foundation status:
+
+- Prisma `Conversation*` base models already added
+- `webchat/session` already persists conversation records
+- admin has an initial read model UI for list/detail
+- the next phase should focus on:
+  - takeover/release
+  - reply/send pipeline
+  - channel projection from inbox/email/Meta
+  - AI service integration on top of this canonical hub
+
 Responsibilities:
 
 - canonical conversation record
