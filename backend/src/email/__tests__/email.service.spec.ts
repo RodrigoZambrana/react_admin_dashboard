@@ -95,6 +95,7 @@ describe('EmailService', () => {
         id: 99,
         name: 'Jane Doe',
         email: 'jane@example.com',
+        emailVerifiedAt: new Date('2024-05-01T09:00:00Z'),
         phoneNumber: '+59899111222',
       },
       items: [
@@ -144,6 +145,7 @@ describe('EmailService', () => {
         id: 10,
         name: 'Sam Customer',
         email: 'sam@example.com',
+        emailVerifiedAt: new Date('2024-05-05T09:00:00Z'),
       },
       items: [{ name: 'Widget', qty: 1, price: 20 }],
       subTotal: 20,
@@ -158,6 +160,34 @@ describe('EmailService', () => {
     const adminMessage = extractMessage(queue.enqueue, 0)
     expect(adminMessage.recipientType).toBe(EmailRecipientType.ADMIN)
     expect(adminMessage.recipients[0].email).toBe('admin@example.com')
+  })
+
+  it('skips customer order emails when customer email is not verified', async () => {
+    const { service, prisma, queue } = createService()
+
+    prisma.order.findUnique.mockResolvedValue({
+      id: 70,
+      uuid: 'ORD-70',
+      date: new Date('2024-05-05T10:00:00Z'),
+      status: { name: 'Pending' },
+      customer: {
+        id: 10,
+        name: 'Sam Customer',
+        email: 'sam@example.com',
+        emailVerifiedAt: null,
+      },
+      items: [{ name: 'Widget', qty: 1, price: 20 }],
+      subTotal: 20,
+      tax: 0,
+      grandTotal: 20,
+      orderCurrency: 'USD',
+    })
+
+    await service.sendOrderReceived({ orderId: 70 })
+
+    expect(queue.enqueue).toHaveBeenCalledTimes(1)
+    const adminMessage = extractMessage(queue.enqueue, 0)
+    expect(adminMessage.recipientType).toBe(EmailRecipientType.ADMIN)
   })
 
   it('skips sending when category disabled', async () => {
@@ -186,6 +216,7 @@ describe('EmailService', () => {
           id: 5,
           name: 'Alex Smith',
           email: 'alex@example.com',
+          emailVerifiedAt: new Date('2024-05-01T09:00:00Z'),
           phoneNumber: '+59899888777',
           preferredLocale: 'es',
         },
@@ -250,6 +281,7 @@ describe('EmailService', () => {
           id: 8,
           name: 'Taylor Client',
           email: 'taylor@example.com',
+          emailVerifiedAt: new Date('2024-05-02T09:00:00Z'),
           phoneNumber: null,
           preferredLocale: 'en',
         },
@@ -277,6 +309,46 @@ describe('EmailService', () => {
       remainingRaw: 120,
       grandTotalRaw: 200,
     })
+  })
+
+  it('skips customer payment emails when customer email is not verified', async () => {
+    const { service, prisma, queue } = createService()
+
+    prisma.payment.findUnique.mockResolvedValue({
+      id: 15,
+      orderId: 56,
+      reference: 'MP-456',
+      order: {
+        id: 56,
+        uuid: 'ORD-56',
+        date: new Date('2024-05-02T10:00:00Z'),
+        customer: {
+          id: 8,
+          name: 'Taylor Client',
+          email: 'taylor@example.com',
+          emailVerifiedAt: null,
+          phoneNumber: null,
+          preferredLocale: 'en',
+        },
+        statusId: 200,
+        items: [{ name: 'Blind', qty: 1, price: 200, description: null }],
+        payments: [{ amount: 200, status: PaymentStatus.CONFIRMED }],
+        grandTotal: 200,
+        orderCurrency: 'USD',
+      },
+      paymentMethodId: 1,
+      amount: 200,
+      currency: 'USD',
+      method: 'VISA',
+      status: PaymentStatus.CONFIRMED,
+      date: new Date('2024-05-02T12:00:00Z'),
+    })
+
+    await service.sendPaymentReceived({ paymentId: 15 })
+
+    expect(queue.enqueue).toHaveBeenCalledTimes(1)
+    const adminMessage = extractMessage(queue.enqueue, 0)
+    expect(adminMessage.recipientType).toBe(EmailRecipientType.ADMIN)
   })
 
   it('sends password reset email with sanitized display name', async () => {

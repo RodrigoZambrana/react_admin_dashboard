@@ -809,24 +809,60 @@ export class MercadoPagoService implements OnModuleInit {
       })
     }
 
-    const created = await this.prisma.payment.create({
-      data: {
-        orderId,
-        paymentMethodId,
-        method: MERCADO_PAGO_PROVIDER,
-        amount: amount ?? decimal(0),
-        currency,
-        type: PaymentType.BALANCE,
-        status: mappedStatus,
-        reference: reference ?? undefined,
-        notes: intent.description ?? undefined,
-        metadata,
-      },
-    })
-    return this.paymentSettlement.apply({
-      paymentId: created.id,
-      previousPaymentStatus: null,
-    })
+    try {
+      const created = await this.prisma.payment.create({
+        data: {
+          orderId,
+          paymentMethodId,
+          method: MERCADO_PAGO_PROVIDER,
+          amount: amount ?? decimal(0),
+          currency,
+          type: PaymentType.BALANCE,
+          status: mappedStatus,
+          reference: reference ?? undefined,
+          notes: intent.description ?? undefined,
+          metadata,
+        },
+      })
+      return this.paymentSettlement.apply({
+        paymentId: created.id,
+        previousPaymentStatus: null,
+      })
+    } catch (error) {
+      if (
+        reference &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const concurrent = await this.prisma.payment.findFirst({
+          where: {
+            orderId,
+            reference,
+          },
+        })
+
+        if (concurrent) {
+          const previousStatus = concurrent.status
+          await this.prisma.payment.update({
+            where: { id: concurrent.id },
+            data: {
+              amount: amount ?? concurrent.amount,
+              currency: currency ?? concurrent.currency,
+              status: mappedStatus,
+              notes: intent.description ?? concurrent.notes,
+              metadata,
+            },
+          })
+
+          return this.paymentSettlement.apply({
+            paymentId: concurrent.id,
+            previousPaymentStatus: previousStatus,
+          })
+        }
+      }
+
+      throw error
+    }
   }
 
   private ensurePaymentMethod(): number {

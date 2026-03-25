@@ -92,7 +92,9 @@ export interface StorefrontAddressInput {
   street: string;
   number: string;
   city: string;
+  department: string;
   country: string;
+  neighborhood?: string | null;
   label?: string | null;
   corner?: string | null;
   apartment?: string | null;

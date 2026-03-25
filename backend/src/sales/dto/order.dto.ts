@@ -94,7 +94,22 @@ export class AddressDto {
   @IsOptional()
   @IsString()
   @IsSafeString()
+  department?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
   state?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  neighborhood?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  country?: string
 
   // Atomic fields mapping to address lines
   @IsOptional()

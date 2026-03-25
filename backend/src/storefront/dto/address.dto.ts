@@ -16,7 +16,16 @@ export class StorefrontAddressDto {
 
   @IsString()
   @MaxLength(120)
+  department!: string
+
+  @IsString()
+  @MaxLength(120)
   country!: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  neighborhood?: string | null
 
   @IsOptional()
   @IsString()

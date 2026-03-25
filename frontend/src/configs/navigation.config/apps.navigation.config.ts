@@ -503,6 +503,16 @@ const appsNavigationConfig: NavigationTree[] = [
                         authority: getRolesForFeature(FEATURES.SETTINGS),
                         subMenu: [],
                     },
+                    {
+                        key: 'appsSettings.qa',
+                        path: `${APP_PREFIX_PATH}/settings/qa`,
+                        title: 'QA Center',
+                        translateKey: 'nav.appsSettings.qa',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
+                        subMenu: [],
+                    },
                 ],
             },
             // Cuenta

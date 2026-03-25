@@ -316,7 +316,14 @@ export interface CreateOrderInput {
   shippingAddress: {
     line1: string
     line2?: string | null
+    street?: string | null
+    number?: string | null
+    corner?: string | null
+    apartment?: string | null
+    comments?: string | null
     city: string
+    department: string
+    neighborhood?: string | null
     state?: string | null
     zip: string
     country: string
@@ -324,7 +331,14 @@ export interface CreateOrderInput {
   billingAddress?: {
     line1: string
     line2?: string | null
+    street?: string | null
+    number?: string | null
+    corner?: string | null
+    apartment?: string | null
+    comments?: string | null
     city: string
+    department: string
+    neighborhood?: string | null
     state?: string | null
     zip: string
     country: string
@@ -439,6 +453,8 @@ export interface CustomerProfile {
     corner?: string | null
     comments?: string | null
     city: string
+    department?: string | null
+    neighborhood?: string | null
     state?: string
     zip?: string
     country: string

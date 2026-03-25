@@ -22,6 +22,7 @@ const remotePatterns = [
   toRemotePattern(process.env.STOREFRONT_API_URL),
   toRemotePattern(process.env.NEXT_PUBLIC_SITE_URL),
   { protocol: "https" as const, hostname: "cloudflare-ipfs.com" },
+  { protocol: "https" as const, hostname: "**.googleusercontent.com" },
   { protocol: "http" as const, hostname: "localhost" },
   { protocol: "https" as const, hostname: "localhost" },
   { protocol: "http" as const, hostname: "127.0.0.1" },

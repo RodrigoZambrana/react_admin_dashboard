@@ -20,7 +20,7 @@ export default function AddressItem({ item }: { item: Address }) {
           .filter((part) => part && part.trim().length > 0)
           .join(", ")
       : item.line2;
-  const locationParts = [item.city, item.state, item.zip, item.country]
+  const locationParts = [item.city, item.neighborhood, item.department || item.state, item.zip, item.country]
     .filter((part) => part && part.trim().length > 0)
     .join(", ");
   const displayAddress = [streetLine, extraLine, locationParts]

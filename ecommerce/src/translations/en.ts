@@ -121,6 +121,7 @@ const enTranslations: Record<string, string> = {
   "account.orderDetails.labels.placedOn": "Placed on:",
   "account.orderDetails.labels.status": "Status:",
   "account.orderDetails.sections.shipping": "Shipping Address",
+  "account.orderDetails.sections.notes": "Customer notes",
   "account.orderDetails.sections.summary": "Total Summary",
   "account.orderDetails.summary.subtotal": "Subtotal:",
   "account.orderDetails.summary.shippingFee": "Shipping fee:",

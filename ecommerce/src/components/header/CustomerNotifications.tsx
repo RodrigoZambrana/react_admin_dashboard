@@ -196,10 +196,17 @@ export default function CustomerNotifications() {
     if (!isAuthenticated || !token) return;
     setLoading(true);
     try {
-      const result = await StorefrontApi.listNotifications(token, {
+      let result = await StorefrontApi.listNotifications(token, {
         page: 1,
         pageSize: 20
       });
+      if (result.items.length === 0 && result.meta.unread > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, 400));
+        result = await StorefrontApi.listNotifications(token, {
+          page: 1,
+          pageSize: 20
+        });
+      }
       setNotifications(result.items);
       setUnreadCount(result.meta.unread);
     } catch (error) {
@@ -263,13 +270,29 @@ export default function CustomerNotifications() {
     };
   }, [isAuthenticated, fetchUnreadCount, connectStream]);
 
+  useEffect(() => {
+    if (!open || loading || !isAuthenticated || !token) {
+      return;
+    }
+    if (unreadCount === 0 || notifications.length > 0) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void fetchNotifications();
+    }, 600);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [open, loading, isAuthenticated, token, unreadCount, notifications.length, fetchNotifications]);
+
   const handleToggle = useCallback(
     (toggle: (event: MouseEvent<HTMLElement>) => void) => (event: MouseEvent<HTMLElement>) => {
       if (!open) {
         void fetchNotifications();
       }
       toggle(event);
-      setOpen((value) => !value);
     },
     [open, fetchNotifications]
   );
@@ -367,8 +390,13 @@ export default function CustomerNotifications() {
   return (
     <Menu
       direction="right"
+      onOpenChange={setOpen}
       handler={(toggle) => (
-        <div className="notification-handler" onClick={handleToggle(toggle)}>
+        <div
+          className="notification-handler"
+          onClick={handleToggle(toggle)}
+          data-testid="customer-notifications-toggle"
+        >
           <IconButton variant="text" padding="0.35rem">
             <IconBell size={22} stroke={1.6} />
             {unreadCount > 0 && <span className="badge">{unreadCount}</span>}
@@ -376,11 +404,17 @@ export default function CustomerNotifications() {
         </div>
       )}
     >
-      <Box minWidth="280px" maxWidth="320px" padding="1rem">
+      <Box
+        minWidth="280px"
+        maxWidth="320px"
+        padding="1rem"
+        data-testid="customer-notifications-panel"
+      >
         <FlexBox alignItems="center" justifyContent="space-between" mb="0.75rem">
           <H6 mb="0">{t("notifications.panel.title")}</H6>
           <FlexBox alignItems="center" gridGap="0.75rem">
             <Tiny
+              data-testid="customer-notifications-mark-all"
               role="button"
               color="text.muted"
               style={{ cursor: unreadCount > 0 ? "pointer" : "default" }}
@@ -389,6 +423,7 @@ export default function CustomerNotifications() {
               {t("notifications.panel.markAll")}
             </Tiny>
             <Tiny
+              data-testid="customer-notifications-delete-all"
               role="button"
               color="text.muted"
               style={{ cursor: notifications.length > 0 ? "pointer" : "default" }}
@@ -402,7 +437,9 @@ export default function CustomerNotifications() {
           {isAuthenticated ? (
             loading ? (
               <FlexBox alignItems="center" justifyContent="center" height="100%">
+                <Box data-testid="customer-notifications-loading">
                 <Spinner />
+                </Box>
               </FlexBox>
             ) : entries.length > 0 ? (
               <Scrollbar style={{ maxHeight: `${PANEL_HEIGHT - 10}px` }}>
@@ -416,6 +453,7 @@ export default function CustomerNotifications() {
                   return (
                     <MenuItem
                       key={item.id}
+                      data-testid={`customer-notification-item-${item.id}`}
                       onClick={() => void handleNotificationClick(item)}
                       style={{
                         backgroundColor: !item.readAt ? "rgba(59, 130, 246, 0.08)" : undefined
@@ -438,13 +476,18 @@ export default function CustomerNotifications() {
                               variant="text"
                               padding="0.15rem"
                               title={t("notifications.panel.deleteOne")}
+                              data-testid={`customer-notification-delete-${item.id}`}
                               onClick={(event) => void handleDeleteNotification(event, item.id)}
                             >
                               <IconTrash size={14} stroke={1.6} />
                             </IconButton>
                           </FlexBox>
                         </FlexBox>
-                        {summary && <Tiny color="text.hint">{summary}</Tiny>}
+                        {summary && (
+                          <Tiny color="text.hint" data-testid={`customer-notification-summary-${item.id}`}>
+                            {summary}
+                          </Tiny>
+                        )}
                         {copy.body && <Tiny color="text.secondary">{copy.body}</Tiny>}
                         {!item.readAt && (
                           <FlexBox alignItems="center" gridGap="0.25rem" color="primary.main">
@@ -459,6 +502,7 @@ export default function CustomerNotifications() {
               </Scrollbar>
             ) : (
               <FlexBox
+                data-testid="customer-notifications-empty"
                 height="100%"
                 alignItems="center"
                 justifyContent="center"

@@ -474,13 +474,17 @@ const MailList = () => {
 
     return (
         <div
+            data-testid="admin-inbox-list"
             className={classNames(
                 'min-w-[360px] ease-in-out duration-300 relative flex flex-1 flex-col min-h-0 h-full ltr:border-r rtl:border-l border-gray-200 dark:border-gray-600',
                 sideBarExpand && 'xl:ltr:ml-[280px] xl:rtl:mr-[280px]',
                 mailId ? 'hidden xl:flex' : 'xs:flex',
             )}
         >
-            <div className="relative flex flex-none items-center justify-between min-h-[55px] border-gray-200 dark:border-gray-600">
+            <div
+                className="relative flex flex-none items-center justify-between min-h-[55px] border-gray-200 dark:border-gray-600"
+                data-testid="admin-inbox-list-header"
+            >
                 <div className="flex items-center gap-1">
                     <ToggleButton
                         sideBarExpand={sideBarExpand}
@@ -489,7 +493,7 @@ const MailList = () => {
                     <h6>{selectedCategory.label}</h6>
                 </div>
             </div>
-            <div className="relative flex-1 min-h-0">
+            <div className="relative flex-1 min-h-0" data-testid="admin-inbox-list-content">
                 <ScrollBar autoHide direction={direction}>
                     <Loading
                         type={mails.length > 0 ? 'cover' : 'default'}
@@ -497,8 +501,13 @@ const MailList = () => {
                         loading={loading}
                     >
                         {selectedMessagesStatus === 'failed' && (
-                            <div className="px-6 py-4 text-sm text-red-500">
+                            <div className="px-6 py-4 text-sm text-red-500" data-testid="admin-inbox-messages-error">
                                 {resolvedMessagesError}
+                            </div>
+                        )}
+                        {sortedMails.length === 0 && !loading && selectedMessagesStatus !== 'failed' && (
+                            <div className="px-6 py-4 text-sm text-gray-500" data-testid="admin-inbox-empty">
+                                {t('crm.mail.noMails', { defaultValue: 'No messages yet.' })}
                             </div>
                         )}
                         {sortedMails.map((mail) => {
@@ -555,6 +564,7 @@ const MailList = () => {
                             return (
                                 <div
                                     key={mail.id}
+                                    data-testid={`admin-inbox-mail-${String(mail.id)}`}
                                     className={classNames(
                                         'relative flex border-b border-gray-200 dark:border-gray-600 last:border-0 hover:bg-hover',
                                         isSelected && 'bg-gray-50 dark:bg-gray-700',

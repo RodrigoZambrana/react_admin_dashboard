@@ -1,0 +1,183 @@
+{
+  "version": 1,
+  "defaultBlockIds": [
+    "storefront-e2e-critical",
+    "storefront-e2e-auth-content",
+    "storefront-e2e-admin-cross-project",
+    "storefront-e2e-account-notifications",
+    "storefront-e2e-account-checkout",
+    "backend-domain-core",
+    "backend-domain-extended",
+    "frontend-admin-extended",
+    "quality-static"
+  ],
+  "blocks": [
+    {
+      "id": "storefront-e2e-critical",
+      "name": "Storefront Critical E2E",
+      "description": "Flujos comerciales críticos: paramétricos publicados, checkout cash, confirmación admin y regresiones de compra.",
+      "kind": "e2e",
+      "cwd": "ecommerce",
+      "command": ["npm", "run", "test:e2e:critical"],
+      "estimatedMinutes": 8,
+      "tags": ["storefront", "critical", "commerce", "e2e"]
+    },
+    {
+      "id": "storefront-e2e-auth-content",
+      "name": "Storefront Auth & Content E2E",
+      "description": "Registro, verify/reset por email, wishlist post-login, stories home y smoke admin.",
+      "kind": "e2e",
+      "cwd": "ecommerce",
+      "command": [
+        "npm",
+        "run",
+        "test:e2e",
+        "--",
+        "auth-email.spec.ts",
+        "wishlist-post-login.spec.ts",
+        "home-stories.spec.ts",
+        "admin-signin-smoke.spec.ts"
+      ],
+      "estimatedMinutes": 10,
+      "tags": ["storefront", "auth", "cms", "e2e"]
+    },
+    {
+      "id": "storefront-e2e-admin-cross-project",
+      "name": "Cross Project Admin Order E2E",
+      "description": "Crea pedidos desde storefront/backend y valida apertura segura del detalle en admin por UUID.",
+      "kind": "e2e",
+      "cwd": "ecommerce",
+      "command": [
+        "npm",
+        "run",
+        "test:e2e",
+        "--",
+        "admin-signin-smoke.spec.ts",
+        "admin-order-detail-cross-project.spec.ts",
+        "admin-commercial-surfaces.spec.ts"
+      ],
+      "estimatedMinutes": 6,
+      "tags": ["cross-project", "admin", "storefront", "backend", "e2e"]
+    },
+    {
+      "id": "storefront-e2e-account-checkout",
+      "name": "Storefront Account Checkout E2E",
+      "description": "Checkout logueado, guardado de dirección, moneda histórica y gating de emails customer según verificación.",
+      "kind": "e2e",
+      "cwd": "ecommerce",
+      "command": [
+        "npm",
+        "run",
+        "test:e2e",
+        "--",
+        "logged-in-checkout-address-currency.spec.ts"
+      ],
+      "estimatedMinutes": 8,
+      "tags": ["storefront", "checkout", "address", "currency", "e2e"]
+    },
+    {
+      "id": "storefront-e2e-account-notifications",
+      "name": "Storefront Account Notifications & Orders E2E",
+      "description": "Notificaciones customer, navegación por UUID, detalle de pedido y borrado de notificaciones.",
+      "kind": "e2e",
+      "cwd": "ecommerce",
+      "command": [
+        "npm",
+        "run",
+        "test:e2e",
+        "--",
+        "account-notifications-order-detail.spec.ts"
+      ],
+      "estimatedMinutes": 8,
+      "tags": ["storefront", "account", "notifications", "orders", "e2e"]
+    },
+    {
+      "id": "backend-domain-core",
+      "name": "Backend Domain Core",
+      "description": "Servicios críticos de storefront, Mercado Pago, settlement, accounting y emails.",
+      "kind": "unit",
+      "cwd": "backend",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "src/storefront/__tests__/storefront.service.spec.ts",
+        "src/storefront/payments/__tests__/mercadopago.service.spec.ts",
+        "src/orders/__tests__/order-payment-settlement.service.spec.ts",
+        "src/accounting/__tests__/payments.service.spec.ts",
+        "src/email/__tests__/email.service.spec.ts"
+      ],
+      "estimatedMinutes": 4,
+      "tags": ["backend", "unit", "payments", "orders"]
+    },
+    {
+      "id": "backend-domain-extended",
+      "name": "Backend Domain Extended",
+      "description": "Cobertura adicional de finanzas, stock, OAuth, pricing y privacidad.",
+      "kind": "unit",
+      "cwd": "backend",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "src/orders/__tests__/order-finance.service.spec.ts",
+        "src/orders/__tests__/order-stock-integrity.service.spec.ts",
+        "src/storefront/oauth/__tests__/google-oauth.service.spec.ts",
+        "src/sales/utils/pricing.spec.ts",
+        "src/common/privacy/__tests__/masking.spec.ts",
+        "src/common/orders/__tests__/address.spec.ts"
+      ],
+      "estimatedMinutes": 4,
+      "tags": ["backend", "unit", "finance", "stock", "oauth", "privacy"]
+    },
+    {
+      "id": "frontend-admin-unit",
+      "name": "Admin Frontend Unit",
+      "description": "Componentes críticos actuales del admin con Vitest.",
+      "kind": "unit",
+      "cwd": "frontend",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "src/views/sales/components/__tests__/EditableOrderProductsTable.test.tsx",
+        "src/views/sales/ProductForm/__tests__/PricingFields.test.tsx"
+      ],
+      "estimatedMinutes": 2,
+      "tags": ["admin", "frontend", "unit"]
+    },
+    {
+      "id": "frontend-admin-extended",
+      "name": "Admin Frontend Extended",
+      "description": "Utilidades y consistencia de identificadores/monedas en admin.",
+      "kind": "unit",
+      "cwd": "frontend",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "src/utils/__tests__/textDirection.test.ts",
+        "src/utils/__tests__/salesUnitCalculation.test.ts",
+        "src/views/crm/CustomerDetail/components/__tests__/OrdersHistory.test.ts"
+      ],
+      "estimatedMinutes": 2,
+      "tags": ["admin", "frontend", "unit", "crm", "identifiers"]
+    },
+    {
+      "id": "quality-static",
+      "name": "Static Quality Gates",
+      "description": "Lint y typecheck de backend, storefront y admin.",
+      "kind": "quality",
+      "cwd": ".",
+      "steps": [
+        { "cwd": "backend", "command": ["npm", "run", "lint"] },
+        { "cwd": "backend", "command": ["npm", "run", "build"] },
+        { "cwd": "ecommerce", "command": ["npm", "run", "lint"] },
+        { "cwd": "ecommerce", "command": ["npx", "tsc", "--noEmit"] },
+        { "cwd": "frontend", "command": ["npm", "run", "lint"] }
+      ],
+      "estimatedMinutes": 6,
+      "tags": ["quality", "lint", "types"]
+    }
+  ]
+}

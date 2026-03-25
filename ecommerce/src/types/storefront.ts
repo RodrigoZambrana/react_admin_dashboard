@@ -601,6 +601,8 @@ export interface CustomerProfile {
     corner?: string | null;
     comments?: string | null;
     city: string;
+    department?: string | null;
+    neighborhood?: string | null;
     state?: string | null;
     zip?: string | null;
     country: string;
@@ -707,6 +709,8 @@ export interface CreateOrderPayload {
     apartment?: string;
     comments?: string;
     city: string;
+    department: string;
+    neighborhood?: string;
     state?: string;
     zip?: string;
     country: string;
@@ -720,6 +724,8 @@ export interface CreateOrderPayload {
     apartment?: string;
     comments?: string;
     city: string;
+    department: string;
+    neighborhood?: string;
     state?: string;
     zip?: string;
     country: string;

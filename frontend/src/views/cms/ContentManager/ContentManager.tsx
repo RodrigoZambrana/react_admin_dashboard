@@ -355,34 +355,47 @@ const ContentManager = () => {
     }
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4" data-testid="cms-content-manager">
             <AdaptableCard divider>
-                <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center justify-between gap-3 mb-4" data-testid="cms-header">
                     <div>
                         <h4 className="mb-1">CMS</h4>
                         <p className="mb-0 text-sm text-gray-500">
                             Gestiona secciones editoriales desacopladas de producto.
                         </p>
                     </div>
-                    <Button type="button" variant="solid" onClick={resetEntryForm} disabled={!selectedSectionId}>
+                    <Button
+                        type="button"
+                        variant="solid"
+                        onClick={resetEntryForm}
+                        disabled={!selectedSectionId}
+                        data-testid="cms-new-entry"
+                    >
                         Nueva entrada
                     </Button>
                 </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                     <div className="xl:col-span-1 flex flex-col gap-4">
-                        <AdaptableCard divider>
+                        <AdaptableCard divider data-testid="cms-sections-card">
                             <div className="flex items-center justify-between mb-3">
                                 <h5 className="mb-0">Secciones</h5>
-                                <Button size="sm" type="button" variant="plain" onClick={resetSectionForm}>
+                                <Button
+                                    size="sm"
+                                    type="button"
+                                    variant="plain"
+                                    onClick={resetSectionForm}
+                                    data-testid="cms-new-section"
+                                >
                                     Nueva
                                 </Button>
                             </div>
-                            <div className="space-y-2">
+                            <div className="space-y-2" data-testid="cms-sections-list">
                                 {sections.map((section) => (
                                     <button
                                         key={section.id}
                                         type="button"
+                                        data-testid={`cms-section-${section.id}`}
                                         className={`w-full rounded-lg border px-3 py-3 text-left ${
                                             selectedSectionId === section.id
                                                 ? 'border-blue-500 bg-blue-50'
@@ -402,6 +415,7 @@ const ContentManager = () => {
                                                 size="xs"
                                                 type="button"
                                                 variant="plain"
+                                                data-testid={`cms-section-edit-${section.id}`}
                                                 onClick={(event) => {
                                                     event.stopPropagation()
                                                     setEditingSectionId(section.id)
@@ -421,6 +435,7 @@ const ContentManager = () => {
                                                 type="button"
                                                 variant="plain"
                                                 className="text-red-600"
+                                                data-testid={`cms-section-delete-${section.id}`}
                                                 onClick={(event) => {
                                                     event.stopPropagation()
                                                     handleDeleteSection(section.id)
@@ -434,22 +449,25 @@ const ContentManager = () => {
                             </div>
                         </AdaptableCard>
 
-                        <AdaptableCard divider>
+                        <AdaptableCard divider data-testid="cms-section-form">
                             <h5 className="mb-3">{editingSectionId ? 'Editar sección' : 'Nueva sección'}</h5>
                             <div className="grid grid-cols-1 gap-3">
                                 <Input
                                     placeholder="Key (ej: HOME_STORIES)"
+                                    data-testid="cms-section-key"
                                     value={sectionForm.key}
                                     onChange={(event) => setSectionForm((current) => ({ ...current, key: event.target.value }))}
                                 />
                                 <Input
                                     placeholder="Nombre"
+                                    data-testid="cms-section-name"
                                     value={sectionForm.name}
                                     onChange={(event) => setSectionForm((current) => ({ ...current, name: event.target.value }))}
                                 />
                                 <Textarea
                                     rows={3}
                                     placeholder="Descripción"
+                                    data-testid="cms-section-description"
                                     value={sectionForm.description ?? ''}
                                     onChange={(event) =>
                                         setSectionForm((current) => ({ ...current, description: event.target.value }))
@@ -458,6 +476,7 @@ const ContentManager = () => {
                                 <Input
                                     type="number"
                                     placeholder="Prioridad"
+                                    data-testid="cms-section-sort-order"
                                     value={String(sectionForm.sortOrder ?? 0)}
                                     onChange={(event) =>
                                         setSectionForm((current) => ({
@@ -469,15 +488,21 @@ const ContentManager = () => {
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm font-medium">Activa</span>
                                     <Switcher
+                                        data-testid="cms-section-active"
                                         checked={sectionForm.isActive}
                                         onChange={(checked) => setSectionForm((current) => ({ ...current, isActive: checked }))}
                                     />
                                 </div>
                                 <div className="flex gap-2">
-                                    <Button type="button" variant="solid" onClick={handleSaveSection}>
+                                    <Button
+                                        type="button"
+                                        variant="solid"
+                                        onClick={handleSaveSection}
+                                        data-testid="cms-section-save"
+                                    >
                                         Guardar sección
                                     </Button>
-                                    <Button type="button" variant="plain" onClick={resetSectionForm}>
+                                    <Button type="button" variant="plain" onClick={resetSectionForm} data-testid="cms-section-reset">
                                         Limpiar
                                     </Button>
                                 </div>
@@ -486,7 +511,7 @@ const ContentManager = () => {
                     </div>
 
                     <div className="xl:col-span-2 flex flex-col gap-4">
-                        <AdaptableCard divider>
+                        <AdaptableCard divider data-testid="cms-entries-card">
                             <div className="flex items-center justify-between mb-3">
                                 <div>
                                     <h5 className="mb-1">Entradas CMS</h5>
@@ -499,13 +524,19 @@ const ContentManager = () => {
                             </div>
 
                             {loading ? (
-                                <div className="text-sm text-gray-500">Cargando...</div>
+                                <div className="text-sm text-gray-500" data-testid="cms-loading">Cargando...</div>
                             ) : entries.length === 0 ? (
-                                <div className="text-sm text-gray-500">No hay entradas cargadas para esta sección.</div>
+                                <div className="text-sm text-gray-500" data-testid="cms-empty">
+                                    No hay entradas cargadas para esta sección.
+                                </div>
                             ) : (
-                                <div className="space-y-2">
+                                <div className="space-y-2" data-testid="cms-entries-list">
                                     {entries.map((entry) => (
-                                        <div key={entry.id} className="rounded-lg border border-gray-200 p-3">
+                                        <div
+                                            key={entry.id}
+                                            className="rounded-lg border border-gray-200 p-3"
+                                            data-testid={`cms-entry-${entry.id}`}
+                                        >
                                             <div className="flex items-start justify-between gap-4">
                                                 <div>
                                                     <div className="font-semibold">{entry.title}</div>
@@ -518,6 +549,7 @@ const ContentManager = () => {
                                                         size="xs"
                                                         type="button"
                                                         variant="plain"
+                                                        data-testid={`cms-entry-edit-${entry.id}`}
                                                         onClick={() => {
                                                             setEditingEntryId(entry.id ?? null)
                                                             setEntryForm({
@@ -537,6 +569,7 @@ const ContentManager = () => {
                                                         type="button"
                                                         variant="plain"
                                                         className="text-red-600"
+                                                        data-testid={`cms-entry-delete-${entry.id}`}
                                                         onClick={() => entry.id && handleDeleteEntry(entry.id)}
                                                     >
                                                         Eliminar
@@ -549,21 +582,24 @@ const ContentManager = () => {
                             )}
                         </AdaptableCard>
 
-                        <AdaptableCard divider>
+                        <AdaptableCard divider data-testid="cms-entry-form">
                             <h5 className="mb-3">{editingEntryId ? 'Editar entrada' : 'Nueva entrada'}</h5>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <Input
                                     placeholder="Título"
+                                    data-testid="cms-entry-title"
                                     value={entryForm.title}
                                     onChange={(event) => setEntryForm((current) => ({ ...current, title: event.target.value }))}
                                 />
                                 <Input
                                     placeholder="Slug"
+                                    data-testid="cms-entry-slug"
                                     value={entryForm.slug ?? ''}
                                     onChange={(event) => setEntryForm((current) => ({ ...current, slug: event.target.value }))}
                                 />
                                 <Input
                                     placeholder="Subtítulo"
+                                    data-testid="cms-entry-subtitle"
                                     value={entryForm.subtitle ?? ''}
                                     onChange={(event) =>
                                         setEntryForm((current) => ({ ...current, subtitle: event.target.value }))
@@ -571,6 +607,7 @@ const ContentManager = () => {
                                 />
                                 <Input
                                     placeholder="Thumbnail URL"
+                                    data-testid="cms-entry-thumbnail"
                                     value={entryForm.thumbnailUrl ?? ''}
                                     onChange={(event) =>
                                         setEntryForm((current) => ({ ...current, thumbnailUrl: event.target.value }))
@@ -578,22 +615,26 @@ const ContentManager = () => {
                                 />
                                 <Input
                                     placeholder="CTA label"
+                                    data-testid="cms-entry-cta-label"
                                     value={entryForm.ctaLabel ?? ''}
                                     onChange={(event) => setEntryForm((current) => ({ ...current, ctaLabel: event.target.value }))}
                                 />
                                 <Input
                                     placeholder="CTA URL"
+                                    data-testid="cms-entry-cta-url"
                                     value={entryForm.ctaUrl ?? ''}
                                     onChange={(event) => setEntryForm((current) => ({ ...current, ctaUrl: event.target.value }))}
                                 />
                                 <Input
                                     placeholder="Locale"
+                                    data-testid="cms-entry-locale"
                                     value={entryForm.locale}
                                     onChange={(event) => setEntryForm((current) => ({ ...current, locale: event.target.value }))}
                                 />
                                 <Input
                                     type="number"
                                     placeholder="Prioridad"
+                                    data-testid="cms-entry-priority"
                                     value={String(entryForm.priority ?? 0)}
                                     onChange={(event) =>
                                         setEntryForm((current) => ({
@@ -604,6 +645,7 @@ const ContentManager = () => {
                                 />
                                 <select
                                     className="input"
+                                    data-testid="cms-entry-status"
                                     value={entryForm.status}
                                     onChange={(event) =>
                                         setEntryForm((current) => ({
@@ -618,6 +660,7 @@ const ContentManager = () => {
                                 </select>
                                 <select
                                     className="input"
+                                    data-testid="cms-entry-product"
                                     value={String(entryForm.productId ?? '')}
                                     onChange={(event) =>
                                         setEntryForm((current) => ({
@@ -635,6 +678,7 @@ const ContentManager = () => {
                                 </select>
                                 <select
                                     className="input"
+                                    data-testid="cms-entry-category"
                                     value={String(entryForm.categoryId ?? '')}
                                     onChange={(event) =>
                                         setEntryForm((current) => ({
@@ -659,6 +703,7 @@ const ContentManager = () => {
                                 </div>
                                 <Input
                                     type="datetime-local"
+                                    data-testid="cms-entry-published-at"
                                     value={formatDateTimeLocal(entryForm.publishedAt)}
                                     onChange={(event) =>
                                         setEntryForm((current) => ({
@@ -669,6 +714,7 @@ const ContentManager = () => {
                                 />
                                 <Input
                                     type="datetime-local"
+                                    data-testid="cms-entry-starts-at"
                                     value={formatDateTimeLocal(entryForm.startsAt)}
                                     onChange={(event) =>
                                         setEntryForm((current) => ({
@@ -679,6 +725,7 @@ const ContentManager = () => {
                                 />
                                 <Input
                                     type="datetime-local"
+                                    data-testid="cms-entry-ends-at"
                                     value={formatDateTimeLocal(entryForm.endsAt)}
                                     onChange={(event) =>
                                         setEntryForm((current) => ({
@@ -693,6 +740,7 @@ const ContentManager = () => {
                                 <Textarea
                                     rows={4}
                                     placeholder="Descripción"
+                                    data-testid="cms-entry-description"
                                     value={entryForm.description ?? ''}
                                     onChange={(event) =>
                                         setEntryForm((current) => ({ ...current, description: event.target.value }))
@@ -701,6 +749,7 @@ const ContentManager = () => {
                                 <Textarea
                                     rows={5}
                                     placeholder="Payload JSON"
+                                    data-testid="cms-entry-payload"
                                     value={payloadText}
                                     onChange={(event) => setPayloadText(event.target.value)}
                                 />
@@ -713,6 +762,7 @@ const ContentManager = () => {
                                         size="sm"
                                         type="button"
                                         variant="twoTone"
+                                        data-testid="cms-entry-add-asset"
                                         onClick={() =>
                                             setEntryForm((current) => ({
                                                 ...current,
@@ -724,12 +774,17 @@ const ContentManager = () => {
                                     </Button>
                                 </div>
 
-                                <div className="space-y-3">
+                                <div className="space-y-3" data-testid="cms-entry-assets">
                                     {entryForm.assets.map((asset, index) => (
-                                        <div key={`${asset.id ?? 'new'}-${index}`} className="rounded-lg border border-gray-200 p-3">
+                                        <div
+                                            key={`${asset.id ?? 'new'}-${index}`}
+                                            className="rounded-lg border border-gray-200 p-3"
+                                            data-testid={`cms-entry-asset-${index}`}
+                                        >
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                 <select
                                                     className="input"
+                                                    data-testid={`cms-entry-asset-type-${index}`}
                                                     value={asset.mediaType}
                                                     onChange={(event) =>
                                                         setEntryForm((current) => ({
@@ -752,6 +807,7 @@ const ContentManager = () => {
                                                 </select>
                                                 <Input
                                                     placeholder="Media URL"
+                                                    data-testid={`cms-entry-asset-media-url-${index}`}
                                                     value={asset.mediaUrl}
                                                     onChange={(event) =>
                                                         setEntryForm((current) => ({
@@ -766,6 +822,7 @@ const ContentManager = () => {
                                                 />
                                                 <Input
                                                     placeholder="Título del asset"
+                                                    data-testid={`cms-entry-asset-title-${index}`}
                                                     value={asset.title ?? ''}
                                                     onChange={(event) =>
                                                         setEntryForm((current) => ({
@@ -780,6 +837,7 @@ const ContentManager = () => {
                                                 />
                                                 <Input
                                                     placeholder="Poster URL"
+                                                    data-testid={`cms-entry-asset-poster-url-${index}`}
                                                     value={asset.posterUrl ?? ''}
                                                     onChange={(event) =>
                                                         setEntryForm((current) => ({
@@ -794,6 +852,7 @@ const ContentManager = () => {
                                                 />
                                                 <Input
                                                     placeholder="External URL"
+                                                    data-testid={`cms-entry-asset-external-url-${index}`}
                                                     value={asset.externalUrl ?? ''}
                                                     onChange={(event) =>
                                                         setEntryForm((current) => ({
@@ -809,6 +868,7 @@ const ContentManager = () => {
                                                 <Input
                                                     type="number"
                                                     placeholder="Duración (seg)"
+                                                    data-testid={`cms-entry-asset-duration-${index}`}
                                                     value={String(asset.durationSec ?? '')}
                                                     onChange={(event) =>
                                                         setEntryForm((current) => ({
@@ -829,6 +889,7 @@ const ContentManager = () => {
                                                 <Textarea
                                                     rows={2}
                                                     placeholder="Caption"
+                                                    data-testid={`cms-entry-asset-caption-${index}`}
                                                     value={asset.caption ?? ''}
                                                     onChange={(event) =>
                                                         setEntryForm((current) => ({
@@ -864,6 +925,7 @@ const ContentManager = () => {
                                                     type="button"
                                                     variant="plain"
                                                     className="text-red-600"
+                                                    data-testid={`cms-entry-asset-delete-${index}`}
                                                     onClick={() =>
                                                         setEntryForm((current) => ({
                                                             ...current,
@@ -880,10 +942,16 @@ const ContentManager = () => {
                             </div>
 
                             <div className="mt-4 flex gap-2">
-                                <Button type="button" variant="solid" onClick={handleSaveEntry} disabled={!selectedSectionId}>
+                                <Button
+                                    type="button"
+                                    variant="solid"
+                                    onClick={handleSaveEntry}
+                                    disabled={!selectedSectionId}
+                                    data-testid="cms-entry-save"
+                                >
                                     Guardar entrada
                                 </Button>
-                                <Button type="button" variant="plain" onClick={resetEntryForm}>
+                                <Button type="button" variant="plain" onClick={resetEntryForm} data-testid="cms-entry-reset">
                                     Limpiar
                                 </Button>
                             </div>

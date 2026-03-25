@@ -299,21 +299,22 @@ const MailSideBarContent = () => {
 
     return (
         <ScrollBar direction={direction}>
-            <div className="flex flex-col justify-between h-full">
+            <div className="flex flex-col justify-between h-full" data-testid="admin-inbox-sidebar-content">
                 <div>
-                    <div className="my-8 mx-6">
+                    <div className="my-8 mx-6" data-testid="admin-inbox-sidebar-header">
                         <h3>{t('crm.mail.mailbox')}</h3>
                     </div>
                     {selectedMailboxesStatus === 'failed' && selectedMailboxesError && (
-                        <div className="mx-6 mt-0 mb-4 text-sm text-red-500">
+                        <div className="mx-6 mt-0 mb-4 text-sm text-red-500" data-testid="admin-inbox-mailboxes-error">
                             {resolvedMailboxesError}
                         </div>
                     )}
-                    <Menu variant="transparent" className="mx-2 mb-10">
+                    <Menu variant="transparent" className="mx-2 mb-10" data-testid="admin-inbox-mailboxes-menu">
                         {primaryMenuItems.map((menu) => (
                             <MenuItem
                                 key={menu.value}
                                 eventKey={menu.value}
+                                data-testid={`admin-inbox-mailbox-${String(menu.value)}`}
                                 className={`mb-2 ${
                                     selectedCategory.value === menu.value
                                         ? 'bg-gray-100 dark:bg-gray-700'
@@ -330,12 +331,13 @@ const MailSideBarContent = () => {
                             </MenuItem>
                         ))}
                     </Menu>
-                    <Menu variant="transparent" className="mx-2 mb-6">
+                    <Menu variant="transparent" className="mx-2 mb-6" data-testid="admin-inbox-labels-menu">
                         <MenuGroup label={t('crm.mail.labels')}>
                             {labelList.map((label) => (
                             <MenuItem
                                 key={label.value}
                                 eventKey={label.value}
+                                data-testid={`admin-inbox-label-${String(label.value)}`}
                                 className={`mb-2 ${
                                     selectedCategory.value === label.value
                                         ? 'bg-gray-100 dark:bg-gray-700'
@@ -353,7 +355,7 @@ const MailSideBarContent = () => {
                         </MenuGroup>
                     </Menu>
                 </div>
-                <div className="mx-4 mb-4">
+                <div className="mx-4 mb-4" data-testid="admin-inbox-compose">
                     <MainCompose />
                 </div>
             </div>
@@ -389,6 +391,7 @@ const MailSidebar = () => {
         </Drawer>
     ) : (
         <div
+            data-testid="admin-inbox-sidebar"
             className={classNames(
                 'w-[280px] absolute top-0 bottom-0 ease-in-out duration-300 bg-white dark:bg-gray-800 ltr:border-r rtl:border-l border-gray-200 dark:border-gray-600 z-10',
                 sideBarExpand

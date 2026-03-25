@@ -29,7 +29,7 @@ const statusColor: Record<string, string> = {
 
 const columnHelper = createColumnHelper<CustomerOrder>()
 
-const resolveDisplayIdentifier = (row: CustomerOrder) =>
+export const resolveDisplayIdentifier = (row: CustomerOrder) =>
     row.uuid?.trim() || row.orderNumber?.trim() || row.reference?.trim() || row.id
 
 const buildColumns = (

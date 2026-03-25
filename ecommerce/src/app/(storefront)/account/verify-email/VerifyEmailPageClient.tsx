@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 
-import Container from "@component/Container";
-import { H1, Paragraph, Small } from "@component/Typography";
+import Box from "@component/Box";
 import { Button } from "@component/buttons";
+import { H3, H5, Paragraph, Small } from "@component/Typography";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { extractApiErrorMessage } from "@/lib/api/errors";
 import { useTranslation } from "@/state/i18n-context";
-import Link from "next/link";
+import { StyledRoot } from "@sections/auth/styles";
 
 type VerificationState = "idle" | "loading" | "success" | "error";
 
@@ -66,26 +67,62 @@ export default function VerifyEmailPageClient() {
   }, [t, token]);
 
   return (
-    <Container mt="3rem" mb="4rem" style={{ maxWidth: 640 }}>
-      <H1 mb="0.75rem">
-        {t("account.verifyEmail.title", { defaultMessage: "Verificar correo electrónico" })}
-      </H1>
+    <StyledRoot mx="auto" my="2rem">
+      <div className="content">
+        <H3 textAlign="center" mb="0.5rem">
+          {t("account.verifyEmail.title", { defaultMessage: "Verificar correo electrónico" })}
+        </H3>
 
-      {state === "loading" ? (
-        <Paragraph color="text.muted">
-          {t("account.verifyEmail.loading", {
-            defaultMessage: "Estamos confirmando tu correo electrónico..."
+        <H5 fontWeight="600" fontSize="12px" color="gray.800" textAlign="center" mb="2rem">
+          {t("account.verifyEmail.subtitle", {
+            defaultMessage: "Confirma tu correo para activar las comunicaciones de tu cuenta."
           })}
-        </Paragraph>
-      ) : (
-        <Paragraph color={state === "error" ? "error.main" : "text.muted"}>{message}</Paragraph>
-      )}
+        </H5>
 
-      {(state === "success" || state === "error") && (
-        <Small display="block" mt="1rem">
-          <Link href="/">{t("account.verifyEmail.actions.home", { defaultMessage: "Volver al inicio" })}</Link>
-        </Small>
-      )}
-    </Container>
+        <Box
+          border="1px solid"
+          borderColor={state === "error" ? "error.main" : state === "success" ? "success.main" : "gray.300"}
+          borderRadius={12}
+          p="1rem"
+          mb="1rem">
+          {state === "loading" ? (
+            <Paragraph color="text.muted" textAlign="center" my="0px">
+              {t("account.verifyEmail.loading", {
+                defaultMessage: "Estamos confirmando tu correo electrónico..."
+              })}
+            </Paragraph>
+          ) : (
+            <Paragraph
+              color={state === "error" ? "error.main" : state === "success" ? "success.main" : "text.muted"}
+              textAlign="center"
+              my="0px">
+              {message}
+            </Paragraph>
+          )}
+        </Box>
+
+        {(state === "success" || state === "error") && (
+          <>
+            <Box mb="0.75rem">
+              <Link href="/">
+                <Button fullWidth color="primary" variant="contained">
+                  {t("account.verifyEmail.actions.home", { defaultMessage: "Volver al inicio" })}
+                </Button>
+              </Link>
+            </Box>
+
+            <Small display="block" color="text.muted" textAlign="center" mb="1rem">
+              {state === "success"
+                ? t("account.verifyEmail.help.success", {
+                    defaultMessage: "Ya puedes continuar navegando y recibir correos transaccionales en tu cuenta."
+                  })
+                : t("account.verifyEmail.help.error", {
+                    defaultMessage: "Si el problema continúa, solicita un nuevo correo de verificación desde tu perfil."
+                  })}
+            </Small>
+          </>
+        )}
+      </div>
+    </StyledRoot>
   );
 }

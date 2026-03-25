@@ -1685,16 +1685,20 @@ export class SalesDocumentsService {
       normalizeString(order.shippingAddress2) ?? formatLine2(shippingAddressSource)
     const shippingCity =
       normalizeString(order.shippingCity) ?? normalizeString(shippingAddressSource?.city)
-    const shippingState =
-      normalizeString(order.shippingState) ?? normalizeString(shippingAddressSource?.country)
+    const shippingState = normalizeString(order.shippingState)
+    const shippingCountry =
+      normalizeString((order as { shippingCountry?: string | null }).shippingCountry) ??
+      normalizeString(shippingAddressSource?.country)
     const billingAddress1 =
       normalizeString(order.billingAddress1) ?? formatLine1(billingAddressSource)
     const billingAddress2 =
       normalizeString(order.billingAddress2) ?? formatLine2(billingAddressSource)
     const billingCity =
       normalizeString(order.billingCity) ?? normalizeString(billingAddressSource?.city)
-    const billingState =
-      normalizeString(order.billingState) ?? normalizeString(billingAddressSource?.country)
+    const billingState = normalizeString(order.billingState)
+    const billingCountry =
+      normalizeString((order as { billingCountry?: string | null }).billingCountry) ??
+      normalizeString(billingAddressSource?.country)
 
     const [previousOrdersCount, previousBudgetsCount] = await Promise.all([
       this.prisma.order.count({
@@ -1786,11 +1790,13 @@ export class SalesDocumentsService {
       shippingCity: shippingCity ?? null,
       shippingState: shippingState ?? null,
       shippingZip: normalizeString(order.shippingZip),
+      shippingCountry: shippingCountry ?? null,
       billingAddress1: billingAddress1 ?? null,
       billingAddress2: billingAddress2 ?? null,
       billingCity: billingCity ?? null,
       billingState: billingState ?? null,
       billingZip: normalizeString(order.billingZip),
+      billingCountry: billingCountry ?? null,
       shippingVendor: order.shippingVendor ?? null,
       estimatedMin: order.estimatedMin ?? null,
       estimatedMax: order.estimatedMax ?? null,
@@ -1922,8 +1928,15 @@ export class SalesDocumentsService {
       if (!addr) return undefined
       const line1 = addr.addressLine1 || `${addr.street || ''} ${addr.number || ''}${addr.apartment ? ' Apt ' + addr.apartment : ''}`.trim()
       const line2 = addr.addressLine2 || (addr.corner ? `Esquina: ${addr.corner}` : '')
-      return line1 && addr.city && addr.state
-        ? { addressLine1: line1, addressLine2: line2, city: addr.city, state: addr.state }
+      const country = typeof addr.country === 'string' && addr.country.trim().length ? addr.country.trim() : undefined
+      return line1 && addr.city && (addr.state || country)
+        ? {
+            addressLine1: line1,
+            addressLine2: line2,
+            city: addr.city,
+            state: addr.state,
+            country: country ?? addr.state,
+          }
         : undefined
     }
 
@@ -1944,7 +1957,8 @@ export class SalesDocumentsService {
         addressLine1: `${primaryAddr.street} ${primaryAddr.number}${primaryAddr.apartment ? ' Apt ' + primaryAddr.apartment : ''}`,
         addressLine2: primaryAddr.corner ? `Esquina: ${primaryAddr.corner}` : '',
         city: primaryAddr.city,
-        state: primaryAddr.country,
+        state: null,
+        country: primaryAddr.country,
       }
     }
 
@@ -1970,13 +1984,15 @@ export class SalesDocumentsService {
         shippingAddress1: shippingAddress.addressLine1,
         shippingAddress2: shippingAddress.addressLine2,
         shippingCity: shippingAddress.city,
-        shippingState: shippingAddress.state,
+        shippingState: shippingAddress.state ?? null,
+        shippingCountry: shippingAddress.country ?? null,
         ...(dto.billingSameAsShipping
           ? {
               billingAddress1: shippingAddress.addressLine1,
               billingAddress2: shippingAddress.addressLine2,
               billingCity: shippingAddress.city,
-              billingState: shippingAddress.state,
+              billingState: shippingAddress.state ?? null,
+              billingCountry: shippingAddress.country ?? null,
             }
           : (() => {
               const b = composeAddress(dto.billingAddress)
@@ -1985,7 +2001,8 @@ export class SalesDocumentsService {
                     billingAddress1: b.addressLine1,
                     billingAddress2: b.addressLine2,
                     billingCity: b.city,
-                    billingState: b.state,
+                    billingState: b.state ?? null,
+                    billingCountry: b.country ?? null,
                   }
                 : {}
             })()),
@@ -2114,8 +2131,15 @@ export class SalesDocumentsService {
       if (!addr) return undefined
       const line1 = addr.addressLine1 || `${addr.street || ''} ${addr.number || ''}${addr.apartment ? ' Apt ' + addr.apartment : ''}`.trim()
       const line2 = addr.addressLine2 || (addr.corner ? `Esquina: ${addr.corner}` : '')
-      return line1 && addr.city && addr.state
-        ? { addressLine1: line1, addressLine2: line2, city: addr.city, state: addr.state }
+      const country = typeof addr.country === 'string' && addr.country.trim().length ? addr.country.trim() : undefined
+      return line1 && addr.city && (addr.state || country)
+        ? {
+            addressLine1: line1,
+            addressLine2: line2,
+            city: addr.city,
+            state: addr.state,
+            country: country ?? addr.state,
+          }
         : undefined
     }
 
@@ -2136,7 +2160,8 @@ export class SalesDocumentsService {
         addressLine1: `${primaryAddr.street} ${primaryAddr.number}${primaryAddr.apartment ? ' Apt ' + primaryAddr.apartment : ''}`,
         addressLine2: primaryAddr.corner ? `Esquina: ${primaryAddr.corner}` : '',
         city: primaryAddr.city,
-        state: primaryAddr.country,
+        state: null,
+        country: primaryAddr.country,
       }
     }
 
@@ -2196,12 +2221,14 @@ export class SalesDocumentsService {
         shippingAddress1: shippingAddress.addressLine1,
         shippingAddress2: shippingAddress.addressLine2,
         shippingCity: shippingAddress.city,
-        shippingState: shippingAddress.state,
+        shippingState: shippingAddress.state ?? null,
+        shippingCountry: shippingAddress.country ?? null,
         billingSameAsShipping: dto.billingSameAsShipping,
         billingAddress1: billingFromShipping?.addressLine1 ?? null,
         billingAddress2: billingFromShipping?.addressLine2 ?? null,
         billingCity: billingFromShipping?.city ?? null,
         billingState: billingFromShipping?.state ?? null,
+        billingCountry: billingFromShipping?.country ?? null,
         shippingVendor: dto.shipping?.shippingVendor,
         paymentMethodId,
         deliveryFees: monetary.delivery.toFixed(2),
@@ -2727,11 +2754,13 @@ export class SalesDocumentsService {
           shippingCity: budget.shippingCity,
           shippingState: budget.shippingState,
           shippingZip: budget.shippingZip,
+          shippingCountry: (budget as { shippingCountry?: string | null }).shippingCountry ?? null,
           billingAddress1: budget.billingAddress1,
           billingAddress2: budget.billingAddress2,
           billingCity: budget.billingCity,
           billingState: budget.billingState,
           billingZip: budget.billingZip,
+          billingCountry: (budget as { billingCountry?: string | null }).billingCountry ?? null,
           billingSameAsShipping: budget.billingSameAsShipping,
           shippingVendor: budget.shippingVendor,
           deliveryFees: this.decimalToString(budget.deliveryFees) ?? undefined,

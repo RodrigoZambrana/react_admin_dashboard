@@ -30,12 +30,14 @@ const OrderList = () => {
     }, [dispatch, resource, tableResource])
 
     return (
-        <AdaptableCard className="h-full" bodyClass="h-full">
-            <div className="lg:flex items-center justify-between mb-4">
-                <h3 className="mb-4 lg:mb-0">{tDoc('title')}</h3>
+        <AdaptableCard className="h-full" bodyClass="h-full" data-testid="admin-order-list-page">
+            <div className="lg:flex items-center justify-between mb-4" data-testid="admin-order-list-header">
+                <h3 className="mb-4 lg:mb-0" data-testid="admin-order-list-title">{tDoc('title')}</h3>
                 <OrdersTableTools />
             </div>
-            <OrdersTable />
+            <div data-testid="admin-order-list-table-wrap">
+                <OrdersTable />
+            </div>
             <OrderDeleteConfirmation />
         </AdaptableCard>
     )

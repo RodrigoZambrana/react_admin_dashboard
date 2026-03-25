@@ -69,10 +69,17 @@ export class StorefrontAddressDto {
   state?: string
 
   @IsString()
+  department!: string
+
+  @IsString()
   zip!: string
 
   @IsString()
   country!: string
+
+  @IsOptional()
+  @IsString()
+  neighborhood?: string
 }
 
 export class StorefrontOrderItemDto {

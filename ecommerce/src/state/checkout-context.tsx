@@ -22,6 +22,7 @@ import {
   savePersistedCheckoutState
 } from "@/utils/checkoutStorage";
 import { useSession } from "./session-context";
+import { StorefrontApi } from "@/lib/api/storefront";
 
 type CheckoutStep = "details" | "payment";
 
@@ -41,6 +42,8 @@ export type CheckoutAddress = {
   apartment?: string;
   comments?: string;
   city: string;
+  department?: string;
+  neighborhood?: string;
   state?: string;
   zip?: string;
   country: string;
@@ -134,6 +137,8 @@ const createInitialState = (): CheckoutState => ({
     apartment: "",
     comments: "",
     city: "",
+    department: "",
+    neighborhood: "",
     state: "",
     zip: "",
     country: ""
@@ -172,9 +177,12 @@ const checkoutReducer = (state: CheckoutState, action: CheckoutAction): Checkout
         shippingAddress: action.payload.shippingAddress,
         fulfillmentMode: action.payload.fulfillmentMode,
         shippingOption: action.payload.shippingOption,
+        payment: null,
+        lastOrder: null,
         completed: {
           ...state.completed,
-          details: Boolean(action.payload.shippingOption?.id)
+          details: Boolean(action.payload.shippingOption?.id),
+          payment: false
         }
       };
     }
@@ -233,6 +241,14 @@ const checkoutReducer = (state: CheckoutState, action: CheckoutAction): Checkout
         line1: mergeIfEmpty(state.shippingAddress.line1, action.payload.shippingAddress?.line1),
         line2: mergeIfEmpty(state.shippingAddress.line2 ?? "", action.payload.shippingAddress?.line2),
         city: mergeIfEmpty(state.shippingAddress.city, action.payload.shippingAddress?.city),
+        department: mergeIfEmpty(
+          state.shippingAddress.department ?? "",
+          action.payload.shippingAddress?.department
+        ),
+        neighborhood: mergeIfEmpty(
+          state.shippingAddress.neighborhood ?? "",
+          action.payload.shippingAddress?.neighborhood
+        ),
         state: mergeIfEmpty(state.shippingAddress.state ?? "", action.payload.shippingAddress?.state),
         zip: mergeIfEmpty(state.shippingAddress.zip ?? "", action.payload.shippingAddress?.zip),
         country: mergeIfEmpty(
@@ -287,7 +303,7 @@ export const StorefrontCheckoutProvider: React.FC<{ children: React.ReactNode }>
   children
 }) => {
   const [state, dispatch] = useReducer(checkoutReducer, initialState);
-  const { session, status } = useSession();
+  const { session, status, updateCustomerProfile } = useSession();
 
   useEffect(() => {
     const persisted = loadPersistedCheckoutState();
@@ -306,37 +322,68 @@ export const StorefrontCheckoutProvider: React.FC<{ children: React.ReactNode }>
       return;
     }
 
-    const { customer } = session;
-    const contact = {
-      firstName: customer.firstName ?? "",
-      lastName: customer.lastName ?? "",
-      email: customer.email ?? "",
-      phone: customer.phone ?? ""
+    let cancelled = false;
+
+    const hydrateFromSession = async () => {
+      let customer = session.customer;
+      const needsProfileRefresh =
+        !customer.firstName?.trim() ||
+        !customer.lastName?.trim() ||
+        !customer.phone?.trim();
+
+      if (needsProfileRefresh) {
+        try {
+          const profile = await StorefrontApi.getAccountProfile(session.accessToken);
+          if (cancelled) {
+            return;
+          }
+          customer = profile;
+          updateCustomerProfile(profile);
+        } catch (error) {
+          console.warn("[checkout] Unable to refresh account profile for checkout prefill", error);
+        }
+      }
+
+      const contact = {
+        firstName: customer.firstName ?? "",
+        lastName: customer.lastName ?? "",
+        email: customer.email ?? "",
+        phone: customer.phone ?? ""
+      };
+      const addresses = Array.isArray(customer.addresses) ? customer.addresses : [];
+
+      const primaryAddress =
+        addresses.find((address) => address.isPrimary) ?? addresses[0];
+
+      const shippingAddress = primaryAddress
+        ? {
+            line1: primaryAddress.line1 ?? "",
+            line2: primaryAddress.line2 ?? "",
+            city: primaryAddress.city ?? "",
+            department: primaryAddress.department ?? primaryAddress.state ?? "",
+            neighborhood: primaryAddress.neighborhood ?? "",
+            state: primaryAddress.state ?? "",
+            zip: primaryAddress.zip ?? "",
+            country: primaryAddress.country ?? ""
+          }
+        : undefined;
+
+      dispatch({
+        type: "PREFILL_FROM_SESSION",
+        payload: {
+          customerId: customer.id,
+          contact,
+          shippingAddress
+        }
+      });
     };
 
-    const primaryAddress =
-      customer.addresses.find((address) => address.isPrimary) ?? customer.addresses[0];
+    void hydrateFromSession();
 
-    const shippingAddress = primaryAddress
-      ? {
-          line1: primaryAddress.line1 ?? "",
-          line2: primaryAddress.line2 ?? "",
-          city: primaryAddress.city ?? "",
-          state: primaryAddress.state ?? "",
-          zip: primaryAddress.zip ?? "",
-          country: primaryAddress.country ?? ""
-        }
-      : undefined;
-
-    dispatch({
-      type: "PREFILL_FROM_SESSION",
-      payload: {
-        customerId: customer.id,
-        contact,
-        shippingAddress
-      }
-    });
-  }, [session, status]);
+    return () => {
+      cancelled = true;
+    };
+  }, [session, status, updateCustomerProfile]);
 
   const setDetails = useCallback(
     (

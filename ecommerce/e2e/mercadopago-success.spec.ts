@@ -32,9 +32,11 @@ const DEFAULT_CHECKOUT_ADDRESS = {
   apartment: "101",
   comments: "",
   city: "Montevideo",
+  department: "Montevideo",
+  neighborhood: "Aguada",
   state: "Montevideo",
   zip: "11000",
-  country: "UY"
+  country: "Uruguay"
 };
 
 async function bootstrapStorefrontContext(page: Page) {
@@ -300,10 +302,12 @@ test.describe("mercado pago success handoff", () => {
           message: `waiting for order received emails for ${order.uuid}`
         }
       )
-      .toBeGreaterThanOrEqual(2);
+      .toBeGreaterThanOrEqual(1);
 
     const emails = await getEmailLogsForOrder(order.uuid);
-    expect(emails.filter((row) => row.category === "ORDERS")).toHaveLength(2);
+    const orderEmails = emails.filter((row) => row.category === "ORDERS");
+    expect(orderEmails).toHaveLength(1);
+    expect(orderEmails.every((row) => row.recipientType === "ADMIN")).toBeTruthy();
     expect(emails.some((row) => row.category === "PAYMENTS")).toBeFalsy();
   });
 });

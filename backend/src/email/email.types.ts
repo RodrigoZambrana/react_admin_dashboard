@@ -5,6 +5,8 @@ export type EmailLocale = string
 export type OrderEmailAddress = {
   line1?: string | null
   line2?: string | null
+  department?: string | null
+  neighborhood?: string | null
   city?: string | null
   state?: string | null
   zip?: string | null

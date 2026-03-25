@@ -149,7 +149,7 @@ export default function PaymentForm() {
   const toast = useToast();
   const t = useTranslation();
   const { locale } = useI18n();
-  const { convertMoney, baseCurrency } = useCurrency();
+  const { convertMoney, currency: activeCurrency } = useCurrency();
   const { state: cartState, isHydrated: isCartHydrated } = useStorefrontCart();
   const { totals } = useCheckoutTotals();
   const storefrontConfig = useStorefrontConfig();
@@ -339,6 +339,8 @@ export default function PaymentForm() {
         apartment: shippingAddress.apartment || undefined,
         comments: shippingAddress.comments || undefined,
         city: shippingAddress.city,
+        department: shippingAddress.department || shippingAddress.state || shippingAddress.city,
+        neighborhood: shippingAddress.neighborhood || undefined,
         state: shippingAddress.state || undefined,
         zip: shippingAddress.zip || undefined,
         country: shippingAddress.country
@@ -347,10 +349,10 @@ export default function PaymentForm() {
       notes: notes && notes.trim().length > 0 ? notes.trim() : undefined,
       shippingOptionId: shippingOption.id,
       fulfillmentMode,
-      currency: totals.total.currency ?? baseCurrency
+      currency: activeCurrency
     };
   }, [
-    baseCurrency,
+    activeCurrency,
     contact.email,
     contact.firstName,
     contact.lastName,
@@ -363,16 +365,17 @@ export default function PaymentForm() {
     shippingAddress.city,
     shippingAddress.corner,
     shippingAddress.country,
+    shippingAddress.department,
     shippingAddress.apartment,
     shippingAddress.comments,
     shippingAddress.line1,
     shippingAddress.line2,
+    shippingAddress.neighborhood,
     shippingAddress.number,
     shippingAddress.state,
     shippingAddress.street,
     shippingAddress.zip,
-    shippingOption?.id,
-    totals.total.currency
+    shippingOption?.id
   ]);
 
   useEffect(() => {
@@ -400,7 +403,7 @@ export default function PaymentForm() {
     };
   }, [checkoutSnapshot]);
 
-  const checkoutCurrency = preparedSummary?.grandTotal.currency ?? totals.total.currency ?? baseCurrency;
+  const checkoutCurrency = preparedSummary?.grandTotal.currency ?? activeCurrency ?? totals.total.currency;
   const { amount, currency } = useMemo(() => {
     const sourceTotal = preparedSummary?.grandTotal ?? totals.total;
     const converted = convertMoney(sourceTotal, MERCADO_PAGO_CURRENCY);
