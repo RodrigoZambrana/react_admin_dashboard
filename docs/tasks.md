@@ -55,6 +55,8 @@
 ## In Progress
 
 - Expand `data-testid` coverage for inbox/conversation/channel filters
+- Keep growing messaging regression coverage over the template-driven admin inbox while preserving stable selectors across layout migration
+- Keep validating real mailbox folders (`INBOX`, `Sent`, `Junk`, etc.) against configured accounts so the admin mail surface does not silently fall back into legacy datasets
 - Connect retrieval snippets to provider-backed prompts with approval-aware ranking and tenant scoping
 - Converge email inbox behavior toward the canonical messaging contract with backend-first threading/order/pagination rules
 - Complete the basic admin email flow:
@@ -62,16 +64,29 @@
   - complete history from UI
   - backend-first grouping/thread reading
   - reply flow over canonical thread list
+  - preserve `account + mailbox + mail` in URL when opening detail
+  - clarify synced-message count vs visible thread count
+  - resolve legacy `Mail` thread access into `/app/crm/conversations/:conversationId` whenever the thread is already linked to the canonical hub
 - Reimplement the admin chat surface with the new messaging layout as the dominant visual reference:
   - transcript styling
   - list/detail shell
   - mobile-first usability
   - message type rendering for text, attachments, image and audio
+  - exact parity pass on list/header/composer/detail drawer
+  - contextual messaging rail replacing the old local actions strip inside the `Mensajes` section
+  - keep the new route operational while parity closes:
+    - global new chat
+    - reply from selected conversation
+    - search inside the active chat
+    - channels/inboxes navigation
+    - transition between global admin navigation and messaging-specific actions
+  - keep message actions staged and capability-aware as documented in `docs/messaging-actions-roadmap.md`
   - Invert the coexistence strategy:
   - new template-driven inbox becomes the principal route
   - current inbox remains separated as `Conversations V2` until migration is closed
 - Keep all CSS/media assets required by the new chat layout copied into the current project so the implementation does not depend on the external template path at runtime
 - Keep ownership / routing / SLA documented as recommended follow-up after exploratory testing
+- keep conversation pinning as a backend-shared signal, not local-only UI state
 
 ## Done
 
@@ -133,4 +148,11 @@
 - Exposed backend-driven operational conversation signals for `needsAssignment` and `isSlaBreached`
 - Added explicit `Sync now` action to the admin email inbox
 - Added visual thread count cues to the admin email inbox list
+- Fixed admin `Mail` inbox routing to preserve mailbox context when opening a thread detail
+- Fixed admin `Mail` inbox category detection so the real inbox path no longer falls back into legacy grouping/detail logic
+- Added frontend regression coverage for canonical inbox-category detection and a real-account inbox E2E smoke
 - Added a first messaging E2E focused on transcript rendering for text, attachment, image and audio in admin conversations
+- Added a broader admin messaging regression covering filters drawer presence, shared pin, reply flow, read/unread menu contract and navigation from `Mensajes` to `Mail`
+- Added a strict admin messaging search regression so result matching is now covered as an E2E contract over seeded conversations
+- Realigned `admin-conversations` and `admin-conversation-actions` regressions with the current template-driven messaging UI and restored the missing stable `data-testid` hooks they need
+- Added owner visibility and bulk owner actions to the template-driven admin inbox so operators can identify and switch multiple chats between AI and human control from one surface

@@ -29,6 +29,8 @@ import { IngestInboundMessageDto } from './dto/ingest-inbound-message.dto'
 import { SyncOutboundStatusDto } from './dto/sync-outbound-status.dto'
 import { CreateAdminInternalSessionDto } from './dto/create-admin-internal-session.dto'
 import { RerouteConversationDto } from './dto/reroute-conversation.dto'
+import { ListConversationContactsDto } from './dto/list-conversation-contacts.dto'
+import { StartContactConversationDto } from './dto/start-contact-conversation.dto'
 
 @Controller('conversations')
 export class ConversationsController {
@@ -61,15 +63,71 @@ export class ConversationsController {
     return this.conversations.listQueues()
   }
 
+  @Get('contacts')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  listContacts(
+    @Query() query: ListConversationContactsDto,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.listContacts(query, Number(req.user?.sub))
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
-  async getById(@Param('id') id: string) {
-    const conversation = await this.conversations.getConversation(id)
+  async getById(
+    @Param('id') id: string,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    const conversation = await this.conversations.getConversation(
+      id,
+      Number(req.user?.sub),
+    )
     if (!conversation) {
       throw new NotFoundException('conversation.notFound')
     }
     return conversation
+  }
+
+  @Post(':id/read')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  markRead(
+    @Param('id') id: string,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.markConversationRead(id, Number(req.user?.sub))
+  }
+
+  @Post(':id/unread')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  markUnread(
+    @Param('id') id: string,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.markConversationUnread(id, Number(req.user?.sub))
+  }
+
+  @Post(':id/pin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  pin(
+    @Param('id') id: string,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.pinConversation(id, Number(req.user?.sub))
+  }
+
+  @Post(':id/unpin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  unpin(
+    @Param('id') id: string,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.unpinConversation(id, Number(req.user?.sub))
   }
 
   @Post('admin-internal/session')
@@ -80,6 +138,19 @@ export class ConversationsController {
     @Req() req: FastifyRequest & { user: { sub: string } },
   ) {
     return this.conversations.createAdminInternalSession(dto, Number(req.user?.sub))
+  }
+
+  @Post('contact-session')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  startContactSession(
+    @Body() dto: StartContactConversationDto,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.startConversationFromContact(
+      dto,
+      Number(req.user?.sub),
+    )
   }
 
   @Post('webchat/session')

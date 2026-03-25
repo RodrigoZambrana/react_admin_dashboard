@@ -14,6 +14,7 @@ test("admin can create an internal AI conversation from the inbox", async ({
     waitUntil: "domcontentloaded",
   });
 
+  await page.getByTestId("admin-conversations-new-chat").click();
   await page
     .getByTestId("admin-conversations-internal-subject")
     .fill(subject);

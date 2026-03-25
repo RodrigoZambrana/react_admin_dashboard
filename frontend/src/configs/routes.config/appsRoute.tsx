@@ -133,7 +133,7 @@ const baseAppsRoute: Routes = [
         meta: {
             pageContainerType: 'gutterless',
             footer: false,
-            header: 'Conversations',
+            header: 'Mensajes',
         },
     },
     {
@@ -144,7 +144,7 @@ const baseAppsRoute: Routes = [
         meta: {
             pageContainerType: 'gutterless',
             footer: false,
-            header: 'Conversations',
+            header: 'Mensajes',
         },
     },
     {
@@ -155,7 +155,7 @@ const baseAppsRoute: Routes = [
         meta: {
             pageContainerType: 'gutterless',
             footer: false,
-            header: 'Conversations V2',
+            header: 'Mensajes Legacy',
         },
     },
     {
@@ -166,7 +166,7 @@ const baseAppsRoute: Routes = [
         meta: {
             pageContainerType: 'gutterless',
             footer: false,
-            header: 'Conversations V2',
+            header: 'Mensajes Legacy',
         },
     },
     {

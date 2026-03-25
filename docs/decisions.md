@@ -233,3 +233,35 @@
   - local copies also enable stable visual E2E coverage for image/audio/video/attachment rendering
 - Consequence:
   - `frontend/public/mock/dreamschat` is now the local fixture source for chat media visualization and tests
+
+## Read and pin state are now separated by operational scope
+
+- Decision:
+  - `read / unread` is persisted in backend per `conversationId + userId`
+  - `pin` is persisted in backend as a shared conversation signal
+- Reason:
+  - read state has immediate multi-operator operational value
+  - pinning is being used as an operational triage cue inside the shared admin inbox, so local-only storage is no longer sufficient
+- Consequence:
+  - operator read state stays real across reloads and operator sessions
+  - pinned conversations are now expected to stay aligned for all operators using the same inbox
+
+## Legacy Mail must converge into canonical conversation URLs
+
+- Decision:
+  - `/app/crm/mail` remains only as a compatibility surface while email threading converges
+  - when a legacy email thread already belongs to a canonical conversation, navigation should resolve to `/app/crm/conversations/:conversationId`
+- Reason:
+  - the operator-facing system should not maintain two competing URL models for the same customer thread
+- Consequence:
+  - the old `?mail=` query-param flow becomes transitional
+  - the conversation hub remains the target URL model for accepted operator work
+
+## Message actions must be modeled before provider-specific rollout
+
+- Decision:
+  - reactions, favorites, attachment actions, edit/delete and similar message affordances must be introduced through the canonical conversation model first and only then mapped to provider capabilities
+- Reason:
+  - Meta, email and webchat do not support the same action surface and the UI should not expose actions that cannot be audited or projected back consistently
+- Tracking artifact:
+  - `docs/messaging-actions-roadmap.md`

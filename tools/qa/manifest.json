@@ -62,10 +62,13 @@
         "admin-conversations-internal-confirmation.spec.ts",
         "admin-conversations-mobile-detail.spec.ts",
         "admin-conversations-message-types.spec.ts",
+        "admin-messaging-regression.spec.ts",
+        "admin-messaging-search-matching.spec.ts",
         "admin-conversations-routing.spec.ts",
         "admin-conversations-multichannel.spec.ts",
         "admin-conversations-email-reply.spec.ts",
         "admin-conversations-meta-status.spec.ts",
+        "admin-mail-inbox-real-account.spec.ts",
         "admin-order-detail-cross-project.spec.ts",
         "admin-commercial-surfaces.spec.ts"
       ],
@@ -92,6 +95,8 @@
         "admin-conversations-internal-confirmation.spec.ts",
         "admin-conversations-mobile-detail.spec.ts",
         "admin-conversations-message-types.spec.ts",
+        "admin-messaging-regression.spec.ts",
+        "admin-messaging-search-matching.spec.ts",
         "admin-conversations-routing.spec.ts",
         "admin-conversations-multichannel.spec.ts",
         "admin-conversations-email-reply.spec.ts",
@@ -201,7 +206,8 @@
         "--",
         "src/utils/__tests__/textDirection.test.ts",
         "src/utils/__tests__/salesUnitCalculation.test.ts",
-        "src/views/crm/CustomerDetail/components/__tests__/OrdersHistory.test.ts"
+        "src/views/crm/CustomerDetail/components/__tests__/OrdersHistory.test.ts",
+        "src/views/crm/Mail/utils/__tests__/category.test.ts"
       ],
       "estimatedMinutes": 2,
       "tags": ["admin", "frontend", "unit", "crm", "identifiers"]

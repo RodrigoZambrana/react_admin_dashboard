@@ -14,7 +14,9 @@
       "calendar": "Calendario",
       "customers": "Listado",
       "customerDetails": "Detalles del cliente",
-      "mail": "Correo"
+      "mail": "Correo",
+      "messages": "Mensajes",
+      "conversationsLegacy": "Mensajes legacy"
     },
     "appsCalendar": {
       "calendar": "Agenda",
@@ -510,6 +512,7 @@
     },
     "mobileNav": {
       "home": "Inicio",
+      "messages": "Mensajes",
       "agenda": "Agenda",
       "addCustomer": "Agregar cliente",
       "addOrder": "Agregar pedido",
