@@ -1,0 +1,177 @@
+import ApiService from './ApiService'
+
+export type ConversationSummary = {
+    id: string
+    tenantKey: string
+    scope: string
+    channel: string
+    status: string
+    controlMode: string
+    subject: string | null
+    externalUserId: string | null
+    externalThreadId: string | null
+    externalChannelRef: string | null
+    lastMessageAt: string | null
+    lastInboundAt: string | null
+    lastOutboundAt: string | null
+    createdAt: string
+    updatedAt: string
+    customer: {
+        id: number
+        name: string
+        email: string | null
+        phoneNumber: string | null
+    } | null
+    assignedToUser: {
+        id: number
+        name: string | null
+        email: string
+    } | null
+    inboxAccount: {
+        id: string
+        displayName: string | null
+        address: string | null
+        channel: string
+    } | null
+    participants: Array<{
+        id: string
+        role: string
+        displayName: string | null
+        externalUserId: string | null
+        customer: {
+            id: number
+            name: string
+            email: string | null
+        } | null
+        user: {
+            id: number
+            name: string | null
+            email: string
+        } | null
+    }>
+    latestMessage: {
+        id: string
+        authorType: string
+        kind: string
+        body: string | null
+        createdAt: string
+    } | null
+}
+
+export type ConversationDetail = ConversationSummary & {
+    messages: Array<{
+        id: string
+        authorType: string
+        kind: string
+        body: string | null
+        normalizedText: string | null
+        payload: Record<string, unknown> | null
+        metadata: Record<string, unknown> | null
+        sentAt: string | null
+        receivedAt: string | null
+        createdAt: string
+    }>
+    handoffEvents: Array<{
+        id: string
+        type: string
+        previousMode: string | null
+        nextMode: string | null
+        notes: string | null
+        createdAt: string
+        actorUser: {
+            id: number
+            name: string | null
+            email: string
+        } | null
+    }>
+}
+
+export type ConversationListResponse = {
+    items: ConversationSummary[]
+    total: number
+    page: number
+    pageSize: number
+    filters: {
+        scope: string | null
+        channel: string | null
+        controlMode: string | null
+        status: string | null
+        assignedToMe: boolean
+        search: string | null
+    }
+}
+
+export type InboxSummary = {
+    id: string
+    channel: string
+    displayName: string | null
+    address: string | null
+    active: boolean
+    updatedAt: string
+    scope: string
+}
+
+const ConversationsService = {
+    async fetchConversations(params?: Record<string, unknown>) {
+        const response = await ApiService.fetchData<ConversationListResponse>({
+            url: '/conversations',
+            method: 'get',
+            params,
+        })
+        return response.data
+    },
+
+    async fetchConversation(id: string) {
+        const response = await ApiService.fetchData<ConversationDetail>({
+            url: `/conversations/${id}`,
+            method: 'get',
+        })
+        return response.data
+    },
+
+    async fetchInboxes() {
+        const response = await ApiService.fetchData<InboxSummary[]>({
+            url: '/conversations/inboxes',
+            method: 'get',
+        })
+        return response.data
+    },
+
+    async takeoverConversation(id: string, notes?: string) {
+        const response = await ApiService.fetchData<ConversationDetail>({
+            url: `/conversations/${id}/takeover`,
+            method: 'post',
+            data: notes ? { notes } : {},
+        })
+        return response.data
+    },
+
+    async releaseConversation(id: string, notes?: string) {
+        const response = await ApiService.fetchData<ConversationDetail>({
+            url: `/conversations/${id}/release`,
+            method: 'post',
+            data: notes ? { notes } : {},
+        })
+        return response.data
+    },
+
+    async assignConversation(id: string, userId: number, notes?: string) {
+        const response = await ApiService.fetchData<ConversationDetail>({
+            url: `/conversations/${id}/assign`,
+            method: 'post',
+            data: notes ? { userId, notes } : { userId },
+        })
+        return response.data
+    },
+
+    async replyToConversation(id: string, body: string) {
+        const response = await ApiService.fetchData<ConversationDetail>({
+            url: `/conversations/${id}/reply`,
+            method: 'post',
+            data: { body, kind: 'text' },
+        })
+        return response.data
+    },
+}
+
+export default ConversationsService

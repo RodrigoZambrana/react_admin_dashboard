@@ -1,5 +1,9 @@
 # AI Agent Foundation Implementation Plan
 
+Detailed runtime layout, env strategy, compose overlay, and memory contracts:
+
+- [ai-agent-runtime-blueprint.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-agent-runtime-blueprint.md)
+
 ## Decision Summary
 
 The AI initiative should not start on the current working branch.
@@ -13,6 +17,7 @@ Recommendation:
 Recommended branch name:
 
 - `codex/ai-agent-foundation`
+- current implementation branch in this repo: `codex-ai-agent-foundation`
 
 Reasoning:
 
@@ -37,6 +42,136 @@ Phase 1 target:
 - AI service and channel adapter as independent services
 - webchat first
 - Meta channels and multiple email inboxes prepared in contracts
+
+## Current Foundation Status
+
+Implemented in `codex-ai-agent-foundation`:
+
+- Prisma conversation domain:
+  - `Conversation`
+  - `ConversationParticipant`
+  - `ConversationMessage`
+  - `ConversationHandoffEvent`
+  - `ConversationToolCall`
+- backend module:
+  - `backend/src/conversations`
+- endpoints:
+  - `GET /api/conversations`
+  - `GET /api/conversations/:id`
+  - `GET /api/conversations/inboxes`
+  - `POST /api/conversations/webchat/session`
+  - `POST /api/conversations/webchat/message`
+  - `POST /api/conversations/:id/takeover`
+  - `POST /api/conversations/:id/release`
+  - `POST /api/conversations/:id/assign`
+  - `POST /api/conversations/:id/reply`
+  - `POST /api/conversations/:id/agent-reply`
+- minimal admin UI:
+  - `frontend/src/views/crm/Conversations`
+- AI runtime slices:
+  - `services/ai-agent-service`
+  - `services/channel-adapter`
+- storefront widget shell:
+  - `ecommerce/src/components/ai-chat`
+- smoke regression:
+  - `ecommerce/e2e/admin-conversations.spec.ts`
+  - `ecommerce/e2e/admin-conversation-actions.spec.ts`
+  - `ecommerce/e2e/storefront-webchat.spec.ts`
+
+Still intentionally out of scope for this slice:
+
+- internal `admin_chat`
+- external provider delivery
+- durable tool-call audit persistence
+- rich assignment UX and queue management
+- transcript hydration from backend to storefront widget
+
+## Real UI Implementation Phase
+
+### Backend
+
+Implemented now:
+
+- canonical conversation hub in `backend/src/conversations`
+- inbound `webchat session` and `webchat message`
+- human `takeover`, `release`, `assign` and `reply`
+- internal `agent-reply` protected by shared service token
+
+Next backend phase:
+
+- tool-call audit endpoints
+- email/meta projected conversation creation
+- richer inbox read models by channel and queue
+
+### Frontend Admin
+
+Implemented now:
+
+- unified list/detail in `frontend/src/views/crm/Conversations`
+- takeover/release controls
+- operator reply composer
+- basic assignment input
+- handoff event history
+
+Next admin UI phase:
+
+- real operator selector
+- queue/channel filters
+- SLA and ownership indicators
+
+### Storefront
+
+Implemented now:
+
+- session/message contract in `ecommerce/src/lib/api/conversations.ts`
+- `webchat-context` orchestration
+- launcher/drawer shell in `ecommerce/src/components/ai-chat`
+
+Next storefront phase:
+
+- transcript hydration from backend
+- richer attachments and quick replies
+- contextual launch points from product/order surfaces
+
+### AI Runtime Services
+
+Implemented now:
+
+- `ai-agent-service` with provider abstraction, LangChain/OpenAI path and mock fallback
+- `channel-adapter` with normalized `webchat`, `email` and `meta`
+- `channel-adapter -> ai-agent-service -> backend` reply loop for webchat
+
+Next runtime phase:
+
+- `/api/ai/*` business tools
+- external provider delivery and verification
+- tenant-level policies for handoff and routing
+
+## Reference Source Projects
+
+External source projects available for reference:
+
+- storefront base:
+  - `/Users/rodrigo/Personal/Proyectos/react projects/bonik-themeforest-files 2/ecommerce_v2`
+- admin base:
+  - `/Users/rodrigo/Personal/Proyectos/react projects/Elstar - React Tailwind Admin Template/demo`
+
+Recommended use of those sources:
+
+- use them as structural and UI references only
+- do not treat them as a merge source
+- preserve the current repo as the source of truth for implemented business logic
+
+Useful takeaways:
+
+- Bonik is a good reference for:
+  - webchat/storefront surface placement
+  - layout composition in public pages
+  - modular page-section organization
+- Elstar is a good reference for:
+  - admin route/config structure
+  - inbox-style operational layouts
+  - scalable view/component separation
 
 ## Architecture Placement
 
