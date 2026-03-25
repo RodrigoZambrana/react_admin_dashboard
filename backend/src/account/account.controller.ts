@@ -23,6 +23,7 @@ import { UserActivityService } from '../user-activity/user-activity.service'
 import * as bcrypt from 'bcrypt'
 import { assertStrongPassword } from '../common/validation/assert-strong-password'
 import { buildImageDataUrl, ensureNodeBuffer } from '../common/images/image.utils'
+import { buildAddressLines } from '../common/orders/address'
 
 const normalizeNullableString = (value?: string | null) => {
   if (value === undefined || value === null) {
@@ -384,37 +385,6 @@ export class AccountController {
       return parts.length ? parts.join(' • ') : null
     }
 
-    const buildAddressLines = ({
-      line1,
-      line2,
-      city,
-      state,
-      zip,
-      fallback,
-    }: {
-      line1?: string | null
-      line2?: string | null
-      city?: string | null
-      state?: string | null
-      zip?: string | null
-      fallback: CustomerAddress | null
-    }) => {
-      const resolvedLine1 = normalizeString(line1) ?? composeLine1(fallback)
-      const resolvedLine2 = normalizeString(line2) ?? composeLine2(fallback)
-      const resolvedCity = normalizeString(city) ?? normalizeString(fallback?.city)
-      const resolvedState = normalizeString(state) ?? normalizeString(fallback?.country)
-      const resolvedZip = normalizeString(zip)
-      const cityState = [resolvedCity, resolvedState]
-        .filter((segment): segment is string => Boolean(segment))
-        .join(', ')
-      return [
-        resolvedLine1,
-        resolvedLine2,
-        cityState.length ? cityState : null,
-        resolvedZip,
-      ].filter((segment): segment is string => Boolean(segment))
-    }
-
     let resolvedAddress: string[] = []
     const numericId = Number(id)
     if (Number.isInteger(numericId) && numericId > 0) {
@@ -440,20 +410,48 @@ export class AccountController {
           ) ?? null
 
         const billingLines = buildAddressLines({
-          line1: order.billingAddress1,
-          line2: order.billingAddress2,
-          city: order.billingCity,
-          state: order.billingState,
-          zip: order.billingZip,
-          fallback: secondaryAddress ?? primaryAddress,
+          line1: normalizeString(order.billingAddress1) ?? composeLine1(secondaryAddress ?? primaryAddress),
+          line2: normalizeString(order.billingAddress2) ?? composeLine2(secondaryAddress ?? primaryAddress),
+          department:
+            normalizeString((order as { billingDepartment?: string | null }).billingDepartment) ??
+            normalizeString((secondaryAddress as CustomerAddress & { department?: string | null })?.department) ??
+            normalizeString((primaryAddress as CustomerAddress & { department?: string | null })?.department),
+          neighborhood:
+            normalizeString((order as { billingNeighborhood?: string | null }).billingNeighborhood) ??
+            normalizeString((secondaryAddress as CustomerAddress & { neighborhood?: string | null })?.neighborhood) ??
+            normalizeString((primaryAddress as CustomerAddress & { neighborhood?: string | null })?.neighborhood),
+          city: normalizeString(order.billingCity) ?? normalizeString(secondaryAddress?.city) ?? normalizeString(primaryAddress?.city),
+          state:
+            normalizeString(order.billingState) ??
+            normalizeString((secondaryAddress as CustomerAddress & { department?: string | null })?.department) ??
+            normalizeString((primaryAddress as CustomerAddress & { department?: string | null })?.department),
+          zip: normalizeString(order.billingZip),
+          country:
+            normalizeString((order as { billingCountry?: string | null }).billingCountry) ??
+            normalizeString(secondaryAddress?.country) ??
+            normalizeString(primaryAddress?.country),
         })
         const shippingLines = buildAddressLines({
-          line1: order.shippingAddress1,
-          line2: order.shippingAddress2,
-          city: order.shippingCity,
-          state: order.shippingState,
-          zip: order.shippingZip,
-          fallback: primaryAddress ?? secondaryAddress,
+          line1: normalizeString(order.shippingAddress1) ?? composeLine1(primaryAddress ?? secondaryAddress),
+          line2: normalizeString(order.shippingAddress2) ?? composeLine2(primaryAddress ?? secondaryAddress),
+          department:
+            normalizeString((order as { shippingDepartment?: string | null }).shippingDepartment) ??
+            normalizeString((primaryAddress as CustomerAddress & { department?: string | null })?.department) ??
+            normalizeString((secondaryAddress as CustomerAddress & { department?: string | null })?.department),
+          neighborhood:
+            normalizeString((order as { shippingNeighborhood?: string | null }).shippingNeighborhood) ??
+            normalizeString((primaryAddress as CustomerAddress & { neighborhood?: string | null })?.neighborhood) ??
+            normalizeString((secondaryAddress as CustomerAddress & { neighborhood?: string | null })?.neighborhood),
+          city: normalizeString(order.shippingCity) ?? normalizeString(primaryAddress?.city) ?? normalizeString(secondaryAddress?.city),
+          state:
+            normalizeString(order.shippingState) ??
+            normalizeString((primaryAddress as CustomerAddress & { department?: string | null })?.department) ??
+            normalizeString((secondaryAddress as CustomerAddress & { department?: string | null })?.department),
+          zip: normalizeString(order.shippingZip),
+          country:
+            normalizeString((order as { shippingCountry?: string | null }).shippingCountry) ??
+            normalizeString(primaryAddress?.country) ??
+            normalizeString(secondaryAddress?.country),
         })
         resolvedAddress =
           billingLines.length > 0

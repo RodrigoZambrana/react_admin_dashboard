@@ -33,6 +33,7 @@ const BatchDeleteButton = () => {
             size="sm"
             icon={<HiOutlineTrash />}
             onClick={onBatchDelete}
+            data-testid="admin-order-list-batch-delete"
         >
             {t('text.actions.batchDelete')}
         </Button>
@@ -252,12 +253,16 @@ const OrdersTableTools = () => {
     }, [composeExportParams, exporting, resource, t, tDoc])
 
     return (
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+        <div
+            className="flex flex-col gap-4 lg:flex-row lg:items-center"
+            data-testid="admin-order-list-tools"
+        >
             <input
                 ref={fileInputRef}
                 type="file"
                 accept=".csv,text/csv"
                 className="hidden"
+                data-testid="admin-order-list-import-input"
                 onChange={onFileChange}
             />
             <Link className="w-full lg:w-auto" to={routes.create}>
@@ -266,6 +271,7 @@ const OrdersTableTools = () => {
                     variant="solid"
                     size="sm"
                     icon={<HiPlusCircle />}
+                    data-testid="admin-order-list-new"
                 >
                     {tDoc('addAction', { defaultValue: 'Agregar Pedido' })}
                 </Button>
@@ -278,6 +284,7 @@ const OrdersTableTools = () => {
                 loading={importing}
                 disabled={importing}
                 onClick={onImportClick}
+                data-testid="admin-order-list-import"
             >
                 {t('text.actions.import', { defaultValue: 'Importar' })}
             </Button>
@@ -288,10 +295,13 @@ const OrdersTableTools = () => {
                 loading={exporting}
                 disabled={exporting}
                 onClick={onExport}
+                data-testid="admin-order-list-export"
             >
                 {t('text.actions.export')}
             </Button>
-            <OrderTableSearch />
+            <div data-testid="admin-order-list-search">
+                <OrderTableSearch />
+            </div>
         </div>
     )
 }

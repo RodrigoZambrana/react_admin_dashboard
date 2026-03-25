@@ -19,6 +19,24 @@ export type LatestOrderSnapshot = {
   itemCount: number;
 };
 
+export type CustomerAddressSnapshot = {
+  id: number;
+  isPrimary: boolean;
+  line1: string;
+  line2: string | null;
+  city: string;
+  department: string | null;
+  neighborhood: string | null;
+  country: string;
+};
+
+export type OrderAddressSnapshot = {
+  shippingCity: string | null;
+  shippingDepartment: string | null;
+  shippingNeighborhood: string | null;
+  shippingCountry: string | null;
+};
+
 export type LatestPaymentSnapshot = {
   id: number;
   status: string;
@@ -412,4 +430,86 @@ export async function markLatestMercadoPagoIntentApproved(
   }
 
   return row;
+}
+
+export async function getCustomerAddressesByEmail(email: string): Promise<CustomerAddressSnapshot[]> {
+  const result = await withClient(async (client) =>
+    client.query<{
+      id: number;
+      isPrimary: boolean;
+      street: string;
+      number: string;
+      apartment: string | null;
+      corner: string | null;
+      city: string;
+      department: string | null;
+      neighborhood: string | null;
+      country: string;
+    }>(
+      `
+        SELECT
+          a.id,
+          a."isPrimary",
+          a.street,
+          a.number,
+          a.apartment,
+          a.corner,
+          a.city,
+          a.department,
+          a.neighborhood,
+          a.country
+        FROM "CustomerAddress" a
+        INNER JOIN "Customer" c ON c.id = a."customerId"
+        WHERE c.email = $1
+        ORDER BY a.id ASC
+      `,
+      [email]
+    )
+  );
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    isPrimary: row.isPrimary,
+    line1: `${row.street ?? ""} ${row.number ?? ""}`.trim(),
+    line2: [row.apartment, row.corner].filter(Boolean).join(", ") || null,
+    city: row.city,
+    department: row.department,
+    neighborhood: row.neighborhood,
+    country: row.country
+  }));
+}
+
+export async function getOrderAddressByUuid(orderUuid: string): Promise<OrderAddressSnapshot | null> {
+  const result = await withClient(async (client) =>
+    client.query<{
+      shippingCity: string | null;
+      shippingDepartment: string | null;
+      shippingNeighborhood: string | null;
+      shippingCountry: string | null;
+    }>(
+      `
+        SELECT
+          o."shippingCity",
+          o."shippingDepartment",
+          o."shippingNeighborhood",
+          o."shippingCountry"
+        FROM "Order" o
+        WHERE o.uuid = $1
+        LIMIT 1
+      `,
+      [orderUuid]
+    )
+  );
+
+  const row = result.rows[0];
+  if (!row) {
+    return null;
+  }
+
+  return {
+    shippingCity: row.shippingCity,
+    shippingDepartment: row.shippingDepartment,
+    shippingNeighborhood: row.shippingNeighborhood,
+    shippingCountry: row.shippingCountry
+  };
 }

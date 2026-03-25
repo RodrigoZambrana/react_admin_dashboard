@@ -19,6 +19,7 @@ Plan operativo para ejecutar el saneamiento y la evolución del proyecto sin per
 - Las automatizaciones E2E futuras deben apoyarse en `data-testid` estables en superficies críticas; ese criterio debe formar parte de la aceptación de cambios nuevos o refactors relevantes.
 - El bootstrap y la evolución de base deben seguir un camino reproducible con Prisma, pero la estructura física y la performance de consultas también deben revisarse periódicamente con normalización e índices donde corresponda.
 - La cobertura de pruebas objetivo debe crecer de forma incremental y priorizada, con regresiones browser para flujos críticos y sin depender de pasos manuales no trazables.
+- El ciclo de trabajo de pruebas debe contemplar explícitamente alta, modificación y baja de casos; ningún cambio funcional relevante se considera cerrado si no deja alineado su bloque de QA y su cobertura mínima asociada.
 - Las futuras superficies editoriales del sitio deben modelarse en un dominio CMS independiente; no conviene seguir ampliando contenido editorial directamente sobre `Product`.
 
 ## Secuencia de trabajo recomendada
@@ -147,8 +148,9 @@ Plan operativo para ejecutar el saneamiento y la evolución del proyecto sin per
     - `checkout preview -> pago -> detalle de pedido`,
     - flujo `cash` pendiente de confirmación,
     - notificaciones cliente/admin;
-  - pendiente transversal:
-    - extender `data-testid` al resto de superficies críticas y tomarlo como criterio de aceptación futuro.
+- pendiente transversal:
+  - extender `data-testid` al resto de superficies críticas y tomarlo como criterio de aceptación futuro.
+  - consolidar el flujo operativo de alta/modificación/baja de tests como política transversal de `backend`, `frontend` y `ecommerce`.
 
 ## Fase 0. Preparación y contención
 

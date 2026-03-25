@@ -124,10 +124,13 @@ export class OrderPaymentSettlementService {
       nextStatusId !== previousStatusId && nextStatusId !== null
 
     const suppressImmediateCheckoutNotifications =
-      becameConfirmed &&
-      this.isImmediateCheckoutPayment(payment.paymentMethodId, payment.method) &&
-      !hasPriorConfirmedPayments &&
-      Date.now() - orderBefore.createdAt.getTime() <= IMMEDIATE_CHECKOUT_NOTIFICATION_WINDOW_MS
+      this.shouldSuppressImmediateCheckoutNotifications({
+        becameConfirmed,
+        paymentMethodId: payment.paymentMethodId,
+        methodName: payment.method,
+        hasPriorConfirmedPayments,
+        orderCreatedAt: orderBefore.createdAt,
+      })
 
     if (notifyOrderStatusChanged) {
       await this.timeline.recordStatusTransition(
@@ -159,27 +162,31 @@ export class OrderPaymentSettlementService {
 
   async dispatch(plan: PaymentSettlementDispatchPlan): Promise<void> {
     if (plan.notifyPaymentReceived) {
-      try {
-        await this.notifications.notifyPaymentReceived(plan.paymentId)
-      } catch (error) {
-        this.logger.error(
-          `Failed to dispatch payment received notifications for payment ${plan.paymentId}: ${(error as Error).message}`,
-        )
-      }
+      await this.dispatchSafely(
+        `payment received notifications for payment ${plan.paymentId}`,
+        () => this.notifications.notifyPaymentReceived(plan.paymentId),
+      )
     }
 
     if (plan.notifyOrderStatusChanged && plan.nextStatusId !== null) {
-      try {
-        await this.notifications.notifyOrderStatusChanged(
-          plan.orderId,
-          plan.previousStatusId,
-          plan.nextStatusId,
-        )
-      } catch (error) {
-        this.logger.error(
-          `Failed to dispatch order status change notifications for order ${plan.orderId}: ${(error as Error).message}`,
-        )
-      }
+      const nextStatusId = plan.nextStatusId
+      await this.dispatchSafely(
+        `order status change notifications for order ${plan.orderId}`,
+        () =>
+          this.notifications.notifyOrderStatusChanged(
+            plan.orderId,
+            plan.previousStatusId,
+            nextStatusId,
+          ),
+      )
+    }
+  }
+
+  private async dispatchSafely(label: string, action: () => Promise<void>) {
+    try {
+      await action()
+    } catch (error) {
+      this.logger.error(`Failed to dispatch ${label}: ${(error as Error).message}`)
     }
   }
 
@@ -203,5 +210,20 @@ export class OrderPaymentSettlementService {
 
     const matched = matchPaymentMethod(methodName ?? null)
     return matched?.code === 'mercado_pago'
+  }
+
+  private shouldSuppressImmediateCheckoutNotifications(input: {
+    becameConfirmed: boolean
+    paymentMethodId?: number | null
+    methodName?: string | null
+    hasPriorConfirmedPayments: boolean
+    orderCreatedAt: Date
+  }) {
+    return (
+      input.becameConfirmed &&
+      this.isImmediateCheckoutPayment(input.paymentMethodId, input.methodName) &&
+      !input.hasPriorConfirmedPayments &&
+      Date.now() - input.orderCreatedAt.getTime() <= IMMEDIATE_CHECKOUT_NOTIFICATION_WINDOW_MS
+    )
   }
 }

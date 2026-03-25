@@ -322,6 +322,14 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
     o[`${prefix}City`],
     ...nestedValues('city'),
   )
+  const neighborhood = getFirstNonEmpty(
+    o[`${prefix}Neighborhood`],
+    ...nestedValues('neighborhood'),
+  )
+  const department = getFirstNonEmpty(
+    o[`${prefix}Department`],
+    ...nestedValues('department'),
+  )
   const stateOrRegion = getFirstNonEmpty(
     o[`${prefix}State`],
     ...nestedValues('state', 'region', 'province', 'country'),
@@ -335,7 +343,7 @@ export function toAddressLines(o: any, prefix: 'shipping' | 'billing') {
     o[`${prefix}Country`],
   )
 
-  const line3 = [city, stateOrRegion].filter(Boolean).join(', ')
+  const line3 = [city, neighborhood, department || stateOrRegion].filter(Boolean).join(', ')
   const line4Parts = [zip]
   if (country && country !== stateOrRegion) {
     line4Parts.push(country)

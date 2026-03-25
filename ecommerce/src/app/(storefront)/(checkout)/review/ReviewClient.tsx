@@ -32,6 +32,7 @@ import {
   readActiveOrderLock,
   writeOrderLock
 } from "@/utils/orderLock";
+import { clearPersistedCheckoutOrderItems } from "@/utils/checkoutStorage";
 import type { MercadoPagoNormalizedStatus } from "@/utils/mercadopago";
 import { useI18n, useTranslation } from "@/state/i18n-context";
 
@@ -147,24 +148,36 @@ const formatAddress = (address: {
   line1?: string;
   line2?: string | null;
   city?: string;
+  department?: string | null;
+  neighborhood?: string | null;
   state?: string | null;
   zip?: string | null;
   country?: string;
 }) => {
-  const cityStateParts: string[] = [];
+  const locationParts: string[] = [];
   const cityValue = (address.city ?? "").trim();
+  const neighborhoodValue = (address.neighborhood ?? "").trim();
+  const departmentValue = (address.department ?? "").trim();
   const stateValue = (address.state ?? "").trim();
   if (cityValue) {
-    cityStateParts.push(cityValue);
+    locationParts.push(cityValue);
   }
-  if (stateValue && stateValue.toLowerCase() !== cityValue.toLowerCase()) {
-    cityStateParts.push(stateValue);
+  if (neighborhoodValue) {
+    locationParts.push(neighborhoodValue);
+  }
+  const resolvedDepartment = departmentValue || stateValue;
+  if (
+    resolvedDepartment &&
+    resolvedDepartment.toLowerCase() !== cityValue.toLowerCase()
+  ) {
+    locationParts.push(resolvedDepartment);
   }
 
   const parts = [
     address.line1,
     address.line2,
-    cityStateParts.join(", "),
+    locationParts.join(", "),
+    address.zip,
     address.country
   ]
     .filter(Boolean)
@@ -194,6 +207,7 @@ export default function ReviewClient() {
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [cashRedirectOrderUuid, setCashRedirectOrderUuid] = useState<string | null>(null);
   const [confirmedPayment, setConfirmedPayment] = useState<CheckoutPayment | null>(null);
   const [confirmedContact, setConfirmedContact] = useState<{ name: string; email: string } | null>(
     null
@@ -272,6 +286,8 @@ export default function ReviewClient() {
         apartment: shippingAddress.apartment || undefined,
         comments: shippingAddress.comments || undefined,
         city: shippingAddress.city,
+        department: shippingAddress.department || shippingAddress.state || shippingAddress.city,
+        neighborhood: shippingAddress.neighborhood || undefined,
         state: shippingAddress.state || undefined,
         zip: resolvedZip,
         country: shippingAddress.country
@@ -298,10 +314,12 @@ export default function ReviewClient() {
     shippingAddress.city,
     shippingAddress.country,
     shippingAddress.corner,
+    shippingAddress.department,
     shippingAddress.apartment,
     shippingAddress.comments,
     shippingAddress.line1,
     shippingAddress.line2,
+    shippingAddress.neighborhood,
     shippingAddress.number,
     shippingAddress.state,
     shippingAddress.street,
@@ -461,6 +479,8 @@ export default function ReviewClient() {
         apartment: shippingAddress.apartment || undefined,
         comments: shippingAddress.comments || undefined,
         city: shippingAddress.city,
+        department: shippingAddress.department || shippingAddress.state || shippingAddress.city,
+        neighborhood: shippingAddress.neighborhood || undefined,
         state: shippingAddress.state || undefined,
         zip: resolvedZip,
         country: shippingAddress.country
@@ -496,9 +516,9 @@ export default function ReviewClient() {
       if (orderLockKey && typeof window !== "undefined") {
         writeOrderLock(orderLockKey);
       }
-      clearCart();
-      reset();
       setLastOrder(order);
+      clearCart();
+      clearPersistedCheckoutOrderItems(checkoutToken);
       const orderLabel = order.orderNumber || order.reference || `#${order.uuid}`;
       const isCashOrder = normalizedPayment?.method === "cod";
       toast.success({
@@ -520,6 +540,11 @@ export default function ReviewClient() {
                 : "checkout.review.toast.success.description"
             )
       });
+      if (isCashOrder) {
+        setCashRedirectOrderUuid(order.uuid);
+        return;
+      }
+      reset();
     } catch (cause) {
       const message = isApiError(cause)
         ? (() => {
@@ -558,8 +583,10 @@ export default function ReviewClient() {
     shippingAddress.city,
     shippingAddress.country,
     shippingAddress.corner,
+    shippingAddress.department,
     shippingAddress.line1,
     shippingAddress.line2,
+    shippingAddress.neighborhood,
     shippingAddress.number,
     shippingAddress.apartment,
     shippingAddress.comments,
@@ -644,6 +671,18 @@ export default function ReviewClient() {
   const confirmationOrderLabel = lastOrder
     ? `#${lastOrder.orderNumber ?? lastOrder.id}`
     : "";
+
+  useEffect(() => {
+    if (cashRedirectOrderUuid) {
+      router.replace(`/payment/success?method=cod&orderUuid=${encodeURIComponent(cashRedirectOrderUuid)}`);
+    }
+  }, [cashRedirectOrderUuid, router]);
+
+  useEffect(() => {
+    if (lastOrder?.uuid && isCashConfirmation) {
+      setCashRedirectOrderUuid((current) => current ?? lastOrder.uuid);
+    }
+  }, [isCashConfirmation, lastOrder?.uuid]);
 
   return (
     <Box>

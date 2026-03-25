@@ -36,9 +36,17 @@ services:
         CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
       target: runtime
     working_dir: /app
+    environment:
+      CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
+      PORT: ${BACKEND_PORT:-4000}
+      QA_RESULTS_DIR: /qa-results
+      QA_MANIFEST_PATH: /qa-tools/manifest.json
     ports:
       - "4000:4000"
       - "5555:5555"
+    volumes:
+      - ../.qa:/qa-results
+      - ../tools/qa:/qa-tools:ro
     depends_on: []
 
   frontend:

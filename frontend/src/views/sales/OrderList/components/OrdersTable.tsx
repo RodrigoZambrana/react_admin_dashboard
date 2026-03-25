@@ -93,6 +93,7 @@ const OrderColumnCell = ({ row, onView }: { row: Order; onView: () => void }) =>
     const displayIdentifier = resolveDisplayIdentifier(row)
     return (
         <span
+            data-testid={`admin-order-list-id-${displayIdentifier}`}
             className={`cursor-pointer select-none font-semibold hover:${textTheme}`}
             onClick={onView}
         >
@@ -117,24 +118,40 @@ const ActionColumnCell = ({
     const { textTheme } = useThemeClass()
     const { t } = useSalesDocumentI18n()
     return (
-        <div className="flex justify-end text-lg">
+        <div className="flex justify-end text-lg" data-testid="admin-order-list-actions">
             <Tooltip title={t('text.actions.view')}>
-                <span className={`cursor-pointer p-2 hover:${textTheme}`} onClick={onView}>
+                <span
+                    className={`cursor-pointer p-2 hover:${textTheme}`}
+                    onClick={onView}
+                    data-testid="admin-order-list-view"
+                >
                     <HiOutlineEye />
                 </span>
             </Tooltip>
             <Tooltip title={t('text.actions.edit')}>
-                <span className={`cursor-pointer p-2 hover:${textTheme}`} onClick={onEdit}>
+                <span
+                    className={`cursor-pointer p-2 hover:${textTheme}`}
+                    onClick={onEdit}
+                    data-testid="admin-order-list-edit"
+                >
                     <HiOutlinePencil />
                 </span>
             </Tooltip>
             <Tooltip title={invoiceLabel}>
-                <span className={`cursor-pointer p-2 hover:${textTheme}`} onClick={onInvoice}>
+                <span
+                    className={`cursor-pointer p-2 hover:${textTheme}`}
+                    onClick={onInvoice}
+                    data-testid="admin-order-list-invoice"
+                >
                     <HiOutlineDocumentText />
                 </span>
             </Tooltip>
             <Tooltip title={t('text.actions.delete')}>
-                <span className="cursor-pointer p-2 hover:text-red-500" onClick={onDelete}>
+                <span
+                    className="cursor-pointer p-2 hover:text-red-500"
+                    onClick={onDelete}
+                    data-testid="admin-order-list-delete"
+                >
                     <HiOutlineTrash />
                 </span>
             </Tooltip>
@@ -535,6 +552,7 @@ const OrdersTable = () => {
 
     return (
         <DataTable
+            data-testid="admin-order-list-table"
             // Si tu DataTable tiene modo server-side, activalo (nombre varía):
             // manualSorting
             // serverSide

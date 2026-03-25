@@ -38,6 +38,13 @@ const createPrisma = () => ({
     create: vi.fn(),
     update: vi.fn(),
   },
+  customerAddress: {
+    findMany: vi.fn().mockResolvedValue([]),
+    create: vi.fn(),
+    update: vi.fn(),
+    updateMany: vi.fn(),
+    deleteMany: vi.fn(),
+  },
   customerStatus: {
     findFirst: vi.fn(),
     create: vi.fn(),
@@ -158,6 +165,7 @@ describe('StorefrontService.createOrder', () => {
       line1: 'Av. Italia 1234',
       line2: 'Apto 2',
       city: 'Montevideo',
+      department: 'Montevideo',
       state: 'Montevideo',
       zip: '11000',
       country: 'UY',
@@ -305,6 +313,10 @@ describe('StorefrontService.createOrder', () => {
       callback({
         order: {
           create: prisma.order.create,
+          findUniqueOrThrow: prisma.order.findUnique,
+        },
+        payment: {
+          create: vi.fn().mockResolvedValue({ id: 1 }),
         },
         product: {
           updateMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -327,6 +339,7 @@ describe('StorefrontService.createOrder', () => {
         line1: 'Av. Italia 1234',
         line2: 'Apto 2',
         city: 'Montevideo',
+        department: 'Montevideo',
         state: 'Montevideo',
         zip: '11000',
         country: 'UY',
@@ -352,6 +365,196 @@ describe('StorefrontService.createOrder', () => {
     expect(result.paymentStatus).toBe('processing')
     expect(result.summary.shipping.amount).toBe(10)
     expect(result.payment?.status).toBe('processing')
+  })
+
+  it('reuses an identical existing customer address instead of creating a duplicate', async () => {
+    prisma.customerAddress.findMany.mockResolvedValue([
+      {
+        id: 8,
+        customerId: 10,
+        label: 'Casa',
+        line1: 'Norberto Ortiz 4086',
+        line2: 'Porton verde, Santa Ana',
+        street: 'Norberto Ortiz',
+        number: '4086',
+        apartment: 'Porton verde',
+        corner: 'Santa Ana',
+        city: 'Montevideo',
+        department: 'Montevideo',
+        neighborhood: 'Aguada',
+        country: 'Uruguay',
+        comments: '',
+        isPrimary: true,
+        createdAt: new Date('2026-03-24T10:00:00.000Z'),
+        updatedAt: new Date('2026-03-24T10:00:00.000Z'),
+      },
+    ])
+
+    await (service as any).syncCustomerPrimaryAddressFromCheckout(10, {
+      line1: 'Norberto Ortiz 4086',
+      line2: 'Porton verde, Santa Ana',
+      street: 'Norberto Ortiz',
+      number: '4086',
+      apartment: 'Porton verde',
+      corner: 'Santa Ana',
+      city: 'Montevideo',
+      department: 'Montevideo',
+      neighborhood: 'Aguada',
+      state: 'Montevideo',
+      zip: '11000',
+      country: 'Uruguay',
+      comments: '',
+    })
+
+    expect(prisma.customerAddress.create).not.toHaveBeenCalled()
+    expect(prisma.customerAddress.update).not.toHaveBeenCalled()
+    expect(prisma.customerAddress.updateMany).toHaveBeenCalledWith({
+      where: { customerId: 10, NOT: { id: 8 } },
+      data: { isPrimary: false },
+    })
+  })
+
+  it('persists storefront orders in the requested checkout currency', async () => {
+    prisma.storefrontPaymentIntent.findUnique.mockResolvedValue(null)
+    prisma.customer.findUnique.mockResolvedValue(null)
+    prisma.customer.create.mockResolvedValue({
+      id: 10,
+      email: 'buyer@example.com',
+      firstName: 'Ana',
+      lastName: 'Pérez',
+      preferredLocale: 'es',
+    })
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 2115,
+        name: 'Ventana corrediza',
+        published: true,
+        mode: ProductMode.SIMPLE,
+        salePrice: decimal(160),
+        costPrice: decimal(80),
+        taxRate: 22,
+        currency: 'USD',
+        productCode: 'VENT-01',
+        stock: 8,
+        permanentStock: false,
+        status: 0,
+        images: [],
+      },
+    ])
+    prisma.productVariant.findMany.mockResolvedValue([])
+    prisma.shippingOption.findUnique.mockResolvedValue({
+      id: 3,
+      name: 'Envío Montevideo',
+      deliveryFees: 10,
+      estimatedMin: 1,
+      estimatedMax: 3,
+    })
+    prisma.order.create.mockResolvedValue({
+      id: 44,
+      uuid: 'ord-44',
+      createdAt: new Date('2026-03-24T10:00:00.000Z'),
+      documentType: DocumentType.ORDER,
+      statusId: ORDER_STATUS_CODES.PENDING,
+      orderCurrency: 'UYU',
+      paymentMethodId: null,
+      shippingAddress1: 'Av. Italia 1234',
+      shippingAddress2: 'Apto 2',
+      shippingCity: 'Montevideo',
+      shippingDepartment: 'Montevideo',
+      shippingNeighborhood: 'Aguada',
+      shippingCountry: 'Uruguay',
+      shippingState: 'Montevideo',
+      shippingZip: '11000',
+      billingAddress1: 'Av. Italia 1234',
+      billingAddress2: 'Apto 2',
+      billingCity: 'Montevideo',
+      billingDepartment: 'Montevideo',
+      billingNeighborhood: 'Aguada',
+      billingCountry: 'Uruguay',
+      billingState: 'Montevideo',
+      billingZip: '11000',
+      shippingVendor: 'Envío Montevideo',
+      deliveryFees: decimal(10),
+      estimatedMin: 1,
+      estimatedMax: 3,
+      subTotal: decimal(160),
+      tax: decimal(35.2),
+      grandTotal: decimal(205.2),
+      items: [],
+      payments: [],
+      storefrontPayments: [],
+    })
+    prisma.order.findUnique.mockResolvedValue({
+      id: 44,
+      uuid: 'ord-44',
+      createdAt: new Date('2026-03-24T10:00:00.000Z'),
+      documentType: DocumentType.ORDER,
+      statusId: ORDER_STATUS_CODES.PENDING,
+      orderCurrency: 'UYU',
+      paymentMethodId: null,
+      shippingAddress1: 'Av. Italia 1234',
+      shippingAddress2: 'Apto 2',
+      shippingCity: 'Montevideo',
+      shippingDepartment: 'Montevideo',
+      shippingNeighborhood: 'Aguada',
+      shippingCountry: 'Uruguay',
+      shippingState: 'Montevideo',
+      shippingZip: '11000',
+      billingAddress1: 'Av. Italia 1234',
+      billingAddress2: 'Apto 2',
+      billingCity: 'Montevideo',
+      billingDepartment: 'Montevideo',
+      billingNeighborhood: 'Aguada',
+      billingCountry: 'Uruguay',
+      billingState: 'Montevideo',
+      billingZip: '11000',
+      shippingVendor: 'Envío Montevideo',
+      deliveryFees: decimal(10),
+      estimatedMin: 1,
+      estimatedMax: 3,
+      subTotal: decimal(160),
+      tax: decimal(35.2),
+      grandTotal: decimal(205.2),
+      items: [],
+      payments: [],
+      storefrontPayments: [],
+    })
+
+    prisma.$transaction.mockImplementation(async (callback: any) =>
+      callback({
+        order: {
+          create: prisma.order.create,
+          findUniqueOrThrow: prisma.order.findUnique,
+        },
+        payment: {
+          create: vi.fn().mockResolvedValue({ id: 1 }),
+        },
+        product: {
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        productVariant: {
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+      }),
+    )
+
+    await service.createOrder({
+      ...buildBaseOrderPayload(),
+      currency: 'UYU',
+      items: [{ productId: 2115, quantity: 1 }],
+      shippingAddress: {
+        ...buildBaseOrderPayload().shippingAddress,
+        neighborhood: 'Aguada',
+      },
+    })
+
+    expect(prisma.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orderCurrency: 'UYU',
+        }),
+      }),
+    )
   })
 
   it('allows simple products to create an order with productId and quantity only', async () => {
@@ -1375,6 +1578,7 @@ describe('StorefrontService.reconcileApprovedPaymentIntent', () => {
           shippingAddress: {
             line1: 'Av. Italia 1234',
             city: 'Montevideo',
+            department: 'Montevideo',
             zip: '11000',
             country: 'UY',
           },
@@ -1414,12 +1618,14 @@ describe('StorefrontService.reconcileApprovedPaymentIntent', () => {
       shippingAddress: {
         line1: 'Av. Italia 1234',
         city: 'Montevideo',
+        department: 'Montevideo',
         zip: '11000',
         country: 'UY',
       },
       billingAddress: {
         line1: 'Av. Italia 1234',
         city: 'Montevideo',
+        department: 'Montevideo',
         zip: '11000',
         country: 'UY',
       },
@@ -1597,6 +1803,7 @@ describe('StorefrontService customer-facing order DTOs', () => {
     expect(order.payment).not.toHaveProperty('paymentIntentId')
     expect(order.uuid).toBe('05277d56-b93d-5ccd-9e52-30d720bae805')
     expect(order.payment?.paymentId).toBe('123456789')
+    expect(order.shippingAddress.country).toBe('')
   })
 
   it('sanitizes customer timeline metadata and uses public order identifiers', async () => {

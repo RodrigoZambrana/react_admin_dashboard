@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as yup from "yup";
-import { Formik } from "formik";
+import { Formik, useFormikContext } from "formik";
 
 import Select from "@component/Select";
 import Grid from "@component/grid/Grid";
@@ -12,14 +12,23 @@ import { Card1 } from "@component/Card1";
 import { Button } from "@component/buttons";
 import TextField from "@component/text-field";
 import Typography from "@component/Typography";
-import CitySelect from "@/components/country-city/CitySelect";
 
 import { StorefrontApi } from "@/lib/api/storefront";
 import { useCheckout } from "@/state/checkout-context";
 import { useStorefrontCart } from "@/state/cart-context";
-import { useCountryCityData } from "@/lib/country-city";
 import { useI18n, useTranslation } from "@/state/i18n-context";
 import type { StorefrontShippingOption } from "@/types/storefront";
+import {
+  DEFAULT_URUGUAY_CITY,
+  DEFAULT_URUGUAY_DEPARTMENT,
+  MONTEVIDEO_NEIGHBORHOODS,
+  URUGUAY_COUNTRY_CODE,
+  URUGUAY_COUNTRY_NAME,
+  URUGUAY_DEPARTMENTS,
+  getCitiesForDepartment,
+  getDefaultCityForDepartment,
+  usesMontevideoNeighborhoods
+} from "@/lib/uruguay-address-catalog";
 
 type CheckoutDetailsFormValues = {
   firstName: string;
@@ -30,9 +39,42 @@ type CheckoutDetailsFormValues = {
   number: string;
   corner: string;
   apartment: string;
+  department: string;
   city: string;
+  neighborhood: string;
   country: string;
   shippingOptionId: string;
+};
+
+const CheckoutFormPrefillSync = ({
+  valuesToSync
+}: {
+  valuesToSync: CheckoutDetailsFormValues;
+}) => {
+  const { dirty, values, setValues } = useFormikContext<CheckoutDetailsFormValues>();
+  const lastAppliedSignatureRef = useRef<string>("");
+  const signature = useMemo(() => JSON.stringify(valuesToSync), [valuesToSync]);
+
+  useEffect(() => {
+    if (dirty || lastAppliedSignatureRef.current === signature) {
+      return;
+    }
+    const mergedValues = Object.entries(valuesToSync).reduce(
+      (accum, [key, incomingValue]) => {
+        const currentValue = values[key as keyof CheckoutDetailsFormValues];
+        accum[key as keyof CheckoutDetailsFormValues] =
+          typeof currentValue === "string" && currentValue.trim().length > 0
+            ? currentValue
+            : incomingValue;
+        return accum;
+      },
+      { ...valuesToSync }
+    );
+    setValues(mergedValues, false);
+    lastAppliedSignatureRef.current = signature;
+  }, [dirty, setValues, signature, values, valuesToSync]);
+
+  return null;
 };
 
 const buildCheckoutSchema = (t: ReturnType<typeof useTranslation>) =>
@@ -64,12 +106,28 @@ const buildCheckoutSchema = (t: ReturnType<typeof useTranslation>) =>
       .required(t("account.address.form.errors.numberRequired", { defaultMessage: "Debes ingresar el número." })),
     corner: yup.string().trim().optional(),
     apartment: yup.string().trim().optional(),
+    department: yup
+      .string()
+      .trim()
+      .required(t("account.address.form.errors.departmentRequired", { defaultMessage: "Debes seleccionar el departamento." })),
     city: yup
       .string()
       .trim()
       .required(t("account.address.form.errors.cityRequired", {
         defaultMessage: "Debes seleccionar una ciudad o departamento."
       })),
+    neighborhood: yup.string().when(["department", "city"], {
+      is: (department: string, city: string) => usesMontevideoNeighborhoods(department, city),
+      then: (schema) =>
+        schema
+          .trim()
+          .required(
+            t("account.address.form.errors.neighborhoodRequired", {
+              defaultMessage: "Debes seleccionar el barrio."
+            })
+          ),
+      otherwise: (schema) => schema.trim().optional()
+    }),
     country: yup.string().trim().required(),
     shippingOptionId: yup
       .string()
@@ -79,23 +137,9 @@ const buildCheckoutSchema = (t: ReturnType<typeof useTranslation>) =>
       }))
   });
 
-const COUNTRY_BY_CODE: Record<string, string> = {
-  UY: "Uruguay"
-};
-
-const COUNTRY_NAME_TO_CODE: Record<string, string> = Object.entries(COUNTRY_BY_CODE).reduce(
-  (acc, [code, name]) => {
-    acc[name.toLowerCase()] = code;
-    return acc;
-  },
-  {} as Record<string, string>
-);
-
-const DEFAULT_DEPARTMENT_BY_COUNTRY: Record<string, string> = {
-  UY: "Montevideo"
-};
-const DEFAULT_COUNTRY_CODE = "UY";
-const DEFAULT_CITY = "Montevideo";
+const DEFAULT_COUNTRY_CODE = URUGUAY_COUNTRY_CODE;
+const DEFAULT_CITY = DEFAULT_URUGUAY_CITY;
+const DEFAULT_DEPARTMENT = DEFAULT_URUGUAY_DEPARTMENT;
 
 const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
   UY: "11000"
@@ -129,20 +173,7 @@ const parseLine2 = (line2?: string | null) => {
   };
 };
 
-const normalizeCountryCode = (value?: string | null) => {
-  if (!value) return "UY";
-  const trimmed = value.trim();
-  if (!trimmed) return "UY";
-  const upper = trimmed.toUpperCase();
-  if (COUNTRY_BY_CODE[upper]) {
-    return upper;
-  }
-  const byName = COUNTRY_NAME_TO_CODE[trimmed.toLowerCase()];
-  if (byName) {
-    return byName;
-  }
-  return "UY";
-};
+const normalizeCountryCode = (_value?: string | null) => DEFAULT_COUNTRY_CODE;
 
 export default function CheckoutForm({
   initialShippingOptions = []
@@ -152,7 +183,6 @@ export default function CheckoutForm({
   const router = useRouter();
   const { state: cartState, isHydrated: isCartHydrated } = useStorefrontCart();
   const { contact, shippingAddress, shippingOption, setDetails } = useCheckout();
-  const { getCitiesForCountry, loading: locationLoading, error: locationError } = useCountryCityData();
   const t = useTranslation();
   const { locale } = useI18n();
   const checkoutSchema = useMemo(() => buildCheckoutSchema(t), [t]);
@@ -183,19 +213,6 @@ export default function CheckoutForm({
       console.warn("[checkout] failed to load shipping options", lastError);
     }
   }, []);
-
-  const getDefaultDepartment = useCallback(
-    (countryCode: string) => {
-      if (!countryCode) return "";
-      const explicit = DEFAULT_DEPARTMENT_BY_COUNTRY[countryCode];
-      if (explicit) return explicit;
-      const countryName = COUNTRY_BY_CODE[countryCode];
-      if (!countryName) return "";
-      const cities = getCitiesForCountry(countryName);
-      return cities && cities.length > 0 ? cities[0] : "";
-    },
-    [getCitiesForCountry]
-  );
 
   useEffect(() => {
     if (!isCartHydrated) return;
@@ -235,13 +252,15 @@ export default function CheckoutForm({
   const initialValues = useMemo<CheckoutDetailsFormValues>(() => {
     const { street, number } = parseLine1(shippingAddress.line1);
     const { apartment, corner } = parseLine2(shippingAddress.line2);
-    const initialCountryCode = normalizeCountryCode(shippingAddress.country ?? "UY");
+    const initialCountryCode = normalizeCountryCode(shippingAddress.country ?? DEFAULT_COUNTRY_CODE);
     const initialDepartment =
+      shippingAddress.department?.trim() ||
       shippingAddress.state?.trim() ||
+      DEFAULT_DEPARTMENT;
+    const initialCity =
       shippingAddress.city?.trim() ||
-      DEFAULT_DEPARTMENT_BY_COUNTRY[initialCountryCode] ||
-      getDefaultDepartment(initialCountryCode) ||
-      DEFAULT_DEPARTMENT_BY_COUNTRY.UY;
+      getDefaultCityForDepartment(initialDepartment) ||
+      DEFAULT_CITY;
 
     return {
       firstName: contact.firstName ?? "",
@@ -252,7 +271,9 @@ export default function CheckoutForm({
       number,
       corner,
       apartment,
-      city: initialDepartment,
+      department: initialDepartment,
+      city: initialCity,
+      neighborhood: shippingAddress.neighborhood?.trim() || "",
       country: initialCountryCode,
       shippingOptionId:
         shippingOption?.id !== undefined && shippingOption?.id !== null
@@ -261,7 +282,7 @@ export default function CheckoutForm({
             ? String(shippingOptions[0].id)
             : ""
     };
-  }, [contact, shippingAddress, shippingOption, shippingOptions, getDefaultDepartment]);
+  }, [contact, shippingAddress, shippingOption, shippingOptions]);
 
   const handleFormSubmit = (values: CheckoutDetailsFormValues) => {
     const trimmed: CheckoutDetailsFormValues = Object.entries(values).reduce(
@@ -275,11 +296,11 @@ export default function CheckoutForm({
     const [firstName, lastName, email] = [trimmed.firstName, trimmed.lastName, trimmed.email];
     const phone = trimmed.phone ? trimmed.phone : "";
     const normalizedCountry = normalizeCountryCode(trimmed.country || "UY");
-    const department =
+    const department = trimmed.department || DEFAULT_DEPARTMENT;
+    const city =
       trimmed.city ||
-      DEFAULT_DEPARTMENT_BY_COUNTRY[normalizedCountry] ||
-      getDefaultDepartment(normalizedCountry) ||
-      DEFAULT_DEPARTMENT_BY_COUNTRY.UY;
+      getDefaultCityForDepartment(department) ||
+      DEFAULT_CITY;
     const postalCode =
       DEFAULT_POSTAL_CODE_BY_COUNTRY[normalizedCountry] ??
       DEFAULT_POSTAL_CODE_BY_COUNTRY.UY ??
@@ -307,7 +328,9 @@ export default function CheckoutForm({
         number: trimmed.number,
         corner: trimmed.corner || "",
         apartment: trimmed.apartment || "",
-        city: department,
+        city,
+        department,
+        neighborhood: trimmed.neighborhood || "",
         state: department,
         zip: postalCode,
         country: normalizedCountry
@@ -319,14 +342,6 @@ export default function CheckoutForm({
     router.push("/payment");
   };
 
-  const countryOptions = useMemo(
-    () =>
-      Object.entries(COUNTRY_BY_CODE).map(([code, name]) => ({
-        value: code,
-        label: name
-      })),
-    []
-  );
   const shippingOptionChoices = useMemo(
     () => {
       const formatter = new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-UY", {
@@ -356,13 +371,21 @@ export default function CheckoutForm({
     <Formik
       initialValues={initialValues}
       validationSchema={checkoutSchema}
-      enableReinitialize
       onSubmit={handleFormSubmit}>
       {({ values, errors, touched, handleChange, handleBlur, handleSubmit, setFieldValue }) => {
-        const currentCountry = normalizeCountryCode(values.country);
-        const selectedCountry = countryOptions.find((option) => option.value === currentCountry);
+        const cityOptions = getCitiesForDepartment(values.department || DEFAULT_DEPARTMENT).map((city) => ({
+          value: city,
+          label: city
+        }));
+        const selectedCity = cityOptions.find((option) => option.value === values.city) ?? null;
+        const neighborhoodOptions = MONTEVIDEO_NEIGHBORHOODS.map((neighborhood) => ({
+          value: neighborhood,
+          label: neighborhood
+        }));
+        const requiresNeighborhood = usesMontevideoNeighborhoods(values.department, values.city);
         return (
           <form onSubmit={handleSubmit}>
+            <CheckoutFormPrefillSync valuesToSync={initialValues} />
             <Card1 mb="2rem">
               <Typography fontWeight="600" mb="1rem">
                 {t("Contact information")}
@@ -371,6 +394,7 @@ export default function CheckoutForm({
               <Grid container spacing={7}>
                 <Grid item sm={6} xs={12}>
                   <TextField
+                    data-testid="checkout-first-name"
                     fullWidth
                     mb="1rem"
                     label={t("First name")}
@@ -385,6 +409,7 @@ export default function CheckoutForm({
 
                 <Grid item sm={6} xs={12}>
                   <TextField
+                    data-testid="checkout-last-name"
                     fullWidth
                     mb="1rem"
                     label={t("Last name")}
@@ -399,6 +424,7 @@ export default function CheckoutForm({
 
                 <Grid item sm={6} xs={12}>
                   <TextField
+                    data-testid="checkout-email"
                     fullWidth
                     mb="1rem"
                     type="email"
@@ -414,6 +440,7 @@ export default function CheckoutForm({
 
                 <Grid item sm={6} xs={12}>
                   <TextField
+                    data-testid="checkout-phone"
                     fullWidth
                     mb="1rem"
                     label={t("Phone number")}
@@ -434,6 +461,7 @@ export default function CheckoutForm({
               <Grid container spacing={7}>
                 <Grid item sm={6} xs={12}>
                   <TextField
+                    data-testid="checkout-street"
                     fullWidth
                     mb="1rem"
                     label={t("account.address.form.street", { defaultMessage: "Calle" })}
@@ -450,6 +478,7 @@ export default function CheckoutForm({
 
                 <Grid item sm={6} xs={12}>
                   <TextField
+                    data-testid="checkout-number"
                     fullWidth
                     mb="1rem"
                     label={t("account.address.form.number", { defaultMessage: "Número" })}
@@ -466,6 +495,7 @@ export default function CheckoutForm({
 
                 <Grid item sm={6} xs={12}>
                   <TextField
+                    data-testid="checkout-corner"
                     fullWidth
                     mb="1rem"
                     label={t("account.address.form.corner", { defaultMessage: "Esquina" })}
@@ -482,6 +512,7 @@ export default function CheckoutForm({
 
                 <Grid item sm={6} xs={12}>
                   <TextField
+                    data-testid="checkout-apartment"
                     fullWidth
                     mb="1rem"
                     label={t("account.address.form.apartment", { defaultMessage: "Apartamento / Unidad" })}
@@ -498,38 +529,98 @@ export default function CheckoutForm({
 
                 <Grid item sm={6} xs={12}>
                   <TextField
+                    data-testid="checkout-country"
                     fullWidth
                     mb="1rem"
                     label={t("account.address.form.country", { defaultMessage: "País" })}
                     name="country"
-                    value={selectedCountry?.label ?? COUNTRY_BY_CODE.UY}
+                    value={URUGUAY_COUNTRY_NAME}
                     disabled
                     errorText={touched.country ? errors.country : undefined}
                   />
                 </Grid>
 
                 <Grid item sm={6} xs={12}>
-                  <CitySelect
-                    label={t("account.address.form.city", { defaultMessage: "Ciudad / Departamento" })}
-                    countryCode={DEFAULT_COUNTRY_CODE}
-                    countryName={COUNTRY_BY_CODE.UY}
-                    value={values.city}
-                    placeholder={
-                      locationLoading
-                        ? t("account.address.form.loadingCities", {
-                            defaultMessage: "Cargando ciudades..."
-                          })
-                        : locationError
-                          ? t("account.address.form.loadCitiesError", {
-                              defaultMessage: "No pudimos cargar las ciudades"
-                            })
-                          : t("account.address.form.selectCity", {
-                              defaultMessage: "Selecciona una ciudad"
-                            })
-                    }
-                    errorText={touched.city ? errors.city : undefined}
-                    onChange={(city) => setFieldValue("city", city ?? DEFAULT_CITY)}
+                  <Select
+                    data-testid="checkout-department-select"
+                    options={URUGUAY_DEPARTMENTS.map((department) => ({
+                      value: department,
+                      label: department
+                    }))}
+                    label={t("account.address.form.department", { defaultMessage: "Departamento" })}
+                    placeholder={t("Select a department", { defaultMessage: "Selecciona un departamento" })}
+                    value={{ value: values.department, label: values.department || DEFAULT_DEPARTMENT }}
+                    errorText={touched.department ? errors.department : undefined}
+                    onChange={(option: any) => {
+                      const choice = Array.isArray(option) ? option[0] : option;
+                      const nextDepartment = choice?.value ?? DEFAULT_DEPARTMENT;
+                      const nextCity = getDefaultCityForDepartment(nextDepartment) || DEFAULT_CITY;
+                      setFieldValue("department", nextDepartment);
+                      setFieldValue("city", nextCity, false);
+                      if (!usesMontevideoNeighborhoods(nextDepartment, nextCity)) {
+                        setFieldValue("neighborhood", "", false);
+                      }
+                    }}
                   />
+                </Grid>
+
+                <Grid item sm={6} xs={12}>
+                  <Select
+                    data-testid="checkout-city-select"
+                    options={cityOptions}
+                    label={t("account.address.form.city", { defaultMessage: "Ciudad" })}
+                    placeholder={t("account.address.form.selectCity", {
+                      defaultMessage: "Selecciona una ciudad"
+                    })}
+                    value={selectedCity}
+                    errorText={touched.city ? errors.city : undefined}
+                    onChange={(option: any) => {
+                      const choice = Array.isArray(option) ? option[0] : option;
+                      const nextCity = choice?.value ?? getDefaultCityForDepartment(values.department);
+                      setFieldValue("city", nextCity);
+                      if (!usesMontevideoNeighborhoods(values.department, nextCity)) {
+                        setFieldValue("neighborhood", "", false);
+                      }
+                    }}
+                  />
+                </Grid>
+
+                <Grid item sm={6} xs={12}>
+                  {requiresNeighborhood ? (
+                    <Select
+                      data-testid="checkout-neighborhood-select"
+                      options={neighborhoodOptions}
+                      label={t("account.address.form.neighborhood", { defaultMessage: "Barrio" })}
+                      placeholder={t("account.address.form.selectNeighborhood", {
+                        defaultMessage: "Selecciona un barrio"
+                      })}
+                      value={
+                        values.neighborhood
+                          ? { value: values.neighborhood, label: values.neighborhood }
+                          : null
+                      }
+                      errorText={touched.neighborhood ? errors.neighborhood : undefined}
+                      onChange={(option: any) => {
+                        const choice = Array.isArray(option) ? option[0] : option;
+                        setFieldValue("neighborhood", choice?.value ?? "");
+                      }}
+                    />
+                  ) : (
+                    <TextField
+                      data-testid="checkout-neighborhood-select"
+                      fullWidth
+                      mb="1rem"
+                      label={t("account.address.form.neighborhood", { defaultMessage: "Barrio" })}
+                      name="neighborhood"
+                      placeholder={t("account.address.form.placeholder.neighborhood", {
+                        defaultMessage: "Barrio o zona"
+                      })}
+                      onBlur={handleBlur}
+                      onChange={handleChange}
+                      value={values.neighborhood}
+                      errorText={touched.neighborhood ? errors.neighborhood : undefined}
+                    />
+                  )}
                 </Grid>
 
                 <Grid item sm={6} xs={12}>

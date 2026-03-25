@@ -27,10 +27,18 @@ const formatAddress = (address: {
   line1: string;
   line2?: string;
   city: string;
+  department?: string;
+  neighborhood?: string;
   state?: string;
   zip?: string;
   country: string;
-}) => [address.line1, address.line2, address.city, address.state, address.zip, address.country]
+}) => [
+  address.line1,
+  address.line2,
+  [address.city, address.neighborhood, address.department || address.state].filter(Boolean).join(", "),
+  address.zip,
+  address.country
+]
   .filter(Boolean)
   .join(", ");
 
@@ -156,7 +164,9 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
               {translate("account.orderDetails.labels.orderId", { defaultMessage: "Order ID:" })}
             </Typography>
 
-            <Typography fontSize="14px">{displayOrderId}</Typography>
+            <Typography fontSize="14px" data-testid="account-order-display-id">
+              {displayOrderId}
+            </Typography>
           </FlexBox>
 
           <FlexBox className="pre" m="6px" alignItems="center">
@@ -192,7 +202,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
               {translate("account.orderDetails.sections.shipping", { defaultMessage: "Shipping Address" })}
             </H5>
 
-            <Paragraph fontSize="14px" my="0px">
+            <Paragraph fontSize="14px" my="0px" data-testid="account-order-shipping-address">
               {formatAddress(order.shippingAddress)}
             </Paragraph>
 
@@ -202,7 +212,13 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
                 <H6 mt="0px" mb="10px">
                   {translate("account.orderDetails.sections.notes", { defaultMessage: "Customer notes" })}
                 </H6>
-                <Paragraph fontSize="14px" my="0px" color="text.muted" style={{ whiteSpace: "pre-wrap" }}>
+                <Paragraph
+                  fontSize="14px"
+                  my="0px"
+                  color="text.muted"
+                  style={{ whiteSpace: "pre-wrap" }}
+                  data-testid="account-order-customer-notes"
+                >
                   {order.summary.notes}
                 </Paragraph>
               </>

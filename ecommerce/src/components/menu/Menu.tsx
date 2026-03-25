@@ -13,6 +13,7 @@ interface MenuProps {
   direction?: "left" | "right";
   closeOnContentClick?: boolean;
   closeOnMouseLeave?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: ReactElement | ReactElement[];
   handler: (handleOpen: (e: React.MouseEvent<HTMLElement>) => void) => ReactNode;
 }
@@ -26,6 +27,7 @@ export default function Menu({
   direction = "left",
   closeOnContentClick = false,
   closeOnMouseLeave = false,
+  onOpenChange,
 }: MenuProps) {
   const [show, setShow] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -34,26 +36,39 @@ export default function Menu({
   const popoverRef = useRef(show);
   popoverRef.current = show;
 
+  const updateShow = useCallback(
+    (value: boolean | ((current: boolean) => boolean)) => {
+      setShow((current) => {
+        const next = typeof value === "function" ? value(current) : value;
+        onOpenChange?.(next);
+        return next;
+      });
+    },
+    [onOpenChange]
+  );
+
   const handleDocumentClick = useCallback(() => {
-    if (popoverRef.current) setShow(false);
-  }, []);
+    if (popoverRef.current) {
+      updateShow(false);
+    }
+  }, [updateShow]);
 
   const togglePopover = useCallback(
     (e: React.MouseEvent<HTMLElement>) => {
       e.stopPropagation();
-      setShow((state) => !state);
+      updateShow((state) => !state);
     },
-    []
+    [updateShow]
   );
 
   const handleContentClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       event.stopPropagation();
       if (closeOnContentClick) {
-        setShow(false);
+        updateShow(false);
       }
     },
-    [closeOnContentClick]
+    [closeOnContentClick, updateShow]
   );
 
   useEffect(() => {
@@ -87,10 +102,10 @@ export default function Menu({
 
     clearCloseTimer();
     closeTimerRef.current = setTimeout(() => {
-      setShow(false);
+      updateShow(false);
       closeTimerRef.current = null;
     }, 120);
-  }, [clearCloseTimer, closeOnMouseLeave]);
+  }, [clearCloseTimer, closeOnMouseLeave, updateShow]);
 
   return (
     <StyledMenu

@@ -130,7 +130,7 @@ const OrderPaymentsCard = ({
 
     return (
         <>
-            <Card className="mb-4">
+            <Card className="mb-4" data-testid="admin-order-payments-card">
             <div className="flex items-center justify-between mb-4">
                 <div>
                     <h5 className="mb-1">
@@ -160,6 +160,7 @@ const OrderPaymentsCard = ({
                             <div
                                 key={payment.id}
                                 className="rounded-lg border border-gray-200 dark:border-gray-700 p-4"
+                                data-testid={`admin-order-payment-${payment.id}`}
                             >
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                 <div>
@@ -180,6 +181,7 @@ const OrderPaymentsCard = ({
                                         <Button
                                             size="xs"
                                             variant="solid"
+                                            data-testid={`admin-order-payment-confirm-${payment.id}`}
                                             onClick={() => onChangePaymentStatus(payment.id, 'CONFIRMED')}
                                         >
                                             {t('sales.orders.payments.confirm', {
@@ -189,6 +191,7 @@ const OrderPaymentsCard = ({
                                         <Button
                                             size="xs"
                                             variant="plain"
+                                            data-testid={`admin-order-payment-cancel-${payment.id}`}
                                             onClick={() => onChangePaymentStatus(payment.id, 'FAILED')}
                                         >
                                             {t('sales.orders.payments.cancel', {

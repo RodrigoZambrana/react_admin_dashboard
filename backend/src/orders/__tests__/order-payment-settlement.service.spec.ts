@@ -228,4 +228,30 @@ describe('OrderPaymentSettlementService', () => {
     expect(plan.notifyPaymentReceived).toBe(true)
     expect(plan.notifyOrderStatusChanged).toBe(true)
   })
+
+  it('swallows notification dispatch errors and continues with the remaining dispatches', async () => {
+    const loggerError = vi
+      .spyOn((service as unknown as { logger: { error: (message: string) => void } }).logger, 'error')
+      .mockImplementation(() => undefined)
+
+    notifications.notifyPaymentReceived.mockRejectedValueOnce(new Error('smtp down'))
+    notifications.notifyOrderStatusChanged.mockResolvedValueOnce(undefined)
+
+    await expect(
+      service.dispatch({
+        paymentId: 12,
+        orderId: 89,
+        previousStatusId: 1,
+        nextStatusId: 2,
+        notifyPaymentReceived: true,
+        notifyOrderStatusChanged: true,
+      }),
+    ).resolves.toBeUndefined()
+
+    expect(notifications.notifyPaymentReceived).toHaveBeenCalledWith(12)
+    expect(notifications.notifyOrderStatusChanged).toHaveBeenCalledWith(89, 1, 2)
+    expect(loggerError).toHaveBeenCalledWith(
+      'Failed to dispatch payment received notifications for payment 12: smtp down',
+    )
+  })
 })

@@ -164,6 +164,15 @@ const baseAppsRoute: Routes = [
             header: lazy(() => import('@/views/settings/ProductSettings/HeaderTitle')),
         },
     },
+    {
+        key: 'appsSettings.qa',
+        path: `${APP_PREFIX_PATH}/settings/qa`,
+        component: lazy(() => import('@/views/settings/QaCenter')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'QA Center',
+        },
+    },
     ...(hasParametricProducts
         ? isUrucortinas
             ? [

@@ -23,6 +23,7 @@ import {
 } from './email.types'
 import { findOrderStatusById } from '../common/constants/order-statuses'
 import { findPaymentMethodById } from '../common/constants/payment-methods'
+import { buildAddressPayload } from '../common/orders/address'
 import { buildImageDataUrl, ensureNodeBuffer } from '../common/images/image.utils'
 
 type OrderEmailOptions = {
@@ -103,6 +104,32 @@ export class EmailService {
     private readonly clientConfig: ClientVariantConfig,
   ) {}
 
+  private canSendCustomerTransactionalEmail(customer?: {
+    id?: number | null
+    email?: string | null
+    emailVerifiedAt?: Date | string | null
+  } | null) {
+    const email = this.normalizeEmail(customer?.email)
+    if (!email) {
+      return {
+        allowed: false,
+        reason: 'missing_email',
+      } as const
+    }
+
+    if (!customer?.emailVerifiedAt) {
+      return {
+        allowed: false,
+        reason: 'unverified_email',
+      } as const
+    }
+
+    return {
+      allowed: true,
+      email,
+    } as const
+  }
+
   async sendOrderReceived(options: OrderEmailOptions) {
     if (!(await this.settings.isEnabled(EmailCategory.ORDERS))) {
       this.logger.debug('Order emails disabled; skipping send.')
@@ -127,7 +154,9 @@ export class EmailService {
     const company = await this.getCompanyContext()
     const extras = { ...company }
 
-    if (options.sendToCustomer !== false && customer?.email) {
+    const customerEmailGuard = this.canSendCustomerTransactionalEmail(customer)
+
+    if (options.sendToCustomer !== false && customerEmailGuard.allowed) {
       if (await this.canSendToRecipient(EmailRecipientType.CUSTOMER, `Order ${order.id} customer confirmation`)) {
         const customerLocalePreference =
           (customer as { preferredLocale?: string | null })?.preferredLocale ?? options.localeOverride
@@ -135,7 +164,7 @@ export class EmailService {
         const customerPayload = this.buildOrderPayload(order, customerLocale, { event: 'order.received' })
         const recipients: EmailRecipient[] = [
           {
-            email: customer.email,
+            email: customerEmailGuard.email,
             name: this.sanitizeName(customer.name ?? `${customer.firstName ?? ''} ${customer.lastName ?? ''}`),
             locale: customerLocale,
           },
@@ -151,6 +180,8 @@ export class EmailService {
         })
         await this.queue.enqueue(message)
       }
+    } else if (options.sendToCustomer !== false && customerEmailGuard.reason === 'unverified_email') {
+      this.logger.debug(`Order ${order.id} customer email skipped because address is not verified.`)
     }
 
     if (options.sendToAdmin !== false) {
@@ -213,7 +244,9 @@ export class EmailService {
     const company = await this.getCompanyContext()
     const extras = { ...company }
 
-    if (options.sendToCustomer !== false && customer?.email) {
+    const customerEmailGuard = this.canSendCustomerTransactionalEmail(customer)
+
+    if (options.sendToCustomer !== false && customerEmailGuard.allowed) {
       if (await this.canSendToRecipient(EmailRecipientType.CUSTOMER, `Payment ${payment.id} customer notification`)) {
         const customerLocalePreference =
           (customer as { preferredLocale?: string | null })?.preferredLocale ?? options.localeOverride
@@ -221,7 +254,7 @@ export class EmailService {
         const customerPayload = this.buildPaymentPayload(payment, customerLocale)
         const recipients: EmailRecipient[] = [
           {
-            email: customer.email,
+            email: customerEmailGuard.email,
             name: this.sanitizeName(customer.name ?? `${customer.firstName ?? ''} ${customer.lastName ?? ''}`),
             locale: customerLocale,
           },
@@ -237,6 +270,8 @@ export class EmailService {
         })
         await this.queue.enqueue(message)
       }
+    } else if (options.sendToCustomer !== false && customerEmailGuard.reason === 'unverified_email') {
+      this.logger.debug(`Payment ${payment.id} customer email skipped because address is not verified.`)
     }
 
     if (options.sendToAdmin !== false) {
@@ -334,8 +369,8 @@ export class EmailService {
         previousStatusCode: previousStatus?.code ?? null,
       }
       const customerPayload = this.buildOrderPayload(order, customerLocale, customerOverrides)
-      const customerEmail = customerPayload.customer.email
-      if (customerEmail) {
+      const customerEmailGuard = this.canSendCustomerTransactionalEmail(order.customer)
+      if (customerEmailGuard.allowed) {
         if (
           await this.canSendToRecipient(
             EmailRecipientType.CUSTOMER,
@@ -344,7 +379,7 @@ export class EmailService {
         ) {
           const recipients: EmailRecipient[] = [
             {
-              email: customerEmail,
+              email: customerEmailGuard.email,
               name: customerPayload.customer.name,
               locale: customerLocale,
             },
@@ -360,6 +395,8 @@ export class EmailService {
           })
           await this.queue.enqueue(message)
         }
+      } else if (customerEmailGuard.reason === 'unverified_email') {
+        this.logger.debug(`Sales document ${order.id} customer status email skipped because address is not verified.`)
       } else {
         this.logger.debug(`Sales document ${order.id} has no customer email; skipping customer status email.`)
       }
@@ -693,57 +730,6 @@ export class EmailService {
     return null
   }
 
-  private buildAddressPayload(params: {
-    line1?: string | null
-    line2?: string | null
-    city?: string | null
-    state?: string | null
-    zip?: string | null
-    country?: string | null
-  }): OrderEmailAddress | null {
-    const sanitize = (value?: string | null) => {
-      if (typeof value !== 'string') {
-        return null
-      }
-      const trimmed = value.trim()
-      return trimmed.length ? trimmed : null
-    }
-    const line1 = sanitize(params.line1)
-    const line2 = sanitize(params.line2)
-    const city = sanitize(params.city)
-    const state = sanitize(params.state)
-    const zip = sanitize(params.zip)
-    const country = sanitize(params.country)
-    const lines: string[] = []
-    const firstLineParts = [line1, line2].filter((segment): segment is string => Boolean(segment))
-    const firstLine = firstLineParts.join(' ').trim()
-    if (firstLine) {
-      lines.push(firstLine)
-    }
-    const cityStateParts = [city, state].filter((segment): segment is string => Boolean(segment))
-    const cityState = cityStateParts.join(', ').trim()
-    const locationLineParts = [cityState || null, zip].filter((segment): segment is string => Boolean(segment))
-    const locationLine = locationLineParts.join(' ').trim()
-    if (locationLine) {
-      lines.push(locationLine)
-    }
-    if (country) {
-      lines.push(country)
-    }
-    if (!lines.length) {
-      return null
-    }
-    return {
-      line1,
-      line2,
-      city,
-      state,
-      zip,
-      country,
-      lines,
-    }
-  }
-
   private buildOrderPayload(
     order: Prisma.OrderGetPayload<{
       include: {
@@ -791,21 +777,25 @@ export class EmailService {
       typeof order.shippingVendor === 'string' && order.shippingVendor.trim().length
         ? order.shippingVendor.trim()
         : null
-    const shippingAddress = this.buildAddressPayload({
+    const shippingAddress = buildAddressPayload({
       line1: order.shippingAddress1,
       line2: order.shippingAddress2,
+      department: (order as { shippingDepartment?: string | null }).shippingDepartment ?? order.shippingState,
+      neighborhood: (order as { shippingNeighborhood?: string | null }).shippingNeighborhood ?? null,
       city: order.shippingCity,
       state: order.shippingState,
       zip: order.shippingZip,
-      country: null,
+      country: (order as { shippingCountry?: string | null }).shippingCountry ?? null,
     })
-    const billingAddress = this.buildAddressPayload({
+    const billingAddress = buildAddressPayload({
       line1: order.billingAddress1,
       line2: order.billingAddress2,
+      department: (order as { billingDepartment?: string | null }).billingDepartment ?? order.billingState,
+      neighborhood: (order as { billingNeighborhood?: string | null }).billingNeighborhood ?? null,
       city: order.billingCity,
       state: order.billingState,
       zip: order.billingZip,
-      country: null,
+      country: (order as { billingCountry?: string | null }).billingCountry ?? null,
     })
     const hasMinEstimate = order.estimatedMin !== null && order.estimatedMin !== undefined
     const hasMaxEstimate = order.estimatedMax !== null && order.estimatedMax !== undefined
@@ -1038,7 +1028,7 @@ export class EmailService {
     const format = (value: number) => this.formatAmount(value, locale)
     const baseDate = new Date()
     const deliveryEstimateBase = { minHours: 24, maxHours: 72 }
-    const shippingAddress = this.buildAddressPayload({
+    const shippingAddress = buildAddressPayload({
       line1: isSpanish ? 'Av. Siempre Viva 742' : '742 Evergreen Street',
       line2: isSpanish ? 'Apto. 12B' : 'Suite 12B',
       city: isSpanish ? 'Montevideo' : 'Springfield',
@@ -1046,7 +1036,7 @@ export class EmailService {
       zip: isSpanish ? '11800' : '62704',
       country: isSpanish ? 'Uruguay' : 'USA',
     })
-    const billingAddress = this.buildAddressPayload({
+    const billingAddress = buildAddressPayload({
       line1: isSpanish ? '18 de Julio 1234' : '123 Market Street',
       line2: isSpanish ? 'Oficina 301' : 'Floor 3, Office 301',
       city: isSpanish ? 'Montevideo' : 'Springfield',

@@ -304,6 +304,7 @@ const esTranslations: Record<string, string> = {
   "account.orderDetails.labels.placedOn": "Realizado el:",
   "account.orderDetails.labels.status": "Estado:",
   "account.orderDetails.sections.shipping": "Dirección de envío",
+  "account.orderDetails.sections.notes": "Notas del cliente",
   "account.orderDetails.sections.summary": "Resumen del total",
   "account.orderDetails.summary.subtotal": "Subtotal:",
   "account.orderDetails.summary.shippingFee": "Costo de envío:",

@@ -98,6 +98,17 @@ export async function previewCheckout(
   return response.json();
 }
 
+export async function createOrder(
+  request: APIRequestContext,
+  payload: CreateOrderPayload
+) {
+  const response = await request.post(`${storefrontApiBaseUrl}/orders`, {
+    data: payload
+  });
+  expect(response.ok()).toBeTruthy();
+  return response.json();
+}
+
 export async function listShippingOptions(request: APIRequestContext): Promise<ShippingOptionSummary[]> {
   const response = await request.get(`${storefrontApiBaseUrl}/shipping-options`);
   expect(response.ok()).toBeTruthy();

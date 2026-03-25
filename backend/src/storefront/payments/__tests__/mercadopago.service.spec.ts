@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { PaymentStatus } from '@prisma/client'
+import { PaymentStatus, Prisma } from '@prisma/client'
 import { MercadoPagoService } from '../mercadopago.service'
 import { decimal } from '../../../common/currency/money.util'
 
@@ -211,5 +211,75 @@ describe('MercadoPagoService', () => {
       previousPaymentStatus: null,
     })
     expect(paymentSettlement.dispatch).toHaveBeenCalled()
+  })
+
+  it('reuses concurrent payment row when order/reference uniqueness is hit', async () => {
+    const uniqueViolation = new Prisma.PrismaClientKnownRequestError('duplicate payment reference', {
+      code: 'P2002',
+      clientVersion: 'test',
+    })
+
+    prisma.storefrontPaymentIntent.findUnique.mockResolvedValue({
+      id: 'intent-3',
+      orderId: null,
+      status: 'approved',
+      statusDetail: 'accredited',
+      amount: decimal(4801),
+      currency: 'UYU',
+      externalPaymentId: 'mp-dup',
+      description: 'Checkout payment',
+    })
+    prisma.storefrontPaymentIntent.update.mockResolvedValue({
+      id: 'intent-3',
+      orderId: 76,
+      status: 'approved',
+      statusDetail: 'accredited',
+      amount: decimal(4801),
+      currency: 'UYU',
+      externalPaymentId: 'mp-dup',
+      description: 'Checkout payment',
+    })
+    prisma.order.findUnique.mockResolvedValue({
+      grandTotal: decimal(4801),
+      orderCurrency: 'UYU',
+    })
+    prisma.payment.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 66,
+        orderId: 76,
+        amount: decimal(4801),
+        currency: 'UYU',
+        status: PaymentStatus.REGISTERED,
+        notes: 'Checkout payment',
+      })
+    prisma.payment.create.mockRejectedValue(uniqueViolation)
+    prisma.payment.update.mockResolvedValue({ id: 66 })
+
+    paymentSettlement.apply.mockResolvedValue({
+      paymentId: 66,
+      orderId: 76,
+      previousStatusId: 100,
+      nextStatusId: 200,
+      notifyPaymentReceived: false,
+      notifyOrderStatusChanged: false,
+    })
+
+    await service.attachPaymentIntentToOrder(76, 'intent-3')
+
+    expect(prisma.payment.create).toHaveBeenCalled()
+    expect(prisma.payment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 66 },
+        data: expect.objectContaining({
+          status: PaymentStatus.CONFIRMED,
+          currency: 'UYU',
+        }),
+      }),
+    )
+    expect(paymentSettlement.apply).toHaveBeenCalledWith({
+      paymentId: 66,
+      previousPaymentStatus: PaymentStatus.REGISTERED,
+    })
   })
 })

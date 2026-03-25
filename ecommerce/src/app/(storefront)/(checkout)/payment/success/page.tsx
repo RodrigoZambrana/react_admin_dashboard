@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -62,6 +62,8 @@ function PaymentSuccessContent() {
   const rawPaymentId = searchParams?.get("paymentId");
   const rawStatus = searchParams?.get("status");
   const rawDetail = searchParams?.get("detail");
+  const rawMethod = searchParams?.get("method");
+  const rawOrderUuid = searchParams?.get("orderUuid");
   const t = useTranslation();
   const { locale } = useI18n();
 
@@ -83,8 +85,23 @@ function PaymentSuccessContent() {
   const [orderState, setOrderState] = useState<OrderCreationState>("idle");
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderRetryCount, setOrderRetryCount] = useState(0);
-  const [createdOrder, setCreatedOrder] = useState<OrderSummary | null>(null);
   const persistedCheckout = useMemo(() => loadPersistedCheckoutState(), []);
+  const isCashSuccessFlow = rawMethod === "cod" || rawMethod === "cash";
+  const persistedCashOrder = useMemo(() => {
+    if (!isCashSuccessFlow) {
+      return null;
+    }
+    const candidate = persistedCheckout?.lastOrder ?? null;
+    if (!candidate) {
+      return null;
+    }
+    if (rawOrderUuid && candidate.uuid !== rawOrderUuid) {
+      return null;
+    }
+    return candidate;
+  }, [isCashSuccessFlow, persistedCheckout?.lastOrder, rawOrderUuid]);
+  const [createdOrder, setCreatedOrder] = useState<OrderSummary | null>(persistedCashOrder);
+  const cashCleanupDoneRef = useRef(false);
   const paymentCheckoutSnapshot =
     payment?.method === "mercadopago" ? payment.checkoutSnapshot ?? null : null;
 
@@ -111,11 +128,14 @@ function PaymentSuccessContent() {
   );
 
   const paymentStatus = useMemo<MercadoPagoNormalizedStatus>(() => {
+    if (isCashSuccessFlow) {
+      return "pending";
+    }
     if (payment?.method === "mercadopago") {
       return normalizeMercadoPagoStatus(payment.status);
     }
     return normalizeMercadoPagoStatus(rawStatus ?? undefined);
-  }, [payment, rawStatus]);
+  }, [isCashSuccessFlow, payment, rawStatus]);
 
   const paymentId =
     rawPaymentId ??
@@ -125,13 +145,19 @@ function PaymentSuccessContent() {
     rawDetail ?? (payment?.method === "mercadopago" ? payment.statusDetail ?? null : null);
   const isConfirmedPayment = isMercadoPagoPaymentConfirmed(paymentStatus);
   const statusColor =
-    paymentStatus === "rejected"
+    isCashSuccessFlow
+      ? "primary.main"
+      : paymentStatus === "rejected"
       ? "error.main"
       : isConfirmedPayment
         ? "success.main"
         : "primary.main";
   const heading =
-    paymentStatus === "rejected"
+    isCashSuccessFlow
+      ? t("checkout.review.heading.confirmed.cod", {
+          defaultMessage: "Pedido recibido"
+        })
+      : paymentStatus === "rejected"
       ? t("checkout.payment.success.rejectedTitle", {
           defaultMessage: "Your payment was not approved"
         })
@@ -141,7 +167,12 @@ function PaymentSuccessContent() {
             defaultMessage: "Your payment is still being reviewed"
           });
   const nextStepMessage =
-    paymentStatus === "rejected"
+    isCashSuccessFlow
+      ? t("checkout.payment.success.cashNextStep", {
+          defaultMessage:
+            "Registramos tu pedido. El pago en efectivo quedará pendiente hasta que nuestro equipo lo confirme."
+        })
+      : paymentStatus === "rejected"
       ? t("checkout.payment.success.rejectedNextStep", {
           defaultMessage: "Choose another payment method to continue with checkout."
         })
@@ -152,9 +183,9 @@ function PaymentSuccessContent() {
         : t("checkout.payment.success.pendingNextStep", {
             defaultMessage: "Wait for approval before reviewing or confirming the order."
           });
-  const primaryActionHref = isConfirmedPayment ? "/account/orders" : "/payment";
+  const primaryActionHref = isCashSuccessFlow || isConfirmedPayment ? "/account/orders" : "/payment";
   const primaryActionLabel =
-    isConfirmedPayment
+    isCashSuccessFlow || isConfirmedPayment
       ? t("checkout.payment.success.actions.viewOrders", { defaultMessage: "View my orders" })
       : t("checkout.payment.success.actions.backToPayment", {
           defaultMessage: "Back to payment"
@@ -249,7 +280,12 @@ function PaymentSuccessContent() {
   ]);
 
   const subtitle =
-    paymentStatus === "rejected"
+    isCashSuccessFlow
+      ? t("checkout.payment.success.cashSubtitle", {
+          defaultMessage:
+            "Tu compra fue registrada correctamente. Te mostramos el resumen del pedido y el estado del pago en efectivo."
+        })
+      : paymentStatus === "rejected"
       ? t("checkout.payment.success.rejectedSubtitle", {
           defaultMessage:
             "Mercado Pago did not confirm this payment. Review the details and try another method."
@@ -361,7 +397,17 @@ function PaymentSuccessContent() {
       const shippingAddressPayload: CreateOrderPayload["shippingAddress"] = {
         line1: checkoutShippingAddress.line1,
         line2: checkoutShippingAddress.line2 || undefined,
+        street: checkoutShippingAddress.street || undefined,
+        number: checkoutShippingAddress.number || undefined,
+        corner: checkoutShippingAddress.corner || undefined,
+        apartment: checkoutShippingAddress.apartment || undefined,
+        comments: checkoutShippingAddress.comments || undefined,
         city: checkoutShippingAddress.city,
+        department:
+          checkoutShippingAddress.department ||
+          checkoutShippingAddress.state ||
+          checkoutShippingAddress.city,
+        neighborhood: checkoutShippingAddress.neighborhood || undefined,
         state: checkoutShippingAddress.state || undefined,
         zip: resolvedZip,
         country: checkoutShippingAddress.country
@@ -444,6 +490,40 @@ function PaymentSuccessContent() {
       void finalizeOrder();
     }
   }, [canAttemptOrderCreation, finalizeOrder, orderState]);
+
+  useEffect(() => {
+    if (!isCashSuccessFlow || cashCleanupDoneRef.current) {
+      return;
+    }
+
+    cashCleanupDoneRef.current = true;
+
+    if (persistedCashOrder) {
+      setCreatedOrder(persistedCashOrder);
+      setOrderState("success");
+      setOrderError(null);
+    } else {
+      setCreatedOrder(null);
+      setOrderState("error");
+      setOrderError(
+        t("checkout.payment.success.cashMissingOrder", {
+          defaultMessage:
+            "No pudimos recuperar el resumen del pedido en esta sesión. Revísalo desde Mis pedidos."
+        })
+      );
+    }
+
+    clearCart();
+    clearPersistedCheckoutOrderItems(resolvedCheckoutToken);
+    reset();
+  }, [
+    clearCart,
+    isCashSuccessFlow,
+    persistedCashOrder,
+    reset,
+    resolvedCheckoutToken,
+    t
+  ]);
 
   useEffect(() => {
     if (!canAttemptOrderCreation || orderState !== "error" || orderRetryCount >= MAX_ORDER_AUTO_RETRIES) {
@@ -531,6 +611,24 @@ function PaymentSuccessContent() {
                 </Typography>
               )}
             </Box>
+          ) : isCashSuccessFlow ? (
+            <Box
+              border="1px solid"
+              borderColor="gray.200"
+              borderRadius="12px"
+              p="1.25rem"
+              textAlign="left"
+              mb="2rem"
+            >
+              <Typography fontWeight="600" mb="0.5rem">
+                {t("checkout.payment.success.orderStatus", { defaultMessage: "Order status" })}
+              </Typography>
+              <Typography color={statusColor}>
+                {t("checkout.review.paymentSummary.cod", {
+                  defaultMessage: "Pago en efectivo pendiente de confirmación"
+                })}
+              </Typography>
+            </Box>
           ) : (
             <Box
               border="1px solid"
@@ -596,20 +694,33 @@ function PaymentSuccessContent() {
             ) : null}
 
             <Typography fontWeight="600" mb="0.5rem">
-              {t("checkout.payment.shared.status", { defaultMessage: "Status" })}
+              {t(
+                isCashSuccessFlow
+                  ? "checkout.payment.shared.paymentStatus"
+                  : "checkout.payment.shared.status",
+                { defaultMessage: isCashSuccessFlow ? "Estado del pago" : "Status" }
+              )}
             </Typography>
             <Typography color={statusColor} mb="1rem">
-              {translateStatus(paymentStatus)}
+              {isCashSuccessFlow
+                ? t("checkout.review.paymentSummary.cod", {
+                    defaultMessage: "Pago en efectivo pendiente de confirmación"
+                  })
+                : translateStatus(paymentStatus)}
             </Typography>
 
-            <Typography fontWeight="600" mb="0.5rem">
-              {t("checkout.payment.shared.reference", { defaultMessage: "Payment reference" })}
-            </Typography>
-            <Typography color="text.muted" mb="1rem">
-              {paymentId}
-            </Typography>
+            {!isCashSuccessFlow ? (
+              <>
+                <Typography fontWeight="600" mb="0.5rem">
+                  {t("checkout.payment.shared.reference", { defaultMessage: "Payment reference" })}
+                </Typography>
+                <Typography color="text.muted" mb="1rem">
+                  {paymentId}
+                </Typography>
+              </>
+            ) : null}
 
-            {detail ? (
+            {detail && !isCashSuccessFlow ? (
               <>
                 <Typography fontWeight="600" mb="0.5rem">
                   {t("checkout.payment.shared.mercadoPagoDetail", { defaultMessage: "Mercado Pago detail" })}

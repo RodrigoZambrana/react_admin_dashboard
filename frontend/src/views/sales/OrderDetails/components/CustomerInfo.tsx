@@ -53,7 +53,7 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
     const previousOrders = data?.previousOrder ?? 0
     const previousBudgets = data?.previousBudgets ?? 0
     return (
-        <Card>
+        <Card data-testid="admin-order-customer-info">
             <h5 className="mb-4">{t('text.columns.customer')}</h5>
             <Link
                 className="group flex items-center justify-between"
@@ -95,7 +95,7 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
             </IconText>
             <hr className="my-5" />
             <h6 className="mb-4">{t('text.titles.shippingAddress')}</h6>
-            <address className="not-italic space-y-1">
+            <address className="not-italic space-y-1" data-testid="admin-order-shipping-address">
                 {shippingLines.length > 0 ? (
                     shippingLines.map((line, index) => (
                         <div key={`${line}-${index}`}>{line}</div>
@@ -106,7 +106,7 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
             </address>
             <hr className="my-5" />
             <h6 className="mb-4">{t('text.titles.billingAddress')}</h6>
-            <address className="not-italic space-y-1">
+            <address className="not-italic space-y-1" data-testid="admin-order-billing-address">
                 {billingLines.length > 0 ? (
                     billingLines.map((line, index) => (
                         <div key={`${line}-${index}`}>{line}</div>
@@ -119,7 +119,10 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
                 <>
                     <hr className="my-5" />
                     <h6 className="mb-4">{t('text.columns.notes')}</h6>
-                    <div className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200">
+                    <div
+                        className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200"
+                        data-testid="admin-order-customer-notes"
+                    >
                         {customerComment}
                     </div>
                 </>

@@ -87,6 +87,11 @@ const SelectBase = ({
     return spacing;
   }, [restProps]);
 
+  const testId = useMemo(() => {
+    const value = (restProps as Record<string, unknown>)["data-testid"];
+    return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+  }, [restProps]);
+
   const baseSelectProps = useMemo(() => {
     const result = { ...(restProps as Record<string, unknown>) };
     Object.keys(result).forEach((key) => {
@@ -94,6 +99,7 @@ const SelectBase = ({
         delete result[key];
       }
     });
+    delete result["data-testid"];
     if (typeof result.placeholder === "string") {
       result.placeholder = t(result.placeholder);
     }
@@ -144,7 +150,7 @@ const SelectBase = ({
   const menuPortalTarget = isMounted ? document.body : undefined;
 
   return (
-    <Box {...(spacingProps as SpaceProps)}>
+    <Box {...(spacingProps as SpaceProps)} data-testid={testId}>
       {label && (
         <Typography id={computedIds.label} fontSize="0.875rem" mb="6px" fontWeight={500}>
           {label}

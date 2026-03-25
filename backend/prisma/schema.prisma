@@ -719,13 +719,19 @@ model Order {
   shippingAddress1      String?
   shippingAddress2      String?
   shippingCity          String?
+  shippingDepartment    String?
   shippingState         String?
+  shippingNeighborhood  String?
   shippingZip           String?
+  shippingCountry       String?
   billingAddress1       String?
   billingAddress2       String?
   billingCity           String?
+  billingDepartment     String?
   billingState          String?
+  billingNeighborhood   String?
   billingZip            String?
+  billingCountry        String?
   billingSameAsShipping Boolean                   @default(false)
   shippingVendor        String? // e.g., FedEx
   deliveryFees          Decimal?                  @default(0) @db.Decimal(18, 2)
@@ -871,6 +877,7 @@ model Payment {
   @@index([status, type])
   @@index([orderId, status, date])
   @@index([paymentMethodId])
+  @@unique([orderId, reference])
 }
 
 model PaymentPlan {
@@ -1256,7 +1263,9 @@ model CustomerAddress {
   number     String
   corner     String?
   apartment  String?
+  department String?
   city       String
+  neighborhood String?
   country    String
   comments   String?
   label      String?

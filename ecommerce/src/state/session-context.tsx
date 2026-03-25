@@ -78,9 +78,11 @@ const normalizeCustomerProfile = (profile: CustomerProfile): CustomerProfile => 
     profile?.preferredLocale === "en" || profile?.preferredLocale === "es"
       ? profile.preferredLocale
       : undefined;
+  const addresses = Array.isArray(profile?.addresses) ? profile.addresses : [];
 
   return {
     ...profile,
+    addresses,
     wishlistProductIds,
     wishlistCount,
     preferredLocale

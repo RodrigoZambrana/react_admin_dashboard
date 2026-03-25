@@ -12,19 +12,30 @@ import TextField from "@component/text-field";
 import TextArea from "@component/textarea";
 import CheckBox from "@component/CheckBox";
 import Typography from "@component/Typography";
+import Select from "@component/Select";
 
-import CitySelect from "@/components/country-city/CitySelect";
-import { deriveCountryCode, useCountryCityData } from "@/lib/country-city";
 import { StorefrontApi, StorefrontAddressInput, isApiError } from "@/lib/api/storefront";
 import { extractApiErrorMessage } from "@/lib/api/errors";
 import { useAccountProfile } from "@/hooks/useAccountProfile";
 import Address from "@models/address.model";
 import { useToast } from "@/contexts/ToastContext";
 import { useTranslation } from "@/state/i18n-context";
+import {
+  DEFAULT_URUGUAY_CITY,
+  DEFAULT_URUGUAY_DEPARTMENT,
+  MONTEVIDEO_NEIGHBORHOODS,
+  URUGUAY_COUNTRY_CODE,
+  URUGUAY_COUNTRY_NAME,
+  URUGUAY_DEPARTMENTS,
+  getCitiesForDepartment,
+  getDefaultCityForDepartment,
+  usesMontevideoNeighborhoods
+} from "@/lib/uruguay-address-catalog";
 
-const DEFAULT_COUNTRY_NAME = "Uruguay";
-const DEFAULT_COUNTRY_CODE = "UY";
-const DEFAULT_CITY = "Montevideo";
+const DEFAULT_COUNTRY_NAME = URUGUAY_COUNTRY_NAME;
+const DEFAULT_COUNTRY_CODE = URUGUAY_COUNTRY_CODE;
+const DEFAULT_CITY = DEFAULT_URUGUAY_CITY;
+const DEFAULT_DEPARTMENT = DEFAULT_URUGUAY_DEPARTMENT;
 
 const buildValidationSchema = (t: ReturnType<typeof useTranslation>) =>
   yup.object({
@@ -44,12 +55,30 @@ const buildValidationSchema = (t: ReturnType<typeof useTranslation>) =>
       .required(t("account.address.form.errors.numberRequired", { defaultMessage: "Debes ingresar el número." })),
     corner: yup.string().nullable(),
     apartment: yup.string().nullable(),
+    department: yup
+      .string()
+      .trim()
+      .required(t("account.address.form.errors.departmentRequired", {
+        defaultMessage: "Debes seleccionar el departamento."
+      })),
     city: yup
       .string()
       .trim()
       .required(t("account.address.form.errors.cityRequired", {
-        defaultMessage: "Debes seleccionar una ciudad o departamento."
+        defaultMessage: "Debes seleccionar la ciudad."
       })),
+    neighborhood: yup.string().when(["department", "city"], {
+      is: (department: string, city: string) => usesMontevideoNeighborhoods(department, city),
+      then: (schema) =>
+        schema
+          .trim()
+          .required(
+            t("account.address.form.errors.neighborhoodRequired", {
+              defaultMessage: "Debes seleccionar el barrio."
+            })
+          ),
+      otherwise: (schema) => schema.trim().nullable()
+    }),
     country: yup.string().trim().required(),
     countryCode: yup
       .string()
@@ -66,7 +95,9 @@ export type AddressFormValues = {
   number: string;
   corner: string | null;
   apartment: string | null;
+  department: string;
   city: string;
+  neighborhood: string | null;
   country: string;
   countryCode?: string | null;
   comments: string | null;
@@ -129,16 +160,20 @@ const buildInitialValues = (address?: Address): AddressFormValues => {
         }
       : parseLine2(address?.line2);
 
-  const country = address?.state || address?.country || "";
-  const countryCode = address?.countryCode || (country ? deriveCountryCode(country) : "");
+  const country = address?.country || DEFAULT_COUNTRY_NAME;
+  const countryCode = address?.countryCode || DEFAULT_COUNTRY_CODE;
+  const department = address?.department || address?.state || DEFAULT_DEPARTMENT;
+  const city = address?.city || getDefaultCityForDepartment(department) || DEFAULT_CITY;
 
   return {
-  label: address?.label ?? "",
+    label: address?.label ?? "",
     street: address?.street ?? street ?? "",
     number: address?.number ?? number ?? "",
     corner: address?.corner ?? line2Parsed.corner ?? "",
     apartment: address?.apartment ?? line2Parsed.apartment ?? "",
-    city: address?.city ?? DEFAULT_CITY,
+    department,
+    city,
+    neighborhood: address?.neighborhood ?? "",
     country: country || DEFAULT_COUNTRY_NAME,
     countryCode: countryCode || DEFAULT_COUNTRY_CODE,
     comments: address?.comments ?? line2Parsed.comments ?? "",
@@ -165,42 +200,34 @@ function AddressFormFields({
     setFieldValue,
     status
   } = useFormikContext<AddressFormValues>();
-  const { rows, getFirstCityForCountry } = useCountryCityData();
 
   useEffect(() => {
-    if (!rows || rows.length === 0) return;
-    if (values.country && values.city) return;
-
-    const preferredCountry = (() => {
-      if (values.country) return values.country;
-      if (address?.state) return address.state;
-      if (address?.country) return address.country;
-      return DEFAULT_COUNTRY_NAME;
-    })();
-
-    if (preferredCountry) {
-      const nextCity = values.city || getFirstCityForCountry(preferredCountry) || DEFAULT_CITY;
-      setFieldValue("country", DEFAULT_COUNTRY_NAME, false);
-      setFieldValue("countryCode", DEFAULT_COUNTRY_CODE, false);
-      if (!values.city && nextCity) {
-        setFieldValue("city", nextCity, false);
-      }
+    const currentDepartment = values.department || address?.department || address?.state || DEFAULT_DEPARTMENT;
+    const availableCities = getCitiesForDepartment(currentDepartment);
+    const nextCity = values.city || address?.city || getDefaultCityForDepartment(currentDepartment) || DEFAULT_CITY;
+    setFieldValue("country", DEFAULT_COUNTRY_NAME, false);
+    setFieldValue("countryCode", DEFAULT_COUNTRY_CODE, false);
+    if (!values.department) {
+      setFieldValue("department", currentDepartment, false);
     }
-  }, [
-    rows,
-    values.country,
-    values.city,
-    values.countryCode,
-    address?.state,
-    address?.country,
-    setFieldValue,
-    getFirstCityForCountry
-  ]);
+    if (!availableCities.includes(nextCity)) {
+      setFieldValue("city", getDefaultCityForDepartment(currentDepartment) || DEFAULT_CITY, false);
+    } else if (!values.city) {
+      setFieldValue("city", nextCity, false);
+    }
+    if (!usesMontevideoNeighborhoods(currentDepartment, values.city || nextCity) && values.neighborhood) {
+      setFieldValue("neighborhood", "", false);
+    }
+  }, [address?.city, address?.department, address?.state, setFieldValue, values.city, values.department, values.neighborhood]);
 
   const labelError = touched.label && typeof errors.label === "string" ? errors.label : undefined;
   const streetError = touched.street && typeof errors.street === "string" ? errors.street : undefined;
   const numberError = touched.number && typeof errors.number === "string" ? errors.number : undefined;
+  const departmentError =
+    touched.department && typeof errors.department === "string" ? errors.department : undefined;
   const cityError = touched.city && typeof errors.city === "string" ? errors.city : undefined;
+  const neighborhoodError =
+    touched.neighborhood && typeof errors.neighborhood === "string" ? errors.neighborhood : undefined;
   const countryError =
     touched.country && typeof errors.country === "string" ? errors.country : undefined;
   const cornerError = touched.corner && typeof errors.corner === "string" ? errors.corner : undefined;
@@ -208,6 +235,16 @@ function AddressFormFields({
     touched.apartment && typeof errors.apartment === "string" ? errors.apartment : undefined;
   const commentsError =
     touched.comments && typeof errors.comments === "string" ? errors.comments : undefined;
+
+  const cityOptions = getCitiesForDepartment(values.department || DEFAULT_DEPARTMENT).map((city) => ({
+    value: city,
+    label: city
+  }));
+  const neighborhoodOptions = MONTEVIDEO_NEIGHBORHOODS.map((neighborhood) => ({
+    value: neighborhood,
+    label: neighborhood
+  }));
+  const requiresNeighborhood = usesMontevideoNeighborhoods(values.department, values.city);
 
   return (
     <form onSubmit={handleSubmit}>
@@ -298,6 +335,31 @@ function AddressFormFields({
           </Grid>
 
           <Grid item md={6} xs={12}>
+            <Select
+              options={URUGUAY_DEPARTMENTS.map((department) => ({
+                value: department,
+                label: department
+              }))}
+              label={t("account.address.form.department", { defaultMessage: "Departamento" })}
+              placeholder={t("account.address.form.selectDepartment", {
+                defaultMessage: "Selecciona un departamento"
+              })}
+              value={{ value: values.department, label: values.department || DEFAULT_DEPARTMENT }}
+              errorText={departmentError}
+              onChange={(option: any) => {
+                const choice = Array.isArray(option) ? option[0] : option;
+                const nextDepartment = choice?.value ?? DEFAULT_DEPARTMENT;
+                const nextCity = getDefaultCityForDepartment(nextDepartment) || DEFAULT_CITY;
+                setFieldValue("department", nextDepartment);
+                setFieldValue("city", nextCity, false);
+                if (!usesMontevideoNeighborhoods(nextDepartment, nextCity)) {
+                  setFieldValue("neighborhood", "", false);
+                }
+              }}
+            />
+          </Grid>
+
+          <Grid item md={6} xs={12}>
             <TextField
               fullWidth
               name="country"
@@ -309,14 +371,58 @@ function AddressFormFields({
           </Grid>
 
           <Grid item md={6} xs={12}>
-            <CitySelect
-              label={t("account.address.form.city", { defaultMessage: "Ciudad / Departamento" })}
-              countryCode={DEFAULT_COUNTRY_CODE}
-              countryName={DEFAULT_COUNTRY_NAME}
-              value={values.city}
+            <Select
+              options={cityOptions}
+              label={t("account.address.form.city", { defaultMessage: "Ciudad" })}
+              placeholder={t("account.address.form.selectCity", {
+                defaultMessage: "Selecciona una ciudad"
+              })}
+              value={cityOptions.find((option) => option.value === values.city) ?? null}
               errorText={cityError}
-              onChange={(city) => setFieldValue("city", city ?? "")}
+              onChange={(option: any) => {
+                const choice = Array.isArray(option) ? option[0] : option;
+                const nextCity = choice?.value ?? getDefaultCityForDepartment(values.department);
+                setFieldValue("city", nextCity);
+                if (!usesMontevideoNeighborhoods(values.department, nextCity)) {
+                  setFieldValue("neighborhood", "", false);
+                }
+              }}
             />
+          </Grid>
+
+          <Grid item md={6} xs={12}>
+            {requiresNeighborhood ? (
+              <Select
+                options={neighborhoodOptions}
+                label={t("account.address.form.neighborhood", { defaultMessage: "Barrio" })}
+                placeholder={t("account.address.form.selectNeighborhood", {
+                  defaultMessage: "Selecciona un barrio"
+                })}
+                value={
+                  values.neighborhood
+                    ? { value: values.neighborhood, label: values.neighborhood }
+                    : null
+                }
+                errorText={neighborhoodError}
+                onChange={(option: any) => {
+                  const choice = Array.isArray(option) ? option[0] : option;
+                  setFieldValue("neighborhood", choice?.value ?? "");
+                }}
+              />
+            ) : (
+              <TextField
+                fullWidth
+                name="neighborhood"
+                label={t("account.address.form.neighborhood", { defaultMessage: "Barrio" })}
+                placeholder={t("account.address.form.placeholder.neighborhood", {
+                  defaultMessage: "Barrio o zona"
+                })}
+                onBlur={handleBlur}
+                value={values.neighborhood ?? ""}
+                onChange={handleChange}
+                errorText={neighborhoodError}
+              />
+            )}
           </Grid>
 
           <Grid item xs={12}>
@@ -405,7 +511,9 @@ export default function AddressForm({ address }: AddressFormProps) {
     const payload: StorefrontAddressInput = {
       street: values.street.trim(),
       number: values.number.trim(),
+      department: values.department.trim(),
       city: values.city.trim(),
+      neighborhood: normalizeOptional(values.neighborhood ?? null) ?? null,
       country: DEFAULT_COUNTRY_NAME,
       label: normalizeOptional(values.label ?? null) ?? null,
       corner: normalizeOptional(values.corner ?? null) ?? null,

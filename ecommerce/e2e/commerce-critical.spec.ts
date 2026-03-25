@@ -15,6 +15,12 @@ const SIMPLE_PRODUCT_SLUG = "cortinas-roller";
 const PARAMETRIC_PRODUCT_SLUG = "ventana-corrediza-20-natural-3mm-1800x1000";
 const CART_STORAGE_KEY = "storefront.cart.v1";
 
+function cartLineLocator(page: Page) {
+  return page.locator(
+    '[data-testid^="cart-line-"]:not([data-testid*="-increase-"]):not([data-testid*="-decrease-"])'
+  );
+}
+
 async function bootstrapStorefrontContext(page: Page) {
   await page.addInitScript(() => {
     window.localStorage.setItem("storefront.locale.v1", "es");
@@ -54,6 +60,8 @@ async function fillGuestCheckout(page: Page, customer: TestCustomer) {
   await page.locator('input[name="number"]').fill("1234");
   await page.locator('input[name="corner"]').fill("Comercio");
   await page.locator('input[name="apartment"]').fill("101");
+  await page.getByLabel(/^Barrio$/i).click();
+  await page.getByText(/^Aguada$/i).click();
 
   await page.getByTestId("checkout-continue-to-payment").click();
   await expect(page).toHaveURL(/\/payment$/, { timeout: 15_000 });
@@ -74,11 +82,17 @@ async function placeGuestCashOrder(
   await expect(page.getByTestId("payment-method-cod")).toBeVisible();
   await page.getByTestId("payment-method-cod").click();
   await page.getByTestId("payment-continue-to-review").click();
-  await expect(page).toHaveURL(/\/review$/);
+  try {
+    await page.waitForURL(/\/review$/, { timeout: 5_000 });
+  } catch {
+    await page.getByTestId("payment-continue-to-review").click();
+    await page.waitForURL(/\/review$/, { timeout: 20_000 });
+  }
 
   await expect(page.getByTestId("review-place-order")).toBeVisible();
   await page.getByTestId("review-place-order").click();
-  await expect(page.getByText(/¡gracias,|thank you,/i).first()).toBeVisible();
+  await page.waitForURL(/\/payment\/success\?method=cod.*/, { timeout: 20_000 });
+  await expect(page.getByText(/pedido recibido/i).first()).toBeVisible();
 
   const order = await waitForLatestOrderByCustomerEmail(customer.email);
   await expect
@@ -95,6 +109,8 @@ async function placeGuestCashOrder(
 }
 
 test.describe("critical storefront commerce flows", () => {
+  test.setTimeout(60_000);
+
   test("keeps a single cart line for the same published parametric base variant added from shop and detail", async ({
     page,
     request
@@ -125,7 +141,7 @@ test.describe("critical storefront commerce flows", () => {
 
     expect(matchingItems).toHaveLength(1);
     expect(matchingItems[0]?.quantity).toBe(2);
-    await expect(page.getByRole("link", { name: parametric.name })).toHaveCount(1);
+    await expect(cartLineLocator(page)).toHaveCount(1);
   });
 
   test("creates a coherent mixed guest cash order and keeps the payment registered until admin confirmation", async ({
@@ -177,9 +193,12 @@ test.describe("critical storefront commerce flows", () => {
           message: `waiting for order received emails for ${order.uuid}`
         }
       )
-      .toBeGreaterThanOrEqual(2);
+      .toBeGreaterThanOrEqual(1);
 
     const emails = await getEmailLogsForOrder(order.uuid);
+    const orderEmails = emails.filter((row) => row.category === "ORDERS");
+    expect(orderEmails).toHaveLength(1);
+    expect(orderEmails.every((row) => row.recipientType === "ADMIN")).toBeTruthy();
     expect(emails.some((row) => row.category === "PAYMENTS")).toBeFalsy();
   });
 

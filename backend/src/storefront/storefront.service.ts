@@ -96,6 +96,7 @@ import {
 import { buildPhoneLookupCandidates, normalizePhoneNumber } from '../common/utils/phone'
 import { StorefrontSecurityService } from './security/storefront-security.service'
 import { CmsService } from '../cms/cms.service'
+import { buildAddressPayload, normalizeCountryLabel } from '../common/orders/address'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
@@ -2101,8 +2102,21 @@ export class StorefrontService implements OnModuleInit {
     const normalizeAddress = (address: StorefrontCreateOrderDto['shippingAddress']) => ({
       line1: this.normalizeConfigString(address.line1),
       line2: this.normalizeConfigString(address.line2 ?? '') || undefined,
+      street: this.normalizeConfigString(address.street ?? '') || undefined,
+      number: this.normalizeConfigString(address.number ?? '') || undefined,
+      corner: this.normalizeConfigString(address.corner ?? '') || undefined,
+      apartment: this.normalizeConfigString(address.apartment ?? '') || undefined,
+      comments: this.normalizeConfigString(address.comments ?? '') || undefined,
       city: this.normalizeConfigString(address.city),
-      state: this.normalizeConfigString(address.state ?? '') || undefined,
+      department:
+        this.normalizeConfigString(address.department) ||
+        this.normalizeConfigString(address.state ?? '') ||
+        'Montevideo',
+      neighborhood: this.normalizeConfigString(address.neighborhood ?? '') || undefined,
+      state:
+        this.normalizeConfigString(address.department) ||
+        this.normalizeConfigString(address.state ?? '') ||
+        undefined,
       zip: this.normalizeConfigString(address.zip),
       country: normalizedCountry,
     })
@@ -2820,13 +2834,29 @@ export class StorefrontService implements OnModuleInit {
               shippingAddress1: dto.shippingAddress.line1,
               shippingAddress2: dto.shippingAddress.line2,
               shippingCity: dto.shippingAddress.city,
-              shippingState: dto.shippingAddress.state,
+              shippingState: dto.shippingAddress.department ?? dto.shippingAddress.state,
+              shippingDepartment: dto.shippingAddress.department ?? dto.shippingAddress.state,
+              shippingNeighborhood: dto.shippingAddress.neighborhood ?? null,
               shippingZip: dto.shippingAddress.zip,
+              shippingCountry: normalizeCountryLabel(dto.shippingAddress.country),
               billingAddress1: dto.billingAddress?.line1 ?? dto.shippingAddress.line1,
               billingAddress2: dto.billingAddress?.line2 ?? dto.shippingAddress.line2,
               billingCity: dto.billingAddress?.city ?? dto.shippingAddress.city,
-              billingState: dto.billingAddress?.state ?? dto.shippingAddress.state,
+              billingState:
+                dto.billingAddress?.department ??
+                dto.billingAddress?.state ??
+                dto.shippingAddress.department ??
+                dto.shippingAddress.state,
+              billingDepartment:
+                dto.billingAddress?.department ??
+                dto.billingAddress?.state ??
+                dto.shippingAddress.department ??
+                dto.shippingAddress.state,
+              billingNeighborhood: dto.billingAddress?.neighborhood ?? dto.shippingAddress.neighborhood ?? null,
               billingZip: dto.billingAddress?.zip ?? dto.shippingAddress.zip,
+              billingCountry: normalizeCountryLabel(
+                dto.billingAddress?.country ?? dto.shippingAddress.country,
+              ),
               shippingVendor: shippingOption?.name ?? null,
               deliveryFees: deliveryFeesDecimal,
               estimatedMin: shippingOption?.estimatedMin ?? null,
@@ -2879,11 +2909,6 @@ export class StorefrontService implements OnModuleInit {
                 })),
               },
             },
-            include: {
-              items: true,
-              payments: true,
-              storefrontPayments: true,
-            },
           })
 
           if (selectedPaymentMethod?.code === 'cash') {
@@ -2920,7 +2945,14 @@ export class StorefrontService implements OnModuleInit {
             })
           }
 
-          return createdOrder
+          return tx.order.findUniqueOrThrow({
+            where: { id: createdOrder.id },
+            include: {
+              items: true,
+              payments: true,
+              storefrontPayments: true,
+            },
+          })
         })
         isNewOrder = true
       } catch (error) {
@@ -2951,6 +2983,8 @@ export class StorefrontService implements OnModuleInit {
     if (!order) {
       throw new BadRequestException('Unable to create order. Please try again.')
     }
+
+    await this.syncCustomerPrimaryAddressFromCheckout(customer.id, dto.shippingAddress)
 
     if (dto.paymentIntentId && !this.mercadoPago.isEnabled()) {
       throw new BadRequestException('Mercado Pago payments are not enabled en este entorno.')
@@ -3857,25 +3891,70 @@ export class StorefrontService implements OnModuleInit {
         ? decimalToNumber(order.grandTotal)
         : subtotal + tax + shipping
 
-    const shippingAddress =
-      overrides?.shippingAddress ?? {
-        line1: order.shippingAddress1 ?? '',
-        line2: order.shippingAddress2 ?? undefined,
-        city: order.shippingCity ?? '',
-        state: order.shippingState ?? '',
-        zip: order.shippingZip ?? '',
-        country: 'Unknown',
-      }
+    const shippingAddressPayload = buildAddressPayload({
+      line1: overrides?.shippingAddress?.line1 ?? order.shippingAddress1,
+      line2: overrides?.shippingAddress?.line2 ?? order.shippingAddress2,
+      city: overrides?.shippingAddress?.city ?? order.shippingCity,
+      department:
+        overrides?.shippingAddress?.department ??
+        overrides?.shippingAddress?.state ??
+        order.shippingDepartment ??
+        order.shippingState,
+      neighborhood: overrides?.shippingAddress?.neighborhood ?? order.shippingNeighborhood,
+      state:
+        overrides?.shippingAddress?.department ??
+        overrides?.shippingAddress?.state ??
+        order.shippingDepartment ??
+        order.shippingState,
+      zip: overrides?.shippingAddress?.zip ?? order.shippingZip,
+      country: overrides?.shippingAddress?.country ?? order.shippingCountry,
+    })
 
-    const billingAddress =
-      overrides?.billingAddress ?? {
-        line1: order.billingAddress1 ?? shippingAddress.line1,
-        line2: order.billingAddress2 ?? shippingAddress.line2,
-        city: order.billingCity ?? shippingAddress.city,
-        state: order.billingState ?? shippingAddress.state,
-        zip: order.billingZip ?? shippingAddress.zip,
-        country: shippingAddress.country,
-      }
+    const shippingAddress = {
+      line1: shippingAddressPayload?.line1 ?? '',
+      line2: shippingAddressPayload?.line2 ?? undefined,
+      city: shippingAddressPayload?.city ?? '',
+      department: shippingAddressPayload?.department ?? '',
+      neighborhood: shippingAddressPayload?.neighborhood ?? undefined,
+      state: shippingAddressPayload?.state ?? shippingAddressPayload?.department ?? '',
+      zip: shippingAddressPayload?.zip ?? '',
+      country: shippingAddressPayload?.country ?? '',
+    }
+
+    const billingAddressPayload = buildAddressPayload({
+      line1: overrides?.billingAddress?.line1 ?? order.billingAddress1 ?? shippingAddress.line1,
+      line2: overrides?.billingAddress?.line2 ?? order.billingAddress2 ?? shippingAddress.line2,
+      city: overrides?.billingAddress?.city ?? order.billingCity ?? shippingAddress.city,
+      department:
+        overrides?.billingAddress?.department ??
+        overrides?.billingAddress?.state ??
+        order.billingDepartment ??
+        order.billingState ??
+        shippingAddress.department,
+      neighborhood:
+        overrides?.billingAddress?.neighborhood ??
+        order.billingNeighborhood ??
+        shippingAddress.neighborhood,
+      state:
+        overrides?.billingAddress?.department ??
+        overrides?.billingAddress?.state ??
+        order.billingDepartment ??
+        order.billingState ??
+        shippingAddress.state,
+      zip: overrides?.billingAddress?.zip ?? order.billingZip ?? shippingAddress.zip,
+      country: overrides?.billingAddress?.country ?? order.billingCountry ?? shippingAddress.country,
+    })
+
+    const billingAddress = {
+      line1: billingAddressPayload?.line1 ?? shippingAddress.line1,
+      line2: billingAddressPayload?.line2 ?? shippingAddress.line2,
+      city: billingAddressPayload?.city ?? shippingAddress.city,
+      department: billingAddressPayload?.department ?? shippingAddress.department,
+      neighborhood: billingAddressPayload?.neighborhood ?? shippingAddress.neighborhood,
+      state: billingAddressPayload?.state ?? billingAddressPayload?.department ?? shippingAddress.state,
+      zip: billingAddressPayload?.zip ?? shippingAddress.zip,
+      country: billingAddressPayload?.country ?? shippingAddress.country,
+    }
 
     const deliverySummary = this.buildDeliverySummary(order)
     const statusDefinition = findOrderStatusById(order.statusId ?? null)
@@ -4283,7 +4362,9 @@ export class StorefrontService implements OnModuleInit {
       corner: normalizeOptional(address.corner),
       comments: normalizeOptional(address.comments),
       city: address.city,
-      state: '',
+      department: normalizeOptional(address.department),
+      neighborhood: normalizeOptional(address.neighborhood),
+      state: normalizeOptional(address.department) ?? '',
       zip: '',
       country: address.country,
       countryCode: deriveCountryCode(address.country),
@@ -4362,72 +4443,106 @@ export class StorefrontService implements OnModuleInit {
       }
     }
 
-    const shipping = dto.shippingAddress
-    if (shipping) {
-      const normalizedStreet = this.normalizeConfigString((shipping as { street?: string | null }).street ?? '')
-      const normalizedNumber = this.normalizeConfigString((shipping as { number?: string | null }).number ?? '')
-      const normalizedApartment = this.normalizeConfigString(
-        (shipping as { apartment?: string | null }).apartment ?? '',
-      )
-      const normalizedCorner = this.normalizeConfigString((shipping as { corner?: string | null }).corner ?? '')
-      const normalizedAddressComments = this.normalizeConfigString(
-        (shipping as { comments?: string | null }).comments ?? '',
-      )
-      const { street, number } = splitStreetAndNumber(shipping.line1)
-      const normalizedCity = shipping.city?.trim() || 'Montevideo'
-      const normalizedCountry = shipping.country?.trim() || 'UY'
+    return updatedCustomer
+  }
 
-      const addresses = await this.prisma.customerAddress.findMany({
-        where: { customerId: customer.id },
-        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-      })
-      const primary = addresses.find((address) => address.isPrimary) ?? addresses[0] ?? null
-      const addressData = {
-        street: normalizedStreet || street || normalizedCity,
-        number: normalizedNumber || number || 'S/N',
-        apartment: normalizedApartment,
-        corner: normalizedCorner,
-        city: normalizedCity,
-        country: normalizedCountry,
-        comments: normalizedAddressComments,
-      }
-
-      if (!primary) {
-        await this.prisma.customerAddress.create({
-          data: {
-            customerId: customer.id,
-            ...addressData,
-            isPrimary: true,
-          },
-        })
-      } else {
-        const needsUpdate =
-          primary.street !== addressData.street ||
-          primary.number !== addressData.number ||
-          (primary.apartment ?? null) !== addressData.apartment ||
-          (primary.corner ?? null) !== addressData.corner ||
-          primary.city !== addressData.city ||
-          primary.country !== addressData.country ||
-          (primary.comments ?? null) !== addressData.comments
-
-        if (needsUpdate || !primary.isPrimary) {
-          await this.prisma.customerAddress.update({
-            where: { id: primary.id, customerId: customer.id },
-            data: {
-              ...addressData,
-              isPrimary: true,
-            },
-          })
-        }
-
-        await this.prisma.customerAddress.updateMany({
-          where: { customerId: customer.id, NOT: { id: primary.id } },
-          data: { isPrimary: false },
-        })
-      }
+  private async syncCustomerPrimaryAddressFromCheckout(
+    customerId: number,
+    shipping: StorefrontCreateOrderDto['shippingAddress'],
+  ): Promise<void> {
+    if (!shipping) {
+      return
     }
 
-    return updatedCustomer
+    const normalizedStreet = this.normalizeConfigString((shipping as { street?: string | null }).street ?? '')
+    const normalizedNumber = this.normalizeConfigString((shipping as { number?: string | null }).number ?? '')
+    const normalizedApartment = this.normalizeConfigString((shipping as { apartment?: string | null }).apartment ?? '')
+    const normalizedCorner = this.normalizeConfigString((shipping as { corner?: string | null }).corner ?? '')
+    const normalizedAddressComments = this.normalizeConfigString((shipping as { comments?: string | null }).comments ?? '')
+    const { street, number } = splitStreetAndNumber(shipping.line1)
+    const normalizedCity = shipping.city?.trim() || 'Montevideo'
+    const normalizedDepartment =
+      this.normalizeConfigString((shipping as { department?: string | null }).department ?? shipping.state ?? '') ||
+      'Montevideo'
+    const normalizedNeighborhood = this.normalizeConfigString(
+      (shipping as { neighborhood?: string | null }).neighborhood ?? '',
+    )
+    const normalizedCountry = normalizeCountryLabel(shipping.country) ?? 'Uruguay'
+
+    const addressData = {
+      street: normalizedStreet || street || normalizedCity,
+      number: normalizedNumber || number || 'S/N',
+      apartment: normalizedApartment,
+      corner: normalizedCorner,
+      city: normalizedCity,
+      department: normalizedDepartment,
+      neighborhood: normalizedNeighborhood || null,
+      country: normalizedCountry,
+      comments: normalizedAddressComments,
+    }
+
+    const addresses = await this.prisma.customerAddress.findMany({
+      where: { customerId },
+      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
+    })
+
+    const matchesAddress = (address: CustomerAddress) =>
+      address.street === addressData.street &&
+      address.number === addressData.number &&
+      (address.apartment ?? '') === addressData.apartment &&
+      (address.corner ?? '') === addressData.corner &&
+      address.city === addressData.city &&
+      (address.department ?? '') === addressData.department &&
+      (address.neighborhood ?? '') === (addressData.neighborhood ?? '') &&
+      address.country === addressData.country &&
+      (address.comments ?? '') === addressData.comments
+
+    const exactMatches = addresses.filter(matchesAddress)
+    const targetAddress = exactMatches[0] ?? addresses.find((address) => address.isPrimary) ?? addresses[0] ?? null
+
+    if (!targetAddress) {
+      await this.prisma.customerAddress.create({
+        data: {
+          customerId,
+          ...addressData,
+          isPrimary: true,
+        },
+      })
+      return
+    }
+
+    if (exactMatches.length === 0) {
+      await this.prisma.customerAddress.update({
+        where: { id: targetAddress.id, customerId },
+        data: {
+          ...addressData,
+          isPrimary: true,
+        },
+      })
+    } else if (!targetAddress.isPrimary) {
+      await this.prisma.customerAddress.update({
+        where: { id: targetAddress.id, customerId },
+        data: { isPrimary: true },
+      })
+    }
+
+    await this.prisma.customerAddress.updateMany({
+      where: { customerId, NOT: { id: targetAddress.id } },
+      data: { isPrimary: false },
+    })
+
+    const duplicateIds = exactMatches
+      .slice(1)
+      .map((address) => address.id)
+
+    if (duplicateIds.length > 0) {
+      await this.prisma.customerAddress.deleteMany({
+        where: {
+          customerId,
+          id: { in: duplicateIds },
+        },
+      })
+    }
   }
 
   private toCustomerProfile(
@@ -4576,6 +4691,8 @@ export class StorefrontService implements OnModuleInit {
       street: this.trim(dto.street),
       number: this.trim(dto.number),
       city: this.trim(dto.city),
+      department: this.trim(dto.department),
+      neighborhood: this.normalizeNullable(dto.neighborhood),
       country: this.trim(dto.country),
       corner: this.normalizeNullable(dto.corner),
       apartment: this.normalizeNullable(dto.apartment),
@@ -4611,6 +4728,8 @@ export class StorefrontService implements OnModuleInit {
         corner: normalized.corner,
         apartment: normalized.apartment,
         city: normalized.city,
+        department: normalized.department,
+        neighborhood: normalized.neighborhood,
         country: normalized.country,
         comments: normalized.comments,
         label: normalized.label,
@@ -4649,6 +4768,8 @@ export class StorefrontService implements OnModuleInit {
         corner: normalized.corner,
         apartment: normalized.apartment,
         city: normalized.city,
+        department: normalized.department,
+        neighborhood: normalized.neighborhood,
         country: normalized.country,
         comments: normalized.comments,
         label: normalized.label,
