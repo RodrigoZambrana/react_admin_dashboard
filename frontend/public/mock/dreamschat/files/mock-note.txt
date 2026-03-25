@@ -1,0 +1,3 @@
+DreamsChat mock attachment
+
+This file is copied into the current project to support local visualization and testing of attachment bubbles without depending on the external template workspace.

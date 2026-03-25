@@ -128,7 +128,7 @@ const baseAppsRoute: Routes = [
     {
         key: 'appsCrm.conversations',
         path: `${APP_PREFIX_PATH}/crm/conversations`,
-        component: lazy(() => import('@/views/crm/Conversations')),
+        component: lazy(() => import('@/views/crm/ConversationsV2')),
         authority: getRolesForFeature(FEATURES.CUSTOMERS),
         meta: {
             pageContainerType: 'gutterless',
@@ -139,12 +139,34 @@ const baseAppsRoute: Routes = [
     {
         key: 'appsCrm.conversationDetails',
         path: `${APP_PREFIX_PATH}/crm/conversations/:conversationId`,
-        component: lazy(() => import('@/views/crm/Conversations')),
+        component: lazy(() => import('@/views/crm/ConversationsV2')),
         authority: getRolesForFeature(FEATURES.CUSTOMERS),
         meta: {
             pageContainerType: 'gutterless',
             footer: false,
             header: 'Conversations',
+        },
+    },
+    {
+        key: 'appsCrm.conversationsLegacy',
+        path: `${APP_PREFIX_PATH}/crm/conversations-v2`,
+        component: lazy(() => import('@/views/crm/Conversations')),
+        authority: getRolesForFeature(FEATURES.CUSTOMERS),
+        meta: {
+            pageContainerType: 'gutterless',
+            footer: false,
+            header: 'Conversations V2',
+        },
+    },
+    {
+        key: 'appsCrm.conversationDetailsLegacy',
+        path: `${APP_PREFIX_PATH}/crm/conversations-v2/:conversationId`,
+        component: lazy(() => import('@/views/crm/Conversations')),
+        authority: getRolesForFeature(FEATURES.CUSTOMERS),
+        meta: {
+            pageContainerType: 'gutterless',
+            footer: false,
+            header: 'Conversations V2',
         },
     },
     {

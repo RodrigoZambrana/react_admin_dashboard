@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
   OnModuleInit,
+  OnModuleDestroy,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import {
@@ -18,6 +19,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import { ChannelRegistry } from './registry/channel-registry'
 import { deriveMessageUid, hashMessageBody, normalizeFolder } from './common/message-identity'
+import { buildCanonicalThreadKey, resolveMessageActivityAt } from './common/threading'
 import { resolveQueueSlug, type QueueResolution, type QueueRuleConfig } from './common/queue-classifier'
 import { InboxEventsService, type InboxStreamFilter } from './events/inbox-events.service'
 import type {
@@ -42,6 +44,7 @@ type MessageSummaryDto = {
   messageUid: string
   remoteId: string
   threadRemoteId?: string | null
+  canonicalThreadKey?: string | null
   subject?: string | null
   snippet?: string | null
   previewText?: string | null
@@ -60,6 +63,7 @@ type MessageSummaryDto = {
   queueName?: string | null
   sentAt?: string | null
   receivedAt?: string | null
+  activityAt?: string | null
   metadata?: Record<string, unknown> | null
 }
 
@@ -84,10 +88,66 @@ type ListMessagesResultDto = {
   nextCursor?: string | null
 }
 
+type ThreadMessageDto = {
+  id: string
+  remoteId: string
+  threadRemoteId?: string | null
+  canonicalThreadKey?: string | null
+  subject?: string | null
+  previewText?: string | null
+  snippet?: string | null
+  from?: { name?: string | null; address?: string | null } | null
+  to: string[]
+  cc: string[]
+  bcc: string[]
+  direction: InboxMessageDirection
+  isRead: boolean
+  isStarred: boolean
+  isSpam: boolean
+  hasAttachments: boolean
+  sentAt?: string | null
+  receivedAt?: string | null
+  activityAt?: string | null
+}
+
+type ThreadSummaryDto = {
+  id: string
+  accountId: string
+  mailbox: string
+  canonicalThreadKey: string
+  subject?: string | null
+  previewText?: string | null
+  snippet?: string | null
+  from?: { name?: string | null; address?: string | null } | null
+  to: string[]
+  cc: string[]
+  bcc: string[]
+  isRead: boolean
+  isStarred: boolean
+  isSpam: boolean
+  hasAttachments: boolean
+  latestMessageAt?: string | null
+  latestMessageId?: string | null
+  latestRemoteId?: string | null
+  threadRemoteId?: string | null
+  messageCount: number
+  messages: ThreadMessageDto[]
+}
+
+type ListThreadsResultDto = {
+  items: ThreadSummaryDto[]
+  nextCursor?: string | null
+}
+
 type SyncMailboxResultDto = {
   mailbox: string
   fetched: number
   nextCursor?: string | null
+  complete?: boolean
+}
+
+type InboxThreadCursor = {
+  offset: number
 }
 
 const toJsonInput = (
@@ -102,11 +162,37 @@ const toJsonUpdate = (
 ): Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined =>
   value === undefined ? undefined : toJsonInput(value)
 
+const encodeInboxThreadCursor = (cursor: InboxThreadCursor) =>
+  Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url')
+
+const decodeInboxThreadCursor = (
+  value?: string | null,
+): InboxThreadCursor | null => {
+  if (!value) {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as {
+      offset?: unknown
+    }
+    const offset = Number(parsed.offset)
+    if (!Number.isInteger(offset) || offset < 0) {
+      return null
+    }
+    return { offset }
+  } catch {
+    return null
+  }
+}
+
 @Injectable()
-export class InboxService implements OnModuleInit {
+export class InboxService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(InboxService.name)
   private readonly queueRuleConfig: QueueRuleConfig
   private readonly queueCache = new Map<string, { id: string; name: string; slug: string }>()
+  private readonly pollingAccountLocks = new Set<string>()
+  private pollingTimer: NodeJS.Timeout | null = null
+  private pollingLoopActive = false
 
   constructor(
     private readonly prisma: PrismaService,
@@ -119,7 +205,16 @@ export class InboxService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    await this.ensureConfiguredEmailAccount()
+    await this.synchronizeConfiguredEmailAccount({ triggerSync: true })
+    this.startPollingLoop()
+  }
+
+  onModuleDestroy() {
+    if (this.pollingTimer) {
+      clearTimeout(this.pollingTimer)
+      this.pollingTimer = null
+    }
+    this.pollingLoopActive = false
   }
 
   streamMessageEvents(filters: InboxStreamFilter = {}) {
@@ -141,7 +236,85 @@ export class InboxService implements OnModuleInit {
     const account = await this.getAccountOrThrow(accountId)
     const adapter = this.resolveAdapter(account)
     const channelAccount = this.mapAccount(account)
-    return adapter.listMailboxes(channelAccount)
+    const [mailboxes, syncStates, persistedCounts] = await Promise.all([
+      adapter.listMailboxes(channelAccount),
+      this.prisma.inboxSyncState.findMany({
+        where: {
+          accountId: account.id,
+          channel: account.channel,
+        },
+      }),
+      this.prisma.inboxMessage.groupBy({
+        by: ['folder'],
+        where: { accountId: account.id, channel: account.channel },
+        _count: { _all: true },
+      }),
+    ])
+
+    const syncStateByFolder = new Map(syncStates.map((entry) => [entry.folder, entry]))
+    const persistedCountByFolder = new Map(
+      persistedCounts.map((entry) => [entry.folder ?? '', entry._count._all]),
+    )
+
+    return mailboxes.map((mailbox) => {
+      const syncState = syncStateByFolder.get(mailbox.id)
+      const syncMetadata =
+        syncState?.metadata && typeof syncState.metadata === 'object'
+          ? (syncState.metadata as Record<string, unknown>)
+          : null
+      const existingMetadata =
+        mailbox.metadata && typeof mailbox.metadata === 'object'
+          ? (mailbox.metadata as Record<string, unknown>)
+          : {}
+      const nextCursor =
+        typeof syncMetadata?.nextCursor === 'string' && syncMetadata.nextCursor.trim()
+          ? syncMetadata.nextCursor.trim()
+          : null
+      const complete =
+        typeof syncMetadata?.complete === 'boolean'
+          ? syncMetadata.complete
+          : nextCursor
+            ? false
+            : null
+      const historyComplete =
+        typeof syncMetadata?.historyComplete === 'boolean'
+          ? syncMetadata.historyComplete
+          : null
+      const lastHistorySyncAt =
+        typeof syncMetadata?.lastHistorySyncAt === 'string'
+          ? syncMetadata.lastHistorySyncAt
+          : null
+      const historyRequestedAt =
+        typeof syncMetadata?.historyRequestedAt === 'string'
+          ? syncMetadata.historyRequestedAt
+          : null
+      const lastHistoryFetched =
+        typeof syncMetadata?.lastHistoryFetched === 'number'
+          ? syncMetadata.lastHistoryFetched
+          : null
+      const lastHistoryPageCount =
+        typeof syncMetadata?.lastHistoryPageCount === 'number'
+          ? syncMetadata.lastHistoryPageCount
+          : null
+
+      return {
+        ...mailbox,
+        metadata: {
+          ...existingMetadata,
+          sync: {
+            complete,
+            historyComplete,
+            nextCursor,
+            lastSyncAt: syncState?.lastSyncAt?.toISOString() ?? null,
+            lastHistorySyncAt,
+            historyRequestedAt,
+            lastHistoryFetched,
+            lastHistoryPageCount,
+            localMessageCount: persistedCountByFolder.get(mailbox.id) ?? 0,
+          },
+        },
+      }
+    })
   }
 
   async listMessages(
@@ -170,6 +343,158 @@ export class InboxService implements OnModuleInit {
     return {
       items: summaries,
       nextCursor: response.nextCursor ?? null,
+    }
+  }
+
+  async listThreads(
+    accountId: string,
+    options: ChannelListMessagesOptions,
+  ): Promise<ListThreadsResultDto> {
+    this.assertMailboxOption(options)
+    const account = await this.getAccountOrThrow(accountId)
+    const mailbox = this.resolveFolder(options.mailbox)
+    const limit = Math.min(Math.max(options.limit ?? 20, 1), 200)
+    const cursor = decodeInboxThreadCursor(options.cursor ?? null)
+    const offset = cursor?.offset ?? 0
+
+    const records = await this.prisma.inboxMessage.findMany({
+      where: {
+        accountId: account.id,
+        channel: account.channel,
+        folder: mailbox,
+      },
+      orderBy: [{ receivedAt: 'desc' }, { sentAt: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        queue: {
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+          },
+        },
+      },
+      take: 5000,
+    })
+
+    const grouped = new Map<string, ThreadSummaryDto>()
+    for (const record of records) {
+      const summary = this.serializeMessage(record)
+      const threadKey =
+        summary.canonicalThreadKey ||
+        buildCanonicalThreadKey({
+          threadRemoteId: summary.threadRemoteId ?? null,
+          messageId: this.extractMetadataString(summary.metadata ?? {}, 'messageId'),
+          inReplyTo: this.extractMetadataString(summary.metadata ?? {}, 'inReplyTo'),
+          references: this.extractMetadataString(summary.metadata ?? {}, 'references'),
+          subject: summary.subject ?? null,
+          fromAddress: summary.from?.address ?? null,
+          toAddresses: summary.to,
+        }).key
+      const threadMessage: ThreadMessageDto = {
+        id: summary.id,
+        remoteId: summary.remoteId,
+        threadRemoteId: summary.threadRemoteId ?? null,
+        canonicalThreadKey: threadKey,
+        subject: summary.subject ?? null,
+        previewText: summary.previewText ?? null,
+        snippet: summary.snippet ?? null,
+        from: summary.from ?? null,
+        to: summary.to,
+        cc: summary.cc,
+        bcc: summary.bcc,
+        direction: summary.direction,
+        isRead: summary.isRead,
+        isStarred: summary.isStarred,
+        isSpam: summary.isSpam,
+        hasAttachments: summary.hasAttachments,
+        sentAt: summary.sentAt ?? null,
+        receivedAt: summary.receivedAt ?? null,
+        activityAt: summary.activityAt ?? null,
+      }
+
+      const existing = grouped.get(threadKey)
+      if (!existing) {
+        grouped.set(threadKey, {
+          id: threadKey,
+          accountId: summary.accountId,
+          mailbox,
+          canonicalThreadKey: threadKey,
+          subject: summary.subject ?? null,
+          previewText: summary.previewText ?? null,
+          snippet: summary.snippet ?? null,
+          from: summary.from ?? null,
+          to: summary.to,
+          cc: summary.cc,
+          bcc: summary.bcc,
+          isRead: summary.isRead,
+          isStarred: summary.isStarred,
+          isSpam: summary.isSpam,
+          hasAttachments: summary.hasAttachments,
+          latestMessageAt: summary.activityAt ?? summary.receivedAt ?? summary.sentAt ?? null,
+          latestMessageId: summary.id,
+          latestRemoteId: summary.remoteId,
+          threadRemoteId: summary.threadRemoteId ?? null,
+          messageCount: 1,
+          messages: [threadMessage],
+        })
+        continue
+      }
+
+      existing.messages.push(threadMessage)
+      existing.messageCount += 1
+      existing.isRead = existing.isRead && summary.isRead
+      existing.isStarred = existing.isStarred || summary.isStarred
+      existing.isSpam = existing.isSpam || summary.isSpam
+      existing.hasAttachments = existing.hasAttachments || summary.hasAttachments
+
+      const currentLatest =
+        this.parseSummaryTimestamp(existing.latestMessageAt) ?? 0
+      const candidateLatest =
+        this.parseSummaryTimestamp(summary.activityAt ?? summary.receivedAt ?? summary.sentAt ?? null) ?? 0
+      if (candidateLatest >= currentLatest) {
+        existing.subject = summary.subject ?? existing.subject ?? null
+        existing.previewText = summary.previewText ?? existing.previewText ?? null
+        existing.snippet = summary.snippet ?? existing.snippet ?? null
+        existing.from = summary.from ?? existing.from ?? null
+        existing.to = summary.to
+        existing.cc = summary.cc
+        existing.bcc = summary.bcc
+        existing.latestMessageAt =
+          summary.activityAt ?? summary.receivedAt ?? summary.sentAt ?? null
+        existing.latestMessageId = summary.id
+        existing.latestRemoteId = summary.remoteId
+        existing.threadRemoteId = summary.threadRemoteId ?? existing.threadRemoteId ?? null
+      }
+    }
+
+    const orderedThreads = Array.from(grouped.values())
+      .map((thread) => ({
+        ...thread,
+        messages: thread.messages.sort((left, right) => {
+          const leftTime = this.parseSummaryTimestamp(
+            left.activityAt ?? left.receivedAt ?? left.sentAt ?? null,
+          ) ?? 0
+          const rightTime = this.parseSummaryTimestamp(
+            right.activityAt ?? right.receivedAt ?? right.sentAt ?? null,
+          ) ?? 0
+          return leftTime - rightTime
+        }),
+      }))
+      .sort((left, right) => {
+        const leftTime = this.parseSummaryTimestamp(left.latestMessageAt) ?? 0
+        const rightTime = this.parseSummaryTimestamp(right.latestMessageAt) ?? 0
+        return rightTime - leftTime
+      })
+
+    const items = orderedThreads.slice(offset, offset + limit)
+    const nextOffset = offset + items.length
+
+    return {
+      items,
+      nextCursor:
+        nextOffset < orderedThreads.length
+          ? encodeInboxThreadCursor({ offset: nextOffset })
+          : null,
     }
   }
 
@@ -714,31 +1039,72 @@ export class InboxService implements OnModuleInit {
       limit?: number
       cursor?: string | null
       since?: Date
+      fullHistory?: boolean
+      maxPages?: number
     } = {},
   ) {
+    const account = await this.getAccountOrThrow(accountId)
     const mailboxes =
       options.mailboxes && options.mailboxes.length > 0 ? options.mailboxes : ['INBOX']
 
     const results: SyncMailboxResultDto[] = []
+    const maxPages =
+      Number.isInteger(options.maxPages) && (options.maxPages ?? 0) > 0
+        ? Math.min(options.maxPages as number, 200)
+        : 100
 
     for (const mailbox of mailboxes) {
-      const { items, nextCursor } = await this.listMessages(accountId, {
-        mailbox,
-        limit: options.limit,
-        cursor: options.cursor ?? undefined,
-        since: options.since,
-      })
+      let totalFetched = 0
+      let nextCursor: string | null | undefined =
+        options.cursor ??
+        (options.fullHistory
+          ? await this.resolveStoredSyncCursor(account.id, account.channel, mailbox)
+          : undefined)
+      let page = 0
+
+      do {
+        const result = await this.listMessages(accountId, {
+          mailbox,
+          limit: options.limit,
+          cursor: nextCursor ?? undefined,
+          since: options.since,
+        })
+        totalFetched += result.items.length
+        nextCursor = result.nextCursor ?? null
+        page += 1
+      } while (options.fullHistory && nextCursor && page < maxPages)
+
       results.push({
         mailbox,
-        fetched: items.length,
+        fetched: totalFetched,
         nextCursor: nextCursor ?? null,
+        complete: !nextCursor,
       })
+
+      if (options.fullHistory) {
+        await this.annotateHistorySync(account.id, account.channel, mailbox, {
+          complete: !nextCursor,
+          fetched: totalFetched,
+          pageCount: page,
+        })
+      }
     }
 
     return {
       accountId,
       mailboxes: results,
     }
+  }
+
+  async synchronizeConfiguredEmailAccount(options: { triggerSync?: boolean } = {}) {
+    const account = await this.ensureConfiguredEmailAccount()
+    if (!account) {
+      return null
+    }
+    if (options.triggerSync) {
+      await this.pollAccountIfDue(account, { force: true })
+    }
+    return account
   }
 
   private assertMailboxOption(options: ChannelListMessagesOptions) {
@@ -770,6 +1136,139 @@ export class InboxService implements OnModuleInit {
     return account
   }
 
+  private startPollingLoop() {
+    if (this.pollingLoopActive) {
+      return
+    }
+    this.pollingLoopActive = true
+    void this.runPollingLoop()
+  }
+
+  private async runPollingLoop() {
+    try {
+      await this.pollActiveEmailAccounts()
+    } catch (error) {
+      this.logger.error(
+        `Inbox polling loop failed: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    } finally {
+      if (!this.pollingLoopActive) {
+        return
+      }
+      this.pollingTimer = setTimeout(() => {
+        void this.runPollingLoop()
+      }, this.resolvePollingTickMs())
+    }
+  }
+
+  private resolvePollingTickMs() {
+    const configuredTick = Number(this.configService.get('INBOX_POLLING_TICK_MS') ?? 30_000)
+    if (Number.isFinite(configuredTick) && configuredTick >= 5_000) {
+      return configuredTick
+    }
+    return 30_000
+  }
+
+  private async pollActiveEmailAccounts() {
+    const accounts = await this.prisma.inboxAccount.findMany({
+      where: {
+        active: true,
+        channel: InboxChannelType.EMAIL,
+      },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    for (const account of accounts) {
+      await this.pollAccountIfDue(account)
+    }
+  }
+
+  private async pollAccountIfDue(account: InboxAccount, options: { force?: boolean } = {}) {
+    const polling = this.extractPollingConfig(account)
+    if (polling.intervalMs <= 0 || polling.batchSize <= 0) {
+      return
+    }
+
+    if (!options.force) {
+      const syncState = await this.prisma.inboxSyncState.findUnique({
+        where: {
+          accountId_channel_folder: {
+            accountId: account.id,
+            channel: account.channel,
+            folder: 'INBOX',
+          },
+        },
+      })
+      if (syncState?.lastSyncAt) {
+        const elapsed = Date.now() - syncState.lastSyncAt.getTime()
+        if (elapsed < polling.intervalMs) {
+          return
+        }
+      }
+    }
+
+    if (this.pollingAccountLocks.has(account.id)) {
+      return
+    }
+
+    this.pollingAccountLocks.add(account.id)
+    try {
+      const result = await this.synchronizeAccount(account.id, {
+        mailboxes: ['INBOX'],
+        limit: polling.batchSize,
+      })
+      const fetched = result.mailboxes.reduce((total, mailbox) => total + mailbox.fetched, 0)
+      if (fetched > 0) {
+        this.logger.log(
+          `Inbox polling synchronized ${fetched} messages for ${account.address} (accountId=${account.id}).`,
+        )
+      }
+    } catch (error) {
+      this.logger.error(
+        `Inbox polling failed for ${account.address}: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    } finally {
+      this.pollingAccountLocks.delete(account.id)
+    }
+  }
+
+  private extractPollingConfig(account: InboxAccount) {
+    const metadata =
+      (account.metadata as Record<string, unknown> | null | undefined) ?? undefined
+    const polling =
+      metadata?.polling && typeof metadata.polling === 'object'
+        ? (metadata.polling as Record<string, unknown>)
+        : undefined
+
+    const intervalCandidate = Number(polling?.intervalMs)
+    const batchCandidate = Number(polling?.batchSize)
+    const configuredFallbackInterval = Number(
+      this.configService.get('INBOX_EMAIL_POLL_INTERVAL_MS') ?? 120_000,
+    )
+    const configuredFallbackBatch = Number(
+      this.configService.get('INBOX_EMAIL_POLL_BATCH_SIZE') ?? 50,
+    )
+    const fallbackInterval =
+      Number.isFinite(configuredFallbackInterval) && configuredFallbackInterval > 0
+        ? configuredFallbackInterval
+        : 120_000
+    const fallbackBatch =
+      Number.isFinite(configuredFallbackBatch) && configuredFallbackBatch > 0
+        ? configuredFallbackBatch
+        : 50
+
+    return {
+      intervalMs:
+        Number.isFinite(intervalCandidate) && intervalCandidate > 0
+          ? intervalCandidate
+          : fallbackInterval,
+      batchSize:
+        Number.isFinite(batchCandidate) && batchCandidate > 0
+          ? batchCandidate
+          : fallbackBatch,
+    }
+  }
+
   private async persistMessageList(
     account: InboxAccount,
     mailbox: string,
@@ -777,26 +1276,12 @@ export class InboxService implements OnModuleInit {
     nextCursor: string | null,
   ): Promise<InboxMessage[]> {
     if (messages.length === 0) {
-      await this.prisma.inboxSyncState.upsert({
-        where: {
-          accountId_channel_folder: {
-            accountId: account.id,
-            channel: account.channel,
-            folder: mailbox,
-          },
-        },
-        update: {
-          lastSyncAt: new Date(),
-          metadata: toJsonInput(nextCursor ? { nextCursor } : null),
-        },
-        create: {
-          accountId: account.id,
-          channel: account.channel,
-          folder: mailbox,
-          lastRemoteId: null,
-          lastSyncAt: new Date(),
-          metadata: toJsonInput(nextCursor ? { nextCursor } : null),
-        },
+      await this.upsertSyncState(this.prisma, {
+        accountId: account.id,
+        channel: account.channel,
+        folder: mailbox,
+        lastRemoteId: null,
+        nextCursor,
       })
       return []
     }
@@ -902,30 +1387,157 @@ export class InboxService implements OnModuleInit {
 
       const lastRemoteId = messages[messages.length - 1]?.remoteId ?? null
 
-      await tx.inboxSyncState.upsert({
-        where: {
-          accountId_channel_folder: {
-            accountId: account.id,
-            channel: account.channel,
-            folder: mailbox,
-          },
-        },
-        update: {
-          lastRemoteId,
-          lastSyncAt: new Date(),
-          metadata: toJsonInput(nextCursor ? { nextCursor } : null),
-        },
-        create: {
-          accountId: account.id,
-          channel: account.channel,
-          folder: mailbox,
-          lastRemoteId,
-          lastSyncAt: new Date(),
-          metadata: toJsonInput(nextCursor ? { nextCursor } : null),
-        },
+      await this.upsertSyncState(tx, {
+        accountId: account.id,
+        channel: account.channel,
+        folder: mailbox,
+        lastRemoteId,
+        nextCursor,
       })
 
       return persisted
+    })
+  }
+
+  private async resolveStoredSyncCursor(
+    accountId: string,
+    channel: InboxChannelType,
+    mailbox: string,
+  ) {
+    const state = await this.prisma.inboxSyncState.findUnique({
+      where: {
+        accountId_channel_folder: {
+          accountId,
+          channel,
+          folder: mailbox,
+        },
+      },
+      select: {
+        metadata: true,
+      },
+    })
+    const metadata =
+      state?.metadata && typeof state.metadata === 'object'
+        ? (state.metadata as Record<string, unknown>)
+        : null
+    const nextCursor =
+      typeof metadata?.nextCursor === 'string' && metadata.nextCursor.trim()
+        ? metadata.nextCursor.trim()
+        : null
+    return nextCursor ?? undefined
+  }
+
+  private async annotateHistorySync(
+    accountId: string,
+    channel: InboxChannelType,
+    mailbox: string,
+    input: {
+      complete: boolean
+      fetched: number
+      pageCount: number
+    },
+  ) {
+    const state = await this.prisma.inboxSyncState.findUnique({
+      where: {
+        accountId_channel_folder: {
+          accountId,
+          channel,
+          folder: mailbox,
+        },
+      },
+      select: {
+        metadata: true,
+      },
+    })
+    const metadata =
+      state?.metadata && typeof state.metadata === 'object'
+        ? { ...(state.metadata as Record<string, unknown>) }
+        : {}
+    const now = new Date().toISOString()
+    metadata.historyRequestedAt = now
+    metadata.lastHistoryFetched = input.fetched
+    metadata.lastHistoryPageCount = input.pageCount
+    metadata.historyComplete = input.complete
+    if (input.complete) {
+      metadata.lastHistorySyncAt = now
+    }
+
+    await this.prisma.inboxSyncState.upsert({
+      where: {
+        accountId_channel_folder: {
+          accountId,
+          channel,
+          folder: mailbox,
+        },
+      },
+      update: {
+        metadata: toJsonInput(metadata),
+      },
+      create: {
+        accountId,
+        channel,
+        folder: mailbox,
+        lastRemoteId: null,
+        lastSyncAt: new Date(),
+        metadata: toJsonInput(metadata),
+      },
+    })
+  }
+
+  private async upsertSyncState(
+    tx: Prisma.TransactionClient | PrismaService,
+    input: {
+      accountId: string
+      channel: InboxChannelType
+      folder: string
+      lastRemoteId: string | null
+      nextCursor: string | null
+    },
+  ) {
+    const existing = await tx.inboxSyncState.findUnique({
+      where: {
+        accountId_channel_folder: {
+          accountId: input.accountId,
+          channel: input.channel,
+          folder: input.folder,
+        },
+      },
+      select: {
+        metadata: true,
+      },
+    })
+    const currentMetadata =
+      existing?.metadata && typeof existing.metadata === 'object'
+        ? { ...(existing.metadata as Record<string, unknown>) }
+        : {}
+
+    const metadata = {
+      ...currentMetadata,
+      nextCursor: input.nextCursor,
+      complete: !input.nextCursor,
+    }
+
+    await tx.inboxSyncState.upsert({
+      where: {
+        accountId_channel_folder: {
+          accountId: input.accountId,
+          channel: input.channel,
+          folder: input.folder,
+        },
+      },
+      update: {
+        lastRemoteId: input.lastRemoteId,
+        lastSyncAt: new Date(),
+        metadata: toJsonInput(metadata),
+      },
+      create: {
+        accountId: input.accountId,
+        channel: input.channel,
+        folder: input.folder,
+        lastRemoteId: input.lastRemoteId,
+        lastSyncAt: new Date(),
+        metadata: toJsonInput(metadata),
+      },
     })
   }
 
@@ -1114,6 +1726,42 @@ export class InboxService implements OnModuleInit {
       .map((label) => label.trim())
   }
 
+  private extractCanonicalThreadMetadata(input: {
+    threadRemoteId?: string | null
+    subject?: string | null
+    metadata?: Record<string, unknown> | null
+    fromAddress?: string | null
+    toAddresses?: string[]
+    receivedAt?: Date | null
+    sentAt?: Date | null
+  }) {
+    const metadata = input.metadata ?? {}
+    const headers = this.extractHeaderMap(metadata) ?? {}
+    const canonicalThread = buildCanonicalThreadKey({
+      threadRemoteId: input.threadRemoteId ?? null,
+      gmailThreadId: this.extractMetadataString(metadata, 'gmailThreadId'),
+      messageId:
+        this.extractMetadataString(metadata, 'messageId') ?? headers['message-id'] ?? null,
+      inReplyTo:
+        this.extractMetadataString(metadata, 'inReplyTo') ?? headers['in-reply-to'] ?? null,
+      references:
+        this.extractMetadataString(metadata, 'references') ?? headers.references ?? null,
+      subject: input.subject ?? null,
+      fromAddress: input.fromAddress ?? null,
+      toAddresses: input.toAddresses ?? [],
+    })
+    const activityAt = resolveMessageActivityAt({
+      receivedAt: input.receivedAt ?? null,
+      sentAt: input.sentAt ?? null,
+    })
+
+    return {
+      canonicalThreadKey: canonicalThread.key,
+      canonicalThreadReason: canonicalThread.reason,
+      activityAt: activityAt?.toISOString() ?? null,
+    }
+  }
+
   private extractQueueSlug(metadata: unknown) {
     if (!metadata || typeof metadata !== 'object') {
       return null
@@ -1133,6 +1781,7 @@ export class InboxService implements OnModuleInit {
   private serializeMessage(
     record: InboxMessage & { queue?: { id: string; slug: string; name: string } | null },
   ): MessageSummaryDto {
+    const metadata = (record.metadata as Record<string, unknown> | null) ?? null
     return {
       id: record.id,
       accountId: record.accountId,
@@ -1140,6 +1789,10 @@ export class InboxService implements OnModuleInit {
       messageUid: record.messageUid,
       remoteId: record.remoteId,
       threadRemoteId: record.threadRemoteId,
+      canonicalThreadKey:
+        metadata && typeof metadata.canonicalThreadKey === 'string'
+          ? metadata.canonicalThreadKey
+          : null,
       subject: record.subject,
       snippet: record.snippet,
       previewText: record.previewText,
@@ -1161,7 +1814,11 @@ export class InboxService implements OnModuleInit {
       queueName: record.queue?.name ?? null,
       sentAt: record.sentAt ? record.sentAt.toISOString() : null,
       receivedAt: record.receivedAt ? record.receivedAt.toISOString() : null,
-      metadata: (record.metadata as Record<string, unknown> | null) ?? null,
+      activityAt:
+        metadata && typeof metadata.activityAt === 'string'
+          ? metadata.activityAt
+          : (record.receivedAt ?? record.sentAt)?.toISOString() ?? null,
+      metadata,
     }
   }
 
@@ -1207,9 +1864,19 @@ export class InboxService implements OnModuleInit {
     metadata: Record<string, unknown>,
     queueResolution: QueueResolution,
   ): Prisma.InboxMessageUpdateInput {
+    const canonicalThreadMetadata = this.extractCanonicalThreadMetadata({
+      threadRemoteId: message.threadRemoteId ?? null,
+      subject: message.subject ?? null,
+      metadata,
+      fromAddress: message.from?.address ?? null,
+      toAddresses: this.normalizeAddressArray(message.to),
+      receivedAt: message.receivedAt ?? null,
+      sentAt: message.sentAt ?? null,
+    })
     const mergedMetadata = this.mergeMetadata(metadata, {
       queue: queueResolution.slug,
       queueRule: queueResolution.matchedRule,
+      ...canonicalThreadMetadata,
     })
     return {
       provider,
@@ -1248,9 +1915,19 @@ export class InboxService implements OnModuleInit {
     metadata: Record<string, unknown>,
     queueResolution: QueueResolution,
   ): Prisma.InboxMessageCreateInput {
+    const canonicalThreadMetadata = this.extractCanonicalThreadMetadata({
+      threadRemoteId: message.threadRemoteId ?? null,
+      subject: message.subject ?? null,
+      metadata,
+      fromAddress: message.from?.address ?? null,
+      toAddresses: this.normalizeAddressArray(message.to),
+      receivedAt: message.receivedAt ?? null,
+      sentAt: message.sentAt ?? null,
+    })
     const mergedMetadata = this.mergeMetadata(metadata, {
       queue: queueResolution.slug,
       queueRule: queueResolution.matchedRule,
+      ...canonicalThreadMetadata,
     })
     return {
       account: { connect: { id: account.id } },
@@ -1291,9 +1968,17 @@ export class InboxService implements OnModuleInit {
     metadata: Record<string, unknown>,
     queueResolution: QueueResolution,
   ): Prisma.InboxMessageUpdateInput {
+    const canonicalThreadMetadata = this.extractCanonicalThreadMetadata({
+      threadRemoteId: body.threadRemoteId ?? null,
+      subject: body.subject ?? null,
+      metadata,
+      fromAddress: null,
+      toAddresses: [],
+    })
     const mergedMetadata = this.mergeMetadata(metadata, {
       queue: queueResolution.slug,
       queueRule: queueResolution.matchedRule,
+      ...canonicalThreadMetadata,
     })
     return {
       provider,
@@ -1320,9 +2005,17 @@ export class InboxService implements OnModuleInit {
     metadata: Record<string, unknown>,
     queueResolution: QueueResolution,
   ): Prisma.InboxMessageCreateInput {
+    const canonicalThreadMetadata = this.extractCanonicalThreadMetadata({
+      threadRemoteId: body.threadRemoteId ?? null,
+      subject: body.subject ?? null,
+      metadata,
+      fromAddress: null,
+      toAddresses: [],
+    })
     const mergedMetadata = this.mergeMetadata(metadata, {
       queue: queueResolution.slug,
       queueRule: queueResolution.matchedRule,
+      ...canonicalThreadMetadata,
     })
     return {
       account: { connect: { id: account.id } },
@@ -1360,9 +2053,19 @@ export class InboxService implements OnModuleInit {
     metadata: Record<string, unknown>,
     queueResolution: QueueResolution,
   ): Prisma.InboxMessageUpdateInput {
+    const sentAt = new Date()
+    const canonicalThreadMetadata = this.extractCanonicalThreadMetadata({
+      threadRemoteId: result.threadRemoteId ?? payload.replyToRemoteId ?? null,
+      subject: payload.subject ?? null,
+      metadata,
+      fromAddress: payload.fromAddress ?? null,
+      toAddresses: payload.to,
+      sentAt,
+    })
     const mergedMetadata = this.mergeMetadata(metadata, {
       queue: queueResolution.slug,
       queueRule: queueResolution.matchedRule,
+      ...canonicalThreadMetadata,
     })
     return {
       provider,
@@ -1383,7 +2086,7 @@ export class InboxService implements OnModuleInit {
       isStarred: false,
       isSpam: false,
       hasAttachments: (payload.attachments?.length ?? 0) > 0,
-      sentAt: new Date(),
+      sentAt,
       bodyHash: bodyHash ?? undefined,
       metadata: toJsonUpdate(mergedMetadata),
     }
@@ -1401,9 +2104,19 @@ export class InboxService implements OnModuleInit {
     metadata: Record<string, unknown>,
     queueResolution: QueueResolution,
   ): Prisma.InboxMessageCreateInput {
+    const sentAt = new Date()
+    const canonicalThreadMetadata = this.extractCanonicalThreadMetadata({
+      threadRemoteId: result.threadRemoteId ?? payload.replyToRemoteId ?? null,
+      subject: payload.subject ?? null,
+      metadata,
+      fromAddress: payload.fromAddress ?? null,
+      toAddresses: payload.to,
+      sentAt,
+    })
     const mergedMetadata = this.mergeMetadata(metadata, {
       queue: queueResolution.slug,
       queueRule: queueResolution.matchedRule,
+      ...canonicalThreadMetadata,
     })
     return {
       account: { connect: { id: account.id } },
@@ -1426,7 +2139,7 @@ export class InboxService implements OnModuleInit {
       isStarred: false,
       isSpam: false,
       hasAttachments: (payload.attachments?.length ?? 0) > 0,
-      sentAt: new Date(),
+      sentAt,
       bodyHash: bodyHash ?? null,
       metadata: toJsonInput(mergedMetadata ?? null),
       fromAddress: payload.fromAddress ?? null,
@@ -1560,6 +2273,14 @@ export class InboxService implements OnModuleInit {
     return content.replace(/<\/?[^>]+(>|$)/g, ' ')
   }
 
+  private parseSummaryTimestamp(value?: string | null) {
+    if (!value) {
+      return null
+    }
+    const parsed = Date.parse(value)
+    return Number.isNaN(parsed) ? null : parsed
+  }
+
   private buildAttachmentMetadata(attachment: ChannelMessageAttachment) {
     const metadata: Record<string, unknown> = {}
     if (attachment.inline !== undefined) {
@@ -1628,7 +2349,7 @@ export class InboxService implements OnModuleInit {
       this.logger.warn(
         'No email inbox account configured. Set INBOX_EMAIL_* environment variables to enable the inbox module.',
       )
-      return
+      return null
     }
 
     const normalizedAddress = emailAddress.trim().toLowerCase()
@@ -1647,7 +2368,7 @@ export class InboxService implements OnModuleInit {
       lastConfigSync: new Date().toISOString(),
     }
 
-    await this.prisma.inboxAccount.upsert({
+    return this.prisma.inboxAccount.upsert({
       where: {
         channel_address: {
           channel: InboxChannelType.EMAIL,

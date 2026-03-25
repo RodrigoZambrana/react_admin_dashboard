@@ -21,3 +21,14 @@ Current policy:
 - keep `x-ai-internal-token` for internal service-to-service reply paths
 - keep AI services away from direct DB access
 - continue avoiding sensitive logging in AI/channel services
+
+## Follow-up Security Audit
+
+- A minimum protection audit is now a tracked system-wide requirement
+- Scope of the audit:
+  - authentication and authorization coverage
+  - role/scope enforcement
+  - rate limiting
+  - origin restrictions and CORS exposure
+  - public vs internal endpoint boundaries
+- This follow-up applies to all backend, admin, storefront, AI and channel endpoints, not only email or inbox-related flows

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { loginAsAdmin, resolveAdminAppUrl } from "./support/admin-ui";
+import { waitForLatestConversationOutboundBySubject } from "./support/db";
 
 const channelAdapterBaseUrl =
   process.env.PLAYWRIGHT_CHANNEL_ADAPTER_URL ?? "http://127.0.0.1:4200";
@@ -50,9 +51,38 @@ test("admin can reply to an email conversation and persist outbound delivery sta
   await page.getByTestId("admin-conversation-reply-input").fill(replyText);
   await page.getByTestId("admin-conversation-reply-submit").click();
 
-  const lastMessage = page
+  const replyMessage = page
     .locator('[data-testid^="admin-conversation-message-"]')
-    .last();
-  await expect(lastMessage).toContainText(replyText, { timeout: 20_000 });
-  await expect(lastMessage).toContainText("Sent");
+    .filter({
+      hasText: replyText,
+    })
+    .first();
+  await expect(replyMessage).toBeVisible({ timeout: 20_000 });
+
+  const outbound = await waitForLatestConversationOutboundBySubject(
+    subject,
+    "email",
+  );
+
+  const statusResponse = await request.post(
+    `${channelAdapterBaseUrl}/webhooks/email/status`,
+    {
+      data: {
+        conversationId: outbound.conversationId,
+        inboxAccountId: outbound.inboxAccountId,
+        messageId: outbound.remoteId,
+        providerMessageId: outbound.providerMessageId ?? outbound.remoteId,
+        status: "delivered",
+        provider: "smtp-test",
+        metadata: {
+          source: "playwright",
+        },
+      },
+    },
+  );
+
+  expect(statusResponse.ok()).toBeTruthy();
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(replyMessage).toContainText(replyText, { timeout: 20_000 });
+  await expect(replyMessage).toContainText("Delivered");
 });

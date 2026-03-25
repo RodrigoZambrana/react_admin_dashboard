@@ -9,10 +9,20 @@ import Drawer from '@/components/ui/Drawer'
 import useResponsive from '@/utils/hooks/useResponsive'
 import { apiGetUsers } from '@/services/UsersService'
 import {
+    MessagingComposer,
+    MessagingConversationListItem,
+    MessagingMessageBubble,
+    MessagingPaneHeader,
+    MessagingShell,
+} from '@/components/messaging'
+import {
     HiOutlinePaperAirplane,
     HiOutlineArrowLeft,
     HiOutlineMenuAlt2,
     HiOutlineReply,
+    HiOutlinePhotograph,
+    HiOutlineVolumeUp,
+    HiOutlineDocumentText,
 } from 'react-icons/hi'
 import ConversationsService, {
     type ConversationDetail,
@@ -80,13 +90,13 @@ const toneByStatus = (status: string) => {
 const toneByAuthor = (authorType: string) => {
     switch (authorType) {
         case 'customer':
-            return 'border-sky-200 bg-sky-50'
+            return 'border-white bg-white'
         case 'operator':
-            return 'border-emerald-200 bg-emerald-50'
+            return 'border-sky-500 bg-sky-600 text-white'
         case 'agent':
-            return 'border-violet-200 bg-violet-50'
+            return 'border-violet-500 bg-violet-600 text-white'
         default:
-            return 'border-slate-200 bg-slate-50'
+            return 'border-slate-200 bg-slate-100'
     }
 }
 
@@ -100,12 +110,182 @@ const getSlaTone = (minutes: number) => {
     return 'bg-emerald-100 text-emerald-700'
 }
 
+const parseDateMs = (value?: string | null) => {
+    if (!value) {
+        return 0
+    }
+    const parsed = Date.parse(value)
+    return Number.isNaN(parsed) ? 0 : parsed
+}
+
 const getMessageMetadataValue = (
     metadata: Record<string, unknown> | null | undefined,
     key: string,
 ) => {
     const value = metadata?.[key]
     return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+const getTransportEventStatus = (
+    payload: Record<string, unknown> | null | undefined,
+    type: string,
+) => {
+    const deliveryStatus =
+        typeof payload?.deliveryStatus === 'string'
+            ? payload.deliveryStatus.trim()
+            : null
+
+    if (deliveryStatus) {
+        return titleCase(deliveryStatus)
+    }
+
+    return titleCase(type)
+}
+
+type ConversationAsset = {
+    url: string
+    fileName: string | null
+    contentType: string | null
+    size: number | null
+}
+
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return null
+    }
+    return value as Record<string, unknown>
+}
+
+const asString = (value: unknown) =>
+    typeof value === 'string' && value.trim() ? value.trim() : null
+
+const asNumber = (value: unknown) =>
+    typeof value === 'number' && Number.isFinite(value) ? value : null
+
+const normalizeAsset = (value: unknown): ConversationAsset | null => {
+    const asset = asRecord(value)
+    if (!asset) {
+        return null
+    }
+
+    const url =
+        asString(asset.url) ||
+        asString(asset.href) ||
+        asString(asset.downloadUrl) ||
+        asString(asset.previewUrl) ||
+        null
+
+    if (!url) {
+        return null
+    }
+
+    return {
+        url,
+        fileName:
+            asString(asset.fileName) ||
+            asString(asset.filename) ||
+            asString(asset.name) ||
+            null,
+        contentType:
+            asString(asset.contentType) || asString(asset.mimeType) || null,
+        size: asNumber(asset.size),
+    }
+}
+
+const normalizeAssets = (value: unknown): ConversationAsset[] => {
+    if (!Array.isArray(value)) {
+        return []
+    }
+
+    const seen = new Set<string>()
+
+    return value
+        .map((entry) => normalizeAsset(entry))
+        .filter((entry): entry is ConversationAsset => {
+            if (!entry) {
+                return false
+            }
+            const key = `${entry.url}:${entry.fileName ?? ''}`
+            if (seen.has(key)) {
+                return false
+            }
+            seen.add(key)
+            return true
+        })
+}
+
+const getMessageAssets = (
+    payload: Record<string, unknown> | null | undefined,
+    metadata: Record<string, unknown> | null | undefined,
+) => {
+    const payloadRecord = asRecord(payload)
+    const metadataRecord = asRecord(metadata)
+
+    const attachments = normalizeAssets(
+        payloadRecord?.attachments ?? metadataRecord?.attachments,
+    )
+    const image =
+        normalizeAsset(payloadRecord?.image) ||
+        normalizeAsset(metadataRecord?.image) ||
+        normalizeAsset(
+            asString(payloadRecord?.imageUrl) || asString(metadataRecord?.imageUrl)
+                ? {
+                      url:
+                          asString(payloadRecord?.imageUrl) ||
+                          asString(metadataRecord?.imageUrl),
+                      fileName:
+                          asString(payloadRecord?.imageName) ||
+                          asString(metadataRecord?.imageName),
+                      contentType:
+                          asString(payloadRecord?.imageContentType) ||
+                          asString(metadataRecord?.imageContentType),
+                  }
+                : null,
+        )
+    const audio =
+        normalizeAsset(payloadRecord?.audio) ||
+        normalizeAsset(metadataRecord?.audio) ||
+        normalizeAsset(
+            asString(payloadRecord?.audioUrl) || asString(metadataRecord?.audioUrl)
+                ? {
+                      url:
+                          asString(payloadRecord?.audioUrl) ||
+                          asString(metadataRecord?.audioUrl),
+                      fileName:
+                          asString(payloadRecord?.audioName) ||
+                          asString(metadataRecord?.audioName),
+                      contentType:
+                          asString(payloadRecord?.audioContentType) ||
+                          asString(metadataRecord?.audioContentType),
+                  }
+                : null,
+        )
+
+    const filteredAttachments = attachments.filter(
+        (attachment) =>
+            attachment.url !== image?.url && attachment.url !== audio?.url,
+    )
+
+    return {
+        attachments: filteredAttachments,
+        image,
+        audio,
+    }
+}
+
+const formatBytes = (value: number | null) => {
+    if (value === null || value <= 0) {
+        return null
+    }
+    if (value < 1024) {
+        return `${value} B`
+    }
+    const kb = value / 1024
+    if (kb < 1024) {
+        return `${kb.toFixed(kb >= 100 ? 0 : 1)} KB`
+    }
+    const mb = kb / 1024
+    return `${mb.toFixed(mb >= 100 ? 0 : 1)} MB`
 }
 
 const channelOptions = [
@@ -161,6 +341,8 @@ const Conversations = () => {
     const [handoffNotes, setHandoffNotes] = useState('')
     const [replyDraft, setReplyDraft] = useState('')
     const [assignUserId, setAssignUserId] = useState('')
+    const [overrideQueueSlug, setOverrideQueueSlug] = useState('')
+    const [overrideUserId, setOverrideUserId] = useState('')
     const [actionLoading, setActionLoading] = useState<null | string>(null)
     const [mobilePane, setMobilePane] = useState<MobilePane>('list')
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
@@ -219,7 +401,7 @@ const Conversations = () => {
     }, [loadList])
 
     const visibleItems = useMemo(() => {
-        return items.filter((conversation) => {
+        const filtered = items.filter((conversation) => {
             const matchesScope =
                 selectedScope === 'all' || conversation.scope === selectedScope
             const matchesChannel =
@@ -245,6 +427,31 @@ const Conversations = () => {
                 matchesOwner
             )
         })
+
+        return filtered.sort((left, right) => {
+            const leftBreached = left.operational.isSlaBreached ? 1 : 0
+            const rightBreached = right.operational.isSlaBreached ? 1 : 0
+
+            if (leftBreached !== rightBreached) {
+                return rightBreached - leftBreached
+            }
+
+            const leftUnassigned = left.operational.needsAssignment ? 1 : 0
+            const rightUnassigned = right.operational.needsAssignment ? 1 : 0
+            if (leftUnassigned !== rightUnassigned) {
+                return rightUnassigned - leftUnassigned
+            }
+
+            const leftPriority = left.queue?.priority ?? 9999
+            const rightPriority = right.queue?.priority ?? 9999
+            if (leftPriority !== rightPriority) {
+                return leftPriority - rightPriority
+            }
+
+            const leftActivity = parseDateMs(left.lastMessageAt ?? left.updatedAt)
+            const rightActivity = parseDateMs(right.lastMessageAt ?? right.updatedAt)
+            return rightActivity - leftActivity
+        })
     }, [
         items,
         selectedScope,
@@ -265,6 +472,9 @@ const Conversations = () => {
 
         const currentId = routeConversationId ?? selectedConversationId
         if (currentId && visibleItems.some((item) => item.id === currentId)) {
+            return
+        }
+        if (routeConversationId) {
             return
         }
 
@@ -289,6 +499,20 @@ const Conversations = () => {
     useEffect(() => {
         setIsMobileDetailPanelOpen(false)
     }, [effectiveConversationId])
+
+    useEffect(() => {
+        setAssignUserId(
+            selectedConversation?.assignedToUser?.id
+                ? String(selectedConversation.assignedToUser.id)
+                : '',
+        )
+        setOverrideUserId(
+            selectedConversation?.assignedToUser?.id
+                ? String(selectedConversation.assignedToUser.id)
+                : '',
+        )
+        setOverrideQueueSlug(selectedConversation?.queue?.slug ?? '')
+    }, [selectedConversation])
 
     useEffect(() => {
         if (!isMobile) {
@@ -419,13 +643,10 @@ const Conversations = () => {
         return visibleItems.map((conversation) => {
             const isSelected = effectiveConversationId === conversation.id
             return (
-                <button
+                <MessagingConversationListItem
                     key={conversation.id}
-                    type="button"
-                    className={`flex w-full flex-col gap-2 border-b border-gray-100 px-4 py-4 text-left transition ${
-                        isSelected ? 'bg-sky-50' : 'bg-white hover:bg-gray-50'
-                    }`}
-                    data-testid={`admin-conversation-${conversation.id}`}
+                    selected={isSelected}
+                    testId={`admin-conversation-${conversation.id}`}
                     onClick={() => {
                         setSelectedConversationId(conversation.id)
                         if (isMobile) {
@@ -433,16 +654,9 @@ const Conversations = () => {
                         }
                         void navigate(`/app/crm/conversations/${conversation.id}`)
                     }}
-                >
-                    <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                            <div className="truncate font-medium text-gray-900">
-                                {getConversationDisplayTitle(conversation)}
-                            </div>
-                            <div className="truncate text-xs text-gray-500">
-                                {formatTitle(conversation.subject)}
-                            </div>
-                        </div>
+                    title={getConversationDisplayTitle(conversation)}
+                    subject={formatTitle(conversation.subject)}
+                    status={
                         <span
                             className={`rounded-full px-2 py-1 text-[11px] font-medium ${toneByStatus(
                                 conversation.status,
@@ -450,38 +664,41 @@ const Conversations = () => {
                         >
                             {titleCase(conversation.status)}
                         </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                        <Badge className="bg-slate-100 text-slate-700">
-                            {titleCase(conversation.channel)}
-                        </Badge>
-                        {conversation.queue ? (
-                            <Badge className="bg-amber-100 text-amber-700">
-                                {conversation.queue.name}
+                    }
+                    badges={
+                        <>
+                            <Badge className="bg-slate-100 text-slate-700">
+                                {titleCase(conversation.channel)}
                             </Badge>
-                        ) : null}
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
-                        <span className="truncate">
-                            {conversation.inboxAccount?.displayName ||
-                                conversation.inboxAccount?.address ||
-                                (conversation.channel === 'webchat'
-                                    ? 'Webchat directo'
-                                    : 'Canal directo')}
-                        </span>
-                        <span>
-                            {formatDateTime(
-                                conversation.lastMessageAt ?? conversation.updatedAt,
-                            )}
-                        </span>
-                    </div>
-
-                    <div className="truncate text-sm text-gray-600">
-                        {conversation.latestMessage?.body || 'Sin mensajes todavía'}
-                    </div>
-                </button>
+                            {conversation.queue ? (
+                                <Badge className="bg-amber-100 text-amber-700">
+                                    {conversation.queue.name}
+                                </Badge>
+                            ) : null}
+                            {!conversation.assignedToUser ? (
+                                <Badge className="bg-rose-100 text-rose-700">
+                                    Sin asignar
+                                </Badge>
+                            ) : null}
+                            {conversation.operational.isSlaBreached ? (
+                                <Badge className="bg-red-100 text-red-700">
+                                    SLA vencido
+                                </Badge>
+                            ) : null}
+                        </>
+                    }
+                    metaLeft={
+                        conversation.inboxAccount?.displayName ||
+                        conversation.inboxAccount?.address ||
+                        (conversation.channel === 'webchat'
+                            ? 'Webchat directo'
+                            : 'Canal directo')
+                    }
+                    metaRight={formatDateTime(
+                        conversation.lastMessageAt ?? conversation.updatedAt,
+                    )}
+                    preview={conversation.latestMessage?.body || 'Sin mensajes todavía'}
+                />
             )
         })
     }
@@ -775,13 +992,126 @@ const Conversations = () => {
                     </div>
                 </div>
 
-                <div className="mt-6">
-                    <div className="px-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                        Cola y ownership
-                    </div>
-                    <div className="mt-2 space-y-3">
-                        <select
-                            className="input w-full"
+                    <div className="mt-6">
+                        <div className="px-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                            Cola y ownership
+                        </div>
+                        {queues.length ? (
+                            <div
+                                className="mt-3 space-y-2"
+                                data-testid="admin-conversations-queue-cards"
+                            >
+                                {queues.map((queue) => {
+                                    const isActive =
+                                        selectedQueueSlug === queue.slug
+                                    return (
+                                        <button
+                                            key={queue.id}
+                                            type="button"
+                                            className={`w-full rounded-2xl border px-3 py-3 text-left transition ${
+                                                isActive
+                                                    ? 'border-sky-200 bg-sky-50'
+                                                    : 'border-gray-200 bg-white hover:bg-gray-50'
+                                            }`}
+                                            data-testid={`admin-conversations-queue-card-${queue.slug}`}
+                                            onClick={() => {
+                                                setSelectedQueueSlug(
+                                                    isActive ? 'all' : queue.slug,
+                                                )
+                                                if (isMobile) {
+                                                    setMobilePane('list')
+                                                    closeMobileSidebar()
+                                                }
+                                            }}
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <div className="truncate text-sm font-medium text-gray-800">
+                                                        {queue.name}
+                                                    </div>
+                                                    <div className="mt-1 text-xs text-gray-500">
+                                                        SLA objetivo{' '}
+                                                        {queue.slaTargetMinutes}m
+                                                    </div>
+                                                </div>
+                                                <Badge className="bg-slate-100 text-slate-700">
+                                                    {queue.conversationCount}
+                                                </Badge>
+                                            </div>
+                                            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                                                <Badge className="bg-amber-100 text-amber-700">
+                                                    Esperando cliente:{' '}
+                                                    {queue.waitingCustomerCount}
+                                                </Badge>
+                                                <Badge className="bg-sky-100 text-sky-700">
+                                                    Operadores: {queue.operatorCount}
+                                                </Badge>
+                                                <Badge className="bg-slate-100 text-slate-700">
+                                                    Sin asignar: {queue.unassignedCount}
+                                                </Badge>
+                                                <Badge
+                                                    className={
+                                                        queue.breachedSlaCount > 0
+                                                            ? 'bg-red-100 text-red-700'
+                                                            : 'bg-emerald-100 text-emerald-700'
+                                                    }
+                                                >
+                                                    SLA vencido:{' '}
+                                                    {queue.breachedSlaCount}
+                                                </Badge>
+                                                <Badge className="bg-violet-100 text-violet-700">
+                                                    Ownership:{' '}
+                                                    {titleCase(
+                                                        queue.assignmentMode,
+                                                    )}
+                                                </Badge>
+                                            </div>
+                                            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-500">
+                                                <span>
+                                                    Prioridad {queue.priority}
+                                                </span>
+                                                <span>
+                                                    Asignadas:{' '}
+                                                    {queue.assignedOpenCount}
+                                                </span>
+                                                <span>
+                                                    Capacidad:{' '}
+                                                    {queue.configuredCapacity ??
+                                                        'sin límite'}
+                                                </span>
+                                                <span>
+                                                    Disponible:{' '}
+                                                    {queue.availableCapacity ??
+                                                        'sin límite'}
+                                                </span>
+                                            </div>
+                                            {queue.primaryOperators.length ? (
+                                                <div className="mt-2 text-[11px] text-gray-500">
+                                                    Primarios:{' '}
+                                                    {queue.primaryOperators
+                                                        .map(
+                                                            (operator) =>
+                                                                operator.name,
+                                                        )
+                                                        .join(', ')}
+                                                </div>
+                                            ) : null}
+                                            {queue.oldestInboundAt ? (
+                                                <div className="mt-2 text-[11px] text-gray-500">
+                                                    Más antigua:{' '}
+                                                    {formatDateTime(
+                                                        queue.oldestInboundAt,
+                                                    )}
+                                                </div>
+                                            ) : null}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        ) : null}
+                        <div className="mt-2 space-y-3">
+                            <select
+                                className="input w-full"
                             value={selectedQueueSlug}
                             onChange={(event) => {
                                 setSelectedQueueSlug(event.target.value)
@@ -837,6 +1167,31 @@ const Conversations = () => {
               ),
           )
         : null
+
+    const selectedQueueDiagnostics = useMemo(
+        () =>
+            queues.find(
+                (queue) =>
+                    queue.slug ===
+                    (overrideQueueSlug || selectedConversation?.queue?.slug),
+            ) ?? null,
+        [overrideQueueSlug, queues, selectedConversation?.queue?.slug],
+    )
+
+    const detailSlaRemainingMinutes =
+        detailSlaMinutes !== null && selectedQueueDiagnostics
+            ? Math.max(selectedQueueDiagnostics.slaTargetMinutes - detailSlaMinutes, 0)
+            : null
+
+    const detailSlaLabel =
+        detailSlaMinutes === null || !selectedQueueDiagnostics
+            ? 'Sin SLA calculado'
+            : detailSlaMinutes >= selectedQueueDiagnostics.slaTargetMinutes
+              ? `SLA vencido por ${Math.max(
+                    detailSlaMinutes - selectedQueueDiagnostics.slaTargetMinutes,
+                    0,
+                )}m`
+              : `Vence en ${detailSlaRemainingMinutes}m`
 
     const conversationManagementContent = (
         <div className="space-y-3">
@@ -907,6 +1262,75 @@ const Conversations = () => {
                         data-testid="admin-conversation-assign"
                     >
                         Asignar
+                    </Button>
+                </div>
+            </div>
+
+            <div>
+                <div className="text-xs uppercase tracking-wide text-slate-400">
+                    Override supervisor
+                </div>
+                <div className="mt-1 grid gap-2">
+                    <select
+                        className="input w-full"
+                        value={overrideQueueSlug}
+                        onChange={(event) =>
+                            setOverrideQueueSlug(event.target.value)
+                        }
+                        data-testid="admin-conversation-override-queue"
+                    >
+                        <option value="">Mantener cola actual</option>
+                        {queues.map((queue) => (
+                            <option key={queue.id} value={queue.slug}>
+                                {queue.name}
+                            </option>
+                        ))}
+                    </select>
+                    <select
+                        className="input w-full"
+                        value={overrideUserId}
+                        onChange={(event) => setOverrideUserId(event.target.value)}
+                        data-testid="admin-conversation-override-user"
+                    >
+                        <option value="">Auto / mantener operador</option>
+                        {operators.map((operator) => (
+                            <option
+                                key={operator.id}
+                                value={String(operator.id)}
+                            >
+                                {operator.name || operator.email}
+                            </option>
+                        ))}
+                    </select>
+                    <Button
+                        variant="default"
+                        loading={actionLoading === 'reroute'}
+                        onClick={() =>
+                            effectiveConversationId
+                                ? void runAction(
+                                      'reroute',
+                                      () =>
+                                          ConversationsService.rerouteConversation(
+                                              effectiveConversationId,
+                                              {
+                                                  queueSlug:
+                                                      overrideQueueSlug.trim() ||
+                                                      undefined,
+                                                  userId: overrideUserId.trim()
+                                                      ? Number(overrideUserId)
+                                                      : undefined,
+                                                  notes:
+                                                      handoffNotes.trim() ||
+                                                      'Supervisor override',
+                                              },
+                                          ),
+                                      'No fue posible aplicar el override operativo.',
+                                  )
+                                : undefined
+                        }
+                        data-testid="admin-conversation-reroute"
+                    >
+                        Aplicar override
                     </Button>
                 </div>
             </div>
@@ -1027,6 +1451,129 @@ const Conversations = () => {
             </div>
         ) : null
 
+    const renderConversationMessageBody = (
+        message: ConversationDetail['messages'][number],
+    ) => {
+        const assets = getMessageAssets(message.payload, message.metadata)
+        const textContent =
+            message.body || message.normalizedText || null
+        const hasStructuredContent =
+            Boolean(assets.image) ||
+            Boolean(assets.audio) ||
+            assets.attachments.length > 0
+
+        if (!textContent && !hasStructuredContent) {
+            return (
+                <pre className="overflow-x-auto whitespace-pre-wrap text-[12px] leading-5 text-slate-600">
+                    {JSON.stringify(message.payload ?? {}, null, 2)}
+                </pre>
+            )
+        }
+
+        return (
+            <div className="space-y-3">
+                {textContent ? <div>{textContent}</div> : null}
+
+                {assets.image ? (
+                    <a
+                        href={assets.image.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block overflow-hidden rounded-[22px] border border-slate-200 bg-white"
+                        data-testid={`admin-conversation-image-${message.id}`}
+                    >
+                        <img
+                            src={assets.image.url}
+                            alt={assets.image.fileName || 'Imagen adjunta'}
+                            className="max-h-[320px] w-full object-cover"
+                        />
+                        <div className="flex items-center gap-2 border-t border-slate-100 px-3 py-2 text-xs text-slate-500">
+                            <HiOutlinePhotograph className="text-sm" />
+                            <span className="truncate">
+                                {assets.image.fileName || 'Imagen'}
+                            </span>
+                        </div>
+                    </a>
+                ) : null}
+
+                {assets.audio ? (
+                    <div className="rounded-[22px] border border-slate-200 bg-white px-3 py-3">
+                        <div className="mb-2 flex items-center gap-2 text-xs text-slate-500">
+                            <HiOutlineVolumeUp className="text-sm" />
+                            <span className="truncate">
+                                {assets.audio.fileName || 'Audio'}
+                            </span>
+                        </div>
+                        <audio
+                            controls
+                            preload="none"
+                            className="w-full"
+                            data-testid={`admin-conversation-audio-${message.id}`}
+                        >
+                            <source
+                                src={assets.audio.url}
+                                type={assets.audio.contentType || undefined}
+                            />
+                            <track kind="captions" />
+                        </audio>
+                    </div>
+                ) : null}
+
+                {assets.attachments.length ? (
+                    <div className="space-y-2">
+                        {assets.attachments.map((attachment) => (
+                            <a
+                                key={`${message.id}:${attachment.url}`}
+                                href={attachment.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center justify-between gap-3 rounded-[18px] border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                                data-testid={`admin-conversation-attachment-${message.id}`}
+                            >
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <span className="rounded-full bg-slate-100 p-2 text-slate-500">
+                                        {attachment.contentType?.startsWith(
+                                            'image/',
+                                        ) ? (
+                                            <HiOutlinePhotograph className="text-base" />
+                                        ) : attachment.contentType?.startsWith(
+                                              'audio/',
+                                          ) ? (
+                                            <HiOutlineVolumeUp className="text-base" />
+                                          ) : (
+                                            <HiOutlineDocumentText className="text-base" />
+                                          )}
+                                    </span>
+                                    <div className="min-w-0">
+                                        <div className="truncate font-medium">
+                                            {attachment.fileName || 'Adjunto'}
+                                        </div>
+                                        <div className="truncate text-xs text-slate-500">
+                                            {attachment.contentType || 'Archivo'}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="shrink-0 text-xs text-slate-500">
+                                    {formatBytes(attachment.size) || 'Abrir'}
+                                </div>
+                            </a>
+                        ))}
+                    </div>
+                ) : null}
+            </div>
+        )
+    }
+
+    const getMessageRowClassName = (authorType: string, kind: string) => {
+        if (kind === 'system_event' || authorType === 'system') {
+            return 'flex justify-center'
+        }
+        if (authorType === 'operator' || authorType === 'agent') {
+            return 'flex justify-end'
+        }
+        return 'flex justify-start'
+    }
+
     return (
         <AdaptableCard
             className="h-full min-h-0 overflow-hidden"
@@ -1098,16 +1645,11 @@ const Conversations = () => {
                 </>
             ) : null}
 
-            <div
-                className={`${
-                    isMobile ? 'hidden' : 'flex'
-                } w-full min-h-0 shrink-0 flex-col border-r border-gray-200 bg-white lg:max-w-[290px]`}
-                data-testid="admin-conversations-sidebar"
-            >
-                {sidebarContent}
-            </div>
-
-            <div className="flex min-w-0 flex-1">
+            <MessagingShell
+                isMobile={isMobile}
+                sidebar={sidebarContent}
+                sidebarTestId="admin-conversations-sidebar"
+                list={
                 <div
                     className={`${paneClass('list')} w-full min-h-0 shrink-0 flex-col border-r border-gray-200 bg-white lg:max-w-[380px] ${
                         isMobile ? 'pt-[72px]' : ''
@@ -1118,9 +1660,10 @@ const Conversations = () => {
                         {renderList()}
                     </div>
                 </div>
-
+                }
+                detail={
                 <div
-                    className={`${paneClass('detail')} min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-gray-50 ${
+                    className={`${paneClass('detail')} min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#eef1f7] ${
                         isMobile ? 'pt-[72px]' : ''
                     }`}
                     data-testid="admin-conversation-detail"
@@ -1143,51 +1686,53 @@ const Conversations = () => {
                         </div>
                     ) : (
                         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                            <div className="relative z-10 flex min-h-[55px] shrink-0 items-center border-b border-gray-200 bg-white px-4 shadow-sm">
-                                <div className="flex w-full items-center justify-between gap-3">
-                                    <div className="flex min-w-0 items-center gap-2">
-                                        {isMobile ? (
-                                            <Button
-                                                shape="circle"
-                                                size="sm"
-                                                variant="plain"
-                                                icon={<HiOutlineArrowLeft />}
-                                                onClick={() => setMobilePane('list')}
-                                                data-testid="admin-conversation-mobile-back"
-                                            />
+                            <MessagingPaneHeader
+                                title={
+                                    <h3
+                                        className="truncate text-base font-semibold lg:text-lg"
+                                        data-testid="admin-conversation-detail-title"
+                                    >
+                                        {getConversationDisplayTitle(
+                                            selectedConversation,
+                                        )}
+                                    </h3>
+                                }
+                                subtitle={
+                                    <>
+                                        <Badge className="bg-slate-100 text-slate-700">
+                                            {titleCase(selectedConversation.channel)}
+                                        </Badge>
+                                        {selectedConversation.queue ? (
+                                            <Badge className="bg-amber-100 text-amber-700">
+                                                {selectedConversation.queue.name}
+                                            </Badge>
                                         ) : null}
-                                        <div className="min-w-0">
-                                            <h3
-                                                className="truncate text-base font-semibold lg:text-lg"
-                                                data-testid="admin-conversation-detail-title"
-                                            >
-                                                {getConversationDisplayTitle(
-                                                    selectedConversation,
+                                        {detailSlaMinutes !== null ? (
+                                            <Badge
+                                                className={getSlaTone(
+                                                    detailSlaMinutes,
                                                 )}
-                                            </h3>
-                                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 lg:text-sm">
-                                                <Badge className="bg-slate-100 text-slate-700">
-                                                    {titleCase(selectedConversation.channel)}
-                                                </Badge>
-                                                {selectedConversation.queue ? (
-                                                    <Badge className="bg-amber-100 text-amber-700">
-                                                        {selectedConversation.queue.name}
-                                                    </Badge>
-                                                ) : null}
-                                                {detailSlaMinutes !== null ? (
-                                                    <Badge
-                                                        className={getSlaTone(
-                                                            detailSlaMinutes,
-                                                        )}
-                                                        data-testid="admin-conversation-sla"
-                                                    >
-                                                        SLA {detailSlaMinutes}m
-                                                    </Badge>
-                                                ) : null}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
+                                                data-testid="admin-conversation-sla"
+                                            >
+                                                SLA {detailSlaMinutes}m
+                                            </Badge>
+                                        ) : null}
+                                    </>
+                                }
+                                leading={
+                                    isMobile ? (
+                                        <Button
+                                            shape="circle"
+                                            size="sm"
+                                            variant="plain"
+                                            icon={<HiOutlineArrowLeft />}
+                                            onClick={() => setMobilePane('list')}
+                                            data-testid="admin-conversation-mobile-back"
+                                        />
+                                    ) : null
+                                }
+                                trailing={
+                                    <>
                                         <Button
                                             size="sm"
                                             variant="twoTone"
@@ -1210,9 +1755,9 @@ const Conversations = () => {
                                             }}
                                             aria-label="Responder"
                                         />
-                                    </div>
-                                </div>
-                            </div>
+                                    </>
+                                }
+                            />
 
                             <Drawer
                                 bodyClass="p-0"
@@ -1318,6 +1863,34 @@ const Conversations = () => {
                                                             </span>
                                                         </div>
                                                     </div>
+                                                    <div className="rounded-2xl border border-gray-200 bg-white p-3">
+                                                        <div className="text-xs uppercase tracking-wide text-gray-400">
+                                                            SLA operativo
+                                                        </div>
+                                                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                                                            <Badge
+                                                                className={
+                                                                    detailSlaMinutes !== null
+                                                                        ? getSlaTone(
+                                                                              detailSlaMinutes,
+                                                                          )
+                                                                        : 'bg-slate-100 text-slate-700'
+                                                                }
+                                                                data-testid="admin-conversation-sla-detail"
+                                                            >
+                                                                {detailSlaLabel}
+                                                            </Badge>
+                                                            {selectedQueueDiagnostics ? (
+                                                                <span className="text-xs text-gray-500">
+                                                                    Objetivo {selectedQueueDiagnostics.slaTargetMinutes}m · Prioridad {selectedQueueDiagnostics.priority}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-xs text-gray-500">
+                                                                    Sin cola/SLA configurado
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -1344,8 +1917,12 @@ const Conversations = () => {
                             </Drawer>
 
                             <div
-                                className="min-h-0 flex-1 overflow-y-auto bg-gray-50 px-4 py-4 lg:px-6 lg:py-5"
+                                className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-6 lg:py-5"
                                 data-testid="admin-conversation-messages"
+                                style={{
+                                    backgroundImage:
+                                        'radial-gradient(circle at top left, rgba(255,255,255,0.95), rgba(238,241,247,0.9) 38%, rgba(233,236,245,0.95) 100%)',
+                                }}
                             >
                                 <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col gap-5">
                                     {selectedConversation.messages.length === 0 ? (
@@ -1365,53 +1942,72 @@ const Conversations = () => {
                                                         message.metadata,
                                                         'provider',
                                                     )
+                                                const latestTransportEvent =
+                                                    message.transportEvents?.[0] ??
+                                                    null
 
                                                 return (
-                                                <div
-                                                    key={message.id}
-                                                    className={`rounded-2xl border px-4 py-3 shadow-sm ${toneByAuthor(
-                                                        message.authorType,
-                                                    )}`}
-                                                    data-testid={`admin-conversation-message-${message.id}`}
-                                                >
-                                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                                        <div className="font-medium text-gray-800">
-                                                            {titleCase(message.authorType)}
-                                                        </div>
-                                                        <div className="text-xs text-gray-500">
-                                                            {formatDateTime(message.createdAt)}
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                                                        <span>{titleCase(message.kind)}</span>
-                                                        {message.queue ? (
-                                                            <Badge className="bg-amber-100 text-amber-700">
-                                                                {message.queue.name}
-                                                            </Badge>
-                                                        ) : null}
-                                                        {deliveryStatus ? (
-                                                            <Badge className="bg-emerald-100 text-emerald-700">
-                                                                {titleCase(
-                                                                    deliveryStatus,
-                                                                )}
-                                                            </Badge>
-                                                        ) : null}
-                                                        {provider ? (
-                                                            <Badge className="bg-slate-100 text-slate-700">
-                                                                {provider}
-                                                            </Badge>
-                                                        ) : null}
-                                                    </div>
-                                                    <div className="mt-3 whitespace-pre-wrap text-sm text-gray-700">
-                                                        {message.body ||
-                                                            message.normalizedText ||
-                                                            JSON.stringify(
-                                                                message.payload ?? {},
-                                                                null,
-                                                                2,
+                                                    <div
+                                                        key={message.id}
+                                                        className={getMessageRowClassName(
+                                                            message.authorType,
+                                                            message.kind,
+                                                        )}
+                                                    >
+                                                        <MessagingMessageBubble
+                                                            className="w-full max-w-[44rem]"
+                                                            toneClassName={toneByAuthor(
+                                                                message.authorType,
                                                             )}
+                                                            testId={`admin-conversation-message-${message.id}`}
+                                                            headerLeft={titleCase(
+                                                                message.authorType,
+                                                            )}
+                                                            headerRight={formatDateTime(
+                                                                message.createdAt,
+                                                            )}
+                                                            badges={
+                                                                <>
+                                                                    <span>{titleCase(message.kind)}</span>
+                                                                    {message.queue ? (
+                                                                        <Badge className="bg-amber-100 text-amber-700">
+                                                                            {message.queue.name}
+                                                                        </Badge>
+                                                                    ) : null}
+                                                                    {deliveryStatus ? (
+                                                                        <Badge className="bg-emerald-100 text-emerald-700">
+                                                                            {titleCase(
+                                                                                deliveryStatus,
+                                                                            )}
+                                                                        </Badge>
+                                                                    ) : null}
+                                                                    {provider ? (
+                                                                        <Badge className="bg-slate-100 text-slate-700">
+                                                                            {provider}
+                                                                        </Badge>
+                                                                    ) : null}
+                                                                    {latestTransportEvent ? (
+                                                                        <Badge className="bg-white text-slate-700">
+                                                                            {getTransportEventStatus(
+                                                                                latestTransportEvent.payload,
+                                                                                latestTransportEvent.type,
+                                                                            )}
+                                                                        </Badge>
+                                                                    ) : null}
+                                                                </>
+                                                            }
+                                                            meta={
+                                                                latestTransportEvent
+                                                                    ? `Último evento: ${formatDateTime(
+                                                                          latestTransportEvent.occurredAt,
+                                                                      )}`
+                                                                    : null
+                                                            }
+                                                            body={renderConversationMessageBody(
+                                                                message,
+                                                            )}
+                                                        />
                                                     </div>
-                                                </div>
                                                 )
                                             })}
                                         </div>
@@ -1422,46 +2018,38 @@ const Conversations = () => {
                             </div>
 
                             <div className="shrink-0 border-t border-gray-200 bg-white px-4 py-4 lg:px-6">
-                                <div className="flex items-center gap-3">
-                                    <Input
-                                        className="flex-1"
-                                        value={replyDraft}
-                                        onChange={(event) =>
-                                            setReplyDraft(event.target.value)
-                                        }
-                                        placeholder="Escribe la respuesta para el cliente"
-                                        data-testid="admin-conversation-reply-input"
-                                    />
-                                    <Button
-                                        shape="circle"
-                                        variant="solid"
-                                        size="sm"
-                                        icon={<HiOutlinePaperAirplane />}
-                                        loading={actionLoading === 'reply'}
-                                        disabled={!replyDraft.trim()}
-                                        onClick={() =>
-                                            effectiveConversationId
-                                                ? void runAction(
-                                                      'reply',
-                                                      () =>
-                                                          ConversationsService.replyToConversation(
-                                                              effectiveConversationId,
-                                                              replyDraft.trim(),
-                                                          ),
-                                                      'No fue posible enviar la respuesta.',
-                                                  )
-                                                : undefined
-                                        }
-                                        data-testid="admin-conversation-reply-submit"
-                                        aria-label="Enviar respuesta"
-                                    />
-                                </div>
-
+                                <MessagingComposer
+                                    value={replyDraft}
+                                    onChange={(event) =>
+                                        setReplyDraft(event.target.value)
+                                    }
+                                    placeholder="Escribe la respuesta para el cliente"
+                                    inputTestId="admin-conversation-reply-input"
+                                    submitTestId="admin-conversation-reply-submit"
+                                    submitIcon={<HiOutlinePaperAirplane />}
+                                    loading={actionLoading === 'reply'}
+                                    disabled={!replyDraft.trim()}
+                                    submitAriaLabel="Enviar respuesta"
+                                    onSubmit={() =>
+                                        effectiveConversationId
+                                            ? void runAction(
+                                                  'reply',
+                                                  () =>
+                                                      ConversationsService.replyToConversation(
+                                                          effectiveConversationId,
+                                                          replyDraft.trim(),
+                                                      ),
+                                                  'No fue posible enviar la respuesta.',
+                                              )
+                                            : undefined
+                                    }
+                                />
                             </div>
                         </div>
                     )}
                 </div>
-            </div>
+                }
+            />
         </AdaptableCard>
     )
 }

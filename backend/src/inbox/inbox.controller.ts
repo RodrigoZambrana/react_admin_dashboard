@@ -11,6 +11,8 @@ import {
 import type { MessageEvent } from '@nestjs/common'
 import type { Observable } from 'rxjs'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { Roles, ROLES } from '../auth/roles.decorator'
+import { RolesGuard } from '../auth/roles.guard'
 import { InboxService } from './inbox.service'
 import { ListMessagesQueryDto } from './dto/list-messages.dto'
 import { SendMessageDto } from './dto/send-message.dto'
@@ -19,7 +21,8 @@ import { MoveMessageDto } from './dto/move-message.dto'
 import { SyncMailboxDto } from './dto/sync-mailbox.dto'
 import { GetMessageQueryDto } from './dto/get-message.dto'
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES)
 @Controller('inbox')
 export class InboxController {
   constructor(private readonly inboxService: InboxService) {}
@@ -40,6 +43,19 @@ export class InboxController {
     @Query() query: ListMessagesQueryDto,
   ) {
     return this.inboxService.listMessages(accountId, {
+      mailbox: query.mailbox,
+      cursor: query.cursor,
+      limit: query.limit,
+      since: query.since,
+    })
+  }
+
+  @Get('accounts/:accountId/threads')
+  listThreads(
+    @Param('accountId') accountId: string,
+    @Query() query: ListMessagesQueryDto,
+  ) {
+    return this.inboxService.listThreads(accountId, {
       mailbox: query.mailbox,
       cursor: query.cursor,
       limit: query.limit,
@@ -145,6 +161,8 @@ export class InboxController {
       limit: body.limit,
       cursor: body.cursor,
       since: body.since,
+      fullHistory: body.fullHistory,
+      maxPages: body.maxPages,
     })
   }
 

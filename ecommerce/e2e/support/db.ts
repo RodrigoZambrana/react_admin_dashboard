@@ -70,6 +70,14 @@ export type OrderEmailLogSnapshot = {
   status: string;
 };
 
+export type ConversationOutboundSnapshot = {
+  conversationId: string;
+  inboxAccountId: string | null;
+  remoteId: string | null;
+  providerMessageId: string | null;
+  deliveryStatus: string | null;
+};
+
 export type ApprovedMercadoPagoIntentSnapshot = {
   id: string;
   externalPaymentId: string;
@@ -277,6 +285,130 @@ export async function getLatestTimelineEventsForOrder(
     statusFrom: row.statusFrom,
     statusTo: row.statusTo
   }));
+}
+
+export async function waitForLatestConversationOutboundBySubject(
+  subject: string,
+  channel: "email" | "whatsapp" | "facebook" | "instagram",
+  timeoutMs = 20_000
+): Promise<ConversationOutboundSnapshot> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await withClient(async (client) =>
+      client.query<{
+        conversationId: string;
+        inboxAccountId: string | null;
+        remoteId: string | null;
+        metadata: unknown;
+      }>(
+        `
+          SELECT
+            c.id AS "conversationId",
+            c."inboxAccountId" AS "inboxAccountId",
+            im."remoteId" AS "remoteId",
+            im.metadata AS metadata
+          FROM "Conversation" c
+          INNER JOIN "ConversationMessage" cm ON cm."conversationId" = c.id
+          LEFT JOIN "InboxMessage" im ON im.id = cm."inboxMessageId"
+          WHERE c.subject = $1
+            AND c.channel = $2::"ConversationChannel"
+            AND cm."authorType" IN ('OPERATOR', 'AGENT')
+          ORDER BY cm."createdAt" DESC
+          LIMIT 1
+        `,
+        [subject, channel.toUpperCase()]
+      )
+    );
+
+    const row = result.rows[0];
+    if (row?.conversationId && row.remoteId) {
+      const metadata =
+        row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+          ? (row.metadata as Record<string, unknown>)
+          : null;
+
+      return {
+        conversationId: row.conversationId,
+        inboxAccountId: row.inboxAccountId,
+        remoteId: row.remoteId,
+        providerMessageId:
+          typeof metadata?.providerMessageId === "string"
+            ? metadata.providerMessageId
+            : null,
+        deliveryStatus:
+          typeof metadata?.deliveryStatus === "string"
+            ? metadata.deliveryStatus
+            : null,
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+
+  throw new Error(`Timed out waiting for outbound message for subject ${subject}`);
+}
+
+export async function waitForLatestConversationOutboundByThread(
+  threadId: string,
+  channel: "email" | "whatsapp" | "facebook" | "instagram",
+  timeoutMs = 20_000
+): Promise<ConversationOutboundSnapshot> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await withClient(async (client) =>
+      client.query<{
+        conversationId: string;
+        inboxAccountId: string | null;
+        remoteId: string | null;
+        metadata: unknown;
+      }>(
+        `
+          SELECT
+            c.id AS "conversationId",
+            c."inboxAccountId" AS "inboxAccountId",
+            im."remoteId" AS "remoteId",
+            im.metadata AS metadata
+          FROM "Conversation" c
+          INNER JOIN "ConversationMessage" cm ON cm."conversationId" = c.id
+          LEFT JOIN "InboxMessage" im ON im.id = cm."inboxMessageId"
+          WHERE c."externalThreadId" = $1
+            AND c.channel = $2::"ConversationChannel"
+            AND cm."authorType" IN ('OPERATOR', 'AGENT')
+          ORDER BY cm."createdAt" DESC
+          LIMIT 1
+        `,
+        [threadId, channel.toUpperCase()]
+      )
+    );
+
+    const row = result.rows[0];
+    if (row?.conversationId && row.remoteId) {
+      const metadata =
+        row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+          ? (row.metadata as Record<string, unknown>)
+          : null;
+
+      return {
+        conversationId: row.conversationId,
+        inboxAccountId: row.inboxAccountId,
+        remoteId: row.remoteId,
+        providerMessageId:
+          typeof metadata?.providerMessageId === "string"
+            ? metadata.providerMessageId
+            : null,
+        deliveryStatus:
+          typeof metadata?.deliveryStatus === "string"
+            ? metadata.deliveryStatus
+            : null,
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+
+  throw new Error(`Timed out waiting for outbound message for thread ${threadId}`);
 }
 
 export async function getOrderSnapshotByUuid(orderUuid: string): Promise<LatestOrderSnapshot | null> {

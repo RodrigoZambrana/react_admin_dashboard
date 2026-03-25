@@ -37,12 +37,14 @@ const createPrisma = () => ({
   },
   inboxQueue: {
     findMany: vi.fn(),
+    findUnique: vi.fn(),
     upsert: vi.fn(),
   },
   inboxMessage: {
     create: vi.fn(),
     findFirst: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
   },
   inboxMessageEvent: {
     create: vi.fn(),
@@ -215,6 +217,10 @@ describe('ConversationsService', () => {
           sentAt: null,
           receivedAt: null,
           createdAt: new Date('2026-03-25T01:00:00.000Z'),
+          inboxMessage: {
+            queue: null,
+            events: [],
+          },
         },
         {
           id: 'msg_new',
@@ -227,8 +233,25 @@ describe('ConversationsService', () => {
           sentAt: null,
           receivedAt: null,
           createdAt: new Date('2026-03-25T03:00:00.000Z'),
+          inboxMessage: {
+            queue: {
+              id: 'queue_1',
+              slug: 'support',
+              name: 'Support',
+            },
+            events: [
+              {
+                id: 44,
+                type: 'SYNCED',
+                payload: { deliveryStatus: 'delivered' },
+                occurredAt: new Date('2026-03-25T03:02:00.000Z'),
+              },
+            ],
+          },
         },
       ],
+      handoffEvents: [],
+      toolCalls: [],
     })
 
     const result = await service.getConversation('conv_2')
@@ -258,7 +281,86 @@ describe('ConversationsService', () => {
       authorType: 'operator',
       kind: 'text',
       metadata: { internal: true },
+      queue: {
+        slug: 'support',
+      },
+      transportEvents: [
+        {
+          id: '44',
+          type: 'synced',
+        },
+      ],
     })
+  })
+
+  it('builds queue diagnostics with counts and SLA data', async () => {
+    prisma.inboxQueue.findMany.mockResolvedValue([
+      {
+        id: 'queue_support',
+        slug: 'support',
+        name: 'Support',
+        description: 'Casos generales',
+        isActive: true,
+        priority: 10,
+        slaTargetMinutes: 45,
+        maxAssignedConversations: 6,
+        assignmentMode: 'LEAST_LOADED',
+        assignments: [
+          {
+            id: 'assignment_1',
+            isPrimary: true,
+            maxOpenConversations: 3,
+            user: {
+              id: 12,
+              name: 'Operador Uno',
+              email: 'ops1@example.com',
+            },
+          },
+        ],
+      },
+    ])
+    prisma.conversation.count
+      .mockResolvedValueOnce(6)
+      .mockResolvedValueOnce(4)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(2)
+    prisma.conversation.findFirst.mockResolvedValue({
+      lastInboundAt: new Date('2026-03-25T00:15:00.000Z'),
+    })
+
+    const result = await service.listQueues()
+
+    expect(result).toEqual([
+      {
+        id: 'queue_support',
+        slug: 'support',
+        name: 'Support',
+        description: 'Casos generales',
+        isActive: true,
+        priority: 10,
+        maxAssignedConversations: 6,
+        assignmentMode: 'least_loaded',
+        operatorCount: 1,
+        conversationCount: 6,
+        waitingCustomerCount: 4,
+        unassignedCount: 2,
+        breachedSlaCount: 1,
+        oldestInboundAt: new Date('2026-03-25T00:15:00.000Z'),
+        assignedOpenCount: 2,
+        configuredCapacity: 3,
+        availableCapacity: 1,
+        slaTargetMinutes: 45,
+        primaryOperators: [
+          {
+            id: 12,
+            name: 'Operador Uno',
+            email: 'ops1@example.com',
+            maxOpenConversations: 3,
+          },
+        ],
+      },
+    ])
   })
 
   it('maps active inbox accounts for the future unified inbox surface', async () => {
@@ -627,6 +729,86 @@ describe('ConversationsService', () => {
     })
   })
 
+  it('applies supervisor reroute and updates queue plus assignee', async () => {
+    prisma.conversation.findUnique
+      .mockResolvedValueOnce({
+        id: 'conv_route',
+        assignedToUserId: 12,
+        metadata: { queueSlug: 'support' },
+        messages: [{ id: 'msg_route', inboxMessageId: 'inbox_route_1' }],
+      })
+      .mockResolvedValueOnce({
+        id: 'conv_route',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'EMAIL',
+        status: 'OPEN',
+        controlMode: 'HUMAN',
+        subject: 'Consulta soporte',
+        externalUserId: 'cliente@example.com',
+        externalThreadId: 'thread-route',
+        externalChannelRef: null,
+        lastMessageAt: null,
+        lastInboundAt: null,
+        lastOutboundAt: null,
+        createdAt: new Date('2026-03-25T00:00:00.000Z'),
+        updatedAt: new Date('2026-03-25T01:00:00.000Z'),
+        customer: null,
+        assignedToUser: {
+          id: 15,
+          name: 'Supervisor target',
+          email: 'supervisor.target@example.com',
+        },
+        inboxAccount: null,
+        participants: [],
+        messages: [],
+        handoffEvents: [],
+      })
+    prisma.inboxQueue.findUnique.mockResolvedValue({
+      id: 'queue_ops',
+      slug: 'ops',
+      name: 'Ops',
+      assignmentMode: 'MANUAL',
+      maxAssignedConversations: null,
+      assignments: [],
+    })
+
+    const result = await service.rerouteConversation(
+      'conv_route',
+      { queueSlug: 'ops', userId: 15, notes: 'Mover a ops' },
+      9,
+    )
+
+    expect(prisma.inboxMessage.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['inbox_route_1'] } },
+      data: { queueId: 'queue_ops' },
+    })
+    expect(prisma.conversation.update).toHaveBeenCalledWith({
+      where: { id: 'conv_route' },
+      data: expect.objectContaining({
+        assignedToUserId: 15,
+      }),
+    })
+    expect(prisma.conversationHandoffEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        conversationId: 'conv_route',
+        type: 'ASSIGNED',
+        actorUserId: 9,
+        metadata: expect.objectContaining({
+          queueSlug: 'ops',
+          assignedToUserId: 15,
+          assignmentSource: 'supervisor-manual',
+        }),
+      }),
+    })
+    expect(result).toMatchObject({
+      id: 'conv_route',
+      assignedToUser: {
+        id: 15,
+      },
+    })
+  })
+
   it('stores an operator reply and forces the conversation into human control', async () => {
     const createdAt = new Date('2026-03-25T02:00:00.000Z')
     prisma.conversation.findUnique
@@ -960,6 +1142,10 @@ describe('ConversationsService', () => {
       id: 'queue_support',
       slug: 'support',
       name: 'Support',
+      assignmentMode: 'MANUAL',
+      maxAssignedConversations: null,
+      slaTargetMinutes: 30,
+      assignments: [],
     })
     prisma.customer.findFirst.mockResolvedValue(null)
     prisma.conversation.findFirst.mockResolvedValue(null)
@@ -1022,12 +1208,106 @@ describe('ConversationsService', () => {
         createdAt: true,
       },
     })
-    expect(result).toMatchObject({
+  expect(result).toMatchObject({
       conversationId: 'conv_email',
       channel: 'email',
       queue: {
         slug: 'support',
       },
+    })
+  })
+
+  it('auto-assigns inbound conversations to the least loaded queue operator', async () => {
+    const createdAt = new Date('2026-03-25T02:00:00.000Z')
+    prisma.inboxAccount.upsert.mockResolvedValue({
+      id: 'acc_whatsapp',
+      channel: 'WHATSAPP',
+      displayName: 'WhatsApp',
+      address: 'wameta',
+    })
+    prisma.inboxQueue.upsert.mockResolvedValue({
+      id: 'queue_social',
+      slug: 'social',
+      name: 'Social',
+      assignmentMode: 'LEAST_LOADED',
+      maxAssignedConversations: 4,
+      slaTargetMinutes: 20,
+      assignments: [
+        {
+          id: 'assign_1',
+          isPrimary: true,
+          maxOpenConversations: 2,
+          userId: 9,
+        },
+        {
+          id: 'assign_2',
+          isPrimary: false,
+          maxOpenConversations: 4,
+          userId: 10,
+        },
+      ],
+    })
+    prisma.customer.findFirst.mockResolvedValue(null)
+    prisma.conversation.count
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(1)
+    prisma.conversation.findFirst.mockResolvedValue(null)
+    prisma.conversation.create.mockResolvedValue({
+      id: 'conv_whatsapp',
+      tenantKey: 'urucortinas',
+      scope: 'CUSTOMER_PUBLIC',
+      channel: 'WHATSAPP',
+      status: 'WAITING_INTERNAL',
+      controlMode: 'AI',
+      subject: 'Inbound whatsapp',
+      customerId: null,
+      inboxAccountId: 'acc_whatsapp',
+      assignedToUserId: 10,
+      externalUserId: '59890000001',
+      externalThreadId: 'thread-wa-1',
+      externalChannelRef: null,
+      metadata: {},
+    })
+    prisma.conversationParticipant.findFirst.mockResolvedValue(null)
+    prisma.conversationParticipant.create.mockResolvedValue({
+      id: 'part_wa',
+    })
+    prisma.conversationMessage.findFirst.mockResolvedValue(null)
+    prisma.inboxMessage.create.mockResolvedValue({
+      id: 'inbox_msg_wa',
+    })
+    prisma.conversationMessage.create.mockResolvedValue({
+      id: 'conv_msg_wa',
+      createdAt,
+    })
+
+    await service.ingestInboundMessage({
+      tenantKey: 'urucortinas',
+      channel: 'whatsapp',
+      userId: '59890000001',
+      threadId: 'thread-wa-1',
+      externalMessageId: 'wa-remote-1',
+      text: 'Hola desde WhatsApp',
+      metadata: { provider: 'meta' },
+    })
+
+    expect(prisma.conversation.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          assignedToUserId: 10,
+        }),
+      }),
+    )
+    expect(prisma.conversationHandoffEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        conversationId: 'conv_whatsapp',
+        type: 'ASSIGNED',
+        metadata: expect.objectContaining({
+          assignedToUserId: 10,
+          assignmentSource: 'queue-auto-assign',
+          queueSlug: 'social',
+        }),
+      }),
     })
   })
 })

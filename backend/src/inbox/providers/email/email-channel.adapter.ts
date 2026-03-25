@@ -33,6 +33,60 @@ type NormalizedAddress = {
   name?: string
 }
 
+type EmailListCursor = {
+  beforeSeq: number
+}
+
+export const encodeEmailListCursor = (cursor: EmailListCursor) =>
+  Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url')
+
+export const decodeEmailListCursor = (
+  value?: string | null,
+): EmailListCursor | null => {
+  if (!value) {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as {
+      beforeSeq?: unknown
+    }
+    const beforeSeq = Number(parsed.beforeSeq)
+    if (!Number.isInteger(beforeSeq) || beforeSeq <= 0) {
+      return null
+    }
+    return { beforeSeq }
+  } catch {
+    return null
+  }
+}
+
+export const resolveEmailListWindow = (
+  mailboxExists: number,
+  limit: number,
+  cursor?: string | null,
+) => {
+  if (!Number.isInteger(mailboxExists) || mailboxExists <= 0) {
+    return null
+  }
+
+  const decodedCursor = decodeEmailListCursor(cursor)
+  const upperBound = decodedCursor
+    ? Math.min(Math.max(decodedCursor.beforeSeq - 1, 0), mailboxExists)
+    : mailboxExists
+
+  if (upperBound <= 0) {
+    return null
+  }
+
+  const start = Math.max(upperBound - limit + 1, 1)
+  return {
+    start,
+    end: upperBound,
+    sequence: `${start}:${upperBound}`,
+    nextCursor: start > 1 ? encodeEmailListCursor({ beforeSeq: start }) : null,
+  }
+}
+
 type SentMailboxAppendResult = {
   mailbox: string
   response: AppendResponseObject
@@ -104,6 +158,10 @@ export class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
 
     const mailbox = (_options.mailbox || 'INBOX').trim()
     const limit = Math.min(Math.max(_options.limit ?? 20, 1), 200)
+    const sinceTimestamp =
+      _options.since instanceof Date && !Number.isNaN(_options.since.getTime())
+        ? _options.since.getTime()
+        : null
 
     return this.withImapClient(async (client) => {
       let mailboxInfo: MailboxObject | undefined
@@ -119,11 +177,18 @@ export class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
           return { messages: [], nextCursor: null }
         }
 
-        const start = Math.max(mailboxInfo.exists - limit + 1, 1)
-        const sequence = `${start}:*`
+        const window = resolveEmailListWindow(
+          mailboxInfo.exists,
+          limit,
+          _options.cursor ?? null,
+        )
+
+        if (!window) {
+          return { messages: [], nextCursor: null }
+        }
 
         const fetched: FetchMessageObject[] = []
-        for await (const message of client.fetch(sequence, {
+        for await (const message of client.fetch(window.sequence, {
           envelope: true,
           flags: true,
           internalDate: true,
@@ -141,6 +206,19 @@ export class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
 
         const messages = mapped
           .filter((message): message is ChannelMessageListItem => Boolean(message))
+          .filter((message) => {
+            if (sinceTimestamp === null || _options.cursor) {
+              return true
+            }
+            const candidates = [
+              message.receivedAt?.getTime() ?? null,
+              message.sentAt?.getTime() ?? null,
+            ].filter((value): value is number => value !== null)
+            if (candidates.length === 0) {
+              return true
+            }
+            return Math.max(...candidates) > sinceTimestamp
+          })
           .sort((a, b) => {
             const dateA = a.sentAt?.getTime() ?? a.receivedAt?.getTime() ?? 0
             const dateB = b.sentAt?.getTime() ?? b.receivedAt?.getTime() ?? 0
@@ -149,7 +227,7 @@ export class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
 
         return {
           messages,
-          nextCursor: null,
+          nextCursor: _options.cursor ? window.nextCursor : sinceTimestamp ? null : window.nextCursor,
         }
       } finally {
         await client.mailboxClose().catch(() => undefined)

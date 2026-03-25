@@ -11,6 +11,9 @@ type BuildEmailConfigOptions = {
 }
 
 const parseNumber = (value: unknown, fallback: number) => {
+  if (typeof value === 'string' && value.trim().length === 0) {
+    return fallback
+  }
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
 }
@@ -38,6 +41,14 @@ const coerceNumber = (value: number | string | null | undefined): number | null 
   return parsed
 }
 
+const coercePositiveNumber = (value: number | string | null | undefined): number | null => {
+  const parsed = coerceNumber(value)
+  if (parsed === null) {
+    return null
+  }
+  return parsed > 0 ? parsed : null
+}
+
 const isValidSecurityOption = (value: string): value is EmailChannelSecurityOption => {
   return value === 'SSL_TLS' || value === 'STARTTLS' || value === 'NONE'
 }
@@ -49,47 +60,56 @@ export const buildEmailChannelConfig = (
 ): EmailChannelConfig => {
   const logger = options.logger
   const missing: string[] = []
+  const hasStoredConfig = Boolean(overrides)
 
-  const imapHost = coerceString(
-    overrides?.imapHost ?? configService.get<string>('INBOX_EMAIL_IMAP_HOST'),
-  )
-  const imapPort = coerceNumber(overrides?.imapPort) ?? parseNumber(configService.get('INBOX_EMAIL_IMAP_PORT'), 993)
+  const imapHost = hasStoredConfig
+    ? coerceString(overrides?.imapHost)
+    : coerceString(configService.get<string>('INBOX_EMAIL_IMAP_HOST'))
+  const imapPort = hasStoredConfig
+    ? coercePositiveNumber(overrides?.imapPort) ?? 993
+    : parseNumber(configService.get('INBOX_EMAIL_IMAP_PORT'), 993)
   const imapSecurity = (() => {
     const override = overrides?.imapSecurity
     if (override && isValidSecurityOption(override)) {
       return override
     }
+    if (hasStoredConfig) {
+      return 'SSL_TLS'
+    }
     return configService.get<EmailChannelSecurityOption>('INBOX_EMAIL_IMAP_SECURITY') || 'SSL_TLS'
   })()
 
-  const smtpHost = coerceString(
-    overrides?.smtpHost ?? configService.get<string>('INBOX_EMAIL_SMTP_HOST'),
-  )
-  const smtpPort = coerceNumber(overrides?.smtpPort) ?? parseNumber(configService.get('INBOX_EMAIL_SMTP_PORT'), 587)
+  const smtpHost = hasStoredConfig
+    ? coerceString(overrides?.smtpHost)
+    : coerceString(configService.get<string>('INBOX_EMAIL_SMTP_HOST'))
+  const smtpPort = hasStoredConfig
+    ? coercePositiveNumber(overrides?.smtpPort) ?? 587
+    : parseNumber(configService.get('INBOX_EMAIL_SMTP_PORT'), 587)
   const smtpSecurity = (() => {
     const override = overrides?.smtpSecurity
     if (override && isValidSecurityOption(override)) {
       return override
     }
+    if (hasStoredConfig) {
+      return 'STARTTLS'
+    }
     return configService.get<EmailChannelSecurityOption>('INBOX_EMAIL_SMTP_SECURITY') || 'STARTTLS'
   })()
 
-  const username = coerceString(
-    overrides?.username ?? configService.get<string>('INBOX_EMAIL_USER'),
-  )
-  const passwordSource =
-    overrides?.password !== undefined
-      ? overrides.password
-      : configService.get<string>('INBOX_EMAIL_PASSWORD')
+  const username = hasStoredConfig
+    ? coerceString(overrides?.username)
+    : coerceString(configService.get<string>('INBOX_EMAIL_USER'))
+  const passwordSource = hasStoredConfig
+    ? overrides?.password
+    : configService.get<string>('INBOX_EMAIL_PASSWORD')
   const password = coerceString(passwordSource ?? undefined)
-  const configuredFromAddress = coerceString(
-    overrides?.fromAddress ?? configService.get<string>('INBOX_EMAIL_DEFAULT_FROM'),
-  )
+  const configuredFromAddress = hasStoredConfig
+    ? coerceString(overrides?.fromAddress)
+    : coerceString(configService.get<string>('INBOX_EMAIL_DEFAULT_FROM'))
   const fromAddress = configuredFromAddress || username
-  const fromName =
-    overrides?.fromName !== undefined
-      ? coerceOptionalString(overrides.fromName)
-      : coerceOptionalString(configService.get<string>('INBOX_EMAIL_DEFAULT_NAME'))
+  const fromName = hasStoredConfig
+    ? coerceOptionalString(overrides?.fromName)
+    : coerceOptionalString(configService.get<string>('INBOX_EMAIL_DEFAULT_NAME'))
 
   if (!imapHost) {
     missing.push('INBOX_EMAIL_IMAP_HOST')
@@ -118,17 +138,21 @@ export const buildEmailChannelConfig = (
   }
 
   const maxAttachmentSizeMb =
-    coerceNumber(overrides?.maxAttachmentSizeMb) ??
-    parseNumber(configService.get('INBOX_EMAIL_MAX_ATTACHMENT_MB'), 25)
+    hasStoredConfig
+      ? coercePositiveNumber(overrides?.maxAttachmentSizeMb) ?? 25
+      : parseNumber(configService.get('INBOX_EMAIL_MAX_ATTACHMENT_MB'), 25)
   const outgoingRatePerMinute =
-    coerceNumber(overrides?.ratePerMinute) ??
-    parseNumber(configService.get('INBOX_EMAIL_RATE_PER_MINUTE'), 60)
+    hasStoredConfig
+      ? coercePositiveNumber(overrides?.ratePerMinute) ?? 60
+      : parseNumber(configService.get('INBOX_EMAIL_RATE_PER_MINUTE'), 60)
   const pollingIntervalMs =
-    coerceNumber(overrides?.pollIntervalMs) ??
-    parseNumber(configService.get('INBOX_EMAIL_POLL_INTERVAL_MS'), 120000)
+    hasStoredConfig
+      ? coercePositiveNumber(overrides?.pollIntervalMs) ?? 120000
+      : parseNumber(configService.get('INBOX_EMAIL_POLL_INTERVAL_MS'), 120000)
   const pollingBatchSize =
-    coerceNumber(overrides?.pollBatchSize) ??
-    parseNumber(configService.get('INBOX_EMAIL_POLL_BATCH_SIZE'), 50)
+    hasStoredConfig
+      ? coercePositiveNumber(overrides?.pollBatchSize) ?? 50
+      : parseNumber(configService.get('INBOX_EMAIL_POLL_BATCH_SIZE'), 50)
 
   return {
     imap: {

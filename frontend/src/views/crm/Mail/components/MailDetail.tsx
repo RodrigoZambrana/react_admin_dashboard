@@ -52,6 +52,7 @@ const MailDetail = () => {
     const mailId = mailState.selectedMailId
     const isReply = mailState.reply
     const mailList = mailState.mailList
+    const selectedCategory = mailState.selectedCategory
 
     const formSubmit = () => {
         mailEditorRef.current?.formikRef?.submitForm()
@@ -121,8 +122,17 @@ const MailDetail = () => {
             return
         }
         const normalizedId = String(mailId)
+        if (selectedCategory.category === 'inbox') {
+            const selectedInboxMail = mailList.find(
+                (entry) => String(entry.id) === normalizedId,
+            )
+            if (selectedInboxMail) {
+                dispatch(updateMail(selectedInboxMail))
+            }
+            return
+        }
         dispatch(getMail({ id: normalizedId }))
-    }, [dispatch, mailId])
+    }, [dispatch, mailId, mailList, selectedCategory.category])
 
     useEffect(() => {
         if (!mailId) {
@@ -156,6 +166,9 @@ const MailDetail = () => {
 
     const resolvedMail = useMemo<Partial<MailType>>(() => {
         if (!mail || isEmpty(mail)) {
+            return mail
+        }
+        if (selectedCategory.category === 'inbox') {
             return mail
         }
         if (!Array.isArray(mailList) || mailList.length === 0) {
@@ -238,7 +251,7 @@ const MailDetail = () => {
             ...mail,
             message: mergedMessages,
         }
-    }, [mail, mailList])
+    }, [mail, mailList, selectedCategory.category])
 
     const hasMail = !isEmpty(resolvedMail)
     const showMailContainer = Boolean(id) && (hasMail || mailLoading)

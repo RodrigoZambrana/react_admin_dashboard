@@ -197,6 +197,35 @@ enum ConversationHandoffEventType {
   UNASSIGNED
 }
 
+enum InboxQueueAssignmentMode {
+  MANUAL
+  LEAST_LOADED
+}
+
+enum KnowledgeSourceType {
+  DOCS
+  BACKEND_DATASET
+  ADMIN_CURATED
+  CONVERSATION_DERIVED
+}
+
+enum KnowledgeDocumentStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum KnowledgeDocumentScope {
+  CUSTOMER_PUBLIC
+  ADMIN_INTERNAL
+}
+
+enum KnowledgeCandidateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum EmailCategory {
   ORDERS
   PAYMENTS
@@ -328,36 +357,41 @@ model NotificationSetting {
 
 // Users and Auth
 model User {
-  id                       Int                    @id @default(autoincrement())
-  name                     String?
-  lastName                 String?
-  email                    String                 @unique
-  img                      String?
-  role                     Role                   @default(USER)
-  lang                     String                 @default("en")
-  country                  String?
-  countryCode              String?
-  city                     String?
-  passwordHash             String
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
+  id                             Int                        @id @default(autoincrement())
+  name                           String?
+  lastName                       String?
+  email                          String                     @unique
+  img                            String?
+  role                           Role                       @default(USER)
+  lang                           String                     @default("en")
+  country                        String?
+  countryCode                    String?
+  city                           String?
+  passwordHash                   String
+  createdAt                      DateTime                   @default(now())
+  updatedAt                      DateTime                   @updatedAt
   // relations
-  createdTasks             Task[]
-  taskAssignees            TaskAssignee[]
-  events                   CalendarEvent[]
-  notifications            Notification[]
-  activityTicketMembers    ActivityTicketMember[]
-  calendarComments         CalendarEventComment[]
-  activities               UserActivity[]
-  devices                  UserDevice[]
-  convertedOrders          Order[]                @relation("OrderConvertedBy")
-  assignedProductionOrders ProductionOrder[]      @relation("ProductionOrderAssignedTo")
-  passwordResetTokens      PasswordResetToken[]
-  assignedConversations    Conversation[]         @relation("ConversationAssignedOperator")
-  conversationParticipants ConversationParticipant[] @relation("ConversationParticipantUser")
-  authoredConversationMessages ConversationMessage[] @relation("ConversationMessageAuthorUser")
-  conversationHandoffEvents ConversationHandoffEvent[] @relation("ConversationHandoffActorUser")
-  requestedConversationToolCalls ConversationToolCall[] @relation("ConversationToolRequestedByUser")
+  createdTasks                   Task[]
+  taskAssignees                  TaskAssignee[]
+  events                         CalendarEvent[]
+  notifications                  Notification[]
+  activityTicketMembers          ActivityTicketMember[]
+  calendarComments               CalendarEventComment[]
+  activities                     UserActivity[]
+  devices                        UserDevice[]
+  convertedOrders                Order[]                    @relation("OrderConvertedBy")
+  assignedProductionOrders       ProductionOrder[]          @relation("ProductionOrderAssignedTo")
+  passwordResetTokens            PasswordResetToken[]
+  assignedConversations          Conversation[]             @relation("ConversationAssignedOperator")
+  conversationParticipants       ConversationParticipant[]  @relation("ConversationParticipantUser")
+  authoredConversationMessages   ConversationMessage[]      @relation("ConversationMessageAuthorUser")
+  conversationHandoffEvents      ConversationHandoffEvent[] @relation("ConversationHandoffActorUser")
+  requestedConversationToolCalls ConversationToolCall[]     @relation("ConversationToolRequestedByUser")
+  inboxQueueAssignments          InboxQueueUserAssignment[] @relation("InboxQueueAssignedUser")
+  authoredKnowledgeDocuments     KnowledgeDocument[]        @relation("KnowledgeDocumentAuthoredByUser")
+  approvedKnowledgeDocuments     KnowledgeDocument[]        @relation("KnowledgeDocumentApprovedByUser")
+  createdKnowledgeCandidates     KnowledgeCandidate[]       @relation("KnowledgeCandidateCreatedByUser")
+  reviewedKnowledgeCandidates    KnowledgeCandidate[]       @relation("KnowledgeCandidateReviewedByUser")
 }
 
 model UserDevice {
@@ -392,31 +426,31 @@ model UserActivity {
 
 // CRM Customer
 model Customer {
-  id                            Int                     @id @default(autoincrement())
+  id                            Int                              @id @default(autoincrement())
   name                          String
   firstName                     String?
   lastName                      String?
-  email                         String?                 @unique
+  email                         String?                          @unique
   emailVerifiedAt               DateTime?
   img                           String?
   location                      String?
   title                         String?
-  phoneNumber                   String?                 @unique
+  phoneNumber                   String?                          @unique
   passwordHash                  String?
   storefrontDefaultPasswordHash String?
-  passwordAlgorithm             String?                 @default("bcrypt")
-  passwordAlgVersion            Int?                    @default(12)
+  passwordAlgorithm             String?                          @default("bcrypt")
+  passwordAlgVersion            Int?                             @default(12)
   passwordUpdatedAt             DateTime?
-  storefrontSessionVersion      Int                     @default(1)
+  storefrontSessionVersion      Int                              @default(1)
   birthday                      DateTime?
   facebook                      String?
   twitter                       String?
   pinterest                     String?
   linkedIn                      String?
   phones                        CustomerPhone[]
-  preferredLocale               String                  @default("es")
-  createdAt                     DateTime                @default(now())
-  updatedAt                     DateTime                @updatedAt
+  preferredLocale               String                           @default("es")
+  createdAt                     DateTime                         @default(now())
+  updatedAt                     DateTime                         @updatedAt
   orders                        Order[]
   notifications                 Notification[]
   passwordResetTokens           PasswordResetToken[]
@@ -426,12 +460,12 @@ model Customer {
   reauthTokens                  CustomerReauthToken[]
   addresses                     CustomerAddress[]
   statusId                      Int?
-  status                        CustomerStatus?         @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  status                        CustomerStatus?                  @relation(fields: [statusId], references: [id], onDelete: SetNull)
   wishlist                      Wishlist?
   oauthAccounts                 CustomerOAuthAccount[]
-  conversations                 Conversation[]          @relation("ConversationCustomer")
-  conversationParticipants      ConversationParticipant[] @relation("ConversationParticipantCustomer")
-  authoredConversationMessages  ConversationMessage[]   @relation("ConversationMessageAuthorCustomer")
+  conversations                 Conversation[]                   @relation("ConversationCustomer")
+  conversationParticipants      ConversationParticipant[]        @relation("ConversationParticipantCustomer")
+  authoredConversationMessages  ConversationMessage[]            @relation("ConversationMessageAuthorCustomer")
 }
 
 model CustomerEmailVerificationToken {
@@ -594,7 +628,7 @@ model Product {
   orderItems                OrderItem[]
   installServiceForCategory ProductCategory?              @relation("CategoryInstallService")
   priceMatrix               DimensionPriceMatrix[]
-  parametricMatrixStaging   ParametricMatrixStaging[] @relation("ProductParametricMatrixStaging")
+  parametricMatrixStaging   ParametricMatrixStaging[]     @relation("ProductParametricMatrixStaging")
   compatibilityRules        ParametricCompatibilityRule[]
 }
 
@@ -719,18 +753,18 @@ model CmsSection {
 }
 
 model CmsEntry {
-  id           Int             @id @default(autoincrement())
+  id           Int              @id @default(autoincrement())
   sectionId    Int
-  section      CmsSection      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  section      CmsSection       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   slug         String?
   title        String
   subtitle     String?
   description  String?
   payload      Json?
-  locale       String          @default("es")
-  status       CmsEntryStatus  @default(DRAFT)
-  priority     Int             @default(0)
-  isActive     Boolean         @default(true)
+  locale       String           @default("es")
+  status       CmsEntryStatus   @default(DRAFT)
+  priority     Int              @default(0)
+  isActive     Boolean          @default(true)
   publishedAt  DateTime?
   startsAt     DateTime?
   endsAt       DateTime?
@@ -738,12 +772,12 @@ model CmsEntry {
   ctaLabel     String?
   ctaUrl       String?
   productId    Int?
-  product      Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  product      Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
   categoryId   Int?
   category     ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   assets       CmsEntryAsset[]
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
   @@unique([sectionId, locale, slug])
   @@index([sectionId, status, isActive, priority])
@@ -949,11 +983,11 @@ model Payment {
   attachments     PaymentAttachment[]
   notifications   Notification[]
 
+  @@unique([orderId, reference])
   @@index([orderId])
   @@index([status, type])
   @@index([orderId, status, date])
   @@index([paymentMethodId])
-  @@unique([orderId, reference])
 }
 
 model PaymentPlan {
@@ -1332,75 +1366,75 @@ model CompanyProfile {
 }
 
 model CustomerAddress {
-  id         Int      @id @default(autoincrement())
-  customerId Int
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  street     String
-  number     String
-  corner     String?
-  apartment  String?
-  department String?
-  city       String
+  id           Int      @id @default(autoincrement())
+  customerId   Int
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  street       String
+  number       String
+  corner       String?
+  apartment    String?
+  department   String?
+  city         String
   neighborhood String?
-  country    String
-  comments   String?
-  label      String?
-  isPrimary  Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  country      String
+  comments     String?
+  label        String?
+  isPrimary    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model InboxAccount {
-  id          String           @id @default(cuid())
-  displayName String?
-  address     String?
-  channel     InboxChannelType
-  active      Boolean          @default(true)
-  metadata    Json?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  messages    InboxMessage[]
-  syncStates  InboxSyncState[]
-  conversations Conversation[] @relation("ConversationInboxAccount")
+  id            String           @id @default(cuid())
+  displayName   String?
+  address       String?
+  channel       InboxChannelType
+  active        Boolean          @default(true)
+  metadata      Json?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  messages      InboxMessage[]
+  syncStates    InboxSyncState[]
+  conversations Conversation[]   @relation("ConversationInboxAccount")
 
   @@unique([channel, address])
 }
 
 model InboxMessage {
-  id               String                @id @default(cuid())
-  accountId        String
-  account          InboxAccount          @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  channel          InboxChannelType
-  provider         String                @default("generic")
-  messageUid       String
-  remoteId         String
-  threadRemoteId   String?
-  subject          String?
-  snippet          String?
-  previewText      String?
-  fromAddress      String?
-  fromName         String?
-  toAddresses      String[]
-  ccAddresses      String[]
-  bccAddresses     String[]
-  replyToAddresses String[]
-  direction        InboxMessageDirection
-  folder           String?
-  queueId          String?
-  queue            InboxQueue?           @relation(fields: [queueId], references: [id], onDelete: SetNull)
-  isRead           Boolean               @default(false)
-  isStarred        Boolean               @default(false)
-  isSpam           Boolean               @default(false)
-  hasAttachments   Boolean               @default(false)
-  sentAt           DateTime?
-  receivedAt       DateTime?
-  bodyHash         String?
-  metadata         Json?
-  attachments      InboxAttachment[]
-  events           InboxMessageEvent[]
+  id                   String                @id @default(cuid())
+  accountId            String
+  account              InboxAccount          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  channel              InboxChannelType
+  provider             String                @default("generic")
+  messageUid           String
+  remoteId             String
+  threadRemoteId       String?
+  subject              String?
+  snippet              String?
+  previewText          String?
+  fromAddress          String?
+  fromName             String?
+  toAddresses          String[]
+  ccAddresses          String[]
+  bccAddresses         String[]
+  replyToAddresses     String[]
+  direction            InboxMessageDirection
+  folder               String?
+  queueId              String?
+  queue                InboxQueue?           @relation(fields: [queueId], references: [id], onDelete: SetNull)
+  isRead               Boolean               @default(false)
+  isStarred            Boolean               @default(false)
+  isSpam               Boolean               @default(false)
+  hasAttachments       Boolean               @default(false)
+  sentAt               DateTime?
+  receivedAt           DateTime?
+  bodyHash             String?
+  metadata             Json?
+  attachments          InboxAttachment[]
+  events               InboxMessageEvent[]
   conversationMessages ConversationMessage[] @relation("ConversationMessageInboxMessage")
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 
   @@unique([accountId, channel, remoteId])
   @@unique([messageUid, provider, folder])
@@ -1438,15 +1472,37 @@ model InboxSyncState {
 }
 
 model InboxQueue {
-  id          String         @id @default(cuid())
-  slug        String         @unique
-  name        String
-  description String?
-  rules       Json?
-  isActive    Boolean        @default(true)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  messages    InboxMessage[]
+  id                       String                     @id @default(cuid())
+  slug                     String                     @unique
+  name                     String
+  description              String?
+  rules                    Json?
+  isActive                 Boolean                    @default(true)
+  priority                 Int                        @default(100)
+  slaTargetMinutes         Int                        @default(30)
+  maxAssignedConversations Int?
+  assignmentMode           InboxQueueAssignmentMode   @default(MANUAL)
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  messages                 InboxMessage[]
+  assignments              InboxQueueUserAssignment[]
+}
+
+model InboxQueueUserAssignment {
+  id                   String     @id @default(cuid())
+  queueId              String
+  queue                InboxQueue @relation(fields: [queueId], references: [id], onDelete: Cascade)
+  userId               Int
+  user                 User       @relation("InboxQueueAssignedUser", fields: [userId], references: [id], onDelete: Cascade)
+  isActive             Boolean    @default(true)
+  isPrimary            Boolean    @default(false)
+  maxOpenConversations Int?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  @@unique([queueId, userId])
+  @@index([queueId, isActive])
+  @@index([userId, isActive])
 }
 
 model InboxMessageEvent {
@@ -1461,39 +1517,40 @@ model InboxMessageEvent {
 }
 
 model Conversation {
-  id                 String                   @id @default(cuid())
-  tenantKey          String
-  scope              ConversationScope
-  channel            ConversationChannel
-  status             ConversationStatus       @default(OPEN)
-  controlMode        ConversationControlMode  @default(AI)
-  subject            String?
-  customerId         Int?
-  customer           Customer?                @relation("ConversationCustomer", fields: [customerId], references: [id], onDelete: SetNull)
-  assignedToUserId   Int?
-  assignedToUser     User?                    @relation("ConversationAssignedOperator", fields: [assignedToUserId], references: [id], onDelete: SetNull)
-  inboxAccountId     String?
-  inboxAccount       InboxAccount?            @relation("ConversationInboxAccount", fields: [inboxAccountId], references: [id], onDelete: SetNull)
-  externalUserId     String?
-  externalThreadId   String?
-  externalChannelRef String?
-  metadata           Json?
-  lastMessageAt      DateTime?
-  lastInboundAt      DateTime?
-  lastOutboundAt     DateTime?
-  closedAt           DateTime?
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
-  participants       ConversationParticipant[]
-  messages           ConversationMessage[]
-  handoffEvents      ConversationHandoffEvent[]
-  toolCalls          ConversationToolCall[]
+  id                  String                     @id @default(cuid())
+  tenantKey           String
+  scope               ConversationScope
+  channel             ConversationChannel
+  status              ConversationStatus         @default(OPEN)
+  controlMode         ConversationControlMode    @default(AI)
+  subject             String?
+  customerId          Int?
+  customer            Customer?                  @relation("ConversationCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  assignedToUserId    Int?
+  assignedToUser      User?                      @relation("ConversationAssignedOperator", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  inboxAccountId      String?
+  inboxAccount        InboxAccount?              @relation("ConversationInboxAccount", fields: [inboxAccountId], references: [id], onDelete: SetNull)
+  externalUserId      String?
+  externalThreadId    String?
+  externalChannelRef  String?
+  metadata            Json?
+  lastMessageAt       DateTime?
+  lastInboundAt       DateTime?
+  lastOutboundAt      DateTime?
+  closedAt            DateTime?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  participants        ConversationParticipant[]
+  messages            ConversationMessage[]
+  handoffEvents       ConversationHandoffEvent[]
+  toolCalls           ConversationToolCall[]
+  knowledgeCandidates KnowledgeCandidate[]
 
+  @@unique([tenantKey, channel, externalThreadId])
   @@index([tenantKey, scope, channel, status])
   @@index([assignedToUserId, status, lastMessageAt])
   @@index([customerId, lastMessageAt])
   @@index([inboxAccountId, channel, lastMessageAt])
-  @@unique([tenantKey, channel, externalThreadId])
 }
 
 model ConversationParticipant {
@@ -1516,26 +1573,27 @@ model ConversationParticipant {
 }
 
 model ConversationMessage {
-  id                String                        @id @default(cuid())
-  conversationId    String
-  conversation      Conversation                  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  authorType        ConversationMessageAuthorType
-  kind              ConversationMessageKind       @default(TEXT)
-  authorUserId      Int?
-  authorUser        User?                         @relation("ConversationMessageAuthorUser", fields: [authorUserId], references: [id], onDelete: SetNull)
-  authorCustomerId  Int?
-  authorCustomer    Customer?                     @relation("ConversationMessageAuthorCustomer", fields: [authorCustomerId], references: [id], onDelete: SetNull)
-  externalMessageId String?
-  inboxMessageId    String?
-  inboxMessage      InboxMessage?                 @relation("ConversationMessageInboxMessage", fields: [inboxMessageId], references: [id], onDelete: SetNull)
-  body              String?
-  normalizedText    String?
-  payload           Json?
-  metadata          Json?
-  sentAt            DateTime?
-  receivedAt        DateTime?
-  createdAt         DateTime                      @default(now())
-  toolCalls         ConversationToolCall[]
+  id                  String                        @id @default(cuid())
+  conversationId      String
+  conversation        Conversation                  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  authorType          ConversationMessageAuthorType
+  kind                ConversationMessageKind       @default(TEXT)
+  authorUserId        Int?
+  authorUser          User?                         @relation("ConversationMessageAuthorUser", fields: [authorUserId], references: [id], onDelete: SetNull)
+  authorCustomerId    Int?
+  authorCustomer      Customer?                     @relation("ConversationMessageAuthorCustomer", fields: [authorCustomerId], references: [id], onDelete: SetNull)
+  externalMessageId   String?
+  inboxMessageId      String?
+  inboxMessage        InboxMessage?                 @relation("ConversationMessageInboxMessage", fields: [inboxMessageId], references: [id], onDelete: SetNull)
+  body                String?
+  normalizedText      String?
+  payload             Json?
+  metadata            Json?
+  sentAt              DateTime?
+  receivedAt          DateTime?
+  createdAt           DateTime                      @default(now())
+  toolCalls           ConversationToolCall[]
+  knowledgeCandidates KnowledgeCandidate[]
 
   @@index([conversationId, createdAt])
   @@index([externalMessageId])
@@ -1543,40 +1601,110 @@ model ConversationMessage {
 }
 
 model ConversationHandoffEvent {
-  id             String                   @id @default(cuid())
+  id             String                       @id @default(cuid())
   conversationId String
-  conversation   Conversation             @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation   Conversation                 @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   type           ConversationHandoffEventType
   actorUserId    Int?
-  actorUser      User?                    @relation("ConversationHandoffActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorUser      User?                        @relation("ConversationHandoffActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
   previousMode   ConversationControlMode?
   nextMode       ConversationControlMode?
   notes          String?
   metadata       Json?
-  createdAt      DateTime                 @default(now())
+  createdAt      DateTime                     @default(now())
 
   @@index([conversationId, createdAt])
 }
 
 model ConversationToolCall {
-  id                String                   @id @default(cuid())
+  id                String                        @id @default(cuid())
   conversationId    String
-  conversation      Conversation             @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation      Conversation                  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   messageId         String?
-  message           ConversationMessage?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  message           ConversationMessage?          @relation(fields: [messageId], references: [id], onDelete: SetNull)
   toolName          String
-  status            ConversationToolCallStatus @default(REQUESTED)
+  status            ConversationToolCallStatus    @default(REQUESTED)
   requestedBy       ConversationMessageAuthorType
   requestedByUserId Int?
-  requestedByUser   User?                    @relation("ConversationToolRequestedByUser", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  requestedByUser   User?                         @relation("ConversationToolRequestedByUser", fields: [requestedByUserId], references: [id], onDelete: SetNull)
   validatedPayload  Json?
   resultPayload     Json?
   errorCode         String?
   errorMessage      String?
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
+  createdAt         DateTime                      @default(now())
+  updatedAt         DateTime                      @updatedAt
 
   @@index([conversationId, status, createdAt])
+  @@index([messageId])
+}
+
+model KnowledgeDocument {
+  id               String                      @id @default(cuid())
+  tenantKey        String
+  scope            KnowledgeDocumentScope
+  sourceType       KnowledgeSourceType
+  status           KnowledgeDocumentStatus     @default(ACTIVE)
+  sourceKey        String
+  title            String
+  summary          String?
+  content          String
+  tags             String[]                    @default([])
+  piiRiskLevel     String?                     @default("low")
+  metadata         Json?
+  authoredByUserId Int?
+  authoredByUser   User?                       @relation("KnowledgeDocumentAuthoredByUser", fields: [authoredByUserId], references: [id], onDelete: SetNull)
+  approvedByUserId Int?
+  approvedByUser   User?                       @relation("KnowledgeDocumentApprovedByUser", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  approvedAt       DateTime?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+  embedding        KnowledgeDocumentEmbedding?
+
+  @@unique([tenantKey, scope, sourceType, sourceKey])
+  @@index([tenantKey, scope, status, sourceType])
+}
+
+model KnowledgeDocumentEmbedding {
+  id          String            @id @default(cuid())
+  documentId  String            @unique
+  document    KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  provider    String
+  model       String
+  dimensions  Int
+  contentHash String
+  vector      Json
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([provider, model])
+}
+
+model KnowledgeCandidate {
+  id               String                   @id @default(cuid())
+  tenantKey        String
+  scope            KnowledgeDocumentScope
+  sourceType       KnowledgeSourceType      @default(CONVERSATION_DERIVED)
+  status           KnowledgeCandidateStatus @default(PENDING)
+  title            String
+  excerpt          String
+  redactedExcerpt  String?
+  summary          String?
+  piiDetected      Boolean                  @default(false)
+  metadata         Json?
+  conversationId   String?
+  conversation     Conversation?            @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  messageId        String?
+  message          ConversationMessage?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  createdByUserId  Int?
+  createdByUser    User?                    @relation("KnowledgeCandidateCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedByUserId Int?
+  reviewedByUser   User?                    @relation("KnowledgeCandidateReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  reviewedAt       DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  @@index([tenantKey, scope, status, sourceType, createdAt])
+  @@index([conversationId, createdAt])
   @@index([messageId])
 }
 

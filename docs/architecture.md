@@ -54,6 +54,7 @@ Minimum persisted traceability:
   - `sentAt` / `receivedAt`
   - delivery status and provider identifiers
   - channel/provider metadata
+  - transport event history when available
 - operational traceability:
   - participants
   - assignment and takeover events
@@ -80,6 +81,76 @@ These scopes must differ in:
 - tools
 - routing defaults
 
+## AI Knowledge Sources
+
+The AI layer must consume a tiered knowledge system rather than raw undifferentiated text.
+
+Primary knowledge sources:
+
+- curated documentation and business rules
+- validated backend datasets such as products and safe customer context
+- curated admin-authored knowledge
+- approved conversation-derived knowledge
+
+Operational rule:
+
+- raw inbound/outbound conversations may generate candidates, but they are not trusted retrieval input until they are redacted and approved
+
+Current persisted knowledge baseline:
+
+- `KnowledgeDocument`
+  - curated documentation, trusted dataset projections and approved admin-authored or conversation-derived knowledge
+- `KnowledgeCandidate`
+  - redacted excerpts derived from conversations, pending operator review
+- first ingestion jobs currently cover:
+  - trusted repo docs mounted into backend runtime
+  - product summaries
+  - sanitized customer summaries
+- admin runtime settings expose:
+  - docs ingestion
+  - dataset ingestion
+  - manual curated entry creation
+  - candidate approve/reject actions
+  - manual reindex of approved retrieval corpus
+
+Current retrieval baseline:
+
+- `KnowledgeDocumentEmbedding`
+  - 1:1 projection of approved `KnowledgeDocument`
+  - stores provider, model, dimensions, content hash and vector payload
+- indexing behavior:
+  - synchronous indexing on curated creation, trusted ingestion and candidate promotion
+  - explicit bulk reindex endpoint for admin operations
+- ranking behavior:
+  - lexical score + vector similarity over approved documents only
+  - `customer_public` queries search only approved public knowledge
+  - `admin_internal` queries can use both internal and public approved knowledge
+
+This is intentionally a low-friction first step. Vector storage is in PostgreSQL JSON and ranking is computed in backend memory. A dedicated vector store or provider-backed embeddings can be layered later without changing the approval boundary.
+
+Conversation-derived knowledge must never skip the candidate stage.
+
+## Queue Ownership And SLA Baseline
+
+- `InboxQueue` stores:
+  - priority
+  - SLA target minutes
+  - assignment mode
+  - optional max assigned conversations
+- `InboxQueueUserAssignment` stores:
+  - active operators per queue
+  - primary operator flag
+  - per-operator capacity override
+- inbound conversations may auto-assign on creation when the queue uses `LEAST_LOADED`
+- queue metrics exposed to admin must include:
+  - open count
+  - waiting customer count
+  - unassigned count
+  - breached SLA count
+  - operator count
+  - assigned load
+  - configured and available capacity
+
 ## Deployment Baseline
 
 - Main stack stays in `deploy/docker-compose.dev.yml`
@@ -97,6 +168,19 @@ These scopes must differ in:
   - composer/actions
 - Mobile-first responsiveness is mandatory for inbox/conversation surfaces
 - On small screens, filters, list and detail should remain accessible through simple pane switching patterns similar to mature messaging products
+- shared messaging UI primitives now live in:
+  - [frontend/src/components/messaging](/Users/rodrigo/git/personal/react_admin_dashboard/frontend/src/components/messaging)
+- admin is the first full consumer of that layer
+- storefront must consume only a restricted subset:
+  - public chat without persistence and without privileged data
+  - authenticated customer chat with persisted history and customer-safe access only
+
+## Config Resolution Baseline
+
+- for inbox email runtime:
+  - when secure config exists in database, database is the source of truth
+  - environment variables are bootstrap/fallback only when no secure config record exists yet
+- blank env values must never collapse numeric defaults to `0`
 
 ## Quality Baseline
 
@@ -108,3 +192,15 @@ These scopes must differ in:
 - New functionality must carry:
   - regression coverage where practical
   - `data-testid` on interactive surfaces used by E2E
+
+## Endpoint Protection Baseline
+
+- Minimum endpoint protections are a system-wide acceptance criterion, not an inbox-only concern
+- Every externally reachable HTTP endpoint must be reviewed for:
+  - authentication and authorization
+  - role/scope enforcement when applicable
+  - rate limiting
+  - allowed-origin restrictions
+  - internal-only vs public exposure boundaries
+- Existing controls such as global throttling, CORS and controller guards are not sufficient by assumption alone; they must be audited per module and per surface
+- No new channel rollout should be considered complete until the relevant endpoints pass this protection audit

@@ -302,6 +302,16 @@ const appsNavigationConfig: NavigationTree[] = [
                         authority: getRolesForFeature(FEATURES.CUSTOMERS),
                         subMenu: [],
                     },
+                    {
+                        key: 'appsCrm.conversationsLegacy',
+                        path: `${APP_PREFIX_PATH}/crm/conversations-v2`,
+                        title: 'Conversations V2',
+                        translateKey: 'nav.appsCrm.conversationsLegacy',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: getRolesForFeature(FEATURES.CUSTOMERS),
+                        subMenu: [],
+                    },
                 ],
             },
             // Productos (nuevo menú)

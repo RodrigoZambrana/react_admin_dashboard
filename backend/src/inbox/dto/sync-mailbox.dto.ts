@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer'
-import { IsArray, IsOptional, IsString, Max, Min } from 'class-validator'
+import { IsArray, IsBoolean, IsOptional, IsString, Max, Min } from 'class-validator'
 
 const transformStringArray = ({ value }: { value: unknown }) => {
   if (Array.isArray(value)) {
@@ -51,4 +51,15 @@ export class SyncMailboxDto {
   @IsOptional()
   @Transform(transformDate, { toClassOnly: true })
   since?: Date
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true', { toClassOnly: true })
+  @IsBoolean()
+  fullHistory?: boolean
+
+  @IsOptional()
+  @Transform(transformNumber, { toClassOnly: true })
+  @Min(1)
+  @Max(200)
+  maxPages?: number
 }

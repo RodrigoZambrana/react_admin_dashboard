@@ -19,6 +19,10 @@ type AiActionCatalogEntry = {
   path: string
   confirmationRequired: boolean
   scope: 'customer_public' | 'admin_internal'
+  toolName?: string
+  keywords?: string[]
+  requiredFields?: string[]
+  confirmationPrompt?: string
 }
 
 type StoredAiRuntimeConfig = {
@@ -59,6 +63,11 @@ export class AiService {
         path: '/api/ai/customers',
         confirmationRequired: true,
         scope: 'admin_internal',
+        toolName: 'create_customer',
+        keywords: ['crear cliente', 'alta de cliente', 'nuevo cliente'],
+        requiredFields: ['name'],
+        confirmationPrompt:
+          'Antes de ejecutar, confirmá nombre del cliente y, si aplica, email y teléfono.',
       },
       {
         key: 'appointments.create',
@@ -67,6 +76,11 @@ export class AiService {
         path: '/api/ai/appointments',
         confirmationRequired: true,
         scope: 'admin_internal',
+        toolName: 'create_appointment',
+        keywords: ['agendar cita', 'crear cita', 'agendar visita', 'agendar'],
+        requiredFields: ['title', 'startAt'],
+        confirmationPrompt:
+          'Antes de ejecutar, confirmá título, fecha/hora de inicio y ubicación o contexto si aplica.',
       },
       {
         key: 'products.create',
@@ -75,6 +89,11 @@ export class AiService {
         path: '/api/ai/products',
         confirmationRequired: true,
         scope: 'admin_internal',
+        toolName: 'create_product',
+        keywords: ['crear producto', 'alta de producto', 'nuevo producto'],
+        requiredFields: ['name'],
+        confirmationPrompt:
+          'Antes de ejecutar, confirmá nombre del producto, moneda y precio de venta. Si corresponde, agregá categoría, modo y stock.',
       },
       {
         key: 'orders.create',
@@ -83,6 +102,11 @@ export class AiService {
         path: '/api/ai/orders',
         confirmationRequired: true,
         scope: 'admin_internal',
+        toolName: 'create_order',
+        keywords: ['crear pedido', 'crear orden', 'nuevo pedido'],
+        requiredFields: ['customerId', 'items'],
+        confirmationPrompt:
+          'Antes de ejecutar, confirmá cliente, moneda, items y cualquier cargo de entrega.',
       },
       {
         key: 'quotes.create',
@@ -91,6 +115,11 @@ export class AiService {
         path: '/api/ai/quotes',
         confirmationRequired: true,
         scope: 'admin_internal',
+        toolName: 'create_quote',
+        keywords: ['crear presupuesto', 'generar presupuesto', 'cotizar'],
+        requiredFields: ['customerId', 'items'],
+        confirmationPrompt:
+          'Antes de ejecutar, confirmá cliente, items, moneda y vigencia si aplica.',
       },
       {
         key: 'payments.create',
@@ -99,6 +128,11 @@ export class AiService {
         path: '/api/ai/payments',
         confirmationRequired: true,
         scope: 'admin_internal',
+        toolName: 'create_payment',
+        keywords: ['crear pago', 'registrar pago', 'cobrar'],
+        requiredFields: ['orderId', 'amount', 'currency'],
+        confirmationPrompt:
+          'Antes de ejecutar, confirmá pedido, monto, moneda, método y estado del pago.',
       },
     ]
   }
