@@ -109,6 +109,17 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  if (req.method === 'POST' && req.url === '/webhooks/email/status') {
+    const body = await readBody(req)
+    const result = await emailAdapter.handleStatus(body)
+    json(res, 202, {
+      ok: true,
+      status: 'accepted',
+      ...result,
+    })
+    return
+  }
+
   if (req.method === 'POST' && req.url === '/webhooks/meta') {
     const body = await readBody(req)
     const hasStatuses =

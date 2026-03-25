@@ -61,6 +61,12 @@ export const buildConversationKey = (mail?: Partial<Mail>) => {
     if (!mail) {
         return ''
     }
+    const canonicalThreadKey = normalizeString(
+        (mail as { canonicalThreadKey?: string | null })?.canonicalThreadKey,
+    )
+    if (canonicalThreadKey) {
+        return canonicalThreadKey
+    }
     const subjectNorm = normalizeSubject(mail.subject || mail.title)
     const threadId = normalizeString(
         (mail as { threadRemoteId?: string | null })?.threadRemoteId,

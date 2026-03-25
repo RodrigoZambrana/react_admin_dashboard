@@ -10,6 +10,8 @@ export class AiAgentRuntime {
     this.memoryStore = memoryStore
     this.backendClient = backendClient
     this.runtimeConfigLoadedAt = 0
+    this.actionCatalog = []
+    this.actionCatalogLoadedAt = 0
   }
 
   async refreshRuntimeConfig() {
@@ -76,13 +78,20 @@ export class AiAgentRuntime {
     const snapshot = await this.memoryStore.get(conversationId)
     const history = snapshot?.turns ?? []
     const tools = getToolsForScope(scope, this.backendClient)
+    const actionCatalog = await this.getActionCatalog(scope)
+    const retrievalContext = await this.getRetrievalContext(unifiedMessage, scope)
 
     const response = await this.provider.generate({
       scope,
-      systemPrompt: buildSystemPrompt(scope),
+      systemPrompt: buildSystemPrompt(scope, {
+        actionCatalog,
+        retrievalContext: retrievalContext.items,
+      }),
       history,
       input: unifiedMessage.text,
       tools,
+      actionCatalog,
+      retrievalContext: retrievalContext.items,
     })
 
     const now = new Date().toISOString()
@@ -119,6 +128,41 @@ export class AiAgentRuntime {
       model: this.provider.modelName,
       text: response.text,
       toolCalls: response.toolCalls ?? [],
+    }
+  }
+
+  async getActionCatalog(scope) {
+    const now = Date.now()
+    if (now - this.actionCatalogLoadedAt > 60_000) {
+      try {
+        this.actionCatalog = await this.backendClient.getActions()
+        this.actionCatalogLoadedAt = now
+      } catch (error) {
+        console.warn('[ai-agent-service] Unable to refresh action catalog', error)
+      }
+    }
+
+    return (this.actionCatalog || []).filter(
+      (entry) => !entry.scope || entry.scope === scope || scope === 'admin_internal',
+    )
+  }
+
+  async getRetrievalContext(unifiedMessage, scope) {
+    const text = unifiedMessage.text?.trim() || ''
+    if (text.length < 4) {
+      return { items: [] }
+    }
+
+    try {
+      const response = await this.backendClient.searchKnowledge(
+        text,
+        scope,
+        scope === 'admin_internal' ? 6 : 4,
+      )
+      return response ?? { items: [] }
+    } catch (error) {
+      console.warn('[ai-agent-service] Unable to retrieve knowledge context', error)
+      return { items: [] }
     }
   }
 }

@@ -26,6 +26,7 @@ export type InboxMessageSummaryDto = {
     messageUid: string
     remoteId: string
     threadRemoteId?: string | null
+    canonicalThreadKey?: string | null
     subject?: string | null
     snippet?: string | null
     previewText?: string | null
@@ -44,6 +45,7 @@ export type InboxMessageSummaryDto = {
     queueName?: string | null
     sentAt?: string | null
     receivedAt?: string | null
+    activityAt?: string | null
     metadata?: Record<string, unknown> | null
 }
 
@@ -68,12 +70,62 @@ export type InboxMessageListResponse = {
     nextCursor?: string | null
 }
 
+export type InboxThreadSummaryDto = {
+    id: string
+    accountId: string
+    mailbox: string
+    canonicalThreadKey: string
+    subject?: string | null
+    previewText?: string | null
+    snippet?: string | null
+    from?: { name?: string | null; address?: string | null } | null
+    to: string[]
+    cc: string[]
+    bcc: string[]
+    isRead: boolean
+    isStarred: boolean
+    isSpam: boolean
+    hasAttachments: boolean
+    latestMessageAt?: string | null
+    latestMessageId?: string | null
+    latestRemoteId?: string | null
+    threadRemoteId?: string | null
+    messageCount: number
+    messages: Array<{
+        id: string
+        remoteId: string
+        threadRemoteId?: string | null
+        canonicalThreadKey?: string | null
+        subject?: string | null
+        previewText?: string | null
+        snippet?: string | null
+        from?: { name?: string | null; address?: string | null } | null
+        to: string[]
+        cc: string[]
+        bcc: string[]
+        direction: 'INBOUND' | 'OUTBOUND'
+        isRead: boolean
+        isStarred: boolean
+        isSpam: boolean
+        hasAttachments: boolean
+        sentAt?: string | null
+        receivedAt?: string | null
+        activityAt?: string | null
+    }>
+}
+
+export type InboxThreadListResponse = {
+    items: InboxThreadSummaryDto[]
+    nextCursor?: string | null
+}
+
 export type InboxSyncResponse = {
     accountId: string
     mailboxes: {
         mailbox: string
         fetched: number
         nextCursor?: string | null
+        complete?: boolean
     }[]
 }
 
@@ -122,6 +174,26 @@ export const apiGetInboxMessages = (params: {
     const { accountId, mailbox, cursor, limit, since } = params
     return ApiService.fetchData<InboxMessageListResponse>({
         url: `/inbox/accounts/${accountId}/messages`,
+        method: 'get',
+        params: {
+            mailbox,
+            cursor,
+            limit,
+            since,
+        },
+    })
+}
+
+export const apiGetInboxThreads = (params: {
+    accountId: string
+    mailbox: string
+    cursor?: string
+    limit?: number
+    since?: string
+}) => {
+    const { accountId, mailbox, cursor, limit, since } = params
+    return ApiService.fetchData<InboxThreadListResponse>({
+        url: `/inbox/accounts/${accountId}/threads`,
         method: 'get',
         params: {
             mailbox,
@@ -210,6 +282,8 @@ export const apiSyncInboxAccount = (params: {
         limit?: number
         cursor?: string | null
         since?: string
+        fullHistory?: boolean
+        maxPages?: number
     }
 }) => {
     const { accountId, body } = params

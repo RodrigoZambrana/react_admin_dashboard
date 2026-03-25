@@ -4,6 +4,7 @@ import {
     apiGetInboxAccounts,
     apiGetInboxMailboxes,
     apiGetInboxMessages,
+    apiGetInboxThreads,
     apiSendInboxMessage,
     apiUpdateInboxMessageFlags,
     apiMoveInboxMessage,
@@ -11,6 +12,7 @@ import {
     type InboxAccountDto,
     type InboxMailboxDto,
     type InboxMessageSummaryDto,
+    type InboxThreadSummaryDto,
     type SendInboxMessagePayload,
 } from '@/services/InboxService'
 import { applyMailLocalState } from '../utils/localMailState'
@@ -61,10 +63,12 @@ export type Mail = {
     provider?: string
     messageUid?: string | null
     threadRemoteId?: string | null
+    canonicalThreadKey?: string | null
     remoteId?: string | null
     queueId?: string | null
     queueSlug?: string | null
     queueName?: string | null
+    activityAt?: string | null
     headers?: Record<string, string>
     ccAddresses?: string[]
     bccAddresses?: string[]
@@ -219,10 +223,12 @@ const buildMailFromInboxMessage = (
         provider: message.provider,
         messageUid: message.messageUid ?? null,
         threadRemoteId: message.threadRemoteId ?? null,
+        canonicalThreadKey: message.canonicalThreadKey ?? null,
         remoteId: message.remoteId ?? message.id,
         queueId: message.queueId ?? null,
         queueSlug: message.queueSlug ?? null,
         queueName: message.queueName ?? null,
+        activityAt: message.activityAt ?? receivedAt ?? sentAt,
         headers: undefined,
         ccAddresses: message.cc ?? [],
         bccAddresses: message.bcc ?? [],
@@ -231,6 +237,120 @@ const buildMailFromInboxMessage = (
         metadata: Object.keys(metadata).length > 0 ? metadata : null,
     }
     return applyMailLocalState(mailObject)
+}
+
+const buildMailFromInboxThread = (
+    thread: InboxThreadSummaryDto,
+): Mail => {
+    const latestAt = thread.latestMessageAt ?? null
+    const messages: Message[] = thread.messages.map((entry) => ({
+        id: entry.id,
+        name:
+            entry.from?.name ??
+            entry.from?.address ??
+            '',
+        mail: entry.to ?? [],
+        from: entry.from?.address ?? '',
+        avatar: '',
+        date: entry.activityAt ?? entry.receivedAt ?? entry.sentAt ?? '',
+        content: entry.previewText ?? entry.snippet ?? '',
+        attachment: [],
+        to: entry.to ?? [],
+        cc: entry.cc ?? [],
+        bcc: entry.bcc ?? [],
+        sentAt: entry.sentAt ?? null,
+        receivedAt: entry.receivedAt ?? null,
+        direction: toMailDirection(entry.direction),
+        headers: undefined,
+        messageUid: undefined,
+    }))
+
+    return applyMailLocalState({
+        id: thread.id,
+        name:
+            thread.from?.name ??
+            thread.from?.address ??
+            '',
+        label: thread.mailbox,
+        group: normalizeMailboxId(thread.mailbox).toLowerCase() || 'inbox',
+        folder: thread.mailbox,
+        flagged: thread.isSpam,
+        starred: thread.isStarred,
+        from: thread.from?.address ?? '',
+        avatar: '',
+        title: thread.subject ?? '',
+        subject: thread.subject ?? '',
+        mail: thread.to ?? [],
+        previewText: thread.previewText ?? thread.snippet ?? '',
+        snippet: thread.snippet ?? thread.previewText ?? '',
+        sentAt: latestAt,
+        receivedAt: latestAt,
+        isRead: thread.isRead,
+        provider: 'email-thread',
+        messageUid: null,
+        threadRemoteId: thread.threadRemoteId ?? null,
+        canonicalThreadKey: thread.canonicalThreadKey,
+        remoteId: thread.latestRemoteId ?? thread.id,
+        queueId: null,
+        queueSlug: null,
+        queueName: null,
+        activityAt: latestAt,
+        headers: undefined,
+        ccAddresses: thread.cc ?? [],
+        bccAddresses: thread.bcc ?? [],
+        replyToAddresses: [],
+        message: messages,
+        metadata: {
+            accountId: thread.accountId,
+            mailbox: thread.mailbox,
+            canonicalThreadKey: thread.canonicalThreadKey,
+            messageCount: thread.messageCount,
+            latestMessageId: thread.latestMessageId ?? null,
+        },
+    })
+}
+
+const buildInboxThreadMailKey = (mail: Partial<Mail>) =>
+    mail.canonicalThreadKey ||
+    mail.threadRemoteId ||
+    (mail.remoteId !== undefined && mail.remoteId !== null
+        ? String(mail.remoteId)
+        : String(mail.id ?? ''))
+
+const sortMailMessagesChronologically = (messages: Message[]) =>
+    [...messages].sort((left, right) => {
+        const leftTime =
+            parseTimestamp(left.receivedAt) ??
+            parseTimestamp(left.sentAt) ??
+            parseTimestamp(left.date) ??
+            0
+        const rightTime =
+            parseTimestamp(right.receivedAt) ??
+            parseTimestamp(right.sentAt) ??
+            parseTimestamp(right.date) ??
+            0
+        return leftTime - rightTime
+    })
+
+const buildMailFromInboxThreadMessage = (
+    message: InboxMessageSummaryDto,
+): Mail => {
+    const threadKey =
+        message.canonicalThreadKey ??
+        message.threadRemoteId ??
+        message.remoteId
+    const base = buildMailFromInboxMessage(message)
+    const mailId = threadKey || base.id
+    return applyMailLocalState({
+        ...base,
+        id: mailId,
+        canonicalThreadKey: message.canonicalThreadKey ?? null,
+        threadRemoteId: message.threadRemoteId ?? null,
+        remoteId: message.remoteId,
+        metadata: mergeMetadata(base.metadata, {
+            canonicalThreadKey: message.canonicalThreadKey ?? null,
+        }),
+    })
 }
 
 const mergeMailMessages = (
@@ -308,6 +428,58 @@ const mergeInboxMails = (existing: Mail[], updates: Mail[]) => {
     return Array.from(byKey.values())
 }
 
+const mergeInboxThreadMails = (existing: Mail[], updates: Mail[]) => {
+    if (updates.length === 0) {
+        return existing
+    }
+
+    const byKey = new Map<string, Mail>()
+    existing.forEach((mail) => {
+        byKey.set(buildInboxThreadMailKey(mail), mail)
+    })
+
+    updates.forEach((mail) => {
+        const key = buildInboxThreadMailKey(mail)
+        const current = byKey.get(key)
+        if (!current) {
+            byKey.set(key, applyMailLocalState(mail))
+            return
+        }
+
+        const currentTs = getMailActivityTimestamp(current)
+        const nextTs = getMailActivityTimestamp(mail)
+        const latest = nextTs >= currentTs ? mail : current
+        const mergedMessages = sortMailMessagesChronologically(
+            mergeMailMessages(current.message, mail.message),
+        )
+
+        byKey.set(
+            key,
+            applyMailLocalState({
+                ...current,
+                ...latest,
+                id: latest.id ?? current.id,
+                metadata: mergeMetadata(current.metadata, mail.metadata),
+                message: mergedMessages,
+                isRead: (current.isRead ?? true) && (mail.isRead ?? true),
+                starred: Boolean(current.starred) || Boolean(mail.starred),
+                flagged: Boolean(current.flagged) || Boolean(mail.flagged),
+                canonicalThreadKey:
+                    latest.canonicalThreadKey ??
+                    current.canonicalThreadKey ??
+                    null,
+                threadRemoteId:
+                    latest.threadRemoteId ?? current.threadRemoteId ?? null,
+                remoteId: latest.remoteId ?? current.remoteId ?? null,
+                activityAt:
+                    latest.activityAt ?? current.activityAt ?? null,
+            }),
+        )
+    })
+
+    return Array.from(byKey.values())
+}
+
 const mergeMailboxMessages = (
     existing: InboxMessageSummaryDto[],
     incoming: InboxMessageSummaryDto[],
@@ -350,6 +522,26 @@ const parseTimestamp = (value?: string | null) => {
         return null
     }
     return parsed
+}
+
+const getMailActivityTimestamp = (mail: Partial<Mail>) => {
+    const candidates = [
+        mail.activityAt,
+        mail.receivedAt,
+        mail.sentAt,
+        mail.message?.[0]?.receivedAt,
+        mail.message?.[0]?.sentAt,
+        mail.message?.[0]?.date,
+    ]
+
+    for (const candidate of candidates) {
+        const parsed = parseTimestamp(candidate ?? null)
+        if (parsed !== null) {
+            return parsed
+        }
+    }
+
+    return 0
 }
 
 const extractMessageTimestamps = (message: InboxMessageSummaryDto) => {
@@ -502,6 +694,36 @@ export const fetchInboxMessages = createAsyncThunk(
         since?: string
     }) => {
         const response = await apiGetInboxMessages({
+            accountId,
+            mailbox,
+            cursor,
+            limit,
+            since,
+        })
+        return {
+            accountId,
+            mailbox,
+            result: response.data,
+        }
+    },
+)
+
+export const fetchInboxThreads = createAsyncThunk(
+    `${SLICE_NAME}/fetchInboxThreads`,
+    async ({
+        accountId,
+        mailbox,
+        cursor,
+        limit,
+        since,
+    }: {
+        accountId: string
+        mailbox: string
+        cursor?: string
+        limit?: number
+        since?: string
+    }) => {
+        const response = await apiGetInboxThreads({
             accountId,
             mailbox,
             cursor,
@@ -751,8 +973,9 @@ const mailSlice = createSlice({
                 state.inbox.selectedAccountId === message.accountId &&
                 state.inbox.selectedMailboxId === folder
             if (isActiveMailbox) {
-                const inboxMail = buildMailFromInboxMessage(message)
-                state.mailList = mergeInboxMails(state.mailList, [inboxMail])
+                state.mailList = mergeInboxThreadMails(state.mailList, [
+                    buildMailFromInboxThreadMessage(message),
+                ])
             }
         },
     },
@@ -886,6 +1109,52 @@ const mailSlice = createSlice({
                     state.mailListLoading = false
                 }
             })
+            .addCase(fetchInboxThreads.pending, (state, action) => {
+                state.inbox.messagesLoading = true
+                const key = `${action.meta.arg.accountId}:${action.meta.arg.mailbox}`
+                state.inbox.messagesRequestStatus[key] = 'loading'
+                state.inbox.messagesErrorByMailbox[key] = null
+                if (
+                    state.inbox.selectedAccountId === action.meta.arg.accountId &&
+                    state.inbox.selectedMailboxId === action.meta.arg.mailbox
+                ) {
+                    state.mailListLoading = true
+                }
+            })
+            .addCase(fetchInboxThreads.fulfilled, (state, action) => {
+                state.inbox.messagesLoading = false
+                const { accountId, mailbox, result } = action.payload
+                const key = `${accountId}:${mailbox}`
+                const mode: 'replace' | 'append' =
+                    action.meta.arg.cursor ? 'append' : 'replace'
+                const inboxThreads = result.items.map(buildMailFromInboxThread)
+                state.inbox.messagesRequestStatus[key] = 'succeeded'
+                state.inbox.messagesErrorByMailbox[key] = null
+                state.inbox.nextCursorByMailbox[key] = result.nextCursor ?? null
+                if (
+                    state.inbox.selectedAccountId === accountId &&
+                    state.inbox.selectedMailboxId === mailbox
+                ) {
+                    state.mailList =
+                        mode === 'replace'
+                            ? inboxThreads
+                            : mergeInboxThreadMails(state.mailList, inboxThreads)
+                    state.mailListLoading = false
+                }
+            })
+            .addCase(fetchInboxThreads.rejected, (state, action) => {
+                state.inbox.messagesLoading = false
+                const key = `${action.meta.arg.accountId}:${action.meta.arg.mailbox}`
+                state.inbox.messagesRequestStatus[key] = 'failed'
+                state.inbox.messagesErrorByMailbox[key] =
+                    action.error?.message ?? 'Unable to load inbox threads.'
+                if (
+                    state.inbox.selectedAccountId === action.meta.arg.accountId &&
+                    state.inbox.selectedMailboxId === action.meta.arg.mailbox
+                ) {
+                    state.mailListLoading = false
+                }
+            })
             .addCase(sendInboxMessage.pending, (state, action) => {
                 state.inbox.sendStatus = 'loading'
                 state.inbox.sendError = null
@@ -942,8 +1211,9 @@ const mailSlice = createSlice({
                         [entry],
                     )
                 })
-                const inboxMail = buildMailFromInboxMessage(message)
-                state.mailList = mergeInboxMails(state.mailList, [inboxMail])
+                state.mailList = mergeInboxThreadMails(state.mailList, [
+                    buildMailFromInboxThreadMessage(message),
+                ])
                 const attemptId = action.meta.requestId
                 const completionTime = new Date().toISOString()
                 const logIndex = state.inbox.sendLog.findIndex(
@@ -1055,12 +1325,17 @@ const mailSlice = createSlice({
                     targetFolder,
                     [message],
                 )
-                state.mailList = mergeInboxMails(state.mailList, [
-                    buildMailFromInboxMessage(message),
+                state.mailList = mergeInboxThreadMails(state.mailList, [
+                    buildMailFromInboxThreadMessage(message),
                 ])
 
                 state.mailList = state.mailList.map((mailItem) => {
-                    if (mailItem.remoteId === message.remoteId) {
+                    if (buildInboxThreadMailKey(mailItem) === buildInboxThreadMailKey({
+                        canonicalThreadKey: message.canonicalThreadKey ?? null,
+                        threadRemoteId: message.threadRemoteId ?? null,
+                        remoteId: message.remoteId,
+                        id: message.id,
+                    })) {
                         return {
                             ...mailItem,
                             isRead: message.isRead,
@@ -1079,7 +1354,15 @@ const mailSlice = createSlice({
                     return mailItem
                 })
 
-                if (state.mail?.remoteId === message.remoteId) {
+                if (
+                    buildInboxThreadMailKey(state.mail) ===
+                    buildInboxThreadMailKey({
+                        canonicalThreadKey: message.canonicalThreadKey ?? null,
+                        threadRemoteId: message.threadRemoteId ?? null,
+                        remoteId: message.remoteId,
+                        id: message.id,
+                    })
+                ) {
                     state.mail = {
                         ...state.mail,
                         isRead: message.isRead,
@@ -1131,11 +1414,17 @@ const mailSlice = createSlice({
 
                 const metadata = (message.metadata ??
                     null) as Record<string, unknown> | null
-                state.mailList = mergeInboxMails(state.mailList, [
-                    buildMailFromInboxMessage(message),
+                state.mailList = mergeInboxThreadMails(state.mailList, [
+                    buildMailFromInboxThreadMessage(message),
                 ])
                 state.mailList = state.mailList.map((mailItem) =>
-                    mailItem.remoteId === message.remoteId
+                    buildInboxThreadMailKey(mailItem) ===
+                    buildInboxThreadMailKey({
+                        canonicalThreadKey: message.canonicalThreadKey ?? null,
+                        threadRemoteId: message.threadRemoteId ?? null,
+                        remoteId: message.remoteId,
+                        id: message.id,
+                    })
                         ? {
                               ...mailItem,
                               group: targetMailbox,
@@ -1145,7 +1434,15 @@ const mailSlice = createSlice({
                         : mailItem,
                 )
 
-                if (state.mail?.remoteId === message.remoteId) {
+                if (
+                    buildInboxThreadMailKey(state.mail) ===
+                    buildInboxThreadMailKey({
+                        canonicalThreadKey: message.canonicalThreadKey ?? null,
+                        threadRemoteId: message.threadRemoteId ?? null,
+                        remoteId: message.remoteId,
+                        id: message.id,
+                    })
+                ) {
                     state.mail = {
                         ...state.mail,
                         group: targetMailbox,
@@ -1191,11 +1488,17 @@ const mailSlice = createSlice({
 
                 const metadata = (message.metadata ??
                     null) as Record<string, unknown> | null
-                state.mailList = mergeInboxMails(state.mailList, [
-                    buildMailFromInboxMessage(message),
+                state.mailList = mergeInboxThreadMails(state.mailList, [
+                    buildMailFromInboxThreadMessage(message),
                 ])
                 state.mailList = state.mailList.map((mailItem) =>
-                    mailItem.remoteId === message.remoteId
+                    buildInboxThreadMailKey(mailItem) ===
+                    buildInboxThreadMailKey({
+                        canonicalThreadKey: message.canonicalThreadKey ?? null,
+                        threadRemoteId: message.threadRemoteId ?? null,
+                        remoteId: message.remoteId,
+                        id: message.id,
+                    })
                         ? {
                               ...mailItem,
                               group: targetMailbox,
@@ -1206,7 +1509,15 @@ const mailSlice = createSlice({
                         : mailItem,
                 )
 
-                if (state.mail?.remoteId === message.remoteId) {
+                if (
+                    buildInboxThreadMailKey(state.mail) ===
+                    buildInboxThreadMailKey({
+                        canonicalThreadKey: message.canonicalThreadKey ?? null,
+                        threadRemoteId: message.threadRemoteId ?? null,
+                        remoteId: message.remoteId,
+                        id: message.id,
+                    })
+                ) {
                     state.mail = {
                         ...state.mail,
                         group: targetMailbox,

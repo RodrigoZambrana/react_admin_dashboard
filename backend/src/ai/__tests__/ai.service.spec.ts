@@ -91,6 +91,11 @@ describe('AiService', () => {
     const actions = service.listActions()
     expect(actions.some((entry) => entry.key === 'orders.create')).toBe(true)
     expect(actions.some((entry) => entry.key === 'appointments.create')).toBe(true)
+    expect(actions.find((entry) => entry.key === 'payments.create')).toMatchObject({
+      toolName: 'create_payment',
+      confirmationRequired: true,
+      requiredFields: ['orderId', 'amount', 'currency'],
+    })
   })
 
   it('creates or updates a customer generically', async () => {

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { KnowledgeService } from '../knowledge/knowledge.service'
 import { AiService } from './ai.service'
 import { CreateAiAppointmentDto } from './dto/create-ai-appointment.dto'
 import { CreateAiCustomerDto } from './dto/create-ai-customer.dto'
@@ -25,6 +26,7 @@ export class AiController {
   constructor(
     private readonly ai: AiService,
     private readonly config: ConfigService,
+    private readonly knowledge: KnowledgeService,
   ) {}
 
   @UseGuards(JwtAuthGuard)
@@ -49,6 +51,21 @@ export class AiController {
   listActions(@Headers('x-ai-internal-token') token?: string) {
     this.assertInternalToken(token)
     return this.ai.listActions()
+  }
+
+  @Get('knowledge/retrieve')
+  retrieveKnowledge(
+    @Query('query') query: string,
+    @Query('scope') scope?: string,
+    @Query('limit') limit?: string,
+    @Headers('x-ai-internal-token') token?: string,
+  ) {
+    this.assertInternalToken(token)
+    return this.knowledge.retrieve({
+      query,
+      scope,
+      limit: limit ? Number(limit) : undefined,
+    })
   }
 
   @Get('products')

@@ -37,10 +37,13 @@ test("admin can takeover, reply and release a conversation", async ({
     timeout: 20_000,
   });
 
+  await page.getByTestId("admin-conversation-mobile-details").click();
   await page.getByTestId("admin-conversation-handoff-notes").fill("Tomo manualmente el caso");
   await page.getByTestId("admin-conversation-takeover").click();
   await expect(page.getByTestId("admin-conversation-control-mode")).toContainText("Human");
   await expect(page.getByTestId("admin-conversation-assignee")).toContainText("Local Admin");
+
+  await page.keyboard.press("Escape");
 
   await page.getByTestId("admin-conversation-reply-input").fill("Te respondo desde el operador");
   await page.getByTestId("admin-conversation-reply-submit").click();
@@ -48,6 +51,7 @@ test("admin can takeover, reply and release a conversation", async ({
     page.locator('[data-testid^="admin-conversation-message-"]').last(),
   ).toContainText("Te respondo desde el operador");
 
+  await page.getByTestId("admin-conversation-mobile-details").click();
   await page.getByTestId("admin-conversation-release").click();
   await expect(page.getByTestId("admin-conversation-control-mode")).toContainText("Ai");
   await expect(page.getByTestId("admin-conversation-assignee")).toContainText(

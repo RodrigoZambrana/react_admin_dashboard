@@ -33,6 +33,43 @@ export class BackendAiClient {
     return response.json()
   }
 
+  async getActions() {
+    const response = await fetch(`${this.baseUrl}/ai/actions`, {
+      headers: {
+        'x-ai-internal-token': this.internalToken,
+      },
+    })
+
+    if (!response.ok) {
+      const body = await toJson(response)
+      throw new Error(`backend.ai.actions ${response.status}: ${JSON.stringify(body)}`)
+    }
+
+    return response.json()
+  }
+
+  async searchKnowledge(query, scope = 'customer_public', limit = 5) {
+    const url = new URL(`${this.baseUrl}/ai/knowledge/retrieve`)
+    url.searchParams.set('query', query)
+    url.searchParams.set('scope', scope)
+    url.searchParams.set('limit', String(limit))
+
+    const response = await fetch(url, {
+      headers: {
+        'x-ai-internal-token': this.internalToken,
+      },
+    })
+
+    if (!response.ok) {
+      const body = await toJson(response)
+      throw new Error(
+        `backend.ai.knowledge.retrieve ${response.status}: ${JSON.stringify(body)}`,
+      )
+    }
+
+    return response.json()
+  }
+
   async searchProducts(search, limit = 5) {
     const url = new URL(`${this.baseUrl}/ai/products`)
     url.searchParams.set('search', search)

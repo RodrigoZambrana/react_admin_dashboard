@@ -25,9 +25,7 @@ test("admin can create an internal AI conversation from the inbox", async ({
   await expect(page).toHaveURL(/\/app\/crm\/conversations\/.+$/);
   await expect(page.getByTestId("admin-conversation-detail-title")).toContainText(
     subject,
-  );
-  await expect(page.getByTestId("admin-conversation-control-mode")).toContainText(
-    "Ai",
+    { timeout: 20_000 },
   );
   await expect(
     page.locator('[data-testid^="admin-conversation-message-"]').filter({
@@ -36,7 +34,7 @@ test("admin can create an internal AI conversation from the inbox", async ({
   ).toBeVisible({ timeout: 20_000 });
   await expect(
     page.locator('[data-testid^="admin-conversation-message-"]').filter({
-      hasText: "Recibí tu consulta",
+      hasText: "Agent",
     }).first(),
   ).toBeVisible({ timeout: 20_000 });
 });

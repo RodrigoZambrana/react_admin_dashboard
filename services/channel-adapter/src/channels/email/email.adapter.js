@@ -61,4 +61,75 @@ export class EmailAdapter {
       ai,
     }
   }
+
+  async handleStatus(payload) {
+    const statuses = Array.isArray(payload?.statuses)
+      ? payload.statuses
+      : payload
+      ? [payload]
+      : []
+
+    const results = []
+    for (const status of statuses) {
+      const conversationId =
+        status?.conversationId ||
+        status?.metadata?.conversationId ||
+        null
+
+      if (!conversationId || !status?.messageId) {
+        continue
+      }
+
+      const result = await this.clients.conversations.syncOutboundStatus({
+        conversationId,
+        channel: 'email',
+        inboxAccountId: status?.inboxAccountId || status?.metadata?.inboxAccountId,
+        remoteId: status.messageId,
+        externalMessageId: status?.externalMessageId || status.messageId,
+        providerMessageId: status?.providerMessageId || status.messageId,
+        deliveryStatus: this.normalizeDeliveryStatus(status?.status),
+        occurredAt:
+          status?.timestamp || status?.occurredAt
+            ? new Date(status.timestamp || status.occurredAt).toISOString()
+            : new Date().toISOString(),
+        errorCode: status?.errorCode || undefined,
+        errorMessage: status?.errorMessage || undefined,
+        metadata: {
+          channel: 'email',
+          provider: status?.provider || status?.metadata?.provider || 'smtp',
+          rawStatus: status?.status || null,
+          ...(status?.metadata || {}),
+        },
+      })
+
+      results.push(result)
+    }
+
+    return {
+      ok: true,
+      statuses: results.length,
+      results,
+    }
+  }
+
+  normalizeDeliveryStatus(status) {
+    const normalized = String(status || '').trim().toLowerCase()
+
+    switch (normalized) {
+      case 'queued':
+      case 'accepted':
+      case 'sent':
+      case 'delivered':
+      case 'read':
+      case 'failed':
+      case 'rejected':
+        return normalized
+      case 'bounce':
+      case 'bounced':
+      case 'undelivered':
+        return 'failed'
+      default:
+        return 'accepted'
+    }
+  }
 }

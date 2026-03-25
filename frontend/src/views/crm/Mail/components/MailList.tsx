@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import classNames from 'classnames'
 import ScrollBar from '@/components/ui/ScrollBar'
 import Avatar from '@/components/ui/Avatar'
@@ -21,7 +21,8 @@ import {
     toggleSidebar,
     toggleMobileSidebar,
     updateReply,
-    fetchInboxMessages,
+    fetchInboxMailboxes,
+    fetchInboxThreads,
     useAppDispatch,
     useAppSelector,
 } from '../store'
@@ -34,6 +35,7 @@ import type { Mail } from '../store'
 import { getAttachmentIcon } from '../utils/attachments'
 import { buildConversationKey, normalizeString } from '../utils/conversations'
 import { upsertMailLocalState } from '../utils/localMailState'
+import { apiSyncInboxAccount } from '@/services/InboxService'
 
 type AggregatedMail = Mail & {
     conversationMailIds: Array<string | number>
@@ -50,6 +52,7 @@ const htmlReg = /(<([^>]+)>)/gi
 
 const getMailTimestamp = (mail: Mail) => {
     const sources = [
+        mail.activityAt,
         mail.receivedAt,
         mail.sentAt,
         mail.message?.[0]?.receivedAt,
@@ -149,10 +152,46 @@ const MailList = () => {
     const selectedMessagesError = inboxMessagesKey
         ? inboxState.messagesErrorByMailbox[inboxMessagesKey]
         : null
+    const selectedNextCursor = inboxMessagesKey
+        ? inboxState.nextCursorByMailbox[inboxMessagesKey]
+        : null
+    const selectedMailbox = selectedInboxAccountId
+        ? (
+              inboxState.mailboxesByAccount[selectedInboxAccountId] ?? []
+          ).find((entry) => entry.id === selectedInboxMailboxId)
+        : undefined
+    const remoteMailboxCount =
+        selectedMailbox?.metadata &&
+        typeof selectedMailbox.metadata === 'object' &&
+        selectedMailbox.metadata !== null &&
+        'status' in selectedMailbox.metadata &&
+        typeof (selectedMailbox.metadata as { status?: { messages?: unknown } })
+            .status?.messages === 'number'
+            ? ((selectedMailbox.metadata as { status?: { messages?: number } })
+                  .status?.messages ?? null)
+            : null
+    const mailboxSyncMeta =
+        selectedMailbox?.metadata &&
+        typeof selectedMailbox.metadata === 'object' &&
+        selectedMailbox.metadata !== null &&
+        'sync' in selectedMailbox.metadata
+            ? ((selectedMailbox.metadata as {
+                  sync?: {
+                      complete?: boolean | null
+                      localMessageCount?: number | null
+                  }
+              }).sync ?? null)
+            : null
+    const localMailboxCount =
+        typeof mailboxSyncMeta?.localMessageCount === 'number'
+            ? mailboxSyncMeta.localMessageCount
+            : null
+    const [historySyncLoading, setHistorySyncLoading] = useState(false)
+    const [manualSyncLoading, setManualSyncLoading] = useState(false)
+    const [historySyncError, setHistorySyncError] = useState<string | null>(null)
 
     const pollTimerRef = useRef<number | null>(null)
     const messagesStatusRef = useRef(inboxState.messagesRequestStatus)
-    const lastFetchedRef = useRef(inboxState.lastFetchedAtByMailbox)
 
     const direction = useAppSelector((state) => state.theme.direction)
     const messagesUnavailableText = t('crm.mail.messagesUnavailable', {
@@ -164,6 +203,123 @@ const MailList = () => {
         selectedMessagesError === 'Unable to load inbox messages.'
             ? messagesUnavailableText
             : selectedMessagesError
+    const syncStatusLabel = useMemo(() => {
+        if (!selectedInboxAccountId || !selectedInboxMailboxId) {
+            return null
+        }
+        if (manualSyncLoading) {
+            return t('crm.mail.syncingMailbox', {
+                defaultValue: 'Synchronizing mailbox...',
+            })
+        }
+        if (historySyncLoading) {
+            return t('crm.mail.syncingMailboxHistory', {
+                defaultValue: 'Synchronizing full history...',
+            })
+        }
+        if (selectedMessagesStatus === 'loading' && mails.length === 0) {
+            return t('crm.mail.syncingMailbox', {
+                defaultValue: 'Synchronizing mailbox...',
+            })
+        }
+        if (mailboxSyncMeta?.complete === true) {
+            return t('crm.mail.mailboxSyncComplete', {
+                defaultValue: 'Complete sync',
+            })
+        }
+        if (selectedNextCursor) {
+            return t('crm.mail.mailboxSyncPartial', {
+                defaultValue: 'Partial sync',
+            })
+        }
+        if (
+            typeof remoteMailboxCount === 'number' &&
+            remoteMailboxCount > 0 &&
+            typeof localMailboxCount === 'number' &&
+            localMailboxCount < remoteMailboxCount
+        ) {
+            return t('crm.mail.mailboxSyncPartial', {
+                defaultValue: 'Partial sync',
+            })
+        }
+        if (mails.length > 0) {
+            return t('crm.mail.mailboxSyncComplete', {
+                defaultValue: 'Complete sync',
+            })
+        }
+        return null
+    }, [
+        localMailboxCount,
+        mailboxSyncMeta?.complete,
+        mails.length,
+        remoteMailboxCount,
+        selectedInboxAccountId,
+        selectedInboxMailboxId,
+        selectedMessagesStatus,
+        selectedNextCursor,
+        t,
+        historySyncLoading,
+        manualSyncLoading,
+    ])
+    const syncStatusDetail = useMemo(() => {
+        const historyParts: string[] = []
+        if (
+            typeof remoteMailboxCount === 'number' &&
+            remoteMailboxCount > 0
+        ) {
+            historyParts.push(`${localMailboxCount ?? mails.length}/${remoteMailboxCount}`)
+        } else if ((localMailboxCount ?? mails.length) > 0) {
+            historyParts.push(String(localMailboxCount ?? mails.length))
+        }
+        if (
+            mailboxSyncMeta &&
+            typeof mailboxSyncMeta.lastHistorySyncAt === 'string' &&
+            mailboxSyncMeta.lastHistorySyncAt
+        ) {
+            historyParts.push(
+                t('crm.mail.lastHistorySyncAt', {
+                    defaultValue: `Hist. ${new Date(
+                        mailboxSyncMeta.lastHistorySyncAt,
+                    ).toLocaleString('es-UY')}`,
+                }),
+            )
+        }
+        return historyParts.length ? historyParts.join(' · ') : null
+    }, [
+        localMailboxCount,
+        mailboxSyncMeta,
+        mails.length,
+        remoteMailboxCount,
+        t,
+    ])
+
+    const canCompleteHistory = useMemo(() => {
+        if (!selectedInboxAccountId || !selectedInboxMailboxId) {
+            return false
+        }
+        if (historySyncLoading) {
+            return false
+        }
+        if (selectedNextCursor) {
+            return true
+        }
+        if (
+            typeof remoteMailboxCount === 'number' &&
+            remoteMailboxCount > 0 &&
+            typeof localMailboxCount === 'number'
+        ) {
+            return localMailboxCount < remoteMailboxCount
+        }
+        return mailboxSyncMeta?.complete !== true
+    }, [
+        historySyncLoading,
+        localMailboxCount,
+        mailboxSyncMeta?.complete,
+        remoteMailboxCount,
+        selectedInboxAccountId,
+        selectedInboxMailboxId,
+        selectedNextCursor,
+    ])
 
     const navigate = useNavigate()
     const location = useLocation()
@@ -175,10 +331,6 @@ const MailList = () => {
     useEffect(() => {
         messagesStatusRef.current = inboxState.messagesRequestStatus
     }, [inboxState.messagesRequestStatus])
-
-    useEffect(() => {
-        lastFetchedRef.current = inboxState.lastFetchedAtByMailbox
-    }, [inboxState.lastFetchedAtByMailbox])
 
     useEffect(() => {
         const path = location.pathname.substring(
@@ -199,7 +351,7 @@ const MailList = () => {
             return
         }
         dispatch(
-            fetchInboxMessages({
+            fetchInboxThreads({
                 accountId: selectedInboxAccountId,
                 mailbox: selectedInboxMailboxId,
             }),
@@ -232,16 +384,10 @@ const MailList = () => {
                     schedule()
                     return
                 }
-                const since = lastFetchedRef.current[key]
-                if (!since) {
-                    schedule()
-                    return
-                }
                 dispatch(
-                    fetchInboxMessages({
+                    fetchInboxThreads({
                         accountId: selectedInboxAccountId,
                         mailbox: selectedInboxMailboxId,
-                        since,
                     }),
                 )
                 schedule()
@@ -265,7 +411,110 @@ const MailList = () => {
         return text.length > 60 ? text.substring(0, 57) + '...' : text
     }
 
+    const handleLoadMore = () => {
+        if (
+            !selectedInboxAccountId ||
+            !selectedInboxMailboxId ||
+            !selectedNextCursor ||
+            selectedMessagesStatus === 'loading'
+        ) {
+            return
+        }
+        dispatch(
+            fetchInboxThreads({
+                accountId: selectedInboxAccountId,
+                mailbox: selectedInboxMailboxId,
+                cursor: selectedNextCursor,
+            }),
+        )
+    }
+
+    const handleCompleteHistory = async () => {
+        if (!selectedInboxAccountId || !selectedInboxMailboxId || historySyncLoading) {
+            return
+        }
+        setHistorySyncLoading(true)
+        setHistorySyncError(null)
+        try {
+            await apiSyncInboxAccount({
+                accountId: selectedInboxAccountId,
+                body: {
+                    mailboxes: [selectedInboxMailboxId],
+                    fullHistory: true,
+                    maxPages: 50,
+                },
+            })
+            await dispatch(
+                fetchInboxMailboxes({ accountId: selectedInboxAccountId }),
+            ).unwrap()
+            await dispatch(
+                fetchInboxThreads({
+                    accountId: selectedInboxAccountId,
+                    mailbox: selectedInboxMailboxId,
+                }),
+            ).unwrap()
+        } catch (syncError) {
+            console.error(syncError)
+            setHistorySyncError(
+                t('crm.mail.historySyncFailed', {
+                    defaultValue:
+                        'Unable to complete mailbox history sync right now.',
+                }),
+            )
+        } finally {
+            setHistorySyncLoading(false)
+        }
+    }
+
+    const handleSyncNow = async () => {
+        if (
+            !selectedInboxAccountId ||
+            !selectedInboxMailboxId ||
+            manualSyncLoading ||
+            historySyncLoading
+        ) {
+            return
+        }
+        setManualSyncLoading(true)
+        setHistorySyncError(null)
+        try {
+            await apiSyncInboxAccount({
+                accountId: selectedInboxAccountId,
+                body: {
+                    mailboxes: [selectedInboxMailboxId],
+                    limit: 100,
+                },
+            })
+            await dispatch(
+                fetchInboxMailboxes({ accountId: selectedInboxAccountId }),
+            ).unwrap()
+            await dispatch(
+                fetchInboxThreads({
+                    accountId: selectedInboxAccountId,
+                    mailbox: selectedInboxMailboxId,
+                }),
+            ).unwrap()
+        } catch (syncError) {
+            console.error(syncError)
+            setHistorySyncError(
+                t('crm.mail.mailboxSyncFailed', {
+                    defaultValue:
+                        'Unable to synchronize the mailbox right now.',
+                }),
+            )
+        } finally {
+            setManualSyncLoading(false)
+        }
+    }
+
     const aggregatedMails = useMemo<AggregatedMail[]>(() => {
+        if (selectedCategory.category === 'inbox') {
+            return mails.map((mail) => ({
+                ...mail,
+                conversationMailIds: [mail.id],
+            }))
+        }
+
         const conversationMap = new Map<
             string,
             {
@@ -434,7 +683,7 @@ const MailList = () => {
                 flagged: hasFlagged,
             }),
         )
-    }, [mails])
+    }, [mails, selectedCategory.category])
 
     const sortedMails = useMemo(() => {
         const clone = [...aggregatedMails]
@@ -492,6 +741,51 @@ const MailList = () => {
                     />
                     <h6>{selectedCategory.label}</h6>
                 </div>
+                <div className="flex items-center gap-2 px-3">
+                    {syncStatusLabel ? (
+                        <div
+                            className="text-right"
+                            data-testid="admin-inbox-sync-status"
+                        >
+                            <div className="text-xs font-medium text-gray-700 dark:text-gray-200">
+                                {syncStatusLabel}
+                            </div>
+                            {syncStatusDetail ? (
+                                <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                                    {syncStatusDetail}
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : null}
+                    {selectedInboxAccountId && selectedInboxMailboxId ? (
+                        <Button
+                            size="sm"
+                            variant="default"
+                            loading={manualSyncLoading}
+                            disabled={manualSyncLoading || historySyncLoading}
+                            onClick={() => void handleSyncNow()}
+                            data-testid="admin-inbox-sync-now"
+                        >
+                            {t('crm.mail.syncNow', {
+                                defaultValue: 'Sync now',
+                            })}
+                        </Button>
+                    ) : null}
+                    {canCompleteHistory ? (
+                        <Button
+                            size="sm"
+                            variant="twoTone"
+                            loading={historySyncLoading}
+                            disabled={historySyncLoading || manualSyncLoading}
+                            onClick={() => void handleCompleteHistory()}
+                            data-testid="admin-inbox-complete-history"
+                        >
+                            {t('crm.mail.completeHistorySync', {
+                                defaultValue: 'Complete history',
+                            })}
+                        </Button>
+                    ) : null}
+                </div>
             </div>
             <div className="relative flex-1 min-h-0" data-testid="admin-inbox-list-content">
                 <ScrollBar autoHide direction={direction}>
@@ -505,6 +799,11 @@ const MailList = () => {
                                 {resolvedMessagesError}
                             </div>
                         )}
+                        {historySyncError ? (
+                            <div className="px-6 py-4 text-sm text-red-500" data-testid="admin-inbox-history-sync-error">
+                                {historySyncError}
+                            </div>
+                        ) : null}
                         {sortedMails.length === 0 && !loading && selectedMessagesStatus !== 'failed' && (
                             <div className="px-6 py-4 text-sm text-gray-500" data-testid="admin-inbox-empty">
                                 {t('crm.mail.noMails', { defaultValue: 'No messages yet.' })}
@@ -561,6 +860,12 @@ const MailList = () => {
                                     ? 'text-gray-700 dark:text-gray-200'
                                     : 'text-gray-500 dark:text-gray-400',
                             )
+                            const messageCount =
+                                typeof mail.metadata?.messageCount === 'number'
+                                    ? mail.metadata.messageCount
+                                    : Array.isArray(mail.message)
+                                      ? mail.message.length
+                                      : 1
                             return (
                                 <div
                                     key={mail.id}
@@ -603,6 +908,11 @@ const MailList = () => {
                                                     )}
                                                 </div>
                                                 <div className="flex items-center text-lg">
+                                                    {messageCount > 1 && (
+                                                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                                            {messageCount}
+                                                        </span>
+                                                    )}
                                                     {attachments.length > 0 && (
                                                         <HiPaperClip />
                                                     )}
@@ -664,6 +974,23 @@ const MailList = () => {
                                 </div>
                             )
                         })}
+                        {selectedNextCursor ? (
+                            <div className="px-5 py-4" data-testid="admin-inbox-load-more-wrap">
+                                <Button
+                                    block
+                                    variant="solid"
+                                    size="sm"
+                                    loading={selectedMessagesStatus === 'loading'}
+                                    disabled={selectedMessagesStatus === 'loading'}
+                                    onClick={handleLoadMore}
+                                    data-testid="admin-inbox-load-more"
+                                >
+                                    {t('crm.mail.loadOlderMessages', {
+                                        defaultValue: 'Load older messages',
+                                    })}
+                                </Button>
+                            </div>
+                        ) : null}
                     </Loading>
                 </ScrollBar>
             </div>

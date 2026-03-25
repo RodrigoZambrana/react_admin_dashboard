@@ -37,7 +37,15 @@ export type ConversationSummary = {
         id: string
         slug: string
         name: string
+        priority: number
+        slaTargetMinutes: number
     } | null
+    operational: {
+        needsAssignment: boolean
+        isSlaBreached: boolean
+        slaAgeMinutes: number | null
+        slaTargetMinutes: number | null
+    }
     participants: Array<{
         id: string
         role: string
@@ -80,6 +88,12 @@ export type ConversationDetail = ConversationSummary & {
             slug: string
             name: string
         } | null
+        transportEvents: Array<{
+            id: string
+            type: string
+            payload: Record<string, unknown> | null
+            occurredAt: string
+        }>
     }>
     handoffEvents: Array<{
         id: string
@@ -142,13 +156,37 @@ export type ConversationQueueSummary = {
     name: string
     description: string | null
     isActive: boolean
+    priority: number
+    assignmentMode: string
+    maxAssignedConversations: number | null
+    operatorCount: number
     conversationCount: number
+    waitingCustomerCount: number
+    unassignedCount: number
+    breachedSlaCount: number
+    oldestInboundAt: string | null
+    slaTargetMinutes: number
+    assignedOpenCount: number
+    configuredCapacity: number | null
+    availableCapacity: number | null
+    primaryOperators: Array<{
+        id: number
+        name: string
+        email: string
+        maxOpenConversations: number | null
+    }>
 }
 
 export type CreateAdminInternalConversationInput = {
     tenantKey?: string
     subject: string
     message: string
+}
+
+export type RerouteConversationInput = {
+    queueSlug?: string
+    userId?: number
+    notes?: string
 }
 
 const ConversationsService = {
@@ -208,6 +246,15 @@ const ConversationsService = {
             url: `/conversations/${id}/assign`,
             method: 'post',
             data: notes ? { userId, notes } : { userId },
+        })
+        return response.data
+    },
+
+    async rerouteConversation(id: string, data: RerouteConversationInput) {
+        const response = await ApiService.fetchData<ConversationDetail>({
+            url: `/conversations/${id}/reroute`,
+            method: 'post',
+            data,
         })
         return response.data
     },

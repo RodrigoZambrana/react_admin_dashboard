@@ -28,6 +28,7 @@ import { GetWebchatSessionDto } from './dto/get-webchat-session.dto'
 import { IngestInboundMessageDto } from './dto/ingest-inbound-message.dto'
 import { SyncOutboundStatusDto } from './dto/sync-outbound-status.dto'
 import { CreateAdminInternalSessionDto } from './dto/create-admin-internal-session.dto'
+import { RerouteConversationDto } from './dto/reroute-conversation.dto'
 
 @Controller('conversations')
 export class ConversationsController {
@@ -167,6 +168,17 @@ export class ConversationsController {
     @Req() req: FastifyRequest & { user: { sub: string } },
   ) {
     return this.conversations.assignConversation(id, dto, Number(req.user?.sub))
+  }
+
+  @Post(':id/reroute')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  reroute(
+    @Param('id') id: string,
+    @Body() dto: RerouteConversationDto,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.rerouteConversation(id, dto, Number(req.user?.sub))
   }
 
   @Post(':id/reply')

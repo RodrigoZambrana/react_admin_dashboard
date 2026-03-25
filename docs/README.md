@@ -10,8 +10,10 @@
 
 - [tasks.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/tasks.md)
 - [progress.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/progress.md)
+- [next-steps-prioritized.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/next-steps-prioritized.md)
 - [security.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/security.md)
 - [security-infrastructure.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/security-infrastructure.md)
+- [endpoint-protection-audit-matrix.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/endpoint-protection-audit-matrix.md)
 
 ## Delivery And QA
 
@@ -28,6 +30,10 @@
 - [ai-agent-architecture-plan.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-agent-architecture-plan.md)
 - [ai-agent-foundation-implementation.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-agent-foundation-implementation.md)
 - [ai-agent-runtime-blueprint.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-agent-runtime-blueprint.md)
+- [ai-knowledge-base-plan.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-knowledge-base-plan.md)
+- [messaging-template-impact-analysis.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/messaging-template-impact-analysis.md)
+- [shared-messaging-primitives-spec.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/shared-messaging-primitives-spec.md)
+- [canonical-messaging-contract.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/canonical-messaging-contract.md)
 
 ## Historic And Domain Notes
 

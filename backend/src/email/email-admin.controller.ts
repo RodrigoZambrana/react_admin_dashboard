@@ -33,6 +33,7 @@ import { EmailChannelAdapter } from '../inbox/providers/email/email-channel.adap
 import { buildEmailChannelConfig } from '../inbox/providers/email/email-channel.config'
 import { EmailChannelSecurityOption } from '../inbox/providers/email/email-channel.types'
 import { INBOX_EMAIL_CONFIG_SECURE_KEY, type StoredInboxEmailConfig } from '../inbox/providers/email/inbox-email-config.types'
+import { InboxService } from '../inbox/inbox.service'
 
 type InboxEmailConfigPayload = {
   imapHost?: unknown
@@ -84,6 +85,7 @@ export class EmailAdminController {
     private readonly secureConfig: SecureConfigService,
     private readonly configService: ConfigService,
     private readonly emailChannel: EmailChannelAdapter,
+    private readonly inboxService: InboxService,
   ) {}
 
   @Get('config')
@@ -168,6 +170,7 @@ export class EmailAdminController {
 
     await this.secureConfig.setJson(INBOX_EMAIL_CONFIG_SECURE_KEY, payload)
     await this.emailChannel.refreshConfig()
+    await this.inboxService.synchronizeConfiguredEmailAccount({ triggerSync: true })
     return this.buildInboxEmailConfigResponse()
   }
 

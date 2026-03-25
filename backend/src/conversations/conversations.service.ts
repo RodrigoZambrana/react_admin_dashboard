@@ -18,6 +18,7 @@ import {
   InboxMessageEventType,
   InboxChannelType,
   InboxMessageDirection,
+  InboxQueueAssignmentMode,
   Prisma,
 } from '@prisma/client'
 import { randomUUID } from 'crypto'
@@ -35,6 +36,7 @@ import { GetWebchatSessionDto } from './dto/get-webchat-session.dto'
 import { IngestInboundMessageDto } from './dto/ingest-inbound-message.dto'
 import { SyncOutboundStatusDto } from './dto/sync-outbound-status.dto'
 import { CreateAdminInternalSessionDto } from './dto/create-admin-internal-session.dto'
+import { RerouteConversationDto } from './dto/reroute-conversation.dto'
 
 type OutboundDispatchResult = {
   kind: ConversationMessageKind
@@ -183,6 +185,8 @@ export class ConversationsService {
                       id: true,
                       slug: true,
                       name: true,
+                      priority: true,
+                      slaTargetMinutes: true,
                     },
                   },
                 },
@@ -286,6 +290,18 @@ export class ConversationsService {
                     id: true,
                     slug: true,
                     name: true,
+                    priority: true,
+                    slaTargetMinutes: true,
+                  },
+                },
+                events: {
+                  orderBy: { occurredAt: 'desc' },
+                  take: 10,
+                  select: {
+                    id: true,
+                    type: true,
+                    payload: true,
+                    occurredAt: true,
                   },
                 },
               },
@@ -348,6 +364,13 @@ export class ConversationsService {
         receivedAt: message.receivedAt,
         createdAt: message.createdAt,
         queue: message.inboxMessage?.queue ?? null,
+        transportEvents:
+          message.inboxMessage?.events?.map((event) => ({
+            id: String(event.id),
+            type: this.normalizeEnum(event.type),
+            payload: event.payload ?? null,
+            occurredAt: event.occurredAt,
+          })) ?? [],
       })),
       handoffEvents: (conversation.handoffEvents ?? []).map((event) => ({
         id: event.id,
@@ -406,12 +429,186 @@ export class ConversationsService {
         name: true,
         description: true,
         isActive: true,
+        priority: true,
+        slaTargetMinutes: true,
+        maxAssignedConversations: true,
+        assignmentMode: true,
+        assignments: {
+          where: { isActive: true },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+          select: {
+            id: true,
+            isPrimary: true,
+            maxOpenConversations: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
       },
     })
 
+    const diagnostics = await Promise.all(
+      queues.map(async (queue) => {
+        const slaTargetMinutes =
+          queue.slaTargetMinutes > 0
+            ? queue.slaTargetMinutes
+            : this.getConversationSlaTargetMinutes()
+        const slaCutoff = new Date(Date.now() - slaTargetMinutes * 60_000)
+        const assignmentUserIds = queue.assignments.map(
+          (assignment) => assignment.user.id,
+        )
+        const activeWhere: Prisma.ConversationWhereInput = {
+          status: { not: ConversationStatus.CLOSED },
+          messages: {
+            some: {
+              inboxMessage: {
+                queueId: queue.id,
+              },
+            },
+          },
+        }
+
+        const [
+          conversationCount,
+          waitingCustomerCount,
+          unassignedCount,
+          breachedSlaCount,
+          oldestConversation,
+          assignedOpenCount,
+        ] =
+          await Promise.all([
+            this.prisma.conversation.count({
+              where: activeWhere,
+            }),
+            this.prisma.conversation.count({
+              where: {
+                ...activeWhere,
+                status: ConversationStatus.WAITING_CUSTOMER,
+              },
+            }),
+            this.prisma.conversation.count({
+              where: {
+                ...activeWhere,
+                assignedToUserId: null,
+              },
+            }),
+            this.prisma.conversation.count({
+              where: {
+                ...activeWhere,
+                lastInboundAt: {
+                  lte: slaCutoff,
+                },
+              },
+            }),
+            this.prisma.conversation.findFirst({
+              where: {
+                ...activeWhere,
+                lastInboundAt: {
+                  not: null,
+                },
+              },
+              orderBy: {
+                lastInboundAt: 'asc',
+              },
+              select: {
+                lastInboundAt: true,
+              },
+            }),
+            assignmentUserIds.length
+              ? this.prisma.conversation.count({
+                  where: {
+                    ...activeWhere,
+                    assignedToUserId: {
+                      in: assignmentUserIds,
+                    },
+                  },
+                })
+              : Promise.resolve(0),
+          ])
+
+        const configuredCapacity = queue.assignments.reduce<number | null>(
+          (acc, assignment) => {
+            const capacity =
+              assignment.maxOpenConversations ??
+              queue.maxAssignedConversations ??
+              null
+
+            if (capacity === null) {
+              return null
+            }
+
+            return (acc ?? 0) + capacity
+          },
+          0,
+        )
+
+        return {
+          id: queue.id,
+          conversationCount,
+          waitingCustomerCount,
+          unassignedCount,
+          breachedSlaCount,
+          oldestInboundAt: oldestConversation?.lastInboundAt ?? null,
+          assignedOpenCount,
+          configuredCapacity,
+          availableCapacity:
+            configuredCapacity === null
+              ? null
+              : Math.max(configuredCapacity - assignedOpenCount, 0),
+          slaTargetMinutes,
+        }
+      }),
+    )
+
+    const diagnosticsByQueue = new Map(
+      diagnostics.map((entry) => [entry.id, entry] as const),
+    )
+
     return queues.map((queue) => ({
-      ...queue,
-      conversationCount: 0,
+      id: queue.id,
+      slug: queue.slug,
+      name: queue.name,
+      description: queue.description,
+      isActive: queue.isActive,
+      conversationCount:
+        diagnosticsByQueue.get(queue.id)?.conversationCount ?? 0,
+      waitingCustomerCount:
+        diagnosticsByQueue.get(queue.id)?.waitingCustomerCount ?? 0,
+      unassignedCount:
+        diagnosticsByQueue.get(queue.id)?.unassignedCount ?? 0,
+      breachedSlaCount:
+        diagnosticsByQueue.get(queue.id)?.breachedSlaCount ?? 0,
+      oldestInboundAt:
+        diagnosticsByQueue.get(queue.id)?.oldestInboundAt ?? null,
+      assignedOpenCount:
+        diagnosticsByQueue.get(queue.id)?.assignedOpenCount ?? 0,
+      configuredCapacity:
+        diagnosticsByQueue.get(queue.id)?.configuredCapacity ?? null,
+      availableCapacity:
+        diagnosticsByQueue.get(queue.id)?.availableCapacity ?? null,
+      slaTargetMinutes:
+        diagnosticsByQueue.get(queue.id)?.slaTargetMinutes ??
+        this.getConversationSlaTargetMinutes(),
+      priority: queue.priority,
+      maxAssignedConversations: queue.maxAssignedConversations ?? null,
+      assignmentMode: this.normalizeEnum(queue.assignmentMode),
+      operatorCount: queue.assignments.length,
+      primaryOperators: queue.assignments
+        .filter((assignment) => assignment.isPrimary)
+        .map((assignment) => ({
+          id: assignment.user.id,
+          name: assignment.user.name ?? assignment.user.email,
+          email: assignment.user.email,
+          maxOpenConversations:
+            assignment.maxOpenConversations ??
+            queue.maxAssignedConversations ??
+            null,
+        })),
     }))
   }
 
@@ -446,7 +643,7 @@ export class ConversationsService {
       },
     })
 
-    await this.replyAsOperator(
+    return this.replyAsOperator(
       conversation.id,
       {
         body: input.message.trim(),
@@ -454,8 +651,6 @@ export class ConversationsService {
       },
       actorUserId,
     )
-
-    return this.getConversation(conversation.id)
   }
 
   async createWebchatSession(input: CreateWebchatSessionDto) {
@@ -740,6 +935,8 @@ export class ConversationsService {
         inboxChannel,
       )
       const queue = await this.resolveInboundQueue(tx, input)
+      const autoAssignedUserId = await this.resolveAutoAssignedUserId(tx, queue)
+      let createdConversation = false
 
       let conversation =
         input.conversationId?.trim()
@@ -758,7 +955,10 @@ export class ConversationsService {
         })
       }
 
+      const previousAssignedToUserId = conversation?.assignedToUserId ?? null
+
       if (!conversation) {
+        createdConversation = true
         conversation = await tx.conversation.create({
           data: {
             tenantKey,
@@ -783,6 +983,7 @@ export class ConversationsService {
               queueSlug: queue?.slug ?? null,
               ...(input.metadata ?? {}),
             },
+            assignedToUserId: autoAssignedUserId,
           },
         })
       } else {
@@ -792,6 +993,8 @@ export class ConversationsService {
             customerId: conversation.customerId ?? customer?.id ?? null,
             inboxAccountId: conversation.inboxAccountId ?? inboxAccount?.id ?? null,
             subject: conversation.subject ?? input.subject?.trim() ?? null,
+            assignedToUserId:
+              conversation.assignedToUserId ?? autoAssignedUserId ?? null,
             metadata: {
               ...(this.asRecord(conversation.metadata) ?? {}),
               ...(input.metadata ?? {}),
@@ -906,6 +1109,21 @@ export class ConversationsService {
           status: ConversationStatus.WAITING_INTERNAL,
         },
       })
+
+      if (autoAssignedUserId && (createdConversation || !previousAssignedToUserId)) {
+        await tx.conversationHandoffEvent.create({
+          data: {
+            conversationId: conversation.id,
+            type: ConversationHandoffEventType.ASSIGNED,
+            notes: 'Auto-assigned from queue rules',
+            metadata: {
+              assignedToUserId: autoAssignedUserId,
+              assignmentSource: 'queue-auto-assign',
+              queueSlug: queue.slug,
+            },
+          },
+        })
+      }
 
       return {
         conversationId: conversation.id,
@@ -1032,6 +1250,113 @@ export class ConversationsService {
           notes: input.notes?.trim() || null,
           metadata: {
             assignedToUserId: input.userId,
+          },
+        },
+      })
+    })
+
+    return this.getConversation(id)
+  }
+
+  async rerouteConversation(
+    id: string,
+    input: RerouteConversationDto,
+    actorUserId: number,
+  ) {
+    const nextQueueSlug = input.queueSlug?.trim().toLowerCase() || null
+
+    await this.prisma.$transaction(async (tx) => {
+      const conversation = await tx.conversation.findUnique({
+        where: { id },
+        include: {
+          messages: {
+            where: {
+              inboxMessageId: { not: null },
+            },
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              inboxMessageId: true,
+            },
+          },
+        },
+      })
+
+      if (!conversation) {
+        throw new NotFoundException('conversation.notFound')
+      }
+
+      const nextQueue = nextQueueSlug
+        ? await tx.inboxQueue.findUnique({
+            where: { slug: nextQueueSlug },
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+              assignmentMode: true,
+              maxAssignedConversations: true,
+              assignments: {
+                where: { isActive: true },
+                orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+                select: {
+                  id: true,
+                  isPrimary: true,
+                  maxOpenConversations: true,
+                  userId: true,
+                },
+              },
+            },
+          })
+        : null
+
+      if (nextQueueSlug && !nextQueue) {
+        throw new NotFoundException('conversation.queueNotFound')
+      }
+
+      const nextAssignedUserId =
+        input.userId ??
+        (nextQueue ? await this.resolveAutoAssignedUserId(tx, nextQueue) : null) ??
+        conversation.assignedToUserId
+
+      if (nextQueue) {
+        const inboxMessageIds = conversation.messages
+          .map((message) => message.inboxMessageId)
+          .filter((value): value is string => Boolean(value))
+
+        if (inboxMessageIds.length) {
+          await tx.inboxMessage.updateMany({
+            where: { id: { in: inboxMessageIds } },
+            data: { queueId: nextQueue.id },
+          })
+        }
+      }
+
+      await tx.conversation.update({
+        where: { id },
+        data: {
+          assignedToUserId: nextAssignedUserId ?? null,
+          metadata: {
+            ...(this.asRecord(conversation.metadata) ?? {}),
+            queueSlug:
+              nextQueue?.slug ??
+              this.asRecord(conversation.metadata)?.queueSlug ??
+              null,
+            routingOverrideByUserId: actorUserId,
+            routingOverrideAt: new Date().toISOString(),
+          },
+        },
+      })
+
+      await tx.conversationHandoffEvent.create({
+        data: {
+          conversationId: id,
+          type: ConversationHandoffEventType.ASSIGNED,
+          actorUserId,
+          notes: input.notes?.trim() || 'Supervisor override applied',
+          metadata: {
+            assignedToUserId: nextAssignedUserId ?? null,
+            queueSlug: nextQueue?.slug ?? null,
+            assignmentSource: input.userId ? 'supervisor-manual' : 'supervisor-routing',
           },
         },
       })
@@ -1297,7 +1622,13 @@ export class ConversationsService {
             inboxMessage: {
               select: {
                 queue: {
-                  select: { id: true; slug: true; name: true }
+                  select: {
+                    id: true
+                    slug: true
+                    name: true
+                    priority: true
+                    slaTargetMinutes: true
+                  }
                 }
               }
             }
@@ -1318,6 +1649,22 @@ export class ConversationsService {
     const latestQueuedMessage = conversation.messages.find(
       (message) => message.inboxMessage?.queue,
     )
+    const queue = latestQueuedMessage?.inboxMessage?.queue ?? null
+    const slaTargetMinutes = queue?.slaTargetMinutes ?? null
+    const slaAgeMinutes =
+      conversation.lastInboundAt != null
+        ? Math.max(
+            0,
+            Math.floor(
+              (Date.now() - conversation.lastInboundAt.getTime()) / 60_000,
+            ),
+          )
+        : null
+    const isSlaBreached =
+      slaTargetMinutes != null &&
+      slaTargetMinutes > 0 &&
+      slaAgeMinutes != null &&
+      slaAgeMinutes >= slaTargetMinutes
 
     return {
       id: conversation.id,
@@ -1343,7 +1690,22 @@ export class ConversationsService {
             channel: this.normalizeEnum(conversation.inboxAccount.channel),
           }
         : null,
-      queue: latestQueuedMessage?.inboxMessage?.queue ?? null,
+      queue:
+        queue != null
+          ? {
+              id: queue.id,
+              slug: queue.slug,
+              name: queue.name,
+              priority: queue.priority,
+              slaTargetMinutes: queue.slaTargetMinutes,
+            }
+          : null,
+      operational: {
+        needsAssignment: conversation.assignedToUser == null,
+        isSlaBreached,
+        slaAgeMinutes,
+        slaTargetMinutes,
+      },
       participants: conversation.participants.map((participant) => ({
         id: participant.id,
         role: this.normalizeEnum(participant.role),
@@ -1455,8 +1817,100 @@ export class ConversationsService {
           .join(' '),
         description: `Auto-generated queue for ${input.channel}`,
         isActive: true,
+        priority: 100,
+        slaTargetMinutes: this.getConversationSlaTargetMinutes(),
+        assignmentMode: InboxQueueAssignmentMode.MANUAL,
+      },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        assignmentMode: true,
+        maxAssignedConversations: true,
+        slaTargetMinutes: true,
+        assignments: {
+          where: { isActive: true },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+          select: {
+            id: true,
+            isPrimary: true,
+            maxOpenConversations: true,
+            userId: true,
+          },
+        },
       },
     })
+  }
+
+  private async resolveAutoAssignedUserId(
+    tx: Prisma.TransactionClient,
+    queue:
+      | {
+          id: string
+          slug: string
+          assignmentMode: InboxQueueAssignmentMode
+          maxAssignedConversations: number | null
+          assignments: Array<{
+            id: string
+            isPrimary: boolean
+            maxOpenConversations: number | null
+            userId: number
+          }>
+        }
+      | null,
+  ) {
+    if (!queue || queue.assignmentMode !== InboxQueueAssignmentMode.LEAST_LOADED) {
+      return null
+    }
+
+    if (!queue.assignments.length) {
+      return null
+    }
+
+    const loads = await Promise.all(
+      queue.assignments.map(async (assignment) => {
+        const openCount = await tx.conversation.count({
+          where: {
+            assignedToUserId: assignment.userId,
+            status: { not: ConversationStatus.CLOSED },
+            messages: {
+              some: {
+                inboxMessage: {
+                  queueId: queue.id,
+                },
+              },
+            },
+          },
+        })
+
+        const capacity =
+          assignment.maxOpenConversations ??
+          queue.maxAssignedConversations ??
+          null
+
+        return {
+          userId: assignment.userId,
+          isPrimary: assignment.isPrimary,
+          openCount,
+          capacity,
+          available: capacity === null ? true : openCount < capacity,
+        }
+      }),
+    )
+
+    const nextAssignee = loads
+      .filter((entry) => entry.available)
+      .sort((left, right) => {
+        if (left.isPrimary !== right.isPrimary) {
+          return left.isPrimary ? -1 : 1
+        }
+        if (left.openCount !== right.openCount) {
+          return left.openCount - right.openCount
+        }
+        return left.userId - right.userId
+      })[0]
+
+    return nextAssignee?.userId ?? null
   }
 
   private async findInboundConversation(
@@ -1931,6 +2385,15 @@ export class ConversationsService {
 
   private normalizeEnum(input: string) {
     return input.toLowerCase()
+  }
+
+  private getConversationSlaTargetMinutes() {
+    const raw =
+      this.config.get<number>('CONVERSATION_SLA_MINUTES') ??
+      this.config.get<string>('CONVERSATION_SLA_MINUTES') ??
+      30
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 30
   }
 
   private mapScope(scope: NonNullable<ListConversationsDto['scope']>) {
