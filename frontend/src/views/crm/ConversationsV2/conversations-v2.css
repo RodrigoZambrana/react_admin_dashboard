@@ -62,6 +62,7 @@
 .crm-conversations-v2 .sidebar-menu .menu-icon-btn.is-active {
   background: #f1edfe;
   color: #6338f6;
+  box-shadow: 0 12px 24px rgba(99, 56, 246, 0.14);
 }
 
 .crm-conversations-v2 .sidebar-group {
@@ -201,6 +202,15 @@
   min-width: 68px;
   color: #141b27;
   text-decoration: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.crm-conversations-v2 .chat-status:hover {
+  transform: translateY(-2px);
+  color: #6338f6;
 }
 
 .crm-conversations-v2 .chat-status p {
@@ -256,6 +266,11 @@
   background: #f7f4ff;
   border-color: #e3dafe;
   box-shadow: 0 20px 45px rgba(25, 37, 75, 0.08);
+}
+
+.crm-conversations-v2 .chat-user-list.is-unread:not(.is-active) {
+  border-color: #e8ddff;
+  background: linear-gradient(180deg, #fff 0%, #fbf9ff 100%);
 }
 
 .crm-conversations-v2 .chat-user-info {
@@ -336,6 +351,12 @@
   justify-content: center;
   background: transparent;
   color: #72767d;
+  transition: all 0.2s ease;
+}
+
+.crm-conversations-v2 .chat-dropdown-btn:hover {
+  background: #f7f8fa;
+  color: #6338f6;
 }
 
 .crm-conversations-v2 .chat {
@@ -351,7 +372,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 24px;
+  padding: 16px 24px;
   border-bottom: 1px solid #f8f9fb;
   background: #fff;
   position: relative;
@@ -400,10 +421,12 @@
   justify-content: center;
   background: transparent;
   color: #141b27;
+  transition: all 0.2s ease;
 }
 
 .crm-conversations-v2 .chat-options ul > li > button:hover {
-  background: #d0d1d4;
+  background: #f1edfe;
+  color: #6338f6;
 }
 
 .crm-conversations-v2 .chat-body {
@@ -485,6 +508,13 @@
   justify-content: center;
   background: transparent;
   color: #8a8d93;
+  transition: all 0.2s ease;
+}
+
+.crm-conversations-v2 .chat-actions button:hover {
+  background: #fff;
+  color: #6338f6;
+  box-shadow: 0 8px 18px rgba(20, 27, 39, 0.08);
 }
 
 .crm-conversations-v2 .message-content {
@@ -609,6 +639,13 @@
   justify-content: center;
   border: 1px solid #edf0f5;
   color: #141b27;
+  transition: all 0.2s ease;
+}
+
+.crm-conversations-v2 .chat-footer .action-circle:hover {
+  border-color: #dcdff4;
+  background: #f7f8fa;
+  color: #6338f6;
 }
 
 .crm-conversations-v2 .chat-footer .form-wrap {
@@ -667,22 +704,305 @@
 }
 
 .crm-conversations-v2 .details-panel {
-  padding: 24px;
+  padding: 0;
+  background: #f8f9fb;
 }
 
-.crm-conversations-v2 .details-card {
-  border-radius: 20px;
-  border: 1px solid #edf0f5;
+.crm-conversations-v2 .chat-offcanvas {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #f8f9fb;
+}
+
+.crm-conversations-v2 .chat-offcanvas .offcanvas-header {
+  border-bottom: 1px solid #e8e8e9;
+  padding: 18px 20px;
   background: #fff;
-  padding: 18px;
-  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.crm-conversations-v2 .details-card h5 {
-  margin: 0 0 14px;
+.crm-conversations-v2 .chat-offcanvas .offcanvas-header h4 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #141b27;
+}
+
+.crm-conversations-v2 .chat-offcanvas .offcanvas-close {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f7f8fa;
+  color: #72767d;
+  transition: all 0.2s ease;
+}
+
+.crm-conversations-v2 .chat-offcanvas .offcanvas-close:hover {
+  background: #f1edfe;
+  color: #6338f6;
+}
+
+.crm-conversations-v2 .chat-offcanvas .offcanvas-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.crm-conversations-v2 .chat-contact-info .profile-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.crm-conversations-v2 .contact-profile-info {
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.crm-conversations-v2 .contact-profile-info .avatar-xxl {
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 10px;
+}
+
+.crm-conversations-v2 .contact-profile-info h6 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #141b27;
+}
+
+.crm-conversations-v2 .contact-profile-info p {
+  margin: 0;
+  color: #72767d;
+  font-size: 13px;
+}
+
+.crm-conversations-v2 .action-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.crm-conversations-v2 .action-wrap {
+  background: #fff;
+  border-radius: 8px;
+  padding: 10px 8px;
+  box-shadow: 0 1px 5px 1px rgb(243 243 243);
+  text-align: center;
+  display: block;
+  width: 100%;
+  border: 0;
+  transition: all 0.2s ease;
+}
+
+.crm-conversations-v2 .action-wrap i,
+.crm-conversations-v2 .action-wrap svg {
+  color: #6338f6;
+  font-size: 16px;
+}
+
+.crm-conversations-v2 .action-wrap p {
+  color: #141b27;
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.crm-conversations-v2 .action-wrap:hover {
+  background: #6338f6;
+  box-shadow: 0 14px 28px rgba(99, 56, 246, 0.18);
+}
+
+.crm-conversations-v2 .action-wrap:hover svg,
+.crm-conversations-v2 .action-wrap:hover p {
+  color: #fff;
+}
+
+.crm-conversations-v2 .content-wrapper {
+  margin-bottom: 24px;
+}
+
+.crm-conversations-v2 .content-wrapper .sub-title {
+  margin: 0 0 8px;
   font-size: 15px;
   font-weight: 700;
   color: #141b27;
+}
+
+.crm-conversations-v2 .content-wrapper .card {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 1px 5px 1px rgb(243 243 243);
+}
+
+.crm-conversations-v2 .content-wrapper .card .card-body {
+  padding: 18px 20px;
+}
+
+.crm-conversations-v2 .profile-item {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.crm-conversations-v2 .profile-item .list-group-item {
+  padding: 16px 0;
+  border-bottom: 1px solid #e8e8e9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.crm-conversations-v2 .profile-item .list-group-item:first-child {
+  padding-top: 0;
+}
+
+.crm-conversations-v2 .profile-item .list-group-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.crm-conversations-v2 .profile-item .profile-info h6,
+.crm-conversations-v2 .profile-item .info h6 {
+  font-size: 13px;
+  color: #72767d;
+  margin: 0 0 4px;
+}
+
+.crm-conversations-v2 .profile-item .profile-info p,
+.crm-conversations-v2 .profile-item .info p {
+  font-size: 15px;
+  color: #141b27;
+  margin: 0;
+}
+
+.crm-conversations-v2 .profile-icon,
+.crm-conversations-v2 .icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #f7f8fa;
+  color: #6338f6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.crm-conversations-v2 .social-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crm-conversations-v2 .social-icon button {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #f7f8fa;
+  color: #72767d;
+  border: 0;
+  transition: all 0.2s ease;
+}
+
+.crm-conversations-v2 .social-icon button:hover {
+  background: #6338f6;
+  color: #fff;
+}
+
+.crm-conversations-v2 .document-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #e8e8e9;
+  margin-bottom: 8px;
+}
+
+.crm-conversations-v2 .document-item:last-child {
+  margin-bottom: 0;
+}
+
+.crm-conversations-v2 .document-item .document-icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #f7f8fa;
+  font-size: 22px;
+  color: #6338f6;
+  flex-shrink: 0;
+}
+
+.crm-conversations-v2 .document-item h6 {
+  margin: 0 0 2px;
+  font-size: 14px;
+  color: #141b27;
+}
+
+.crm-conversations-v2 .document-item p {
+  margin: 0;
+  color: #72767d;
+  font-size: 12px;
+}
+
+.crm-conversations-v2 .document-item .download-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: #fff;
+  color: #72767d;
+}
+
+.crm-conversations-v2 .chat-video .video-img {
+  position: relative;
+  display: inline-block;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.crm-conversations-v2 .chat-video .video-img img {
+  border-radius: 8px;
+  width: 112px;
+  height: 96px;
+  object-fit: cover;
+}
+
+.crm-conversations-v2 .chat-video .video-img span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  background: #fff;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #141b27;
+}
+
+.crm-conversations-v2 .details-grid {
+  display: grid;
+  gap: 12px;
 }
 
 .crm-conversations-v2 .details-grid {
