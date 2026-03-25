@@ -1,20 +1,6 @@
 import { buildSystemPrompt } from './prompt/system-prompt.js'
 import { createModelProvider } from './model/provider-factory.js'
-import { createSearchProductsTool } from './tools/search-products.tool.js'
-
-const needsProductSearch = (text) => {
-  const normalized = text.toLowerCase()
-  return [
-    'producto',
-    'cortina',
-    'roller',
-    'persiana',
-    'mosquitero',
-    'abertura',
-    'precio',
-    'catálogo',
-  ].some((token) => normalized.includes(token))
-}
+import { getToolsForScope } from './tools/action-tools.js'
 
 export class AiAgentRuntime {
   constructor({ config, provider, memoryStore, backendClient }) {
@@ -89,9 +75,7 @@ export class AiAgentRuntime {
     const scope = unifiedMessage.scope || 'customer_public'
     const snapshot = await this.memoryStore.get(conversationId)
     const history = snapshot?.turns ?? []
-    const tools = needsProductSearch(unifiedMessage.text)
-      ? [createSearchProductsTool(this.backendClient)]
-      : []
+    const tools = getToolsForScope(scope, this.backendClient)
 
     const response = await this.provider.generate({
       scope,

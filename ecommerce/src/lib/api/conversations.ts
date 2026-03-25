@@ -55,4 +55,22 @@ export const ConversationsApi = {
 
     return parseResponse<WebchatSendMessageResult>(response);
   },
+
+  async getWebchatSession(payload: {
+    conversationId: string;
+    guestId?: string;
+  }): Promise<WebchatSession> {
+    const url = new URL(
+      `${conversationsBaseUrl}/conversations/webchat/session/${payload.conversationId}`,
+    );
+    if (payload.guestId) {
+      url.searchParams.set("guestId", payload.guestId);
+    }
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+    });
+
+    return parseResponse<WebchatSession>(response);
+  },
 };

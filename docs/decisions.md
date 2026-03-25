@@ -24,6 +24,12 @@
 - New conversation inbox surfaces should reuse the CRM mail interaction model
 - Reason: operational continuity for users and lower UI complexity
 
+### Inbox experiences are mobile-first
+
+- Conversation inbox surfaces must remain fully usable on mobile devices
+- Filters, list and detail panes should be accessible through responsive pane switching inspired by mature chat/mail products
+- Reason: the primary operational usage is expected on mobile devices
+
 ### Generic AI actions must be backend-driven
 
 - Generic action endpoints live in `backend/src/ai`
@@ -36,6 +42,25 @@
 - Provider secrets are stored through backend secure configuration, not in frontend code or Docker images
 - AI runtime instances refresh configuration from backend instead of requiring manual restarts
 - Reason: operational usability with centralized control and lower secret exposure
+
+### Conversation grouping and traceability are mandatory
+
+- All channels must group messages into a canonical conversation whenever a stable thread/user identity exists
+- The database must preserve enough identifiers to reconstruct the conversation lifecycle without volatile runtime memory
+- Tool execution must be auditable and linked back to the conversation/message that triggered it
+- Reason: operational continuity, human takeover, compliance and debugging
+
+### Unified inbox replies must preserve transport traceability
+
+- Email replies sent from `conversations` must still persist through `InboxMessage` / `InboxMessageEvent`
+- Non-email channels may dispatch through `channel-adapter`, but status updates must be projected back into the canonical conversation hub
+- Reason: operators need one source of truth for message history, provider status and handoff continuity
+
+### `admin_internal` lives in the same hub, not in a separate UI
+
+- Internal operator-to-AI chat is modeled as `Conversation(scope=ADMIN_INTERNAL, channel=ADMIN_CHAT)`
+- The same CRM inbox surface is reused for customer and internal scopes, with scope-aware prompts and actions
+- Reason: operators need one inbox mental model with immediate switching between customer attention and internal assistance
 
 ## Assumptions
 

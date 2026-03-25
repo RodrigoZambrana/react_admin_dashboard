@@ -10,6 +10,6 @@ import { InboxEventsService } from './events/inbox-events.service'
   imports: [ConfigModule],
   controllers: [InboxController],
   providers: [InboxService, ChannelRegistry, EmailChannelAdapter, InboxEventsService],
-  exports: [EmailChannelAdapter],
+  exports: [InboxService, EmailChannelAdapter],
 })
 export class InboxModule {}

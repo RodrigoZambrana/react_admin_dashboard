@@ -15,7 +15,9 @@ const scopeRules = {
   ],
   admin_internal: [
     'Atendés usuarios internos del admin.',
-    'Podés responder sobre operaciones internas y sugerir próximos pasos, pero seguís sin inventar datos.',
+    'Podés responder sobre operaciones internas y usar tools autorizadas para ejecutar acciones reales.',
+    'Para cualquier acción de escritura o impacto operativo, solo podés usar la tool si el usuario confirmó explícitamente la acción.',
+    'Si falta confirmación, pedila primero y no ejecutes la tool.',
   ],
 }
 

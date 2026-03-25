@@ -34,12 +34,16 @@ export class BackendAiClient {
   }
 
   async searchProducts(search, limit = 5) {
-    const url = new URL(`${this.baseUrl}/storefront/products`)
+    const url = new URL(`${this.baseUrl}/ai/products`)
+    url.searchParams.set('search', search)
     url.searchParams.set('page', '1')
     url.searchParams.set('pageSize', String(limit))
-    url.searchParams.set('search', search)
 
-    const response = await fetch(url)
+    const response = await fetch(url, {
+      headers: {
+        'x-ai-internal-token': this.internalToken,
+      },
+    })
     if (!response.ok) {
       const body = await toJson(response)
       throw new Error(
@@ -48,14 +52,56 @@ export class BackendAiClient {
     }
 
     const payload = await response.json()
-    return (payload?.data ?? []).map((product) => ({
+    return (payload?.items ?? []).map((product) => ({
       id: product.id,
-      slug: product.slug,
       name: product.name,
-      currency: product.price?.currency ?? null,
-      amount: product.price?.amount ?? null,
-      shortDescription: product.shortDescription ?? null,
+      productCode: product.productCode ?? null,
+      currency: product.currency ?? null,
+      amount: product.salePrice ?? null,
+      shortDescription: product.description ?? null,
       mode: product.mode ?? null,
     }))
+  }
+
+  async createCustomer(payload) {
+    return this.post('/ai/customers', payload)
+  }
+
+  async createAppointment(payload) {
+    return this.post('/ai/appointments', payload)
+  }
+
+  async createProduct(payload) {
+    return this.post('/ai/products', payload)
+  }
+
+  async createOrder(payload) {
+    return this.post('/ai/orders', payload)
+  }
+
+  async createQuote(payload) {
+    return this.post('/ai/quotes', payload)
+  }
+
+  async createPayment(payload) {
+    return this.post('/ai/payments', payload)
+  }
+
+  async post(path, payload) {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-ai-internal-token': this.internalToken,
+      },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      const body = await toJson(response)
+      throw new Error(`backend${path} ${response.status}: ${JSON.stringify(body)}`)
+    }
+
+    return response.json()
   }
 }

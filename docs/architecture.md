@@ -26,6 +26,42 @@
 5. `frontend` reads the unified read model
 6. `ecommerce` uses only customer-safe conversation contracts
 
+Outbound additions:
+
+7. Operator or AI replies are created from `backend/src/conversations`
+8. Email uses `InboxService` as real transport and persistence path
+9. Meta-family outbound goes through `channel-adapter`, then syncs status back to the hub through internal backend contracts
+
+## Persistence Baseline For Conversations
+
+Every inbound or outbound message must preserve enough data to reconstruct operational history without relying on volatile memory.
+
+Minimum persisted traceability:
+
+- conversation grouping:
+  - `tenantKey`
+  - `scope`
+  - `channel`
+  - `externalThreadId`
+  - `externalUserId`
+  - `inboxAccountId` when available
+- message traceability:
+  - `externalMessageId`
+  - `inboxMessageId` when available
+  - `authorType`
+  - `kind`
+  - `body` / `normalizedText`
+  - `sentAt` / `receivedAt`
+  - delivery status and provider identifiers
+  - channel/provider metadata
+- operational traceability:
+  - participants
+  - assignment and takeover events
+  - queue/inbox linkage
+  - tool call audit records
+
+Conversation grouping is mandatory. Messages from the same user/thread must resolve to the same conversation whenever a stable thread identity exists.
+
 ## Conversation Boundaries
 
 - `customer_public`
@@ -35,6 +71,7 @@
 - `admin_internal`
   - internal admin assistant/chat
   - operational tasks and admin-only actions
+  - same inbox UI, separate prompt/tool scope and permissions
 
 These scopes must differ in:
 
@@ -58,6 +95,8 @@ These scopes must differ in:
   - list
   - detail
   - composer/actions
+- Mobile-first responsiveness is mandatory for inbox/conversation surfaces
+- On small screens, filters, list and detail should remain accessible through simple pane switching patterns similar to mature messaging products
 
 ## Quality Baseline
 

@@ -31,8 +31,8 @@ export function normalizeMetaPayload(payload) {
   const channelMap = {
     whatsapp: 'whatsapp',
     instagram: 'instagram',
-    messenger: 'messenger',
-    facebook: 'messenger',
+    messenger: 'facebook',
+    facebook: 'facebook',
   }
   const channel = channelMap[(payload?.channel || '').toLowerCase()] || 'whatsapp'
 

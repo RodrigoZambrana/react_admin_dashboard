@@ -51,4 +51,45 @@ export class BackendConversationsClient {
 
     return response.json()
   }
+
+  async ingestInboundMessage(payload) {
+    const response = await fetch(`${this.baseUrl}/conversations/internal/inbound`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-ai-internal-token': this.internalToken,
+      },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      throw new Error(
+        `ingestInboundMessage ${response.status}: ${JSON.stringify(await toJson(response))}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  async syncOutboundStatus(payload) {
+    const response = await fetch(
+      `${this.baseUrl}/conversations/internal/outbound-status`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-ai-internal-token': this.internalToken,
+        },
+        body: JSON.stringify(payload),
+      },
+    )
+
+    if (!response.ok) {
+      throw new Error(
+        `syncOutboundStatus ${response.status}: ${JSON.stringify(await toJson(response))}`,
+      )
+    }
+
+    return response.json()
+  }
 }

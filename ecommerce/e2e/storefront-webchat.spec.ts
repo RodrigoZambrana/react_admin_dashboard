@@ -19,4 +19,14 @@ test("storefront webchat creates a session and receives an agent reply", async (
   await expect(
     page.locator('[data-testid="storefront-webchat-message-agent"]').last(),
   ).toBeVisible({ timeout: 20_000 });
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.getByTestId("storefront-webchat-launcher").click();
+
+  await expect(
+    page.locator('[data-testid="storefront-webchat-message-customer"]').last(),
+  ).toContainText("Quiero precio de cortina roller");
+  await expect(
+    page.locator('[data-testid="storefront-webchat-message-agent"]').last(),
+  ).toBeVisible({ timeout: 20_000 });
 });

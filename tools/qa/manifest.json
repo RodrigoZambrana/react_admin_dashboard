@@ -58,6 +58,10 @@
         "admin-ai-settings.spec.ts",
         "admin-conversations.spec.ts",
         "admin-conversation-actions.spec.ts",
+        "admin-conversations-internal-chat.spec.ts",
+        "admin-conversations-mobile-detail.spec.ts",
+        "admin-conversations-multichannel.spec.ts",
+        "admin-conversations-email-reply.spec.ts",
         "admin-order-detail-cross-project.spec.ts",
         "admin-commercial-surfaces.spec.ts"
       ],
@@ -67,7 +71,7 @@
     {
       "id": "storefront-e2e-ai-conversations",
       "name": "AI Conversations E2E",
-      "description": "Widget webchat en storefront y handoff humano/AI en la vista unificada de conversaciones.",
+      "description": "Widget webchat en storefront, hidratación de historial y proyección multicanal con handoff humano/AI.",
       "kind": "e2e",
       "cwd": "ecommerce",
       "command": [
@@ -78,7 +82,11 @@
         "storefront-webchat.spec.ts",
         "admin-ai-settings.spec.ts",
         "admin-conversations.spec.ts",
-        "admin-conversation-actions.spec.ts"
+        "admin-conversation-actions.spec.ts",
+        "admin-conversations-internal-chat.spec.ts",
+        "admin-conversations-mobile-detail.spec.ts",
+        "admin-conversations-multichannel.spec.ts",
+        "admin-conversations-email-reply.spec.ts"
       ],
       "estimatedMinutes": 6,
       "tags": ["ai", "conversations", "webchat", "admin", "cross-project", "e2e"]

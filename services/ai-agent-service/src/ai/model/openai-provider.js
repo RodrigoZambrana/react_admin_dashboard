@@ -46,13 +46,25 @@ export class OpenAIProvider {
       if (!targetTool) {
         continue
       }
-      const result = await targetTool.invoke(toolCall.args)
-      toolResults.push({
-        name: toolCall.name,
-        arguments: toolCall.args,
-        result,
-        toolCallId: toolCall.id,
-      })
+      try {
+        const result = await targetTool.invoke(toolCall.args)
+        toolResults.push({
+          name: toolCall.name,
+          arguments: toolCall.args,
+          result,
+          toolCallId: toolCall.id,
+          status: 'executed',
+        })
+      } catch (error) {
+        toolResults.push({
+          name: toolCall.name,
+          arguments: toolCall.args,
+          result: null,
+          toolCallId: toolCall.id,
+          status: 'failed',
+          errorMessage: error instanceof Error ? error.message : 'tool failed',
+        })
+      }
     }
 
     const second = await this.client.invoke([
@@ -65,7 +77,11 @@ export class OpenAIProvider {
             content:
               typeof item.result === 'string'
                 ? item.result
-                : JSON.stringify(item.result),
+                : JSON.stringify(
+                    item.status === 'failed'
+                      ? { error: item.errorMessage || 'tool failed' }
+                      : item.result,
+                  ),
           }),
       ),
     ])
@@ -78,6 +94,9 @@ export class OpenAIProvider {
       toolCalls: toolResults.map((item) => ({
         name: item.name,
         arguments: item.arguments,
+        result: item.result,
+        status: item.status,
+        errorMessage: item.errorMessage,
       })),
     }
   }

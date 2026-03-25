@@ -9,18 +9,43 @@ const createPrisma = () => ({
   conversation: {
     findMany: vi.fn(),
     count: vi.fn(),
+    findFirst: vi.fn(),
     findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
   },
   conversationMessage: {
+    findFirst: vi.fn(),
+    findMany: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  },
+  conversationParticipant: {
+    findFirst: vi.fn(),
     create: vi.fn(),
   },
   conversationHandoffEvent: {
     create: vi.fn(),
   },
+  conversationToolCall: {
+    createMany: vi.fn(),
+  },
   inboxAccount: {
     findMany: vi.fn(),
+    findUnique: vi.fn(),
+    upsert: vi.fn(),
+  },
+  inboxQueue: {
+    findMany: vi.fn(),
+    upsert: vi.fn(),
+  },
+  inboxMessage: {
+    create: vi.fn(),
+    findFirst: vi.fn(),
+    update: vi.fn(),
+  },
+  inboxMessageEvent: {
+    create: vi.fn(),
   },
 })
 
@@ -607,6 +632,25 @@ describe('ConversationsService', () => {
     prisma.conversation.findUnique
       .mockResolvedValueOnce({
         id: 'conv_reply',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'WEBCHAT',
+        status: 'WAITING_INTERNAL',
+        controlMode: 'AI',
+        subject: 'Consulta',
+        externalUserId: 'guest_13',
+        externalThreadId: 'webchat:guest_13',
+        externalChannelRef: '/shop',
+        lastMessageAt: createdAt,
+        lastInboundAt: createdAt,
+        lastOutboundAt: null,
+        createdAt: new Date('2026-03-25T00:00:00.000Z'),
+        updatedAt: createdAt,
+        customer: null,
+        assignedToUser: null,
+        inboxAccount: null,
+        participants: [],
+        messages: [],
       })
       .mockResolvedValueOnce({
         id: 'conv_reply',
@@ -649,6 +693,7 @@ describe('ConversationsService', () => {
         handoffEvents: [],
       })
     prisma.conversationMessage.create.mockResolvedValue({
+      id: 'msg_agent_reply',
       createdAt,
     })
 
@@ -664,6 +709,11 @@ describe('ConversationsService', () => {
         authorType: 'OPERATOR',
         authorUserId: 9,
         body: 'Te comparto la respuesta',
+        metadata: {
+          source: 'admin-reply',
+          channel: 'webchat',
+          deliveryStatus: 'internal_only',
+        },
       }),
       select: {
         createdAt: true,
@@ -695,6 +745,25 @@ describe('ConversationsService', () => {
     prisma.conversation.findUnique
       .mockResolvedValueOnce({
         id: 'conv_agent_reply',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'WEBCHAT',
+        status: 'WAITING_INTERNAL',
+        controlMode: 'AI',
+        subject: 'Consulta',
+        externalUserId: 'guest_14',
+        externalThreadId: 'webchat:guest_14',
+        externalChannelRef: '/shop',
+        lastMessageAt: createdAt,
+        lastInboundAt: createdAt,
+        lastOutboundAt: null,
+        createdAt: new Date('2026-03-25T00:00:00.000Z'),
+        updatedAt: createdAt,
+        customer: null,
+        assignedToUser: null,
+        inboxAccount: null,
+        participants: [],
+        messages: [],
       })
       .mockResolvedValueOnce({
         id: 'conv_agent_reply',
@@ -731,8 +800,9 @@ describe('ConversationsService', () => {
           },
         ],
         handoffEvents: [],
-      })
+    })
     prisma.conversationMessage.create.mockResolvedValue({
+      id: 'msg_agent_reply',
       createdAt,
     })
 
@@ -749,9 +819,12 @@ describe('ConversationsService', () => {
         metadata: {
           source: 'ai-agent-service',
           provider: 'mock',
+          channel: 'webchat',
+          deliveryStatus: 'internal_only',
         },
       }),
       select: {
+        id: true,
         createdAt: true,
       },
     })
@@ -770,6 +843,190 @@ describe('ConversationsService', () => {
       latestMessage: {
         authorType: 'agent',
         body: 'Estas son las opciones encontradas',
+      },
+    })
+  })
+
+  it('persists tool call audit entries together with an agent reply', async () => {
+    const createdAt = new Date('2026-03-25T03:30:00.000Z')
+    prisma.conversation.findUnique
+      .mockResolvedValueOnce({
+        id: 'conv_tools',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'WEBCHAT',
+        status: 'WAITING_INTERNAL',
+        controlMode: 'AI',
+        subject: 'Consulta',
+        externalUserId: 'guest_15',
+        externalThreadId: 'webchat:guest_15',
+        externalChannelRef: '/shop',
+        lastMessageAt: createdAt,
+        lastInboundAt: createdAt,
+        lastOutboundAt: null,
+        createdAt: new Date('2026-03-25T00:00:00.000Z'),
+        updatedAt: createdAt,
+        customer: null,
+        assignedToUser: null,
+        inboxAccount: null,
+        participants: [],
+        messages: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'conv_tools',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'WEBCHAT',
+        status: 'WAITING_CUSTOMER',
+        controlMode: 'AI',
+        subject: 'Consulta',
+        externalUserId: 'guest_15',
+        externalThreadId: 'webchat:guest_15',
+        externalChannelRef: '/shop',
+        lastMessageAt: createdAt,
+        lastInboundAt: null,
+        lastOutboundAt: createdAt,
+        createdAt: new Date('2026-03-25T00:00:00.000Z'),
+        updatedAt: createdAt,
+        customer: null,
+        assignedToUser: null,
+        inboxAccount: null,
+        participants: [],
+        messages: [],
+        handoffEvents: [],
+        toolCalls: [
+          {
+            id: 'tool_1',
+            toolName: 'search_products',
+            status: 'EXECUTED',
+            validatedPayload: { query: 'roller' },
+            resultPayload: [{ id: 10, name: 'Roller' }],
+            errorCode: null,
+            errorMessage: null,
+            createdAt,
+            updatedAt: createdAt,
+            messageId: 'msg_tool',
+          },
+        ],
+      })
+    prisma.conversationMessage.create.mockResolvedValue({
+      id: 'msg_tool',
+      createdAt,
+    })
+
+    const result = await service.replyAsAgent('conv_tools', {
+      body: 'Encontré una opción',
+      metadata: { provider: 'mock' },
+      toolCalls: [
+        {
+          name: 'search_products',
+          arguments: { query: 'roller' },
+          result: [{ id: 10, name: 'Roller' }],
+          status: 'executed',
+        },
+      ],
+    })
+
+    expect(prisma.conversationToolCall.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          conversationId: 'conv_tools',
+          messageId: 'msg_tool',
+          toolName: 'search_products',
+          status: 'EXECUTED',
+          validatedPayload: { query: 'roller' },
+        }),
+      ],
+    })
+    expect(result).toMatchObject({
+      id: 'conv_tools',
+      toolCalls: [
+        {
+          toolName: 'search_products',
+          status: 'executed',
+        },
+      ],
+    })
+  })
+
+  it('ingests an inbound email into inbox and conversation hub', async () => {
+    const createdAt = new Date('2026-03-25T04:00:00.000Z')
+    prisma.inboxAccount.upsert.mockResolvedValue({
+      id: 'acc_email',
+      displayName: 'ventas@urucortinas.com',
+      address: 'ventas@urucortinas.com',
+    })
+    prisma.inboxQueue.upsert.mockResolvedValue({
+      id: 'queue_support',
+      slug: 'support',
+      name: 'Support',
+    })
+    prisma.customer.findFirst.mockResolvedValue(null)
+    prisma.conversation.findFirst.mockResolvedValue(null)
+    prisma.conversation.create.mockResolvedValue({
+      id: 'conv_email',
+      tenantKey: 'urucortinas',
+      scope: 'CUSTOMER_PUBLIC',
+      channel: 'EMAIL',
+      status: 'OPEN',
+      controlMode: 'AI',
+      subject: 'Consulta por presupuesto',
+      customerId: null,
+      inboxAccountId: 'acc_email',
+      externalUserId: 'cliente@example.com',
+      externalThreadId: 'thread-1',
+      externalChannelRef: null,
+      metadata: {},
+    })
+    prisma.conversationParticipant.findFirst.mockResolvedValue(null)
+    prisma.conversationParticipant.create.mockResolvedValue({
+      id: 'part_email',
+    })
+    prisma.conversationMessage.findFirst.mockResolvedValue(null)
+    prisma.inboxMessage.create.mockResolvedValue({
+      id: 'inbox_msg_1',
+    })
+    prisma.conversationMessage.create.mockResolvedValue({
+      id: 'conv_msg_1',
+      createdAt,
+    })
+
+    const result = await service.ingestInboundMessage({
+      tenantKey: 'urucortinas',
+      channel: 'email',
+      userId: 'cliente@example.com',
+      inboxAddress: 'ventas@urucortinas.com',
+      subject: 'Consulta por presupuesto',
+      threadId: 'thread-1',
+      externalMessageId: 'remote-1',
+      text: 'Necesito un presupuesto',
+      metadata: { provider: 'imap' },
+    })
+
+    expect(prisma.inboxMessage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        accountId: 'acc_email',
+        queueId: 'queue_support',
+        subject: 'Consulta por presupuesto',
+        direction: 'INBOUND',
+      }),
+    })
+    expect(prisma.conversationMessage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        conversationId: 'conv_email',
+        externalMessageId: 'remote-1',
+        body: 'Necesito un presupuesto',
+      }),
+      select: {
+        id: true,
+        createdAt: true,
+      },
+    })
+    expect(result).toMatchObject({
+      conversationId: 'conv_email',
+      channel: 'email',
+      queue: {
+        slug: 'support',
       },
     })
   })
