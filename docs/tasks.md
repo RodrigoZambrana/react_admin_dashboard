@@ -135,6 +135,20 @@
 - Keep all CSS/media assets required by the new chat layout copied into the current project so the implementation does not depend on the external template path at runtime
 - Keep ownership / routing / SLA documented as recommended follow-up after exploratory testing
 - keep conversation pinning as a backend-shared signal, not local-only UI state
+- Close conversational quality before expanding more AI surface:
+  - unify final response rendering for `success / error / blocked / handoff / missing-data`
+  - formalize separation between:
+    - final user text
+    - debug summary
+    - persisted audit payload
+  - complete contextual follow-up resolution and message-reference traceability
+  - finish storefront/admin conversational parity for:
+    - control mode visibility
+    - refresh/polling consistency
+    - handoff signaling
+    - author/latest preview consistency
+  - expand multimodal extraction (`pdf/image/audio/csv/xlsx`) from base pipeline into real conversation and ABM workflows
+  - use `docs/AI_CONVERSATIONAL_CLOSURE_PLAN.md` as the canonical closure checklist for human-like interaction quality
 
 ## Done
 

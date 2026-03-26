@@ -1330,6 +1330,27 @@ test('customer_public provider fallback stays user-friendly and avoids internal 
   assert.equal(response.needsHuman, true)
 })
 
+test('customer_public greeting is answered locally without depending on the provider', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('429 quota exceeded')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-light-greeting',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Hola',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.needsHuman, false)
+  assert.equal(response.grounding?.fallbackReason, null)
+  assert.match(response.text, /hola\./i)
+  assert.match(response.text, /en qu[eé] podemos ayudarte hoy/i)
+  assert.doesNotMatch(response.text, /no pude completar|asesor del equipo/i)
+})
+
 test('customer_public blocks internal registration intents and keeps a safe fallback', async () => {
   const { runtime } = createRuntime()
 

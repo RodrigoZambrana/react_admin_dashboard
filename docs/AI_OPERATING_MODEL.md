@@ -55,6 +55,10 @@ Archivos centrales:
 - [services/ai-agent-service/src/ai/tools/tool-registry.js](/Users/rodrigo/git/personal/react_admin_dashboard/services/ai-agent-service/src/ai/tools/tool-registry.js)
 - [frontend/src/views/crm/ConversationsV2/ConversationsV2.tsx](/Users/rodrigo/git/personal/react_admin_dashboard/frontend/src/views/crm/ConversationsV2/ConversationsV2.tsx)
 
+Documento de cierre conversacional:
+
+- [AI_CONVERSATIONAL_CLOSURE_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_CONVERSATIONAL_CLOSURE_PLAN.md)
+
 ### 2.2 Principios ya implementados
 
 - separación entre comportamiento conversacional y autorización real

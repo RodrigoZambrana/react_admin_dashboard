@@ -1565,7 +1565,14 @@ export class AiAgentRuntime {
       }
     }
 
-    const deterministicResult = await this.buildDeterministicOperationalResponse({
+    const deterministicCustomerResponse = this.buildDeterministicCustomerResponse({
+      role,
+      input: reasoningInput,
+      intentKey: taskMemory.intentKey,
+    })
+    const deterministicResult = deterministicCustomerResponse
+      ? { response: deterministicCustomerResponse, operationalContext }
+      : await this.buildDeterministicOperationalResponse({
       role,
       input: reasoningInput,
       actionIntent,
@@ -3127,6 +3134,42 @@ export class AiAgentRuntime {
     return {
       response,
       operationalContext: refined.operationalContext,
+    }
+  }
+
+  buildDeterministicCustomerResponse({ role, input, intentKey }) {
+    if (
+      !(role === 'customer_public' || role === 'customer_authenticated') ||
+      intentKey !== 'customer.light'
+    ) {
+      return null
+    }
+
+    const normalized = normalizeText(input)
+    let text =
+      'Hola. ¿En qué podemos ayudarte hoy? Puedes consultarnos por productos, precios, medidas, envíos o seguimiento.'
+
+    if (/\b(gracias|muchas gracias|genial|excelente)\b/.test(normalized)) {
+      text =
+        'De nada. Si quieres, también puedo ayudarte con productos, precios, medidas, envíos o seguimiento.'
+    } else if (/\b(ok|dale|perfecto|bien)\b/.test(normalized)) {
+      text =
+        'Perfecto. Cuando quieras, dime qué producto o ayuda necesitas y seguimos por aquí.'
+    }
+
+    return {
+      text,
+      toolCalls: [],
+      needsHuman: false,
+      grounding: {
+        grounded: false,
+        fallbackReason: null,
+      },
+      debug: {
+        actionKey: 'customer.light',
+        detail:
+          'Se devolvió una respuesta determinística para saludo o intercambio liviano de cliente.',
+      },
     }
   }
 

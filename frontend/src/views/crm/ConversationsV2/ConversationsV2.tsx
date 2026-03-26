@@ -294,7 +294,18 @@ const colorByChannel = (channel: string) => {
 const previewByConversation = (conversation: ConversationSummary) => {
     const latest = conversation.latestMessage
     if (!latest) return 'Sin mensajes todavía'
-    const prefix = latest.authorType === 'agent' ? 'IA: ' : ''
+    let prefix = ''
+    if (latest.authorType === 'agent') {
+        prefix = 'IA: '
+    } else if (latest.authorType === 'operator') {
+        const operatorLabel =
+            latest.authorUser?.name?.trim() ||
+            conversation.assignedToUser?.name?.trim() ||
+            'Admin'
+        prefix = `${operatorLabel}: `
+    } else if (latest.authorType === 'system') {
+        prefix = 'Sistema: '
+    }
     if (latest.kind === 'image') return `${prefix}Imagen`
     if (latest.kind === 'audio') return `${prefix}Audio`
     if (latest.kind === 'attachment') return `${prefix}Adjunto`
@@ -302,8 +313,18 @@ const previewByConversation = (conversation: ConversationSummary) => {
     if (body) {
         return `${prefix}${body}`
     }
-    return latest.authorType === 'agent'
-        ? 'IA: respuesta sin texto'
+    if (latest.authorType === 'agent') {
+        return 'IA: respuesta sin texto'
+    }
+    if (latest.authorType === 'operator') {
+        const operatorLabel =
+            latest.authorUser?.name?.trim() ||
+            conversation.assignedToUser?.name?.trim() ||
+            'Admin'
+        return `${operatorLabel}: mensaje sin texto`
+    }
+    return latest.authorType === 'system'
+        ? 'Sistema: evento sin texto'
         : 'Mensaje sin texto'
 }
 
@@ -800,6 +821,11 @@ const ConversationsV2 = () => {
     >({})
     const listViewportRef = useRef<HTMLDivElement | null>(null)
     const autoScrolledConversationIdRef = useRef<string | null>(null)
+    const effectiveChannelFilter =
+        filters.channel || (selectedChannel !== 'all' ? selectedChannel : '')
+    const effectiveScopeFilter =
+        filters.scope || (selectedChannel === 'admin_chat' ? 'admin_internal' : '')
+    const usesClientSideOnlyPaginationFilter = selectedInboxId !== 'all'
 
     const isConversationPinned = useCallback(
         (conversationIdToCheck: string) =>
@@ -921,8 +947,8 @@ const ConversationsV2 = () => {
                         page: requestedPage,
                         pageSize: requestedPageSize,
                         search: searchValue.trim() || undefined,
-                        scope: filters.scope || undefined,
-                        channel: filters.channel || undefined,
+                        scope: effectiveScopeFilter || undefined,
+                        channel: effectiveChannelFilter || undefined,
                         status: filters.status || undefined,
                     })
 
@@ -984,9 +1010,9 @@ const ConversationsV2 = () => {
             }
         },
         [
-            filters.channel,
-            filters.scope,
             filters.status,
+            effectiveChannelFilter,
+            effectiveScopeFilter,
             listPage,
             search,
         ],
@@ -1080,6 +1106,39 @@ const ConversationsV2 = () => {
         return () => window.clearInterval(interval)
     }, [conversationId, loadConversation])
 
+    useEffect(() => {
+        const refreshVisibleConversationState = () => {
+            if (document.visibilityState !== 'visible') {
+                return
+            }
+
+            void loadList(search, { silent: true })
+
+            if (conversationId) {
+                void loadConversation(conversationId, { silent: true })
+            }
+        }
+
+        const handleVisibilityChange = () => {
+            refreshVisibleConversationState()
+        }
+
+        const handleWindowFocus = () => {
+            refreshVisibleConversationState()
+        }
+
+        window.addEventListener('focus', handleWindowFocus)
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+
+        return () => {
+            window.removeEventListener('focus', handleWindowFocus)
+            document.removeEventListener(
+                'visibilitychange',
+                handleVisibilityChange,
+            )
+        }
+    }, [conversationId, loadConversation, loadList, search])
+
     const hasActiveFilters = useMemo(
         () => Boolean(filters.scope || filters.channel || filters.status),
         [filters.channel, filters.scope, filters.status],
@@ -1094,8 +1153,6 @@ const ConversationsV2 = () => {
     const visibleItems = useMemo(() => {
         return items
             .filter((conversation) => {
-                const matchesChannel =
-                    selectedChannel === 'all' || conversation.channel === selectedChannel
                 const matchesInbox =
                     selectedInboxId === 'all' ||
                     conversation.inboxAccount?.id === selectedInboxId ||
@@ -1103,7 +1160,7 @@ const ConversationsV2 = () => {
                         conversation.channel === 'webchat' &&
                         !conversation.inboxAccount)
 
-                return matchesChannel && matchesInbox
+                return matchesInbox
             })
             .sort((left, right) => {
                 const leftPinned = isConversationPinned(left.id) ? 1 : 0
@@ -1120,8 +1177,9 @@ const ConversationsV2 = () => {
 
                 return left.id.localeCompare(right.id)
             })
-    }, [isConversationPinned, items, selectedChannel, selectedInboxId])
-    const hasMoreConversations = items.length < listTotal
+    }, [isConversationPinned, items, selectedInboxId])
+    const hasMoreConversations =
+        !usesClientSideOnlyPaginationFilter && items.length < listTotal
     const recentVisibleChats = useMemo(() => visibleItems.slice(0, 8), [visibleItems])
     const menuConversation = useMemo(
         () => items.find((conversation) => conversation.id === menuConversationId) ?? null,

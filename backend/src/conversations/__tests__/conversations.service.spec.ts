@@ -207,6 +207,53 @@ describe('ConversationsService', () => {
     })
   })
 
+  it('scopes internal assistant channel listings to the current operator and assistant contact', async () => {
+    prisma.conversation.findMany.mockResolvedValue([])
+    prisma.conversation.count.mockResolvedValue(0)
+
+    await service.listConversations(
+      {
+        page: 1,
+        pageSize: 20,
+        channel: 'admin_chat',
+      },
+      42,
+    )
+
+    expect(prisma.conversation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          channel: 'ADMIN_CHAT',
+          scope: 'ADMIN_INTERNAL',
+          externalUserId: 'admin:42',
+          AND: expect.arrayContaining([
+            expect.objectContaining({
+              OR: expect.arrayContaining([
+                { scope: { not: 'ADMIN_INTERNAL' } },
+                { externalUserId: 'admin:42' },
+              ]),
+            }),
+            expect.objectContaining({
+              metadata: {
+                path: ['contactKey'],
+                equals: 'internal:assistant',
+              },
+            }),
+          ]),
+        }),
+      }),
+    )
+    expect(prisma.conversation.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          channel: 'ADMIN_CHAT',
+          scope: 'ADMIN_INTERNAL',
+          externalUserId: 'admin:42',
+        }),
+      }),
+    )
+  })
+
   it('maps a conversation detail and resolves latestMessage from chronological messages', async () => {
     prisma.conversation.findUnique.mockResolvedValue({
       id: 'conv_2',
