@@ -1,0 +1,3 @@
+Base documental de prueba para la IA.
+Horario de atención: lunes a viernes de 09:00 a 18:00.
+Siempre derivar a humano cuando el cliente solicite cotización cerrada sin contexto suficiente.

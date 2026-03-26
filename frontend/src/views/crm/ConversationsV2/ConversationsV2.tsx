@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Drawer from '@/components/ui/Drawer'
@@ -52,6 +52,7 @@ import {
     TbRobot,
     TbLayoutGrid,
     TbRefresh,
+    TbSparkles,
 } from 'react-icons/tb'
 import './conversations-v2.css'
 
@@ -251,6 +252,105 @@ const getConversationOwnerState = (conversation: ConversationSummary) => {
         label: 'Agente IA',
         tone: 'agent' as const,
     }
+}
+
+const getConversationAiStateBadge = (conversation: ConversationSummary) => {
+    if (conversation.needsHuman || conversation.aiState?.needsHuman) {
+        return {
+            label: 'Requiere humano',
+            tone: 'needs-human' as const,
+        }
+    }
+
+    if (conversation.aiState?.grounded) {
+        return {
+            label:
+                conversation.aiState.sourceCount > 0
+                    ? `Grounded · ${conversation.aiState.sourceCount}`
+                    : 'Grounded',
+            tone: 'grounded' as const,
+        }
+    }
+
+    return null
+}
+
+const getToolCallKind = (toolName: string) => {
+    if (toolName.startsWith('search_')) {
+        return {
+            label: 'Prebúsqueda',
+            tone: 'search' as const,
+        }
+    }
+
+    if (
+        [
+            'update_order_status',
+            'update_quote_status',
+            'update_payment_status',
+            'send_quote',
+            'confirm_quote',
+        ].includes(toolName)
+    ) {
+        return {
+            label: 'Cambio de estado',
+            tone: 'state' as const,
+        }
+    }
+
+    if (toolName === 'parse_aberturas') {
+        return {
+            label: 'Parser',
+            tone: 'parser' as const,
+        }
+    }
+
+    return {
+        label: 'CRUD',
+        tone: 'crud' as const,
+    }
+}
+
+const summarizeToolAudit = (toolCalls: ConversationDetail['toolCalls']) => {
+    return toolCalls.reduce(
+        (acc, toolCall) => {
+            const kind = getToolCallKind(toolCall.toolName).tone
+            acc.total += 1
+            if (kind === 'search') {
+                acc.search += 1
+            } else if (kind === 'state') {
+                acc.state += 1
+            } else if (kind === 'parser') {
+                acc.parser += 1
+            } else {
+                acc.crud += 1
+            }
+            return acc
+        },
+        { total: 0, search: 0, state: 0, parser: 0, crud: 0 },
+    )
+}
+
+const buildConversationAuditBadges = (conversation: ConversationSummary) => {
+    const audit = conversation.aiAudit
+    if (!audit || audit.total === 0) {
+        return []
+    }
+
+    return [
+        audit.search
+            ? { key: 'search', label: `${audit.search} prebúsqueda`, tone: 'search' }
+            : null,
+        audit.state
+            ? { key: 'state', label: `${audit.state} estado`, tone: 'state' }
+            : null,
+        audit.parser
+            ? { key: 'parser', label: `${audit.parser} parser`, tone: 'parser' }
+            : null,
+        audit.crud
+            ? { key: 'crud', label: `${audit.crud} CRUD`, tone: 'crud' }
+            : null,
+    ].filter(Boolean) as Array<{ key: string; label: string; tone: string }>
 }
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
@@ -547,6 +647,9 @@ const ConversationsV2 = () => {
     const [customerProfile, setCustomerProfile] =
         useState<CustomerDetailSnapshot | null>(null)
     const [customerProfileLoading, setCustomerProfileLoading] = useState(false)
+    const conversationButtonRefs = useRef<
+        Record<string, HTMLButtonElement | null>
+    >({})
 
     const isConversationPinned = useCallback(
         (conversationIdToCheck: string) =>
@@ -1060,6 +1163,27 @@ const ConversationsV2 = () => {
             })
         }
     }, [conversationId, isMobile, navigate, visibleItems])
+
+    useEffect(() => {
+        if (!conversationId || listLoading) {
+            return
+        }
+
+        const activeButton = conversationButtonRefs.current[conversationId]
+        if (!activeButton) {
+            return
+        }
+
+        const frame = window.requestAnimationFrame(() => {
+            activeButton.scrollIntoView({
+                block: 'nearest',
+                inline: 'nearest',
+                behavior: 'auto',
+            })
+        })
+
+        return () => window.cancelAnimationFrame(frame)
+    }, [conversationId, listLoading, visibleItems])
 
     const handleSelectConversation = (id: string) => {
         if (bulkSelectionMode) {
@@ -1823,6 +1947,10 @@ const ConversationsV2 = () => {
                             const unreadCount = getDisplayUnreadCount(conversation)
                             const isPinned = isConversationPinned(conversation.id)
                             const ownerState = getConversationOwnerState(conversation)
+                            const aiStateBadge =
+                                getConversationAiStateBadge(conversation)
+                            const auditBadges =
+                                buildConversationAuditBadges(conversation)
                             const isSelectedForBulk = bulkSelectionIds.includes(
                                 conversation.id,
                             )
@@ -1865,6 +1993,10 @@ const ConversationsV2 = () => {
                                         className={`chat-user-list ${isActive ? 'is-active' : ''} ${unreadCount > 0 ? 'is-unread' : ''} ${isPinned ? 'is-pinned' : ''} ${isSelectedForBulk ? 'is-bulk-selected' : ''}`}
                                         type="button"
                                         data-testid={`admin-conversation-${conversation.id}`}
+                                        aria-current={isActive ? 'true' : undefined}
+                                        ref={(node) => {
+                                            conversationButtonRefs.current[conversation.id] = node
+                                        }}
                                         onClick={() => handleSelectConversation(conversation.id)}
                                     >
                                         <div className="me-2">
@@ -1885,7 +2017,28 @@ const ConversationsV2 = () => {
                                                     >
                                                         {ownerState.label}
                                                     </span>
+                                                    {aiStateBadge ? (
+                                                        <span
+                                                            className={`conversation-owner-pill is-${aiStateBadge.tone}`}
+                                                            data-testid={`admin-conversation-ai-state-${conversation.id}`}
+                                                        >
+                                                            {aiStateBadge.label}
+                                                        </span>
+                                                    ) : null}
                                                 </div>
+                                                {auditBadges.length ? (
+                                                    <div className="chat-user-audit-row">
+                                                        {auditBadges.map((badge) => (
+                                                            <span
+                                                                key={`${conversation.id}-${badge.key}`}
+                                                                className={`tool-audit-pill is-${badge.tone}`}
+                                                                data-testid={`admin-conversation-audit-${badge.key}-${conversation.id}`}
+                                                            >
+                                                                {badge.label}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : null}
                                                 <p>
                                                     {previewIcon}
                                                     <span>{preview}</span>
@@ -2002,6 +2155,20 @@ const ConversationsV2 = () => {
                                         >
                                             {getConversationOwnerState(selectedConversation).label}
                                         </span>
+                                        {getConversationAiStateBadge(
+                                            selectedConversation,
+                                        ) ? (
+                                            <span
+                                                className={`conversation-owner-pill is-${getConversationAiStateBadge(selectedConversation)?.tone}`}
+                                                data-testid="admin-conversation-ai-state-current"
+                                            >
+                                                {
+                                                    getConversationAiStateBadge(
+                                                        selectedConversation,
+                                                    )?.label
+                                                }
+                                            </span>
+                                        ) : null}
                                     </div>
                                 </div>
                             </div>
@@ -3048,11 +3215,11 @@ const ConversationsV2 = () => {
                                                             </span>
                                                         </div>
                                                         <div className="document-item">
-                                                            <div className="document-icon">
-                                                                <TbFolder size={20} />
-                                                            </div>
-                                                            <div className="min-w-0 flex-1">
-                                                                <h6>
+                                                        <div className="document-icon">
+                                                            <TbFolder size={20} />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <h6>
                                                                     {selectedConversation.queue
                                                                         ?.name || 'Sin cola'}
                                                                 </h6>
@@ -3073,6 +3240,186 @@ const ConversationsV2 = () => {
                                                                 <TbInfoCircle size={16} />
                                                             </span>
                                                         </div>
+                                                        <div className="document-item">
+                                                            <div className="document-icon">
+                                                                <TbMessage2Heart size={20} />
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <h6>Estado IA</h6>
+                                                                <p>
+                                                                    {selectedConversation
+                                                                        .needsHuman ||
+                                                                    selectedConversation.aiState
+                                                                        ?.needsHuman
+                                                                        ? 'Escalado a humano'
+                                                                        : selectedConversation.aiState
+                                                                              ?.grounded
+                                                                          ? `Grounded con ${selectedConversation.aiState.sourceCount} fuente(s)`
+                                                                          : 'Sin grounding registrado'}
+                                                                </p>
+                                                                {selectedConversation.aiState
+                                                                    ?.fallbackReason ? (
+                                                                    <p>
+                                                                        Motivo:{' '}
+                                                                        {
+                                                                            selectedConversation
+                                                                                .aiState
+                                                                                .fallbackReason
+                                                                        }
+                                                                    </p>
+                                                                ) : null}
+                                                            </div>
+                                                            <span className="download-icon">
+                                                                <TbSparkles size={16} />
+                                                            </span>
+                                                        </div>
+                                                        {selectedConversation.aiState
+                                                            ?.sources.length ? (
+                                                            <div className="knowledge-source-list">
+                                                                {selectedConversation.aiState.sources
+                                                                    .slice(0, 4)
+                                                                    .map((source, index) => (
+                                                                        <div
+                                                                            className="knowledge-source-item"
+                                                                            key={`${source.id ?? source.title ?? index}`}
+                                                                        >
+                                                                            <strong>
+                                                                                {source.title ||
+                                                                                    'Fuente aprobada'}
+                                                                            </strong>
+                                                                            <span>
+                                                                                {[
+                                                                                    source.scope,
+                                                                                    source.sourceType,
+                                                                                ]
+                                                                                    .filter(Boolean)
+                                                                                    .join(' · ')}
+                                                                            </span>
+                                                                        </div>
+                                                                    ))}
+                                                            </div>
+                                                        ) : null}
+                                                        {selectedConversation.toolCalls
+                                                            .length ? (
+                                                            <div className="tool-audit-panel">
+                                                                <div className="tool-audit-header">
+                                                                    <h6>
+                                                                        Auditoría de tools
+                                                                    </h6>
+                                                                    <span>
+                                                                        {
+                                                                            selectedConversation
+                                                                                .toolCalls.length
+                                                                        }{' '}
+                                                                        ejecuciones
+                                                                    </span>
+                                                                </div>
+                                                                <div className="tool-audit-summary">
+                                                                    {(() => {
+                                                                        const summary =
+                                                                            summarizeToolAudit(
+                                                                                selectedConversation.toolCalls,
+                                                                            )
+                                                                        return (
+                                                                            <>
+                                                                                {summary.search ? (
+                                                                                    <span className="tool-audit-pill is-search">
+                                                                                        {
+                                                                                            summary.search
+                                                                                        }{' '}
+                                                                                        prebúsqueda
+                                                                                    </span>
+                                                                                ) : null}
+                                                                                {summary.state ? (
+                                                                                    <span className="tool-audit-pill is-state">
+                                                                                        {
+                                                                                            summary.state
+                                                                                        }{' '}
+                                                                                        cambio estado
+                                                                                    </span>
+                                                                                ) : null}
+                                                                                {summary.parser ? (
+                                                                                    <span className="tool-audit-pill is-parser">
+                                                                                        {
+                                                                                            summary.parser
+                                                                                        }{' '}
+                                                                                        parser
+                                                                                    </span>
+                                                                                ) : null}
+                                                                                {summary.crud ? (
+                                                                                    <span className="tool-audit-pill is-crud">
+                                                                                        {
+                                                                                            summary.crud
+                                                                                        }{' '}
+                                                                                        CRUD
+                                                                                    </span>
+                                                                                ) : null}
+                                                                            </>
+                                                                        )
+                                                                    })()}
+                                                                </div>
+                                                                <div
+                                                                    className="tool-audit-list"
+                                                                    data-testid="admin-conversation-tool-calls"
+                                                                >
+                                                                    {selectedConversation.toolCalls
+                                                                        .slice(0, 6)
+                                                                        .map((toolCall) => {
+                                                                            const kind =
+                                                                                getToolCallKind(
+                                                                                    toolCall.toolName,
+                                                                                )
+                                                                            return (
+                                                                                <div
+                                                                                    className="tool-audit-item"
+                                                                                    key={
+                                                                                        toolCall.id
+                                                                                    }
+                                                                                >
+                                                                                    <div className="tool-audit-item-row">
+                                                                                        <strong>
+                                                                                            {
+                                                                                                toolCall.toolName
+                                                                                            }
+                                                                                        </strong>
+                                                                                        <span
+                                                                                            className={`tool-audit-pill is-${kind.tone}`}
+                                                                                        >
+                                                                                            {
+                                                                                                kind.label
+                                                                                            }
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="tool-audit-item-meta">
+                                                                                        {titleCase(
+                                                                                            toolCall.status,
+                                                                                        )}{' '}
+                                                                                        ·{' '}
+                                                                                        {formatDateTime(
+                                                                                            toolCall.updatedAt,
+                                                                                        )}
+                                                                                    </div>
+                                                                                    {toolCall.errorMessage ? (
+                                                                                        <div className="tool-audit-error">
+                                                                                            {
+                                                                                                toolCall.errorMessage
+                                                                                            }
+                                                                                        </div>
+                                                                                    ) : toolCall.validatedPayload ? (
+                                                                                        <pre className="tool-audit-payload">
+                                                                                            {JSON.stringify(
+                                                                                                toolCall.validatedPayload,
+                                                                                                null,
+                                                                                                2,
+                                                                                            )}
+                                                                                        </pre>
+                                                                                    ) : null}
+                                                                                </div>
+                                                                            )
+                                                                        })}
+                                                                </div>
+                                                            </div>
+                                                        ) : null}
                                                         <div className="chat-video mt-4">
                                                             <div className="management-inline-card">
                                                                 <div className="management-label">

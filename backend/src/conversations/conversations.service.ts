@@ -189,6 +189,7 @@ export class ConversationsService {
               kind: true,
               body: true,
               normalizedText: true,
+              metadata: true,
               createdAt: true,
               inboxMessage: {
                 select: {
@@ -203,6 +204,15 @@ export class ConversationsService {
                   },
                 },
               },
+            },
+          },
+          toolCalls: {
+            take: 10,
+            orderBy: { createdAt: 'desc' },
+            select: {
+              toolName: true,
+              status: true,
+              updatedAt: true,
             },
           },
         },
@@ -783,7 +793,7 @@ export class ConversationsService {
     actorUserId: number,
   ) {
     const conversation = await this.createAdminInternalConversationRecord({
-      tenantKey: input.tenantKey?.trim() || 'default',
+      tenantKey: this.resolveTenantKey(input.tenantKey),
       actorUserId,
       subject: input.subject.trim(),
     })
@@ -806,7 +816,7 @@ export class ConversationsService {
       const conversation =
         (await this.findAdminInternalAssistantConversation(actorUserId)) ??
         (await this.createAdminInternalConversationRecord({
-          tenantKey: input.tenantKey?.trim() || 'default',
+          tenantKey: this.resolveTenantKey(input.tenantKey),
           actorUserId,
           subject: INTERNAL_ASSISTANT_CONTACT_LABEL,
           contactKey: INTERNAL_ASSISTANT_CONTACT_KEY,
@@ -988,10 +998,7 @@ export class ConversationsService {
   }
 
   async createWebchatSession(input: CreateWebchatSessionDto) {
-    const tenantKey =
-      input.tenantKey?.trim() ||
-      this.config.get<string>('CLIENT_SLUG') ||
-      'default'
+    const tenantKey = this.resolveTenantKey(input.tenantKey)
 
     const guestId = input.guestId?.trim() || randomUUID()
     const email = input.email?.trim() || null
@@ -1068,6 +1075,10 @@ export class ConversationsService {
         page: input.page?.trim() || null,
       },
     }
+  }
+
+  private resolveTenantKey(value?: string | null) {
+    return value?.trim() || this.config.get<string>('CLIENT_SLUG') || 'default'
   }
 
   async getWebchatSession(id: string, query: GetWebchatSessionDto) {
@@ -1524,7 +1535,7 @@ export class ConversationsService {
     await this.prisma.$transaction(async (tx) => {
       const conversation = await tx.conversation.findUnique({
         where: { id },
-        select: { id: true, controlMode: true },
+        select: { id: true, controlMode: true, metadata: true },
       })
 
       if (!conversation) {
@@ -1536,6 +1547,16 @@ export class ConversationsService {
         data: {
           controlMode: ConversationControlMode.AI,
           assignedToUserId: null,
+          needsHuman: false,
+          metadata: {
+            ...(this.asRecord(conversation.metadata) ?? {}),
+            aiState: {
+              ...(this.asRecord(this.asRecord(conversation.metadata)?.aiState) ?? {}),
+              needsHuman: false,
+              fallbackReason: null,
+              updatedAt: new Date().toISOString(),
+            },
+          },
         },
       })
 
@@ -1788,6 +1809,19 @@ export class ConversationsService {
       'ai-agent-service',
       input.metadata ?? undefined,
     )
+    const groundingState = this.normalizeGroundingState(
+      input.grounding,
+      input.needsHuman ?? false,
+      input.metadata ?? undefined,
+    )
+    const nextControlMode =
+      input.needsHuman && conversation.scope === ConversationScope.CUSTOMER_PUBLIC
+        ? ConversationControlMode.HUMAN
+        : ConversationControlMode.AI
+    const nextStatus =
+      input.needsHuman && conversation.scope === ConversationScope.CUSTOMER_PUBLIC
+        ? ConversationStatus.WAITING_INTERNAL
+        : ConversationStatus.WAITING_CUSTOMER
 
     await this.prisma.$transaction(async (tx) => {
       const message = await tx.conversationMessage.create({
@@ -1803,6 +1837,7 @@ export class ConversationsService {
           metadata: {
             source: 'ai-agent-service',
             ...(input.metadata ?? {}),
+            ai: groundingState,
             ...(outbound.metadata ?? {}),
           },
         },
@@ -1831,12 +1866,38 @@ export class ConversationsService {
       await tx.conversation.update({
         where: { id },
         data: {
-          controlMode: ConversationControlMode.AI,
+          controlMode: nextControlMode,
+          needsHuman: Boolean(input.needsHuman),
           lastMessageAt: message.createdAt,
           lastOutboundAt: message.createdAt,
-          status: ConversationStatus.WAITING_CUSTOMER,
+          status: nextStatus,
+          metadata: {
+            ...(this.asRecord(conversation.metadata) ?? {}),
+            aiState: {
+              ...groundingState,
+              updatedAt: message.createdAt.toISOString(),
+            },
+          },
         },
       })
+
+      if (input.needsHuman && conversation.scope === ConversationScope.CUSTOMER_PUBLIC) {
+        await tx.conversationHandoffEvent.create({
+          data: {
+            conversationId: id,
+            type: ConversationHandoffEventType.AI_SUGGEST_ONLY,
+            previousMode: conversation.controlMode,
+            nextMode: ConversationControlMode.HUMAN,
+            notes:
+              groundingState.fallbackReason ||
+              'AI escalation due to missing approved grounding',
+            metadata: {
+              reason: 'needs_human_fallback',
+              grounding: groundingState,
+            },
+          },
+        })
+      }
     })
 
     return this.getConversation(id)
@@ -2116,54 +2177,85 @@ export class ConversationsService {
   }
 
   private mapConversationSummary(
-    conversation: Prisma.ConversationGetPayload<{
-      include: {
+    conversation: {
+      id: string
+      tenantKey: string
+      scope: ConversationScope
+      channel: ConversationChannel
+      status: ConversationStatus
+      controlMode: ConversationControlMode
+      subject: string | null
+      externalUserId: string | null
+      externalThreadId: string | null
+      externalChannelRef: string | null
+      pinnedAt: Date | null
+      lastMessageAt: Date | null
+      lastInboundAt: Date | null
+      lastOutboundAt: Date | null
+      createdAt: Date
+      updatedAt: Date
+      metadata: Prisma.JsonValue | null
+      needsHuman: boolean
+      customer: {
+        id: number
+        name: string
+        email: string | null
+        phoneNumber: string | null
+      } | null
+      assignedToUser: {
+        id: number
+        name: string | null
+        email: string
+      } | null
+      inboxAccount: {
+        id: string
+        displayName: string | null
+        address: string | null
+        channel: InboxChannelType
+      } | null
+      participants: Array<{
+        id: string
+        role: ConversationParticipantRole
+        displayName: string | null
+        externalUserId: string | null
         customer: {
-          select: { id: true; name: true; email: true; phoneNumber: true }
-        }
-        assignedToUser: {
-          select: { id: true; name: true; email: true }
-        }
-        inboxAccount: {
-          select: { id: true; displayName: true; address: true; channel: true }
-        }
-        participants: {
-          select: {
-            id: true
-            role: true
-            displayName: true
-            externalUserId: true
-            customer: { select: { id: true; name: true; email: true } }
-            user: { select: { id: true; name: true; email: true } }
-          }
-        }
-        messages: {
-          select: {
-            id: true
-            authorType: true
-            kind: true
-            body: true
-            normalizedText: true
-            createdAt: true
-            inboxMessage: {
-              select: {
-                queue: {
-                  select: {
-                    id: true
-                    slug: true
-                    name: true
-                    priority: true
-                    slaTargetMinutes: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }>,
+          id: number
+          name: string
+          email: string | null
+        } | null
+        user: {
+          id: number
+          name: string | null
+          email: string
+        } | null
+      }>
+      messages: Array<{
+        id: string
+        authorType: ConversationMessageAuthorType
+        kind: ConversationMessageKind
+        body: string | null
+        normalizedText: string | null
+        metadata: Prisma.JsonValue | null
+        createdAt: Date
+        inboxMessage?: {
+          queue?: {
+            id: string
+            slug: string
+            name: string
+            priority: number
+            slaTargetMinutes: number
+          } | null
+        } | null
+      }>
+      toolCalls?: Array<{
+        toolName: string
+        status: ConversationToolCallStatus
+        updatedAt: Date
+      }>
+    },
     readState?: ConversationReadStateSummary | null,
   ) {
+    const aiState = this.extractConversationAiState(conversation.metadata)
     const latestMessage = conversation.messages.reduce<
       (typeof conversation.messages)[number] | null
     >((latest, current) => {
@@ -2235,6 +2327,9 @@ export class ConversationsService {
         slaAgeMinutes,
         slaTargetMinutes,
       },
+      needsHuman: conversation.needsHuman || Boolean(aiState?.needsHuman),
+      aiState,
+      aiAudit: this.summarizeConversationToolCalls(conversation.toolCalls ?? []),
       readState: readState
         ? {
             lastReadAt: readState.lastReadAt,
@@ -2263,6 +2358,7 @@ export class ConversationsService {
             kind: this.normalizeEnum(latestMessage.kind),
             body: latestMessage.body ?? latestMessage.normalizedText ?? null,
             createdAt: latestMessage.createdAt,
+            metadata: latestMessage.metadata ?? null,
           }
         : null,
     }
@@ -2864,7 +2960,150 @@ export class ConversationsService {
         channel: 'admin_chat',
       },
       toolCalls: payload.response.toolCalls ?? [],
+      needsHuman: payload.response.needsHuman ?? false,
+      grounding: payload.response.grounding ?? null,
     })
+  }
+
+  private extractConversationAiState(metadata: unknown) {
+    const root = this.asRecord(metadata)
+    const state = this.asRecord(root?.aiState)
+    if (!state) {
+      return null
+    }
+
+    const sources = Array.isArray(state.sources)
+      ? state.sources
+          .map((entry) => this.asRecord(entry))
+          .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+          .map((entry) => ({
+            id: typeof entry.id === 'string' ? entry.id : null,
+            title: typeof entry.title === 'string' ? entry.title : null,
+            scope: typeof entry.scope === 'string' ? entry.scope : null,
+            sourceType:
+              typeof entry.sourceType === 'string' ? entry.sourceType : null,
+            score:
+              typeof entry.score === 'number' && Number.isFinite(entry.score)
+                ? entry.score
+                : null,
+          }))
+      : []
+
+    return {
+      needsHuman: Boolean(state.needsHuman),
+      grounded: Boolean(state.grounded),
+      fallbackReason:
+        typeof state.fallbackReason === 'string' ? state.fallbackReason : null,
+      sourceCount:
+        typeof state.sourceCount === 'number' && Number.isFinite(state.sourceCount)
+          ? state.sourceCount
+          : sources.length,
+      sources,
+      updatedAt: typeof state.updatedAt === 'string' ? state.updatedAt : null,
+    }
+  }
+
+  private summarizeConversationToolCalls(
+    toolCalls: Array<{
+      toolName?: string | null
+      status?: ConversationToolCallStatus | null
+      updatedAt?: Date | null
+    }>,
+  ) {
+    if (!toolCalls.length) {
+      return {
+        total: 0,
+        search: 0,
+        state: 0,
+        parser: 0,
+        crud: 0,
+        latestToolName: null,
+        latestStatus: null,
+        updatedAt: null,
+      }
+    }
+
+    const summary = {
+      total: 0,
+      search: 0,
+      state: 0,
+      parser: 0,
+      crud: 0,
+      latestToolName: toolCalls[0]?.toolName ?? null,
+      latestStatus: toolCalls[0]?.status ? this.normalizeEnum(toolCalls[0].status) : null,
+      updatedAt: toolCalls[0]?.updatedAt ?? null,
+    }
+
+    for (const toolCall of toolCalls) {
+      if (!toolCall.toolName) {
+        continue
+      }
+      summary.total += 1
+      if (toolCall.toolName.startsWith('search_')) {
+        summary.search += 1
+      } else if (
+        [
+          'update_order_status',
+          'update_quote_status',
+          'update_payment_status',
+          'send_quote',
+          'confirm_quote',
+        ].includes(toolCall.toolName)
+      ) {
+        summary.state += 1
+      } else if (toolCall.toolName === 'parse_aberturas') {
+        summary.parser += 1
+      } else {
+        summary.crud += 1
+      }
+    }
+
+    return summary
+  }
+
+  private normalizeGroundingState(
+    grounding: Record<string, unknown> | undefined,
+    needsHuman: boolean,
+    metadata?: Record<string, unknown>,
+  ) {
+    const input = this.asRecord(grounding) ?? {}
+    const rawSources = Array.isArray(input.sources) ? input.sources : []
+    const sources = rawSources
+      .map((entry) => this.asRecord(entry))
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+      .map((entry) => ({
+        id: typeof entry.id === 'string' ? entry.id : null,
+        title: typeof entry.title === 'string' ? entry.title : null,
+        scope: typeof entry.scope === 'string' ? entry.scope : null,
+        sourceType:
+          typeof entry.sourceType === 'string' ? entry.sourceType : null,
+        score:
+          typeof entry.score === 'number' && Number.isFinite(entry.score)
+            ? entry.score
+            : null,
+      }))
+
+    const sourceCount =
+      typeof input.sourceCount === 'number' && Number.isFinite(input.sourceCount)
+        ? input.sourceCount
+        : sources.length
+
+    return {
+      needsHuman,
+      grounded:
+        typeof input.grounded === 'boolean' ? input.grounded : sourceCount > 0,
+      fallbackReason:
+        typeof input.fallbackReason === 'string'
+          ? input.fallbackReason
+          : needsHuman
+            ? 'missing_approved_context'
+            : null,
+      sourceCount,
+      sources,
+      provider:
+        typeof metadata?.provider === 'string' ? metadata.provider : null,
+      model: typeof metadata?.model === 'string' ? metadata.model : null,
+    }
   }
 
   private isMetaConversationChannel(channel: ConversationChannel) {

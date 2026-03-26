@@ -29,4 +29,8 @@ export class ListKnowledgeDocumentsDto {
   @IsOptional()
   @IsString()
   search?: string
+
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  sourceFileOnly?: 'true' | 'false'
 }

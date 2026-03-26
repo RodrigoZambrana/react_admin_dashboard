@@ -7,6 +7,7 @@ export type ConversationSummary = {
     channel: string
     status: string
     controlMode: string
+    needsHuman: boolean
     subject: string | null
     externalUserId: string | null
     externalThreadId: string | null
@@ -48,6 +49,30 @@ export type ConversationSummary = {
         slaAgeMinutes: number | null
         slaTargetMinutes: number | null
     }
+    aiState: {
+        needsHuman: boolean
+        grounded: boolean
+        fallbackReason: string | null
+        sourceCount: number
+        updatedAt: string | null
+        sources: Array<{
+            id: string | null
+            title: string | null
+            scope: string | null
+            sourceType: string | null
+            score: number | null
+        }>
+    } | null
+    aiAudit: {
+        total: number
+        search: number
+        state: number
+        parser: number
+        crud: number
+        latestToolName: string | null
+        latestStatus: string | null
+        updatedAt: string | null
+    }
     readState: {
         lastReadAt: string | null
         unreadCount: number
@@ -76,6 +101,7 @@ export type ConversationSummary = {
         kind: string
         body: string | null
         createdAt: string
+        metadata: Record<string, unknown> | null
     } | null
 }
 

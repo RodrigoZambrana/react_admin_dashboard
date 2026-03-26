@@ -44,4 +44,14 @@ export class UpdateAiRuntimeConfigDto {
   @IsOptional()
   @IsString()
   usageMessage?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  adminInternalPrompt?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  customerPublicPrompt?: string | null
 }

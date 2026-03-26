@@ -7,13 +7,16 @@ import Input from '@/components/ui/Input'
 import Badge from '@/components/ui/Badge'
 import Switcher from '@/components/ui/Switcher'
 import Alert from '@/components/ui/Alert'
+import Upload from '@/components/ui/Upload'
 import { FormContainer, FormItem } from '@/components/ui/Form'
 import Loading from '@/components/shared/Loading'
 import toast from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
 import {
+    apiGetAiActionsCatalog,
     apiGetAiRuntimeConfig,
     apiUpdateAiRuntimeConfig,
+    type AiActionCatalogEntry,
     type AiRuntimeConfigResponse,
     type UpdateAiRuntimeConfigPayload,
 } from '@/services/AiRuntimeService'
@@ -33,6 +36,8 @@ type FormValues = {
     currentUsageUsd: string
     warningThresholdPercent: string
     usageMessage: string
+    adminInternalPrompt: string
+    customerPublicPrompt: string
 }
 
 type CuratedKnowledgeForm = {
@@ -40,6 +45,13 @@ type CuratedKnowledgeForm = {
     title: string
     summary: string
     content: string
+    tags: string
+}
+
+type UploadedKnowledgeForm = {
+    scope: 'customer_public' | 'admin_internal'
+    title: string
+    summary: string
     tags: string
 }
 
@@ -52,6 +64,8 @@ const initialFormState: FormValues = {
     currentUsageUsd: '0',
     warningThresholdPercent: '80',
     usageMessage: '',
+    adminInternalPrompt: '',
+    customerPublicPrompt: '',
 }
 
 const initialCuratedKnowledgeForm: CuratedKnowledgeForm = {
@@ -59,6 +73,13 @@ const initialCuratedKnowledgeForm: CuratedKnowledgeForm = {
     title: '',
     summary: '',
     content: '',
+    tags: '',
+}
+
+const initialUploadedKnowledgeForm: UploadedKnowledgeForm = {
+    scope: 'admin_internal',
+    title: '',
+    summary: '',
     tags: '',
 }
 
@@ -72,6 +93,20 @@ const formatDateTime = (value: string | null) => {
     } catch {
         return value
     }
+}
+
+const formatFileSize = (value: number) => {
+    if (!Number.isFinite(value) || value <= 0) {
+        return '0 B'
+    }
+    const units = ['B', 'KB', 'MB', 'GB']
+    let size = value
+    let unitIndex = 0
+    while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024
+        unitIndex += 1
+    }
+    return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
 }
 
 const toFormValues = (data: AiRuntimeConfigResponse): FormValues => ({
@@ -90,6 +125,8 @@ const toFormValues = (data: AiRuntimeConfigResponse): FormValues => ({
             : '',
     warningThresholdPercent: String(data.warningThresholdPercent ?? 80),
     usageMessage: data.usageMessage ?? '',
+    adminInternalPrompt: data.adminInternalPrompt ?? '',
+    customerPublicPrompt: data.customerPublicPrompt ?? '',
 })
 
 const AiRuntimeSettings = () => {
@@ -102,13 +139,22 @@ const AiRuntimeSettings = () => {
     const [knowledgeDocuments, setKnowledgeDocuments] = useState<
         AiKnowledgeDocument[]
     >([])
+    const [managedKnowledgeDocuments, setManagedKnowledgeDocuments] = useState<
+        AiKnowledgeDocument[]
+    >([])
     const [knowledgeCandidates, setKnowledgeCandidates] = useState<
         AiKnowledgeCandidate[]
     >([])
+    const [aiActions, setAiActions] = useState<AiActionCatalogEntry[]>([])
     const [knowledgeLoading, setKnowledgeLoading] = useState(false)
     const [knowledgeAction, setKnowledgeAction] = useState<string | null>(null)
     const [curatedForm, setCuratedForm] = useState<CuratedKnowledgeForm>(
         initialCuratedKnowledgeForm,
+    )
+    const [uploadedKnowledgeForm, setUploadedKnowledgeForm] =
+        useState<UploadedKnowledgeForm>(initialUploadedKnowledgeForm)
+    const [uploadedKnowledgeFiles, setUploadedKnowledgeFiles] = useState<File[]>(
+        [],
     )
 
     const loadConfig = useCallback(async () => {
@@ -118,6 +164,8 @@ const AiRuntimeSettings = () => {
                 await apiGetAiRuntimeConfig()
             setConfig(response.data)
             setInitialValues(toFormValues(response.data))
+            const actionsResponse = await apiGetAiActionsCatalog()
+            setAiActions(actionsResponse.data)
         } catch (error) {
             console.error(error)
             toast.push(
@@ -138,15 +186,22 @@ const AiRuntimeSettings = () => {
     const loadKnowledge = useCallback(async () => {
         setKnowledgeLoading(true)
         try {
-            const [overviewResponse, documentsResponse, candidatesResponse] =
+            const [
+                overviewResponse,
+                documentsResponse,
+                managedDocumentsResponse,
+                candidatesResponse,
+            ] =
                 await Promise.all([
                     AiKnowledgeService.getOverview(),
                     AiKnowledgeService.listDocuments(),
+                    AiKnowledgeService.listDocuments({ sourceFileOnly: true }),
                     AiKnowledgeService.listCandidates(),
                 ])
 
             setKnowledgeOverview(overviewResponse.data)
-            setKnowledgeDocuments(documentsResponse.data.slice(0, 6))
+            setKnowledgeDocuments(documentsResponse.data)
+            setManagedKnowledgeDocuments(managedDocumentsResponse.data)
             setKnowledgeCandidates(candidatesResponse.data.slice(0, 6))
         } catch (error) {
             console.error(error)
@@ -173,6 +228,17 @@ const AiRuntimeSettings = () => {
     const indexedDocumentsCount = knowledgeDocuments.filter(
         (document) => document.embedding != null,
     ).length
+    const uploadedKnowledgeDocuments = managedKnowledgeDocuments
+    const adminActions = aiActions.filter(
+        (entry) => entry.scope === 'admin_internal',
+    )
+    const groupedAdminActions = adminActions.reduce<
+        Record<string, AiActionCatalogEntry[]>
+    >((accumulator, entry) => {
+        const [group = 'general'] = entry.key.split('.')
+        accumulator[group] = [...(accumulator[group] ?? []), entry]
+        return accumulator
+    }, {})
 
     const createCuratedKnowledge = useCallback(async () => {
         const title = curatedForm.title.trim()
@@ -225,6 +291,83 @@ const AiRuntimeSettings = () => {
             setKnowledgeAction(null)
         }
     }, [curatedForm, loadKnowledge])
+
+    const uploadKnowledgeDocument = useCallback(async () => {
+        const file = uploadedKnowledgeFiles[0]
+        if (!file) {
+            toast.push(
+                <Notification title="Falta documento" type="warning">
+                    Selecciona un archivo para cargar.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+            return
+        }
+
+        setKnowledgeAction('upload-document')
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('scope', uploadedKnowledgeForm.scope)
+            if (uploadedKnowledgeForm.title.trim()) {
+                formData.append('title', uploadedKnowledgeForm.title.trim())
+            }
+            if (uploadedKnowledgeForm.summary.trim()) {
+                formData.append('summary', uploadedKnowledgeForm.summary.trim())
+            }
+            if (uploadedKnowledgeForm.tags.trim()) {
+                formData.append('tags', uploadedKnowledgeForm.tags.trim())
+            }
+
+            await AiKnowledgeService.uploadDocument(formData)
+            setUploadedKnowledgeFiles([])
+            setUploadedKnowledgeForm(initialUploadedKnowledgeForm)
+            await loadKnowledge()
+            toast.push(
+                <Notification title="Documento cargado" type="success">
+                    El documento quedó disponible como fuente gestionable de conocimiento.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+        } catch (error) {
+            console.error(error)
+            toast.push(
+                <Notification title="No fue posible cargar el documento" type="danger">
+                    Revisa el tipo de archivo e intenta nuevamente.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+        } finally {
+            setKnowledgeAction(null)
+        }
+    }, [loadKnowledge, uploadedKnowledgeFiles, uploadedKnowledgeForm])
+
+    const deleteKnowledgeDocument = useCallback(
+        async (documentId: string) => {
+            setKnowledgeAction(`delete-document:${documentId}`)
+            try {
+                await AiKnowledgeService.deleteDocument(documentId)
+                await loadKnowledge()
+                toast.push(
+                    <Notification title="Documento eliminado" type="success">
+                        La fuente quedó removida del corpus aprobado.
+                    </Notification>,
+                    { placement: 'top-end' },
+                )
+            } catch (error) {
+                console.error(error)
+                toast.push(
+                    <Notification title="No fue posible eliminar el documento" type="danger">
+                        Intenta nuevamente en unos segundos.
+                    </Notification>,
+                    { placement: 'top-end' },
+                )
+            } finally {
+                setKnowledgeAction(null)
+            }
+        },
+        [loadKnowledge],
+    )
 
     const reviewCandidate = useCallback(
         async (candidate: AiKnowledgeCandidate, action: 'approve' | 'reject') => {
@@ -361,6 +504,10 @@ const AiRuntimeSettings = () => {
                                     : null,
                                 warningThresholdPercent: Number(values.warningThresholdPercent || 80),
                                 usageMessage: values.usageMessage.trim() || null,
+                                adminInternalPrompt:
+                                    values.adminInternalPrompt.trim() || null,
+                                customerPublicPrompt:
+                                    values.customerPublicPrompt.trim() || null,
                             }
 
                             const response: AxiosResponse<AiRuntimeConfigResponse> =
@@ -492,6 +639,35 @@ const AiRuntimeSettings = () => {
                                     />
                                 </FormItem>
 
+                                <div className="grid gap-4 xl:grid-cols-2">
+                                    <FormItem
+                                        label="Prompt adicional admin interno"
+                                        extra="Instrucciones extra para el análisis y la respuesta dentro del chat interno."
+                                    >
+                                        <Field
+                                            as="textarea"
+                                            name="adminInternalPrompt"
+                                            rows={6}
+                                            className="input min-h-[160px] w-full rounded-2xl border border-gray-200 px-4 py-3"
+                                            placeholder="Ejemplo: prioriza el informe de UruCortinas, no inventes métricas y deriva a humano si falta grounding."
+                                            data-testid="ai-runtime-admin-prompt"
+                                        />
+                                    </FormItem>
+                                    <FormItem
+                                        label="Prompt adicional cliente público"
+                                        extra="Instrucciones extra para respuestas customer-safe del chat público."
+                                    >
+                                        <Field
+                                            as="textarea"
+                                            name="customerPublicPrompt"
+                                            rows={6}
+                                            className="input min-h-[160px] w-full rounded-2xl border border-gray-200 px-4 py-3"
+                                            placeholder="Ejemplo: responder solo con información comercial validada y ofrecer derivación humana si no hay contexto aprobado."
+                                            data-testid="ai-runtime-customer-prompt"
+                                        />
+                                    </FormItem>
+                                </div>
+
                                 <Alert showIcon type="info">
                                     El límite no bloquea llamadas por sí mismo; funciona como control
                                     operativo y warning temprano. Mantén un valor actualizado para que
@@ -524,6 +700,85 @@ const AiRuntimeSettings = () => {
                 </Formik>
 
                 <div className="mt-10 border-t border-gray-200 pt-8">
+                    <div className="mb-6">
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                            <div>
+                                <h4 className="text-base font-semibold text-gray-900">
+                                    CRUD habilitado para admin interno
+                                </h4>
+                                <p className="text-sm text-gray-600">
+                                    Este catálogo refleja qué acciones reales puede
+                                    ejecutar hoy el agente interno, qué confirmación
+                                    requieren y qué estados soportan.
+                                </p>
+                            </div>
+                            <Badge className="bg-slate-100 text-slate-700">
+                                {adminActions.length} acciones
+                            </Badge>
+                        </div>
+                        <div className="grid gap-4 xl:grid-cols-2">
+                            {Object.entries(groupedAdminActions).map(([group, entries]) => (
+                                <Card key={group} bodyClass="p-4">
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                        <h5 className="font-semibold capitalize text-gray-900">
+                                            {group}
+                                        </h5>
+                                        <Badge className="bg-sky-50 text-sky-700">
+                                            {entries.length}
+                                        </Badge>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {entries.map((entry) => (
+                                            <div
+                                                key={entry.key}
+                                                className="rounded-2xl border border-gray-200 p-3"
+                                                data-testid={`ai-action-${entry.key}`}
+                                            >
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="font-medium text-gray-900">
+                                                        {entry.label}
+                                                    </span>
+                                                    <Badge className="bg-slate-100 text-slate-700">
+                                                        {entry.method}
+                                                    </Badge>
+                                                    {entry.confirmationRequired ? (
+                                                        <Badge className="bg-amber-50 text-amber-700">
+                                                            Confirmación
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge className="bg-emerald-50 text-emerald-700">
+                                                            Consulta
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <div className="mt-1 text-sm text-gray-600">
+                                                    {entry.toolName || entry.key}
+                                                </div>
+                                                {entry.requiredFields?.length ? (
+                                                    <div className="mt-2 text-xs text-gray-500">
+                                                        Campos mínimos:{' '}
+                                                        {entry.requiredFields.join(', ')}
+                                                    </div>
+                                                ) : null}
+                                                {entry.allowedValues?.length ? (
+                                                    <div className="mt-2 text-xs text-gray-500">
+                                                        Valores soportados:{' '}
+                                                        {entry.allowedValues.join(', ')}
+                                                    </div>
+                                                ) : null}
+                                                {entry.confirmationPrompt ? (
+                                                    <div className="mt-2 text-xs text-gray-600">
+                                                        {entry.confirmationPrompt}
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </Card>
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="mb-4 flex flex-col gap-2">
                         <div className="flex items-center justify-between gap-3">
                             <div>
@@ -624,7 +879,7 @@ const AiRuntimeSettings = () => {
                             }}
                             data-testid="ai-knowledge-ingest-docs"
                         >
-                            Ingerir docs
+                            Ingerir docs + sitio
                         </Button>
                         <Button
                             variant="twoTone"
@@ -694,6 +949,183 @@ const AiRuntimeSettings = () => {
                         >
                             Reindexar retrieval
                         </Button>
+                    </div>
+
+                    <div className="mb-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+                        <Card bodyClass="p-4">
+                            <div className="mb-3">
+                                <h5 className="font-semibold text-gray-900">
+                                    Fuentes documentales
+                                </h5>
+                                <p className="mt-1 text-sm text-gray-600">
+                                    Carga documentos reales para el corpus aprobado.
+                                    Deben poder verse, descargarse, eliminarse y
+                                    volver a cargarse como en producción.
+                                </p>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <FormItem label="Scope">
+                                    <select
+                                        className="input"
+                                        value={uploadedKnowledgeForm.scope}
+                                        onChange={(event) =>
+                                            setUploadedKnowledgeForm((current) => ({
+                                                ...current,
+                                                scope: event.target.value as UploadedKnowledgeForm['scope'],
+                                            }))
+                                        }
+                                        data-testid="ai-knowledge-upload-scope"
+                                    >
+                                        <option value="admin_internal">Admin interno</option>
+                                        <option value="customer_public">Cliente público</option>
+                                    </select>
+                                </FormItem>
+                                <FormItem label="Etiquetas">
+                                    <Input
+                                        value={uploadedKnowledgeForm.tags}
+                                        onChange={(event) =>
+                                            setUploadedKnowledgeForm((current) => ({
+                                                ...current,
+                                                tags: event.target.value,
+                                            }))
+                                        }
+                                        placeholder="urucortinas, informe, comercial"
+                                        data-testid="ai-knowledge-upload-tags"
+                                    />
+                                </FormItem>
+                            </div>
+
+                            <FormItem label="Título opcional">
+                                <Input
+                                    value={uploadedKnowledgeForm.title}
+                                    onChange={(event) =>
+                                        setUploadedKnowledgeForm((current) => ({
+                                            ...current,
+                                            title: event.target.value,
+                                        }))
+                                    }
+                                    data-testid="ai-knowledge-upload-title"
+                                />
+                            </FormItem>
+
+                            <FormItem label="Resumen opcional">
+                                <Input
+                                    value={uploadedKnowledgeForm.summary}
+                                    onChange={(event) =>
+                                        setUploadedKnowledgeForm((current) => ({
+                                            ...current,
+                                            summary: event.target.value,
+                                        }))
+                                    }
+                                    data-testid="ai-knowledge-upload-summary"
+                                />
+                            </FormItem>
+
+                            <FormItem label="Documento">
+                                <Upload
+                                    uploadLimit={1}
+                                    fileList={uploadedKnowledgeFiles}
+                                    onChange={(files) =>
+                                        setUploadedKnowledgeFiles(files as File[])
+                                    }
+                                    onFileRemove={(files) =>
+                                        setUploadedKnowledgeFiles(files as File[])
+                                    }
+                                >
+                                    <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-600">
+                                        Cargar `.docx`, `.txt`, `.md` o `.html`
+                                    </div>
+                                </Upload>
+                            </FormItem>
+
+                            <div className="flex justify-end">
+                                <Button
+                                    variant="solid"
+                                    loading={knowledgeAction === 'upload-document'}
+                                    onClick={() => void uploadKnowledgeDocument()}
+                                    data-testid="ai-knowledge-upload-submit"
+                                >
+                                    Subir documento
+                                </Button>
+                            </div>
+                        </Card>
+
+                        <Card bodyClass="p-4">
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                                <h5 className="font-semibold text-gray-900">
+                                    Documentos gestionados
+                                </h5>
+                                <Badge className="bg-slate-100 text-slate-700">
+                                    {uploadedKnowledgeDocuments.length}
+                                </Badge>
+                            </div>
+                            <div className="space-y-3">
+                                {uploadedKnowledgeDocuments.length === 0 ? (
+                                    <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-6 text-sm text-gray-500">
+                                        Aún no hay documentos cargados manualmente.
+                                    </div>
+                                ) : (
+                                    uploadedKnowledgeDocuments.map((document) => (
+                                        <div
+                                            key={document.id}
+                                            className="rounded-2xl border border-gray-200 p-3"
+                                            data-testid={`ai-knowledge-document-${document.id}`}
+                                        >
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="font-medium">
+                                                    {document.title}
+                                                </span>
+                                                <Badge className="bg-sky-50 text-sky-700">
+                                                    {document.scope}
+                                                </Badge>
+                                            </div>
+                                            <div className="mt-1 text-sm text-gray-600">
+                                                {document.sourceFile?.name} ·{' '}
+                                                {formatFileSize(
+                                                    document.sourceFile?.size ?? 0,
+                                                )}
+                                            </div>
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant="default"
+                                                    onClick={() => {
+                                                        if (document.sourceFile?.downloadUrl) {
+                                                            window.open(
+                                                                document.sourceFile.downloadUrl,
+                                                                '_blank',
+                                                                'noopener,noreferrer',
+                                                            )
+                                                        }
+                                                    }}
+                                                    data-testid={`ai-knowledge-document-open-${document.id}`}
+                                                >
+                                                    Ver / descargar
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="plain"
+                                                    className="text-red-600"
+                                                    loading={
+                                                        knowledgeAction ===
+                                                        `delete-document:${document.id}`
+                                                    }
+                                                    onClick={() =>
+                                                        void deleteKnowledgeDocument(
+                                                            document.id,
+                                                        )
+                                                    }
+                                                    data-testid={`ai-knowledge-document-delete-${document.id}`}
+                                                >
+                                                    Eliminar
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </Card>
                     </div>
 
                     <div className="mb-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">

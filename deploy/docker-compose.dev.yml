@@ -48,6 +48,7 @@ services:
       - ../.qa:/qa-results
       - ../tools/qa:/qa-tools:ro
       - ../docs:/docs:ro
+      - ../backend/uploads:/app/uploads
     depends_on: []
 
   frontend:

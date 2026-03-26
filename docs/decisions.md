@@ -102,6 +102,35 @@
 - Conversation-derived knowledge requires redaction, review and approval before promotion
 - Reason: prevent contamination of the assistant with exceptions, hallucinations or PII-heavy content
 
+### Local/internal knowledge documents must enter through the managed admin flow
+
+- Tenant-specific internal documents are not treated as trusted knowledge just because they exist on disk in a developer machine or repo folder
+- The production-like source of truth for local/internal documents is:
+  - upload from admin AI settings
+  - visible managed record in the UI
+  - downloadable/openable source file
+  - deletable and re-uploadable from the same UI
+- Public website ingestion remains a separate source for customer-safe knowledge
+- Reason: the same governance path must work in production and development, with explicit ABM over approved source documents instead of hidden filesystem shortcuts
+
+### Curated tenant playbooks are first-class internal knowledge
+
+- For tenants like `urucortinas`, internal AI quality should not rely only on raw uploaded reports or scraped website pages
+- A curated internal document can summarize:
+  - business lines
+  - commercial rules
+  - operating constraints
+  - known risks
+  - response guidelines
+- That document must still enter through the same managed upload path as any other production document
+- Reason: the model answers better when the business context is normalized into an operational playbook instead of depending only on generic report fragments
+
+### Uploaded knowledge files require durable storage outside the backend container
+
+- Source documents uploaded from AI settings are persisted under `backend/uploads/knowledge` and mounted into the backend container as `/app/uploads`
+- The database stores only the managed metadata and relative file path; the file itself must survive container rebuilds
+- Reason: without a host-mounted upload directory, managed documents become undeletable/undownloadable after container recreation even if the `KnowledgeDocument` row still exists
+
 ### Knowledge persistence starts before retrieval indexing
 
 - The first production slice stores curated knowledge and candidate review directly in PostgreSQL
@@ -146,6 +175,78 @@
 - `admin_internal` confirmation prompts should be derived from the same backend catalog that defines generic AI actions
 - Each action exposes required fields, keywords and confirmation guidance consumable by AI runtimes
 - Reason: keep tool execution rules reusable and consistent across tenants, runtimes and future providers
+
+### Internal AI CRUD should expand in safe operational stages
+
+- The first `admin_internal` tool set now goes beyond create-only operations for the entities that have low-risk and clear backend contracts:
+  - customer search/update
+  - activity search/update/delete
+  - product update/archive
+- More sensitive lifecycle changes for quotes, orders and payments should come next as explicit state-change tools, not as unrestricted generic delete/update operations
+- Reason: improve practical operator assistance without introducing high-risk destructive actions before the business rules are explicit enough
+
+### Internal operational AI is role-scoped and must not leak into customer conversations
+
+- CRUD, ABM, catalog mutations, quote/order/payment management and similar administrative flows only apply to internal conversations initiated from authenticated admin roles such as `admin` or `superadmin`
+- `customer_public` must never offer, simulate or request the payload of those internal operations
+- When a customer asks for an internal or administrative action, the assistant should answer politely that an advisor will continue the process by the appropriate channel
+- Reason: customer-facing assistance can orient and inform, but must not expose or impersonate internal operational workflows
+
+### Search-first should be enforced in runtime, not only suggested in prompts
+
+- For `admin_internal`, certain actions now trigger deterministic pre-search in the AI runtime before the model answers:
+  - customer resolution for quotes/orders
+  - order resolution for payments
+  - product resolution for updates and product-heavy order/quote requests
+- The resulting backend hits are injected into the prompt as operational context and persisted as tool-call traceability in the conversation hub
+- Reason: relying only on the LLM to decide whether to search first was not stable enough for production-like operator flows
+
+### `Aberturas` must keep one master prompt contract aligned with live code
+
+- The canonical written reference for `admin_internal` `aberturas` handling is now:
+  - `docs/knowledge/aberturas-admin-internal-master-prompt.md`
+- It must consolidate:
+  - external ETL prompt rules
+  - external parser/process survey
+  - the consolidated `aberturas_enterprise` ETL project when available
+  - approved internal tenant playbooks
+  - current backend/frontend behavior actually implemented in the repo
+- If those sources conflict, the order of truth is:
+  - live code paths
+  - schema/glossary artifacts
+  - approved internal playbooks
+  - external reference documents
+- Reason: `aberturas` is now a high-impact operational flow and cannot rely on scattered prompt fragments that drift away from the code actually executing
+
+### `Aberturas` parsing is now being extracted into a dedicated backend subsystem
+
+- The first deterministic parsing slice has been moved out of `backend/src/ai/ai.service.ts` into `backend/src/aberturas/parser/*`
+- `AiService` should consume that parser service, not keep growing structural parsing helpers again
+- The parser roadmap must explicitly survey and unify the existing useful domain code already present in:
+  - `backend/src/aberturas/*`
+  - `backend/src/pricing/parametric-pricing.service.ts`
+  - glossary/schema artifacts
+  - current admin quote/product flows
+- The next parser iterations should continue in that module and only leave prompt/runtime responsibilities in the AI layer
+- Reason: domain parsing for `aberturas` is already complex enough that keeping it inside the AI service would keep mixing business parsing, tool orchestration and prompt concerns in one place
+
+### `Aberturas` parsing should move into deterministic backend code
+
+- The long-term target for `aberturas` is a dedicated backend parser subsystem that owns:
+  - normalization
+  - segmentation
+  - contextual inheritance
+  - validation
+  - scoring
+  - deduplication
+  - insert/quote payload preparation
+- The AI agent should keep only:
+  - intent selection
+  - confirmation handling
+  - role-aware wording
+- Reference document:
+  - `docs/knowledge/aberturas-parser-backend-recommendation.md`
+- Reason: domain rules for `aberturas` are already rich enough that keeping core structural parsing in prompts would be harder to test, maintain and govern than a deterministic backend implementation
 
 ## Assumptions
 
@@ -265,3 +366,26 @@
   - Meta, email and webchat do not support the same action surface and the UI should not expose actions that cannot be audited or projected back consistently
 - Tracking artifact:
   - `docs/messaging-actions-roadmap.md`
+## 2026-03-25 · AI runtime local y fallback de proveedor
+
+- `needsHuman` no queda solo en `metadata`; también se persiste como campo explícito en `Conversation` para facilitar listados, filtros y auditoría operativa.
+- El grounding detallado sigue viviendo en `metadata.aiState` porque ahí se guardan:
+  - fuentes
+  - score
+  - provider/model
+  - motivo de fallback
+- Para el runtime local se habilita OpenAI desde archivos `.env.*.local` ignorados por git cuando no existe todavía configuración segura persistida en backend.
+- Si el proveedor LLM devuelve error operativo o de cuota, el agente no debe fallar duro:
+  - responde con fallback controlado
+  - marca `needsHuman=true`
+  - conserva el contexto de conocimiento recuperado para trazabilidad
+- Redis queda confirmado como memoria operativa real del `ai-agent-service`; otras integraciones Redis del backend siguen siendo infraestructura disponible, pero no son parte del flujo IA mínimo validado en esta etapa.
+- `2026-03-26`: los cambios de estado de presupuesto, pedido y pago para IA no deben implementar un flujo paralelo. Deben reutilizar el contrato de estados real del backend (`order-statuses`, `SalesDocumentsService` y `OrderPaymentSettlementService`) para evitar divergencias operativas.
+- `2026-03-26`: el catalogo de acciones habilitadas para `admin_internal` debe ser visible en UI para auditoria operativa. No alcanza con que exista solo en runtime interno.
+- `admin_internal` no debe depender de `tenantKey=default` para conversaciones internas locales: si el tenant no viene en la petición, la resolución debe usar `CLIENT_SLUG` para que retrieval y prompts operen sobre la knowledge aprobada del cliente activo.
+- En `aberturas`, el prompt y el playbook deben priorizar el contrato del código vivo (`parametric-pricing.service`, glosario, selector summary y `AberturasQuote`) por encima de documentación estática más vieja.
+- La ampliación del patrón seguro debe priorizar operaciones generales del ecommerce antes que automatizaciones ultra específicas de un tenant. Por eso se incorporaron primero categorías, ajuste de stock y parser determinístico auditable, todos visibles en catálogo y tool audit.
+- 2026-03-26: la ampliación del agente para tenants específicos debe apoyarse primero en operaciones generales auditables del ecommerce. Las particularidades de `urucortinas` se montan sobre el mismo patrón seguro y no en un flujo separado.
+- 2026-03-26: la auditoría de tools no queda solo en detalle; el inbox debe exponer un resumen operativo por conversación para que el operador vea de un vistazo si hubo prebúsqueda, parser o cambio de estado.
+- 2026-03-26: la edición de pedidos y presupuestos desde IA no debe mutar tablas por caminos ad hoc. Debe reconstruir el documento sobre `getDocumentDetails(...)` y aplicar cambios vía `replaceDocument(...)`, para conservar recálculo, validaciones y consistencia con el flujo operativo humano.
+- 2026-03-26: en `aberturas`, el paso siguiente al parseo debe ser un borrador estructurado de cotización basado en el pricing paramétrico real. Si no hay match exacto o suficiente, el sistema puede sugerir coincidencias cercanas, pero no debe presentar el ítem como listo para cotizar sin revisión.

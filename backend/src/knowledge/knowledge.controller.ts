@@ -1,8 +1,21 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common'
-import type { FastifyRequest } from 'fastify'
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common'
+import type { FastifyReply, FastifyRequest } from 'fastify'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles, ROLES } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
+import { parseSingleFileMultipart } from '../common/uploads/multipart'
 import { KnowledgeService } from './knowledge.service'
 import { ListKnowledgeDocumentsDto } from './dto/list-knowledge-documents.dto'
 import { ListKnowledgeCandidatesDto } from './dto/list-knowledge-candidates.dto'
@@ -26,6 +39,56 @@ export class KnowledgeController {
   @Get('documents')
   listDocuments(@Query() query: ListKnowledgeDocumentsDto) {
     return this.knowledge.listDocuments(query)
+  }
+
+  @Post('documents/upload')
+  async uploadDocument(
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    const parsed = await parseSingleFileMultipart(req)
+    if (!parsed.file) {
+      throw new BadRequestException('knowledge.fileRequired')
+    }
+
+    return this.knowledge.uploadSourceDocument(
+      {
+        tenantKey: parsed.fields.tenantKey || undefined,
+        scope:
+          parsed.fields.scope === 'customer_public'
+            ? 'customer_public'
+            : 'admin_internal',
+        title: parsed.fields.title || undefined,
+        summary: parsed.fields.summary || undefined,
+        tags: parsed.fields.tags
+          ? parsed.fields.tags
+              .split(',')
+              .map((tag) => tag.trim())
+              .filter(Boolean)
+          : undefined,
+        replaceDocumentId: parsed.fields.replaceDocumentId || undefined,
+      },
+      parsed.file,
+      Number(req.user?.sub),
+    )
+  }
+
+  @Delete('documents/:id')
+  deleteDocument(@Param('id') id: string) {
+    return this.knowledge.deleteDocument(id)
+  }
+
+  @Get('documents/:id/file')
+  async downloadDocumentSource(
+    @Param('id') id: string,
+    @Res() res: FastifyReply,
+  ) {
+    const file = await this.knowledge.getDocumentSourceFile(id)
+    res.header('content-type', file.mimeType)
+    res.header(
+      'content-disposition',
+      `inline; filename="${encodeURIComponent(file.fileName)}"`,
+    )
+    return res.send(file.buffer)
   }
 
   @Get('search')

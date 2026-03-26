@@ -435,6 +435,19 @@
   margin-bottom: 6px;
 }
 
+.crm-conversations-v2 .chat-user-audit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.crm-conversations-v2 .chat-user-audit-row .tool-audit-pill {
+  min-height: 20px;
+  padding: 0 8px;
+  font-size: 10px;
+}
+
 .crm-conversations-v2 .conversation-owner-pill {
   display: inline-flex;
   align-items: center;
@@ -456,6 +469,16 @@
   color: #1d4ed8;
 }
 
+.crm-conversations-v2 .conversation-owner-pill.is-needs-human {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.crm-conversations-v2 .conversation-owner-pill.is-grounded {
+  background: #dcfce7;
+  color: #166534;
+}
+
 .crm-conversations-v2 .chat-user-msg p {
   margin: 0;
   font-size: 13px;
@@ -466,6 +489,142 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.crm-conversations-v2 .knowledge-source-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.crm-conversations-v2 .knowledge-source-item {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.crm-conversations-v2 .knowledge-source-item strong {
+  display: block;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.crm-conversations-v2 .knowledge-source-item span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.crm-conversations-v2 .tool-audit-panel {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.crm-conversations-v2 .tool-audit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.crm-conversations-v2 .tool-audit-header h6 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.crm-conversations-v2 .tool-audit-header span,
+.crm-conversations-v2 .tool-audit-item-meta {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.crm-conversations-v2 .tool-audit-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.crm-conversations-v2 .tool-audit-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.crm-conversations-v2 .tool-audit-pill.is-search {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.crm-conversations-v2 .tool-audit-pill.is-state {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.crm-conversations-v2 .tool-audit-pill.is-parser {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.crm-conversations-v2 .tool-audit-pill.is-crud {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.crm-conversations-v2 .tool-audit-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.crm-conversations-v2 .tool-audit-item {
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.crm-conversations-v2 .tool-audit-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.crm-conversations-v2 .tool-audit-item-row strong {
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.crm-conversations-v2 .tool-audit-payload {
+  margin: 10px 0 0;
+  padding: 10px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.crm-conversations-v2 .tool-audit-error {
+  margin-top: 10px;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .crm-conversations-v2 .chat-user-msg p span:last-child {

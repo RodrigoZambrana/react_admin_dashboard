@@ -2,6 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { KnowledgeService } from '../knowledge.service'
 import { KnowledgeEmbeddingsService } from '../knowledge-embeddings.service'
 
+const knowledgeUploadMocks = vi.hoisted(() => ({
+  persistKnowledgeSourceFile: vi.fn(),
+  deleteKnowledgeSourceFile: vi.fn(),
+  readKnowledgeSourceFile: vi.fn(),
+}))
+
+vi.mock('../../common/uploads/knowledge', () => ({
+  persistKnowledgeSourceFile: knowledgeUploadMocks.persistKnowledgeSourceFile,
+  deleteKnowledgeSourceFile: knowledgeUploadMocks.deleteKnowledgeSourceFile,
+  readKnowledgeSourceFile: knowledgeUploadMocks.readKnowledgeSourceFile,
+}))
+
 const createPrisma = () => ({
   knowledgeDocument: {
     groupBy: vi.fn(),
@@ -9,6 +21,7 @@ const createPrisma = () => ({
     create: vi.fn(),
     upsert: vi.fn(),
     findUnique: vi.fn(),
+    delete: vi.fn(),
   },
   knowledgeDocumentEmbedding: {
     upsert: vi.fn(),
@@ -59,6 +72,9 @@ describe('KnowledgeService', () => {
     prisma = createPrisma()
     config = createConfig()
     embeddings = createEmbeddings()
+    knowledgeUploadMocks.persistKnowledgeSourceFile.mockReset()
+    knowledgeUploadMocks.deleteKnowledgeSourceFile.mockReset()
+    knowledgeUploadMocks.readKnowledgeSourceFile.mockReset()
     service = new KnowledgeService(
       prisma as never,
       config as never,
@@ -108,6 +124,24 @@ describe('KnowledgeService', () => {
           piiDetected: true,
           createdByUserId: 7,
         }),
+      }),
+    )
+  })
+
+  it('filters managed source documents explicitly when requested', async () => {
+    prisma.knowledgeDocument.findMany.mockResolvedValue([])
+
+    await service.listDocuments({
+      sourceFileOnly: 'true',
+    })
+
+    expect(prisma.knowledgeDocument.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantKey: 'urucortinas',
+          sourceFilePath: { not: null },
+        }),
+        take: 250,
       }),
     )
   })
@@ -327,6 +361,27 @@ describe('KnowledgeService', () => {
           updatedAt: new Date('2026-03-25T13:00:00.000Z'),
         },
       },
+      {
+        id: 'doc_dataset_noise',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        sourceType: 'BACKEND_DATASET',
+        status: 'ACTIVE',
+        sourceKey: 'product:roller',
+        title: 'Cortina Roller',
+        summary: 'Producto publicado',
+        content: 'Producto simple de cortina roller.',
+        tags: ['product', 'roller'],
+        updatedAt: new Date('2026-03-25T14:00:00.000Z'),
+        createdAt: new Date('2026-03-25T14:00:00.000Z'),
+        embedding: {
+          provider: 'local',
+          model: 'local-hash-v1',
+          dimensions: 128,
+          vector: [0.5, 0, 0],
+          updatedAt: new Date('2026-03-25T14:00:00.000Z'),
+        },
+      },
     ])
 
     const result = await service.retrieve({
@@ -342,9 +397,10 @@ describe('KnowledgeService', () => {
           approvedAt: { not: null },
           scope: { in: ['CUSTOMER_PUBLIC'] },
         }),
+        take: 2000,
       }),
     )
-    expect(result.items).toHaveLength(2)
+    expect(result.items).toHaveLength(3)
     expect(result.items[0]).toMatchObject({
       id: 'doc_public',
       scope: 'customer_public',
@@ -358,6 +414,43 @@ describe('KnowledgeService', () => {
       },
     })
     expect(result.items[0].snippet).toContain('Montevideo')
+  })
+
+  it('builds a relevant snippet from token matches when the full query is not present literally', async () => {
+    prisma.knowledgeDocument.findMany.mockResolvedValue([
+      {
+        id: 'doc_report',
+        tenantKey: 'urucortinas',
+        scope: 'ADMIN_INTERNAL',
+        sourceType: 'DOCS',
+        status: 'ACTIVE',
+        sourceKey: 'docs:report',
+        title: 'Informe Analisis Datos UruCortinas',
+        summary: 'Informe base de negocio y operativa para grounding interno de IA.',
+        content:
+          'Introducción general del informe. Hallazgos comerciales relevantes. Las lineas de negocio principales son cortinas roller, persianas, toldos y reparaciones. Los riesgos principales detectados incluyen dependencia de canales manuales, baja cobertura de seguimiento y necesidad de mejorar conversion y postventa.',
+        tags: ['negocio', 'riesgos'],
+        updatedAt: new Date('2026-03-25T13:00:00.000Z'),
+        createdAt: new Date('2026-03-25T13:00:00.000Z'),
+        embedding: {
+          provider: 'local',
+          model: 'local-hash-v1',
+          dimensions: 128,
+          vector: [1, 0, 0],
+          updatedAt: new Date('2026-03-25T13:00:00.000Z'),
+        },
+      },
+    ])
+
+    const result = await service.retrieve({
+      query: 'Segun el informe cargado, resumime lineas de negocio y riesgos principales de UruCortinas.',
+      scope: 'admin_internal',
+      limit: 3,
+    })
+
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0].snippet).toContain('lineas de negocio principales')
+    expect(result.items[0].snippet).toContain('riesgos principales')
   })
 
   it('indexes approved documents on demand', async () => {
@@ -396,6 +489,85 @@ describe('KnowledgeService', () => {
       tenantKey: 'urucortinas',
       indexed: 2,
       documentIds: ['doc_1', 'doc_2'],
+    })
+  })
+
+  it('uploads a managed document with downloadable source metadata', async () => {
+    knowledgeUploadMocks.persistKnowledgeSourceFile.mockResolvedValue({
+      path: '/uploads/knowledge/informe-urucortinas.docx',
+      mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      size: 4096,
+      name: 'Informe_Analisis_Datos.docx',
+      content: 'Análisis comercial UruCortinas',
+    })
+
+    prisma.knowledgeDocument.upsert.mockImplementation(async ({ create }) => ({
+      id: 'doc_upload',
+      tenantKey: create.tenantKey,
+      scope: create.scope,
+      sourceType: create.sourceType,
+      status: create.status,
+      sourceKey: create.sourceKey,
+      title: create.title,
+      summary: create.summary ?? null,
+      content: create.content,
+      sourceFileName: create.sourceFileName ?? null,
+      sourceFilePath: create.sourceFilePath ?? null,
+      sourceFileMime: create.sourceFileMime ?? null,
+      sourceFileSize: create.sourceFileSize ?? null,
+      tags: create.tags ?? [],
+      piiRiskLevel: create.piiRiskLevel ?? 'low',
+      metadata: create.metadata ?? null,
+      approvedAt: create.approvedAt ?? null,
+      createdAt: new Date('2026-03-25T12:00:00.000Z'),
+      updatedAt: new Date('2026-03-25T12:00:00.000Z'),
+    }))
+    prisma.knowledgeDocument.findUnique.mockResolvedValue({
+      id: 'doc_upload',
+      tenantKey: 'urucortinas',
+      scope: 'ADMIN_INTERNAL',
+      sourceType: 'DOCS',
+      status: 'ACTIVE',
+      sourceKey: 'uploaded:informe-urucortinas:1',
+      title: 'Informe UruCortinas',
+      summary: 'Resumen',
+      content: 'Análisis comercial UruCortinas',
+      sourceFileName: 'Informe_Analisis_Datos.docx',
+      sourceFilePath: '/uploads/knowledge/informe-urucortinas.docx',
+      sourceFileMime:
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      sourceFileSize: 4096,
+      tags: ['urucortinas'],
+      piiRiskLevel: 'low',
+      metadata: null,
+      approvedAt: new Date('2026-03-25T12:00:00.000Z'),
+      createdAt: new Date('2026-03-25T12:00:00.000Z'),
+      updatedAt: new Date('2026-03-25T12:00:00.000Z'),
+      embedding: {
+        provider: 'local',
+        model: 'local-hash-v1',
+        dimensions: 128,
+        updatedAt: new Date('2026-03-25T12:00:00.000Z'),
+      },
+    })
+
+    const result = await service.uploadSourceDocument(
+      {
+        scope: 'admin_internal',
+        title: 'Informe UruCortinas',
+        tags: ['urucortinas'],
+      },
+      {} as never,
+      3,
+    )
+
+    expect(knowledgeUploadMocks.persistKnowledgeSourceFile).toHaveBeenCalledTimes(1)
+    expect(result.sourceFile).toEqual({
+      name: 'Informe_Analisis_Datos.docx',
+      mimeType:
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      size: 4096,
+      downloadUrl: '/api/ai/knowledge/documents/doc_upload/file',
     })
   })
 })

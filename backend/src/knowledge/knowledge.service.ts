@@ -7,10 +7,19 @@ import {
   Prisma,
 } from '@prisma/client'
 import fs from 'fs/promises'
-import path from 'path'
+import * as path from 'path'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../prisma/prisma.service'
 import { KnowledgeEmbeddingsService } from './knowledge-embeddings.service'
+import {
+  deleteKnowledgeSourceFile,
+  persistKnowledgeSourceFile,
+  readKnowledgeSourceFile,
+} from '../common/uploads/knowledge'
+import {
+  getTenantKnowledgeSources,
+  type TenantKnowledgeSource,
+} from './tenant-knowledge-sources'
 import { ListKnowledgeDocumentsDto } from './dto/list-knowledge-documents.dto'
 import { ListKnowledgeCandidatesDto } from './dto/list-knowledge-candidates.dto'
 import { CreateCuratedKnowledgeDto } from './dto/create-curated-knowledge.dto'
@@ -90,11 +99,14 @@ export class KnowledgeService {
         { content: { contains: search, mode: 'insensitive' } },
       ]
     }
+    if (query.sourceFileOnly === 'true') {
+      where.sourceFilePath = { not: null }
+    }
 
     const items = await this.prisma.knowledgeDocument.findMany({
       where,
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-      take: 100,
+      take: query.sourceFileOnly === 'true' ? 250 : 100,
       include: {
         embedding: {
           select: {
@@ -179,7 +191,7 @@ export class KnowledgeService {
         scope: { in: scopes },
       },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-      take: 250,
+      take: 2000,
       include: {
         embedding: {
           select: {
@@ -207,7 +219,14 @@ export class KnowledgeService {
       }))
       .map((entry) => ({
         ...entry,
-        score: entry.lexicalScore + entry.vectorScore * 8,
+        score:
+          entry.lexicalScore +
+          entry.vectorScore * 8 +
+          (entry.lexicalScore > 0 &&
+          (entry.document.sourceType === KnowledgeSourceType.DOCS ||
+            entry.document.sourceType === KnowledgeSourceType.ADMIN_CURATED)
+            ? 2
+            : 0),
       }))
       .filter((entry) => entry.score > 0)
       .sort((left, right) => {
@@ -278,70 +297,170 @@ export class KnowledgeService {
     return this.getDocumentById(document.id)
   }
 
+  async uploadSourceDocument(
+    input: {
+      tenantKey?: string
+      scope: 'customer_public' | 'admin_internal'
+      title?: string
+      summary?: string
+      tags?: string[]
+      replaceDocumentId?: string
+    },
+    file: import('@fastify/multipart').MultipartFile,
+    actorUserId: number,
+  ) {
+    const tenantKey = this.resolveTenantKey(input.tenantKey)
+    const replaceDocument = (input.replaceDocumentId
+      ? await this.prisma.knowledgeDocument.findUnique({
+          where: { id: input.replaceDocumentId },
+        })
+      : null) as
+      | {
+          id: string
+          title: string
+          sourceKey: string
+          sourceFilePath: string | null
+        }
+      | null
+
+    const persisted = await persistKnowledgeSourceFile(
+      file,
+      replaceDocument?.sourceFilePath ?? null,
+    )
+
+    const title =
+      input.title?.trim() ||
+      replaceDocument?.title ||
+      persisted.name.replace(/\.[^.]+$/, '')
+    const summary = input.summary?.trim() || this.extractSummary(persisted.content)
+    const sourceKey =
+      replaceDocument?.sourceKey ||
+      `uploaded:${this.slugify(title)}:${Date.now()}`
+
+    const document = await this.upsertKnowledgeDocument({
+      tenantKey,
+      scope: this.mapScope(input.scope),
+      sourceType: KnowledgeSourceType.DOCS,
+      sourceKey,
+      title,
+      summary,
+      content: persisted.content,
+      tags: (input.tags ?? []).map((tag) => tag.trim()).filter(Boolean),
+      piiRiskLevel: 'low',
+      metadata: {
+        source: 'uploaded-document',
+        originalFileName: persisted.name,
+      },
+      sourceFileName: persisted.name,
+      sourceFilePath: persisted.path,
+      sourceFileMime: persisted.mime,
+      sourceFileSize: persisted.size,
+      actorUserId,
+    })
+
+    return this.getDocumentById(document.id)
+  }
+
+  async deleteDocument(id: string) {
+    const document = (await this.prisma.knowledgeDocument.findUnique({
+      where: { id },
+    })) as { id: string; sourceFilePath: string | null } | null
+
+    if (!document) {
+      throw new NotFoundException('knowledge.documentNotFound')
+    }
+
+    await deleteKnowledgeSourceFile(document.sourceFilePath)
+    await this.prisma.knowledgeDocument.delete({
+      where: { id },
+    })
+
+    return {
+      id,
+      deleted: true,
+    }
+  }
+
+  async getDocumentSourceFile(id: string) {
+    const document = (await this.prisma.knowledgeDocument.findUnique({
+      where: { id },
+    })) as
+      | {
+          sourceFileName: string | null
+          sourceFilePath: string | null
+          sourceFileMime: string | null
+        }
+      | null
+
+    if (!document?.sourceFileName || !document.sourceFilePath) {
+      throw new NotFoundException('knowledge.documentSourceNotFound')
+    }
+
+    const buffer = await readKnowledgeSourceFile(document.sourceFilePath)
+    return {
+      fileName: document.sourceFileName,
+      mimeType: document.sourceFileMime || 'application/octet-stream',
+      buffer,
+    }
+  }
+
   async ingestTrustedDocs(actorUserId: number, tenantKey?: string) {
     const resolvedTenantKey = this.resolveTenantKey(tenantKey)
     const results: ReturnType<KnowledgeService['mapDocument']>[] = []
     const docsDir = await this.resolveDocsDir()
 
-    if (!docsDir) {
-      return {
-        tenantKey: resolvedTenantKey,
-        ingested: 0,
-        items: results,
-      }
-    }
+    if (docsDir) {
+      for (const fileName of DOC_SOURCES) {
+        const filePath = path.join(docsDir, fileName)
+        try {
+          const content = await fs.readFile(filePath, 'utf8')
+          const title = this.extractMarkdownTitle(content) ?? fileName
+          const summary = this.extractSummary(content)
+          const sourceKey = `docs:${fileName}`
 
-    for (const fileName of DOC_SOURCES) {
-      const filePath = path.join(docsDir, fileName)
-      try {
-        const content = await fs.readFile(filePath, 'utf8')
-        const title = this.extractMarkdownTitle(content) ?? fileName
-        const summary = this.extractSummary(content)
-        const sourceKey = `docs:${fileName}`
-
-        const document = await this.prisma.knowledgeDocument.upsert({
-          where: {
-            tenantKey_scope_sourceType_sourceKey: {
-              tenantKey: resolvedTenantKey,
-              scope: KnowledgeDocumentScope.ADMIN_INTERNAL,
-              sourceType: KnowledgeSourceType.DOCS,
-              sourceKey,
-            },
-          },
-          update: {
-            title,
-            summary,
-            content,
-            status: KnowledgeDocumentStatus.ACTIVE,
-            metadata: this.toJsonValue({
-              filePath: `docs/${fileName}`,
-              source: 'docs-ingestion',
-            }),
-            approvedByUserId: actorUserId,
-            approvedAt: new Date(),
-          },
-          create: {
+          const document = await this.upsertKnowledgeDocument({
             tenantKey: resolvedTenantKey,
             scope: KnowledgeDocumentScope.ADMIN_INTERNAL,
             sourceType: KnowledgeSourceType.DOCS,
-            status: KnowledgeDocumentStatus.ACTIVE,
             sourceKey,
             title,
             summary,
             content,
+            tags: ['docs', 'internal'],
             piiRiskLevel: 'low',
-            metadata: this.toJsonValue({
+            metadata: {
               filePath: `docs/${fileName}`,
               source: 'docs-ingestion',
-            }),
-            authoredByUserId: actorUserId,
-            approvedByUserId: actorUserId,
-            approvedAt: new Date(),
-          },
-        })
+            },
+            actorUserId,
+          })
 
-        await this.embeddings.indexDocument(document)
-        results.push(await this.getDocumentById(document.id))
+          results.push(await this.getDocumentById(document.id))
+        } catch {
+          continue
+        }
+      }
+    }
+
+    for (const source of getTenantKnowledgeSources(resolvedTenantKey)) {
+      try {
+        const document =
+          source.kind === 'repo_markdown'
+            ? await this.ingestTenantRepoSource(
+                source,
+                docsDir,
+                resolvedTenantKey,
+                actorUserId,
+              )
+            : await this.ingestTenantWebSource(
+                source,
+                resolvedTenantKey,
+                actorUserId,
+              )
+
+        if (document) {
+          results.push(await this.getDocumentById(document.id))
+        }
       } catch {
         continue
       }
@@ -772,6 +891,10 @@ export class KnowledgeService {
     title: string
     summary: string | null
     content: string
+    sourceFileName?: string | null
+    sourceFilePath?: string | null
+    sourceFileMime?: string | null
+    sourceFileSize?: number | null
     tags: string[]
     piiRiskLevel: string | null
     metadata: Prisma.JsonValue | null
@@ -795,6 +918,15 @@ export class KnowledgeService {
       title: document.title,
       summary: document.summary ?? null,
       content: document.content,
+      sourceFile:
+        document.sourceFileName && document.sourceFilePath
+          ? {
+              name: document.sourceFileName,
+              mimeType: document.sourceFileMime ?? 'application/octet-stream',
+              size: document.sourceFileSize ?? 0,
+              downloadUrl: `/api/ai/knowledge/documents/${document.id}/file`,
+            }
+          : null,
       tags: document.tags,
       piiRiskLevel: document.piiRiskLevel ?? 'low',
       metadata: document.metadata ?? null,
@@ -936,13 +1068,46 @@ export class KnowledgeService {
       return ''
     }
 
-    const index = normalizedContent.toLowerCase().indexOf(search.trim().toLowerCase())
+    const normalizedSearch = search.trim().toLowerCase()
+    const normalizedBody = normalizedContent.toLowerCase()
+    let index = normalizedBody.indexOf(normalizedSearch)
+
     if (index < 0) {
-      return normalizedContent.slice(0, 240)
+      const stopwords = new Set([
+        'sobre',
+        'desde',
+        'segun',
+        'según',
+        'cargado',
+        'quiero',
+        'necesito',
+        'podrias',
+        'podrías',
+        'resumime',
+        'resumen',
+        'principales',
+        'informe',
+        'datos',
+      ])
+
+      const candidateToken = normalizedSearch
+        .split(/[^a-z0-9áéíóúüñ]+/i)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 4 && !stopwords.has(token))
+        .sort((left, right) => right.length - left.length)
+        .find((token) => normalizedBody.includes(token))
+
+      if (candidateToken) {
+        index = normalizedBody.indexOf(candidateToken)
+      }
     }
 
-    const start = Math.max(index - 80, 0)
-    const end = Math.min(index + 160, normalizedContent.length)
+    if (index < 0) {
+      return normalizedContent.slice(0, 420)
+    }
+
+    const start = Math.max(index - 180, 0)
+    const end = Math.min(index + 540, normalizedContent.length)
     return normalizedContent.slice(start, end)
   }
 
@@ -972,6 +1137,186 @@ export class KnowledgeService {
     return input
       .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
       .replace(/\+?\d[\d\s-]{6,}\d/g, '[redacted-phone]')
+  }
+
+  private async ingestTenantRepoSource(
+    source: Extract<TenantKnowledgeSource, { kind: 'repo_markdown' }>,
+    docsDir: string | null,
+    tenantKey: string,
+    actorUserId: number,
+  ) {
+    if (!docsDir) {
+      return null
+    }
+
+    const filePath = path.join(docsDir, source.pathWithinDocs)
+    const content = await fs.readFile(filePath, 'utf8')
+    const title = source.title || this.extractMarkdownTitle(content) || source.pathWithinDocs
+    const summary = this.extractSummary(content)
+
+    return this.upsertKnowledgeDocument({
+      tenantKey,
+      scope: this.mapScope(source.scope),
+      sourceType: KnowledgeSourceType.DOCS,
+      sourceKey: source.sourceKey,
+      title,
+      summary,
+      content,
+      tags: source.tags ?? [],
+      piiRiskLevel: 'low',
+      metadata: {
+        filePath: `docs/${source.pathWithinDocs}`,
+        source: 'tenant-docs-ingestion',
+        ...(source.metadata ?? {}),
+      },
+      actorUserId,
+    })
+  }
+
+  private async ingestTenantWebSource(
+    source: Extract<TenantKnowledgeSource, { kind: 'web_page' }>,
+    tenantKey: string,
+    actorUserId: number,
+  ) {
+    const response = await fetch(source.url)
+    if (!response.ok) {
+      throw new Error(`knowledge.webFetchFailed:${response.status}`)
+    }
+
+    const html = await response.text()
+    const content = this.extractReadableHtml(html)
+    const title = source.title || this.extractHtmlTitle(html) || source.url
+    const summary =
+      this.extractHtmlDescription(html) ||
+      this.extractSummary(content) ||
+      source.title ||
+      null
+
+    return this.upsertKnowledgeDocument({
+      tenantKey,
+      scope: this.mapScope(source.scope),
+      sourceType: KnowledgeSourceType.DOCS,
+      sourceKey: source.sourceKey,
+      title,
+      summary,
+      content,
+      tags: source.tags ?? [],
+      piiRiskLevel: 'low',
+      metadata: {
+        url: source.url,
+        source: 'tenant-web-ingestion',
+        ...(source.metadata ?? {}),
+      },
+      actorUserId,
+    })
+  }
+
+  private async upsertKnowledgeDocument(input: {
+    tenantKey: string
+    scope: KnowledgeDocumentScope
+    sourceType: KnowledgeSourceType
+    sourceKey: string
+    title: string
+    summary: string | null
+    content: string
+    tags: string[]
+    piiRiskLevel: string
+    metadata: Record<string, unknown>
+    sourceFileName?: string | null
+    sourceFilePath?: string | null
+    sourceFileMime?: string | null
+    sourceFileSize?: number | null
+    actorUserId: number
+  }) {
+    const document = await this.prisma.knowledgeDocument.upsert({
+      where: {
+        tenantKey_scope_sourceType_sourceKey: {
+          tenantKey: input.tenantKey,
+          scope: input.scope,
+          sourceType: input.sourceType,
+          sourceKey: input.sourceKey,
+        },
+      },
+      update: {
+        title: input.title,
+        summary: input.summary,
+        content: input.content,
+        status: KnowledgeDocumentStatus.ACTIVE,
+        tags: input.tags,
+        piiRiskLevel: input.piiRiskLevel,
+        sourceFileName: input.sourceFileName ?? null,
+        sourceFilePath: input.sourceFilePath ?? null,
+        sourceFileMime: input.sourceFileMime ?? null,
+        sourceFileSize: input.sourceFileSize ?? null,
+        metadata: this.toJsonValue(input.metadata),
+        approvedByUserId: input.actorUserId,
+        approvedAt: new Date(),
+      } as any,
+      create: {
+        tenantKey: input.tenantKey,
+        scope: input.scope,
+        sourceType: input.sourceType,
+        status: KnowledgeDocumentStatus.ACTIVE,
+        sourceKey: input.sourceKey,
+        title: input.title,
+        summary: input.summary,
+        content: input.content,
+        tags: input.tags,
+        piiRiskLevel: input.piiRiskLevel,
+        sourceFileName: input.sourceFileName ?? null,
+        sourceFilePath: input.sourceFilePath ?? null,
+        sourceFileMime: input.sourceFileMime ?? null,
+        sourceFileSize: input.sourceFileSize ?? null,
+        metadata: this.toJsonValue(input.metadata),
+        authoredByUserId: input.actorUserId,
+        approvedByUserId: input.actorUserId,
+        approvedAt: new Date(),
+      } as any,
+    })
+
+    await this.embeddings.indexDocument(document)
+    return document
+  }
+
+  private extractHtmlTitle(html: string) {
+    const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
+    return match?.[1]?.replace(/\s+/g, ' ').trim() ?? null
+  }
+
+  private extractHtmlDescription(html: string) {
+    const match = html.match(
+      /<meta[^>]+name=["']description["'][^>]+content=["']([\s\S]*?)["'][^>]*>/i,
+    )
+    return match?.[1]?.replace(/\s+/g, ' ').trim() ?? null
+  }
+
+  private extractReadableHtml(html: string) {
+    const withoutScripts = html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+      .replace(/<\/(p|div|section|article|header|footer|aside|h1|h2|h3|h4|h5|h6|li|ul|ol|br|tr)>/gi, '\n')
+      .replace(/<li[^>]*>/gi, '- ')
+      .replace(/<[^>]+>/g, ' ')
+
+    const decoded = withoutScripts
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/&aacute;/gi, 'á')
+      .replace(/&eacute;/gi, 'é')
+      .replace(/&iacute;/gi, 'í')
+      .replace(/&oacute;/gi, 'ó')
+      .replace(/&uacute;/gi, 'ú')
+      .replace(/&ntilde;/gi, 'ñ')
+
+    return decoded
+      .split('\n')
+      .map((line) => line.replace(/\s+/g, ' ').trim())
+      .filter((line) => line.length >= 3)
+      .join('\n')
+      .slice(0, 24000)
   }
 
   private async resolveDocsDir() {

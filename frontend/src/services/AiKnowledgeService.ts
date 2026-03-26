@@ -25,6 +25,12 @@ export type AiKnowledgeDocument = {
     title: string
     summary: string | null
     content: string
+    sourceFile: {
+        name: string
+        mimeType: string
+        size: number
+        downloadUrl: string
+    } | null
     tags: string[]
     piiRiskLevel: string
     metadata: Record<string, unknown> | null
@@ -87,10 +93,15 @@ const AiKnowledgeService = {
         })
     },
 
-    async listDocuments() {
+    async listDocuments(params?: { sourceFileOnly?: boolean }) {
         return ApiService.fetchData<AiKnowledgeDocument[]>({
             url: '/ai/knowledge/documents',
             method: 'get',
+            params: params?.sourceFileOnly
+                ? {
+                      sourceFileOnly: 'true',
+                  }
+                : undefined,
         })
     },
 
@@ -134,6 +145,24 @@ const AiKnowledgeService = {
             url: '/ai/knowledge/curated',
             method: 'post',
             data,
+        })
+    },
+
+    async uploadDocument(data: FormData) {
+        return ApiService.fetchData<AiKnowledgeDocument, FormData>({
+            url: '/ai/knowledge/documents/upload',
+            method: 'post',
+            data,
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        })
+    },
+
+    async deleteDocument(id: string) {
+        return ApiService.fetchData<{ id: string; deleted: boolean }>({
+            url: `/ai/knowledge/documents/${id}`,
+            method: 'delete',
         })
     },
 

@@ -32,6 +32,8 @@ export class WebchatAdapter {
           channel: 'webchat',
         },
         toolCalls: aiResult?.response?.toolCalls ?? [],
+        needsHuman: aiResult?.response?.needsHuman ?? false,
+        grounding: aiResult?.response?.grounding ?? null,
       })
     }
 

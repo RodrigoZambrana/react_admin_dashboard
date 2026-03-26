@@ -1524,6 +1524,7 @@ model Conversation {
   channel             ConversationChannel
   status              ConversationStatus         @default(OPEN)
   controlMode         ConversationControlMode    @default(AI)
+  needsHuman          Boolean                    @default(false)
   subject             String?
   customerId          Int?
   customer            Customer?                  @relation("ConversationCustomer", fields: [customerId], references: [id], onDelete: SetNull)
@@ -1665,6 +1666,10 @@ model KnowledgeDocument {
   title            String
   summary          String?
   content          String
+  sourceFileName   String?
+  sourceFilePath   String?
+  sourceFileMime   String?
+  sourceFileSize   Int?
   tags             String[]                    @default([])
   piiRiskLevel     String?                     @default("low")
   metadata         Json?

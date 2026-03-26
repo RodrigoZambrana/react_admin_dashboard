@@ -1,0 +1,2 @@
+ALTER TABLE "Conversation"
+ADD COLUMN "needsHuman" BOOLEAN NOT NULL DEFAULT false;
