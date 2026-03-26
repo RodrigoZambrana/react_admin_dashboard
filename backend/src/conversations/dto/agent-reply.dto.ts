@@ -66,4 +66,8 @@ export class AgentReplyDto {
   @IsOptional()
   @IsObject()
   grounding?: Record<string, unknown>
+
+  @IsOptional()
+  @IsObject()
+  audit?: Record<string, unknown>
 }

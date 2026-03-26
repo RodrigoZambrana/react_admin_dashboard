@@ -1,11 +1,14 @@
 import { Transform, Type } from 'class-transformer'
 import {
+  IsArray,
   IsIn,
   IsObject,
   IsOptional,
   IsString,
   MaxLength,
+  ValidateNested,
 } from 'class-validator'
+import { ConversationMessageAttachmentDto } from './conversation-message-attachment.dto'
 
 const conversationChannels = [
   'email',
@@ -84,4 +87,10 @@ export class IngestInboundMessageDto {
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ConversationMessageAttachmentDto)
+  attachments?: ConversationMessageAttachmentDto[]
 }

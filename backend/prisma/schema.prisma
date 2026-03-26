@@ -24,6 +24,29 @@ enum Role {
   FINANCE
 }
 
+enum UserCapability {
+  CONVERSATIONS_MANAGE
+  CUSTOMERS_MANAGE
+  APPOINTMENTS_MANAGE
+  CATALOG_MANAGE
+  ORDERS_MANAGE
+  QUOTES_MANAGE
+  PAYMENTS_MANAGE
+  ABERTURAS_QUOTE
+  ABERTURAS_REGISTER
+  KNOWLEDGE_MANAGE
+  AI_SETTINGS_MANAGE
+  USERS_MANAGE
+}
+
+enum UserCapabilityGroup {
+  SUPPORT
+  SALES
+  OPERATIONS
+  FINANCE
+  PLATFORM_ADMIN
+}
+
 enum EventType {
   MEETING
   TASK
@@ -131,7 +154,18 @@ enum InboxMessageEventType {
 
 enum ConversationScope {
   CUSTOMER_PUBLIC
+  CUSTOMER_AUTHENTICATED
   ADMIN_INTERNAL
+}
+
+enum ConversationRole {
+  CUSTOMER_PUBLIC
+  CUSTOMER_AUTHENTICATED
+  ADMIN_SUPPORT
+  ADMIN_SALES
+  ADMIN_OPERATIONS
+  ADMIN_SUPERVISOR
+  SUPERADMIN
 }
 
 enum ConversationChannel {
@@ -363,6 +397,8 @@ model User {
   email                          String                     @unique
   img                            String?
   role                           Role                       @default(USER)
+  capabilityGroups               UserCapabilityGroup[]      @default([])
+  directCapabilities             UserCapability[]           @default([])
   lang                           String                     @default("en")
   country                        String?
   countryCode                    String?
@@ -1521,6 +1557,7 @@ model Conversation {
   id                  String                     @id @default(cuid())
   tenantKey           String
   scope               ConversationScope
+  conversationRole    ConversationRole          @default(CUSTOMER_PUBLIC)
   channel             ConversationChannel
   status              ConversationStatus         @default(OPEN)
   controlMode         ConversationControlMode    @default(AI)
@@ -1552,6 +1589,7 @@ model Conversation {
 
   @@unique([tenantKey, channel, externalThreadId])
   @@index([tenantKey, scope, channel, status])
+  @@index([conversationRole, lastMessageAt])
   @@index([assignedToUserId, status, lastMessageAt])
   @@index([customerId, lastMessageAt])
   @@index([inboxAccountId, channel, lastMessageAt])

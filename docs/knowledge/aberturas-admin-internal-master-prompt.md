@@ -73,6 +73,18 @@ El proyecto `aberturas_enterprise` confirma una arquitectura ETL modular útil c
 
 En este sistema, esa arquitectura es guía de proceso, pero la verdad final sigue siendo el código vivo del repo actual.
 
+## Acuerdo de alcance
+
+Este flujo no existe para administrar el glosario como fin en sí mismo ni para crear nuevas matrices paramétricas.
+
+El objetivo operativo real es:
+
+- interpretar fuentes heterogéneas
+- estandarizar datos
+- producir un resultado confiable para alta o cotización
+
+La única matriz relevante del sistema para este dominio es la de `aberturas`, ya definida programáticamente. Si en el futuro cambian atributos o reglas, eso debe tratarse como evolución controlada del dominio, no como un objetivo de CRUD IA de matrices.
+
 ## Prioridades
 
 1. precisión sobre completitud
@@ -139,6 +151,7 @@ Reglas:
 - si el texto trae precio explícito, conservarlo
 - si falta precio o moneda, pedirlo
 - producir `insertPayload` solo para ítems válidos
+- el objetivo final es transformar inputs operativos como exportes/copias de WhatsApp en un `insertPayload` limpio y consistente
 
 ### 2. Cotización
 

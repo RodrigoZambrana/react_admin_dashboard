@@ -58,7 +58,16 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && req.url === '/capabilities') {
     json(res, 200, {
-      scope: ['customer_public', 'admin_internal'],
+      scope: ['customer_public', 'customer_authenticated', 'admin_internal'],
+      roles: [
+        'customer_public',
+        'customer_authenticated',
+        'admin_support',
+        'admin_sales',
+        'admin_operations',
+        'admin_supervisor',
+        'superadmin',
+      ],
       tools: [
         'search_products',
         'create_customer',

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type UIEvent,
+} from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Drawer from '@/components/ui/Drawer'
@@ -136,6 +143,58 @@ const titleCase = (value?: string | null) => {
         .join(' ')
 }
 
+const extractTaskSummaryField = (
+    summary: string | null | undefined,
+    key: 'intención' | 'contexto_reciente' | 'consulta_actual',
+) => {
+    const raw = String(summary || '')
+    if (!raw.trim()) return null
+
+    const parts = raw.split(/\s*;\s*/).map((entry) => entry.trim())
+    for (const part of parts) {
+        const [field, ...rest] = part.split('=')
+        if (field?.trim() === key) {
+            const value = rest.join('=').trim()
+            return value || null
+        }
+    }
+
+    return null
+}
+
+const formatTaskSummaryPreview = (summary?: string | null) => {
+    const currentQuery = extractTaskSummaryField(summary, 'consulta_actual')
+    if (currentQuery) return currentQuery
+
+    const recentContext = extractTaskSummaryField(summary, 'contexto_reciente')
+    if (recentContext) return recentContext
+
+    const intent = extractTaskSummaryField(summary, 'intención')
+    if (intent) return intent
+
+    return summary?.trim() || null
+}
+
+const buildHandoffTaskSummary = (conversation: ConversationSummary | ConversationDetail) => {
+    const summary =
+        formatTaskSummaryPreview(conversation.aiState?.memory?.taskSummary) || null
+    const intentKey = conversation.aiState?.memory?.intentKey || null
+
+    if (!summary && !intentKey) {
+        return null
+    }
+
+    if (summary && intentKey) {
+        return `Tarea actual (${intentKey}): ${summary}`
+    }
+
+    if (summary) {
+        return `Tarea actual: ${summary}`
+    }
+
+    return `Tarea actual (${intentKey})`
+}
+
 const getInboxSecondaryLabel = (inbox: InboxSummary) => {
     if (inbox.channel === 'email') {
         return inbox.address || 'Cuenta de correo'
@@ -197,12 +256,13 @@ const getInitials = (value?: string | null) => {
 
 const getConversationDisplayTitle = (conversation: {
     scope: string
+    role?: string
     subject: string | null
     customer?: { name: string } | null
     participants?: Array<{ displayName: string | null }> | null
     externalUserId?: string | null
 }) => {
-    if (conversation.scope === 'admin_internal') {
+    if (conversation.scope === 'admin_internal' || String(conversation.role || '').startsWith('admin_') || conversation.role === 'superadmin') {
         return formatTitle(conversation.subject)
     }
 
@@ -234,10 +294,17 @@ const colorByChannel = (channel: string) => {
 const previewByConversation = (conversation: ConversationSummary) => {
     const latest = conversation.latestMessage
     if (!latest) return 'Sin mensajes todavía'
-    if (latest.kind === 'image') return 'Imagen'
-    if (latest.kind === 'audio') return 'Audio'
-    if (latest.kind === 'attachment') return 'Adjunto'
-    return latest.body || 'Mensaje sin texto'
+    const prefix = latest.authorType === 'agent' ? 'IA: ' : ''
+    if (latest.kind === 'image') return `${prefix}Imagen`
+    if (latest.kind === 'audio') return `${prefix}Audio`
+    if (latest.kind === 'attachment') return `${prefix}Adjunto`
+    const body = latest.body?.trim()
+    if (body) {
+        return `${prefix}${body}`
+    }
+    return latest.authorType === 'agent'
+        ? 'IA: respuesta sin texto'
+        : 'Mensaje sin texto'
 }
 
 const getConversationOwnerState = (conversation: ConversationSummary) => {
@@ -251,6 +318,27 @@ const getConversationOwnerState = (conversation: ConversationSummary) => {
     return {
         label: 'Agente IA',
         tone: 'agent' as const,
+    }
+}
+
+const getConversationRoleLabel = (role?: string | null) => {
+    switch (role) {
+        case 'customer_public':
+            return 'Cliente público'
+        case 'customer_authenticated':
+            return 'Cliente autenticado'
+        case 'admin_support':
+            return 'Soporte'
+        case 'admin_sales':
+            return 'Ventas'
+        case 'admin_operations':
+            return 'Operaciones'
+        case 'admin_supervisor':
+            return 'Supervisor'
+        case 'superadmin':
+            return 'Superadmin'
+        default:
+            return role ? titleCase(role) : 'Sin rol'
     }
 }
 
@@ -333,11 +421,15 @@ const summarizeToolAudit = (toolCalls: ConversationDetail['toolCalls']) => {
 
 const buildConversationAuditBadges = (conversation: ConversationSummary) => {
     const audit = conversation.aiAudit
-    if (!audit || audit.total === 0) {
+    const hasTaskReset = Boolean(conversation.aiState?.memory?.lastResetAt)
+    if ((!audit || audit.total === 0) && !hasTaskReset) {
         return []
     }
 
     return [
+        hasTaskReset
+            ? { key: 'task-reset', label: 'Reset de tarea', tone: 'state' }
+            : null,
         audit.search
             ? { key: 'search', label: `${audit.search} prebúsqueda`, tone: 'search' }
             : null,
@@ -553,6 +645,7 @@ const messageVariantByAuthor = (authorType: string) => {
 const conversationScopeOptions = [
     { value: '', label: 'Todos los scopes' },
     { value: 'customer_public', label: 'Cliente' },
+    { value: 'customer_authenticated', label: 'Cliente logueado' },
     { value: 'admin_internal', label: 'Interno' },
 ]
 
@@ -596,6 +689,57 @@ const defaultFilters: ConversationListFilters = {
     searchText: '',
 }
 
+const LIST_PAGE_SIZE = 50
+const LIST_REFRESH_INTERVAL_MS = 8000
+const DETAIL_REFRESH_INTERVAL_MS = 6000
+
+const upsertConversationSummary = (
+    current: ConversationSummary[],
+    next: ConversationSummary,
+) => {
+    const existingIndex = current.findIndex((item) => item.id === next.id)
+    if (existingIndex === -1) {
+        return [next, ...current]
+    }
+
+    const updated = [...current]
+    updated[existingIndex] = {
+        ...updated[existingIndex],
+        ...next,
+    }
+    return updated
+}
+
+const mergeConversationSummaries = (
+    current: ConversationSummary[],
+    next: ConversationSummary[],
+) => {
+    const merged = new Map(current.map((item) => [item.id, item]))
+    next.forEach((item) => {
+        const previous = merged.get(item.id)
+        merged.set(item.id, previous ? { ...previous, ...item } : item)
+    })
+    return Array.from(merged.values())
+}
+
+const buildConversationCollectionSignature = (items: ConversationSummary[]) =>
+    items
+        .map((item) =>
+            [
+                item.id,
+                item.updatedAt,
+                item.lastMessageAt,
+                item.controlMode,
+                item.status,
+                item.isPinned ? '1' : '0',
+                item.readState?.unreadCount ?? 0,
+                item.latestMessage?.id ?? '',
+                item.latestMessage?.authorType ?? '',
+                item.latestMessage?.body ?? '',
+            ].join('|'),
+        )
+        .join('::')
+
 const ConversationsV2 = () => {
     const { conversationId = '' } = useParams<{ conversationId?: string }>()
     const navigate = useNavigate()
@@ -607,6 +751,10 @@ const ConversationsV2 = () => {
     const [queues, setQueues] = useState<ConversationQueueSummary[]>([])
     const [operators, setOperators] = useState<OperatorSummary[]>([])
     const [listLoading, setListLoading] = useState(true)
+    const [listRefreshing, setListRefreshing] = useState(false)
+    const [listLoadingMore, setListLoadingMore] = useState(false)
+    const [listTotal, setListTotal] = useState(0)
+    const [listPage, setListPage] = useState(1)
     const [listError, setListError] = useState<string | null>(null)
     const [selectedConversation, setSelectedConversation] =
         useState<ConversationDetail | null>(null)
@@ -650,6 +798,8 @@ const ConversationsV2 = () => {
     const conversationButtonRefs = useRef<
         Record<string, HTMLButtonElement | null>
     >({})
+    const listViewportRef = useRef<HTMLDivElement | null>(null)
+    const autoScrolledConversationIdRef = useRef<string | null>(null)
 
     const isConversationPinned = useCallback(
         (conversationIdToCheck: string) =>
@@ -744,66 +894,135 @@ const ConversationsV2 = () => {
     )
 
     const loadList = useCallback(
-        async (searchValue = search) => {
-            setListLoading(true)
+        async (
+            searchValue = search,
+            options?: {
+                silent?: boolean
+                append?: boolean
+                page?: number
+                pageSize?: number
+            },
+        ) => {
+            const requestedPage = options?.page ?? 1
+            const requestedPageSize =
+                options?.pageSize ??
+                (options?.silent ? Math.max(listPage, 1) * LIST_PAGE_SIZE : LIST_PAGE_SIZE)
+
+            if (options?.append) {
+                setListLoadingMore(true)
+            } else if (options?.silent) {
+                setListRefreshing(true)
+            } else {
+                setListLoading(true)
+            }
             setListError(null)
             try {
-                const [response, inboxResponse, queueResponse, usersResponse] =
-                    await Promise.all([
-                    ConversationsService.fetchConversations({
-                        page: 1,
-                        pageSize: 50,
+                const conversationPromise = ConversationsService.fetchConversations({
+                        page: requestedPage,
+                        pageSize: requestedPageSize,
                         search: searchValue.trim() || undefined,
                         scope: filters.scope || undefined,
                         channel: filters.channel || undefined,
                         status: filters.status || undefined,
-                    }),
-                    ConversationsService.fetchInboxes(),
-                    ConversationsService.fetchQueues(),
-                    apiGetUsers<OperatorSummary[]>(),
-                ])
-                setItems(response.items)
-                setInboxes(inboxResponse)
-                setQueues(queueResponse)
-                setOperators(usersResponse.data ?? [])
-
-                if (!isMobile && !conversationId && response.items[0]) {
-                    navigate(`/app/crm/conversations/${response.items[0].id}`, {
-                        replace: true,
                     })
+
+                const shouldRefreshSupportData =
+                    !options?.silent && !options?.append && requestedPage === 1
+
+                const [response, inboxResponse, queueResponse, usersResponse] =
+                    shouldRefreshSupportData
+                        ? await Promise.all([
+                              conversationPromise,
+                              ConversationsService.fetchInboxes(),
+                              ConversationsService.fetchQueues(),
+                              apiGetUsers<OperatorSummary[]>(),
+                          ])
+                        : await Promise.all([
+                              conversationPromise,
+                              Promise.resolve(null),
+                              Promise.resolve(null),
+                              Promise.resolve(null),
+                          ])
+
+                setListTotal(response.total)
+                setListPage(
+                    options?.append
+                        ? requestedPage
+                        : Math.max(
+                              1,
+                              Math.ceil(response.items.length / LIST_PAGE_SIZE) || 1,
+                          ),
+                )
+                setItems((current) => {
+                    const nextItems = options?.append
+                        ? mergeConversationSummaries(current, response.items)
+                        : response.items
+                    const currentSignature = buildConversationCollectionSignature(current)
+                    const nextSignature = buildConversationCollectionSignature(nextItems)
+                    return currentSignature === nextSignature ? current : nextItems
+                })
+                if (inboxResponse) {
+                    setInboxes(inboxResponse)
+                }
+                if (queueResponse) {
+                    setQueues(queueResponse)
+                }
+                if (usersResponse) {
+                    setOperators(usersResponse.data ?? [])
                 }
             } catch (error) {
                 console.error(error)
                 setListError('No fue posible cargar conversaciones.')
             } finally {
-                setListLoading(false)
+                if (options?.append) {
+                    setListLoadingMore(false)
+                } else if (options?.silent) {
+                    setListRefreshing(false)
+                } else {
+                    setListLoading(false)
+                }
             }
         },
         [
-            conversationId,
             filters.channel,
             filters.scope,
             filters.status,
-            isMobile,
-            navigate,
+            listPage,
             search,
         ],
     )
 
-    const loadConversation = useCallback(async (id: string) => {
-        setDetailLoading(true)
-        setDetailError(null)
-        try {
-            const response = await ConversationsService.fetchConversation(id)
-            setSelectedConversation(response)
-        } catch (error) {
-            console.error(error)
-            setSelectedConversation(null)
-            setDetailError('No fue posible cargar la conversación seleccionada.')
-        } finally {
-            setDetailLoading(false)
-        }
-    }, [])
+    const loadConversation = useCallback(
+        async (
+            id: string,
+            options?: {
+                silent?: boolean
+            },
+        ) => {
+            if (!options?.silent) {
+                setDetailLoading(true)
+            }
+            setDetailError(null)
+            try {
+                const response = await ConversationsService.fetchConversation(id)
+                setSelectedConversation(response)
+                setItems((current) => upsertConversationSummary(current, response))
+            } catch (error) {
+                console.error(error)
+                if (!options?.silent) {
+                    setSelectedConversation(null)
+                    setDetailError(
+                        'No fue posible cargar la conversación seleccionada.',
+                    )
+                }
+            } finally {
+                if (!options?.silent) {
+                    setDetailLoading(false)
+                }
+            }
+        },
+        [],
+    )
 
     useEffect(() => {
         if (selectedChannel === 'email') {
@@ -833,6 +1052,32 @@ const ConversationsV2 = () => {
             return
         }
         void loadConversation(conversationId)
+    }, [conversationId, loadConversation])
+
+    useEffect(() => {
+        const interval = window.setInterval(() => {
+            if (document.visibilityState !== 'visible') {
+                return
+            }
+            void loadList(search, { silent: true })
+        }, LIST_REFRESH_INTERVAL_MS)
+
+        return () => window.clearInterval(interval)
+    }, [loadList, search])
+
+    useEffect(() => {
+        if (!conversationId) {
+            return
+        }
+
+        const interval = window.setInterval(() => {
+            if (document.visibilityState !== 'visible') {
+                return
+            }
+            void loadConversation(conversationId, { silent: true })
+        }, DETAIL_REFRESH_INTERVAL_MS)
+
+        return () => window.clearInterval(interval)
     }, [conversationId, loadConversation])
 
     const hasActiveFilters = useMemo(
@@ -876,6 +1121,7 @@ const ConversationsV2 = () => {
                 return left.id.localeCompare(right.id)
             })
     }, [isConversationPinned, items, selectedChannel, selectedInboxId])
+    const hasMoreConversations = items.length < listTotal
     const recentVisibleChats = useMemo(() => visibleItems.slice(0, 8), [visibleItems])
     const menuConversation = useMemo(
         () => items.find((conversation) => conversation.id === menuConversationId) ?? null,
@@ -1169,10 +1415,16 @@ const ConversationsV2 = () => {
             return
         }
 
+        if (autoScrolledConversationIdRef.current === conversationId) {
+            return
+        }
+
         const activeButton = conversationButtonRefs.current[conversationId]
         if (!activeButton) {
             return
         }
+
+        autoScrolledConversationIdRef.current = conversationId
 
         const frame = window.requestAnimationFrame(() => {
             activeButton.scrollIntoView({
@@ -1183,7 +1435,39 @@ const ConversationsV2 = () => {
         })
 
         return () => window.cancelAnimationFrame(frame)
-    }, [conversationId, listLoading, visibleItems])
+    }, [conversationId, listLoading, visibleItems.length])
+
+    const handleListScroll = useCallback(
+        (event: UIEvent<HTMLDivElement>) => {
+            const viewport = event.currentTarget
+            const remaining =
+                viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+            if (
+                remaining > 180 ||
+                listLoading ||
+                listLoadingMore ||
+                listRefreshing ||
+                !hasMoreConversations
+            ) {
+                return
+            }
+
+            void loadList(search, {
+                append: true,
+                page: listPage + 1,
+                pageSize: LIST_PAGE_SIZE,
+            })
+        },
+        [
+            hasMoreConversations,
+            listLoading,
+            listLoadingMore,
+            listPage,
+            listRefreshing,
+            loadList,
+            search,
+        ],
+    )
 
     const handleSelectConversation = (id: string) => {
         if (bulkSelectionMode) {
@@ -1271,9 +1555,8 @@ const ConversationsV2 = () => {
                 selectedConversation.id,
                 replyBody.trim(),
             )
-            setSelectedConversation(updated)
+            syncConversation(updated)
             setReplyBody('')
-            await loadList()
         } catch (error) {
             console.error(error)
         } finally {
@@ -1283,9 +1566,7 @@ const ConversationsV2 = () => {
 
     const syncConversation = useCallback((detail: ConversationDetail) => {
         setSelectedConversation(detail)
-        setItems((current) =>
-            current.map((item) => (item.id === detail.id ? detail : item)),
-        )
+        setItems((current) => upsertConversationSummary(current, detail))
     }, [])
 
     const runAction = useCallback(
@@ -1503,6 +1784,43 @@ const ConversationsV2 = () => {
                     placeholder="Notas para takeover, release u override"
                 />
             </div>
+
+            {buildHandoffTaskSummary(selectedConversation) ? (
+                <div className="management-block">
+                    <div className="management-label">Resumen de tarea</div>
+                    <div
+                        className="management-summary-card"
+                        data-testid="admin-conversation-task-summary-detail"
+                    >
+                        <p>{buildHandoffTaskSummary(selectedConversation)}</p>
+                        <button
+                            className="drawer-secondary-btn"
+                            type="button"
+                            data-testid="admin-conversation-task-summary-apply"
+                            onClick={() =>
+                                setHandoffNotes((current) => {
+                                    const nextSummary =
+                                        buildHandoffTaskSummary(
+                                            selectedConversation,
+                                        ) || ''
+                                    if (!nextSummary) {
+                                        return current
+                                    }
+                                    if (!current.trim()) {
+                                        return nextSummary
+                                    }
+                                    if (current.includes(nextSummary)) {
+                                        return current
+                                    }
+                                    return `${current.trim()}\n${nextSummary}`
+                                })
+                            }
+                        >
+                            Usar en notas
+                        </button>
+                    </div>
+                </div>
+            ) : null}
 
             <div className="management-block">
                 <div className="management-label">Asignar operador</div>
@@ -1878,7 +2196,12 @@ const ConversationsV2 = () => {
                 </div>
             </div>
 
-            <div className="sidebar-body" data-testid="admin-conversations-list">
+            <div
+                className="sidebar-body"
+                data-testid="admin-conversations-list"
+                ref={listViewportRef}
+                onScroll={handleListScroll}
+            >
                 <div className="sidebar-body-header">
                     <h5 className="chat-title">
                         {bulkSelectionMode
@@ -1917,7 +2240,7 @@ const ConversationsV2 = () => {
                             disabled={selectedCount === 0 || actionLoading === 'bulk-takeover'}
                             onClick={() => void handleBulkOwnerAction('takeover')}
                         >
-                            Tomar control
+                            Pasar selección a humano
                         </button>
                         <button
                             className="drawer-secondary-btn"
@@ -1926,8 +2249,26 @@ const ConversationsV2 = () => {
                             disabled={selectedCount === 0 || actionLoading === 'bulk-release'}
                             onClick={() => void handleBulkOwnerAction('release')}
                         >
-                            Volver a IA
+                            Pasar selección a IA
                         </button>
+                    </div>
+                ) : null}
+                {!listLoading || listRefreshing ? (
+                    <div
+                        className={`conversation-list-status is-top ${listRefreshing ? 'is-loading' : ''}`}
+                        data-testid="admin-conversations-list-refresh-indicator"
+                    >
+                        {listRefreshing ? (
+                            <>
+                                <Spinner size={16} />
+                                <span>Actualizando conversaciones nuevas...</span>
+                            </>
+                        ) : (
+                            <span>
+                                Cargadas {items.length} de {listTotal || items.length}{' '}
+                                conversaciones
+                            </span>
+                        )}
                     </div>
                 ) : null}
                 {listLoading ? (
@@ -1947,10 +2288,16 @@ const ConversationsV2 = () => {
                             const unreadCount = getDisplayUnreadCount(conversation)
                             const isPinned = isConversationPinned(conversation.id)
                             const ownerState = getConversationOwnerState(conversation)
+                            const roleLabel = getConversationRoleLabel(
+                                conversation.role,
+                            )
                             const aiStateBadge =
                                 getConversationAiStateBadge(conversation)
                             const auditBadges =
                                 buildConversationAuditBadges(conversation)
+                            const taskSummaryPreview = formatTaskSummaryPreview(
+                                conversation.aiState?.memory?.taskSummary,
+                            )
                             const isSelectedForBulk = bulkSelectionIds.includes(
                                 conversation.id,
                             )
@@ -2012,6 +2359,12 @@ const ConversationsV2 = () => {
                                                 <h6>{title}</h6>
                                                 <div className="chat-user-owner-row">
                                                     <span
+                                                        className="conversation-owner-pill is-grounded"
+                                                        data-testid={`admin-conversation-role-${conversation.id}`}
+                                                    >
+                                                        {roleLabel}
+                                                    </span>
+                                                    <span
                                                         className={`conversation-owner-pill is-${ownerState.tone}`}
                                                         data-testid={`admin-conversation-owner-${conversation.id}`}
                                                     >
@@ -2037,6 +2390,14 @@ const ConversationsV2 = () => {
                                                                 {badge.label}
                                                             </span>
                                                         ))}
+                                                    </div>
+                                                ) : null}
+                                                {taskSummaryPreview ? (
+                                                    <div
+                                                        className="chat-user-task-summary"
+                                                        data-testid={`admin-conversation-task-summary-${conversation.id}`}
+                                                    >
+                                                        {taskSummaryPreview}
                                                     </div>
                                                 ) : null}
                                                 <p>
@@ -2092,6 +2453,26 @@ const ConversationsV2 = () => {
                                 </div>
                             )
                         })}
+                        <div
+                            className={`conversation-list-status is-bottom ${listLoadingMore ? 'is-loading' : ''}`}
+                            data-testid="admin-conversations-list-more-indicator"
+                        >
+                            {listLoadingMore ? (
+                                <>
+                                    <Spinner size={16} />
+                                    <span>Cargando conversaciones anteriores...</span>
+                                </>
+                            ) : hasMoreConversations ? (
+                                <span>
+                                    Desliza hacia abajo para cargar más. {items.length} de{' '}
+                                    {listTotal} cargadas.
+                                </span>
+                            ) : (
+                                <span>
+                                    No hay más conversaciones por cargar en este listado.
+                                </span>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
@@ -3246,6 +3627,12 @@ const ConversationsV2 = () => {
                                                             </div>
                                                             <div className="min-w-0 flex-1">
                                                                 <h6>Estado IA</h6>
+                                                                <p data-testid="admin-conversation-role-current">
+                                                                    Rol:{' '}
+                                                                    {getConversationRoleLabel(
+                                                                        selectedConversation.role,
+                                                                    )}
+                                                                </p>
                                                                 <p>
                                                                     {selectedConversation
                                                                         .needsHuman ||
@@ -3266,6 +3653,66 @@ const ConversationsV2 = () => {
                                                                                 .aiState
                                                                                 .fallbackReason
                                                                         }
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.memory
+                                                                    ?.intentKey ? (
+                                                                    <p>
+                                                                        Tarea:{' '}
+                                                                        {
+                                                                            selectedConversation
+                                                                                .aiState
+                                                                                .memory
+                                                                                .intentKey
+                                                                        }
+                                                                    </p>
+                                                                ) : null}
+                                                                {formatTaskSummaryPreview(
+                                                                    selectedConversation.aiState
+                                                                        ?.memory?.taskSummary,
+                                                                ) ? (
+                                                                    <p data-testid="admin-conversation-task-summary-inline">
+                                                                        Resumen:{' '}
+                                                                        {formatTaskSummaryPreview(
+                                                                            selectedConversation
+                                                                                .aiState?.memory
+                                                                                ?.taskSummary,
+                                                                        )}
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.audit?.blockedTools
+                                                                    ?.length ? (
+                                                                    <p data-testid="admin-conversation-blocked-tools-current">
+                                                                        Tools bloqueadas:{' '}
+                                                                        {selectedConversation.aiState.audit.blockedTools.join(
+                                                                            ', ',
+                                                                        )}
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.audit
+                                                                    ?.executedTools
+                                                                    ?.length ? (
+                                                                    <p data-testid="admin-conversation-executed-tools-current">
+                                                                        Tools ejecutadas:{' '}
+                                                                        {selectedConversation.aiState.audit.executedTools.join(
+                                                                            ', ',
+                                                                        )}
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.memory
+                                                                    ?.lastResetAt ? (
+                                                                    <p>
+                                                                        Reset de tarea:{' '}
+                                                                        {formatDateTime(
+                                                                            selectedConversation
+                                                                                .aiState
+                                                                                .memory
+                                                                                .lastResetAt,
+                                                                        )}
                                                                     </p>
                                                                 ) : null}
                                                             </div>

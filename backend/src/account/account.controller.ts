@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common'
 import type { FastifyRequest } from 'fastify'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { resolveUserCapabilityEnvelope } from '../auth/capabilities'
 import { PrismaService } from '../prisma/prisma.service'
 import { Prisma, UserActivityType, CustomerAddress } from '@prisma/client'
 import {
@@ -725,6 +726,7 @@ export class AccountController {
       }
 
       const publicAvatar = resolveAvatarPublicUrl(req, updated.img)
+      const capabilityState = resolveUserCapabilityEnvelope(updated)
       return {
         profile: {
           firstName: updated.name || '',
@@ -744,6 +746,10 @@ export class AccountController {
           name: updated.name || '',
           lastName: updated.lastName || '',
           lang,
+          capabilityGroups: capabilityState.capabilityGroups,
+          directCapabilities: capabilityState.directCapabilities,
+          capabilityEnvelope: capabilityState.capabilityEnvelope,
+          capabilitySource: capabilityState.source,
         },
       }
     } catch (error) {

@@ -70,6 +70,10 @@ type UpdateProfileResponse = {
         name?: string
         lastName?: string
         lang?: string
+        capabilityGroups?: string[]
+        directCapabilities?: string[]
+        capabilityEnvelope?: string[]
+        capabilitySource?: string
     }
 }
 

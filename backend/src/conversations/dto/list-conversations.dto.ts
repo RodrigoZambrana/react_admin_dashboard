@@ -1,7 +1,11 @@
 import { Transform } from 'class-transformer'
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator'
 
-const conversationScopes = ['customer_public', 'admin_internal'] as const
+const conversationScopes = [
+  'customer_public',
+  'customer_authenticated',
+  'admin_internal',
+] as const
 const conversationChannels = ['webchat', 'email', 'whatsapp', 'facebook', 'instagram', 'admin_chat'] as const
 const conversationControlModes = ['ai', 'human', 'hybrid'] as const
 const conversationStatuses = ['open', 'closed', 'waiting_customer', 'waiting_internal'] as const

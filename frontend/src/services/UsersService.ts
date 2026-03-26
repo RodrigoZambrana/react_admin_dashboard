@@ -7,6 +7,13 @@ export async function apiGetUsers<T>() {
     })
 }
 
+export async function apiGetUserCapabilityCatalog<T>() {
+    return ApiService.fetchData<T>({
+        url: '/users/capability-catalog',
+        method: 'get',
+    })
+}
+
 type Payload = Record<string, unknown> | FormData
 
 const isFormData = (data: Payload): data is FormData =>

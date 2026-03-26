@@ -1,5 +1,12 @@
-import { Transform } from 'class-transformer'
-import { IsOptional, IsString, MaxLength } from 'class-validator'
+import { Transform, Type } from 'class-transformer'
+import {
+  IsArray,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator'
+import { ConversationMessageAttachmentDto } from './conversation-message-attachment.dto'
 
 export class CreateWebchatMessageDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
@@ -7,14 +14,21 @@ export class CreateWebchatMessageDto {
   @MaxLength(128)
   conversationId!: string
 
+  @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(4000)
-  text!: string
+  text?: string
 
   @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(128)
   guestId?: string
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ConversationMessageAttachmentDto)
+  attachments?: ConversationMessageAttachmentDto[]
 }

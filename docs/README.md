@@ -27,16 +27,22 @@
 
 ## AI / Conversations
 
+- [AI_OPERATING_MODEL.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_OPERATING_MODEL.md)
+- [AI_IMPLEMENTATION_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_IMPLEMENTATION_PLAN.md)
+- [AI_USER_CAPABILITIES_MODEL.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_USER_CAPABILITIES_MODEL.md)
+- [ai-role-matrix.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-role-matrix.md)
+- [ai-safe-operations-survey.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-safe-operations-survey.md)
+- [knowledge/README.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/knowledge/README.md)
+- [canonical-messaging-contract.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/canonical-messaging-contract.md)
+- [shared-messaging-primitives-spec.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/shared-messaging-primitives-spec.md)
+
+## AI / Reference And Historic Plans
+
 - [ai-agent-architecture-plan.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-agent-architecture-plan.md)
 - [ai-agent-foundation-implementation.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-agent-foundation-implementation.md)
 - [ai-agent-runtime-blueprint.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-agent-runtime-blueprint.md)
 - [ai-knowledge-base-plan.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-knowledge-base-plan.md)
-- [aberturas-admin-internal-master-prompt.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/knowledge/aberturas-admin-internal-master-prompt.md)
-- [aberturas-parser-backend-recommendation.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/knowledge/aberturas-parser-backend-recommendation.md)
-- [aberturas-parser-process-survey.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/knowledge/aberturas-parser-process-survey.md)
 - [messaging-template-impact-analysis.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/messaging-template-impact-analysis.md)
-- [shared-messaging-primitives-spec.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/shared-messaging-primitives-spec.md)
-- [canonical-messaging-contract.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/canonical-messaging-contract.md)
 
 ## Historic And Domain Notes
 

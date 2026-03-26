@@ -8,6 +8,7 @@ import { SESSION_TTL_SECONDS } from './auth.config'
 import { PasswordResetService } from './password-reset.service'
 import { EmailModule } from '../email/email.module'
 import { resolveRequiredEnv } from '../common/config/runtime-env'
+import { UserManagementPolicyService } from './user-management-policy'
 
 @Module({
   imports: [
@@ -21,7 +22,13 @@ import { resolveRequiredEnv } from '../common/config/runtime-env'
     UserActivityModule,
     EmailModule,
   ],
-  providers: [AuthService, JwtStrategy, PasswordResetService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    PasswordResetService,
+    UserManagementPolicyService,
+  ],
   controllers: [AuthController],
+  exports: [UserManagementPolicyService],
 })
 export class AuthModule {}

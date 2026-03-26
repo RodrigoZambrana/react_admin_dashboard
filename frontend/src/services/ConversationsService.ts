@@ -4,6 +4,7 @@ export type ConversationSummary = {
     id: string
     tenantKey: string
     scope: string
+    role: string
     channel: string
     status: string
     controlMode: string
@@ -55,6 +56,33 @@ export type ConversationSummary = {
         fallbackReason: string | null
         sourceCount: number
         updatedAt: string | null
+        memory: {
+            taskId: string | null
+            intentKey: string | null
+            taskSummary: string | null
+            currentTask: {
+                intentKey: string | null
+                status: string | null
+                lastUpdate: string | null
+                entities: Array<{
+                    type: string | null
+                    value: string | null
+                }>
+            } | null
+            resetApplied: boolean
+            resetCount: number
+            lastResetAt: string | null
+            historyTurnCount: number
+        } | null
+        audit: {
+            role: string | null
+            intentKey: string | null
+            blockedTools: string[]
+            executedTools: string[]
+            fallbackActivated: boolean
+            taskChanged: boolean
+            createdAt: string | null
+        } | null
         sources: Array<{
             id: string | null
             title: string | null

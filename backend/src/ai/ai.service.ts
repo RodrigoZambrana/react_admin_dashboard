@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { DocumentType, EventType, PaymentStatus, PaymentType, Prisma } from '@prisma/client'
+import { DocumentType, EventType, PaymentStatus, PaymentType, Prisma, ProductMode } from '@prisma/client'
 import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
 import { SecureConfigService } from '../common/security/secure-config.service'
@@ -37,6 +37,12 @@ import { UpdateAiPaymentDto } from './dto/update-ai-payment.dto'
 import { UpdateAiPaymentStatusDto } from './dto/update-ai-payment-status.dto'
 import { UpdateAiProductDto } from './dto/update-ai-product.dto'
 import { UpdateAiRuntimeConfigDto } from './dto/update-ai-runtime-config.dto'
+import {
+  AI_CONVERSATION_ROLES,
+  type AiConversationRole,
+  getAiRoleConfig,
+  listAiRoleConfigs,
+} from './role-engine'
 
 type AiActionCatalogEntry = {
   key: string
@@ -44,7 +50,8 @@ type AiActionCatalogEntry = {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE'
   path: string
   confirmationRequired: boolean
-  scope: 'customer_public' | 'admin_internal'
+  scope: 'customer_public' | 'customer_authenticated' | 'admin_internal'
+  allowedRoles?: AiConversationRole[]
   toolName?: string
   keywords?: string[]
   requiredFields?: string[]
@@ -82,7 +89,7 @@ export class AiService {
   ) {}
 
   listActions(): AiActionCatalogEntry[] {
-    return [
+    const actions: AiActionCatalogEntry[] = [
       {
         key: 'products.search',
         label: 'Search products',
@@ -833,6 +840,8 @@ export class AiService {
         ],
       },
     ]
+
+    return actions.map((entry) => this.decorateActionCatalogEntry(entry))
   }
 
   async listCategories(query: ListAiCategoriesDto) {
@@ -874,12 +883,18 @@ export class AiService {
     return { items, total, page, pageSize }
   }
 
-  async listProducts(query: ListAiProductsDto) {
+  async listProducts(query: ListAiProductsDto, role?: string | null) {
     const page = query.page ?? 1
     const pageSize = query.pageSize ?? 20
     const search = query.search?.trim()
 
     const where: Prisma.ProductWhereInput = {}
+    const normalizedRole = AI_CONVERSATION_ROLES.includes(role as AiConversationRole)
+      ? (role as AiConversationRole)
+      : null
+    if (normalizedRole && getAiRoleConfig(normalizedRole).type === 'customer') {
+      where.published = true
+    }
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -1811,7 +1826,7 @@ export class AiService {
               description: item.detalleSnapshot,
               productCode: null,
               productType: 'PHYSICAL',
-              mode: 'PRODUCT',
+              mode: ProductMode.SIMPLE,
               salePrice: item.price,
               currency: item.currency,
               unitOfMeasure: 'UNIT',
@@ -1927,6 +1942,63 @@ export class AiService {
     }
   }
 
+  private decorateActionCatalogEntry(entry: AiActionCatalogEntry): AiActionCatalogEntry {
+    const toolName = entry.toolName ?? this.inferToolNameFromAction(entry.key)
+    const allowedRoles = AI_CONVERSATION_ROLES.filter((role) =>
+      toolName ? getAiRoleConfig(role).allowedTools.includes(toolName) : false,
+    )
+
+    const scope =
+      allowedRoles.some((role) => role === 'customer_authenticated')
+        ? 'customer_authenticated'
+        : allowedRoles.some((role) => getAiRoleConfig(role).type === 'customer')
+          ? 'customer_public'
+          : 'admin_internal'
+
+    return {
+      ...entry,
+      scope,
+      allowedRoles,
+      toolName: toolName ?? undefined,
+    }
+  }
+
+  private inferToolNameFromAction(key: string) {
+    switch (key) {
+      case 'products.search':
+        return 'search_products'
+      case 'categories.search':
+        return 'search_categories'
+      case 'customers.search':
+        return 'search_customers'
+      case 'appointments.search':
+        return 'search_appointments'
+      case 'orders.search':
+        return 'search_orders'
+      case 'quotes.search':
+        return 'search_quotes'
+      case 'payments.search':
+        return 'search_payments'
+      default:
+        return null
+    }
+  }
+
+  private getRoleCatalog() {
+    return listAiRoleConfigs().map((entry) => ({
+      key: entry.key,
+      type: entry.type,
+      label: entry.label,
+      memoryTurns: entry.memoryTurns,
+      allowedTools: entry.allowedTools,
+      forbiddenIntents: entry.forbiddenIntents,
+      requiresConfirmation: entry.requiresConfirmation,
+      tone: entry.tone,
+      authRoles: entry.authRoles,
+      legacyScopes: entry.legacyScopes,
+    }))
+  }
+
   async getRuntimeConfigSummary() {
     const stored = await this.secureConfig.getJson<StoredAiRuntimeConfig>(
       AiService.AI_RUNTIME_CONFIG_KEY,
@@ -1946,6 +2018,7 @@ export class AiService {
       usageMessage: resolved.usageMessage ?? null,
       adminInternalPrompt: resolved.adminInternalPrompt ?? null,
       customerPublicPrompt: resolved.customerPublicPrompt ?? null,
+      roleCatalog: this.getRoleCatalog(),
       usage,
       source: stored ? 'database' : 'environment',
       updatedAt: stored?.updatedAt ?? null,
@@ -1970,6 +2043,7 @@ export class AiService {
       usageMessage: resolved.usageMessage ?? null,
       adminInternalPrompt: resolved.adminInternalPrompt ?? null,
       customerPublicPrompt: resolved.customerPublicPrompt ?? null,
+      roleCatalog: this.getRoleCatalog(),
       usage,
       updatedAt: stored?.updatedAt ?? null,
     }

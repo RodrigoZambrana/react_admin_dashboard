@@ -21,6 +21,8 @@
   - richer ownership/reassignment rules
   - queue supervision metrics
 - Implement `admin_internal` scoped conversations for product/customer/order/payment workflows with guided review UX
+- Reuse the new backend-configurable ABM policy pattern for other sensitive admin surfaces only when the operational need is proven, to avoid duplicating permission logic in frontend
+- If this policy is later exposed in settings UI, keep `SystemConfig` as the source of truth and preserve `env` only as bootstrap/fallback, not as the primary operational channel
 
 ### P1.2 — Cross-channel merge hardening (deferred)
 
@@ -91,8 +93,14 @@
   - [ ] Phase 4: simplify the AI prompt so the agent keeps only intent, confirmation and role-adapted wording
 - Keep validating role/scope boundaries in AI behavior:
   - `customer_public` must not offer internal CRUD/ABM flows
+  - evolve logged-in customer behavior under the runtime name `customer_authenticated`
   - `admin_internal` operational actions remain restricted to authenticated internal roles
   - fallback/error wording must stay human-friendly and non-technical
+- next memory hardening slice after the initial runtime task-memory rollout:
+  - keep propagating `customer_authenticated` consistently beyond webchat/runtime into the remaining persisted conversation and analytics flows where it adds operational value
+  - add conversation-summary/working-summary generation per task to reduce token load further
+  - expose reset/task-boundary audit in admin if operators need visibility
+  - treat continuity, clean reset and role-adapted response behavior as platform requirements for every tenant, not as tenant-specific custom behavior
 - Keep enriching tenant playbooks through the managed upload path, including:
   - commercial rules
   - quotation criteria
@@ -247,11 +255,59 @@
   - prompt persistido de `admin_internal` alineado a operativa real y flujo de aberturas
   - edición estructural segura de pedidos y presupuestos usando el servicio real de reemplazo del backend
   - borrador estructurado de cotización de `aberturas` usando pricing paramétrico real
+  - lifecycle común `draft -> confirm -> execute -> verify -> respond/debug` ya aplicado en runtime para:
+    - `aberturas.register`
+    - `customers.create/update`
+    - `products.create/update`
+    - `appointments.create/update`
+    - `orders.update_status/update_comment`
+    - `quotes.update_status/update_comment/send/confirm`
+    - `payments.update_status/update`
+  - enlaces de verificación ya estandarizados para altas/modificaciones confirmables con ruta útil
+  - soporte batch ya activo en `aberturas.register`
 
 - Pendiente siguiente:
   - exponer en conversaciones cuando una respuesta uso matches de prebúsqueda y que accion quedo sugerida
-  - ampliar regresiones E2E de `admin_internal` para cambios de estado sobre pedido/presupuesto/pago
+  - ampliar regresiones E2E de `admin_internal` para cambios de estado sobre pedido/presupuesto/pago y el nuevo lifecycle común
+  - bajar el mismo lifecycle común a:
+    - `create_order`
+    - `create_quote`
+    - `create_payment`
+    - `update_order_structure`
+    - `update_quote_structure`
+    - `delete` confirmable en las entidades que aplique
   - ampliar regresiones de `admin_internal` para edición estructural de pedidos/presupuestos y `prepare_aberturas_quote`
+  - [x] introducir capa híbrida para inputs no entendibles por parser puro:
+    - parser backend
+    - extracción IA estructurada
+    - validación backend posterior
+  - [x] definir contrato canónico de extracción de adjuntos operativos:
+    - `pdf`
+    - `image`
+    - `audio`
+    - `csv/xlsx`
+  - [x] conectar esa extracción con el lifecycle común `draft -> confirm -> execute -> verify -> respond/debug`
+  - pendiente sobre este bloque:
+    - [x] extender Structured Outputs a más entidades operativas:
+      - `quotes`
+      - `orders`
+      - `payments`
+      - `aberturas`
+    - generalizar `delete` y `batch` al lifecycle común en más entidades
+    - cerrar ingesta real de adjuntos desde todos los canales con auditoría visible por archivo origen
+    - siguiente endurecimiento recomendado para adjuntos/contexto, en orden:
+      - [x] 1. primer slice de inferencia de flujo desde el input del usuario como capacidad global
+      - [x] 2. primer slice de uso del resto de la conversación para desambiguar inputs ambiguos o referenciales
+      - 3. si no hay confianza suficiente, escalar a humano
+      - [x] 4. dejar trazabilidad básica del mensaje/bloque referenciado en auditoría/debug cuando existan candidatos recientes
+      - [ ] 5. mantener y endurecer estas reglas en configuración/código global y no en la knowledge dinámica del tenant
+- Hecho en memoria conversacional:
+  - `customer_authenticated` persistido en backend y propagado al webchat/storefront
+  - resumen corto por tarea en runtime
+  - reset visible en admin
+  - regresión E2E real para webchat autenticado + continuidad + reset
+  - uso operativo de `taskSummary` en admin para auditoría/handoff
+  - regresiones E2E adicionales de cliente autenticado para persistencia y resumen visible
 - IA `admin_internal`:
   - siguiente cierre recomendado: exponer en inbox/tool audit cuándo una respuesta se apoyó en coincidencias de prebúsqueda y cuándo ejecutó cambios de estado seguros
   - pendiente posterior: conectar `prepare_aberturas_quote` con un flujo explícito de creación de presupuesto/alta confirmado por operador
@@ -265,3 +321,36 @@
 - siguiente ampliación general recomendada:
   - exponer en UI y auditoría cuándo un update estructural reemplazó items completos vs append/remove
   - conectar borradores de `aberturas` con confirmación y generación efectiva de presupuesto
+- Hecho en role engine IA:
+  - roles explícitos transversales del sistema implementados y persistidos
+  - prompts por rol
+  - memoria por rol
+  - reset por cambio de tarea según política
+  - tools filtradas por rol en runtime
+  - revalidación de tools por rol en endpoints internos del backend
+  - proyección de `role` y auditoría ampliada en admin
+- Pendiente siguiente recomendado:
+  - [x] agregar pruebas E2E por subrol interno (`admin_support`, `admin_sales`, `admin_operations`)
+  - bajar diferencias de UI/acciones visibles por subrol, no solo por scope
+  - ampliar separación fina entre `admin_supervisor` y `superadmin` en flujos de configuración/infraestructura
+- Gobierno documental IA:
+  - [x] consolidar estado/alcance/roadmap en `docs/AI_OPERATING_MODEL.md`
+  - [x] consolidar plan de implementación por fases en `docs/AI_IMPLEMENTATION_PLAN.md`
+  - [x] consolidar índice de knowledge activa en `docs/knowledge/README.md`
+  - [ ] revisar documentos AI históricos y marcarlos explícitamente como referencia o archivarlos
+- Acuerdos de alcance recientes:
+  - [x] documentar que el ABM documental para knowledge aprobada es transversal a cualquier tenant
+  - [x] documentar que `aberturas` no persigue ABM IA de matrices paramétricas ni CRUD del glosario como objetivo operativo
+  - [ ] cerrar el flujo real de `aberturas` desde fuente heterogénea hasta `insertPayload` limpio / cotización estructurada confirmable
+- Evolución recomendada del modelo interno:
+  - [x] introducir `group membership` o agrupación equivalente para usuarios internos multi-área
+  - [x] resolver `permission envelope` por unión de capacidades
+  - [ ] evaluar si `active conversational role` aporta valor real antes de llevarlo al MVP
+  - [ ] aplicar enforcement real por capacidad en endpoints core más allá del envelope proyectado
+  - [ ] ajustar UI visible/acciones críticas según capacidad cuando el bloque operativo ya esté estable
+- Cierre de fase alcanzado:
+  - [x] validar de punta a punta la resolución por grupos/capacidades en conversaciones internas reales
+  - [x] corregir la reconstrucción del envelope explícito desde enums persistidos en BD/JWT
+  - siguiente foco recomendado inmediato:
+    - usar `permission envelope` para enforcement real en acciones core
+    - bajar diferencias visibles de UI/acciones según capacidad donde ya exista valor operativo claro

@@ -2,8 +2,10 @@
 
 import { env } from "@/lib/env";
 import type {
+  WebchatMessageAttachment,
   WebchatSendMessageResult,
   WebchatSession,
+  WebchatScope,
 } from "@/types/conversations";
 
 const conversationsBaseUrl = env.publicApiBaseUrl.replace(/\/storefront$/, "");
@@ -17,6 +19,12 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
   return payload as T;
 };
 
+const normalizeWebchatSession = (session: WebchatSession): WebchatSession => ({
+  ...session,
+  messages: Array.isArray(session.messages) ? session.messages : [],
+  needsHuman: Boolean(session.needsHuman),
+});
+
 export const ConversationsApi = {
   async createWebchatSession(payload: {
     tenantKey?: string;
@@ -25,6 +33,7 @@ export const ConversationsApi = {
     email?: string | null;
     locale?: string;
     page?: string | null;
+    authenticated?: boolean;
   }): Promise<WebchatSession> {
     const response = await fetch(`${conversationsBaseUrl}/conversations/webchat/session`, {
       method: "POST",
@@ -34,7 +43,7 @@ export const ConversationsApi = {
       body: JSON.stringify(payload),
     });
 
-    return parseResponse<WebchatSession>(response);
+    return normalizeWebchatSession(await parseResponse<WebchatSession>(response));
   },
 
   async sendWebchatMessage(payload: {
@@ -42,7 +51,9 @@ export const ConversationsApi = {
     conversationId: string;
     guestId: string;
     userId?: string;
-    text: string;
+    scope?: "customer_public" | "customer_authenticated";
+    text?: string;
+    attachments?: WebchatMessageAttachment[];
     metadata?: Record<string, unknown>;
   }): Promise<WebchatSendMessageResult> {
     const response = await fetch(`${conversationsBaseUrl}/conversations/webchat/dispatch`, {
@@ -71,6 +82,14 @@ export const ConversationsApi = {
       method: "GET",
     });
 
-    return parseResponse<WebchatSession>(response);
+    return normalizeWebchatSession(await parseResponse<WebchatSession>(response));
+  },
+
+  async syncWebchatSession(payload: {
+    conversationId: string;
+    guestId?: string;
+    _scope?: WebchatScope;
+  }): Promise<WebchatSession> {
+    return this.getWebchatSession(payload);
   },
 };

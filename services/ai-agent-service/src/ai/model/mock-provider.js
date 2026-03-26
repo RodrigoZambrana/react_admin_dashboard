@@ -28,14 +28,14 @@ export class MockProvider {
   async generate({
     input,
     tools = [],
-    scope = 'customer_public',
+    role = 'customer_public',
     actionCatalog = [],
     retrievalContext = [],
   }) {
     const normalized = input.trim().toLowerCase()
     let executedToolCalls = []
 
-    if (scope === 'admin_internal') {
+    if (String(role).startsWith('admin_') || role === 'superadmin') {
       const actionIntent = findActionIntent(normalized, actionCatalog)
       if (actionIntent && !hasExplicitConfirmation(normalized)) {
         const requiredFields = Array.isArray(actionIntent.requiredFields)
@@ -125,5 +125,9 @@ export class MockProvider {
     return {
       text: 'Recibí tu consulta. Puedo ayudarte con productos, cotizaciones y seguimiento si me das más detalle.',
     }
+  }
+
+  async extractStructured() {
+    return null
   }
 }

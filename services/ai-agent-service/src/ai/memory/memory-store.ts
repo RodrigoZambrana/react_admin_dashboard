@@ -1,4 +1,16 @@
-export type MemoryScope = 'customer_public' | 'admin_internal'
+export type MemoryScope =
+  | 'customer_public'
+  | 'customer_authenticated'
+  | 'admin_internal'
+
+export type MemoryRole =
+  | 'customer_public'
+  | 'customer_authenticated'
+  | 'admin_support'
+  | 'admin_sales'
+  | 'admin_operations'
+  | 'admin_supervisor'
+  | 'superadmin'
 
 export type MemoryTurnRole = 'customer' | 'operator' | 'agent' | 'system'
 
@@ -12,9 +24,25 @@ export type MemoryTurn = {
 export type ConversationMemorySnapshot = {
   conversationId: string
   scope: MemoryScope
+  role: MemoryRole
   turns: MemoryTurn[]
   summary?: string | null
   compiledContext?: string | null
+  taskState?: {
+    taskId: string
+    intentKey: string
+    topicTokens: string[]
+    taskSummary?: string | null
+    currentTask?: {
+      intentKey: string
+      entities: Array<{ type: string; value: string }>
+      status: string
+      lastUpdate: string
+    } | null
+    resetCount: number
+    lastResetAt?: string | null
+    updatedAt: string
+  } | null
   updatedAt: string
 }
 

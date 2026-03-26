@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import Container from '@/components/shared/Container'
 import Card from '@/components/ui/Card'
 import Avatar from '@/components/ui/Avatar'
+import Alert from '@/components/ui/Alert'
 import { HiOutlineUser, HiOutlineSearch, HiOutlineTrash } from 'react-icons/hi'
 import Input from '@/components/ui/Input'
 import {
     apiCreateUser,
     apiGetUsers,
+    apiGetUserCapabilityCatalog,
     apiUpdateUser,
     apiUpdateUserPassword,
     apiDeleteUser,
@@ -45,6 +47,39 @@ type User = {
     country?: string
     countryCode?: string
     city?: string
+    capabilityGroups?: string[]
+    directCapabilities?: string[]
+    capabilityEnvelope?: string[]
+    capabilitySource?: string
+}
+
+type CapabilityOption = {
+    value: string
+    label: string
+    description: string
+}
+
+type CapabilityGroupOption = {
+    value: string
+    label: string
+    description: string
+    capabilities: string[]
+}
+
+type CapabilityCatalog = {
+    capabilities: CapabilityOption[]
+    groups: CapabilityGroupOption[]
+    legacyRoleDefaults?: Array<{
+        role: string
+        groups: string[]
+        capabilities: string[]
+    }>
+    accessPolicy?: {
+        canAccessUserManagement: boolean
+        canManageUserCapabilities: boolean
+        allowedUserManagementRoles: string[]
+        allowedCapabilityManagementRoles: string[]
+    }
 }
 
 type UserFormValues = {
@@ -59,6 +94,8 @@ type UserFormValues = {
     country: string
     countryCode: string
     city: string
+    capabilityGroups: string[]
+    directCapabilities: string[]
 }
 
 type PasswordFormValues = {
@@ -77,6 +114,8 @@ const DEFAULT_USER_FORM: UserFormValues = {
     country: 'Uruguay',
     countryCode: 'UY',
     city: 'Montevideo',
+    capabilityGroups: [],
+    directCapabilities: [],
 }
 
 const PASSWORD_FORM: PasswordFormValues = {
@@ -94,6 +133,18 @@ const UsersList = () => {
     const [editing, setEditing] = useState<UserFormValues | null>(null)
     const [activeTab, setActiveTab] = useState<'details' | 'password'>('details')
     const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+    const [capabilityCatalog, setCapabilityCatalog] = useState<CapabilityCatalog>({
+        capabilities: [],
+        groups: [],
+        legacyRoleDefaults: [],
+        accessPolicy: {
+            canAccessUserManagement: false,
+            canManageUserCapabilities: false,
+            allowedUserManagementRoles: [],
+            allowedCapabilityManagementRoles: [],
+        },
+    })
+    const [accessError, setAccessError] = useState('')
     const avatarPreviewRef = useRef<string | null>(null)
     const { t } = useTranslation()
     const { confirm, ConfirmationDialog } = useConfirmation()
@@ -109,17 +160,61 @@ const UsersList = () => {
 
     useEffect(() => {
         const fetch = async () => {
-            const resp = await apiGetUsers<User[]>()
-            const fetched = resp.data || []
-            setUsers(
-                fetched.map((user) => ({
-                    ...user,
-                    role: normalizeRole(user.role),
-                })),
-            )
+            try {
+                setAccessError('')
+                const [usersResp, catalogResp] = await Promise.all([
+                    apiGetUsers<User[]>(),
+                    apiGetUserCapabilityCatalog<CapabilityCatalog>(),
+                ])
+                const fetched = usersResp.data || []
+                setUsers(
+                    fetched.map((user) => ({
+                        ...user,
+                        role: normalizeRole(user.role),
+                        capabilityGroups: user.capabilityGroups || [],
+                        directCapabilities: user.directCapabilities || [],
+                        capabilityEnvelope: user.capabilityEnvelope || [],
+                        capabilitySource: user.capabilitySource || '',
+                    })),
+                )
+                setCapabilityCatalog(
+                    catalogResp.data || {
+                        capabilities: [],
+                        groups: [],
+                        legacyRoleDefaults: [],
+                        accessPolicy: {
+                            canAccessUserManagement: false,
+                            canManageUserCapabilities: false,
+                            allowedUserManagementRoles: [],
+                            allowedCapabilityManagementRoles: [],
+                        },
+                    },
+                )
+            } catch (error) {
+                const err = error as AxiosError<{ message?: string }>
+                const fallbackMessage = t('users.access.denied', {
+                    defaultValue:
+                        'No tienes permisos para administrar usuarios desde este perfil.',
+                })
+                const message = err.response?.data?.message
+                    ? t(err.response.data.message, { defaultValue: fallbackMessage })
+                    : fallbackMessage
+                setAccessError(message)
+                setUsers([])
+                setCapabilityCatalog((prev) => ({
+                    ...prev,
+                    capabilities: [],
+                    groups: [],
+                }))
+            }
         }
         fetch()
-    }, [])
+    }, [t])
+
+    const canManageUsers =
+        capabilityCatalog.accessPolicy?.canAccessUserManagement ?? false
+    const canManageCapabilities =
+        capabilityCatalog.accessPolicy?.canManageUserCapabilities ?? false
 
     const filtered = users.filter((u) => {
         const search = query.toLowerCase()
@@ -165,6 +260,9 @@ const UsersList = () => {
     })
 
     const onEdit = (user: User) => {
+        if (!canManageUsers) {
+            return
+        }
         revokePreview()
         setEditing({
             id: user.id,
@@ -178,6 +276,8 @@ const UsersList = () => {
             country: user.country?.trim() || DEFAULT_USER_FORM.country,
             countryCode: user.countryCode?.trim() || DEFAULT_USER_FORM.countryCode,
             city: user.city?.trim() || DEFAULT_USER_FORM.city,
+            capabilityGroups: user.capabilityGroups || [],
+            directCapabilities: user.directCapabilities || [],
         })
         setDrawerOpen(true)
         setActiveTab('details')
@@ -239,6 +339,9 @@ const UsersList = () => {
     }
 
     const onCreate = () => {
+        if (!canManageUsers) {
+            return
+        }
         revokePreview()
         setEditing({ ...DEFAULT_USER_FORM })
         setDrawerOpen(true)
@@ -248,13 +351,17 @@ const UsersList = () => {
     useEffect(() => {
         const state = (location.state || {}) as { openUserDrawer?: 'new' }
         if (state.openUserDrawer === 'new') {
+            if (!canManageUsers) {
+                navigate(location.pathname, { replace: true })
+                return
+            }
             revokePreview()
             setEditing({ ...DEFAULT_USER_FORM })
             setDrawerOpen(true)
             setActiveTab('details')
             navigate(location.pathname, { replace: true })
         }
-    }, [location, navigate])
+    }, [canManageUsers, location, navigate])
 
     const notifyUnsafeInput = () => {
         toast.push(
@@ -310,6 +417,16 @@ const UsersList = () => {
         formData.append('country', country)
         formData.append('countryCode', countryCode)
         formData.append('city', city)
+        if (canManageCapabilities) {
+            formData.append(
+                'capabilityGroups',
+                JSON.stringify(values.capabilityGroups || []),
+            )
+            formData.append(
+                'directCapabilities',
+                JSON.stringify(values.directCapabilities || []),
+            )
+        }
         if (values.avatarFile) {
             formData.append('avatar', values.avatarFile)
         }
@@ -324,6 +441,8 @@ const UsersList = () => {
             country,
             countryCode,
             city,
+            capabilityGroups: values.capabilityGroups,
+            directCapabilities: values.directCapabilities,
         }
 
         try {
@@ -339,6 +458,11 @@ const UsersList = () => {
                     country,
                     countryCode,
                     city,
+                    capabilityGroups: updated.capabilityGroups || values.capabilityGroups,
+                    directCapabilities:
+                        updated.directCapabilities || values.directCapabilities,
+                    capabilityEnvelope: updated.capabilityEnvelope || [],
+                    capabilitySource: updated.capabilitySource || '',
                 }
                 setUsers((prev) =>
                     prev.map((u) =>
@@ -360,6 +484,11 @@ const UsersList = () => {
                     country,
                     countryCode,
                     city,
+                    capabilityGroups: created.capabilityGroups || values.capabilityGroups,
+                    directCapabilities:
+                        created.directCapabilities || values.directCapabilities,
+                    capabilityEnvelope: created.capabilityEnvelope || [],
+                    capabilitySource: created.capabilitySource || '',
                 }
                 setUsers((prev) => [normalizedCreated, ...prev])
                 toast.push(
@@ -435,6 +564,19 @@ const UsersList = () => {
     return (
         <>
             <Container>
+            {accessError ? (
+                <Alert showIcon type="danger" className="mb-4">
+                    {accessError}
+                </Alert>
+            ) : null}
+            {!accessError && canManageUsers && !canManageCapabilities ? (
+                <Alert showIcon type="warning" className="mb-4">
+                    {t('users.capabilities.restricted', {
+                        defaultValue:
+                            'Puedes administrar usuarios, pero este perfil no tiene permiso para ver ni editar grupos o capacidades.',
+                    })}
+                </Alert>
+            ) : null}
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <h3>{t('nav.appsUsers.userList')}</h3>
                 <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto md:justify-end">
@@ -445,16 +587,19 @@ const UsersList = () => {
                         prefix={<HiOutlineSearch className="text-lg" />}
                         onChange={(e) => setQuery(e.target.value)}
                     />
-                    <Button
-                        size="sm"
-                        variant="solid"
-                        onClick={onCreate}
-                        className="w-full sm:w-auto"
-                    >
-                        {t('nav.appsUsers.userNew')}
-                    </Button>
+                    {canManageUsers ? (
+                        <Button
+                            size="sm"
+                            variant="solid"
+                            onClick={onCreate}
+                            className="w-full sm:w-auto"
+                        >
+                            {t('nav.appsUsers.userNew')}
+                        </Button>
+                    ) : null}
                 </div>
             </div>
+            {canManageUsers ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filtered.map((user) => (
                     <Card
@@ -478,6 +623,34 @@ const UsersList = () => {
                                         ).trim()}
                                     </div>
                                     <div className="text-sm opacity-70">{user.email}</div>
+                                    <div className="mt-2 flex flex-wrap gap-1">
+                                        {canManageCapabilities
+                                            ? (user.capabilityGroups || []).slice(0, 3).map((group) => {
+                                                  const label =
+                                                      capabilityCatalog.groups.find(
+                                                          (entry) => entry.value === group,
+                                                      )?.label || group
+                                                  return (
+                                                      <span
+                                                          key={`${user.id}-${group}`}
+                                                          className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-100"
+                                                      >
+                                                          {label}
+                                                      </span>
+                                                  )
+                                              })
+                                            : null}
+                                        {canManageCapabilities &&
+                                            !user.capabilityGroups?.length &&
+                                            user.capabilitySource === 'legacy_role' && (
+                                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">
+                                                    {t('users.capabilities.legacyFallback', {
+                                                        defaultValue:
+                                                            'Legacy role fallback',
+                                                    })}
+                                                </span>
+                                            )}
+                                    </div>
                                 </div>
                             </div>
                             <Button
@@ -486,13 +659,16 @@ const UsersList = () => {
                                 icon={<HiOutlineTrash />}
                                 loading={deletingUserId === String(user.id)}
                                 disabled={
-                                    Boolean(
+                                    !canManageUsers || Boolean(
                                         deletingUserId &&
                                             deletingUserId !== String(user.id),
                                     )
                                 }
                                 onClick={(event) => {
                                     event.stopPropagation()
+                                    if (!canManageUsers) {
+                                        return
+                                    }
                                     handleDeleteUser(user)
                                 }}
                                 aria-label={t('text.actions.delete', {
@@ -503,6 +679,7 @@ const UsersList = () => {
                     </Card>
                 ))}
             </div>
+            ) : null}
             <Drawer
                 isOpen={drawerOpen}
                 width={420}
@@ -682,6 +859,103 @@ const UsersList = () => {
                                                         }
                                                     />
                                                 </FormItem>
+                                                {canManageCapabilities ? (
+                                                    <>
+                                                        <FormItem
+                                                            label={t('users.capabilities.groups', {
+                                                                defaultValue: 'Capability groups',
+                                                            })}
+                                                        >
+                                                            <Select
+                                                                isMulti
+                                                                isClearable={false}
+                                                                options={capabilityCatalog.groups.map(
+                                                                    (group) => ({
+                                                                        value: group.value,
+                                                                        label: group.label,
+                                                                    }),
+                                                                )}
+                                                                value={capabilityCatalog.groups
+                                                                    .filter((group) =>
+                                                                        values.capabilityGroups.includes(
+                                                                            group.value,
+                                                                        ),
+                                                                    )
+                                                                    .map((group) => ({
+                                                                        value: group.value,
+                                                                        label: group.label,
+                                                                    }))}
+                                                                onChange={(options) =>
+                                                                    setFieldValue(
+                                                                        'capabilityGroups',
+                                                                        Array.isArray(options)
+                                                                            ? options.map(
+                                                                                  (option) =>
+                                                                                      option.value,
+                                                                              )
+                                                                            : [],
+                                                                    )
+                                                                }
+                                                            />
+                                                            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                                {t(
+                                                                    'users.capabilities.groupsHelp',
+                                                                    {
+                                                                        defaultValue:
+                                                                            'Each group grants a reusable capability set. If you define explicit groups or direct capabilities, they replace the legacy role fallback for this user.',
+                                                                    },
+                                                                )}
+                                                            </div>
+                                                        </FormItem>
+                                                        <FormItem
+                                                            label={t('users.capabilities.direct', {
+                                                                defaultValue:
+                                                                    'Direct capabilities',
+                                                            })}
+                                                        >
+                                                            <Select
+                                                                isMulti
+                                                                isClearable={false}
+                                                                options={capabilityCatalog.capabilities.map(
+                                                                    (capability) => ({
+                                                                        value: capability.value,
+                                                                        label: capability.label,
+                                                                    }),
+                                                                )}
+                                                                value={capabilityCatalog.capabilities
+                                                                    .filter((capability) =>
+                                                                        values.directCapabilities.includes(
+                                                                            capability.value,
+                                                                        ),
+                                                                    )
+                                                                    .map((capability) => ({
+                                                                        value: capability.value,
+                                                                        label: capability.label,
+                                                                    }))}
+                                                                onChange={(options) =>
+                                                                    setFieldValue(
+                                                                        'directCapabilities',
+                                                                        Array.isArray(options)
+                                                                            ? options.map(
+                                                                                  (option) =>
+                                                                                      option.value,
+                                                                              )
+                                                                            : [],
+                                                                    )
+                                                                }
+                                                            />
+                                                            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                                {t(
+                                                                    'users.capabilities.directHelp',
+                                                                    {
+                                                                        defaultValue:
+                                                                            'Use direct capabilities only for exceptions over the selected groups. Leaving both fields empty keeps the legacy role-based envelope for existing users.',
+                                                                    },
+                                                                )}
+                                                            </div>
+                                                        </FormItem>
+                                                    </>
+                                                ) : null}
                                                 <div className="flex justify-end gap-2">
                                                     <Button type="button" onClick={handleDrawerClose}>
                                                         {t('text.actions.cancel')}

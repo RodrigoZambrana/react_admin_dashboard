@@ -12,6 +12,7 @@ import {
   ConversationMessageAuthorType,
   ConversationMessageKind,
   ConversationParticipantRole,
+  ConversationRole,
   ConversationScope,
   ConversationStatus,
   ConversationToolCallStatus,
@@ -39,6 +40,12 @@ import { CreateAdminInternalSessionDto } from './dto/create-admin-internal-sessi
 import { RerouteConversationDto } from './dto/reroute-conversation.dto'
 import { ListConversationContactsDto } from './dto/list-conversation-contacts.dto'
 import { StartContactConversationDto } from './dto/start-contact-conversation.dto'
+import {
+  type AiConversationRole,
+  normalizeAiConversationRole,
+  resolveAiConversationRole,
+  resolveAiScopeFromRole,
+} from '../ai/role-engine'
 
 type OutboundDispatchResult = {
   kind: ConversationMessageKind
@@ -58,6 +65,23 @@ type ConversationReadStateSummary = {
 
 const INTERNAL_ASSISTANT_CONTACT_KEY = 'internal:assistant'
 const INTERNAL_ASSISTANT_CONTACT_LABEL = 'Asistente interno'
+const INTERNAL_ASSISTANT_CONTACT_ALIASES = [
+  INTERNAL_ASSISTANT_CONTACT_LABEL,
+  'Agente IA',
+  'IA',
+  'Chat interno IA operativa',
+]
+
+const isInternalAssistantSubject = (value?: string | null) => {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (!normalized) {
+    return false
+  }
+
+  return INTERNAL_ASSISTANT_CONTACT_ALIASES.some(
+    (alias) => alias.trim().toLowerCase() === normalized,
+  )
+}
 
 @Injectable()
 export class ConversationsService {
@@ -699,7 +723,12 @@ export class ConversationsService {
       ? await this.prisma.conversation.findMany({
           where: {
             customerId: { in: customerIds },
-            scope: ConversationScope.CUSTOMER_PUBLIC,
+            scope: {
+              in: [
+                ConversationScope.CUSTOMER_PUBLIC,
+                ConversationScope.CUSTOMER_AUTHENTICATED,
+              ],
+            },
             status: { not: ConversationStatus.CLOSED },
           },
           orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
@@ -740,8 +769,9 @@ export class ConversationsService {
 
     const internalMatches =
       !normalizedSearch ||
-      INTERNAL_ASSISTANT_CONTACT_LABEL.toLowerCase().includes(normalizedSearch) ||
-      'chat interno ia operativa'.includes(normalizedSearch)
+      INTERNAL_ASSISTANT_CONTACT_ALIASES.some((alias) =>
+        alias.toLowerCase().includes(normalizedSearch),
+      )
 
     return {
       items: [
@@ -791,12 +821,33 @@ export class ConversationsService {
   async createAdminInternalSession(
     input: CreateAdminInternalSessionDto,
     actorUserId: number,
+    actorUser?:
+      | {
+          role?: string | null
+          authority?: string[] | null
+          capabilityGroups?: string[] | null
+          directCapabilities?: string[] | null
+          capabilityEnvelope?: string[] | null
+        }
+      | null,
   ) {
-    const conversation = await this.createAdminInternalConversationRecord({
-      tenantKey: this.resolveTenantKey(input.tenantKey),
-      actorUserId,
-      subject: input.subject.trim(),
-    })
+    const conversationRole = this.resolveAdminConversationRole(actorUser)
+    const normalizedSubject = input.subject.trim()
+    const reuseInternalAssistant = isInternalAssistantSubject(normalizedSubject)
+    const conversation =
+      (reuseInternalAssistant
+        ? await this.findAdminInternalAssistantConversation(actorUserId)
+        : null) ??
+      (await this.createAdminInternalConversationRecord({
+        tenantKey: this.resolveTenantKey(input.tenantKey),
+        actorUserId,
+        conversationRole,
+        subject: normalizedSubject,
+        contactKey: reuseInternalAssistant ? INTERNAL_ASSISTANT_CONTACT_KEY : undefined,
+        contactLabel: reuseInternalAssistant
+          ? INTERNAL_ASSISTANT_CONTACT_LABEL
+          : undefined,
+      }))
 
     return this.replyAsOperator(
       conversation.id,
@@ -811,13 +862,24 @@ export class ConversationsService {
   async startConversationFromContact(
     input: StartContactConversationDto,
     actorUserId: number,
+    actorUser?:
+      | {
+          role?: string | null
+          authority?: string[] | null
+          capabilityGroups?: string[] | null
+          directCapabilities?: string[] | null
+          capabilityEnvelope?: string[] | null
+        }
+      | null,
   ) {
     if (input.contactType === 'internal') {
+      const conversationRole = this.resolveAdminConversationRole(actorUser)
       const conversation =
         (await this.findAdminInternalAssistantConversation(actorUserId)) ??
         (await this.createAdminInternalConversationRecord({
           tenantKey: this.resolveTenantKey(input.tenantKey),
           actorUserId,
+          conversationRole,
           subject: INTERNAL_ASSISTANT_CONTACT_LABEL,
           contactKey: INTERNAL_ASSISTANT_CONTACT_KEY,
           contactLabel: INTERNAL_ASSISTANT_CONTACT_LABEL,
@@ -859,7 +921,12 @@ export class ConversationsService {
     let conversation = await this.prisma.conversation.findFirst({
       where: {
         customerId: customer.id,
-        scope: ConversationScope.CUSTOMER_PUBLIC,
+        scope: {
+          in: [
+            ConversationScope.CUSTOMER_PUBLIC,
+            ConversationScope.CUSTOMER_AUTHENTICATED,
+          ],
+        },
         status: { not: ConversationStatus.CLOSED },
       },
       orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
@@ -889,6 +956,7 @@ export class ConversationsService {
             this.config.get<string>('CLIENT_SLUG') ||
             'default',
           scope: ConversationScope.CUSTOMER_PUBLIC,
+          conversationRole: 'CUSTOMER_PUBLIC' as ConversationRole,
           channel,
           status: ConversationStatus.OPEN,
           controlMode: ConversationControlMode.HUMAN,
@@ -963,6 +1031,7 @@ export class ConversationsService {
   private async createAdminInternalConversationRecord(input: {
     tenantKey: string
     actorUserId: number
+    conversationRole: AiConversationRole
     subject: string
     contactKey?: string
     contactLabel?: string
@@ -971,6 +1040,7 @@ export class ConversationsService {
       data: {
         tenantKey: input.tenantKey,
         scope: ConversationScope.ADMIN_INTERNAL,
+        conversationRole: this.mapConversationRoleEnum(input.conversationRole),
         channel: ConversationChannel.ADMIN_CHAT,
         status: ConversationStatus.WAITING_INTERNAL,
         controlMode: ConversationControlMode.AI,
@@ -1013,11 +1083,18 @@ export class ConversationsService {
           },
         })
       : null
+    const conversationRole = resolveAiConversationRole({
+      session: {
+        authenticated: Boolean(input.authenticated),
+      },
+    })
+    const scope = this.mapConversationScopeFromRole(conversationRole)
 
     const conversation = await this.prisma.conversation.create({
       data: {
         tenantKey,
-        scope: ConversationScope.CUSTOMER_PUBLIC,
+        scope,
+        conversationRole: this.mapConversationRoleEnum(conversationRole),
         channel: ConversationChannel.WEBCHAT,
         status: ConversationStatus.OPEN,
         controlMode: ConversationControlMode.AI,
@@ -1058,23 +1135,37 @@ export class ConversationsService {
       },
     })
 
-    return {
-      sessionId: conversation.id,
-      conversationId: conversation.id,
+    return this.buildWebchatSessionResponse({
+      id: conversation.id,
       tenantKey,
-      scope: 'customer_public' as const,
-      channel: 'webchat' as const,
-      controlMode: 'ai' as const,
-      participant: {
-        guestId,
-        name: input.name?.trim() || customer?.name || null,
-        email,
+      scope,
+      conversationRole: this.mapConversationRoleEnum(conversationRole),
+      controlMode: ConversationControlMode.AI,
+      needsHuman: false,
+      metadata: {
         locale: input.locale?.trim() || 'es-UY',
-      },
-      context: {
         page: input.page?.trim() || null,
       },
-    }
+      participants: [
+        {
+          role: ConversationParticipantRole.CUSTOMER,
+          externalUserId: guestId,
+          displayName: input.name?.trim() || customer?.name || null,
+          metadata: {
+            email,
+            locale: input.locale?.trim() || 'es-UY',
+          },
+          customer: customer
+            ? {
+                id: customer.id,
+                name: customer.name,
+                email: customer.email,
+              }
+            : null,
+        },
+      ],
+      messages: [],
+    })
   }
 
   private resolveTenantKey(value?: string | null) {
@@ -1110,6 +1201,8 @@ export class ConversationsService {
             kind: true,
             body: true,
             normalizedText: true,
+            metadata: true,
+            payload: true,
             createdAt: true,
           },
         },
@@ -1132,35 +1225,95 @@ export class ConversationsService {
       throw new NotFoundException('conversation.notFound')
     }
 
+    return this.buildWebchatSessionResponse({
+      ...conversation,
+      participants: conversation.participants.map((entry) =>
+        entry.role === ConversationParticipantRole.CUSTOMER &&
+        guestId &&
+        !entry.externalUserId
+          ? {
+              ...entry,
+              externalUserId: guestId,
+            }
+          : entry,
+      ),
+    })
+  }
+
+  private buildWebchatSessionResponse(conversation: {
+    id: string
+    tenantKey: string
+    scope: ConversationScope
+    conversationRole: ConversationRole | null
+    controlMode: ConversationControlMode
+    needsHuman?: boolean | null
+    metadata?: Prisma.JsonValue | null
+    participants: Array<{
+      role: ConversationParticipantRole
+      externalUserId?: string | null
+      displayName?: string | null
+      metadata?: Prisma.JsonValue | null
+      customer?: {
+        id?: number | null
+        name?: string | null
+        email?: string | null
+      } | null
+    }>
+    messages: Array<{
+      id: string
+      authorType: ConversationMessageAuthorType
+      kind: ConversationMessageKind
+      body?: string | null
+      normalizedText?: string | null
+      metadata?: Prisma.JsonValue | null
+      payload?: Prisma.JsonValue | null
+      createdAt: Date
+    }>
+  }) {
+    const participant = conversation.participants.find(
+      (entry) => entry.role === ConversationParticipantRole.CUSTOMER,
+    )
+    const participantMetadata = this.asRecord(participant?.metadata)
+    const conversationMetadata = this.asRecord(conversation.metadata)
+    const aiState = this.extractConversationAiState(conversation.metadata)
+
     return {
       sessionId: conversation.id,
       conversationId: conversation.id,
       tenantKey: conversation.tenantKey,
-      scope: 'customer_public' as const,
+      scope: this.normalizeEnum(conversation.scope) as
+        | 'customer_public'
+        | 'customer_authenticated',
+      role: this.normalizeConversationRoleValue(
+        conversation.conversationRole,
+        conversation.scope,
+      ),
       channel: 'webchat' as const,
       controlMode: this.normalizeEnum(conversation.controlMode) as
         | 'ai'
         | 'human'
         | 'hybrid',
+      needsHuman: Boolean(conversation.needsHuman || aiState?.needsHuman),
+      aiState,
       participant: {
-        guestId: guestId || 'guest',
-        name:
-          participant?.displayName ??
-          participant?.customer?.name ??
-          null,
+        guestId: participant?.externalUserId || 'guest',
+        name: participant?.displayName ?? participant?.customer?.name ?? null,
         email:
-          ((participant?.metadata as Record<string, unknown> | null)?.email as
-            string | null) ??
+          (typeof participantMetadata?.email === 'string'
+            ? participantMetadata.email
+            : null) ??
           participant?.customer?.email ??
           null,
         locale:
-          ((participant?.metadata as Record<string, unknown> | null)?.locale as
-            string | null) ?? 'es-UY',
+          typeof participantMetadata?.locale === 'string'
+            ? participantMetadata.locale
+            : 'es-UY',
       },
       context: {
         page:
-          ((conversation.metadata as Record<string, unknown> | null)?.page as
-            string | null) ?? null,
+          typeof conversationMetadata?.page === 'string'
+            ? conversationMetadata.page
+            : null,
       },
       messages: conversation.messages
         .filter(
@@ -1169,15 +1322,44 @@ export class ConversationsService {
             message.authorType === ConversationMessageAuthorType.AGENT ||
             message.authorType === ConversationMessageAuthorType.OPERATOR,
         )
-        .map((message) => ({
-          id: message.id,
-          role:
-            message.authorType === ConversationMessageAuthorType.CUSTOMER
-              ? 'customer'
-              : 'agent',
-          text: message.body ?? message.normalizedText ?? '',
-          createdAt: message.createdAt,
-        })),
+        .map((message) => {
+          const payload = this.asRecord(message.payload)
+          const metadata = this.asRecord(message.metadata)
+          const rawAttachments =
+            Array.isArray(payload?.attachments) && payload?.attachments.length > 0
+              ? payload.attachments
+              : Array.isArray(metadata?.attachments) && metadata?.attachments.length > 0
+                ? metadata.attachments
+                : []
+
+          return {
+            id: message.id,
+            role:
+              message.authorType === ConversationMessageAuthorType.CUSTOMER
+                ? 'customer'
+                : 'agent',
+            kind: this.normalizeEnum(message.kind),
+            text: message.body ?? message.normalizedText ?? '',
+            createdAt: message.createdAt,
+            attachments: rawAttachments
+              .map((entry) => this.asRecord(entry))
+              .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+              .map((entry) => ({
+                assetType:
+                  typeof entry.assetType === 'string' ? entry.assetType : null,
+                fileName:
+                  typeof entry.fileName === 'string' ? entry.fileName : null,
+                contentType:
+                  typeof entry.contentType === 'string'
+                    ? entry.contentType
+                    : null,
+                textContent:
+                  typeof entry.textContent === 'string'
+                    ? entry.textContent
+                    : null,
+              })),
+          }
+        }),
     }
   }
 
@@ -1195,17 +1377,33 @@ export class ConversationsService {
       throw new NotFoundException('conversation.notFound')
     }
 
+    const attachments = this.normalizeConversationAttachments(input.attachments)
+    const normalizedText =
+      input.text?.trim() || this.buildAttachmentSummary(attachments)
+
+    if (!normalizedText) {
+      throw new BadRequestException('conversation.webchatMessageContentRequired')
+    }
+
     const message = await this.prisma.conversationMessage.create({
       data: {
         conversationId: conversation.id,
         authorType: ConversationMessageAuthorType.CUSTOMER,
         kind: ConversationMessageKind.TEXT,
-        body: input.text,
-        normalizedText: input.text,
-        metadata: {
+        body: normalizedText,
+        normalizedText,
+        metadata: this.toJsonValue({
           source: 'webchat',
           guestId: input.guestId?.trim() || conversation.externalUserId || null,
-        },
+          hasAttachments: attachments.length > 0,
+          attachments: attachments.length > 0 ? attachments : null,
+        }),
+        payload:
+          attachments.length > 0
+            ? this.toJsonValue({
+                attachments,
+              })
+            : Prisma.JsonNull,
       },
       select: {
         id: true,
@@ -1263,7 +1461,12 @@ export class ConversationsService {
   }
 
   async ingestInboundMessage(input: IngestInboundMessageDto) {
-    const normalizedText = input.text?.trim() || input.subject?.trim() || ''
+    const attachments = this.normalizeConversationAttachments(input.attachments)
+    const normalizedText =
+      input.text?.trim() ||
+      input.subject?.trim() ||
+      this.buildAttachmentSummary(attachments) ||
+      ''
     if (!normalizedText) {
       throw new BadRequestException('conversation.inboundTextRequired')
     }
@@ -1308,6 +1511,7 @@ export class ConversationsService {
           data: {
             tenantKey,
             scope: ConversationScope.CUSTOMER_PUBLIC,
+            conversationRole: 'CUSTOMER_PUBLIC' as ConversationRole,
             channel,
             status: ConversationStatus.WAITING_INTERNAL,
             controlMode: ConversationControlMode.AI,
@@ -1407,10 +1611,12 @@ export class ConversationsService {
                 folder: 'inbox',
                 queueId: queue?.id ?? null,
                 receivedAt,
-                metadata: {
+                metadata: this.toJsonValue({
                   source: 'channel-adapter',
+                  hasAttachments: attachments.length > 0,
+                  attachments: attachments.length > 0 ? attachments : null,
                   ...(input.metadata ?? {}),
-                },
+                }),
               },
             })
           : null
@@ -1430,14 +1636,17 @@ export class ConversationsService {
           inboxMessageId: inboxMessage?.id ?? null,
           body: normalizedText,
           normalizedText,
-          payload: {
+          payload: this.toJsonValue({
             subject: input.subject?.trim() || null,
-          },
-          metadata: {
+            attachments: attachments.length > 0 ? attachments : null,
+          }),
+          metadata: this.toJsonValue({
             source: 'channel-adapter',
             channel: input.channel,
+            hasAttachments: attachments.length > 0,
+            attachments: attachments.length > 0 ? attachments : null,
             ...(input.metadata ?? {}),
-          },
+          }),
           receivedAt,
         },
         select: {
@@ -1815,13 +2024,36 @@ export class ConversationsService {
       input.metadata ?? undefined,
     )
     const nextControlMode =
-      input.needsHuman && conversation.scope === ConversationScope.CUSTOMER_PUBLIC
+      input.needsHuman && this.isCustomerFacingScope(conversation.scope)
         ? ConversationControlMode.HUMAN
         : ConversationControlMode.AI
     const nextStatus =
-      input.needsHuman && conversation.scope === ConversationScope.CUSTOMER_PUBLIC
+      input.needsHuman && this.isCustomerFacingScope(conversation.scope)
         ? ConversationStatus.WAITING_INTERNAL
         : ConversationStatus.WAITING_CUSTOMER
+    const currentRole = this.normalizeConversationRoleValue(
+      conversation.conversationRole,
+      conversation.scope,
+    )
+    const metadataRecord = this.asRecord(input.metadata)
+    const metadataRole =
+      typeof metadataRecord?.aiRole === 'string'
+        ? metadataRecord.aiRole
+        : currentRole
+    const auditEvent = this.normalizeAiAuditEvent(input.audit, {
+      role: currentRole,
+      intentKey:
+        typeof metadataRecord?.aiMemory === 'object'
+          ? (this.asRecord(metadataRecord?.aiMemory)?.intentKey as
+              | string
+              | undefined)
+          : undefined,
+      taskChanged:
+        typeof metadataRecord?.aiMemory === 'object'
+          ? Boolean(this.asRecord(metadataRecord?.aiMemory)?.resetApplied)
+          : false,
+      fallbackReason: groundingState.fallbackReason,
+    })
 
     await this.prisma.$transaction(async (tx) => {
       const message = await tx.conversationMessage.create({
@@ -1871,17 +2103,23 @@ export class ConversationsService {
           lastMessageAt: message.createdAt,
           lastOutboundAt: message.createdAt,
           status: nextStatus,
-          metadata: {
+          metadata: this.toJsonValue({
             ...(this.asRecord(conversation.metadata) ?? {}),
             aiState: {
               ...groundingState,
+              role: metadataRole,
+              audit: auditEvent,
               updatedAt: message.createdAt.toISOString(),
             },
-          },
+            aiAuditLog: this.appendAiAuditLog(
+              this.asRecord(conversation.metadata)?.aiAuditLog,
+              auditEvent,
+            ),
+          }),
         },
       })
 
-      if (input.needsHuman && conversation.scope === ConversationScope.CUSTOMER_PUBLIC) {
+      if (input.needsHuman && this.isCustomerFacingScope(conversation.scope)) {
         await tx.conversationHandoffEvent.create({
           data: {
             conversationId: id,
@@ -2181,6 +2419,7 @@ export class ConversationsService {
       id: string
       tenantKey: string
       scope: ConversationScope
+      conversationRole?: ConversationRole | null
       channel: ConversationChannel
       status: ConversationStatus
       controlMode: ConversationControlMode
@@ -2289,6 +2528,10 @@ export class ConversationsService {
       id: conversation.id,
       tenantKey: conversation.tenantKey,
       scope: this.normalizeEnum(conversation.scope),
+      role: this.normalizeConversationRoleValue(
+        conversation.conversationRole,
+        conversation.scope,
+      ),
       channel: this.normalizeEnum(conversation.channel),
       status: this.normalizeEnum(conversation.status),
       controlMode: this.normalizeEnum(conversation.controlMode),
@@ -2938,6 +3181,10 @@ export class ConversationsService {
       body: JSON.stringify({
         tenantKey: conversation.tenantKey,
         scope: 'admin_internal',
+        role: this.normalizeConversationRoleValue(
+          conversation.conversationRole,
+          conversation.scope,
+        ),
         channel: 'admin_chat',
         conversationId: conversation.id,
         userId: `admin:${actorUserId}`,
@@ -2958,10 +3205,14 @@ export class ConversationsService {
         provider: payload.response.provider ?? null,
         model: payload.response.model ?? null,
         channel: 'admin_chat',
+        aiMemory: payload.response.memory ?? null,
+        aiRole: payload.response.role ?? null,
+        aiAudit: payload.response.audit ?? null,
       },
       toolCalls: payload.response.toolCalls ?? [],
       needsHuman: payload.response.needsHuman ?? false,
       grounding: payload.response.grounding ?? null,
+      audit: payload.response.audit ?? null,
     })
   }
 
@@ -2992,6 +3243,7 @@ export class ConversationsService {
     return {
       needsHuman: Boolean(state.needsHuman),
       grounded: Boolean(state.grounded),
+      role: typeof state.role === 'string' ? state.role : null,
       fallbackReason:
         typeof state.fallbackReason === 'string' ? state.fallbackReason : null,
       sourceCount:
@@ -2999,7 +3251,81 @@ export class ConversationsService {
           ? state.sourceCount
           : sources.length,
       sources,
+      memory: this.extractConversationAiMemoryState(state.memory),
+      audit: this.extractConversationAiAuditState(state.audit),
       updatedAt: typeof state.updatedAt === 'string' ? state.updatedAt : null,
+    }
+  }
+
+  private extractConversationAiMemoryState(memory: unknown) {
+    const state = this.asRecord(memory)
+    if (!state) {
+      return null
+    }
+
+    return {
+      taskId: typeof state.taskId === 'string' ? state.taskId : null,
+      intentKey: typeof state.intentKey === 'string' ? state.intentKey : null,
+      taskSummary:
+        typeof state.taskSummary === 'string' ? state.taskSummary : null,
+      resetApplied: Boolean(state.resetApplied),
+      resetCount:
+        typeof state.resetCount === 'number' && Number.isFinite(state.resetCount)
+          ? state.resetCount
+          : 0,
+      lastResetAt:
+        typeof state.lastResetAt === 'string' ? state.lastResetAt : null,
+      historyTurnCount:
+        typeof state.historyTurnCount === 'number' &&
+        Number.isFinite(state.historyTurnCount)
+          ? state.historyTurnCount
+          : 0,
+      currentTask: this.extractConversationCurrentTask(state.currentTask),
+    }
+  }
+
+  private extractConversationCurrentTask(task: unknown) {
+    const state = this.asRecord(task)
+    if (!state) {
+      return null
+    }
+
+    return {
+      intentKey: typeof state.intentKey === 'string' ? state.intentKey : null,
+      status: typeof state.status === 'string' ? state.status : null,
+      lastUpdate: typeof state.lastUpdate === 'string' ? state.lastUpdate : null,
+      entities: Array.isArray(state.entities)
+        ? state.entities
+            .map((entry) => this.asRecord(entry))
+            .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+            .map((entry) => ({
+              type: typeof entry.type === 'string' ? entry.type : null,
+              value: typeof entry.value === 'string' ? entry.value : null,
+            }))
+        : [],
+    }
+  }
+
+  private extractConversationAiAuditState(audit: unknown) {
+    const state = this.asRecord(audit)
+    if (!state) {
+      return null
+    }
+
+    return {
+      role: typeof state.role === 'string' ? state.role : null,
+      intentKey: typeof state.intentKey === 'string' ? state.intentKey : null,
+      blockedTools: Array.isArray(state.blockedTools)
+        ? state.blockedTools
+            .filter((entry): entry is string => typeof entry === 'string')
+        : [],
+      executedTools: Array.isArray(state.executedTools)
+        ? state.executedTools
+            .filter((entry): entry is string => typeof entry === 'string')
+        : [],
+      fallbackActivated: Boolean(state.fallbackActivated),
+      taskChanged: Boolean(state.taskChanged),
+      createdAt: typeof state.createdAt === 'string' ? state.createdAt : null,
     }
   }
 
@@ -3088,6 +3414,8 @@ export class ConversationsService {
         ? input.sourceCount
         : sources.length
 
+    const memory = this.extractConversationAiMemoryState(metadata?.aiMemory)
+
     return {
       needsHuman,
       grounded:
@@ -3100,10 +3428,18 @@ export class ConversationsService {
             : null,
       sourceCount,
       sources,
+      memory,
       provider:
         typeof metadata?.provider === 'string' ? metadata.provider : null,
       model: typeof metadata?.model === 'string' ? metadata.model : null,
     }
+  }
+
+  private isCustomerFacingScope(scope: ConversationScope) {
+    return (
+      scope === ConversationScope.CUSTOMER_PUBLIC ||
+      scope === ConversationScope.CUSTOMER_AUTHENTICATED
+    )
   }
 
   private isMetaConversationChannel(channel: ConversationChannel) {
@@ -3119,6 +3455,65 @@ export class ConversationsService {
       return null
     }
     return input as Record<string, unknown>
+  }
+
+  private normalizeConversationAttachments(
+    input: Array<{
+      assetType?: string | null
+      fileName?: string | null
+      contentType?: string | null
+      content?: string | null
+      textContent?: string | null
+      metadata?: Record<string, unknown> | null
+    }> | null | undefined,
+  ) {
+    return (Array.isArray(input) ? input : [])
+      .map((attachment) => ({
+        assetType: attachment?.assetType?.trim() || null,
+        fileName: attachment?.fileName?.trim() || null,
+        contentType: attachment?.contentType?.trim() || null,
+        content: attachment?.content?.trim() || null,
+        textContent: attachment?.textContent?.trim() || null,
+        metadata: this.asRecord(attachment?.metadata) ?? null,
+      }))
+      .filter(
+        (attachment) =>
+          attachment.assetType ||
+          attachment.fileName ||
+          attachment.contentType ||
+          attachment.content ||
+          attachment.textContent ||
+          attachment.metadata,
+      )
+  }
+
+  private buildAttachmentSummary(
+    attachments: Array<{
+      assetType?: string | null
+      fileName?: string | null
+      contentType?: string | null
+      textContent?: string | null
+    }>,
+  ) {
+    if (!Array.isArray(attachments) || attachments.length === 0) {
+      return ''
+    }
+
+    return attachments
+      .slice(0, 6)
+      .map((attachment) => {
+        const label =
+          attachment.fileName ||
+          attachment.assetType ||
+          attachment.contentType ||
+          'adjunto'
+        const hint = attachment.textContent?.trim()
+        return hint
+          ? `[Adjunto: ${label}] ${hint.slice(0, 180)}`
+          : `[Adjunto: ${label}]`
+      })
+      .join('\n')
+      .trim()
   }
 
   private mapInboxChannel(
@@ -3178,9 +3573,14 @@ export class ConversationsService {
   }
 
   private mapScope(scope: NonNullable<ListConversationsDto['scope']>) {
-    return scope === 'admin_internal'
-      ? ConversationScope.ADMIN_INTERNAL
-      : ConversationScope.CUSTOMER_PUBLIC
+    switch (scope) {
+      case 'admin_internal':
+        return ConversationScope.ADMIN_INTERNAL
+      case 'customer_authenticated':
+        return ConversationScope.CUSTOMER_AUTHENTICATED
+      default:
+        return ConversationScope.CUSTOMER_PUBLIC
+    }
   }
 
   private mapChannel(channel: NonNullable<ListConversationsDto['channel']>) {
@@ -3198,6 +3598,147 @@ export class ConversationsService {
       default:
         return ConversationChannel.WEBCHAT
     }
+  }
+
+  private normalizeConversationRoleValue(
+    role: ConversationRole | string | null | undefined,
+    fallbackScope?: ConversationScope | string | null,
+  ): AiConversationRole {
+    const normalized = normalizeAiConversationRole(
+      typeof role === 'string' ? role : role ? String(role) : null,
+    )
+    if (normalized) {
+      return normalized
+    }
+
+    return resolveAiConversationRole({
+      session: {
+        authenticated:
+          fallbackScope === ConversationScope.CUSTOMER_AUTHENTICATED ||
+          fallbackScope === 'CUSTOMER_AUTHENTICATED',
+        scope:
+          fallbackScope === ConversationScope.ADMIN_INTERNAL ||
+          fallbackScope === 'ADMIN_INTERNAL'
+            ? 'admin_internal'
+            : fallbackScope === ConversationScope.CUSTOMER_AUTHENTICATED ||
+                fallbackScope === 'CUSTOMER_AUTHENTICATED'
+              ? 'customer_authenticated'
+              : 'customer_public',
+      },
+    })
+  }
+
+  private mapConversationRoleEnum(role: AiConversationRole) {
+    switch (role) {
+      case 'customer_authenticated':
+        return 'CUSTOMER_AUTHENTICATED' as ConversationRole
+      case 'admin_sales':
+        return 'ADMIN_SALES' as ConversationRole
+      case 'admin_operations':
+        return 'ADMIN_OPERATIONS' as ConversationRole
+      case 'admin_supervisor':
+        return 'ADMIN_SUPERVISOR' as ConversationRole
+      case 'superadmin':
+        return 'SUPERADMIN' as ConversationRole
+      case 'admin_support':
+        return 'ADMIN_SUPPORT' as ConversationRole
+      default:
+        return 'CUSTOMER_PUBLIC' as ConversationRole
+    }
+  }
+
+  private mapConversationScopeFromRole(role: AiConversationRole) {
+    const scope = resolveAiScopeFromRole(role)
+    if (scope === 'admin_internal') {
+      return ConversationScope.ADMIN_INTERNAL
+    }
+    if (scope === 'customer_authenticated') {
+      return ConversationScope.CUSTOMER_AUTHENTICATED
+    }
+    return ConversationScope.CUSTOMER_PUBLIC
+  }
+
+  private resolveAdminConversationRole(
+    actorUser?:
+      | {
+          role?: string | null
+          authority?: string[] | null
+          capabilityGroups?: string[] | null
+          directCapabilities?: string[] | null
+          capabilityEnvelope?: string[] | null
+        }
+      | null,
+  ) {
+    const explicitConversationRole = normalizeAiConversationRole(actorUser?.role)
+    const hasExplicitCapabilityContext = Boolean(
+      actorUser?.capabilityGroups?.length ||
+        actorUser?.directCapabilities?.length ||
+        actorUser?.capabilityEnvelope?.length,
+    )
+    return resolveAiConversationRole({
+      user: actorUser
+        ? {
+            role: (actorUser.role as never) ?? undefined,
+            authority: (actorUser.authority as never) ?? undefined,
+            capabilityGroups: actorUser.capabilityGroups ?? undefined,
+            directCapabilities: actorUser.directCapabilities ?? undefined,
+            capabilityEnvelope: actorUser.capabilityEnvelope ?? undefined,
+          }
+        : null,
+      session: {
+        role:
+          explicitConversationRole ??
+          (hasExplicitCapabilityContext ? undefined : 'admin_internal'),
+        capabilityGroups: actorUser?.capabilityGroups ?? undefined,
+        directCapabilities: actorUser?.directCapabilities ?? undefined,
+        capabilityEnvelope: actorUser?.capabilityEnvelope ?? undefined,
+      },
+    })
+  }
+
+  private normalizeAiAuditEvent(
+    audit: unknown,
+    fallback: {
+      role: AiConversationRole
+      intentKey?: string | null
+      taskChanged?: boolean
+      fallbackReason?: string | null
+    },
+  ) {
+    const state = this.asRecord(audit)
+    const blockedTools = Array.isArray(state?.blockedTools)
+      ? state?.blockedTools.filter((entry): entry is string => typeof entry === 'string')
+      : []
+    const executedTools = Array.isArray(state?.executedTools)
+      ? state?.executedTools.filter((entry): entry is string => typeof entry === 'string')
+      : []
+
+    return {
+      role: typeof state?.role === 'string' ? state.role : fallback.role,
+      intentKey:
+        typeof state?.intentKey === 'string'
+          ? state.intentKey
+          : fallback.intentKey ?? null,
+      blockedTools,
+      executedTools,
+      fallbackActivated:
+        Boolean(state?.fallbackActivated) || Boolean(fallback.fallbackReason),
+      taskChanged: Boolean(state?.taskChanged ?? fallback.taskChanged),
+      createdAt:
+        typeof state?.createdAt === 'string'
+          ? state.createdAt
+          : new Date().toISOString(),
+    }
+  }
+
+  private appendAiAuditLog(existing: unknown, next: ReturnType<ConversationsService['normalizeAiAuditEvent']>) {
+    const current = Array.isArray(existing)
+      ? existing
+          .map((entry) => this.asRecord(entry))
+          .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+      : []
+
+    return [...current.slice(-19), next]
   }
 
   private mapControlMode(mode: NonNullable<ListConversationsDto['controlMode']>) {

@@ -10,14 +10,15 @@ export class WebchatAdapter {
     if (!normalized.conversationId) {
       throw new Error('conversationId is required for webchat messages')
     }
-    if (!normalized.text) {
-      throw new Error('text is required for webchat messages')
+    if (!normalized.text && (!Array.isArray(normalized.attachments) || !normalized.attachments.length)) {
+      throw new Error('text or attachments are required for webchat messages')
     }
 
     await this.clients.conversations.createWebchatMessage({
       conversationId: normalized.conversationId,
       guestId: payload?.guestId || normalized.userId,
       text: normalized.text,
+      attachments: normalized.attachments,
     })
 
     const aiResult = await this.clients.ai.respond(normalized)
@@ -30,6 +31,7 @@ export class WebchatAdapter {
           provider: aiResult?.response?.provider || 'mock',
           model: aiResult?.response?.model || null,
           channel: 'webchat',
+          aiMemory: aiResult?.response?.memory || null,
         },
         toolCalls: aiResult?.response?.toolCalls ?? [],
         needsHuman: aiResult?.response?.needsHuman ?? false,

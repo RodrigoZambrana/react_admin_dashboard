@@ -95,6 +95,21 @@ Critical rule:
 - admin chat messages should not automatically become trusted knowledge
 - they must first be captured as candidate knowledge and then curated/approved
 
+## Cross-tenant document management requirement
+
+The system must provide a clear document-management flow for **any tenant**, not just a specific implementation such as `urucortinas`.
+
+Minimum lifecycle:
+
+1. upload document
+2. classify by scope
+3. persist metadata and file
+4. allow preview/download
+5. allow delete/reload
+6. reindex approved content
+
+This flow is part of the platform capability and should not be treated as a tenant-specific customization.
+
 ### 4. Conversation-derived knowledge
 
 This source is important but high-risk if ingested naively.
@@ -257,4 +272,3 @@ Raw customer conversation knowledge should remain deferred until:
 - redaction exists
 - approval workflow exists
 - tenant-safe retrieval policies exist
-

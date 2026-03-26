@@ -48,6 +48,19 @@ Estado relevado al 2026-03-26 para `admin_internal`.
 - grounding con playbooks internos y fuentes aprobadas
 - orientación operativa para cotización/alta de aberturas
 
+## Capacidades transversales que no deben quedar atadas a un solo tenant
+
+- ABM documental de conocimiento aprobado para IA
+  - upload
+  - download
+  - delete
+  - recarga
+  - clasificación por scope
+- retrieval sobre fuentes aprobadas y trazables
+- separación entre `customer_public` y roles internos
+
+Esto ya existe como capacidad del sistema y `UruCortinas` es hoy el tenant más poblado, no el único caso conceptual.
+
 ## Criterio de seguridad actual
 
 Todas las operaciones de escritura siguen este patrón:
@@ -96,6 +109,19 @@ Prioridad media:
 - actualización de datos de envío de pedidos
 - agregar o quitar ítems en presupuestos/pedidos existentes
 - refund/cancelación de pagos con reglas más estrictas
+
+No priorizar como objetivo IA:
+
+- creación de nuevas matrices paramétricas
+- CRUD de glosario como operativa principal
+- ABM IA de compatibilidades paramétricas como flujo separado
+
+Para `aberturas`, el foco correcto sigue siendo:
+
+- parser robusto desde fuentes heterogéneas
+- validación
+- insert limpio
+- borrador estructurado de cotización
 
 Prioridad baja o dependiente de backend:
 
