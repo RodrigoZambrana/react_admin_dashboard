@@ -9,13 +9,57 @@ export class RedisConversationStore {
       maxRetriesPerRequest: 1,
     })
     this.connected = false
+    this.connectPromise = null
   }
 
   async ensureConnected() {
-    if (!this.connected) {
-      await this.redis.connect()
+    if (this.connected || this.redis.status === 'ready') {
       this.connected = true
+      return
     }
+
+    if (this.connectPromise) {
+      await this.connectPromise
+      return
+    }
+
+    if (this.redis.status === 'connecting' || this.redis.status === 'connect') {
+      this.connectPromise = new Promise((resolve, reject) => {
+        const cleanup = () => {
+          this.redis.off('ready', onReady)
+          this.redis.off('error', onError)
+          this.connectPromise = null
+        }
+
+        const onReady = () => {
+          cleanup()
+          this.connected = true
+          resolve()
+        }
+
+        const onError = (error) => {
+          cleanup()
+          reject(error)
+        }
+
+        this.redis.once('ready', onReady)
+        this.redis.once('error', onError)
+      })
+
+      await this.connectPromise
+      return
+    }
+
+    this.connectPromise = this.redis
+      .connect()
+      .then(() => {
+        this.connected = true
+      })
+      .finally(() => {
+        this.connectPromise = null
+      })
+
+    await this.connectPromise
   }
 
   async get(conversationId) {

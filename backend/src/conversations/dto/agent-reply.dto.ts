@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer'
 import {
   IsArray,
+  IsBoolean,
   IsObject,
   IsOptional,
   IsString,
@@ -56,4 +57,13 @@ export class AgentReplyDto {
   @ValidateNested({ each: true })
   @Type(() => AgentToolCallDto)
   toolCalls?: AgentToolCallDto[]
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  needsHuman?: boolean
+
+  @IsOptional()
+  @IsObject()
+  grounding?: Record<string, unknown>
 }

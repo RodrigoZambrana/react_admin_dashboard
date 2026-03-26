@@ -102,6 +102,30 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  if (req.method === 'POST' && req.url === '/cache/refresh') {
+    const token = req.headers['x-ai-internal-token']
+    if (token !== config.aiInternalToken) {
+      json(res, 401, { ok: false, message: 'unauthorized' })
+      return
+    }
+
+    try {
+      await runtime.invalidateCaches({ refreshRuntime: true })
+      json(res, 200, {
+        ok: true,
+        provider: runtime.provider.providerName,
+        model: runtime.provider.modelName,
+        refreshedAt: new Date().toISOString(),
+      })
+    } catch (error) {
+      json(res, 500, {
+        ok: false,
+        message: error instanceof Error ? error.message : 'refresh failed',
+      })
+    }
+    return
+  }
+
   json(res, 404, {
     ok: false,
     service: config.service,

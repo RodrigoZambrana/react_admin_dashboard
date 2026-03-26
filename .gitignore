@@ -36,5 +36,9 @@ ecommerce/.cache/
 backend/prisma/generated/
 !deploy/nginx/dhparam.pem
 
+# Managed uploads persisted outside containers
+backend/uploads/**
+!backend/uploads/.gitkeep
+
 # Generated shared modules
 frontend/.shared/

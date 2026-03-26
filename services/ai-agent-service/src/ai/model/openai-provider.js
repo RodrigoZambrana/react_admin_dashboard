@@ -1,4 +1,9 @@
-import { HumanMessage, SystemMessage, ToolMessage } from '@langchain/core/messages'
+import {
+  AIMessage,
+  HumanMessage,
+  SystemMessage,
+  ToolMessage,
+} from '@langchain/core/messages'
 import { ChatOpenAI } from '@langchain/openai'
 
 export class OpenAIProvider {
@@ -17,9 +22,8 @@ export class OpenAIProvider {
       new SystemMessage(systemPrompt),
       ...history.map((item) =>
         item.role === 'agent'
-          ? new ToolMessage({
+          ? new AIMessage({
               content: item.text,
-              tool_call_id: item.toolCallId || 'memory',
             })
           : new HumanMessage(`${item.role}: ${item.text}`),
       ),

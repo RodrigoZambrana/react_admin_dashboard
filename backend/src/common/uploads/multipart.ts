@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify'
+import { Readable } from 'stream'
 
 export type ParsedMultipartResult = {
   fields: Record<string, string>
@@ -6,6 +7,10 @@ export type ParsedMultipartResult = {
 }
 
 type MultipartFile = import('@fastify/multipart').MultipartFile
+
+type BufferedMultipartFile = MultipartFile & {
+  _buffer?: Buffer
+}
 
 const toStringValue = (value: unknown): string => {
   if (value === undefined || value === null) {
@@ -47,7 +52,13 @@ export const parseSingleFileMultipart = async (
   for await (const part of req.parts()) {
     if (part.type === 'file') {
       if (!result.file) {
-        result.file = part
+        const buffer = await part.toBuffer()
+        const bufferedPart: BufferedMultipartFile = Object.assign({}, part, {
+          file: Readable.from(buffer),
+          toBuffer: async () => buffer,
+          _buffer: buffer,
+        })
+        result.file = bufferedPart
       } else {
         part.file.resume()
       }

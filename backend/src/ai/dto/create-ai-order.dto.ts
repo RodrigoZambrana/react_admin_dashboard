@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer'
 import { IsArray, IsInt, IsNumber, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator'
 
-class AiOrderItemDto {
+export class AiOrderItemDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()

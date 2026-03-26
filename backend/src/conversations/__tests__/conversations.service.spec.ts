@@ -148,6 +148,18 @@ describe('ConversationsService', () => {
             createdAt: new Date('2026-03-25T01:00:00.000Z'),
           },
         ],
+        toolCalls: [
+          {
+            toolName: 'search_products',
+            status: 'EXECUTED',
+            updatedAt: new Date('2026-03-25T01:05:00.000Z'),
+          },
+          {
+            toolName: 'update_quote_status',
+            status: 'EXECUTED',
+            updatedAt: new Date('2026-03-25T01:06:00.000Z'),
+          },
+        ],
       },
     ])
     prisma.conversation.count.mockResolvedValue(1)
@@ -186,6 +198,11 @@ describe('ConversationsService', () => {
         authorType: 'customer',
         kind: 'text',
         body: 'Hola, quiero cotizar',
+      },
+      aiAudit: {
+        total: 2,
+        search: 1,
+        state: 1,
       },
     })
   })
@@ -654,10 +671,17 @@ describe('ConversationsService', () => {
 
     expect(prisma.conversation.update).toHaveBeenCalledWith({
       where: { id: 'conv_release' },
-      data: {
+      data: expect.objectContaining({
         controlMode: 'AI',
         assignedToUserId: null,
-      },
+        needsHuman: false,
+        metadata: expect.objectContaining({
+          aiState: expect.objectContaining({
+            needsHuman: false,
+            fallbackReason: null,
+          }),
+        }),
+      }),
     })
     expect(prisma.conversationHandoffEvent.create).toHaveBeenCalledWith({
       data: {
@@ -830,6 +854,7 @@ describe('ConversationsService', () => {
         channel: 'WEBCHAT',
         status: 'WAITING_INTERNAL',
         controlMode: 'AI',
+        needsHuman: false,
         subject: 'Consulta',
         externalUserId: 'guest_13',
         externalThreadId: 'webchat:guest_13',
@@ -965,10 +990,21 @@ describe('ConversationsService', () => {
         channel: 'WEBCHAT',
         status: 'WAITING_CUSTOMER',
         controlMode: 'AI',
+        needsHuman: false,
         subject: 'Consulta',
         externalUserId: 'guest_14',
         externalThreadId: 'webchat:guest_14',
         externalChannelRef: '/shop',
+        metadata: {
+          aiState: {
+            needsHuman: false,
+            grounded: false,
+            fallbackReason: null,
+            sourceCount: 0,
+            sources: [],
+            updatedAt: createdAt.toISOString(),
+          },
+        },
         lastMessageAt: createdAt,
         lastInboundAt: null,
         lastOutboundAt: createdAt,
@@ -1009,12 +1045,16 @@ describe('ConversationsService', () => {
         conversationId: 'conv_agent_reply',
         authorType: 'AGENT',
         body: 'Estas son las opciones encontradas',
-        metadata: {
+        metadata: expect.objectContaining({
           source: 'ai-agent-service',
           provider: 'mock',
           channel: 'webchat',
           deliveryStatus: 'internal_only',
-        },
+          ai: expect.objectContaining({
+            needsHuman: false,
+            grounded: false,
+          }),
+        }),
       }),
       select: {
         id: true,
@@ -1023,16 +1063,21 @@ describe('ConversationsService', () => {
     })
     expect(prisma.conversation.update).toHaveBeenCalledWith({
       where: { id: 'conv_agent_reply' },
-      data: {
+      data: expect.objectContaining({
         controlMode: 'AI',
+        needsHuman: false,
         lastMessageAt: createdAt,
         lastOutboundAt: createdAt,
         status: 'WAITING_CUSTOMER',
-      },
+      }),
     })
     expect(result).toMatchObject({
       id: 'conv_agent_reply',
       controlMode: 'ai',
+      aiState: {
+        grounded: false,
+        needsHuman: false,
+      },
       latestMessage: {
         authorType: 'agent',
         body: 'Estas son las opciones encontradas',
@@ -1139,6 +1184,148 @@ describe('ConversationsService', () => {
           status: 'executed',
         },
       ],
+    })
+  })
+
+  it('persists needsHuman fallback and switches public conversations to human control', async () => {
+    const createdAt = new Date('2026-03-25T03:45:00.000Z')
+    prisma.conversation.findUnique
+      .mockResolvedValueOnce({
+        id: 'conv_handoff',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'WEBCHAT',
+        status: 'WAITING_INTERNAL',
+        controlMode: 'AI',
+        subject: 'Consulta compleja',
+        externalUserId: 'guest_16',
+        externalThreadId: 'webchat:guest_16',
+        externalChannelRef: '/shop',
+        metadata: {},
+        lastMessageAt: createdAt,
+        lastInboundAt: createdAt,
+        lastOutboundAt: null,
+        createdAt: new Date('2026-03-25T00:00:00.000Z'),
+        updatedAt: createdAt,
+        customer: null,
+        assignedToUser: null,
+        inboxAccount: null,
+        participants: [],
+        messages: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'conv_handoff',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'WEBCHAT',
+        status: 'WAITING_INTERNAL',
+        controlMode: 'HUMAN',
+        subject: 'Consulta compleja',
+        externalUserId: 'guest_16',
+        externalThreadId: 'webchat:guest_16',
+        externalChannelRef: '/shop',
+        metadata: {
+          aiState: {
+            needsHuman: true,
+            grounded: false,
+            fallbackReason: 'missing_approved_context',
+            sourceCount: 0,
+            sources: [],
+            updatedAt: createdAt.toISOString(),
+          },
+        },
+        lastMessageAt: createdAt,
+        lastInboundAt: createdAt,
+        lastOutboundAt: createdAt,
+        createdAt: new Date('2026-03-25T00:00:00.000Z'),
+        updatedAt: createdAt,
+        customer: null,
+        assignedToUser: null,
+        inboxAccount: null,
+        participants: [],
+        messages: [
+          {
+            id: 'msg_handoff',
+            authorType: 'AGENT',
+            kind: 'TEXT',
+            body: 'No tengo información confirmada suficiente.',
+            normalizedText: 'No tengo información confirmada suficiente.',
+            payload: null,
+            metadata: {
+              source: 'ai-agent-service',
+              ai: {
+                needsHuman: true,
+                grounded: false,
+                fallbackReason: 'missing_approved_context',
+                sourceCount: 0,
+                sources: [],
+              },
+            },
+            sentAt: createdAt,
+            receivedAt: null,
+            createdAt,
+          },
+        ],
+        handoffEvents: [
+          {
+            id: 'handoff_1',
+            type: 'AI_SUGGEST_ONLY',
+            previousMode: 'AI',
+            nextMode: 'HUMAN',
+            notes: 'missing_approved_context',
+            actorUser: null,
+            createdAt,
+          },
+        ],
+        toolCalls: [],
+      })
+    prisma.conversationMessage.create.mockResolvedValue({
+      id: 'msg_handoff',
+      createdAt,
+    })
+
+    const result = await service.replyAsAgent('conv_handoff', {
+      body: 'No tengo información confirmada suficiente.',
+      metadata: { provider: 'openai', model: 'gpt-4o-mini' },
+      needsHuman: true,
+      grounding: {
+        grounded: false,
+        fallbackReason: 'missing_approved_context',
+        sourceCount: 0,
+        sources: [],
+      },
+    })
+
+    expect(prisma.conversation.update).toHaveBeenCalledWith({
+      where: { id: 'conv_handoff' },
+        data: expect.objectContaining({
+          controlMode: 'HUMAN',
+          needsHuman: true,
+          status: 'WAITING_INTERNAL',
+          metadata: expect.objectContaining({
+            aiState: expect.objectContaining({
+            needsHuman: true,
+            grounded: false,
+            fallbackReason: 'missing_approved_context',
+          }),
+        }),
+      }),
+    })
+    expect(prisma.conversationHandoffEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        conversationId: 'conv_handoff',
+        type: 'AI_SUGGEST_ONLY',
+        nextMode: 'HUMAN',
+      }),
+    })
+    expect(result).toMatchObject({
+      id: 'conv_handoff',
+      controlMode: 'human',
+      needsHuman: true,
+      aiState: {
+        needsHuman: true,
+        grounded: false,
+      },
     })
   })
 
@@ -1389,6 +1576,44 @@ describe('ConversationsService', () => {
       'conv_internal',
       {
         body: 'Necesito ayuda con un presupuesto',
+        kind: 'text',
+      },
+      9,
+    )
+  })
+
+  it('defaults admin internal sessions to CLIENT_SLUG when tenantKey is omitted', async () => {
+    config.get.mockImplementation((key: string) => {
+      if (key === 'CLIENT_SLUG') {
+        return 'urucortinas'
+      }
+      return undefined
+    })
+
+    const createConversationSpy = vi
+      .spyOn(service as any, 'createAdminInternalConversationRecord')
+      .mockResolvedValue({ id: 'conv_internal' })
+    const replyAsOperatorSpy = vi
+      .spyOn(service, 'replyAsOperator')
+      .mockResolvedValue({ id: 'conv_internal' } as never)
+
+    await service.createAdminInternalSession(
+      {
+        subject: 'Alta de abertura',
+        message: 'Necesito agregar una abertura',
+      },
+      9,
+    )
+
+    expect(createConversationSpy).toHaveBeenCalledWith({
+      tenantKey: 'urucortinas',
+      actorUserId: 9,
+      subject: 'Alta de abertura',
+    })
+    expect(replyAsOperatorSpy).toHaveBeenCalledWith(
+      'conv_internal',
+      {
+        body: 'Necesito agregar una abertura',
         kind: 'text',
       },
       9,

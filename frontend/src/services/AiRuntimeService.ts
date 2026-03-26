@@ -18,9 +18,27 @@ export type AiRuntimeConfigResponse = {
     currentUsageUsd: number | null
     warningThresholdPercent: number
     usageMessage: string | null
+    adminInternalPrompt: string | null
+    customerPublicPrompt: string | null
     usage: AiRuntimeUsageSummary
     source: 'environment' | 'database'
     updatedAt: string | null
+}
+
+export type AiActionCatalogEntry = {
+    key: string
+    label: string
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE'
+    path: string
+    confirmationRequired: boolean
+    scope: 'customer_public' | 'admin_internal'
+    toolName?: string
+    keywords?: string[]
+    requiredFields?: string[]
+    supportedFields?: string[]
+    allowedValues?: string[]
+    validationRules?: string[]
+    confirmationPrompt?: string
 }
 
 export type UpdateAiRuntimeConfigPayload = {
@@ -32,6 +50,8 @@ export type UpdateAiRuntimeConfigPayload = {
     currentUsageUsd: number | null
     warningThresholdPercent: number
     usageMessage: string | null
+    adminInternalPrompt: string | null
+    customerPublicPrompt: string | null
 }
 
 export const apiGetAiRuntimeConfig = () => {
@@ -48,5 +68,12 @@ export const apiUpdateAiRuntimeConfig = (
         url: '/ai/runtime-config',
         method: 'put',
         data: payload,
+    })
+}
+
+export const apiGetAiActionsCatalog = () => {
+    return ApiService.fetchData<AiActionCatalogEntry[]>({
+        url: '/ai/actions/catalog',
+        method: 'get',
     })
 }

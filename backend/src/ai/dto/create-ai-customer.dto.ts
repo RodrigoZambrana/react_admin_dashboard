@@ -25,5 +25,15 @@ export class CreateAiCustomerDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(160)
+  location?: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  title?: string
+
+  @IsOptional()
+  @IsString()
   preferredLocale?: string
 }
