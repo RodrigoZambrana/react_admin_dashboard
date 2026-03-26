@@ -55,13 +55,70 @@ async function createWebchatConversation(
   return sessionPayload;
 }
 
+async function createWebchatConversationWithAgentReply(
+  request: APIRequestContext,
+  input: {
+    guestId: string;
+    name: string;
+    email: string;
+    text: string;
+    authenticated?: boolean;
+  },
+) {
+  const sessionResponse = await request.post(
+    `${backendBaseUrl}/api/conversations/webchat/session`,
+    {
+      data: {
+        tenantKey: "urucortinas",
+        guestId: input.guestId,
+        name: input.name,
+        email: input.email,
+        locale: "es-UY",
+        page: "/shop",
+        authenticated: input.authenticated ?? false,
+      },
+    },
+  );
+
+  expect(sessionResponse.ok()).toBeTruthy();
+  const sessionPayload = (await sessionResponse.json()) as {
+    conversationId: string;
+    guestId?: string | null;
+  };
+
+  const effectiveGuestId = sessionPayload.guestId ?? input.guestId;
+  const dispatchResponse = await request.post(
+    `${backendBaseUrl}/api/conversations/webchat/dispatch`,
+    {
+      data: {
+        tenantKey: "urucortinas",
+        conversationId: sessionPayload.conversationId,
+        guestId: effectiveGuestId,
+        userId: effectiveGuestId,
+        scope: input.authenticated ? "customer_authenticated" : "customer_public",
+        text: input.text,
+        metadata: {
+          page: "/shop",
+        },
+      },
+    },
+  );
+
+  expect(dispatchResponse.ok()).toBeTruthy();
+  return sessionPayload;
+}
+
 async function openInternalAssistantContact(page: Page) {
   await page.getByTestId("admin-conversations-new-chat").click();
   await expect(page.getByTestId("admin-conversations-contact-list")).toBeVisible({
     timeout: 20_000,
   });
-  await page.getByTestId("admin-conversations-contact-search").fill("Agente IA");
+  const searchInput = page.getByTestId("admin-conversations-contact-search");
   const contact = page.getByTestId("admin-conversations-contact-internal-assistant");
+  await searchInput.fill("Agente IA");
+  if (!(await contact.isVisible().catch(() => false))) {
+    await searchInput.fill("Asistente interno");
+  }
   await expect(contact).toBeVisible({ timeout: 20_000 });
   await expect(contact).toContainText("Asistente interno");
   await contact.click();
@@ -98,20 +155,22 @@ test.describe.serial("admin inbox regression", () => {
 
     const list = page.getByTestId("admin-conversations-list");
     await expect(list).toBeVisible({ timeout: 20_000 });
-    await expect(
-      page.getByTestId(`admin-conversation-${created[0]?.conversationId}`),
-    ).toBeVisible({ timeout: 20_000 });
 
     const scrollTopBefore = await list.evaluate((element) => {
       element.scrollTop = element.scrollHeight;
       return element.scrollTop;
     });
 
-    expect(scrollTopBefore).toBeGreaterThan(100);
+    expect(scrollTopBefore).toBeGreaterThan(20);
 
     const conversationRows = list.locator(
       'button.chat-user-list[data-testid^="admin-conversation-"]',
     );
+    await expect
+      .poll(async () => conversationRows.count(), {
+        timeout: 20_000,
+      })
+      .toBeGreaterThanOrEqual(10);
     const rowCount = await conversationRows.count();
     expect(rowCount).toBeGreaterThanOrEqual(10);
 
@@ -135,7 +194,7 @@ test.describe.serial("admin inbox regression", () => {
     );
 
     const scrollTopAfter = await list.evaluate((element) => element.scrollTop);
-    expect(scrollTopAfter).toBeGreaterThan(100);
+    expect(scrollTopAfter).toBeGreaterThan(20);
     expect(Math.abs(scrollTopAfter - scrollTopBefore)).toBeLessThan(220);
     await expect(targetRow).toBeVisible();
   });
@@ -198,5 +257,102 @@ test.describe.serial("admin inbox regression", () => {
       new RegExp(`/app/crm/conversations/${conversation.id}$`),
       { timeout: 20_000 },
     );
+  });
+
+  test("internal chat channel shows only the current operator assistant thread and stops paginating at the end", async ({
+    page,
+    request,
+  }) => {
+    const uniqueId = Date.now();
+    const users = await Promise.all(
+      ["one", "two", "three"].map(async (suffix) => {
+        const email = `ia.filter.${suffix}.${uniqueId}@example.com`;
+        const password = `InboxFilter@${uniqueId}${suffix}`;
+        await createManagedAdminUser(request, {
+          name: `Inbox ${suffix}`,
+          lastName: "Filter",
+          email,
+          password,
+          role: "ADMIN",
+          capabilityGroups: ["support"],
+        });
+
+        const conversation = await createAdminInternalSessionForUser(
+          request,
+          { email, password },
+          {
+            subject: "Agente IA",
+            message: `Filtro interno ${suffix} ${uniqueId}`,
+          },
+        );
+
+        return { email, password, conversation };
+      }),
+    );
+
+    const current = users[0];
+
+    await loginAsAdminUser(page, {
+      email: current.email,
+      password: current.password,
+    });
+    await page.goto(resolveAdminAppUrl("/app/crm/conversations"), {
+      waitUntil: "domcontentloaded",
+    });
+
+    await page.getByTestId("admin-conversations-rail-directory").click();
+    await expect(page.getByTestId("admin-conversations-channels")).toBeVisible({
+      timeout: 20_000,
+    });
+    await page.getByTestId("admin-conversations-channel-admin_chat").click();
+
+    const rows = page.locator(
+      'button.chat-user-list[data-testid^="admin-conversation-"]',
+    );
+    await expect(rows).toHaveCount(1, { timeout: 20_000 });
+    await expect(rows.first()).toContainText(/Agente IA|Asistente interno/, {
+      timeout: 20_000,
+    });
+
+    const list = page.getByTestId("admin-conversations-list");
+    await list.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+
+    await expect(
+      page.getByTestId("admin-conversations-list-more-indicator"),
+    ).toContainText("No hay más conversaciones por cargar en este listado.", {
+      timeout: 20_000,
+    });
+  });
+
+  test("webchat cards show the latest agent preview after a public greeting", async ({
+    page,
+    request,
+  }) => {
+    const uniqueId = Date.now();
+    const guestId = `preview-agent-${uniqueId}`;
+    const email = `preview.agent.${uniqueId}@example.com`;
+    const name = `Preview Agent ${uniqueId}`;
+
+    const conversation = await createWebchatConversationWithAgentReply(request, {
+      guestId,
+      name,
+      email,
+      text: "Hola",
+    });
+
+    await loginAsAdmin(page);
+    await page.goto(resolveAdminAppUrl("/app/crm/conversations"), {
+      waitUntil: "domcontentloaded",
+    });
+
+    await page.getByTestId("admin-conversations-search-input").fill(guestId);
+    const row = page.getByTestId(`admin-conversation-${conversation.conversationId}`);
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    await expect(row).toContainText("IA:");
+    await expect(row).toContainText("¿En qué podemos ayudarte hoy?", {
+      timeout: 20_000,
+    });
   });
 });

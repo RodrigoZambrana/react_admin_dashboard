@@ -29,6 +29,7 @@
 
 - [AI_OPERATING_MODEL.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_OPERATING_MODEL.md)
 - [AI_IMPLEMENTATION_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_IMPLEMENTATION_PLAN.md)
+- [AI_CONVERSATIONAL_CLOSURE_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_CONVERSATIONAL_CLOSURE_PLAN.md)
 - [AI_USER_CAPABILITIES_MODEL.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_USER_CAPABILITIES_MODEL.md)
 - [ai-role-matrix.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-role-matrix.md)
 - [ai-safe-operations-survey.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-safe-operations-survey.md)

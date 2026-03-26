@@ -234,6 +234,18 @@ The AI foundation now includes:
 - attachment support is now explicitly documented as partial:
   - files are already stored and rendered in inbox/conversations
   - there is still no transversal operational ingestion pipeline for `pdf/image/audio/csv/xlsx` feeding `draft -> confirm -> execute -> verify -> respond/debug`
+- admin inbox filtering and internal-assistant behavior advanced another step:
+  - `admin_chat` listing now converges toward a single assistant thread per operator instead of surfacing assistant sessions from other admins
+  - sidebar pagination now stops when the filtered list has reached its real end, instead of continuing to fetch with no new visible items
+  - latest preview already distinguishes IA vs operador humano with better readability in desktop
+- the active local environment still respects the external-database architecture:
+  - backend points to an external PostgreSQL service on `127.0.0.1:5432`
+  - the active database service is currently `codex-local-postgres`
+  - the old local docker postgres instance is not the one being used by backend right now
+  - non-sensitive email settings were restored in the active database from the available baseline
+  - secure provider/inbox secrets are still absent from the active database and require manual re-entry if needed
+- a dedicated closure document now exists for the remaining work needed to make frontend/admin chat interactions feel human, consistent and operationally trustworthy:
+  - [AI_CONVERSATIONAL_CLOSURE_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_CONVERSATIONAL_CLOSURE_PLAN.md)
 
 ## Risks Being Managed
 

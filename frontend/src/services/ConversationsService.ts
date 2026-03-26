@@ -126,6 +126,11 @@ export type ConversationSummary = {
     latestMessage: {
         id: string
         authorType: string
+        authorUser: {
+            id: number
+            name: string | null
+            email: string
+        } | null
         kind: string
         body: string | null
         createdAt: string

@@ -210,6 +210,20 @@
 - `delete` and error flows must answer without dead detail links
 - Reason: keep operational AI explainable, testable and consistent across entities instead of re-solving the same lifecycle in every new action
 
+### Conversational closure now has priority over adding more isolated actions
+
+- The next AI slices should prioritize closure quality for storefront/admin interaction before adding many new standalone actions
+- Closure quality means:
+  - human-like final wording
+  - contextual continuity without contamination
+  - coherent handoff to humans
+  - multimodal understanding
+  - stable inbox/storefront state projection
+  - consistent `success / error / blocked / missing-data / handoff` semantics
+- The canonical implementation reference for this phase is:
+  - [AI_CONVERSATIONAL_CLOSURE_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_CONVERSATIONAL_CLOSURE_PLAN.md)
+- Reason: at the current maturity level, adding more isolated tools/actions would increase surface area faster than conversational reliability, making the stack feel less human and less trustworthy even if technical coverage grows
+
 ### Explicit confirmation detection must not collide with operational intents
 
 - Expressions like `confirmar presupuesto ...` or `confirmar pedido ...` are action intents, not second-turn confirmations by themselves

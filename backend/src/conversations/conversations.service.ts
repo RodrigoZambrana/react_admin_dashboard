@@ -95,6 +95,7 @@ export class ConversationsService {
     const page = query.page ?? 1
     const pageSize = query.pageSize ?? 20
     const where: Prisma.ConversationWhereInput = {}
+    const andFilters: Prisma.ConversationWhereInput[] = []
 
     if (query.scope) {
       where.scope = this.mapScope(query.scope)
@@ -102,6 +103,29 @@ export class ConversationsService {
 
     if (query.channel) {
       where.channel = this.mapChannel(query.channel)
+    }
+
+    if (currentUserId) {
+      andFilters.push({
+        OR: [
+          { scope: { not: ConversationScope.ADMIN_INTERNAL } },
+          { externalUserId: `admin:${currentUserId}` },
+        ],
+      })
+    }
+
+    if (query.channel === 'admin_chat') {
+      where.scope = ConversationScope.ADMIN_INTERNAL
+      andFilters.push({
+        metadata: {
+          path: ['contactKey'],
+          equals: INTERNAL_ASSISTANT_CONTACT_KEY,
+        },
+      })
+
+      if (currentUserId) {
+        where.externalUserId = `admin:${currentUserId}`
+      }
     }
 
     if (query.controlMode) {
@@ -149,6 +173,10 @@ export class ConversationsService {
         { customer: { name: { contains: search, mode: 'insensitive' } } },
         { customer: { email: { contains: search, mode: 'insensitive' } } },
       ]
+    }
+
+    if (andFilters.length) {
+      where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), ...andFilters]
     }
 
     const [items, total] = await this.prisma.$transaction([
@@ -210,6 +238,13 @@ export class ConversationsService {
             select: {
               id: true,
               authorType: true,
+              authorUser: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
               kind: true,
               body: true,
               normalizedText: true,
@@ -331,6 +366,13 @@ export class ConversationsService {
           select: {
             id: true,
             authorType: true,
+            authorUser: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
             kind: true,
             body: true,
             normalizedText: true,
@@ -2471,6 +2513,11 @@ export class ConversationsService {
       messages: Array<{
         id: string
         authorType: ConversationMessageAuthorType
+        authorUser?: {
+          id: number
+          name: string | null
+          email: string
+        } | null
         kind: ConversationMessageKind
         body: string | null
         normalizedText: string | null
@@ -2595,9 +2642,16 @@ export class ConversationsService {
         user: participant.user ?? null,
       })),
       latestMessage: latestMessage
-        ? {
+          ? {
             id: latestMessage.id,
             authorType: this.normalizeEnum(latestMessage.authorType),
+            authorUser: latestMessage.authorUser
+              ? {
+                  id: latestMessage.authorUser.id,
+                  name: latestMessage.authorUser.name,
+                  email: latestMessage.authorUser.email,
+                }
+              : null,
             kind: this.normalizeEnum(latestMessage.kind),
             body: latestMessage.body ?? latestMessage.normalizedText ?? null,
             createdAt: latestMessage.createdAt,
