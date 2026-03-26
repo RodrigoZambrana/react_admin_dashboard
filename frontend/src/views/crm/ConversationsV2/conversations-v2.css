@@ -336,6 +336,38 @@
   gap: 16px;
 }
 
+.crm-conversations-v2 .conversation-list-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.crm-conversations-v2 .conversation-list-status.is-top {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.crm-conversations-v2 .conversation-list-status.is-bottom {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+.crm-conversations-v2 .conversation-list-status.is-loading {
+  color: #4338ca;
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
 .crm-conversations-v2 .chat-list {
   display: flex;
   align-items: stretch;
@@ -446,6 +478,17 @@
   min-height: 20px;
   padding: 0 8px;
   font-size: 10px;
+}
+
+.crm-conversations-v2 .chat-user-task-summary {
+  margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #475569;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .crm-conversations-v2 .conversation-owner-pill {
@@ -1681,6 +1724,22 @@
   background: #fff;
   box-shadow: inset 0 0 0 1px #edf0f5;
   padding: 14px;
+}
+
+.crm-conversations-v2 .management-summary-card {
+  padding: 14px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: grid;
+  gap: 10px;
+}
+
+.crm-conversations-v2 .management-summary-card p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #334155;
 }
 
 .crm-conversations-v2 .status-pill {

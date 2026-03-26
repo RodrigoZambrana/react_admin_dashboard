@@ -41,7 +41,7 @@ export class ConversationsController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   list(
     @Query() query: ListConversationsDto,
     @Req() req: FastifyRequest & { user: { sub: string } },
@@ -51,21 +51,21 @@ export class ConversationsController {
 
   @Get('inboxes')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   listInboxes() {
     return this.conversations.listInboxes()
   }
 
   @Get('queues')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   listQueues() {
     return this.conversations.listQueues()
   }
 
   @Get('contacts')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   listContacts(
     @Query() query: ListConversationContactsDto,
     @Req() req: FastifyRequest & { user: { sub: string } },
@@ -75,7 +75,7 @@ export class ConversationsController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   async getById(
     @Param('id') id: string,
     @Req() req: FastifyRequest & { user: { sub: string } },
@@ -92,7 +92,7 @@ export class ConversationsController {
 
   @Post(':id/read')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   markRead(
     @Param('id') id: string,
     @Req() req: FastifyRequest & { user: { sub: string } },
@@ -102,7 +102,7 @@ export class ConversationsController {
 
   @Post(':id/unread')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   markUnread(
     @Param('id') id: string,
     @Req() req: FastifyRequest & { user: { sub: string } },
@@ -112,7 +112,7 @@ export class ConversationsController {
 
   @Post(':id/pin')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   pin(
     @Param('id') id: string,
     @Req() req: FastifyRequest & { user: { sub: string } },
@@ -122,7 +122,7 @@ export class ConversationsController {
 
   @Post(':id/unpin')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   unpin(
     @Param('id') id: string,
     @Req() req: FastifyRequest & { user: { sub: string } },
@@ -132,24 +132,49 @@ export class ConversationsController {
 
   @Post('admin-internal/session')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   createAdminInternalSession(
     @Body() dto: CreateAdminInternalSessionDto,
-    @Req() req: FastifyRequest & { user: { sub: string } },
+    @Req()
+    req: FastifyRequest & {
+      user: {
+        sub: string
+        role?: string
+        authority?: string[]
+        capabilityGroups?: string[]
+        directCapabilities?: string[]
+        capabilityEnvelope?: string[]
+      }
+    },
   ) {
-    return this.conversations.createAdminInternalSession(dto, Number(req.user?.sub))
+    return this.conversations.createAdminInternalSession(
+      dto,
+      Number(req.user?.sub),
+      req.user,
+    )
   }
 
   @Post('contact-session')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   startContactSession(
     @Body() dto: StartContactConversationDto,
-    @Req() req: FastifyRequest & { user: { sub: string } },
+    @Req()
+    req: FastifyRequest & {
+      user: {
+        sub: string
+        role?: string
+        authority?: string[]
+        capabilityGroups?: string[]
+        directCapabilities?: string[]
+        capabilityEnvelope?: string[]
+      }
+    },
   ) {
     return this.conversations.startConversationFromContact(
       dto,
       Number(req.user?.sub),
+      req.user,
     )
   }
 
@@ -210,7 +235,7 @@ export class ConversationsController {
 
   @Post(':id/takeover')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   takeover(
     @Param('id') id: string,
     @Body() dto: ConversationHandoffDto,
@@ -221,7 +246,7 @@ export class ConversationsController {
 
   @Post(':id/release')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   release(
     @Param('id') id: string,
     @Body() dto: ConversationHandoffDto,
@@ -232,7 +257,7 @@ export class ConversationsController {
 
   @Post(':id/assign')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
   assign(
     @Param('id') id: string,
     @Body() dto: AssignConversationDto,

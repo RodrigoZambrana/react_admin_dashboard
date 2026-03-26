@@ -5,6 +5,7 @@ import {
   ToolMessage,
 } from '@langchain/core/messages'
 import { ChatOpenAI } from '@langchain/openai'
+import { z } from 'zod'
 
 export class OpenAIProvider {
   constructor(config) {
@@ -103,5 +104,23 @@ export class OpenAIProvider {
         errorMessage: item.errorMessage,
       })),
     }
+  }
+
+  async extractStructured({ systemPrompt, input, schema }) {
+    if (!schema || typeof schema !== 'object') {
+      throw new Error('structured extraction schema is required')
+    }
+
+    const targetSchema = z.object(schema)
+    const runnable = this.client.withStructuredOutput(targetSchema, {
+      name: 'structured_extraction',
+    })
+
+    const result = await runnable.invoke([
+      new SystemMessage(systemPrompt),
+      new HumanMessage(input),
+    ])
+
+    return result
   }
 }

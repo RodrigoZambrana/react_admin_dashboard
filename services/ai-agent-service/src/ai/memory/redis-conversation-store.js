@@ -68,17 +68,21 @@ export class RedisConversationStore {
     return raw ? JSON.parse(raw) : null
   }
 
-  async appendTurn(conversationId, turn, scope = 'customer_public') {
+  async appendTurn(conversationId, turn, scope = 'customer_public', role = scope) {
     const snapshot =
       (await this.get(conversationId)) ?? {
         conversationId,
         scope,
+        role,
         turns: [],
         summary: null,
         compiledContext: null,
+        taskState: null,
         updatedAt: new Date().toISOString(),
       }
 
+    snapshot.scope = scope
+    snapshot.role = role
     snapshot.turns.push(turn)
     snapshot.updatedAt = new Date().toISOString()
     await this.replace(conversationId, snapshot)

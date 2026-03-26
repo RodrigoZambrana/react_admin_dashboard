@@ -44,7 +44,7 @@ export class AuthController {
     await this.auth.verifyRecaptcha(dto.recaptchaToken, req.ip)
     const user = await this.auth.validateUser(dto.email, dto.password)
     await this.userActivity.recordLogin(user.id, req)
-    const result = this.auth.signToken(user)
+    const result = await this.auth.signToken(user)
     reply.setCookie('access_token', result.token, this.buildAuthCookieOptions())
     return {
       ...result,
@@ -83,7 +83,7 @@ export class AuthController {
       })
     }
     const user = await this.auth.validateUser(normalizedEmail, dto.password)
-    const result = this.auth.signToken(user)
+    const result = await this.auth.signToken(user)
     await this.userActivity.recordLogin(user.id, req)
     reply.setCookie('access_token', result.token, this.buildAuthCookieOptions())
     return {

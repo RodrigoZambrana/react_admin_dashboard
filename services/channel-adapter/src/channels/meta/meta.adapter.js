@@ -24,6 +24,7 @@ export class MetaAdapter {
       queueSlug: payload?.queueSlug || undefined,
       text: normalized.text,
       metadata: normalized.metadata,
+      attachments: normalized.attachments,
     })
 
     let ai = null
@@ -41,6 +42,7 @@ export class MetaAdapter {
             model: aiResult?.response?.model || null,
             channel: normalized.channel,
             deliveryStatus: 'pending_external',
+            aiMemory: aiResult?.response?.memory || null,
           },
           toolCalls: aiResult?.response?.toolCalls ?? [],
         })

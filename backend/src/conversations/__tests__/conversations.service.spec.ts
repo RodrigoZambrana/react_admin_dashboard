@@ -474,8 +474,10 @@ describe('ConversationsService', () => {
       conversationId: 'conv_webchat_1',
       tenantKey: 'urucortinas',
       scope: 'customer_public',
+      role: 'customer_public',
       channel: 'webchat',
       controlMode: 'ai',
+      needsHuman: false,
       participant: {
         guestId: 'guest_web_1',
         name: 'Rodrigo',
@@ -485,7 +487,40 @@ describe('ConversationsService', () => {
       context: {
         page: '/shop',
       },
+      aiState: null,
+      messages: [],
     })
+  })
+
+  it('persists customer_authenticated scope for authenticated webchat sessions', async () => {
+    config.get.mockReturnValue('urucortinas')
+    prisma.customer.findFirst.mockResolvedValue({
+      id: 91,
+      name: 'Cliente logueado',
+      email: 'cliente@ejemplo.com',
+      phoneNumber: null,
+    })
+    prisma.conversation.create.mockResolvedValue({
+      id: 'conv_webchat_auth_1',
+    })
+
+    const result = await service.createWebchatSession({
+      guestId: 'guest_auth_1',
+      name: 'Cliente logueado',
+      email: 'cliente@ejemplo.com',
+      authenticated: true,
+      locale: 'es-UY',
+      page: '/mi-cuenta',
+    })
+
+    expect(prisma.conversation.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          scope: 'CUSTOMER_AUTHENTICATED',
+        }),
+      }),
+    )
+    expect(result.scope).toBe('customer_authenticated')
   })
 
   it('appends a customer webchat message and updates conversation timestamps', async () => {
@@ -1555,6 +1590,27 @@ describe('ConversationsService', () => {
     })
   })
 
+  it('matches the internal assistant contact with the Agente IA alias', async () => {
+    prisma.customer.findMany.mockResolvedValue([])
+    prisma.conversation.findFirst.mockResolvedValue({
+      id: 'conv_internal',
+      updatedAt: new Date('2026-03-25T12:00:00.000Z'),
+    })
+
+    const result = await service.listContacts(
+      { limit: 10, search: 'Agente IA' },
+      7,
+    )
+
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]).toMatchObject({
+      key: 'internal:assistant',
+      kind: 'internal',
+      label: 'Asistente interno',
+      conversationId: 'conv_internal',
+    })
+  })
+
   it('opens the internal assistant conversation and sends the first message', async () => {
     const replyAsOperatorSpy = vi
       .spyOn(service, 'replyAsOperator')
@@ -1608,6 +1664,7 @@ describe('ConversationsService', () => {
     expect(createConversationSpy).toHaveBeenCalledWith({
       tenantKey: 'urucortinas',
       actorUserId: 9,
+      conversationRole: 'admin_support',
       subject: 'Alta de abertura',
     })
     expect(replyAsOperatorSpy).toHaveBeenCalledWith(
@@ -1617,6 +1674,82 @@ describe('ConversationsService', () => {
         kind: 'text',
       },
       9,
+    )
+  })
+
+  it('reuses the internal assistant conversation when the legacy admin session subject matches the IA assistant alias', async () => {
+    const replyAsOperatorSpy = vi
+      .spyOn(service, 'replyAsOperator')
+      .mockResolvedValue({ id: 'conv_internal' } as never)
+    const createConversationSpy = vi.spyOn(
+      service as any,
+      'createAdminInternalConversationRecord',
+    )
+
+    prisma.conversation.findFirst.mockResolvedValue({
+      id: 'conv_internal',
+    })
+
+    await service.createAdminInternalSession(
+      {
+        subject: 'Agente IA',
+        message: 'Necesito ayuda con un presupuesto',
+      },
+      9,
+    )
+
+    expect(createConversationSpy).not.toHaveBeenCalled()
+    expect(replyAsOperatorSpy).toHaveBeenCalledWith(
+      'conv_internal',
+      {
+        body: 'Necesito ayuda con un presupuesto',
+        kind: 'text',
+      },
+      9,
+    )
+  })
+
+  it('prefers explicit capability groups over the generic ADMIN auth role for internal sessions', async () => {
+    config.get.mockImplementation((key: string) => {
+      if (key === 'CLIENT_SLUG') {
+        return 'urucortinas'
+      }
+      return undefined
+    })
+
+    const createConversationSpy = vi
+      .spyOn(service as any, 'createAdminInternalConversationRecord')
+      .mockResolvedValue({ id: 'conv_internal_sales' })
+    const replyAsOperatorSpy = vi
+      .spyOn(service, 'replyAsOperator')
+      .mockResolvedValue({ id: 'conv_internal_sales' } as never)
+
+    await service.createAdminInternalSession(
+      {
+        subject: 'Confirmar cobro',
+        message: 'Marcar pago 15 como confirmado',
+      },
+      12,
+      {
+        role: 'ADMIN',
+        authority: ['ADMIN'],
+        capabilityGroups: ['sales'],
+      },
+    )
+
+    expect(createConversationSpy).toHaveBeenCalledWith({
+      tenantKey: 'urucortinas',
+      actorUserId: 12,
+      conversationRole: 'admin_sales',
+      subject: 'Confirmar cobro',
+    })
+    expect(replyAsOperatorSpy).toHaveBeenCalledWith(
+      'conv_internal_sales',
+      {
+        body: 'Marcar pago 15 como confirmado',
+        kind: 'text',
+      },
+      12,
     )
   })
 })

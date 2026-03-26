@@ -56,6 +56,18 @@ const Theme = (props: CommonProps) => {
                     authority: [],
                     name: '',
                     lastName: '',
+                    capabilityGroups: [],
+                    directCapabilities: [],
+                    capabilityEnvelope: [],
+                    capabilitySource: '',
+                    userManagementPolicy: {
+                        canAccessUserManagement: false,
+                        canManageUserCapabilities: false,
+                        allowedUserManagementRoles: [],
+                        allowedCapabilityManagementRoles: [],
+                        userManagementPolicySource: 'environment',
+                        capabilityManagementPolicySource: 'environment',
+                    },
                 }),
             )
         }
@@ -89,6 +101,16 @@ const Theme = (props: CommonProps) => {
                             email: resp.data.user.email || '',
                             name: resp.data.user.name || '',
                             lastName: resp.data.user.lastName || '',
+                            capabilityGroups:
+                                resp.data.user.capabilityGroups || [],
+                            directCapabilities:
+                                resp.data.user.directCapabilities || [],
+                            capabilityEnvelope:
+                                resp.data.user.capabilityEnvelope || [],
+                            capabilitySource:
+                                resp.data.user.capabilitySource || '',
+                            userManagementPolicy:
+                                resp.data.user.userManagementPolicy || undefined,
                             displayName,
                         }),
                     )
@@ -142,6 +164,18 @@ const Theme = (props: CommonProps) => {
                     displayName: '',
                     email: '',
                     authority: [],
+                    capabilityGroups: [],
+                    directCapabilities: [],
+                    capabilityEnvelope: [],
+                    capabilitySource: '',
+                    userManagementPolicy: {
+                        canAccessUserManagement: false,
+                        canManageUserCapabilities: false,
+                        allowedUserManagementRoles: [],
+                        allowedCapabilityManagementRoles: [],
+                        userManagementPolicySource: 'environment',
+                        capabilityManagementPolicySource: 'environment',
+                    },
                 }),
             )
             navigate(appConfig.unAuthenticatedEntryPath)

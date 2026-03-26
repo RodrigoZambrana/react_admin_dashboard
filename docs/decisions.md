@@ -43,6 +43,17 @@
 - AI services call backend contracts, never the database
 - Reason: reusable SaaS-safe action layer and centralized validation/permissions
 
+### User capability management is backend-policy driven
+
+- The `Users` ABM and capability editing are governed by backend-configurable role sets
+- Those role sets resolve as `database -> environment fallback`
+- Frontend may expose compatible admin routes, but backend remains the source of truth
+- A profile may have:
+  - no access to the user ABM
+  - access to user management but not to capability management
+  - full access to both
+- Reason: preserve flexibility for different companies without hardcoding one rigid admin model in UI or prompt logic
+
 ### AI runtime configuration is managed from admin but stored securely in backend
 
 - Runtime provider/model/limits/messages are editable from the admin UI
@@ -185,6 +196,26 @@
 - More sensitive lifecycle changes for quotes, orders and payments should come next as explicit state-change tools, not as unrestricted generic delete/update operations
 - Reason: improve practical operator assistance without introducing high-risk destructive actions before the business rules are explicit enough
 
+### Confirmable ABM operations should use one runtime lifecycle
+
+- Confirmable internal ABM operations should not depend on ad hoc special cases per entity
+- The common runtime pattern is now:
+  - `draft`
+  - `confirm`
+  - `execute`
+  - `verify`
+  - `respond/debug`
+- Drafts must be persisted in conversation memory so the second turn can execute against the previously prepared payload instead of re-inferring the whole action from scratch
+- Verification links should only be returned when the entity still exists and there is a useful admin route to inspect the result
+- `delete` and error flows must answer without dead detail links
+- Reason: keep operational AI explainable, testable and consistent across entities instead of re-solving the same lifecycle in every new action
+
+### Explicit confirmation detection must not collide with operational intents
+
+- Expressions like `confirmar presupuesto ...` or `confirmar pedido ...` are action intents, not second-turn confirmations by themselves
+- Runtime confirmation detection should only accept short, explicit approval turns such as `confirmo`, `sí confirmo`, `adelante`, `ejecuta`
+- Reason: otherwise the runtime can skip the draft stage and execute or fall through incorrectly on requests that merely describe the desired operation
+
 ### Internal operational AI is role-scoped and must not leak into customer conversations
 
 - CRUD, ABM, catalog mutations, quote/order/payment management and similar administrative flows only apply to internal conversations initiated from authenticated admin roles such as `admin` or `superadmin`
@@ -229,6 +260,30 @@
   - current admin quote/product flows
 - The next parser iterations should continue in that module and only leave prompt/runtime responsibilities in the AI layer
 - Reason: domain parsing for `aberturas` is already complex enough that keeping it inside the AI service would keep mixing business parsing, tool orchestration and prompt concerns in one place
+
+### AI runtime memory should be task-scoped, not only conversation-scoped
+
+- The AI runtime now keeps a short-term working memory per task inside each conversation snapshot
+- It detects strong intent/topic shifts and can reset the working memory without deleting the canonical conversation history
+- `admin_internal` uses a stricter reset strategy to avoid contaminating one operational request with another
+- customer scopes keep continuity for related follow-ups, but can also reset cleanly when the topic changes clearly
+- `customer_authenticated` is now the preferred runtime name for the logged-in customer scope, although persistence and conversation enums still remain on the existing public/internal split for now
+- Reason: conversational continuity is useful, but operational accuracy requires isolating unrelated tasks instead of always replaying the whole chat
+
+### Conversation continuity and clean task resets are cross-system requirements
+
+- Continuity, contextual memory, clean task resets, role-adapted wording and safe topic switching are expected capabilities of the whole AI-assisted messaging system
+- These requirements do not belong only to `urucortinas`, `aberturas` or any single tenant/product flow
+- Tenant-specific playbooks, products and knowledge sources can enrich the behavior, but the baseline conversational behavior must remain consistent across tenants
+- Reason: the platform target is a reusable operational AI system, not a one-off assistant tuned only for a single client domain
+
+### Logged-in customer behavior should use `customer_authenticated` as the canonical name
+
+- The preferred name for logged-in customer behavior is now `customer_authenticated`
+- The runtime already supports it as a first-class scope
+- The persisted conversation layer now starts using it for authenticated webchat sessions instead of collapsing every customer-facing case into `customer_public`
+- Retrieval and tool safety still map authenticated customer behavior to the same customer-safe policy set, not to internal admin capabilities
+- Reason: the system needs to distinguish public anonymous attention from authenticated customer continuity without weakening the separation from internal/admin scopes
 
 ### `Aberturas` parsing should move into deterministic backend code
 
@@ -389,3 +444,41 @@
 - 2026-03-26: la auditoría de tools no queda solo en detalle; el inbox debe exponer un resumen operativo por conversación para que el operador vea de un vistazo si hubo prebúsqueda, parser o cambio de estado.
 - 2026-03-26: la edición de pedidos y presupuestos desde IA no debe mutar tablas por caminos ad hoc. Debe reconstruir el documento sobre `getDocumentDetails(...)` y aplicar cambios vía `replaceDocument(...)`, para conservar recálculo, validaciones y consistencia con el flujo operativo humano.
 - 2026-03-26: en `aberturas`, el paso siguiente al parseo debe ser un borrador estructurado de cotización basado en el pricing paramétrico real. Si no hay match exacto o suficiente, el sistema puede sugerir coincidencias cercanas, pero no debe presentar el ítem como listo para cotizar sin revisión.
+- 2026-03-26: `customer_authenticated` es un scope persistido del sistema, no un alias de UI. Debe conservar continuidad conversacional como cliente, pero resetear limpio cuando cambia la tarea.
+- 2026-03-26: en clientes autenticados, frases referenciales cortas como `ese mismo modelo` o `puede venir en negro` deben considerarse follow-up de la tarea vigente y no disparar reset por sí solas.
+- 2026-03-26: el indicador `Reset de tarea` en admin debe mostrarse aunque no haya `toolCalls`; el reset es una señal operativa de memoria y no depende de auditoría de herramientas.
+- 2026-03-26: `taskSummary` no es solo metadata de runtime. Debe proyectarse en admin como insumo operativo de auditoría y handoff, reutilizable por el operador dentro de `Notas operativas`.
+- 2026-03-26: el comportamiento por rol del sistema IA pasa a modelarse con un `role engine` explícito y transversal a toda la plataforma, no por tenant. Los tenants agregan conocimiento y playbooks; no redefinen la ética base, la memoria, ni el control de tools. La matriz quedó documentada en `docs/ai-role-matrix.md`.
+- 2026-03-26: la autorización real de herramientas no puede quedar solo en el runtime del agente. Los endpoints internos de IA deben revalidar `x-ai-role` + `x-ai-internal-token` + política de tools antes de ejecutar cualquier acción.
+- 2026-03-26: el documento principal de estado/alcance/roadmap de IA pasa a ser `docs/AI_OPERATING_MODEL.md`. Los demás documentos AI quedan subordinados a ese modelo operativo o como referencia histórica.
+- 2026-03-26: el roadmap práctico y priorizado de ejecución de IA pasa a quedar consolidado en `docs/AI_IMPLEMENTATION_PLAN.md`, para separar:
+  - estado/alcance real
+  - plan de implementación por fases
+- 2026-03-26: para evitar sobredimensionamiento, la cobertura IA se considera “real” solo cuando existe:
+  - tool o endpoint operativo
+  - validación y confirmación
+  - auditoría visible
+  - prueba relevante
+  - documentación activa
+- 2026-03-26: la evolución del modelo de roles internos debe priorizar primero `permission envelope` por unión de grupos/capacidades. Un `rol conversacional activo` puede ser útil en algunos casos, pero no debe imponerse como requisito del MVP ni limitar a operadores con acceso amplio.
+- 2026-03-26: el ABM de usuarios administrativos pasa a incorporar `grupos + capacidades` como capa funcional explícita. Si un usuario no tiene configuración explícita, conserva fallback legacy por `role`; si sí la tiene, el sistema usa ese envelope explícito. `SUPERADMIN` mantiene envelope total.
+- 2026-03-26: la reconstrucción del `permission envelope` debe aceptar tanto claves funcionales del dominio (`sales`, `payments.manage`) como enums persistidos en BD/JWT (`SALES`, `PAYMENTS_MANAGE`). Si no se soportan ambos formatos, los usuarios explícitamente configurados degradan al fallback legacy y la separación por capacidad deja de ser confiable.
+- 2026-03-26: en conversaciones internas, el rol administrativo base (`ADMIN`) no debe pisar una configuración explícita de grupos/capacidades al resolver el rol conversacional. El fallback `admin_internal -> admin_support` solo aplica cuando no hay contexto explícito de capabilities.
+- 2026-03-26: la gestión documental y de knowledge aprobada es una capacidad transversal del producto y no una customización de `urucortinas`. Todo tenant debe contar con un flujo claro de ABM documental para contexto base de IA.
+- 2026-03-26: para `aberturas`, el objetivo IA no es un ABM de matrices paramétricas ni un CRUD del glosario. El foco operativo correcto es parser determinístico de fuentes heterogéneas hacia `insertPayload` limpio y borrador estructurado de cotización, consumiendo reglas ya definidas por el sistema.
+- 2026-03-26: cuando el parser backend no entienda con confianza suficiente un input operativo, el camino correcto es `backend parser -> extracción IA estructurada -> validación backend`, no ejecución directa por razonamiento libre del agente.
+- 2026-03-26: los adjuntos conversacionales deben pasar por una capa de ingestión y extracción controlada antes de alimentar workflows operativos IA; mostrar/guardar archivos no equivale a tener soporte operativo real para PDF, imagen, audio o XLSX.
+- 2026-03-26: esa capa de ingestión se materializa sobre un contrato canónico `ExtractedAsset` propiedad del backend. El modelo puede ayudar a extraer o normalizar, pero el contrato, la validación y la decisión de usar el resultado en un workflow operativo siguen siendo responsabilidad del sistema.
+- 2026-03-26: la extracción IA estructurada desde adjuntos o texto ambiguo no reemplaza el lifecycle operativo. Solo puede refinar el draft; después siempre debe volver a pasar por validación backend y por el mismo ciclo `draft -> confirm -> execute -> verify -> respond/debug`.
+- 2026-03-26: `delete` y `batch` no son flujos “especiales” fuera del patrón común. Deben usar el mismo lifecycle transversal, con diferencia solo en el formato de verificación y respuesta final:
+  - `delete`: sin enlaces muertos
+  - `batch`: resumen por ítem con ejecutados, fallidos y pendientes
+- 2026-03-26: la inferencia de flujo desde el input del usuario es una capacidad global del sistema IA y no debe depender de la knowledge del tenant. La documentación dinámica aporta contenido y grounding, pero no define el marco de trabajo del agente.
+- 2026-03-26: cuando existan elementos no textuales ambiguos, el sistema debe intentar entenderlos usando el contexto del resto de la conversación antes de escalar. Si la confianza sigue siendo insuficiente, el escape correcto es handoff humano.
+- 2026-03-26: cuando varios mensajes recientes puedan ser el origen de una respuesta, el sistema debe tender a referenciar o dejar trazabilidad del mensaje objetivo. Esto es una política global de comportamiento y no una customización por tenant.
+- 2026-03-26: el runtime no debe clasificar toda falla `429` como `provider_quota_exceeded`. QA y debug operativo necesitan distinguir al menos entre cuota agotada, rate limiting, auth inválida, bad request, context limit, timeout, indisponibilidad temporal y error genérico.
+- 2026-03-26: la primera implementación de inferencia contextual debe ser conservadora: solo usar mensajes recientes cuando el input actual sea ambiguo o referencial, y dejar siempre trazabilidad de los mensajes usados en `audit/debug`.
+- 2026-03-26: la primera fase de validación por subrol interno se cierra con E2E reales sobre operadores configurados por grupos/capacidades, no solo con unit tests del `role engine`. El contrato mínimo validado es:
+  - `admin_support`: acción permitida pero pendiente de confirmación
+  - `admin_sales`: acción bloqueada fuera de política
+  - `admin_operations`: acción permitida con tool ejecutada visible en auditoría

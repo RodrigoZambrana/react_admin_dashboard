@@ -1,0 +1,26 @@
+CREATE TYPE "UserCapability" AS ENUM (
+  'CONVERSATIONS_MANAGE',
+  'CUSTOMERS_MANAGE',
+  'APPOINTMENTS_MANAGE',
+  'CATALOG_MANAGE',
+  'ORDERS_MANAGE',
+  'QUOTES_MANAGE',
+  'PAYMENTS_MANAGE',
+  'ABERTURAS_QUOTE',
+  'ABERTURAS_REGISTER',
+  'KNOWLEDGE_MANAGE',
+  'AI_SETTINGS_MANAGE',
+  'USERS_MANAGE'
+);
+
+CREATE TYPE "UserCapabilityGroup" AS ENUM (
+  'SUPPORT',
+  'SALES',
+  'OPERATIONS',
+  'FINANCE',
+  'PLATFORM_ADMIN'
+);
+
+ALTER TABLE "User"
+ADD COLUMN "capabilityGroups" "UserCapabilityGroup"[] NOT NULL DEFAULT ARRAY[]::"UserCapabilityGroup"[],
+ADD COLUMN "directCapabilities" "UserCapability"[] NOT NULL DEFAULT ARRAY[]::"UserCapability"[];

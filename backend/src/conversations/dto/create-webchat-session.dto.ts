@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer'
-import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator'
+import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength } from 'class-validator'
 
 export class CreateWebchatSessionDto {
   @IsOptional()
@@ -36,4 +36,9 @@ export class CreateWebchatSessionDto {
   @IsString()
   @MaxLength(512)
   page?: string
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  authenticated?: boolean
 }

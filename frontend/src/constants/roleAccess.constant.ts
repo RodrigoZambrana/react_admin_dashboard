@@ -9,6 +9,8 @@ import {
     type Role,
 } from './roles.constant'
 
+export const FEATURE_AUTHORITY_PREFIX = '__feature__:'
+
 export const FEATURES = {
     SALES: 'SALES',
     CUSTOMERS: 'CUSTOMERS',
@@ -23,6 +25,16 @@ export const FEATURES = {
 } as const
 
 export type Feature = (typeof FEATURES)[keyof typeof FEATURES]
+
+const FEATURE_CAPABILITY_GRANTS: Partial<Record<Feature, string[]>> = {
+    [FEATURES.SALES]: ['quotes.manage', 'orders.manage', 'aberturas.quote'],
+    [FEATURES.CUSTOMERS]: ['customers.manage', 'conversations.manage'],
+    [FEATURES.PRODUCTS]: ['catalog.manage', 'aberturas.register'],
+    [FEATURES.CALENDAR]: ['appointments.manage'],
+    [FEATURES.ACTIVITIES]: ['appointments.manage'],
+    [FEATURES.ACCOUNTING]: ['payments.manage'],
+    [FEATURES.SETTINGS]: ['knowledge.manage', 'ai.settings.manage'],
+}
 
 export const FEATURE_LABELS: Record<Feature, string> = {
     [FEATURES.SALES]: 'Ventas',
@@ -49,6 +61,13 @@ const CORE_FEATURES: Feature[] = [
 ]
 
 const ADMIN_FEATURES: Feature[] = [FEATURES.USERS, FEATURES.SETTINGS]
+const USER_MANAGEMENT_COMPAT_ROLES: Role[] = [
+    OPS,
+    SALES,
+    FINANCE,
+    ADMIN,
+    SUPERADMIN,
+]
 
 type RoleGrant =
     | {
@@ -87,6 +106,31 @@ const ROLE_GRANTS: Record<Role, RoleGrant> = {
 }
 
 const ALL_FEATURES: Feature[] = Object.values(FEATURES)
+
+export const getFeatureAuthorityToken = (feature: Feature) =>
+    `${FEATURE_AUTHORITY_PREFIX}${feature}`
+
+export const isFeatureAuthorityToken = (value?: string | null): value is string =>
+    String(value || '').startsWith(FEATURE_AUTHORITY_PREFIX)
+
+export const resolveFeaturesFromCapabilityEnvelope = (
+    capabilityEnvelope: string[] = [],
+): Feature[] => {
+    const grants = new Set(capabilityEnvelope)
+
+    return ALL_FEATURES.filter((feature) =>
+        (FEATURE_CAPABILITY_GRANTS[feature] ?? []).some((capability) =>
+            grants.has(capability),
+        ),
+    )
+}
+
+export const getFeatureAuthoritiesForCapabilityEnvelope = (
+    capabilityEnvelope: string[] = [],
+) =>
+    resolveFeaturesFromCapabilityEnvelope(capabilityEnvelope).map((feature) =>
+        getFeatureAuthorityToken(feature),
+    )
 
 const resolveFeaturesForRole = (
     role: Role,
@@ -137,4 +181,11 @@ export const getFeaturesForRole = (role: Role): Feature[] =>
     ROLE_FEATURES[role] ?? []
 
 export const getRolesForFeature = (feature: Feature): Role[] =>
-    FEATURE_ROLES[feature] ?? []
+    [
+        ...(feature === FEATURES.USERS
+            ? USER_MANAGEMENT_COMPAT_ROLES
+            : FEATURE_ROLES[feature] ?? []),
+        ...((FEATURE_CAPABILITY_GRANTS[feature]?.length ?? 0) > 0
+            ? [getFeatureAuthorityToken(feature) as Role]
+            : []),
+    ] as Role[]

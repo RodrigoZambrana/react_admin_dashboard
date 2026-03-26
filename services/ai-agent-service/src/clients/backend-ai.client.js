@@ -14,13 +14,26 @@ export class BackendAiClient {
   constructor(config) {
     this.baseUrl = config.backendBaseUrl.replace(/\/$/, '')
     this.internalToken = config.aiInternalToken || 'local-ai-internal-token'
+    this.runtimeRole = null
+  }
+
+  scoped(role) {
+    const scopedClient = Object.create(this)
+    scopedClient.runtimeRole = role
+    return scopedClient
+  }
+
+  buildHeaders(extra = {}) {
+    return {
+      ...extra,
+      'x-ai-internal-token': this.internalToken,
+      ...(this.runtimeRole ? { 'x-ai-role': this.runtimeRole } : {}),
+    }
   }
 
   async getRuntimeConfig() {
     const response = await fetch(`${this.baseUrl}/ai/runtime-config/internal`, {
-      headers: {
-        'x-ai-internal-token': this.internalToken,
-      },
+      headers: this.buildHeaders(),
     })
 
     if (!response.ok) {
@@ -35,9 +48,7 @@ export class BackendAiClient {
 
   async getActions() {
     const response = await fetch(`${this.baseUrl}/ai/actions`, {
-      headers: {
-        'x-ai-internal-token': this.internalToken,
-      },
+      headers: this.buildHeaders(),
     })
 
     if (!response.ok) {
@@ -58,9 +69,7 @@ export class BackendAiClient {
     }
 
     const response = await fetch(url, {
-      headers: {
-        'x-ai-internal-token': this.internalToken,
-      },
+      headers: this.buildHeaders(),
     })
 
     if (!response.ok) {
@@ -80,9 +89,7 @@ export class BackendAiClient {
     url.searchParams.set('pageSize', String(limit))
 
     const response = await fetch(url, {
-      headers: {
-        'x-ai-internal-token': this.internalToken,
-      },
+      headers: this.buildHeaders(),
     })
     if (!response.ok) {
       const body = await toJson(response)
@@ -110,9 +117,7 @@ export class BackendAiClient {
     url.searchParams.set('pageSize', String(limit))
 
     const response = await fetch(url, {
-      headers: {
-        'x-ai-internal-token': this.internalToken,
-      },
+      headers: this.buildHeaders(),
     })
     if (!response.ok) {
       const body = await toJson(response)
@@ -130,9 +135,7 @@ export class BackendAiClient {
     url.searchParams.set('pageSize', String(limit))
 
     const response = await fetch(url, {
-      headers: {
-        'x-ai-internal-token': this.internalToken,
-      },
+      headers: this.buildHeaders(),
     })
     if (!response.ok) {
       const body = await toJson(response)
@@ -150,9 +153,7 @@ export class BackendAiClient {
     url.searchParams.set('pageSize', String(limit))
 
     const response = await fetch(url, {
-      headers: {
-        'x-ai-internal-token': this.internalToken,
-      },
+      headers: this.buildHeaders(),
     })
     if (!response.ok) {
       const body = await toJson(response)
@@ -171,9 +172,7 @@ export class BackendAiClient {
     url.searchParams.set('pageSize', String(limit))
 
     const response = await fetch(url, {
-      headers: {
-        'x-ai-internal-token': this.internalToken,
-      },
+      headers: this.buildHeaders(),
     })
     if (!response.ok) {
       const body = await toJson(response)
@@ -191,9 +190,7 @@ export class BackendAiClient {
     url.searchParams.set('pageSize', String(limit))
 
     const response = await fetch(url, {
-      headers: {
-        'x-ai-internal-token': this.internalToken,
-      },
+      headers: this.buildHeaders(),
     })
     if (!response.ok) {
       const body = await toJson(response)
@@ -316,6 +313,10 @@ export class BackendAiClient {
     return this.post('/ai/aberturas/prepare-quote', payload)
   }
 
+  async extractAssets(payload) {
+    return this.post('/ai/assets/extract', payload)
+  }
+
   async post(path, payload) {
     return this.request('POST', path, payload)
   }
@@ -331,10 +332,9 @@ export class BackendAiClient {
   async request(method, path, payload) {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method,
-      headers: {
+      headers: this.buildHeaders({
         'content-type': 'application/json',
-        'x-ai-internal-token': this.internalToken,
-      },
+      }),
       ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
     })
 

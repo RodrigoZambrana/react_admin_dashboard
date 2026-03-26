@@ -20,6 +20,18 @@ export type AiRuntimeConfigResponse = {
     usageMessage: string | null
     adminInternalPrompt: string | null
     customerPublicPrompt: string | null
+    roleCatalog?: Array<{
+        key: string
+        type: 'customer' | 'admin'
+        label: string
+        memoryTurns: number
+        allowedTools: string[]
+        forbiddenIntents: string[]
+        requiresConfirmation: string[]
+        tone: string
+        authRoles: string[]
+        legacyScopes: string[]
+    }>
     usage: AiRuntimeUsageSummary
     source: 'environment' | 'database'
     updatedAt: string | null
@@ -31,7 +43,8 @@ export type AiActionCatalogEntry = {
     method: 'GET' | 'POST' | 'PUT' | 'DELETE'
     path: string
     confirmationRequired: boolean
-    scope: 'customer_public' | 'admin_internal'
+    scope: 'customer_public' | 'customer_authenticated' | 'admin_internal'
+    allowedRoles?: string[]
     toolName?: string
     keywords?: string[]
     requiredFields?: string[]

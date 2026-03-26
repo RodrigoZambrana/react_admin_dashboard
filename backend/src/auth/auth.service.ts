@@ -5,6 +5,8 @@ import { JwtService } from '@nestjs/jwt'
 import type { Role } from './roles.decorator'
 import { SESSION_TTL_MILLISECONDS } from './auth.config'
 import { GoogleConfigService } from '../common/integrations/google-config.service'
+import { resolveUserCapabilityEnvelope } from './capabilities'
+import { UserManagementPolicyService } from './user-management-policy'
 
 const RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
 
@@ -25,6 +27,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private readonly googleConfig: GoogleConfigService,
+    private readonly userManagementPolicy: UserManagementPolicyService,
   ) {}
 
   async verifyRecaptcha(token: string | undefined | null, remoteIp?: string) {
@@ -96,7 +99,7 @@ export class AuthService {
     return user
   }
 
-  private buildSessionResponse(
+  private async buildSessionResponse(
     user: {
       id: number
       email: string
@@ -105,11 +108,18 @@ export class AuthService {
       name?: string | null
       lastName?: string | null
       lang?: string | null
+      capabilityGroups?: string[] | null
+      directCapabilities?: string[] | null
     },
     token: string,
     expiresAt: string,
   ) {
     const lang = normalizeLanguagePreference(user.lang)
+    const capabilityState = resolveUserCapabilityEnvelope(user)
+    const userManagementPolicy = await this.userManagementPolicy.getUserManagementPolicySnapshot({
+      role: user.role,
+      authority: [user.role],
+    })
     return {
       token,
       expiresAt,
@@ -120,11 +130,16 @@ export class AuthService {
         name: user.name || '',
         lastName: user.lastName || '',
         lang,
+        capabilityGroups: capabilityState.capabilityGroups,
+        directCapabilities: capabilityState.directCapabilities,
+        capabilityEnvelope: capabilityState.capabilityEnvelope,
+        capabilitySource: capabilityState.source,
+        userManagementPolicy,
       },
     }
   }
 
-  signToken(user: {
+  async signToken(user: {
     id: number
     email: string
     role: Role
@@ -132,8 +147,11 @@ export class AuthService {
     name?: string | null
     lastName?: string | null
     lang?: string | null
+    capabilityGroups?: string[] | null
+    directCapabilities?: string[] | null
   }) {
     const lang = normalizeLanguagePreference(user.lang)
+    const capabilityState = resolveUserCapabilityEnvelope(user)
     const payload = {
       sub: user.id,
       email: user.email,
@@ -144,6 +162,10 @@ export class AuthService {
       lastName: user.lastName || '',
       lang,
       scope: 'admin' as const,
+      capabilityGroups: capabilityState.capabilityGroups,
+      directCapabilities: capabilityState.directCapabilities,
+      capabilityEnvelope: capabilityState.capabilityEnvelope,
+      capabilitySource: capabilityState.source,
     }
     const token = this.jwt.sign(payload)
     const expiresAt = new Date(Date.now() + SESSION_TTL_MILLISECONDS).toISOString()

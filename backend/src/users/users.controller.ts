@@ -7,6 +7,7 @@ import {
   Post,
   Put,
   Delete,
+  ForbiddenException,
   UseGuards,
   Request,
 } from '@nestjs/common'
@@ -21,6 +22,19 @@ import { parseSingleFileMultipart } from '../common/uploads/multipart'
 import * as bcrypt from 'bcrypt'
 import { assertStrongPassword } from '../common/validation/assert-strong-password'
 import { resolveRequiredEnv } from '../common/config/runtime-env'
+import {
+  getCapabilityCatalog,
+  mapCapabilityFromPrismaEnum,
+  mapCapabilityGroupFromPrismaEnum,
+  mapCapabilityGroupToPrismaEnum,
+  mapCapabilityToPrismaEnum,
+  normalizeCapabilityGroupList,
+  normalizeCapabilityList,
+  resolveUserCapabilityEnvelope,
+} from '../auth/capabilities'
+import {
+  UserManagementPolicyService,
+} from '../auth/user-management-policy'
 
 const DEFAULT_TEMP_PASSWORD =
   resolveRequiredEnv('DEFAULT_USER_TEMP_PASSWORD', {
@@ -42,14 +56,118 @@ const normalizeOptionalUppercase = (value?: string | null) => {
 
 const normalizeRequiredString = (value: string) => value.trim()
 
+const parseStringArrayField = (
+  value?: string | null,
+): string[] | undefined => {
+  if (value === undefined) {
+    return undefined
+  }
+
+  const trimmed = String(value || '').trim()
+  if (!trimmed) {
+    return []
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (!Array.isArray(parsed)) {
+      throw new Error('invalid-array')
+    }
+    return parsed
+      .map((entry) => String(entry || '').trim())
+      .filter(Boolean)
+  } catch {
+    throw new BadRequestException('users.validation.invalidCapabilities')
+  }
+}
+
+const serializeUser = (
+  user: {
+    id: number
+    name: string | null
+    lastName: string | null
+    email: string
+    img: string | null
+    role: string
+    country: string | null
+    countryCode: string | null
+    city: string | null
+    capabilityGroups?: string[] | null
+    directCapabilities?: string[] | null
+  },
+  options?: {
+    includeCapabilities?: boolean
+  },
+) => {
+  const includeCapabilities = options?.includeCapabilities !== false
+  const capabilityGroups = normalizeCapabilityGroupList(
+    (user.capabilityGroups ?? []).map((entry) => mapCapabilityGroupFromPrismaEnum(entry)),
+  )
+  const directCapabilities = normalizeCapabilityList(
+    (user.directCapabilities ?? []).map((entry) => mapCapabilityFromPrismaEnum(entry)),
+  )
+  const capabilityState = resolveUserCapabilityEnvelope({
+    role: user.role,
+    capabilityGroups,
+    directCapabilities,
+  })
+
+  return {
+    ...user,
+    name: normalizeRequiredString(user.name || ''),
+    lastName: normalizeNullableString(user.lastName) || '',
+    role: user.role,
+    country: normalizeNullableString(user.country),
+    countryCode: normalizeOptionalUppercase(user.countryCode),
+    city: normalizeNullableString(user.city),
+    capabilityGroups: includeCapabilities ? capabilityState.capabilityGroups : [],
+    directCapabilities: includeCapabilities ? capabilityState.directCapabilities : [],
+    capabilityEnvelope: includeCapabilities ? capabilityState.capabilityEnvelope : [],
+    capabilitySource: includeCapabilities ? capabilityState.source : '',
+  }
+}
+
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+@Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
 @Controller('users')
 export class UsersController {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly userManagementPolicy: UserManagementPolicyService,
+  ) {}
+
+  @Get('capability-catalog')
+  async capabilityCatalog(@Request() req: FastifyRequest) {
+    const actor = (req as unknown as {
+      user?: { role?: string; authority?: string[] }
+    }).user
+    await this.userManagementPolicy.assertCanAccessUserManagement(actor)
+    const accessPolicy =
+      await this.userManagementPolicy.getUserManagementPolicySnapshot(actor)
+
+    if (!accessPolicy.canManageUserCapabilities) {
+      return {
+        capabilities: [],
+        groups: [],
+        legacyRoleDefaults: getCapabilityCatalog().legacyRoleDefaults,
+        accessPolicy,
+      }
+    }
+
+    return {
+      ...getCapabilityCatalog(),
+      accessPolicy,
+    }
+  }
 
   @Get()
-  async list() {
+  async list(@Request() req: FastifyRequest) {
+    const actor = (req as unknown as {
+      user?: { role?: string; authority?: string[] }
+    }).user
+    await this.userManagementPolicy.assertCanAccessUserManagement(actor)
+    const includeCapabilities =
+      await this.userManagementPolicy.canManageUserCapabilities(actor)
     const data = await this.prisma.user.findMany({
       orderBy: { id: 'desc' },
       select: {
@@ -62,28 +180,40 @@ export class UsersController {
         country: true,
         countryCode: true,
         city: true,
+        capabilityGroups: true,
+        directCapabilities: true,
       },
     })
-    // map role to lowercase for UI usage
-    return data.map((u) => ({
-      ...u,
-      name: normalizeRequiredString(u.name || ''),
-      lastName: normalizeNullableString(u.lastName) || '',
-      role: u.role,
-      country: normalizeNullableString(u.country),
-      countryCode: normalizeOptionalUppercase(u.countryCode),
-      city: normalizeNullableString(u.city),
-    }))
+    return data.map((user) =>
+      serializeUser(user, { includeCapabilities }),
+    )
   }
 
   @Post()
   async create(@Request() req: FastifyRequest) {
+    const actor = (req as unknown as {
+      user?: { role?: string; authority?: string[] }
+    }).user
+    await this.userManagementPolicy.assertCanAccessUserManagement(actor)
     const { fields, file } = await parseSingleFileMultipart(req)
     const email = normalizeRequiredString(fields.email ?? '').toLowerCase()
     const avatarPath = file
       ? await persistAvatarFile(file)
       : normalizeAvatarPath(fields.img)
     const role = (fields.role || 'user').toLowerCase()
+    const capabilityGroups = normalizeCapabilityGroupList(
+      parseStringArrayField(fields.capabilityGroups),
+    )
+    const directCapabilities = normalizeCapabilityList(
+      parseStringArrayField(fields.directCapabilities),
+    )
+
+    if (
+      (capabilityGroups.length > 0 || directCapabilities.length > 0) &&
+      !(await this.userManagementPolicy.canManageUserCapabilities(actor))
+    ) {
+      throw new ForbiddenException('users.capabilities.denied')
+    }
 
     try {
       const hashedTempPassword = await bcrypt.hash(DEFAULT_TEMP_PASSWORD, 10)
@@ -97,6 +227,12 @@ export class UsersController {
           country: normalizeNullableString(fields.country),
           countryCode: normalizeOptionalUppercase(fields.countryCode),
           city: normalizeNullableString(fields.city),
+          capabilityGroups: capabilityGroups.map((entry) =>
+            mapCapabilityGroupToPrismaEnum(entry),
+          ) as any,
+          directCapabilities: directCapabilities.map((entry) =>
+            mapCapabilityToPrismaEnum(entry),
+          ) as any,
           passwordHash: hashedTempPassword,
         },
         select: {
@@ -109,17 +245,14 @@ export class UsersController {
           country: true,
           countryCode: true,
           city: true,
+          capabilityGroups: true,
+          directCapabilities: true,
         },
       })
-      return {
-        ...created,
-        name: normalizeRequiredString(created.name || ''),
-        lastName: normalizeNullableString(created.lastName) || '',
-        role: created.role,
-        country: normalizeNullableString(created.country),
-        countryCode: normalizeOptionalUppercase(created.countryCode),
-        city: normalizeNullableString(created.city),
-      }
+      return serializeUser(created, {
+        includeCapabilities:
+          await this.userManagementPolicy.canManageUserCapabilities(actor),
+      })
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -136,6 +269,10 @@ export class UsersController {
 
   @Put(':id')
   async update(@Param('id') id: string, @Request() req: FastifyRequest) {
+    const actor = (req as unknown as {
+      user?: { role?: string; authority?: string[] }
+    }).user
+    await this.userManagementPolicy.assertCanAccessUserManagement(actor)
     const userId = Number(id)
     if (!Number.isInteger(userId)) {
       throw new BadRequestException('users.validation.invalidUser')
@@ -188,6 +325,25 @@ export class UsersController {
       fields.city === undefined
         ? undefined
         : normalizeNullableString(fields.city)
+    const capabilityGroupsUpdate =
+      fields.capabilityGroups === undefined
+        ? undefined
+        : normalizeCapabilityGroupList(parseStringArrayField(fields.capabilityGroups)).map(
+            (entry) => mapCapabilityGroupToPrismaEnum(entry),
+          )
+    const directCapabilitiesUpdate =
+      fields.directCapabilities === undefined
+        ? undefined
+        : normalizeCapabilityList(parseStringArrayField(fields.directCapabilities)).map(
+            (entry) => mapCapabilityToPrismaEnum(entry),
+          )
+
+    if (
+      (capabilityGroupsUpdate !== undefined || directCapabilitiesUpdate !== undefined) &&
+      !(await this.userManagementPolicy.canManageUserCapabilities(actor))
+    ) {
+      throw new ForbiddenException('users.capabilities.denied')
+    }
 
     try {
       const updated = await this.prisma.user.update({
@@ -201,6 +357,14 @@ export class UsersController {
           country: countryUpdate,
           countryCode: countryCodeUpdate,
           city: cityUpdate,
+          capabilityGroups:
+            capabilityGroupsUpdate === undefined
+              ? undefined
+              : ({ set: capabilityGroupsUpdate } as any),
+          directCapabilities:
+            directCapabilitiesUpdate === undefined
+              ? undefined
+              : ({ set: directCapabilitiesUpdate } as any),
         },
         select: {
           id: true,
@@ -212,17 +376,14 @@ export class UsersController {
           country: true,
           countryCode: true,
           city: true,
+          capabilityGroups: true,
+          directCapabilities: true,
         },
       })
-      return {
-        ...updated,
-        name: normalizeRequiredString(updated.name || ''),
-        lastName: normalizeNullableString(updated.lastName) || '',
-        role: updated.role,
-        country: normalizeNullableString(updated.country),
-        countryCode: normalizeOptionalUppercase(updated.countryCode),
-        city: normalizeNullableString(updated.city),
-      }
+      return serializeUser(updated, {
+        includeCapabilities:
+          await this.userManagementPolicy.canManageUserCapabilities(actor),
+      })
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -239,12 +400,14 @@ export class UsersController {
 
   @Delete(':id')
   async delete(@Param('id') id: string, @Request() req: FastifyRequest) {
+    const actor = (req as unknown as { user?: { role?: string; authority?: string[]; sub?: number } }).user
+    await this.userManagementPolicy.assertCanAccessUserManagement(actor)
     const userId = Number(id)
     if (!Number.isInteger(userId)) {
       throw new BadRequestException('users.validation.invalidUser')
     }
 
-    const authUser = (req as unknown as { user?: { sub?: number } }).user
+    const authUser = actor
     const requesterId = Number(authUser?.sub)
     if (Number.isInteger(requesterId) && requesterId === userId) {
       throw new BadRequestException('users.validation.cannotDeleteSelf')
@@ -270,11 +433,16 @@ export class UsersController {
   @Put(':id/password')
   async updatePassword(
     @Param('id') id: string,
+    @Request() req: FastifyRequest,
     @Body()
     body: {
       password?: unknown
     },
   ) {
+    const actor = (req as unknown as {
+      user?: { role?: string; authority?: string[] }
+    }).user
+    await this.userManagementPolicy.assertCanAccessUserManagement(actor)
     const userId = Number(id)
     if (!Number.isInteger(userId)) {
       throw new BadRequestException('users.validation.invalidUser')

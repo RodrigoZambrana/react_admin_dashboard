@@ -1,7 +1,14 @@
-export type AgentScope = 'customer_public' | 'admin_internal'
+export type AgentRole =
+  | 'customer_public'
+  | 'customer_authenticated'
+  | 'admin_support'
+  | 'admin_sales'
+  | 'admin_operations'
+  | 'admin_supervisor'
+  | 'superadmin'
 
 export type AgentModelRequest = {
-  scope: AgentScope
+  role: AgentRole
   systemPrompt: string
   messages: Array<{
     role: 'system' | 'user' | 'assistant' | 'tool'

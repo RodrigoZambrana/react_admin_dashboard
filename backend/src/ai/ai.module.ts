@@ -8,6 +8,7 @@ import { AberturasGlossaryModule } from '../aberturas/aberturas-glossary.module'
 import { PricingModule } from '../pricing/pricing.module'
 import { AiController } from './ai.controller'
 import { AiService } from './ai.service'
+import { AiAssetExtractionService } from './extraction/ai-asset-extraction.service'
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { AiService } from './ai.service'
     PricingModule,
   ],
   controllers: [AiController],
-  providers: [AiService],
+  providers: [AiService, AiAssetExtractionService],
   exports: [AiService],
 })
 export class AiModule {}

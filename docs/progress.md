@@ -22,6 +22,8 @@ The AI foundation now includes:
 - real outbound email replies from the unified conversation hub
 - delivery/provider status persisted and exposed in conversation detail
 - admin-internal chat creation and AI response loop from the same inbox UI
+- backend-configurable policy for user management and capability management, persisted in `SystemConfig` with `env` fallback, projected to session and enforced in the `Users` ABM
+- coherent blocked-response branch for IA when explicit capability coverage is broad/ambiguous and the action does not map cleanly to one operational profile
 - initial knowledge-base strategy documented with source hierarchy and ingestion phases
 - queue diagnostics and transport-event traceability surfaced directly in the admin inbox
 - outbound delivery sync tested for email and Meta in the unified conversation flow
@@ -202,6 +204,36 @@ The AI foundation now includes:
   - `AiService` now consumes `AberturasParserService` instead of owning the parsing helpers directly
   - the extracted layer has dedicated unit coverage and stays build-green
   - the next parser phase is explicitly constrained to survey/unify the existing useful `aberturas`, glossary and parametric-pricing code before introducing more parallel logic
+- the AI runtime now keeps short-term memory per task instead of blindly replaying the whole conversation every time:
+  - stricter clean reset for `admin_internal`
+  - controlled continuity for customer scopes
+  - runtime support for `customer_authenticated` as the preferred name for logged-in customer behavior
+  - this behavior is now explicitly tracked as a platform-level expectation, not as a tenant-specific customization
+- the persisted conversation layer now starts converging with that runtime behavior:
+  - `customer_authenticated` was added as a persisted conversation scope for authenticated webchat sessions
+  - AI responses now persist task-memory metadata inside `aiState`
+  - admin can already see when a task reset occurred and what task intent the AI is currently following
+- the admin runtime now has a common ABM operation lifecycle instead of isolated special cases:
+  - `draft -> confirm -> execute -> verify -> respond/debug`
+  - confirmation drafts are now persisted explicitly in runtime memory and reused on the next turn
+  - success responses now return real verification links only when the entity still exists and the route is useful
+  - `delete`/error paths are expected to answer without dead links
+- that lifecycle is already active for:
+  - `aberturas.register`
+  - `customers.create/update`
+  - `products.create/update`
+  - `appointments.create/update`
+  - `orders.update_status/update_comment`
+  - `quotes.update_status/update_comment/send/confirm`
+  - `payments.update_status/update`
+- explicit confirmation detection was tightened so requests like `confirmar presupuesto ...` are treated as operational intents, not as second-turn confirmations
+- the implementation plan now formalizes a hybrid path for hard-to-parse inputs:
+  - parser backend first
+  - AI structured extraction only when deterministic parsing is insufficient
+  - backend validation after AI extraction and before any draft/execution
+- attachment support is now explicitly documented as partial:
+  - files are already stored and rendered in inbox/conversations
+  - there is still no transversal operational ingestion pipeline for `pdf/image/audio/csv/xlsx` feeding `draft -> confirm -> execute -> verify -> respond/debug`
 
 ## Risks Being Managed
 
@@ -323,3 +355,120 @@ The AI foundation now includes:
     - `payments.update`
   - la prebúsqueda automática antes de updates también se endureció para categorías, pedidos, presupuestos, pagos y productos.
   - la prebúsqueda automática ahora también se aplica a edición estructural de pedidos/presupuestos y a cotización estructurada de `aberturas`, priorizando la intención más específica cuando hay solapamiento entre parseo y cotización.
+- 2026-03-26:
+  - se aplicó la migración de `customer_authenticated` sobre la base local y el stack quedó reconstruido con backend, frontend, storefront, `ai-agent-service`, `channel-adapter`, Redis y Postgres operativos.
+  - quedó validado de punta a punta el flujo de `webchat` autenticado:
+    - sesión persistida como `customer_authenticated`
+    - continuidad para follow-up referencial de cliente
+    - reset de tarea visible en admin cuando el tema cambia realmente
+  - se corrigió una regresión en la heurística de memoria corta del cliente autenticado para no resetear por frases referenciales como `ese mismo modelo`.
+  - se corrigió el badge de `Reset de tarea` en la lista admin para que no dependa de haber `toolCalls`.
+  - `taskSummary` ya se usa también como señal operativa en admin:
+    - preview visible en la fila de conversación
+    - resumen inline en el detalle
+    - acción para copiarlo a `Notas operativas` y mejorar handoff
+  - se agregaron más regresiones E2E para cliente autenticado:
+    - continuidad + reset + visibilidad en admin
+    - persistencia tras reload + presencia del resumen en admin
+- 2026-03-26:
+  - se implementó un `role engine` explícito para IA con roles:
+    - `customer_public`
+    - `customer_authenticated`
+    - `admin_support`
+    - `admin_sales`
+    - `admin_operations`
+    - `admin_supervisor`
+    - `superadmin`
+  - el runtime ya construye prompts, memoria, tools y resets por rol, no solo por scope legacy.
+  - `admin_internal` quedó como compatibilidad temporal, mapeado a `admin_support`.
+  - el backend ahora revalida acceso por tool en endpoints internos de IA usando token interno + rol normalizado + política de tools.
+  - admin ya proyecta `role`, `intent`, `taskSummary`, `task reset`, `blocked tools` y `executed tools` para auditoría/handoff.
+  - la matriz funcional por rol quedó documentada en `docs/ai-role-matrix.md`.
+- 2026-03-26:
+  - se consolidó el estado operativo real de IA en `docs/AI_OPERATING_MODEL.md`
+  - se consolidó el plan de implementación por fases en `docs/AI_IMPLEMENTATION_PLAN.md`
+  - se documentó y empezó a operar el modelo `grupos + capacidades` en `docs/AI_USER_CAPABILITIES_MODEL.md`
+  - `User` ahora persiste `capabilityGroups` y `directCapabilities`
+  - el ABM de usuarios ya permite administrar grupos y capacidades directas
+  - auth/session/JWT ya proyectan `capabilityEnvelope` y `capabilitySource`
+  - la resolución de rol conversacional para admin ahora puede aprovechar una configuración explícita simple sin imponer `active conversational role`
+  - se reorganizó el índice de knowledge en `docs/knowledge/README.md`
+  - se dejó explícita la diferencia entre:
+    - cobertura IA real
+    - dominio existente del sistema no expuesto todavía por IA
+  - se documentó como recomendación arquitectónica la evolución a `grupos + rol conversacional activo` para usuarios internos multi-área
+  - se aclaró como acuerdo de producto que la gestión documental de knowledge es transversal a cualquier tenant y no una excepción de `urucortinas`
+  - se ajustó el alcance de `aberturas` para dejar explícito que el objetivo IA no es un ABM de matrices o glosario, sino parser robusto + normalización + insert/cotización estructurada
+  - se ajustó la recomendación de roles internos para evitar sobredimensionamiento del MVP:
+    - primero `permission envelope` multi-área
+    - `active conversational role` solo si demuestra valor real y sin limitar operadores con acceso amplio
+  - se bajó la fase inicial de subroles internos a E2E reales:
+    - `admin_support` validando confirmación obligatoria en una acción permitida
+    - `admin_sales` validando bloqueo de una acción fuera de política (`payments`)
+    - `admin_operations` validando ejecución permitida de `prepare_aberturas_insert`
+  - el inbox admin ahora expone testids estables para validar:
+    - rol conversacional actual
+    - tools bloqueadas actuales
+    - tools ejecutadas actuales
+- 2026-03-26:
+  - se cerró la fase E2E por subrol interno real con regresiones Playwright verdes en:
+    - `admin_support`
+    - `admin_sales`
+    - `admin_operations`
+  - el setup E2E de conversaciones internas dejó de depender del modal de `Nuevo mensaje` y pasó a crear la sesión interna por API autenticada del propio operador, manteniendo la UI para validar rol, respuesta y auditoría.
+  - se corrigió la prioridad de resolución de rol conversacional en sesiones internas:
+    - los grupos/capacidades explícitos ya no quedan pisados por el rol base `ADMIN`
+    - el fallback legacy `admin_internal -> admin_support` se conserva solo cuando no hay contexto explícito
+  - se corrigió una desviación crítica del modelo `grupos + capacidades`:
+    - la normalización ahora acepta tanto claves lógicas (`sales`, `payments.manage`) como enums persistidos de Prisma (`SALES`, `PAYMENTS_MANAGE`)
+    - esto evita que usuarios con configuración explícita vuelvan por error al envelope legacy
+  - resultado operativo:
+    - `admin_sales` ya resuelve como `Ventas` en UI y bloquea acciones fuera de política con `role_intent_blocked`
+    - `admin_operations` ya ejecuta `prepare_aberturas_insert` y lo deja visible en auditoría
+- 2026-03-26:
+  - se implementó la base técnica transversal para ingestión operativa de adjuntos hacia IA:
+    - contrato canónico `ExtractedAsset`
+    - endpoint interno de extracción controlada en backend
+    - parsing determinístico para `csv`, `xlsx` y `pdf`
+    - extracción asistida para `image` y `audio` cuando hay texto provisto o proveedor IA disponible
+  - el runtime IA ahora puede usar adjuntos para:
+    - enriquecer contexto conversacional
+    - pedir extracción estructurada con Structured Outputs cuando el parser puro no alcanza
+    - volver a construir el draft con esa salida estructurada antes de cualquier ejecución
+  - ese puente ya quedó validado en flujos de:
+    - `customers.create/update`
+    - `products.create/update`
+    - `appointments.create/update`
+    - `orders.update_status`
+    - `quotes.update_status`
+    - `payments.update`
+    - `aberturas.register`
+  - el lifecycle común también se amplió con:
+    - `appointments.delete`
+    - `products.create` batch desde `csv/xlsx`
+  - el transporte de adjuntos quedó endurecido en la capa conversacional:
+    - `webchat`
+    - `email`
+    - `meta`
+    ya propagan adjuntos hacia el runtime IA y los persisten como metadata/payload conversacional para trazabilidad básica
+  - se dejó además explicitado como siguiente prioridad del bloque:
+    - inferencia de flujo desde el input como capacidad global
+    - desambiguación de adjuntos usando contexto conversacional
+    - referencia/trazabilidad del mensaje objetivo cuando hay múltiples candidatos recientes
+    - mantener este marco en configuración/código global y no en knowledge dinámica
+  - quedó implementado un primer slice de ese endurecimiento:
+    - el runtime ya distingue mejor fallos de proveedor:
+      - `provider_quota_exceeded`
+      - `provider_rate_limited`
+      - `provider_auth_failed`
+      - `provider_bad_request`
+      - `provider_context_limit`
+      - `provider_timeout`
+      - `provider_unavailable`
+    - la inferencia global ya puede usar mensajes recientes del hilo cuando el input actual es ambiguo o referencial
+    - esa referencia queda trazada en auditoría/debug como `referencedMessages`
+    - ya existe regresión para un caso operativo real:
+      - `Agregala al sistema` heredando una abertura del mensaje previo y resolviendo `aberturas.register`
+  - validación técnica de este slice:
+    - backend tests de extracción + `ai.service`: verdes
+    - `ai-agent-service` tests: verdes

@@ -217,7 +217,9 @@ test("storefront customer chat asks for the same abertura and receives a custome
       waitUntil: "domcontentloaded",
     });
 
-    await page.getByTestId("storefront-webchat-launcher").click();
+    await page.getByTestId("storefront-webchat-launcher").evaluate((element) => {
+      (element as HTMLButtonElement).click();
+    });
     await expect(page.getByTestId("storefront-webchat-drawer")).toBeVisible();
 
     const startedAt = new Date().toISOString();

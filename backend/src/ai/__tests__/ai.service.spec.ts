@@ -497,6 +497,28 @@ describe('AiService', () => {
     expect(archived).toMatchObject({ id: 10, archived: true, published: false })
   })
 
+  it('filters product search by published state for customer AI roles', async () => {
+    const { prisma, service } = createService()
+
+    await service.listProducts({ search: 'producto', page: 1, pageSize: 10 }, 'customer_public')
+    expect(prisma.product.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          published: true,
+        }),
+      }),
+    )
+
+    await service.listProducts({ search: 'producto', page: 1, pageSize: 10 }, 'admin_operations')
+    expect(prisma.product.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.not.objectContaining({
+          published: true,
+        }),
+      }),
+    )
+  })
+
   it('lists categories, creates categories and adjusts stock as general safe operations', async () => {
     const { prisma, service } = createService()
     prisma.product.findUnique.mockResolvedValueOnce({
