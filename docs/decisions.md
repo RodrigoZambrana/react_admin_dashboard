@@ -210,6 +210,14 @@
 - `delete` and error flows must answer without dead detail links
 - Reason: keep operational AI explainable, testable and consistent across entities instead of re-solving the same lifecycle in every new action
 
+### Agent replies must persist human text separately from debug and audit
+
+- The canonical conversation message body should store only the clean human-facing response (`finalUserText`)
+- Debug details and richer audit payloads should be persisted in metadata / `aiState.audit`, not merged into the visible transcript body
+- Admin/internal surfaces may render those debug and audit layers explicitly
+- Customer/storefront surfaces must remain on the clean final text only
+- Reason: preserve human-readable transcripts while still keeping development and operator traceability available
+
 ### Conversational closure now has priority over adding more isolated actions
 
 - The next AI slices should prioritize closure quality for storefront/admin interaction before adding many new standalone actions
@@ -491,8 +499,269 @@
 - 2026-03-26: cuando existan elementos no textuales ambiguos, el sistema debe intentar entenderlos usando el contexto del resto de la conversación antes de escalar. Si la confianza sigue siendo insuficiente, el escape correcto es handoff humano.
 - 2026-03-26: cuando varios mensajes recientes puedan ser el origen de una respuesta, el sistema debe tender a referenciar o dejar trazabilidad del mensaje objetivo. Esto es una política global de comportamiento y no una customización por tenant.
 - 2026-03-26: el runtime no debe clasificar toda falla `429` como `provider_quota_exceeded`. QA y debug operativo necesitan distinguir al menos entre cuota agotada, rate limiting, auth inválida, bad request, context limit, timeout, indisponibilidad temporal y error genérico.
+- 2026-03-26: el asistente interno del admin no debe reutilizar el mismo tono ni los mismos mensajes de fallback del chat cliente. En superficies internas:
+  - saludos y ayuda general deben resolverse localmente sin depender del proveedor
+  - un fallo del LLM no debe sugerir “tomar control de la conversación”
+  - el detalle técnico queda en `debugSummary` y `auditPayload`, no en el texto final al operador
+- 2026-03-26: un `HTTP 429` solo debe clasificarse como `provider_quota_exceeded` cuando exista evidencia explícita del proveedor (`insufficient_quota`, billing limit, crédito agotado). Un `429` genérico debe tratarse primero como `provider_rate_limited`.
+- 2026-03-26: el fortalecimiento siguiente del runtime IA no debe hacerse por reescritura. Debe avanzar por módulos incrementales compatibles:
+  - `Intent Engine`
+  - `Agent State`
+  - `Action Registry`
+  - `Outcome Renderer`
+  apoyados por una capa transversal de interpretación de elementos conversacionales (`text`, `image`, `audio`, `document`, `table`) sobre `ExtractedAsset`.
+- 2026-03-26: la ejecución de cierre conversacional multimodal pasa a ordenarse con backlog por fases y slices explícitos en `docs/AI_MULTIMODAL_EXECUTION_BACKLOG.md`. Ese documento es la referencia para:
+  - archivos nuevos a crear
+  - archivos existentes a tocar
+  - dependencias entre tareas
+  - criterio de aceptación antes de considerar cerrada cada fase
+- 2026-03-26: la evolución del módulo de knowledge no debe partir de una reescritura ni de una KB paralela. Debe extender el módulo actual `backend/src/knowledge` hacia un sistema de ingesta activa con human-in-the-loop, apoyado en:
+  - captura normalizada desde conversaciones/canales
+  - extracción estructurada a candidatos versionados
+  - aprobación humana antes de promoción
+  - sugerencias en tiempo real para operadores
+  - reuse exclusivo de conocimiento aprobado para respuestas automáticas
+- 2026-03-26: el documento de referencia para esa evolución pasa a ser `docs/AI_ACTIVE_KNOWLEDGE_INGESTION_PLAN.md`.
 - 2026-03-26: la primera implementación de inferencia contextual debe ser conservadora: solo usar mensajes recientes cuando el input actual sea ambiguo o referencial, y dejar siempre trazabilidad de los mensajes usados en `audit/debug`.
 - 2026-03-26: la primera fase de validación por subrol interno se cierra con E2E reales sobre operadores configurados por grupos/capacidades, no solo con unit tests del `role engine`. El contrato mínimo validado es:
   - `admin_support`: acción permitida pero pendiente de confirmación
   - `admin_sales`: acción bloqueada fuera de política
   - `admin_operations`: acción permitida con tool ejecutada visible en auditoría
+- 2026-03-26: la primera implementación real de knowledge activo se monta sobre el módulo existente `backend/src/knowledge`, no como subsistema separado. La base mínima aceptada queda definida por:
+  - `KnowledgeRawEvent` como observación canónica por mensaje o interacción
+  - `KnowledgeIngestionRun` como trazabilidad de backfill/manual/realtime
+  - `KnowledgeCandidate` enriquecido y versionado como capa revisable HITL
+  - promoción a `KnowledgeDocument` solo después de aprobación humana
+- 2026-03-26: la captura automática de conocimiento no puede bloquear mensajería. Si falla la observación automática desde conversaciones, el mensaje igual se persiste y la falla queda solo como error técnico recuperable.
+- 2026-03-26: el retiro de lógica legacy de intención debe hacerse por capas. Los intents livianos y de capacidades pasan primero a registry central en `detectIntent()`, mientras las ramas operativas más complejas siguen temporalmente en fallback legacy hasta que el `Intent Engine` tenga cobertura equivalente.
+- 2026-03-26: el `Action Registry` deja de ser solo catálogo de draft/execute. A partir de esta fase también debe transportar metadata de `resultShape` y `resultSummary` para formalizar verify/result shaping sin mover la autoridad final fuera del backend.
+- 2026-03-26: las sugerencias de respuesta en el inbox admin deben reutilizar exclusivamente conocimiento aprobado. La primera integración en tiempo real se resuelve dentro de `getConversation()` y no por un endpoint separado, para que el detalle conversacional siga siendo la fuente única de verdad del inbox.
+- 2026-03-26: el primer ranking operativo de sugerencias aprobadas prioriza señales determinísticas antes de semántica avanzada:
+  - `dedupeHash`
+  - intención detectada
+  - `clusterKey`
+  - similitud léxica
+  la señal por embeddings podrá agregarse después, pero nunca debe abrir el uso de conocimiento no aprobado.
+- 2026-03-26: el feedback de sugerencias aprobadas debe persistirse como eventos explícitos, no como flags sobre `KnowledgeCandidate`. La unidad mínima elegida es `KnowledgeSuggestionFeedback`, porque permite:
+  - diferenciar `used`, `edited` y `discarded`
+  - ligar feedback a conversación, mensaje objetivo y mensaje final del operador
+  - reutilizar esa señal para ranking futuro sin perder trazabilidad histórica
+- 2026-03-26: en el flujo de reply del inbox admin, el feedback de sugerencia no debe bloquear el envío del mensaje. Si falla la persistencia de `used/edited`, la respuesta del operador igual sale; el descarte explícito sí debe devolver error si no pudo guardarse.
+- 2026-03-26: la UI HITL de knowledge pasa a mostrar métricas agregadas reales de feedback operador (`used`, `edited`, `discarded`, adopción y descarte), y cada `KnowledgeCandidate` aprobado debe exponer también su propio resumen de reuse. La calidad de knowledge no se mide solo por cantidad de candidatos sino por uso efectivo en operación.
+- 2026-03-26: el siguiente retiro de legacy en intención se hace primero sobre matching directo del catálogo de acciones dentro de `detectIntent()`. El fallback legacy se mantiene solo para casos no migrados o inferencia contextual más compleja, evitando cambiar el comportamiento de producción de golpe.
+- 2026-03-26: el `Action Registry` pasa a declarar explícitamente metadata de verificación y shaping de resultado por acción:
+  - `verifyMode`
+  - `entityLabel`
+  - `resultShape`
+  - `resultSummary`
+  Esto permite sacar ramas implícitas del runtime sin mover la autoridad final de ejecución fuera del backend.
+- 2026-03-26: el siguiente endurecimiento del `Intent Engine` debe combinar dos capas compatibles:
+  - matching directo del catálogo de acciones
+  - reglas explícitas para phrasing operativo natural y follow-ups
+  El fallback legacy sigue existiendo, pero ya no debe ser el camino principal para intents operativos frecuentes.
+- 2026-03-26: el ranking de sugerencias en inbox admin debe combinar feedback HITL con similitud semántica solo sobre conocimiento `approved`. La semántica mejora orden y recall, pero nunca habilita reutilizar conocimiento pendiente, rechazado o no validado.
+- 2026-03-26: el retiro de branches manuales de `agent.js` debe priorizar copy, verificación y shaping declarativo antes que extracción libre. En esta fase, las acciones documentales toman su copy operativo desde `Action Registry`; los próximos candidatos son `customers`, `products` y `appointments`.
+- 2026-03-26: el siguiente retiro declarativo del runtime se concreta sobre `customers`, `products` y `appointments`. Para estas acciones, `Action Registry` pasa a ser la fuente primaria de:
+  - `draftPresentation`
+  - prompts de confirmación
+  - copy de éxito/error
+  - metadata de verificación
+  El objetivo es que `agent.js` siga orquestando estado y lifecycle, no copy por entidad.
+- 2026-03-26: la cola visual de `Candidatos recientes` en AI settings debe considerarse una vista operativa resumida, no un selector confiable de candidatos puntuales en entornos con alto volumen. Mientras no exista búsqueda/filtro por candidato, la validación E2E del circuito HITL puede resolver la aprobación puntual por API admin sin perder cobertura funcional del flujo completo.
+- 2026-03-26: la recuperación de la base externa local sigue siendo requisito de arquitectura. Durante la validación E2E apareció un loop de recovery en `codex-local-postgres` por falta de espacio del runtime Docker; la corrección aplicada fue liberar caché e imágenes no usadas, sin mover la base a un contenedor embebido en la app.
+- 2026-03-27: `AI Runtime` no debe seguir creciendo como pantalla única de settings para operar knowledge. A partir de esta fase se lo considera un overview operativo con quick actions; el ABM real de conocimiento debe vivir en superficies dedicadas bajo `/app/settings/ai/knowledge/*`.
+- 2026-03-27: la estructura administrativa mínima de knowledge debe distinguir tres dimensiones visibles sin reescribir primero el modelo persistido:
+  - origen de ingreso
+  - tipo de contenido
+  - estado de lifecycle
+  Estas dimensiones se derivan inicialmente desde `sourceType`, `scope`, `status`, `sourceFile`, `observation` y metadata existente.
+- 2026-03-27: las primeras superficies ABM prioritarias del módulo de knowledge son:
+  - `Knowledge Candidates`
+  - `Knowledge Documents`
+  seguidas por:
+  - `Knowledge Raw Events`
+  - `Knowledge Ingestion Runs`
+  - `Knowledge Feedback`
+  La cola de `recientes` en AI settings queda como resumen, no como canal principal de operación.
+- 2026-03-27: el primer corte implementado del ABM de knowledge queda fijado así:
+  - backend expone listas paginadas y filtrables para `documents`, `candidates`, `raw-events` e `ingestion-runs`
+  - las dos primeras superficies primarias ya viven en:
+    - `/app/settings/ai/knowledge/candidates`
+    - `/app/settings/ai/knowledge/documents`
+  - `AI Runtime` conserva solo `overview + quick actions + recientes`
+  - la operación puntual y de volumen debe suceder en las listas dedicadas, no en la cola resumida del runtime
+- 2026-03-27: en entornos con alto volumen, las validaciones automáticas y los flujos operativos sobre knowledge no deben depender de listas amplias sin filtro. Deben usar `search/order/pageSize` sobre las queries dedicadas para seleccionar el candidato o documento puntual que se quiere revisar, aprobar o medir.
+- 2026-03-27: la UX futura del módulo de knowledge se divide en dos superficies complementarias y no excluyentes:
+  - una vista general tipo `help center` para explicar qué sabe hoy el agente y el estado del conocimiento
+  - una vista operativa tipo `training board` para gobernar el entrenamiento activo con HITL
+  Estas vistas deben construirse sobre el ABM ya implementado de `Knowledge Candidates` y `Knowledge Documents`, no en paralelo ni como reemplazo.
+- 2026-03-27: la referencia visual para esa evolución puede tomar layout y patrones del template original de admin ubicado en `/Users/rodrigo/Personal/Proyectos/react projects/Elstar - React Tailwind Admin Template`, pero solo como input de diseño. No debe agregarse dependencia runtime al proyecto externo.
+- 2026-03-27: esa evolución UX ya queda aterrizada en rutas concretas dentro del admin actual:
+  - `/app/settings/ai/knowledge/overview`
+  - `/app/settings/ai/knowledge/manage-articles`
+  - `/app/settings/ai/knowledge/raw-events`
+  - `/app/settings/ai/knowledge/ingestion-runs`
+  `AI Runtime` conserva el rol de overview técnico/quick actions y enlaza a estas superficies; no vuelve a absorber operación fina.
+- 2026-03-27: `Knowledge Documents` deja de ser solo listado/alta y pasa a ser ABM real de contenido aprobado. La operación mínima ya incluye edición de `title`, `summary`, `content`, `tags`, `scope` y `status`, manteniendo backend como autoridad para reindex y metadatos de edición.
+- 2026-03-27: `Knowledge Feedback` pasa a ser superficie dedicada del módulo de knowledge y no un dato enterrado en analytics o en el inbox. La revisión de reuse debe poder distinguir:
+  - `used`
+  - `edited`
+  - `discarded`
+  con contexto de candidato, conversación, mensaje objetivo y respuesta final del operador.
+- 2026-03-27: `Knowledge Manage Articles` debe priorizar acciones directas explícitas por card antes que `drag-and-drop`. El tablero gobierna un flujo HITL sensible; por eso `drag-and-drop` solo se justifica si después de observar operación real demuestra una mejora clara sin introducir ambigüedad.
+- 2026-03-27: la unidad revisable/aprobable de knowledge derivada de conversaciones no debe ser una pregunta aislada del cliente. La unidad mínima gobernable es el intercambio:
+  - mensaje de usuario
+  - respuesta humana o IA asociada
+  - contexto mínimo del canal/scope/intención
+  Los inbound sin respuesta asociada permanecen como `KnowledgeRawEvent` y no deben materializar `KnowledgeCandidate` por defecto.
+- 2026-03-27: aprobar una conversación completa no es la estrategia base del sistema. El modelo actual debe trabajar en `exchange-level approval` para mantener precisión, evitar mezclar múltiples intents y reducir contaminación/Pii incidental. `conversation bundle` queda como evolución futura para playbooks multi-turno explícitos.
+- 2026-03-27: `Knowledge Manage Articles` se alinea finalmente al patrón visual y de interacción de `project/ScrumBoard` del template base:
+  - board horizontal
+  - cards clickeables
+  - cambio de estado por `drag-and-drop`
+  - columnas fijas de pipeline
+  El board resuelve el avance positivo del flujo; los descartes y revisiones finas siguen en las vistas detalladas.
+- 2026-03-27: en el inbox admin, el composer y sus acciones no pueden volver a competir con el scroll del detalle. La regla operativa queda fijada así:
+  - transcript con scroll principal
+  - sugerencias/auxiliares del footer con scroll propio si hace falta
+  - composer siempre visible y utilizable dentro del viewport
+- 2026-03-27: `Asistente interno` debe estar siempre visible como sugerencia fija en el flujo de nuevo mensaje del inbox, aun cuando el buscador no devuelva más contactos. El contacto interno del agente no se trata como un resultado incidental de búsqueda sino como una affordance operativa permanente.
+- 2026-03-27: `/app/settings/ai` deja de ser la pantalla gigante de runtime y pasa a ser el hub del módulo `IA`. El runtime operativo se mueve a `/app/settings/ai/runtime`, y las superficies de knowledge quedan como subopciones explícitas de menú bajo un módulo `AI` independiente del collapse general de `Settings`.
+- 2026-03-27: `conversation bundle` y `negative examples` quedan definidos como superficies futuras del módulo de knowledge, pero no entran todavía al circuito productivo principal:
+  - `conversation bundle` servirá para gobernar secuencias multi-turno donde el valor esté en el hilo completo
+  - `negative examples` servirá para registrar respuestas rechazadas, obsoletas o inseguras que deben penalizar ranking/reuse y reforzar guardrails
+- 2026-03-27: `AI Runtime` ya no debe contener formularios, uploads ni acciones operativas de knowledge. Esos flujos quedan repartidos así:
+  - `Knowledge Documents`: carga manual, upload y reindex
+  - `Knowledge Ingestion Runs`: observación/ingesta manual
+  - `Knowledge Feedback`: métricas de reuse
+  El runtime queda restringido a configuración técnica, prompts, límites y catálogo de acciones.
+- 2026-03-27: el indicador visible en `/app/settings/ai` no debe interpretarse como “madurez del modelo”. Mide cobertura operativa del conocimiento disponible y toma como referencia:
+  - documentos activos
+  - intercambios pendientes
+  - observaciones detectadas
+  No evalúa calidad del LLM ni precisión del modelo.
+- 2026-03-27: el comportamiento base del asistente debe existir aunque no haya knowledge aprobado cargado y debe venir habilitado por defecto para cualquier tenant o slug:
+  - saludar y responder con naturalidad
+  - pedir la aclaración mínima necesaria
+  - explicar límites sin inventar datos
+  - mantener la conversación abierta salvo bloqueo, riesgo o necesidad operativa real
+- 2026-03-27: `conversation bundles` y `negative examples` dejan de ser solo backlog abstracto y pasan a existir como superficies explícitas del módulo de knowledge:
+  - `conversation bundles` para explorar hilos multi-turno candidatos a futura aprobación por secuencia
+  - `negative examples` para concentrar descartes/rechazos como señales de ranking y guardrails
+- 2026-03-27: el sistema necesita una capa explícita de `Knowledge Snapshot` o `Agent Knowledge Digest` para responder qué conocimiento operativo está vigente hoy. Ese snapshot no describe “lo que sabe el modelo en sus pesos”; describe el conocimiento aprobado y trazable que el runtime puede usar.
+- 2026-03-27: el snapshot debe distinguir tres capas y no mezclarlas:
+  - `knowledge activo`:
+    - documentos activos aprobados
+    - candidates aprobados
+    - bundles aprobados
+    - negative examples aprobados como guardrails
+  - `señales pendientes`:
+    - raw events
+    - candidates pendientes
+    - bundles pendientes
+    - negative examples pendientes
+  - `histórico/auditoría`
+- 2026-03-27: los `negative examples` sí pueden y deben influir en el snapshot cuando estén aprobados. En ese caso entran como `guardrail_negative` o regla negativa vigente. Los `negative examples` no aprobados no forman parte del digest activo; solo deben verse como pendientes, riesgo o backlog de revisión.
+- 2026-03-27: el primer corte implementado de `Knowledge Snapshot` se apoya solo en fuentes persistidas reales del backend:
+  - `KnowledgeDocument` activos/aprobados
+  - `KnowledgeCandidate` aprobados
+  - `KnowledgeRawEvent` como señales pendientes/gaps
+  `conversation bundles` y `negative examples` ya están contemplados en el diseño, pero no entran todavía al snapshot persistido porque hoy no existen como modelos backend reales.
+- 2026-03-27: `conversation bundles` y `negative examples` pasan de diseño futuro a fuentes activas del snapshot:
+  - `KnowledgeConversationBundle` aprobado entra al digest vigente como `topic_summary` con rol `secondary_support`
+  - `KnowledgeNegativeExample` aprobado entra al digest vigente como `guardrail_negative` con rol `guardrail`
+  - los estados `pending` y `rejected` siguen fuera del digest activo y deben mostrarse solo como revisión/backlog/riesgo
+- 2026-03-27: conviene evaluar una capa de `knowledge elementization` para contenido manual o documental cargado por operadores:
+  - texto ingresado por formulario
+  - documentos subidos
+  - texto plano curado
+  pueden transformarse en unidades reutilizables positivas o negativas, siempre con trazabilidad explícita de origen
+  - ejemplo positivo: regla operativa, patrón de respuesta, política aprobada
+  - ejemplo negativo: guardrail tipo “no revelar información sensible”, “no usar lenguaje inapropiado”
+  esto no implica promover automáticamente cualquier texto a knowledge activo; implica poder derivar `elements` revisables desde una misma fuente y mantener vínculo con:
+  - documento/form origen
+  - fragmento exacto utilizado
+  - versión de la fuente
+  - revisión humana posterior
+  esta evolución queda aprobada como línea de diseño, pero no como obligación inmediata de implementación
+- 2026-03-27: el snapshot no puede quedar vacío aun cuando falte conocimiento aprobado suficiente. Debe incluir siempre una capa explícita de reglas base predeterminadas del runtime:
+  - cliente: conversación natural, aclaración mínima, visibilidad segura
+  - admin interno: apoyo operativo, confirmación antes de ejecutar, errores/faltantes claros
+  Estas reglas no reemplazan el conocimiento aprobado; funcionan como base estable y también deben seguir visibles dentro del resumen general cuando sí hay conocimiento específico.
+- 2026-03-27: el primer `diff` de snapshot se resuelve de forma determinística en backend, comparando entries por `key` y señalando `added`, `removed` y `changed` contra la versión anterior. No hace falta persistir un modelo adicional de diff para el MVP; el cálculo puede hacerse on-demand sobre snapshots ya versionados.
+- 2026-03-27: para acciones de `activity` o agenda, el sistema no debe limitarse a crear el evento. La evolución correcta requiere primero una capa explícita de disponibilidad y restricciones:
+  - verificar disponibilidad real en la tabla de activities
+  - sugerir horarios alternativos
+  - limitar agendas fuera del horario comercial
+  - proyectar esas restricciones directamente en UI:
+    - días no disponibles
+    - franjas bloqueadas
+    - horarios sugeridos
+  este punto queda fuera del bloque actual de knowledge, pero entra como backlog futuro de scheduling/UX operativa
+- 2026-03-27: los saludos livianos del runtime dejan de ser texto fijo en código y pasan a configuración administrable:
+  - se exponen en `AI Runtime`
+  - el runtime sigue teniendo defaults seguros para cualquier tenant
+  - la configuración solo ajusta wording/tone del saludo base; no reemplaza la lógica de intención ni los outcomes compartidos
+- 2026-03-27: las URLs pasan a ser una fuente first-class del módulo de knowledge mediante `KnowledgeDocument.sourceType = WEB_URL`:
+  - no se crea un subsistema paralelo de sources para el MVP
+  - la propia entidad documental guarda:
+    - `url`
+    - `refreshPolicy`
+    - `lastFetchedAt`
+    - `lastCheckedAt`
+    - `nextRefreshAt`
+    - `etag`
+    - `lastModified`
+  - esto permite reutilizar de inmediato:
+    - embeddings
+    - retrieval
+    - snapshot
+    - ABM documental
+  - `refresh-due` queda disponible como operación batch explícita; un scheduler posterior puede consumirla sin rediseñar el modelo
+- 2026-03-27: para el cierre conversacional, el sistema prioriza limpieza y coherencia sobre soporte legacy:
+  - si una intención ya fue resuelta por la capa nueva del `Intent Engine`, no debe recalcularse por una rama legacy posterior
+  - las respuestas determinísticas customer compartidas viven en el renderer común y no en helpers duplicados dentro de `agent.js`
+  - los follow-ups breves pueden apoyarse en contexto reciente de cliente y agente, no solo en turns del usuario
+- 2026-03-27: el transcript canónico de webchat debe exponer adjuntos con `content` cuando esa señal ya existe en la persistencia:
+  - esto permite mantener previews de imagen/audio después del sync
+  - no implica generar contenido binario nuevo en backend; solo preservar y proyectar el ya ingresado por el canal/UI
+  - si el adjunto no trae `content`, la UI cae al render textual/tipado sin inventar preview
+- 2026-03-27: la paridad entre admin y storefront no debe limitarse a `controlMode`; también debe hacer visible el estado operacional del hilo:
+  - storefront muestra un banner explícito cuando la conversación ya está en seguimiento humano o híbrido
+  - admin y storefront usan el mismo vocabulario base:
+    - `Asistente IA`
+    - `IA + equipo`
+    - `Asesor humano`
+  - el handoff visible es una señal de estado, no un error ni una interrupción del canal
+- 2026-03-27: los listados admin no deben depender exclusivamente del `body` del último mensaje para su preview:
+  - `latestMessage` deriva `preview` y `previewKind` a partir de texto, adjuntos y `messageElements`
+  - si el texto del último mensaje es solo un resumen técnico de adjuntos (`[Adjunto: ...]`), el sistema debe preferir una vista más legible del primer adjunto relevante
+  - esto mejora coherencia entre transcript detallado y vista resumida sin mover lógica de presentación al frontend
+- 2026-03-27: el contrato canónico de email debe mantener la misma semántica de autor y preview que el resto de la mensajería:
+  - summaries, threads y detail del inbox email exponen `authorLabel`
+  - el listado admin de conversaciones email debe mostrar el asunto cuando existe, no solo el body más reciente
+  - las regresiones E2E deben navegar por el directorio lateral de canales, no asumir filtros inline que ya no forman parte del layout actual
+- 2026-03-27: una cuenta email no debe considerarse operable por el simple hecho de existir en `InboxAccount`.
+  El criterio mínimo aprobado es:
+  - cuenta activa
+  - configuración IMAP/SMTP/remitente completa
+  - evidencia mínima de conectividad persistida:
+    - `smtpTlsVerifiedAt`
+    - `imapTlsVerifiedAt`
+    - `smtpVerifyVerifiedAt`
+  Este criterio gobierna tanto el listado admin del inbox como la resolución inbound de conversaciones email.
+- 2026-03-27: el estado limpio para regresión no se resuelve con borrado manual ad hoc.
+  Se aprueba un proceso repetible de saneamiento que:
+  - preserva baseline y configuración real
+  - preserva la cuenta email operable configurada
+  - elimina conversaciones sintéticas de email y residuos conversation-derived asociados
+  La referencia operativa queda en [REGRESSION_CLEAN_STATE.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/REGRESSION_CLEAN_STATE.md).
+- 2026-03-27: los casos no contemplados del runtime conversacional deben capturarse con un esquema estructurado y no como observaciones informales.
+  El registro mínimo debe incluir:
+  - input crudo
+  - salida visible esperada vs real
+  - clasificación/intención/fallback usados
+  - si hubo llamada al proveedor
+  - bucket diagnóstico
+  - tipo de fix propuesto
+  La referencia operativa queda en [AI_ERROR_FLOW_CAPTURE_SCHEMA.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_ERROR_FLOW_CAPTURE_SCHEMA.md).

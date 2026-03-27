@@ -49,6 +49,22 @@ export class AgentReplyDto {
   body!: string
 
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MaxLength(4000)
+  finalUserText?: string
+
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MaxLength(12000)
+  debugSummary?: string
+
+  @IsOptional()
+  @IsObject()
+  auditPayload?: Record<string, unknown>
+
+  @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>
 

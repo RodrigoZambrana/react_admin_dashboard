@@ -2549,7 +2549,15 @@
         },
         "saveSuccess": "Inbox configuration saved successfully.",
         "passwordPlaceholder": "Leave blank to keep the stored password",
-        "passwordHint": "Passwords are encrypted; leave blank to keep the stored value."
+        "passwordHint": "Passwords are encrypted; leave blank to keep the stored value.",
+        "validity": {
+          "title": "Minimum validity required for an operable mailbox",
+          "description": "Saving credentials is not enough. The inbox only should expose mailboxes that pass the minimum operational checks.",
+          "stepConfig": "Complete IMAP, SMTP, username, password, and from address configuration.",
+          "stepSmtpTls": "TLS connectivity check to the configured SMTP host and port.",
+          "stepImapTls": "TLS connectivity check to the configured IMAP host and port.",
+          "stepVerify": "SMTP provider verification with nodemailer.verify() using the configured credentials."
+        }
       }
     },
     "google": {

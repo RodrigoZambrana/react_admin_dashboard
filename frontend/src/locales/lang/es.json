@@ -2550,7 +2550,15 @@
         },
         "saveSuccess": "La configuración del inbox se guardó correctamente.",
         "passwordPlaceholder": "Dejá en blanco para mantener la contraseña almacenada",
-        "passwordHint": "Las contraseñas se cifran; dejá el campo vacío para conservar el valor actual."
+        "passwordHint": "Las contraseñas se cifran; dejá el campo vacío para conservar el valor actual.",
+        "validity": {
+          "title": "Validez mínima requerida para un buzón operable",
+          "description": "Guardar credenciales no alcanza. El inbox solo debería exponer casillas que superen los chequeos operativos mínimos.",
+          "stepConfig": "Configuración completa de IMAP, SMTP, usuario, contraseña y dirección remitente.",
+          "stepSmtpTls": "Chequeo de conectividad TLS contra el host y puerto SMTP configurados.",
+          "stepImapTls": "Chequeo de conectividad TLS contra el host y puerto IMAP configurados.",
+          "stepVerify": "Verificación SMTP con nodemailer.verify() usando las credenciales configuradas."
+        }
       }
     },
     "google": {

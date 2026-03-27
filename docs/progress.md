@@ -218,6 +218,10 @@ The AI foundation now includes:
   - confirmation drafts are now persisted explicitly in runtime memory and reused on the next turn
   - success responses now return real verification links only when the entity still exists and the route is useful
   - `delete`/error paths are expected to answer without dead links
+- agent replies now start persisting clean human-facing text separately from debug and audit context:
+  - backend stores `finalUserText` as the canonical message body
+  - debug and richer `auditPayload` stay available in metadata and `aiState.audit`
+  - admin can inspect stage history and referenced messages without polluting customer/storefront transcripts
 - that lifecycle is already active for:
   - `aberturas.register`
   - `customers.create/update`
@@ -484,3 +488,499 @@ The AI foundation now includes:
   - validación técnica de este slice:
     - backend tests de extracción + `ai.service`: verdes
     - `ai-agent-service` tests: verdes
+- 2026-03-26:
+  - se definió un primer set explícito de acciones del asistente interno:
+    - `admin.light`
+    - `admin.capabilities`
+    - `admin.actionable`
+    - `admin.blocked`
+    - `admin.low_confidence`
+    - `admin.provider_failure`
+  - `hola`, agradecimientos y pedidos generales de ayuda en chat interno ya no dependen del LLM
+  - la clasificación de fallos del proveedor dejó de tratar cualquier `429` como cuota agotada:
+    - `429` genérico => `provider_rate_limited`
+    - cuota agotada solo con evidencia explícita tipo `insufficient_quota`
+  - el fallback final del asistente interno dejó de sugerir takeover/handoff humano como si fuera un chat cliente
+- 2026-03-26:
+  - se documentó el diseño técnico mínimo para fortalecer el runtime conversacional sin reescritura en:
+    - [AI_RUNTIME_MINIMAL_DESIGN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_RUNTIME_MINIMAL_DESIGN.md)
+  - el documento formaliza los cuatro módulos de estabilización:
+    - `Intent Engine`
+    - `Agent State`
+    - `Action Registry`
+    - `Outcome Renderer`
+  - además incorpora una capa transversal de interpretación de elementos conversacionales por tipo:
+    - texto
+    - imagen
+    - audio
+    - documento
+    - tabla
+  - se dejó explicitado un plan incremental para implementarlos sobre la arquitectura actual sin romper producción
+- 2026-03-26:
+  - se convirtió el plan multimodal en backlog ejecutable por fases en:
+    - [AI_MULTIMODAL_EXECUTION_BACKLOG.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_MULTIMODAL_EXECUTION_BACKLOG.md)
+  - el backlog ya define:
+    - fases
+    - slices
+    - archivos concretos a crear y tocar
+    - dependencias entre tareas
+    - criterio de aceptación por slice
+  - el siguiente corte recomendado quedó fijado en:
+    - `message-element-types`
+    - `interpret-message-elements`
+    - `detect-intent` wrapper
+- 2026-03-26:
+  - quedó implementado el primer slice real del backlog multimodal en el runtime:
+    - `message-element-types`
+    - `interpret-message-elements`
+    - `detect-intent` wrapper
+  - el runtime ahora:
+    - construye `messageElements` canónicos desde texto, adjuntos y `ExtractedAsset`
+    - arma `messageContext` reutilizable para enriquecer el input efectivo
+    - centraliza la detección de intención a través de `detectIntent()`
+    - registra en auditoría:
+      - `intentConfidence`
+      - `intentSource`
+      - `decisionPath`
+      - `messageElementsUsed`
+  - la normalización de canal ya admite `messageElements` como payload opcional
+  - validación técnica:
+    - `services/ai-agent-service` `node --test`: `48 passed`
+    - `node --check` sobre `agent.js`, `detect-intent.js` y `unified-message.js`: OK
+- 2026-03-26:
+  - se consolidó un informe ejecutivo-técnico para evolucionar la base de knowledge actual hacia ingesta activa con human-in-the-loop en:
+    - [AI_ACTIVE_KNOWLEDGE_INGESTION_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_ACTIVE_KNOWLEDGE_INGESTION_PLAN.md)
+  - el informe parte del módulo real ya existente en:
+    - `backend/src/knowledge`
+    - `frontend/src/views/settings/AiRuntimeSettings`
+    - `services/ai-agent-service/src/clients/backend-ai.client.js`
+  - y propone una evolución incremental, sin reemplazo, sobre:
+    - captura normalizada de interacciones
+    - extracción estructurada
+    - revisión humana
+    - promoción a conocimiento aprobado
+    - sugerencias operativas en tiempo real
+- 2026-03-26:
+  - quedó implementada la fundación real de ingesta activa de conocimiento:
+    - `KnowledgeRawEvent`
+    - `KnowledgeIngestionRun`
+    - enriquecimiento y versionado de `KnowledgeCandidate`
+  - el backend ahora:
+    - captura observaciones automáticamente desde mensajes persistidos
+    - preserva `messageElements`, `messageContextOrigin`, replies humanas/IA e intención detectada
+    - permite backfill manual de conversaciones hacia la cola de knowledge
+  - el panel admin ya expone:
+    - candidatos enriquecidos
+    - observaciones recientes
+    - corridas de ingesta
+    - acción manual `Observar conversaciones`
+  - validación técnica de este corte:
+    - `backend` knowledge + conversations tests: `36 passed`
+    - `backend build`: OK
+    - `frontend build`: OK
+    - `prisma migrate deploy`: OK
+  - además se adelantó el retiro incremental de lógica legacy en el runtime:
+    - `detectIntent()` ya resuelve intents livianos/capabilities desde registry local antes del fallback legacy
+    - el `Action Registry` ya incorpora `resultShape` y `resultSummary` para verify/result shaping más formal
+    - `ai-agent-service` tests: `54 passed`
+- 2026-03-26:
+  - quedó implementado el primer uso operativo de knowledge aprobada en tiempo real dentro del inbox admin
+  - el backend ahora resuelve sugerencias por conversación usando solo `KnowledgeCandidate` aprobados, con ranking por:
+    - `dedupeHash`
+    - intención
+    - cluster
+    - similitud léxica
+  - el detalle de conversación ya expone `aiSuggestions` para el inbox admin sin endpoint paralelo
+  - el inbox admin ya muestra:
+    - bloque de sugerencias aprobadas
+    - mensaje objetivo tomado como referencia
+    - acción directa `Usar` para insertar la respuesta sugerida en el compositor
+  - validación técnica de este corte:
+    - `backend` knowledge + conversations tests: `38 passed`
+    - `backend build`: OK
+    - `frontend build`: OK
+- 2026-03-26:
+  - quedó implementado el feedback loop mínimo de sugerencias aprobadas en inbox admin
+  - el sistema ahora persiste por sugerencia:
+    - `used`
+    - `edited`
+    - `discarded`
+  - la persistencia queda ligada a:
+    - conversación
+    - candidato aprobado
+    - mensaje objetivo
+    - mensaje final del operador cuando existe
+  - el ranking de sugerencias ya incorpora esa señal histórica sin dejar de requerir `status=approved`
+  - validación técnica de este corte:
+    - `prisma migrate dev`: OK
+    - `backend` knowledge + conversations tests: `40 passed`
+    - `backend build`: OK
+    - `frontend build`: OK
+- 2026-03-26:
+  - la UI HITL de knowledge ya expone métricas agregadas del feedback real de operadores:
+    - `used`
+    - `edited`
+    - `discarded`
+    - adopción total
+    - tasa de descarte
+  - los candidatos recientes también muestran historial de reuse por candidato dentro del panel de knowledge
+  - `detectIntent()` dio otro paso de retiro legacy:
+    - ahora resuelve primero matching centralizado del catálogo por keywords
+    - mantiene fallback legacy solo para los casos todavía no migrados
+    - `aberturas.register` contextual ya puede resolverse desde registry antes del fallback
+  - el `Action Registry` ya formaliza mejor verify/result shaping con metadata explícita por acción:
+    - `verifyMode`
+    - `entityLabel`
+    - `resultSummary.summaryText`
+    - `shouldVerify`
+  - validación técnica de este corte:
+    - `backend` knowledge tests: `14 passed`
+    - `ai-agent-service` intent/action tests: `10 passed`
+    - `ai-agent-service` runtime tests: `46 passed`
+    - `backend build`: OK
+    - `frontend build`: OK
+- 2026-03-26:
+  - `detectIntent()` quedó ampliado con reglas operativas explícitas para wording más natural, además del matching por catálogo:
+    - `appointments.create/update/delete`
+    - `customers.create/update`
+    - `products.create/update`
+    - `payments.update_status`
+    - `aberturas.register`
+  - el ranking de sugerencias aprobadas del inbox ahora combina:
+    - señales determinísticas previas
+    - feedback HITL histórico
+    - similitud semántica por embeddings
+    - siempre restringido a `KnowledgeCandidate` con `status=approved`
+  - `agent.js` dio otro paso de retiro declarativo:
+    - las acciones documentales ahora obtienen `intro`, `confirmationPrompt`, `successPrefix` y `pendingPrompt` desde `Action Registry`
+    - se reduce lógica copy-heavy manual dentro de `buildDocumentActionDraft`
+  - validación técnica de este corte:
+    - `backend` knowledge tests: `14 passed`
+    - `ai-agent-service` tests (`detect-intent`, `action-registry`, `agent`): `57 passed`
+    - `backend build`: OK
+- 2026-03-26:
+  - `agent.js` dio otro paso real de retiro declarativo sobre acciones CRUD frecuentes:
+    - `customers.create/update`
+    - `products.create/update`
+    - `appointments.create/update/delete`
+  - esas acciones ahora leen desde `Action Registry` su `draftPresentation` y parte del contrato de ejecución/verificación:
+    - `intro`
+    - `confirmationPrompt`
+    - `pendingPrompt`
+    - `successPrefix`
+    - `errorText`
+    - `verifyEntity`
+    - `verifyMode`
+  - quedó agregada una E2E del circuito HITL completo en `ecommerce/e2e/admin-ai-settings.spec.ts` que valida:
+    - conversación webchat observada
+    - reply humano reutilizable
+    - ingesta de conversaciones
+    - aprobación del candidato
+    - sugerencia aprobada en inbox admin
+    - uso de la sugerencia por el operador
+    - incremento de feedback `used`
+  - durante esta validación apareció un bloqueo de infraestructura externo:
+    - PostgreSQL entró en recovery por falta de espacio del runtime Docker
+    - se liberó cache/imágenes no usadas
+    - la base volvió a `db=true`
+  - validación técnica de este corte:
+    - `ai-agent-service` tests (`agent`, `action-registry`): `52 passed`
+    - `backend build`: OK
+    - `frontend build`: OK
+    - E2E `admin-ai-settings.spec.ts --grep "HITL knowledge loop"`: `1 passed`
+- 2026-03-27:
+  - quedó documentada la estructura objetivo del ABM de knowledge en `docs/AI_KNOWLEDGE_ADMIN_ABM_PLAN.md`
+  - el acuerdo operativo ya distingue entre:
+    - `AI Runtime` como overview y quick actions
+    - `Knowledge` como módulo ABM real con listas, filtros, detalle y acciones
+  - se definió una taxonomía administrativa visible para ordenar el contenido sin reescribir el modelo:
+    - origen de ingreso
+    - tipo de contenido
+    - estado de lifecycle
+  - se fijaron como próximas superficies dedicadas:
+    - `Knowledge Documents`
+    - `Knowledge Candidates`
+    - `Knowledge Raw Events`
+    - `Knowledge Ingestion Runs`
+    - `Knowledge Feedback`
+  - el siguiente corte de implementación recomendado queda explícito:
+    - extender queries backend con `search/order/pagination`
+    - crear `Knowledge Candidates` con búsqueda y filtros reales
+    - seguir con `Knowledge Documents` como ABM de contenido aprobado
+- 2026-03-27:
+  - quedó implementado el primer corte real del ABM de knowledge:
+    - queries backend de `documents`, `candidates`, `raw-events` e `ingestion-runs` con `search`, `order`, `page`, `pageSize` y filtros por origen/tipo/estado según entidad
+    - `AI Runtime` pasó a consumir esas listas en modo resumido (`pageSize` corto) en vez de operar como superficie principal
+  - quedaron creadas las primeras pantallas dedicadas del módulo:
+    - `/app/settings/ai/knowledge/candidates`
+    - `/app/settings/ai/knowledge/documents`
+  - `Knowledge Candidates` ya permite:
+    - búsqueda puntual
+    - filtros por estado, scope, canal, origen, feedback e intención
+    - orden/paginación
+    - revisión puntual con aprobar, aprobar+y promover, rechazar
+  - `Knowledge Documents` ya permite:
+    - búsqueda y filtros por `scope`, `status`, `sourceType`, origen, tipo y embedding
+    - orden/paginación
+    - alta manual curada
+    - upload documental
+    - abrir fuente
+    - eliminar documento
+  - `AI Runtime` queda confirmado como overview operativo con quick actions y enlaces a las superficies dedicadas
+  - validación técnica de este corte:
+    - `backend` knowledge tests: `16 passed`
+    - `backend build`: OK
+    - `frontend build`: OK
+    - E2E dirigida de pantallas dedicadas de knowledge: OK
+- 2026-03-27:
+  - quedó incorporada al plan la evolución UX del módulo de knowledge en dos capas complementarias:
+    - vista general tipo `help center`
+    - vista operativa tipo `training board`
+  - ambas quedan alineadas con el ABM ya implementado y no como sistemas paralelos
+  - se fija como referencia visual el template original de admin en:
+    - `/Users/rodrigo/Personal/Proyectos/react projects/Elstar - React Tailwind Admin Template`
+    - solo como referencia de layout/patrones, no como dependencia runtime
+- 2026-03-27:
+  - quedó implementada la segunda capa de superficies de knowledge sobre el ABM ya existente:
+    - `/app/settings/ai/knowledge/overview`
+    - `/app/settings/ai/knowledge/manage-articles`
+    - `/app/settings/ai/knowledge/raw-events`
+    - `/app/settings/ai/knowledge/ingestion-runs`
+  - `Knowledge Overview` ya muestra:
+    - estado del conocimiento
+    - señales de madurez
+    - fuentes/origen del conocimiento
+    - timeline reciente
+    - resumen operativo del agente
+  - `Knowledge Manage Articles` ya muestra el flujo vivo del entrenamiento en columnas:
+    - sugerido
+    - a la espera de aprobación
+    - aprobado
+    - incorporado
+  - `Knowledge Raw Events` y `Knowledge Ingestion Runs` ya quedaron como superficies dedicadas de observabilidad y operación
+  - `AI Runtime` quedó conectado a estas rutas nuevas como overview/quick actions
+  - validación técnica de este corte:
+    - `frontend build`: OK
+    - E2E dirigida de rutas dedicadas de knowledge: OK
+- 2026-03-27:
+  - quedó cerrado el siguiente corte operativo del módulo de knowledge:
+    - `Knowledge Documents` ya permite edición real de metadata y contenido curado
+    - `Knowledge Feedback` ya existe como superficie dedicada de quality/reuse
+    - `Knowledge Manage Articles` quedó rearmado sobre patrón real de `ScrumBoard`, con avance de estado por `drag-and-drop`
+    - el board ya no trata una pregunta cruda del cliente como candidato aprobable:
+      - los mensajes inbound sin respuesta quedan como `raw event`
+      - el flujo aprobable parte del intercambio `pregunta + respuesta`
+  - también quedó corregido el detalle del inbox admin:
+    - el composer vuelve a quedar visible y sticky
+    - las sugerencias del footer ya no empujan el input fuera del viewport
+    - la lista de nuevo mensaje mantiene a `Asistente interno` como sugerencia fija y visible
+  - validación técnica de este corte:
+    - `backend` tests (`knowledge` + `conversations`): `46 passed`
+    - `backend build`: OK
+    - `frontend build`: OK
+    - `backend` knowledge tests focalizados: `18 passed`
+    - `admin-ai-settings.spec.ts` focal: `2 passed`
+    - `admin-conversations-inbox-regression.spec.ts`: `5 passed`
+    - `admin-ai-settings.spec.ts`: `7 passed`
+- 2026-03-27:
+  - quedó separado `IA` como módulo de navegación independiente dentro del admin:
+    - `/app/settings/ai` ahora funciona como hub corto y claro del módulo
+    - `/app/settings/ai/runtime` concentra el runtime técnico/operativo
+    - knowledge quedó ordenado como submenú explícito, en vez de depender de una sola pantalla larga
+  - el hub nuevo deja visible el criterio actual del entrenamiento:
+    - la unidad aprobable vigente es el intercambio `pregunta + respuesta`
+    - `conversation bundles` quedan como evolución futura para multi-turno
+    - `negative examples` quedan definidos como superficie futura de gobierno/guardrails
+  - validación técnica de este corte:
+    - `frontend build`: OK
+    - `backend build`: OK
+    - `admin-ai-settings.spec.ts`: `7 passed`
+- 2026-03-27:
+  - quedó recortado `AI Runtime` como superficie técnica pura:
+    - mantiene proveedor, prompts, límites y catálogo de acciones
+    - deja de incluir formularios y quick actions de knowledge
+  - las operaciones de knowledge quedaron redistribuidas en superficies dedicadas:
+    - `Knowledge Documents`: curado, upload, reindex
+    - `Knowledge Ingestion Runs`: observación/ingesta manual
+    - `Knowledge Feedback`: métricas de reuse
+  - validación técnica:
+    - `frontend build`: OK
+    - `admin-ai-settings.spec.ts`: `7 passed`
+- 2026-03-27:
+  - quedó corregido el acople entre rutas AI y menú activo:
+    - las rutas de knowledge ahora usan claves `appsAi.*` consistentes con navegación
+    - el submenú de IA ya puede marcar correctamente la pantalla activa
+  - `/app/settings/ai` deja explícito que el indicador principal mide cobertura operativa del conocimiento, no madurez del modelo
+  - se fijó y reflejó en prompts el comportamiento base global aun sin knowledge aprobado:
+    - saludo
+    - orientación
+    - pedido de dato mínimo
+    - continuación segura sin inventar información
+  - quedaron abiertas dos nuevas superficies dentro del módulo:
+    - `Knowledge Conversation Bundles`
+    - `Knowledge Negative Examples`
+- 2026-03-27:
+  - quedó documentado el diseño técnico concreto de `Knowledge Snapshot` en [AI_KNOWLEDGE_SNAPSHOT_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_KNOWLEDGE_SNAPSHOT_PLAN.md)
+  - el criterio fijado es:
+    - el snapshot no describe “madurez del modelo”
+    - describe qué conocimiento operativo y guardrails están vigentes hoy
+    - distingue `knowledge activo`, `señales pendientes` e `histórico`
+  - también quedó resuelto el punto discutido sobre contenido no aprobado:
+    - `negative examples` aprobados sí entran al snapshot como reglas negativas activas
+    - `negative examples` pendientes no entran al digest activo, pero sí deben verse como señales de revisión/riesgo
+  - el documento ya deja definidos:
+    - modelo de datos
+    - endpoints
+    - formato estructurado y texto plano
+    - pantallas de admin
+    - flujo de regeneración y refresh
+- 2026-03-27:
+  - quedó implementado el primer corte real de `Knowledge Snapshot` en backend:
+    - modelos persistidos nuevos en Prisma:
+      - `KnowledgeSnapshot`
+      - `KnowledgeSnapshotEntry`
+      - `KnowledgeSnapshotSource`
+    - endpoints:
+      - `GET /api/ai/knowledge/snapshots/latest`
+      - `GET /api/ai/knowledge/snapshots/:id`
+      - `GET /api/ai/knowledge/snapshots/:id/plain-text`
+    - generación determinística inicial sin IA redactora:
+      - documentos activos/aprobados
+      - candidates aprobados
+      - raw events como señales pendientes/gaps
+    - el snapshot ya persiste:
+      - versión
+      - fingerprint de fuentes
+      - entries trazables
+      - sources por entry
+      - digest en texto plano
+  - validación técnica:
+    - migración Prisma aplicada sobre PostgreSQL externo: OK
+    - `backend src/knowledge/__tests__/knowledge.service.spec.ts`: `23 passed`
+    - `backend build`: OK
+- 2026-03-27:
+  - quedó implementado el segundo corte real de `Knowledge Snapshot`:
+    - endpoint nuevo:
+      - `GET /api/ai/knowledge/snapshots/:id/diff`
+    - superficies admin nuevas:
+      - `/app/settings/ai/knowledge/snapshots`
+      - `/app/settings/ai/knowledge/snapshots/:snapshotId`
+      - `/app/settings/ai/knowledge/snapshots/:snapshotId/sources`
+    - el snapshot ahora siempre incorpora reglas base predeterminadas del runtime como `operational_note`
+    - cuando no existe conocimiento aprobado suficiente, el resumen igualmente expone esa base operativa
+    - cuando sí existe conocimiento aprobado, la base operativa sigue apareciendo en el digest general como referencia estable
+  - estado actual de integración:
+    - `negative examples` y `conversation bundles` seguían fuera del snapshot persistido y quedaron marcados como siguiente corte backend
+  - validación técnica:
+    - `backend src/knowledge/__tests__/knowledge.service.spec.ts`: `25 passed`
+    - `backend build`: OK
+    - `frontend build`: OK
+- 2026-03-27:
+  - quedó integrada la tercera capa real de `Knowledge Snapshot`:
+    - nuevos modelos backend:
+      - `KnowledgeConversationBundle`
+      - `KnowledgeNegativeExample`
+    - sincronización automática:
+      - `conversation bundle` por conversación cuando hay secuencia multi-turno suficiente
+      - `negative example` al rechazar candidatos
+      - `negative example` al descartar feedback aprobado
+    - el snapshot activo ya incorpora:
+      - `conversation bundles` aprobados como `topic_summary`
+      - `negative examples` aprobados como `guardrail_negative`
+    - superficies admin ya usan backend real:
+      - `/app/settings/ai/knowledge/conversation-bundles`
+      - `/app/settings/ai/knowledge/negative-examples`
+      - ambas con lista, detalle y review real
+  - validación técnica:
+    - `backend src/knowledge/__tests__/knowledge.service.spec.ts`: `28 passed`
+    - `backend build`: OK
+    - `frontend build`: OK
+- 2026-03-27:
+  - `AI Runtime` ahora permite configurar saludos base sin tocar código:
+    - `customerGreetingDefault`
+    - `customerGreetingMorning`
+    - `customerGreetingAfternoon`
+    - `customerGreetingConsultation`
+    - `customerGreetingHelp`
+    - `adminGreetingDefault`
+  - el `ai-agent-service` consume esos textos desde `runtime-config/internal` y los usa en respuestas livianas antes del modelo
+  - `Knowledge Documents` incorpora `web_url` como fuente first-class:
+    - alta manual de URL desde admin
+    - refresh policy explícita: `manual`, `daily`, `weekly`, `on_demand`
+    - metadata trazable:
+      - `url`
+      - `refreshPolicy`
+      - `lastFetchedAt`
+      - `lastCheckedAt`
+      - `nextRefreshAt`
+      - `etag`
+      - `lastModified`
+    - refresh manual por documento
+    - refresh batch de URLs vencidas
+  - el retrieval y el snapshot ya pueden apoyarse en documentos `web_url` activos igual que en el resto del corpus aprobado
+  - validación técnica:
+    - `backend` tests focales (`ai.service` + `knowledge.service`): `46 passed`
+    - `ai-agent-service` tests focales (`agent` + `render-outcome`): `63 passed`
+    - `backend build`: OK
+    - `frontend build`: OK
+- 2026-03-27:
+  - avance del cierre conversacional end-to-end:
+    - respuestas determinísticas customer unificadas en el renderer común
+    - `agent.js` deja de duplicar copy de `clarify / incomplete / unintelligible / contact / frustration / multi-intent`
+    - follow-up contextual ahora puede inyectar turns recientes de cliente y agente, no solo customer turns
+    - más intents customer salen del fallback legacy y pasan al `Intent Engine` central
+  - paridad admin/storefront y multimodalidad:
+    - admin inbox ya permite reply con adjuntos persistidos y visibles en transcript
+    - storefront conserva transcript canónico con `messageElements`, `messageContextOrigin` y adjuntos multimodales
+    - el transcript webchat ya expone `content` cuando el adjunto lo trae, lo que permite previews reales de imagen/audio luego del sync
+  - endurecimiento adicional del runtime:
+    - saludos combinados como `hola buenos días` quedan resueltos por clasificación previa y no dependen del proveedor
+    - greetings customer vuelven por ruta determinística aun con proveedor degradado
+  - regresiones ejecutadas:
+    - `ai-agent-service`: `123 passed`
+    - `backend conversations`: `29 passed`
+    - `ecommerce/e2e/storefront-webchat.spec.ts`: `5 passed`
+    - `ecommerce/e2e/admin-conversations-message-types.spec.ts`: `2 passed`
+  - builds/estado:
+    - `backend build`: OK
+    - `frontend build`: OK
+    - `storefront build`: sigue bloqueado por un problema previo ajeno al slice en `/account/orders` (`useSearchParams` sin `Suspense`)
+  - avance adicional de paridad admin/storefront:
+    - `latestMessage` ahora deriva `preview` y `previewKind` consistentes también para mensajes multimodales o casi sin texto
+    - la lista admin deja de depender solo de `body` para mostrar el último mensaje y puede resumir adjuntos con mejor contexto
+    - storefront hace visible el handoff con banner explícito cuando la conversación pasa a `human` o `hybrid`
+  - validación adicional:
+    - `backend conversations`: `30 passed`
+    - `frontend build`: OK
+    - `ecommerce/e2e/admin-conversations-message-types.spec.ts`: `2 passed`
+    - `ecommerce/e2e/storefront-webchat-authenticated-memory.spec.ts`: `2 passed`
+  - cierre adicional del contrato canónico de email y consistencia admin:
+    - `InboxService` ahora expone `authorLabel` también para summaries, detail y threads de inbox email
+    - el mapeo frontend del inbox reutiliza `authorLabel` para conservar consistencia entre latest/preview/author en email
+    - `Conversations V2` vuelve a incluir `Email` en el selector de canales del directorio lateral
+    - el preview de conversaciones email en admin ahora expone el asunto cuando existe:
+      - `Asunto: <subject> · <preview>`
+    - la UI admin quedó levantada localmente en `:8080` contra el backend local para evitar el `502` del proxy del contenedor cuando el backend corre fuera de Docker
+  - regresiones adicionales ejecutadas:
+    - `backend/src/inbox/__tests__/inbox.service.spec.ts`: `1 passed`
+    - `backend/src/conversations/__tests__/conversations.service.spec.ts`: `34 passed`
+    - `ecommerce/e2e/admin-conversations-email-reply.spec.ts`: `1 passed`
+    - `ecommerce/e2e/admin-conversations-multichannel.spec.ts`: `1 passed`
+- 2026-03-27:
+  - storefront chat ahora admite `Enter` para enviar y conserva `Shift+Enter` para salto de línea
+  - el listado admin del inbox deja de exponer cuentas email meramente existentes en BD:
+    - solo lista mailboxes operables
+    - criterio mínimo actual:
+      - cuenta activa
+      - configuración IMAP/SMTP/dirección remitente completa
+      - evidencia mínima de conectividad persistida en metadata
+  - la regla de validez de cuentas email se centralizó para ingestión inbound y listado admin
+  - se agregó proceso reproducible de clean-state para regresión:
+    - `backend/scripts/prepare-regression-state.sh`
+    - `backend/scripts/prepare-regression-state.ts`
+    - `npm run regression:prepare`
+    - limpia conversaciones sintéticas de email y residuos conversation-derived asociados
+  - se documentó un esquema operativo para capturar flujos de error no contemplados como input de fixes:
+    - [AI_ERROR_FLOW_CAPTURE_SCHEMA.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_ERROR_FLOW_CAPTURE_SCHEMA.md)
+  - se documentó el runbook de estado limpio y validez mínima de cuentas email:
+    - [REGRESSION_CLEAN_STATE.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/REGRESSION_CLEAN_STATE.md)

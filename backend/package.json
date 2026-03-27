@@ -8,6 +8,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/src/main.js",
     "bootstrap:fresh:local": "sh scripts/bootstrap-fresh-local-db.sh",
+    "regression:prepare": "sh scripts/prepare-regression-state.sh",
     "baseline:export": "ts-node --project tsconfig.seed.json --transpile-only scripts/export-baseline-fixture.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
