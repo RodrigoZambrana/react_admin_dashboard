@@ -89,6 +89,147 @@ describe('ConversationsService', () => {
     service = new ConversationsService(prisma as never, config as never)
   })
 
+  it('persists operator replies with attachments and canonical message elements', async () => {
+    const createdAt = new Date('2026-03-27T15:00:00.000Z')
+    prisma.conversation.findUnique
+      .mockResolvedValueOnce({
+        id: 'conv_reply_attachment',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'WEBCHAT',
+        status: 'WAITING_CUSTOMER',
+        controlMode: 'HUMAN',
+        subject: 'Consulta',
+        externalUserId: 'guest_99',
+        externalThreadId: 'webchat:guest_99',
+        externalChannelRef: '/shop',
+        lastMessageAt: createdAt,
+        lastInboundAt: null,
+        lastOutboundAt: createdAt,
+        createdAt,
+        updatedAt: createdAt,
+        customer: null,
+        assignedToUser: {
+          id: 9,
+          name: 'Operador',
+          email: 'operador@example.com',
+        },
+        inboxAccount: null,
+        participants: [],
+        messages: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'conv_reply_attachment',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'WEBCHAT',
+        status: 'WAITING_CUSTOMER',
+        controlMode: 'HUMAN',
+        subject: 'Consulta',
+        externalUserId: 'guest_99',
+        externalThreadId: 'webchat:guest_99',
+        externalChannelRef: '/shop',
+        lastMessageAt: createdAt,
+        lastInboundAt: null,
+        lastOutboundAt: createdAt,
+        createdAt,
+        updatedAt: createdAt,
+        customer: null,
+        assignedToUser: {
+          id: 9,
+          name: 'Operador',
+          email: 'operador@example.com',
+        },
+        inboxAccount: null,
+        participants: [],
+        messages: [
+          {
+            id: 'msg_reply_attachment',
+            authorType: 'OPERATOR',
+            kind: 'TEXT',
+          body: 'plano.pdf · Incluye medidas y observaciones.',
+          normalizedText: 'plano.pdf · Incluye medidas y observaciones.',
+          payload: {
+            attachments: [
+                {
+                  assetType: 'pdf',
+                  fileName: 'plano.pdf',
+                  contentType: 'application/pdf',
+                  textContent: 'Incluye medidas y observaciones.',
+                },
+              ],
+            },
+            metadata: { source: 'admin-reply' },
+            sentAt: createdAt,
+            receivedAt: null,
+            createdAt,
+          },
+        ],
+        handoffEvents: [],
+      })
+    prisma.conversationMessage.create.mockResolvedValue({
+      id: 'msg_operator_attachment',
+      createdAt,
+    })
+
+    await service.replyAsOperator(
+      'conv_reply_attachment',
+      {
+        body: '',
+        kind: 'text',
+        attachments: [
+          {
+            assetType: 'pdf',
+            fileName: 'plano.pdf',
+            contentType: 'application/pdf',
+            content: 'data:application/pdf;base64,JVBERi0xLjQ=',
+            textContent: 'Incluye medidas y observaciones.',
+          },
+        ],
+      },
+      9,
+    )
+
+    expect(prisma.conversationMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          body: '[Adjunto: plano.pdf] Incluye medidas y observaciones.',
+          normalizedText: '[Adjunto: plano.pdf] Incluye medidas y observaciones.',
+          metadata: expect.objectContaining({
+            source: 'admin-reply',
+            channel: 'webchat',
+            deliveryStatus: 'internal_only',
+            attachments: [
+              expect.objectContaining({
+                assetType: 'pdf',
+                fileName: 'plano.pdf',
+              }),
+            ],
+          }),
+          payload: expect.objectContaining({
+            attachments: [
+              expect.objectContaining({
+                assetType: 'pdf',
+                fileName: 'plano.pdf',
+              }),
+            ],
+            messageElements: expect.arrayContaining([
+              expect.objectContaining({
+                kind: 'text',
+                source: 'message',
+              }),
+              expect.objectContaining({
+                kind: 'document',
+                label: 'plano.pdf',
+                source: 'attachment',
+              }),
+            ]),
+          }),
+        }),
+      }),
+    )
+  })
+
   it('lists persisted conversations with normalized summary fields', async () => {
     prisma.conversation.findMany.mockResolvedValue([
       {
@@ -208,10 +349,57 @@ describe('ConversationsService', () => {
   })
 
   it('scopes internal assistant channel listings to the current operator and assistant contact', async () => {
-    prisma.conversation.findMany.mockResolvedValue([])
-    prisma.conversation.count.mockResolvedValue(0)
+    prisma.conversation.findMany.mockResolvedValue([
+      {
+        id: 'conv_assistant_latest',
+        tenantKey: 'urucortinas',
+        scope: 'ADMIN_INTERNAL',
+        channel: 'ADMIN_CHAT',
+        status: 'OPEN',
+        controlMode: 'AI',
+        subject: 'Agente IA',
+        externalUserId: 'admin:42',
+        externalThreadId: null,
+        externalChannelRef: null,
+        lastMessageAt: new Date('2026-03-26T00:10:00.000Z'),
+        lastInboundAt: null,
+        lastOutboundAt: new Date('2026-03-26T00:10:00.000Z'),
+        createdAt: new Date('2026-03-26T00:00:00.000Z'),
+        updatedAt: new Date('2026-03-26T00:10:00.000Z'),
+        customer: null,
+        assignedToUser: null,
+        inboxAccount: null,
+        participants: [],
+        messages: [],
+        toolCalls: [],
+      },
+      {
+        id: 'conv_assistant_old',
+        tenantKey: 'urucortinas',
+        scope: 'ADMIN_INTERNAL',
+        channel: 'ADMIN_CHAT',
+        status: 'OPEN',
+        controlMode: 'AI',
+        subject: 'Agente IA',
+        externalUserId: 'admin:42',
+        externalThreadId: null,
+        externalChannelRef: null,
+        lastMessageAt: new Date('2026-03-25T23:10:00.000Z'),
+        lastInboundAt: null,
+        lastOutboundAt: new Date('2026-03-25T23:10:00.000Z'),
+        createdAt: new Date('2026-03-25T23:00:00.000Z'),
+        updatedAt: new Date('2026-03-25T23:10:00.000Z'),
+        customer: null,
+        assignedToUser: null,
+        inboxAccount: null,
+        participants: [],
+        messages: [],
+        toolCalls: [],
+      },
+    ])
+    prisma.conversation.count.mockResolvedValue(2)
 
-    await service.listConversations(
+    const result = await service.listConversations(
       {
         page: 1,
         pageSize: 20,
@@ -252,6 +440,9 @@ describe('ConversationsService', () => {
         }),
       }),
     )
+    expect(result.total).toBe(1)
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]?.id).toBe('conv_assistant_latest')
   })
 
   it('maps a conversation detail and resolves latestMessage from chronological messages', async () => {
@@ -364,6 +555,189 @@ describe('ConversationsService', () => {
           id: '44',
           type: 'synced',
         },
+      ],
+    })
+  })
+
+  it('derives a consistent latestMessage preview for multimodal attachment-only messages', async () => {
+    prisma.conversation.findMany.mockResolvedValue([
+      {
+        id: 'conv_multimodal_preview',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'WEBCHAT',
+        status: 'WAITING_CUSTOMER',
+        controlMode: 'HYBRID',
+        subject: 'Seguimiento multimodal',
+        externalUserId: 'guest_preview',
+        externalThreadId: 'webchat:guest_preview',
+        externalChannelRef: '/shop',
+        pinnedAt: null,
+        lastMessageAt: new Date('2026-03-27T16:00:00.000Z'),
+        lastInboundAt: new Date('2026-03-27T15:58:00.000Z'),
+        lastOutboundAt: new Date('2026-03-27T16:00:00.000Z'),
+        createdAt: new Date('2026-03-27T15:00:00.000Z'),
+        updatedAt: new Date('2026-03-27T16:00:00.000Z'),
+        needsHuman: false,
+        metadata: null,
+        customer: {
+          id: 77,
+          name: 'Cliente preview',
+          email: 'preview@example.com',
+          phoneNumber: '+59890000077',
+        },
+        assignedToUser: {
+          id: 5,
+          name: 'Operador',
+          email: 'operador@example.com',
+        },
+        inboxAccount: null,
+        participants: [],
+        messages: [
+          {
+            id: 'msg_preview_latest',
+            authorType: 'OPERATOR',
+            authorUser: {
+              id: 5,
+              name: 'Operador',
+              email: 'operador@example.com',
+            },
+            kind: 'TEXT',
+            body: '[Adjunto: plano.txt] Plano con medidas finales.',
+            normalizedText: '[Adjunto: plano.txt] Plano con medidas finales.',
+            metadata: {
+              attachments: [
+                {
+                  assetType: 'text',
+                  fileName: 'plano.txt',
+                  contentType: 'text/plain',
+                  textContent: 'Plano con medidas finales.',
+                },
+                {
+                  assetType: 'audio',
+                  fileName: 'respuesta.webm',
+                  contentType: 'audio/webm',
+                },
+              ],
+            },
+            createdAt: new Date('2026-03-27T16:00:00.000Z'),
+            inboxMessage: {
+              queue: null,
+            },
+          },
+        ],
+        toolCalls: [],
+      },
+    ])
+    prisma.conversation.count.mockResolvedValue(1)
+
+    const result = await service.listConversations({ page: 1, pageSize: 20 })
+
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]).toMatchObject({
+      id: 'conv_multimodal_preview',
+      latestMessage: {
+        preview: 'plano.txt · Plano con medidas finales.',
+        previewKind: 'text',
+      },
+    })
+  })
+
+  it('includes approved reply suggestions in conversation detail when knowledge is available', async () => {
+    const knowledge = {
+      suggestApprovedRepliesForConversation: vi.fn().mockResolvedValue({
+        conversationId: 'conv_knowledge_1',
+        targetMessageId: 'msg_customer_1',
+        targetMessageText: 'Necesito ayuda con mi pedido',
+        items: [
+          {
+            id: 'cand_approved_1',
+            title: 'Seguimiento aprobado',
+            summary: 'Respuesta validada por operación',
+            responseText:
+              'Perfecto, reviso el estado del pedido y te confirmo enseguida.',
+            detectedIntent: 'order.status',
+            confidence: 0.9,
+            score: 187,
+            matchedBy: ['dedupe', 'intent'],
+            version: 2,
+            source: {
+              type: 'approved_candidate',
+              candidateId: 'cand_approved_1',
+              observationId: 'raw_1',
+              reviewedAt: '2026-03-26T20:00:00.000Z',
+            },
+          },
+        ],
+      }),
+    }
+    const serviceWithKnowledge = new ConversationsService(
+      prisma as never,
+      config as never,
+      undefined,
+      knowledge as never,
+    )
+
+    prisma.conversation.findUnique.mockResolvedValue({
+      id: 'conv_knowledge_1',
+      tenantKey: 'urucortinas',
+      scope: 'CUSTOMER_PUBLIC',
+      channel: 'WEBCHAT',
+      status: 'OPEN',
+      controlMode: 'AI',
+      subject: 'Seguimiento',
+      externalUserId: 'guest_9',
+      externalThreadId: 'webchat:guest_9',
+      externalChannelRef: '/orders',
+      lastMessageAt: new Date('2026-03-26T20:05:00.000Z'),
+      lastInboundAt: new Date('2026-03-26T20:00:00.000Z'),
+      lastOutboundAt: null,
+      createdAt: new Date('2026-03-26T19:00:00.000Z'),
+      updatedAt: new Date('2026-03-26T20:05:00.000Z'),
+      customer: null,
+      assignedToUser: null,
+      inboxAccount: null,
+      participants: [],
+      messages: [
+        {
+          id: 'msg_customer_1',
+          authorType: 'CUSTOMER',
+          kind: 'TEXT',
+          body: 'Necesito ayuda con mi pedido',
+          normalizedText: 'Necesito ayuda con mi pedido',
+          payload: null,
+          metadata: null,
+          sentAt: null,
+          receivedAt: null,
+          createdAt: new Date('2026-03-26T20:00:00.000Z'),
+          inboxMessage: {
+            queue: null,
+            events: [],
+          },
+        },
+      ],
+      handoffEvents: [],
+      toolCalls: [],
+    })
+
+    const result = await serviceWithKnowledge.getConversation(
+      'conv_knowledge_1',
+      7,
+    )
+
+    expect(knowledge.suggestApprovedRepliesForConversation).toHaveBeenCalledWith({
+      conversationId: 'conv_knowledge_1',
+    })
+    expect(result?.aiSuggestions).toMatchObject({
+      conversationId: 'conv_knowledge_1',
+      targetMessageId: 'msg_customer_1',
+      targetMessageText: 'Necesito ayuda con mi pedido',
+      items: [
+        expect.objectContaining({
+          id: 'cand_approved_1',
+          responseText:
+            'Perfecto, reviso el estado del pedido y te confirmo enseguida.',
+        }),
       ],
     })
   })
@@ -575,6 +949,8 @@ describe('ConversationsService', () => {
     prisma.conversation.findUnique.mockResolvedValue({
       id: 'conv_webchat_2',
       channel: 'WEBCHAT',
+      scope: 'CUSTOMER_PUBLIC',
+      customerId: null,
       externalUserId: 'guest_2',
     })
     prisma.conversationMessage.create.mockResolvedValue({
@@ -593,6 +969,28 @@ describe('ConversationsService', () => {
       data: expect.objectContaining({
         conversationId: 'conv_webchat_2',
         body: 'Necesito ayuda con una cortina',
+        metadata: expect.objectContaining({
+          messageElements: [
+            {
+              kind: 'text',
+              source: 'message',
+              label: 'mensaje',
+              preview: 'Necesito ayuda con una cortina',
+            },
+          ],
+          messageContextOrigin: ['message_text', 'message_element:text'],
+        }),
+        payload: expect.objectContaining({
+          messageElements: [
+            {
+              kind: 'text',
+              source: 'message',
+              label: 'mensaje',
+              preview: 'Necesito ayuda con una cortina',
+            },
+          ],
+          messageContextOrigin: ['message_text', 'message_element:text'],
+        }),
       }),
       select: {
         id: true,
@@ -611,12 +1009,126 @@ describe('ConversationsService', () => {
     expect(result).toEqual({
       ok: true,
       conversationId: 'conv_webchat_2',
+      conversation: {
+        scope: 'customer_public',
+        customerId: null,
+      },
       message: {
         id: 'msg_webchat_2',
         body: 'Necesito ayuda con una cortina',
         createdAt,
       },
     })
+  })
+
+  it('persists interpreted message elements for attachment-based webchat messages', async () => {
+    const createdAt = new Date('2026-03-25T05:05:00.000Z')
+    prisma.conversation.findUnique.mockResolvedValue({
+      id: 'conv_webchat_elements',
+      channel: 'WEBCHAT',
+      externalUserId: 'guest_elements',
+    })
+    prisma.conversationMessage.create.mockResolvedValue({
+      id: 'msg_webchat_elements',
+      body: 'Registralo según el audio adjunto',
+      createdAt,
+    })
+
+    await service.createWebchatMessage({
+      conversationId: 'conv_webchat_elements',
+      guestId: 'guest_elements',
+      text: 'Registralo según el audio adjunto',
+      attachments: [
+        {
+          assetType: 'audio',
+          fileName: 'nota.webm',
+          contentType: 'audio/webm',
+          textContent:
+            'Registrar cliente Carlos Rodriguez con correo carlos@example.com',
+        },
+      ],
+    })
+
+    expect(prisma.conversationMessage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        conversationId: 'conv_webchat_elements',
+        metadata: expect.objectContaining({
+          messageElements: [
+            {
+              kind: 'text',
+              source: 'message',
+              label: 'mensaje',
+              preview: 'Registralo según el audio adjunto',
+            },
+            {
+              kind: 'audio',
+              source: 'attachment',
+              label: 'nota.webm',
+              preview:
+                'Registrar cliente Carlos Rodriguez con correo carlos@example.com',
+            },
+          ],
+          messageContextOrigin: ['message_text', 'message_element:text', 'message_element:audio'],
+        }),
+      }),
+      select: {
+        id: true,
+        body: true,
+        createdAt: true,
+      },
+    })
+  })
+
+  it('rejects webchat attachments with mismatched content types before persisting the message', async () => {
+    prisma.conversation.findUnique.mockResolvedValue({
+      id: 'conv_webchat_invalid_attachment',
+      channel: 'WEBCHAT',
+      externalUserId: 'guest_invalid',
+    })
+
+    await expect(
+      service.createWebchatMessage({
+        conversationId: 'conv_webchat_invalid_attachment',
+        guestId: 'guest_invalid',
+        text: 'Te paso el archivo',
+        attachments: [
+          {
+            assetType: 'pdf',
+            fileName: 'malicioso.pdf',
+            contentType: 'application/x-msdownload',
+            content: 'data:application/x-msdownload;base64,TVo=',
+          },
+        ],
+      }),
+    ).rejects.toThrow('conversation.attachmentContentTypeMismatch')
+
+    expect(prisma.conversationMessage.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects binary attachments whose content signature does not match the declared format', async () => {
+    prisma.conversation.findUnique.mockResolvedValue({
+      id: 'conv_webchat_invalid_signature',
+      channel: 'WEBCHAT',
+      externalUserId: 'guest_invalid_signature',
+    })
+
+    await expect(
+      service.createWebchatMessage({
+        conversationId: 'conv_webchat_invalid_signature',
+        guestId: 'guest_invalid_signature',
+        text: 'Te paso una imagen',
+        attachments: [
+          {
+            assetType: 'image',
+            fileName: 'captura.png',
+            contentType: 'image/png',
+            content: 'data:image/png;base64,aGVsbG8=',
+          },
+        ],
+      }),
+    ).rejects.toThrow('conversation.attachmentContentSignatureMismatch')
+
+    expect(prisma.conversationMessage.create).not.toHaveBeenCalled()
   })
 
   it('takes over a conversation, assigns the actor and appends a handoff event', async () => {
@@ -1003,22 +1515,48 @@ describe('ConversationsService', () => {
       9,
     )
 
-    expect(prisma.conversationMessage.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        conversationId: 'conv_reply',
-        authorType: 'OPERATOR',
-        authorUserId: 9,
-        body: 'Te comparto la respuesta',
-        metadata: {
-          source: 'admin-reply',
-          channel: 'webchat',
-          deliveryStatus: 'internal_only',
+    expect(prisma.conversationMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          conversationId: 'conv_reply',
+          authorType: 'OPERATOR',
+          authorUserId: 9,
+          body: 'Te comparto la respuesta',
+          normalizedText: 'Te comparto la respuesta',
+          metadata: expect.objectContaining({
+            source: 'admin-reply',
+            channel: 'webchat',
+            deliveryStatus: 'internal_only',
+            attachments: null,
+            messageElements: [
+              {
+                kind: 'text',
+                label: 'mensaje',
+                source: 'message',
+                preview: 'Te comparto la respuesta',
+              },
+            ],
+            messageContextOrigin: ['message_text', 'message_element:text'],
+          }),
+          payload: expect.objectContaining({
+            attachments: null,
+            messageElements: [
+              {
+                kind: 'text',
+                label: 'mensaje',
+                source: 'message',
+                preview: 'Te comparto la respuesta',
+              },
+            ],
+            messageContextOrigin: ['message_text', 'message_element:text'],
+          }),
+        }),
+        select: {
+          id: true,
+          createdAt: true,
         },
       }),
-      select: {
-        createdAt: true,
-      },
-    })
+    )
     expect(prisma.conversation.update).toHaveBeenCalledWith({
       where: { id: 'conv_reply' },
       data: {
@@ -1084,6 +1622,31 @@ describe('ConversationsService', () => {
             fallbackReason: null,
             sourceCount: 0,
             sources: [],
+            audit: {
+              role: 'customer_public',
+              intentKey: 'customer.light',
+              actionKey: null,
+              stage: 'deterministic_decision',
+              stageHistory: ['intent_detection', 'deterministic_decision'],
+              blockedTools: [],
+              executedTools: [],
+              toolCalls: [],
+              referencedMessages: [
+                {
+                  messageId: 'msg_customer_1',
+                  createdAt: createdAt.toISOString(),
+                  preview: 'Hola',
+                },
+              ],
+              detail: 'saludo simple resuelto localmente',
+              input: 'Hola',
+              grounded: false,
+              needsHuman: false,
+              fallbackReason: null,
+              fallbackActivated: false,
+              taskChanged: false,
+              createdAt: createdAt.toISOString(),
+            },
             updatedAt: createdAt.toISOString(),
           },
         },
@@ -1104,7 +1667,17 @@ describe('ConversationsService', () => {
             body: 'Estas son las opciones encontradas',
             normalizedText: 'Estas son las opciones encontradas',
             payload: null,
-            metadata: { source: 'ai-agent-service', provider: 'mock' },
+            metadata: {
+              source: 'ai-agent-service',
+              provider: 'mock',
+              aiResponse: {
+                finalUserText: 'Estas son las opciones encontradas',
+                debugSummary: '[debug]\netapa=deterministic_decision',
+                auditPayload: {
+                  stage: 'deterministic_decision',
+                },
+              },
+            },
             sentAt: createdAt,
             receivedAt: null,
             createdAt,
@@ -1118,8 +1691,48 @@ describe('ConversationsService', () => {
     })
 
     const result = await service.replyAsAgent('conv_agent_reply', {
-      body: 'Estas son las opciones encontradas',
-      metadata: { provider: 'mock' },
+      body: 'Estas son las opciones encontradas\n\n[debug]\netapa=deterministic_decision',
+      finalUserText: 'Estas son las opciones encontradas',
+      debugSummary: '[debug]\netapa=deterministic_decision',
+      auditPayload: {
+        stage: 'deterministic_decision',
+        stageHistory: ['intent_detection', 'deterministic_decision'],
+        intentSource: 'hybrid',
+        intentConfidence: 0.84,
+        decisionPath: ['message:direct_rule', 'context:message_element'],
+        referencedMessages: [
+          {
+            messageId: 'msg_customer_1',
+            createdAt: createdAt.toISOString(),
+            preview: 'Hola',
+          },
+        ],
+        messageElementsUsed: ['audio'],
+        messageElements: [
+          {
+            kind: 'audio',
+            source: 'openai_audio',
+            label: 'nota.webm',
+            preview: 'Registrar cliente Carlos...',
+          },
+        ],
+        messageContextOrigin: ['message_text', 'message_element:audio'],
+      },
+      metadata: {
+        provider: 'mock',
+        aiMemory: {
+          taskId: 'conv_agent_reply:1',
+          intentKey: 'customers.create',
+          state: 'WAITING_CONFIRMATION',
+          stateHistory: [
+            'IDLE',
+            'INTENT_DETECTED',
+            'DRAFT_CREATED',
+            'WAITING_CONFIRMATION',
+          ],
+          lastTransitionAt: createdAt.toISOString(),
+        },
+      },
     })
 
     expect(prisma.conversationMessage.create).toHaveBeenCalledWith({
@@ -1127,11 +1740,19 @@ describe('ConversationsService', () => {
         conversationId: 'conv_agent_reply',
         authorType: 'AGENT',
         body: 'Estas son las opciones encontradas',
+        normalizedText: 'Estas son las opciones encontradas',
         metadata: expect.objectContaining({
           source: 'ai-agent-service',
           provider: 'mock',
           channel: 'webchat',
           deliveryStatus: 'internal_only',
+          aiResponse: expect.objectContaining({
+            finalUserText: 'Estas son las opciones encontradas',
+            debugSummary: '[debug]\netapa=deterministic_decision',
+            auditPayload: expect.objectContaining({
+              stage: 'deterministic_decision',
+            }),
+          }),
           ai: expect.objectContaining({
             needsHuman: false,
             grounded: false,
@@ -1151,6 +1772,35 @@ describe('ConversationsService', () => {
         lastMessageAt: createdAt,
         lastOutboundAt: createdAt,
         status: 'WAITING_CUSTOMER',
+        metadata: expect.objectContaining({
+          aiState: expect.objectContaining({
+            memory: expect.objectContaining({
+              state: 'WAITING_CONFIRMATION',
+              stateHistory: [
+                'IDLE',
+                'INTENT_DETECTED',
+                'DRAFT_CREATED',
+                'WAITING_CONFIRMATION',
+              ],
+              lastTransitionAt: createdAt.toISOString(),
+            }),
+            audit: expect.objectContaining({
+              intentSource: 'hybrid',
+              intentConfidence: 0.84,
+              decisionPath: ['message:direct_rule', 'context:message_element'],
+              messageElementsUsed: ['audio'],
+              messageContextOrigin: ['message_text', 'message_element:audio'],
+              messageElements: [
+                {
+                  kind: 'audio',
+                  source: 'openai_audio',
+                  label: 'nota.webm',
+                  preview: 'Registrar cliente Carlos...',
+                },
+              ],
+            }),
+          }),
+        }),
       }),
     })
     expect(result).toMatchObject({
@@ -1159,11 +1809,153 @@ describe('ConversationsService', () => {
       aiState: {
         grounded: false,
         needsHuman: false,
+        audit: {
+          stage: 'deterministic_decision',
+          detail: 'saludo simple resuelto localmente',
+          referencedMessages: [
+            {
+              preview: 'Hola',
+            },
+          ],
+        },
       },
       latestMessage: {
         authorType: 'agent',
         body: 'Estas son las opciones encontradas',
       },
+    })
+  })
+
+  it('records approved suggestion feedback when an operator replies from a suggested answer', async () => {
+    const createdAt = new Date('2026-03-26T23:55:00.000Z')
+    const knowledge = {
+      recordSuggestionFeedback: vi.fn().mockResolvedValue({
+        id: 'feedback_1',
+        outcome: 'edited',
+        candidateId: 'cand_approved_1',
+        conversationId: 'conv_reply_feedback',
+        operatorMessageId: 'msg_operator_feedback',
+        createdAt,
+      }),
+      captureConversationMessage: vi.fn().mockResolvedValue({
+        status: 'attached',
+      }),
+      suggestApprovedRepliesForConversation: vi.fn().mockResolvedValue({
+        conversationId: 'conv_reply_feedback',
+        targetMessageId: null,
+        items: [],
+      }),
+    }
+    const serviceWithKnowledge = new ConversationsService(
+      prisma as never,
+      config as never,
+      undefined,
+      knowledge as never,
+    )
+
+    prisma.conversation.findUnique
+      .mockResolvedValueOnce({
+        id: 'conv_reply_feedback',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'WEBCHAT',
+        status: 'OPEN',
+        controlMode: 'HUMAN',
+        subject: 'Consulta',
+        externalUserId: 'guest_77',
+        externalThreadId: 'webchat:guest_77',
+        externalChannelRef: '/shop',
+        metadata: null,
+        createdAt,
+        updatedAt: createdAt,
+        customer: null,
+        assignedToUser: {
+          id: 9,
+          name: 'Operador',
+          email: 'operador@example.com',
+        },
+        inboxAccount: null,
+        participants: [],
+        messages: [],
+        handoffEvents: [],
+        toolCalls: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'conv_reply_feedback',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'WEBCHAT',
+        status: 'WAITING_CUSTOMER',
+        controlMode: 'HUMAN',
+        needsHuman: false,
+        subject: 'Consulta',
+        externalUserId: 'guest_77',
+        externalThreadId: 'webchat:guest_77',
+        externalChannelRef: '/shop',
+        metadata: null,
+        createdAt,
+        updatedAt: createdAt,
+        customer: null,
+        assignedToUser: {
+          id: 9,
+          name: 'Operador',
+          email: 'operador@example.com',
+        },
+        inboxAccount: null,
+        participants: [],
+        messages: [
+          {
+            id: 'msg_operator_feedback',
+            authorType: 'OPERATOR',
+            kind: 'TEXT',
+            body: 'Perfecto, reviso el estado y te confirmo hoy mismo.',
+            normalizedText: 'Perfecto, reviso el estado y te confirmo hoy mismo.',
+            payload: null,
+            metadata: { source: 'admin-reply' },
+            sentAt: createdAt,
+            receivedAt: null,
+            createdAt,
+            inboxMessage: {
+              queue: null,
+              events: [],
+            },
+          },
+        ],
+        handoffEvents: [],
+        toolCalls: [],
+      })
+    prisma.conversationMessage.create.mockResolvedValue({
+      id: 'msg_operator_feedback',
+      createdAt,
+    })
+
+    await serviceWithKnowledge.replyAsOperator(
+      'conv_reply_feedback',
+      {
+        body: 'Perfecto, reviso el estado y te confirmo hoy mismo.',
+        kind: 'text',
+        aiSuggestionFeedback: {
+          candidateId: 'cand_approved_1',
+          targetMessageId: 'msg_customer_1',
+          targetMessageText: 'Necesito ayuda con mi pedido',
+          suggestedText:
+            'Perfecto, reviso el estado y te confirmo enseguida.',
+          outcome: 'edited',
+        },
+      },
+      9,
+    )
+
+    expect(knowledge.recordSuggestionFeedback).toHaveBeenCalledWith({
+      conversationId: 'conv_reply_feedback',
+      candidateId: 'cand_approved_1',
+      actorUserId: 9,
+      outcome: 'edited',
+      targetMessageId: 'msg_customer_1',
+      targetMessageText: 'Necesito ayuda con mi pedido',
+      suggestedText: 'Perfecto, reviso el estado y te confirmo enseguida.',
+      finalText: 'Perfecto, reviso el estado y te confirmo hoy mismo.',
+      operatorMessageId: 'msg_operator_feedback',
     })
   })
 
@@ -1266,6 +2058,341 @@ describe('ConversationsService', () => {
           status: 'executed',
         },
       ],
+    })
+  })
+
+  it('persists an operator email reply as failed delivery when external dispatch fails', async () => {
+    const createdAt = new Date('2026-03-27T18:10:00.000Z')
+    const inboxService = {
+      sendMessage: vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            'Email channel adapter credentials are not configured. Review INBOX_EMAIL_* environment variables.',
+          ),
+        ),
+    }
+    const serviceWithInbox = new ConversationsService(
+      prisma as never,
+      config as never,
+      inboxService as never,
+    )
+
+    prisma.conversation.findUnique
+      .mockResolvedValueOnce({
+        id: 'conv_email_failed_reply',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'EMAIL',
+        status: 'WAITING_INTERNAL',
+        controlMode: 'HUMAN',
+        subject: 'Consulta email',
+        inboxAccountId: 'acc_email',
+        externalUserId: 'cliente@example.com',
+        externalThreadId: 'thread-email-1',
+        externalChannelRef: 'cliente@example.com',
+        lastMessageAt: createdAt,
+        lastInboundAt: createdAt,
+        lastOutboundAt: null,
+        createdAt,
+        updatedAt: createdAt,
+        customer: {
+          id: 44,
+          name: 'Cliente Email',
+          email: 'cliente@example.com',
+          phoneNumber: null,
+        },
+        assignedToUser: {
+          id: 9,
+          name: 'Operador',
+          email: 'operador@example.com',
+        },
+        inboxAccount: {
+          id: 'acc_email',
+          displayName: 'Desarrollo Software-Strategy',
+          address: 'desarrollo@software-strategy.com',
+          channel: 'EMAIL',
+        },
+        participants: [],
+        messages: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'conv_email_failed_reply',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'EMAIL',
+        status: 'WAITING_INTERNAL',
+        controlMode: 'HUMAN',
+        needsHuman: false,
+        subject: 'Consulta email',
+        inboxAccountId: 'acc_email',
+        externalUserId: 'cliente@example.com',
+        externalThreadId: 'thread-email-1',
+        externalChannelRef: 'cliente@example.com',
+        metadata: null,
+        createdAt,
+        updatedAt: createdAt,
+        customer: {
+          id: 44,
+          name: 'Cliente Email',
+          email: 'cliente@example.com',
+          phoneNumber: null,
+        },
+        assignedToUser: {
+          id: 9,
+          name: 'Operador',
+          email: 'operador@example.com',
+        },
+        inboxAccount: {
+          id: 'acc_email',
+          displayName: 'Desarrollo Software-Strategy',
+          address: 'desarrollo@software-strategy.com',
+          channel: 'EMAIL',
+        },
+        participants: [],
+        messages: [
+          {
+            id: 'msg_email_failed_reply',
+            authorType: 'OPERATOR',
+            kind: 'EMAIL',
+            body: 'Te respondo por este medio.',
+            normalizedText: 'Te respondo por este medio.',
+            payload: null,
+            metadata: {
+              source: 'admin-reply',
+              channel: 'email',
+              deliveryStatus: 'failed',
+              errorCode: 'dispatch_failed',
+              errorMessage:
+                'Email channel adapter credentials are not configured. Review INBOX_EMAIL_* environment variables.',
+            },
+            sentAt: createdAt,
+            receivedAt: null,
+            createdAt,
+            inboxMessage: {
+              queue: null,
+              events: [],
+            },
+          },
+        ],
+        handoffEvents: [],
+        toolCalls: [],
+      })
+
+    prisma.conversationMessage.create.mockResolvedValue({
+      id: 'msg_email_failed_reply',
+      createdAt,
+    })
+
+    const result = await serviceWithInbox.replyAsOperator(
+      'conv_email_failed_reply',
+      {
+        body: 'Te respondo por este medio.',
+        kind: 'text',
+      },
+      9,
+    )
+
+    expect(inboxService.sendMessage).toHaveBeenCalled()
+    expect(prisma.conversationMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          kind: 'EMAIL',
+          metadata: expect.objectContaining({
+            channel: 'email',
+            deliveryStatus: 'failed',
+            errorCode: 'dispatch_failed',
+            errorMessage:
+              'Email channel adapter credentials are not configured. Review INBOX_EMAIL_* environment variables.',
+          }),
+        }),
+      }),
+    )
+    expect(prisma.conversation.update).toHaveBeenCalledWith({
+      where: { id: 'conv_email_failed_reply' },
+      data: {
+        controlMode: 'HUMAN',
+        assignedToUserId: 9,
+        lastMessageAt: createdAt,
+        lastOutboundAt: createdAt,
+        status: 'WAITING_INTERNAL',
+      },
+    })
+    expect(result).toMatchObject({
+      id: 'conv_email_failed_reply',
+      latestMessage: {
+        authorType: 'operator',
+        kind: 'email',
+        preview: 'Te respondo por este medio.',
+      },
+    })
+  })
+
+  it('forces handoff when an agent reply cannot be delivered through email', async () => {
+    const createdAt = new Date('2026-03-27T18:20:00.000Z')
+    const inboxService = {
+      sendMessage: vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            'Email channel adapter credentials are not configured. Review INBOX_EMAIL_* environment variables.',
+          ),
+        ),
+    }
+    const serviceWithInbox = new ConversationsService(
+      prisma as never,
+      config as never,
+      inboxService as never,
+    )
+
+    prisma.conversation.findUnique
+      .mockResolvedValueOnce({
+        id: 'conv_agent_email_failed',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'EMAIL',
+        status: 'WAITING_INTERNAL',
+        controlMode: 'AI',
+        subject: 'Consulta email',
+        inboxAccountId: 'acc_email',
+        externalUserId: 'cliente@example.com',
+        externalThreadId: 'thread-email-2',
+        externalChannelRef: 'cliente@example.com',
+        lastMessageAt: createdAt,
+        lastInboundAt: createdAt,
+        lastOutboundAt: null,
+        createdAt,
+        updatedAt: createdAt,
+        metadata: null,
+        customer: {
+          id: 45,
+          name: 'Cliente Email',
+          email: 'cliente@example.com',
+          phoneNumber: null,
+        },
+        assignedToUser: null,
+        inboxAccount: {
+          id: 'acc_email',
+          displayName: 'Desarrollo Software-Strategy',
+          address: 'desarrollo@software-strategy.com',
+          channel: 'EMAIL',
+        },
+        participants: [],
+        messages: [],
+      })
+      .mockResolvedValueOnce({
+        id: 'conv_agent_email_failed',
+        tenantKey: 'urucortinas',
+        scope: 'CUSTOMER_PUBLIC',
+        channel: 'EMAIL',
+        status: 'WAITING_INTERNAL',
+        controlMode: 'HUMAN',
+        needsHuman: true,
+        subject: 'Consulta email',
+        inboxAccountId: 'acc_email',
+        externalUserId: 'cliente@example.com',
+        externalThreadId: 'thread-email-2',
+        externalChannelRef: 'cliente@example.com',
+        metadata: {
+          aiState: {
+            needsHuman: true,
+            grounded: false,
+            fallbackReason: 'outbound_dispatch_failed',
+            sourceCount: 0,
+            sources: [],
+            updatedAt: createdAt.toISOString(),
+          },
+        },
+        createdAt,
+        updatedAt: createdAt,
+        customer: {
+          id: 45,
+          name: 'Cliente Email',
+          email: 'cliente@example.com',
+          phoneNumber: null,
+        },
+        assignedToUser: null,
+        inboxAccount: {
+          id: 'acc_email',
+          displayName: 'Desarrollo Software-Strategy',
+          address: 'desarrollo@software-strategy.com',
+          channel: 'EMAIL',
+        },
+        participants: [],
+        messages: [
+          {
+            id: 'msg_agent_email_failed',
+            authorType: 'AGENT',
+            kind: 'EMAIL',
+            body: 'Te comparto la respuesta automática.',
+            normalizedText: 'Te comparto la respuesta automática.',
+            payload: null,
+            metadata: {
+              source: 'ai-agent-service',
+              channel: 'email',
+              deliveryStatus: 'failed',
+              errorCode: 'dispatch_failed',
+              errorMessage:
+                'Email channel adapter credentials are not configured. Review INBOX_EMAIL_* environment variables.',
+              ai: {
+                needsHuman: true,
+                fallbackReason: 'outbound_dispatch_failed',
+              },
+            },
+            sentAt: createdAt,
+            receivedAt: null,
+            createdAt,
+            inboxMessage: {
+              queue: null,
+              events: [],
+            },
+          },
+        ],
+        handoffEvents: [],
+        toolCalls: [],
+      })
+
+    prisma.conversationMessage.create.mockResolvedValue({
+      id: 'msg_agent_email_failed',
+      createdAt,
+    })
+
+    await serviceWithInbox.replyAsAgent('conv_agent_email_failed', {
+      body: 'Te comparto la respuesta automática.',
+      finalUserText: 'Te comparto la respuesta automática.',
+      metadata: {
+        provider: 'mock',
+        channel: 'email',
+      },
+      auditPayload: {
+        stage: 'deterministic_answer',
+      },
+    })
+
+    expect(inboxService.sendMessage).toHaveBeenCalled()
+    expect(prisma.conversation.update).toHaveBeenCalledWith({
+      where: { id: 'conv_agent_email_failed' },
+      data: expect.objectContaining({
+        controlMode: 'HUMAN',
+        needsHuman: true,
+        status: 'WAITING_INTERNAL',
+        metadata: expect.objectContaining({
+          aiState: expect.objectContaining({
+            needsHuman: true,
+            fallbackReason: 'outbound_dispatch_failed',
+          }),
+        }),
+      }),
+    })
+    expect(prisma.conversationHandoffEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        conversationId: 'conv_agent_email_failed',
+        notes:
+          'Email channel adapter credentials are not configured. Review INBOX_EMAIL_* environment variables.',
+        metadata: expect.objectContaining({
+          reason: 'outbound_dispatch_failed',
+        }),
+      }),
     })
   })
 
@@ -1413,10 +2540,32 @@ describe('ConversationsService', () => {
 
   it('ingests an inbound email into inbox and conversation hub', async () => {
     const createdAt = new Date('2026-03-25T04:00:00.000Z')
-    prisma.inboxAccount.upsert.mockResolvedValue({
+    config.get.mockImplementation((key: string) => {
+      if (key === 'INBOX_EMAIL_DEFAULT_FROM') {
+        return 'desarrollo@software-strategy.com'
+      }
+      return undefined
+    })
+    prisma.inboxAccount.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
       id: 'acc_email',
-      displayName: 'ventas@urucortinas.com',
-      address: 'ventas@urucortinas.com',
+      displayName: 'Desarrollo Software-Strategy',
+      address: 'desarrollo@software-strategy.com',
+      channel: 'EMAIL',
+      metadata: {
+        defaults: {
+          fromAddress: 'desarrollo@software-strategy.com',
+        },
+        imap: { host: 'mail.software-strategy.com' },
+        smtp: { host: 'mail.software-strategy.com' },
+        validation: {
+          smtpTlsVerifiedAt: '2026-03-27T20:00:00.000Z',
+          imapTlsVerifiedAt: '2026-03-27T20:00:00.000Z',
+          smtpVerifyVerifiedAt: '2026-03-27T20:00:00.000Z',
+          verifiedAt: '2026-03-27T20:00:00.000Z',
+        },
+      },
     })
     prisma.inboxQueue.upsert.mockResolvedValue({
       id: 'queue_support',
@@ -1477,6 +2626,7 @@ describe('ConversationsService', () => {
         direction: 'INBOUND',
       }),
     })
+    expect(prisma.inboxAccount.upsert).not.toHaveBeenCalled()
     expect(prisma.conversationMessage.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         conversationId: 'conv_email',
@@ -1650,6 +2800,26 @@ describe('ConversationsService', () => {
     )
 
     expect(result.items).toHaveLength(1)
+    expect(result.items[0]).toMatchObject({
+      key: 'internal:assistant',
+      kind: 'internal',
+      label: 'Asistente interno',
+      conversationId: 'conv_internal',
+    })
+  })
+
+  it('keeps the internal assistant visible even when the contact search targets customers', async () => {
+    prisma.customer.findMany.mockResolvedValue([])
+    prisma.conversation.findFirst.mockResolvedValue({
+      id: 'conv_internal',
+      updatedAt: new Date('2026-03-25T12:00:00.000Z'),
+    })
+
+    const result = await service.listContacts(
+      { limit: 10, search: 'cliente demo' },
+      7,
+    )
+
     expect(result.items[0]).toMatchObject({
       key: 'internal:assistant',
       kind: 'internal',

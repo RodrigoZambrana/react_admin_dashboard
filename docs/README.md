@@ -30,12 +30,19 @@
 - [AI_OPERATING_MODEL.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_OPERATING_MODEL.md)
 - [AI_IMPLEMENTATION_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_IMPLEMENTATION_PLAN.md)
 - [AI_CONVERSATIONAL_CLOSURE_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_CONVERSATIONAL_CLOSURE_PLAN.md)
+- [AI_RUNTIME_MINIMAL_DESIGN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_RUNTIME_MINIMAL_DESIGN.md)
+- [AI_MULTIMODAL_EXECUTION_BACKLOG.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_MULTIMODAL_EXECUTION_BACKLOG.md)
+- [AI_ACTIVE_KNOWLEDGE_INGESTION_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_ACTIVE_KNOWLEDGE_INGESTION_PLAN.md)
+- [AI_KNOWLEDGE_ADMIN_ABM_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_KNOWLEDGE_ADMIN_ABM_PLAN.md)
+- [AI_KNOWLEDGE_SNAPSHOT_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_KNOWLEDGE_SNAPSHOT_PLAN.md)
+- [AI_ERROR_FLOW_CAPTURE_SCHEMA.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_ERROR_FLOW_CAPTURE_SCHEMA.md)
 - [AI_USER_CAPABILITIES_MODEL.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_USER_CAPABILITIES_MODEL.md)
 - [ai-role-matrix.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-role-matrix.md)
 - [ai-safe-operations-survey.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-safe-operations-survey.md)
 - [knowledge/README.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/knowledge/README.md)
 - [canonical-messaging-contract.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/canonical-messaging-contract.md)
 - [shared-messaging-primitives-spec.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/shared-messaging-primitives-spec.md)
+- [REGRESSION_CLEAN_STATE.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/REGRESSION_CLEAN_STATE.md)
 
 ## AI / Reference And Historic Plans
 

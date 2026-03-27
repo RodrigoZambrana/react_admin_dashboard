@@ -25,6 +25,7 @@ import {
 import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
 import { InboxService } from '../inbox/inbox.service'
+import { KnowledgeService } from '../knowledge/knowledge.service'
 import { CreateWebchatSessionDto } from './dto/create-webchat-session.dto'
 import { ListConversationsDto } from './dto/list-conversations.dto'
 import { ReplyConversationDto } from './dto/reply-conversation.dto'
@@ -40,12 +41,18 @@ import { CreateAdminInternalSessionDto } from './dto/create-admin-internal-sessi
 import { RerouteConversationDto } from './dto/reroute-conversation.dto'
 import { ListConversationContactsDto } from './dto/list-conversation-contacts.dto'
 import { StartContactConversationDto } from './dto/start-contact-conversation.dto'
+import { ConversationAiSuggestionFeedbackDto } from './dto/conversation-ai-suggestion-feedback.dto'
+import { validateConversationAttachment } from './conversation-attachment-policy'
 import {
   type AiConversationRole,
   normalizeAiConversationRole,
   resolveAiConversationRole,
   resolveAiScopeFromRole,
 } from '../ai/role-engine'
+import {
+  isOperationalEmailInboxAccount,
+  resolveConfiguredEmailInboxAddress,
+} from '../inbox/common/email-account-validity'
 
 type OutboundDispatchResult = {
   kind: ConversationMessageKind
@@ -54,6 +61,12 @@ type OutboundDispatchResult = {
   inboxMessageId?: string | null
   metadata?: Record<string, unknown>
   queueId?: string | null
+}
+
+type OutboundDispatchResolution = {
+  outbound: OutboundDispatchResult
+  failed: boolean
+  errorMessage: string | null
 }
 
 type ConversationReadStateSummary = {
@@ -89,6 +102,7 @@ export class ConversationsService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     @Optional() private readonly inboxService?: InboxService,
+    @Optional() private readonly knowledgeService?: KnowledgeService,
   ) {}
 
   async listConversations(query: ListConversationsDto, currentUserId?: number) {
@@ -279,19 +293,24 @@ export class ConversationsService {
       this.prisma.conversation.count({ where }),
     ])
 
+    const scopedItems =
+      query.channel === 'admin_chat' ? items.slice(0, 1) : items
+    const scopedTotal =
+      query.channel === 'admin_chat' ? Math.min(scopedItems.length, 1) : total
+
     const readStateByConversationId = await this.buildReadStateMap(
-      items.map((item) => item.id),
+      scopedItems.map((item) => item.id),
       currentUserId,
     )
 
     return {
-      items: items.map((item) =>
+      items: scopedItems.map((item) =>
         this.mapConversationSummary(
           item,
           readStateByConversationId.get(item.id) ?? null,
         ),
       ),
-      total,
+      total: scopedTotal,
       page,
       pageSize,
       filters: {
@@ -448,18 +467,39 @@ export class ConversationsService {
       return null
     }
 
-    const readState =
+    const [readState, aiSuggestions] = await Promise.all([
       currentUserId != null
-        ? await this.buildReadStateMap([conversation.id], currentUserId).then(
+        ? this.buildReadStateMap([conversation.id], currentUserId).then(
             (result) => result.get(conversation.id) ?? null,
           )
-        : null
+        : Promise.resolve(null),
+      this.knowledgeService
+        ? this.knowledgeService
+            .suggestApprovedRepliesForConversation({
+              conversationId: conversation.id,
+            })
+            .catch(() => ({
+              conversationId: conversation.id,
+              targetMessageId: null,
+              items: [],
+            }))
+        : Promise.resolve({
+            conversationId: conversation.id,
+            targetMessageId: null,
+            items: [],
+          }),
+    ])
 
     return {
       ...this.mapConversationSummary(conversation, readState),
+      aiSuggestions,
       messages: conversation.messages.map((message) => ({
         id: message.id,
         authorType: this.normalizeEnum(message.authorType),
+        authorLabel: this.resolveConversationMessageAuthorLabel(
+          message,
+          conversation,
+        ),
         kind: this.normalizeEnum(message.kind),
         body: message.body ?? null,
         normalizedText: message.normalizedText ?? null,
@@ -809,30 +849,26 @@ export class ConversationsService {
       }
     }
 
-    const internalMatches =
-      !normalizedSearch ||
-      INTERNAL_ASSISTANT_CONTACT_ALIASES.some((alias) =>
-        alias.toLowerCase().includes(normalizedSearch),
-      )
-
     return {
       items: [
-        ...(internalMatches
-          ? [
-              {
-                key: INTERNAL_ASSISTANT_CONTACT_KEY,
-                kind: 'internal' as const,
-                label: INTERNAL_ASSISTANT_CONTACT_LABEL,
-                description: 'Chat interno con IA operativa',
-                email: null,
-                phoneNumber: null,
-                channel: 'admin_chat' as const,
-                conversationId: internalConversation?.id ?? null,
-                hasDeliveryChannel: true,
-                updatedAt: internalConversation?.updatedAt ?? null,
-              },
-            ]
-          : []),
+        {
+          key: INTERNAL_ASSISTANT_CONTACT_KEY,
+          kind: 'internal' as const,
+          label: INTERNAL_ASSISTANT_CONTACT_LABEL,
+          description:
+            normalizedSearch &&
+            INTERNAL_ASSISTANT_CONTACT_ALIASES.some((alias) =>
+              alias.toLowerCase().includes(normalizedSearch),
+            )
+              ? 'Coincidencia interna con IA operativa'
+              : 'Chat interno con IA operativa',
+          email: null,
+          phoneNumber: null,
+          channel: 'admin_chat' as const,
+          conversationId: internalConversation?.id ?? null,
+          hasDeliveryChannel: true,
+          updatedAt: internalConversation?.updatedAt ?? null,
+        },
         ...customers.map((customer) => {
           const latestConversation = latestConversationByCustomer.get(customer.id)
           const preferredChannel =
@@ -1383,6 +1419,14 @@ export class ConversationsService {
             kind: this.normalizeEnum(message.kind),
             text: message.body ?? message.normalizedText ?? '',
             createdAt: message.createdAt,
+            messageElements: this.extractStoredMessageElements(
+              message.payload,
+              message.metadata,
+            ),
+            messageContextOrigin: this.extractStoredMessageContextOrigin(
+              message.payload,
+              message.metadata,
+            ),
             attachments: rawAttachments
               .map((entry) => this.asRecord(entry))
               .filter((entry): entry is Record<string, unknown> => Boolean(entry))
@@ -1395,10 +1439,13 @@ export class ConversationsService {
                   typeof entry.contentType === 'string'
                     ? entry.contentType
                     : null,
+                content:
+                  typeof entry.content === 'string' ? entry.content : null,
                 textContent:
                   typeof entry.textContent === 'string'
                     ? entry.textContent
                     : null,
+                metadata: this.asRecord(entry.metadata),
               })),
           }
         }),
@@ -1411,6 +1458,8 @@ export class ConversationsService {
       select: {
         id: true,
         channel: true,
+        scope: true,
+        customerId: true,
         externalUserId: true,
       },
     })
@@ -1422,6 +1471,14 @@ export class ConversationsService {
     const attachments = this.normalizeConversationAttachments(input.attachments)
     const normalizedText =
       input.text?.trim() || this.buildAttachmentSummary(attachments)
+    const messageElements = this.buildStoredMessageElements({
+      text: normalizedText,
+      attachments,
+    })
+    const messageContextOrigin = this.buildStoredMessageContextOrigin({
+      text: input.text?.trim() || null,
+      messageElements,
+    })
 
     if (!normalizedText) {
       throw new BadRequestException('conversation.webchatMessageContentRequired')
@@ -1439,11 +1496,17 @@ export class ConversationsService {
           guestId: input.guestId?.trim() || conversation.externalUserId || null,
           hasAttachments: attachments.length > 0,
           attachments: attachments.length > 0 ? attachments : null,
+          messageElements: messageElements.length > 0 ? messageElements : null,
+          messageContextOrigin:
+            messageContextOrigin.length > 0 ? messageContextOrigin : null,
         }),
         payload:
-          attachments.length > 0
+          attachments.length > 0 || messageElements.length > 0
             ? this.toJsonValue({
-                attachments,
+                attachments: attachments.length > 0 ? attachments : null,
+                messageElements: messageElements.length > 0 ? messageElements : null,
+                messageContextOrigin:
+                  messageContextOrigin.length > 0 ? messageContextOrigin : null,
               })
             : Prisma.JsonNull,
       },
@@ -1463,9 +1526,15 @@ export class ConversationsService {
       },
     })
 
+    await this.captureKnowledgeMessage(message.id)
+
     return {
       ok: true,
       conversationId: conversation.id,
+      conversation: {
+        scope: this.normalizeEnum(conversation.scope ?? ConversationScope.CUSTOMER_PUBLIC),
+        customerId: conversation.customerId ?? null,
+      },
       message: {
         id: message.id,
         body: message.body,
@@ -1509,11 +1578,22 @@ export class ConversationsService {
       input.subject?.trim() ||
       this.buildAttachmentSummary(attachments) ||
       ''
+    const inputMetadata = this.asRecord(input.metadata)
+    const messageElements = this.buildStoredMessageElements({
+      text: normalizedText,
+      attachments,
+      explicitElements: inputMetadata?.messageElements,
+    })
+    const messageContextOrigin = this.buildStoredMessageContextOrigin({
+      text: input.text?.trim() || input.subject?.trim() || null,
+      messageElements,
+      explicitOrigin: inputMetadata?.messageContextOrigin,
+    })
     if (!normalizedText) {
       throw new BadRequestException('conversation.inboundTextRequired')
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const channel = this.mapChannel(input.channel)
       const inboxChannel = this.mapInboxChannel(input.channel)
       const tenantKey = input.tenantKey.trim()
@@ -1657,6 +1737,11 @@ export class ConversationsService {
                   source: 'channel-adapter',
                   hasAttachments: attachments.length > 0,
                   attachments: attachments.length > 0 ? attachments : null,
+                  messageElements: messageElements.length > 0 ? messageElements : null,
+                  messageContextOrigin:
+                    messageContextOrigin.length > 0
+                      ? messageContextOrigin
+                      : null,
                   ...(input.metadata ?? {}),
                 }),
               },
@@ -1681,12 +1766,18 @@ export class ConversationsService {
           payload: this.toJsonValue({
             subject: input.subject?.trim() || null,
             attachments: attachments.length > 0 ? attachments : null,
+            messageElements: messageElements.length > 0 ? messageElements : null,
+            messageContextOrigin:
+              messageContextOrigin.length > 0 ? messageContextOrigin : null,
           }),
           metadata: this.toJsonValue({
             source: 'channel-adapter',
             channel: input.channel,
             hasAttachments: attachments.length > 0,
             attachments: attachments.length > 0 ? attachments : null,
+            messageElements: messageElements.length > 0 ? messageElements : null,
+            messageContextOrigin:
+              messageContextOrigin.length > 0 ? messageContextOrigin : null,
             ...(input.metadata ?? {}),
           }),
           receivedAt,
@@ -1738,6 +1829,12 @@ export class ConversationsService {
           : null,
       }
     })
+
+    if (result.messageId) {
+      await this.captureKnowledgeMessage(result.messageId)
+    }
+
+    return result
   }
 
   async takeoverConversation(
@@ -1977,13 +2074,42 @@ export class ConversationsService {
     actorUserId: number,
   ) {
     const conversation = await this.requireConversationForOutbound(id)
-    const outbound = await this.dispatchOutboundMessage(
-      conversation,
-      input.body,
-      'admin-reply',
-    )
+    const attachments = this.normalizeConversationAttachments(input.attachments)
+    const normalizedBody = input.body?.trim() || ''
+    const outboundBody =
+      normalizedBody || this.buildAttachmentSummary(attachments) || ''
 
-    await this.prisma.$transaction(async (tx) => {
+    if (!outboundBody) {
+      throw new BadRequestException('conversation.replyBodyOrAttachmentRequired')
+    }
+
+    const dispatch = await this.dispatchOutboundMessageSafely(
+      conversation,
+      outboundBody,
+      'admin-reply',
+      attachments.length > 0
+        ? {
+            attachments,
+          }
+        : undefined,
+    )
+    const outbound = dispatch.outbound
+    const nextOperatorStatus =
+      dispatch.failed && conversation.scope !== ConversationScope.ADMIN_INTERNAL
+        ? ConversationStatus.WAITING_INTERNAL
+        : conversation.scope === ConversationScope.ADMIN_INTERNAL
+          ? ConversationStatus.WAITING_INTERNAL
+          : ConversationStatus.WAITING_CUSTOMER
+    const storedMessageElements = this.buildStoredMessageElements({
+      text: outboundBody,
+      attachments,
+    })
+    const storedMessageContextOrigin = this.buildStoredMessageContextOrigin({
+      text: outboundBody,
+      messageElements: storedMessageElements,
+    })
+
+    const persistedMessage = await this.prisma.$transaction(async (tx) => {
       const message = await tx.conversationMessage.create({
         data: {
           conversationId: id,
@@ -1995,15 +2121,39 @@ export class ConversationsService {
           authorUserId: actorUserId,
           externalMessageId: outbound.externalMessageId ?? null,
           inboxMessageId: outbound.inboxMessageId ?? null,
-          body: input.body,
-          normalizedText: input.body,
+          body: outboundBody,
+          normalizedText: outboundBody,
           sentAt: outbound.sentAt,
-          metadata: {
+          metadata: this.toJsonValue({
             source: 'admin-reply',
             ...(outbound.metadata ?? {}),
-          },
+            attachments: attachments.length > 0 ? attachments : null,
+            messageElements:
+              storedMessageElements.length > 0 ? storedMessageElements : null,
+            messageContextOrigin:
+              storedMessageContextOrigin.length > 0
+                ? storedMessageContextOrigin
+                : null,
+          }),
+          payload:
+            attachments.length > 0 ||
+            storedMessageElements.length > 0 ||
+            storedMessageContextOrigin.length > 0
+              ? this.toJsonValue({
+                  attachments: attachments.length > 0 ? attachments : null,
+                  messageElements:
+                    storedMessageElements.length > 0
+                      ? storedMessageElements
+                      : null,
+                  messageContextOrigin:
+                    storedMessageContextOrigin.length > 0
+                      ? storedMessageContextOrigin
+                      : null,
+                })
+              : Prisma.JsonNull,
         },
         select: {
+          id: true,
           createdAt: true,
         },
       })
@@ -2018,10 +2168,7 @@ export class ConversationsService {
           assignedToUserId: actorUserId,
           lastMessageAt: message.createdAt,
           lastOutboundAt: message.createdAt,
-          status:
-            conversation.scope === ConversationScope.ADMIN_INTERNAL
-              ? ConversationStatus.WAITING_INTERNAL
-              : ConversationStatus.WAITING_CUSTOMER,
+          status: nextOperatorStatus,
         },
       })
 
@@ -2043,34 +2190,71 @@ export class ConversationsService {
           manualUnread: false,
         },
       })
+
+      return message
     })
 
+    await this.captureKnowledgeMessage(persistedMessage.id, {
+      actorUserId,
+    })
+    await this.trackConversationSuggestionFeedback(
+      id,
+      input.aiSuggestionFeedback,
+      actorUserId,
+      {
+        operatorMessageId: persistedMessage.id,
+        finalText: outboundBody,
+      },
+    )
+
     if (conversation.scope === ConversationScope.ADMIN_INTERNAL) {
-      await this.respondToAdminInternalMessage(conversation, actorUserId, input.body)
+      await this.respondToAdminInternalMessage(conversation, actorUserId, outboundBody)
     }
 
     return this.getConversation(id, actorUserId)
   }
 
+  async recordConversationSuggestionFeedback(
+    id: string,
+    feedback: ConversationAiSuggestionFeedbackDto,
+    actorUserId: number,
+  ) {
+    const result = await this.persistConversationSuggestionFeedback(
+      id,
+      feedback,
+      actorUserId,
+    )
+
+    return {
+      ...result,
+    }
+  }
+
   async replyAsAgent(id: string, input: AgentReplyDto) {
     const conversation = await this.requireConversationForOutbound(id)
-    const outbound = await this.dispatchOutboundMessage(
+    const finalUserText = input.finalUserText?.trim() || input.body.trim()
+    const debugSummary = input.debugSummary?.trim() || null
+    const auditPayload = this.asRecord(input.auditPayload)
+    const dispatch = await this.dispatchOutboundMessageSafely(
       conversation,
-      input.body,
+      finalUserText,
       'ai-agent-service',
       input.metadata ?? undefined,
     )
+    const outbound = dispatch.outbound
     const groundingState = this.normalizeGroundingState(
       input.grounding,
       input.needsHuman ?? false,
       input.metadata ?? undefined,
     )
     const nextControlMode =
-      input.needsHuman && this.isCustomerFacingScope(conversation.scope)
+      (input.needsHuman || dispatch.failed) &&
+      this.isCustomerFacingScope(conversation.scope)
         ? ConversationControlMode.HUMAN
         : ConversationControlMode.AI
     const nextStatus =
-      input.needsHuman && this.isCustomerFacingScope(conversation.scope)
+      (input.needsHuman || dispatch.failed) &&
+      this.isCustomerFacingScope(conversation.scope)
         ? ConversationStatus.WAITING_INTERNAL
         : ConversationStatus.WAITING_CUSTOMER
     const currentRole = this.normalizeConversationRoleValue(
@@ -2095,9 +2279,28 @@ export class ConversationsService {
           ? Boolean(this.asRecord(metadataRecord?.aiMemory)?.resetApplied)
           : false,
       fallbackReason: groundingState.fallbackReason,
+    }, auditPayload)
+    if (dispatch.failed) {
+      groundingState.needsHuman = true
+      groundingState.fallbackReason =
+        groundingState.fallbackReason || 'outbound_dispatch_failed'
+    }
+    const aiResponseMetadata = {
+      finalUserText,
+      debugSummary,
+      auditPayload: auditPayload ? this.toJsonValue(auditPayload) : Prisma.JsonNull,
+    }
+    const storedMessageElements = this.buildStoredMessageElements({
+      text: finalUserText,
+      explicitElements: auditPayload?.messageElements,
+    })
+    const storedMessageContextOrigin = this.buildStoredMessageContextOrigin({
+      text: finalUserText,
+      messageElements: storedMessageElements,
+      explicitOrigin: auditPayload?.messageContextOrigin,
     })
 
-    await this.prisma.$transaction(async (tx) => {
+    const persistedMessage = await this.prisma.$transaction(async (tx) => {
       const message = await tx.conversationMessage.create({
         data: {
           conversationId: id,
@@ -2105,15 +2308,33 @@ export class ConversationsService {
           kind: outbound.kind,
           externalMessageId: outbound.externalMessageId ?? null,
           inboxMessageId: outbound.inboxMessageId ?? null,
-          body: input.body,
-          normalizedText: input.body,
+          body: finalUserText,
+          normalizedText: finalUserText,
           sentAt: outbound.sentAt,
-          metadata: {
+          metadata: this.toJsonValue({
             source: 'ai-agent-service',
             ...(input.metadata ?? {}),
+            messageElements:
+              storedMessageElements.length > 0 ? storedMessageElements : null,
+            messageContextOrigin:
+              storedMessageContextOrigin.length > 0
+                ? storedMessageContextOrigin
+                : null,
+            aiResponse: aiResponseMetadata,
             ai: groundingState,
             ...(outbound.metadata ?? {}),
-          },
+          }),
+          payload:
+            storedMessageElements.length > 0 || storedMessageContextOrigin.length > 0
+              ? this.toJsonValue({
+                  messageElements:
+                    storedMessageElements.length > 0 ? storedMessageElements : null,
+                  messageContextOrigin:
+                    storedMessageContextOrigin.length > 0
+                      ? storedMessageContextOrigin
+                      : null,
+                })
+              : Prisma.JsonNull,
         },
         select: {
           id: true,
@@ -2141,7 +2362,7 @@ export class ConversationsService {
         where: { id },
         data: {
           controlMode: nextControlMode,
-          needsHuman: Boolean(input.needsHuman),
+          needsHuman: Boolean(input.needsHuman || dispatch.failed),
           lastMessageAt: message.createdAt,
           lastOutboundAt: message.createdAt,
           status: nextStatus,
@@ -2161,7 +2382,10 @@ export class ConversationsService {
         },
       })
 
-      if (input.needsHuman && this.isCustomerFacingScope(conversation.scope)) {
+      if (
+        (input.needsHuman || dispatch.failed) &&
+        this.isCustomerFacingScope(conversation.scope)
+      ) {
         await tx.conversationHandoffEvent.create({
           data: {
             conversationId: id,
@@ -2169,16 +2393,23 @@ export class ConversationsService {
             previousMode: conversation.controlMode,
             nextMode: ConversationControlMode.HUMAN,
             notes:
+              dispatch.errorMessage ||
               groundingState.fallbackReason ||
               'AI escalation due to missing approved grounding',
             metadata: {
-              reason: 'needs_human_fallback',
+              reason: dispatch.failed
+                ? 'outbound_dispatch_failed'
+                : 'needs_human_fallback',
               grounding: groundingState,
             },
           },
         })
       }
+
+      return message
     })
+
+    await this.captureKnowledgeMessage(persistedMessage.id)
 
     return this.getConversation(id)
   }
@@ -2554,6 +2785,12 @@ export class ConversationsService {
     const latestQueuedMessage = conversation.messages.find(
       (message) => message.inboxMessage?.queue,
     )
+    const latestMessagePreview = latestMessage
+      ? this.buildLatestMessagePreview(latestMessage)
+      : { preview: null, previewKind: null }
+    const latestMessageAuthorLabel = latestMessage
+      ? this.resolveConversationMessageAuthorLabel(latestMessage, conversation)
+      : null
     const queue = latestQueuedMessage?.inboxMessage?.queue ?? null
     const slaTargetMinutes = queue?.slaTargetMinutes ?? null
     const slaAgeMinutes =
@@ -2652,8 +2889,11 @@ export class ConversationsService {
                   email: latestMessage.authorUser.email,
                 }
               : null,
+            authorLabel: latestMessageAuthorLabel,
             kind: this.normalizeEnum(latestMessage.kind),
             body: latestMessage.body ?? latestMessage.normalizedText ?? null,
+            preview: latestMessagePreview.preview,
+            previewKind: latestMessagePreview.previewKind,
             createdAt: latestMessage.createdAt,
             metadata: latestMessage.metadata ?? null,
           }
@@ -2689,8 +2929,49 @@ export class ConversationsService {
     channel: InboxChannelType,
   ) {
     if (input.inboxAccountId?.trim()) {
-      return tx.inboxAccount.findUnique({
+      const explicitAccount = await tx.inboxAccount.findUnique({
         where: { id: input.inboxAccountId.trim() },
+      })
+
+      if (channel !== InboxChannelType.EMAIL) {
+        return explicitAccount
+      }
+
+      if (isOperationalEmailInboxAccount(explicitAccount, this.config)) {
+        return explicitAccount
+      }
+    }
+
+    if (channel === InboxChannelType.EMAIL) {
+      const requestedAddress = input.inboxAddress?.trim().toLowerCase() || null
+
+      if (requestedAddress) {
+        const existingRequested = await tx.inboxAccount.findUnique({
+          where: {
+            channel_address: {
+              channel,
+              address: requestedAddress,
+            },
+          },
+        })
+
+        if (isOperationalEmailInboxAccount(existingRequested, this.config)) {
+          return existingRequested
+        }
+      }
+
+      const configuredAddress = resolveConfiguredEmailInboxAddress(this.config)
+      if (!configuredAddress) {
+        return null
+      }
+
+      return tx.inboxAccount.findUnique({
+        where: {
+          channel_address: {
+            channel,
+            address: configuredAddress,
+          },
+        },
       })
     }
 
@@ -3096,6 +3377,51 @@ export class ConversationsService {
     }
   }
 
+  private async dispatchOutboundMessageSafely(
+    conversation: Awaited<ReturnType<ConversationsService['requireConversationForOutbound']>>,
+    body: string,
+    source: string,
+    extraMetadata?: Record<string, unknown>,
+  ): Promise<OutboundDispatchResolution> {
+    try {
+      return {
+        outbound: await this.dispatchOutboundMessage(
+          conversation,
+          body,
+          source,
+          extraMetadata,
+        ),
+        failed: false,
+        errorMessage: null,
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'conversation.outboundDispatchFailed'
+
+      return {
+        outbound: {
+          kind:
+            conversation.channel === ConversationChannel.EMAIL
+              ? ConversationMessageKind.EMAIL
+              : ConversationMessageKind.TEXT,
+          sentAt: new Date(),
+          queueId: conversation.messages[0]?.inboxMessage?.queueId ?? null,
+          metadata: {
+            channel: this.normalizeEnum(conversation.channel),
+            deliveryStatus: 'failed',
+            errorCode: 'dispatch_failed',
+            errorMessage,
+            ...(extraMetadata ?? {}),
+          },
+        },
+        failed: true,
+        errorMessage,
+      }
+    }
+  }
+
   private async dispatchMetaOutbound(
     conversation: Awaited<ReturnType<ConversationsService['requireConversationForOutbound']>>,
     body: string,
@@ -3249,24 +3575,117 @@ export class ConversationsService {
     const rawText = await response.text()
     const payload = rawText ? JSON.parse(rawText) : null
 
-    if (!response.ok || !payload?.ok || !payload?.response?.text?.trim()) {
+    const responseBody =
+      payload?.response?.finalUserText?.trim() || payload?.response?.text?.trim()
+
+    if (!response.ok || !payload?.ok || !responseBody) {
       return null
     }
 
     return this.replyAsAgent(conversation.id, {
-      body: payload.response.text.trim(),
+      body: responseBody,
+      finalUserText: responseBody,
+      debugSummary:
+        typeof payload.response.debugSummary === 'string'
+          ? payload.response.debugSummary
+          : undefined,
+      auditPayload:
+        this.asRecord(payload.response.auditPayload) ?? undefined,
       metadata: {
         provider: payload.response.provider ?? null,
         model: payload.response.model ?? null,
         channel: 'admin_chat',
         aiMemory: payload.response.memory ?? null,
         aiRole: payload.response.role ?? null,
-        aiAudit: payload.response.audit ?? null,
+        aiAudit:
+          this.asRecord(payload.response.auditPayload) ??
+          payload.response.audit ??
+          null,
       },
       toolCalls: payload.response.toolCalls ?? [],
       needsHuman: payload.response.needsHuman ?? false,
       grounding: payload.response.grounding ?? null,
-      audit: payload.response.audit ?? null,
+      audit:
+        this.asRecord(payload.response.auditPayload) ??
+        payload.response.audit ??
+        null,
+    })
+  }
+
+  private async captureKnowledgeMessage(
+    messageId?: string | null,
+    options?: {
+      actorUserId?: number
+    },
+  ) {
+    if (!messageId || !this.knowledgeService) {
+      return
+    }
+
+    try {
+      await this.knowledgeService.captureConversationMessage(messageId, {
+        actorUserId: options?.actorUserId,
+      })
+    } catch (error) {
+      console.error('knowledge.captureConversationMessage failed', {
+        messageId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  private async trackConversationSuggestionFeedback(
+    conversationId: string,
+    feedback: ConversationAiSuggestionFeedbackDto | undefined,
+    actorUserId: number,
+    options?: {
+      operatorMessageId?: string | null
+      finalText?: string | null
+    },
+  ) {
+    if (!feedback || !this.knowledgeService) {
+      return
+    }
+
+    try {
+      await this.persistConversationSuggestionFeedback(
+        conversationId,
+        feedback,
+        actorUserId,
+        options,
+      )
+    } catch (error) {
+      console.error('knowledge.suggestionFeedback failed', {
+        conversationId,
+        candidateId: feedback.candidateId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  private async persistConversationSuggestionFeedback(
+    conversationId: string,
+    feedback: ConversationAiSuggestionFeedbackDto,
+    actorUserId: number,
+    options?: {
+      operatorMessageId?: string | null
+      finalText?: string | null
+    },
+  ) {
+    if (!this.knowledgeService) {
+      throw new NotFoundException('knowledge.suggestionFeedbackUnavailable')
+    }
+
+    return this.knowledgeService.recordSuggestionFeedback({
+      conversationId,
+      candidateId: feedback.candidateId,
+      actorUserId,
+      outcome: feedback.outcome,
+      targetMessageId: feedback.targetMessageId ?? null,
+      targetMessageText: feedback.targetMessageText ?? null,
+      suggestedText: feedback.suggestedText ?? null,
+      finalText: options?.finalText ?? null,
+      operatorMessageId: options?.operatorMessageId ?? null,
     })
   }
 
@@ -3320,6 +3739,16 @@ export class ConversationsService {
     return {
       taskId: typeof state.taskId === 'string' ? state.taskId : null,
       intentKey: typeof state.intentKey === 'string' ? state.intentKey : null,
+      state: typeof state.state === 'string' ? state.state : null,
+      stateHistory: Array.isArray(state.stateHistory)
+        ? state.stateHistory.filter(
+            (entry): entry is string => typeof entry === 'string',
+          )
+        : [],
+      lastTransitionAt:
+        typeof state.lastTransitionAt === 'string'
+          ? state.lastTransitionAt
+          : null,
       taskSummary:
         typeof state.taskSummary === 'string' ? state.taskSummary : null,
       resetApplied: Boolean(state.resetApplied),
@@ -3369,6 +3798,25 @@ export class ConversationsService {
     return {
       role: typeof state.role === 'string' ? state.role : null,
       intentKey: typeof state.intentKey === 'string' ? state.intentKey : null,
+      intentConfidence:
+        typeof state.intentConfidence === 'number' &&
+        Number.isFinite(state.intentConfidence)
+          ? state.intentConfidence
+          : null,
+      intentSource:
+        typeof state.intentSource === 'string' ? state.intentSource : null,
+      actionKey: typeof state.actionKey === 'string' ? state.actionKey : null,
+      stage: typeof state.stage === 'string' ? state.stage : null,
+      stageHistory: Array.isArray(state.stageHistory)
+        ? state.stageHistory.filter(
+            (entry): entry is string => typeof entry === 'string',
+          )
+        : [],
+      decisionPath: Array.isArray(state.decisionPath)
+        ? state.decisionPath.filter(
+            (entry): entry is string => typeof entry === 'string',
+          )
+        : [],
       blockedTools: Array.isArray(state.blockedTools)
         ? state.blockedTools
             .filter((entry): entry is string => typeof entry === 'string')
@@ -3377,6 +3825,57 @@ export class ConversationsService {
         ? state.executedTools
             .filter((entry): entry is string => typeof entry === 'string')
         : [],
+      toolCalls: Array.isArray(state.toolCalls)
+        ? state.toolCalls
+            .map((entry) => this.asRecord(entry))
+            .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+            .map((entry) => ({
+              name: typeof entry.name === 'string' ? entry.name : null,
+              status: typeof entry.status === 'string' ? entry.status : null,
+              target: typeof entry.target === 'string' ? entry.target : null,
+            }))
+        : [],
+      referencedMessages: Array.isArray(state.referencedMessages)
+        ? state.referencedMessages
+            .map((entry) => this.asRecord(entry))
+            .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+            .map((entry) => ({
+              messageId:
+                typeof entry.messageId === 'string' ? entry.messageId : null,
+              createdAt:
+                typeof entry.createdAt === 'string' ? entry.createdAt : null,
+              preview: typeof entry.preview === 'string' ? entry.preview : null,
+            }))
+        : [],
+      messageElementsUsed: Array.isArray(state.messageElementsUsed)
+        ? state.messageElementsUsed.filter(
+            (entry): entry is string => typeof entry === 'string',
+          )
+        : [],
+      messageElements: Array.isArray(state.messageElements)
+        ? state.messageElements
+            .map((entry) => this.asRecord(entry))
+            .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+            .map((entry) => ({
+              kind: typeof entry.kind === 'string' ? entry.kind : null,
+              source: typeof entry.source === 'string' ? entry.source : null,
+              label: typeof entry.label === 'string' ? entry.label : null,
+              preview: typeof entry.preview === 'string' ? entry.preview : null,
+            }))
+        : [],
+      messageContextOrigin: Array.isArray(state.messageContextOrigin)
+        ? state.messageContextOrigin.filter(
+            (entry): entry is string => typeof entry === 'string',
+          )
+        : [],
+      detail: typeof state.detail === 'string' ? state.detail : null,
+      input: typeof state.input === 'string' ? state.input : null,
+      grounded:
+        typeof state.grounded === 'boolean' ? state.grounded : null,
+      needsHuman:
+        typeof state.needsHuman === 'boolean' ? state.needsHuman : null,
+      fallbackReason:
+        typeof state.fallbackReason === 'string' ? state.fallbackReason : null,
       fallbackActivated: Boolean(state.fallbackActivated),
       taskChanged: Boolean(state.taskChanged),
       createdAt: typeof state.createdAt === 'string' ? state.createdAt : null,
@@ -3522,14 +4021,16 @@ export class ConversationsService {
     }> | null | undefined,
   ) {
     return (Array.isArray(input) ? input : [])
-      .map((attachment) => ({
-        assetType: attachment?.assetType?.trim() || null,
-        fileName: attachment?.fileName?.trim() || null,
-        contentType: attachment?.contentType?.trim() || null,
-        content: attachment?.content?.trim() || null,
-        textContent: attachment?.textContent?.trim() || null,
-        metadata: this.asRecord(attachment?.metadata) ?? null,
-      }))
+      .map((attachment) =>
+        validateConversationAttachment({
+          assetType: attachment?.assetType?.trim() || null,
+          fileName: attachment?.fileName?.trim() || null,
+          contentType: attachment?.contentType?.trim() || null,
+          content: attachment?.content?.trim() || null,
+          textContent: attachment?.textContent?.trim() || null,
+          metadata: this.asRecord(attachment?.metadata) ?? null,
+        }),
+      )
       .filter(
         (attachment) =>
           attachment.assetType ||
@@ -3568,6 +4069,353 @@ export class ConversationsService {
       })
       .join('\n')
       .trim()
+  }
+
+  private buildAttachmentPreview(
+    attachments: Array<{
+      assetType?: string | null
+      fileName?: string | null
+      contentType?: string | null
+      textContent?: string | null
+    }>,
+  ) {
+    if (!Array.isArray(attachments) || attachments.length === 0) {
+      return null
+    }
+
+    const primary = attachments[0]
+    const label =
+      primary?.fileName || primary?.assetType || primary?.contentType || 'adjunto'
+    const hint = primary?.textContent?.trim()
+
+    return hint ? `${label} · ${hint.slice(0, 180)}` : label
+  }
+
+  private toConversationPreviewKind(value: unknown) {
+    const normalized = String(value || '').trim().toLowerCase()
+    if (!normalized) return 'attachment'
+    if (normalized === 'image') return 'image'
+    if (normalized === 'audio') return 'audio'
+    if (normalized === 'video') return 'video'
+    if (normalized === 'table') return 'attachment'
+    if (normalized === 'document') return 'attachment'
+    if (normalized === 'text') return 'text'
+    return normalized
+  }
+
+  private buildLatestMessagePreview(message: {
+    kind: ConversationMessageKind
+    body?: string | null
+    normalizedText?: string | null
+    metadata?: Prisma.JsonValue | null
+  }) {
+    const rawText = String(message.body ?? message.normalizedText ?? '').trim()
+    const metadataRecord = this.asRecord(message.metadata)
+    const metadataAttachments = Array.isArray(metadataRecord?.attachments)
+      ? metadataRecord.attachments
+          .map((entry) => this.asRecord(entry))
+          .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+          .map((entry) => ({
+            assetType:
+              typeof entry.assetType === 'string' ? entry.assetType : null,
+            fileName:
+              typeof entry.fileName === 'string' ? entry.fileName : null,
+            contentType:
+              typeof entry.contentType === 'string' ? entry.contentType : null,
+            textContent:
+              typeof entry.textContent === 'string' ? entry.textContent : null,
+          }))
+      : []
+    const attachmentPreview = this.buildAttachmentPreview(metadataAttachments)
+    const firstAttachment = metadataAttachments[0] ?? null
+    const storedElements = this.extractStoredMessageElements(null, message.metadata)
+    const primaryElement = storedElements.find(
+      (entry) =>
+        typeof entry?.kind === 'string' &&
+        entry.kind.trim().length > 0 &&
+        entry.kind !== 'text',
+    )
+    const looksLikeAttachmentSummary = /^\[Adjunto:/i.test(rawText)
+
+    if (rawText && !looksLikeAttachmentSummary) {
+      return {
+        preview: rawText.slice(0, 180),
+        previewKind: this.toConversationPreviewKind(
+          this.normalizeEnum(message.kind),
+        ),
+      }
+    }
+
+    if (attachmentPreview) {
+      return {
+        preview: attachmentPreview,
+        previewKind: this.toConversationPreviewKind(
+          firstAttachment?.assetType || firstAttachment?.contentType,
+        ),
+      }
+    }
+
+    if (primaryElement) {
+      const label =
+        typeof primaryElement.label === 'string' && primaryElement.label.trim()
+          ? primaryElement.label.trim()
+          : primaryElement.kind
+      const preview =
+        typeof primaryElement.preview === 'string' ? primaryElement.preview.trim() : ''
+
+      return {
+        preview: preview ? `${label} · ${preview}`.slice(0, 180) : label,
+        previewKind: this.toConversationPreviewKind(primaryElement.kind),
+      }
+    }
+
+    if (rawText) {
+      return {
+        preview: rawText.slice(0, 180),
+        previewKind: this.toConversationPreviewKind(
+          this.normalizeEnum(message.kind),
+        ),
+      }
+    }
+
+    return {
+      preview: null,
+      previewKind: null,
+    }
+  }
+
+  private resolveConversationMessageAuthorLabel(
+    message: {
+      authorType: ConversationMessageAuthorType
+      authorUser?: {
+        id: number
+        name: string | null
+        email: string
+      } | null
+      metadata?: Prisma.JsonValue | null
+    },
+    conversation: {
+      customer?: {
+        id: number
+        name: string
+        email?: string | null
+      } | null
+      participants?: Array<{
+        displayName: string | null
+        externalUserId: string | null
+        customer?: {
+          id: number
+          name: string
+          email?: string | null
+        } | null
+      }>
+      externalUserId?: string | null
+    },
+  ) {
+    if (message.authorType === ConversationMessageAuthorType.OPERATOR) {
+      return (
+        message.authorUser?.name?.trim() ||
+        message.authorUser?.email?.trim() ||
+        'Administrador'
+      )
+    }
+
+    if (message.authorType === ConversationMessageAuthorType.AGENT) {
+      return 'Asistente IA'
+    }
+
+    if (message.authorType === ConversationMessageAuthorType.CUSTOMER) {
+      const metadataRecord = this.asRecord(message.metadata)
+      return (
+        (typeof metadataRecord?.displayName === 'string'
+          ? metadataRecord.displayName
+          : null) ||
+        (typeof metadataRecord?.fromName === 'string'
+          ? metadataRecord.fromName
+          : null) ||
+        conversation.customer?.name ||
+        conversation.participants?.find((participant) => participant.customer)?.customer
+          ?.name ||
+        conversation.participants?.find((participant) => participant.displayName)?.displayName ||
+        (typeof metadataRecord?.email === 'string' ? metadataRecord.email : null) ||
+        conversation.externalUserId ||
+        'Cliente'
+      )
+    }
+
+    return this.normalizeEnum(message.authorType)
+  }
+
+  private mapAssetTypeToStoredMessageElementKind(value: unknown) {
+    const normalized = String(value || '').trim().toLowerCase()
+    if (!normalized) return 'document'
+    if (
+      ['image', 'photo', 'foto', 'png', 'jpg', 'jpeg', 'webp'].includes(normalized)
+    ) {
+      return 'image'
+    }
+    if (['audio', 'voice', 'voz', 'mp3', 'wav', 'ogg', 'webm'].includes(normalized)) {
+      return 'audio'
+    }
+    if (
+      ['csv', 'xlsx', 'xls', 'table', 'sheet', 'planilla', 'excel'].includes(
+        normalized,
+      )
+    ) {
+      return 'table'
+    }
+    if (['text', 'txt', 'message'].includes(normalized)) {
+      return 'text'
+    }
+    return 'document'
+  }
+
+  private buildStoredMessageElements(options: {
+    text?: string | null
+    attachments?: Array<{
+      assetType?: string | null
+      fileName?: string | null
+      contentType?: string | null
+      textContent?: string | null
+      metadata?: Record<string, unknown> | null
+    }>
+    explicitElements?: unknown
+  }) {
+    const explicitElements = Array.isArray(options.explicitElements)
+      ? options.explicitElements
+      : []
+    const baseElements = explicitElements.length
+      ? explicitElements
+          .map((entry) => this.asRecord(entry))
+          .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+          .map((entry) => ({
+            kind:
+              typeof entry.kind === 'string'
+                ? entry.kind
+                : this.mapAssetTypeToStoredMessageElementKind(entry.kind),
+            source: typeof entry.source === 'string' ? entry.source : 'message',
+            label: typeof entry.label === 'string' ? entry.label : null,
+            preview: typeof entry.preview === 'string' ? entry.preview : null,
+          }))
+      : []
+
+    const derivedElements =
+      baseElements.length > 0
+        ? []
+        : [
+            ...(String(options.text || '').trim()
+              ? [
+                  {
+                    kind: 'text',
+                    source: 'message',
+                    label: 'mensaje',
+                    preview: String(options.text).trim().slice(0, 180),
+                  },
+                ]
+              : []),
+            ...((Array.isArray(options.attachments) ? options.attachments : [])
+              .map((attachment) => {
+                const metadata = this.asRecord(attachment?.metadata)
+                const previewSource =
+                  attachment?.textContent ||
+                  (typeof metadata?.transcriptText === 'string'
+                    ? metadata.transcriptText
+                    : null) ||
+                  (typeof metadata?.ocrText === 'string'
+                    ? metadata.ocrText
+                    : null) ||
+                  (typeof metadata?.rawText === 'string'
+                    ? metadata.rawText
+                    : null)
+                return {
+                  kind: this.mapAssetTypeToStoredMessageElementKind(
+                    attachment?.assetType || attachment?.contentType,
+                  ),
+                  source: 'attachment',
+                  label:
+                    attachment?.fileName ||
+                    attachment?.assetType ||
+                    attachment?.contentType ||
+                    'adjunto',
+                  preview: previewSource ? String(previewSource).slice(0, 180) : null,
+                }
+              })
+              .filter(
+                (entry) =>
+                  entry.kind || entry.label || (entry.preview && entry.preview.trim()),
+              )),
+          ]
+
+    return Array.from(
+      new Map(
+        [...baseElements, ...derivedElements].map((entry) => [
+          `${entry.kind || 'unknown'}:${entry.label || ''}:${entry.preview || ''}`,
+          entry,
+        ]),
+      ).values(),
+    )
+  }
+
+  private buildStoredMessageContextOrigin(options: {
+    text?: string | null
+    messageElements?: Array<{
+      kind?: string | null
+      source?: string | null
+      label?: string | null
+      preview?: string | null
+    }>
+    explicitOrigin?: unknown
+  }) {
+    const origin = new Set<string>()
+    if (String(options.text || '').trim()) {
+      origin.add('message_text')
+    }
+    const explicitOrigin = Array.isArray(options.explicitOrigin)
+      ? options.explicitOrigin
+      : []
+    for (const entry of explicitOrigin) {
+      if (typeof entry === 'string' && entry.trim()) {
+        origin.add(entry.trim())
+      }
+    }
+    for (const element of Array.isArray(options.messageElements)
+      ? options.messageElements
+      : []) {
+      if (typeof element?.kind === 'string' && element.kind.trim()) {
+        origin.add(`message_element:${element.kind.trim()}`)
+      }
+    }
+    return Array.from(origin)
+  }
+
+  private extractStoredMessageElements(payload: unknown, metadata: unknown) {
+    const payloadRecord = this.asRecord(payload)
+    const metadataRecord = this.asRecord(metadata)
+    const aiResponse = this.asRecord(metadataRecord?.aiResponse)
+    const aiAuditPayload = this.asRecord(aiResponse?.auditPayload)
+    return this.buildStoredMessageElements({
+      text: null,
+      attachments: [],
+      explicitElements:
+        payloadRecord?.messageElements ??
+        metadataRecord?.messageElements ??
+        aiAuditPayload?.messageElements,
+    })
+  }
+
+  private extractStoredMessageContextOrigin(payload: unknown, metadata: unknown) {
+    const payloadRecord = this.asRecord(payload)
+    const metadataRecord = this.asRecord(metadata)
+    const aiResponse = this.asRecord(metadataRecord?.aiResponse)
+    const aiAuditPayload = this.asRecord(aiResponse?.auditPayload)
+    return this.buildStoredMessageContextOrigin({
+      text: null,
+      messageElements: this.extractStoredMessageElements(payload, metadata),
+      explicitOrigin:
+        payloadRecord?.messageContextOrigin ??
+        metadataRecord?.messageContextOrigin ??
+        aiAuditPayload?.messageContextOrigin,
+    })
   }
 
   private mapInboxChannel(
@@ -3758,29 +4606,118 @@ export class ConversationsService {
       taskChanged?: boolean
       fallbackReason?: string | null
     },
+    auditPayload?: Record<string, unknown> | null,
   ) {
     const state = this.asRecord(audit)
-    const blockedTools = Array.isArray(state?.blockedTools)
-      ? state?.blockedTools.filter((entry): entry is string => typeof entry === 'string')
+    const detailedState = this.asRecord(auditPayload)
+    const sourceState = detailedState ?? state
+    const blockedTools = Array.isArray(sourceState?.blockedTools)
+      ? sourceState?.blockedTools.filter(
+          (entry): entry is string => typeof entry === 'string',
+        )
       : []
-    const executedTools = Array.isArray(state?.executedTools)
-      ? state?.executedTools.filter((entry): entry is string => typeof entry === 'string')
+    const executedTools = Array.isArray(sourceState?.executedTools)
+      ? sourceState?.executedTools.filter(
+          (entry): entry is string => typeof entry === 'string',
+        )
       : []
 
     return {
-      role: typeof state?.role === 'string' ? state.role : fallback.role,
+      role:
+        typeof sourceState?.role === 'string' ? sourceState.role : fallback.role,
       intentKey:
-        typeof state?.intentKey === 'string'
-          ? state.intentKey
+        typeof sourceState?.intentKey === 'string'
+          ? sourceState.intentKey
           : fallback.intentKey ?? null,
+      intentConfidence:
+        typeof sourceState?.intentConfidence === 'number' &&
+        Number.isFinite(sourceState.intentConfidence)
+          ? sourceState.intentConfidence
+          : null,
+      intentSource:
+        typeof sourceState?.intentSource === 'string'
+          ? sourceState.intentSource
+          : null,
+      actionKey:
+        typeof sourceState?.actionKey === 'string'
+          ? sourceState.actionKey
+          : null,
+      stage:
+        typeof sourceState?.stage === 'string' ? sourceState.stage : null,
+      stageHistory: Array.isArray(sourceState?.stageHistory)
+        ? sourceState.stageHistory.filter(
+            (entry): entry is string => typeof entry === 'string',
+          )
+        : [],
+      decisionPath: Array.isArray(sourceState?.decisionPath)
+        ? sourceState.decisionPath.filter(
+            (entry): entry is string => typeof entry === 'string',
+          )
+        : [],
       blockedTools,
       executedTools,
+      toolCalls: Array.isArray(sourceState?.toolCalls)
+        ? sourceState.toolCalls
+            .map((entry) => this.asRecord(entry))
+            .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+            .map((entry) => ({
+              name: typeof entry.name === 'string' ? entry.name : null,
+              status: typeof entry.status === 'string' ? entry.status : null,
+              target: typeof entry.target === 'string' ? entry.target : null,
+            }))
+        : [],
+      referencedMessages: Array.isArray(sourceState?.referencedMessages)
+        ? sourceState.referencedMessages
+            .map((entry) => this.asRecord(entry))
+            .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+            .map((entry) => ({
+              messageId:
+                typeof entry.messageId === 'string' ? entry.messageId : null,
+              createdAt:
+                typeof entry.createdAt === 'string' ? entry.createdAt : null,
+              preview: typeof entry.preview === 'string' ? entry.preview : null,
+            }))
+        : [],
+      messageElementsUsed: Array.isArray(sourceState?.messageElementsUsed)
+        ? sourceState.messageElementsUsed.filter(
+            (entry): entry is string => typeof entry === 'string',
+          )
+        : [],
+      messageElements: Array.isArray(sourceState?.messageElements)
+        ? sourceState.messageElements
+            .map((entry) => this.asRecord(entry))
+            .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+            .map((entry) => ({
+              kind: typeof entry.kind === 'string' ? entry.kind : null,
+              source: typeof entry.source === 'string' ? entry.source : null,
+              label: typeof entry.label === 'string' ? entry.label : null,
+              preview: typeof entry.preview === 'string' ? entry.preview : null,
+            }))
+        : [],
+      messageContextOrigin: Array.isArray(sourceState?.messageContextOrigin)
+        ? sourceState.messageContextOrigin.filter(
+            (entry): entry is string => typeof entry === 'string',
+          )
+        : [],
+      detail:
+        typeof sourceState?.detail === 'string' ? sourceState.detail : null,
+      input: typeof sourceState?.input === 'string' ? sourceState.input : null,
+      grounded:
+        typeof sourceState?.grounded === 'boolean' ? sourceState.grounded : null,
+      needsHuman:
+        typeof sourceState?.needsHuman === 'boolean'
+          ? sourceState.needsHuman
+          : null,
+      fallbackReason:
+        typeof sourceState?.fallbackReason === 'string'
+          ? sourceState.fallbackReason
+          : fallback.fallbackReason ?? null,
       fallbackActivated:
-        Boolean(state?.fallbackActivated) || Boolean(fallback.fallbackReason),
-      taskChanged: Boolean(state?.taskChanged ?? fallback.taskChanged),
+        Boolean(sourceState?.fallbackActivated) || Boolean(fallback.fallbackReason),
+      taskChanged: Boolean(sourceState?.taskChanged ?? fallback.taskChanged),
       createdAt:
-        typeof state?.createdAt === 'string'
-          ? state.createdAt
+        typeof sourceState?.createdAt === 'string'
+          ? sourceState.createdAt
           : new Date().toISOString(),
     }
   }

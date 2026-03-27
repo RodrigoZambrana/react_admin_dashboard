@@ -572,6 +572,43 @@ const EmailConfigurationForm = () => {
                         ) : null}
                     </div>
                 </div>
+                <div className="rounded border border-amber-200 bg-amber-50 p-4">
+                    <h6 className="text-sm font-semibold text-amber-900">
+                        {t('settings.email.inbox.validity.title', {
+                            defaultValue: 'Minimum validity required for an operable mailbox',
+                        })}
+                    </h6>
+                    <p className="mt-1 text-xs text-amber-900/80">
+                        {t('settings.email.inbox.validity.description', {
+                            defaultValue:
+                                'Saving credentials is not enough. The inbox only should expose mailboxes that pass the minimum operational checks.',
+                        })}
+                    </p>
+                    <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-amber-950/85">
+                        <li>
+                            {t('settings.email.inbox.validity.stepConfig', {
+                                defaultValue:
+                                    'Complete IMAP, SMTP, username, password, and from address configuration.',
+                            })}
+                        </li>
+                        <li>
+                            {t('settings.email.inbox.validity.stepSmtpTls', {
+                                defaultValue: 'TLS connectivity check to the configured SMTP host and port.',
+                            })}
+                        </li>
+                        <li>
+                            {t('settings.email.inbox.validity.stepImapTls', {
+                                defaultValue: 'TLS connectivity check to the configured IMAP host and port.',
+                            })}
+                        </li>
+                        <li>
+                            {t('settings.email.inbox.validity.stepVerify', {
+                                defaultValue:
+                                    'SMTP provider verification with nodemailer.verify() using the configured credentials.',
+                            })}
+                        </li>
+                    </ul>
+                </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">

@@ -96,6 +96,10 @@
   - evolve logged-in customer behavior under the runtime name `customer_authenticated`
   - `admin_internal` operational actions remain restricted to authenticated internal roles
   - fallback/error wording must stay human-friendly and non-technical
+- Finish the common response renderer on top of the new split `finalUserText / debugSummary / auditPayload`:
+  - storefront must stay on clean human-facing text only
+  - admin may expose richer debug/audit panels without contaminating transcript bodies
+  - success/error/blocked/missing-data/handoff wording should now converge on that contract
 - next memory hardening slice after the initial runtime task-memory rollout:
   - keep propagating `customer_authenticated` consistently beyond webchat/runtime into the remaining persisted conversation and analytics flows where it adds operational value
   - add conversation-summary/working-summary generation per task to reduce token load further
@@ -352,6 +356,146 @@
   - [x] consolidar plan de implementación por fases en `docs/AI_IMPLEMENTATION_PLAN.md`
   - [x] consolidar índice de knowledge activa en `docs/knowledge/README.md`
   - [ ] revisar documentos AI históricos y marcarlos explícitamente como referencia o archivarlos
+- Asistente interno IA:
+  - [x] definir acciones base del asistente interno para conversación liviana, ayuda operativa y gestión accionable
+  - [x] evitar dependencia del proveedor para saludos y pedidos generales de ayuda en `admin_internal`
+  - [x] distinguir `provider_rate_limited` vs `provider_quota_exceeded` con evidencia más confiable
+  - [ ] ampliar respuestas determinísticas internas para:
+    - help contextual
+    - bloqueos por policy/datos faltantes con wording más humano
+    - baja confianza con pedido mínimo de aclaración
+  - [ ] instrumentar backoff/retry controlado para `provider_rate_limited`
+  - [ ] persistir trazabilidad más rica del error del proveedor para correlacionar runtime vs Postman
+- Runtime conversacional IA:
+  - [x] documentar diseño técnico mínimo incremental del runtime en `docs/AI_RUNTIME_MINIMAL_DESIGN.md`
+  - [x] convertir el plan multimodal en backlog ejecutable por fases en `docs/AI_MULTIMODAL_EXECUTION_BACKLOG.md`
+  - [x] crear `Intent Engine` mínimo con `detectIntent()` como wrapper compatible de la lógica actual
+  - [x] formalizar `taskState.state` sobre Redis snapshot actual
+  - [x] crear `Action Registry` incremental reutilizando draft builders y ejecución backend existente
+  - [x] extraer `Outcome Renderer` común para `light`, `blocked`, `missing-data`, `low-confidence`, `handoff`, `provider-failure`
+  - [x] introducir `Message Element Interpreter` sobre `ExtractedAsset` para texto, imagen, audio, documento y tabla
+  - [x] ejecutar el siguiente slice del backlog multimodal:
+    - `message-element-types`
+    - `interpret-message-elements`
+    - `detect-intent` wrapper
+  - [x] persistir `messageElements` y origen conversacional en backend para auditoría visible
+  - [x] formalizar `taskState.state` y transición explícita sobre snapshots Redis
+  - [x] seguir retirando detección legacy hacia `detectIntent()` central para intents operativos, no solo `light/capabilities`
+  - [x] ampliar el `Action Registry` para cubrir verify/result shaping y no solo draft/execute
+  - [x] retirar `customers/*`, `products/*` y `appointments/*` de copy/verify manual hacia contratos declarativos del `Action Registry`
+  - siguiente corte recomendado:
+    - ampliar `detectIntent()` con más intents operativos multi-entidad y follow-ups referenciales ambiguos
+    - seguir sacando branches manuales residuales de `agent.js` hacia contratos declarativos del `Action Registry`, especialmente en execute/result shaping
+- Knowledge activo con human-in-the-loop:
+  - [x] documentar arquitectura incremental en `docs/AI_ACTIVE_KNOWLEDGE_INGESTION_PLAN.md`
+  - [x] documentar estructura objetivo del ABM de knowledge en `docs/AI_KNOWLEDGE_ADMIN_ABM_PLAN.md`
+  - [x] agregar `KnowledgeRawEvent` como captura normalizada de interacciones reales
+  - [x] agregar `KnowledgeIngestionRun` para trazabilidad de backfill/manual/realtime
+  - [x] versionar extracción y respuesta sugerida sobre `KnowledgeCandidate`
+  - [x] agregar revisión HITL visible en admin sobre candidatos enriquecidos, observaciones y corridas
+  - [x] llevar sugerencias de knowledge aprobada al inbox admin en tiempo real
+  - [x] cerrar feedback loop de aceptación/edición/descarte por operador
+  - [x] medir y persistir el uso real de cada sugerencia (`used`, `edited`, `discarded`) para retroalimentar ranking y calidad
+  - [x] exponer métricas agregadas de feedback en la UI HITL de knowledge
+  - [x] ampliar el ranking de sugerencias aprobadas con señal semántica/embeddings sin dejar de exigir estado `approved`
+  - [x] validar con E2E el circuito completo:
+    - observación automática
+    - candidato reutilizable
+    - aprobación
+    - sugerencia aprobada en inbox
+    - feedback `used`
+  - [x] separar `AI Runtime` de un ABM real de knowledge:
+    - listas dedicadas por entidad
+    - búsqueda, filtros y orden por origen/tipo/estado
+    - detalle y acciones mínimas reales por documento/candidato/observación/corrida
+  - [x] implementar primero:
+    - `Knowledge Candidates`
+    - luego `Knowledge Documents`
+  - [x] implementar la capa UX complementaria del módulo:
+    - `Knowledge Overview` como vista tipo help center
+    - `Knowledge Manage Articles` como training board operativo
+  - [x] seguir con superficies dedicadas para:
+    - `Knowledge Raw Events`
+    - `Knowledge Ingestion Runs`
+  - siguiente corte recomendado:
+    - proyectar métricas y feedback histórico también sobre sugerencias runtime del inbox
+    - usar esa señal junto con embeddings aprobados para ranking semántico más robusto
+    - cerrar feedback explícito también sobre sugerencias semánticas cuando el match no venga de dedupe/intención
+    - [x] seguir con superficies dedicadas para:
+      - `Knowledge Feedback`
+    - [x] completar ABM real de `Knowledge Documents`:
+      - edición de metadata
+      - edición de contenido curado
+    - pendiente siguiente sobre `Knowledge Documents`:
+      - archivado/reindex más fino
+      - historial/versionado
+    - enriquecer `Knowledge Overview` con categorías de negocio reales cuando exista taxonomía estable
+    - [x] reforzar `Knowledge Manage Articles` con patrón `ScrumBoard` y avance por `drag-and-drop`
+    - mantener fuera del board principal:
+      - descartes
+      - revisión fina
+      - edición profunda
+      esas acciones siguen en vistas dedicadas
+    - mantener la cola visual HITL de `AI Runtime` como resumen secundario, no como canal principal de revisión puntual
+    - [x] separar `IA` como módulo de navegación independiente:
+      - `/app/settings/ai` como hub
+      - `/app/settings/ai/runtime` como runtime técnico
+      - knowledge ordenado como submenú explícito
+    - [x] recortar `AI Runtime` para que deje de operar knowledge en línea:
+      - mover curado/upload/reindex a `Knowledge Documents`
+      - mover observación manual a `Knowledge Ingestion Runs`
+      - mover métricas de reuse a `Knowledge Feedback`
+    - [x] alinear `routeKey` y navegación activa del módulo `AI`
+    - [x] explicitar en la UI que la métrica principal de `/app/settings/ai` mide cobertura de knowledge y no madurez del modelo
+    - [x] fijar comportamiento base global del asistente aun sin knowledge aprobado:
+      - saludo y conversación liviana
+      - aclaración mínima
+      - continuidad segura sin inventar información
+    - [x] abrir superficies explícitas para:
+      - `Knowledge Conversation Bundles`
+      - `Knowledge Negative Examples`
+    - [x] documentar diseño técnico de `Knowledge Snapshot`:
+      - modelo de datos
+      - endpoints
+      - formato del digest
+      - pantallas admin
+      - refresh/regeneración
+    - [x] persistir `KnowledgeSnapshot`, `KnowledgeSnapshotEntry` y `KnowledgeSnapshotSource`
+    - [x] exponer `latest`, `detail` y `plain-text`
+    - [x] generar snapshot determinístico sin IA redactora
+    - [x] exponer `diff`
+    - [x] agregar superficies admin `overview/detail/sources`
+    - [x] mostrar reglas base predeterminadas del runtime dentro del snapshot aun sin conocimiento aprobado suficiente
+    - pendiente siguiente sobre snapshot:
+      - mostrar `pending signals` explícitos en UI sin mezclarlos con el digest activo
+      - agregar `diff` visible también desde overview con navegación directa entre versiones cuando exista historial más amplio
+      - llevar `conversation bundles` y `negative examples` a E2E específicas de snapshot/detail
+      - analizar `knowledge elementization` para convertir contenido manual/documental en unidades reutilizables trazables:
+        - rules
+        - response patterns
+        - guardrails negativos
+        - source fragment + source version + source document/form
+    - mantener el inbox admin estable:
+      - composer siempre visible
+      - scroll principal y scroll del footer desacoplados
+      - `Asistente interno` siempre visible como sugerencia fija en nuevo mensaje
+    - mantener la unidad aprobable de knowledge en nivel `intercambio`:
+      - mensaje de usuario + respuesta asociada
+      - no promover preguntas aisladas como candidatos revisables
+    - dejar como backlog explícito de evolución del módulo:
+      - `conversation bundles` para multi-turno aprobable
+      - `negative examples` para señales de descarte y guardrails
+      - evaluar promoción de texto curado/documental a `knowledge elements` reutilizables con revisión humana y trazabilidad de fuente
+      - permitir derivar `negative examples` desde documentos o formularios cuando expresen reglas de comportamiento esperado
+  - backlog futuro fuera del bloque actual de knowledge:
+    - `activities` / agenda:
+      - analizar disponibilidad real antes de crear el evento
+      - sugerir horarios
+      - limitar agendas fuera del horario comercial
+      - llevar restricciones a la UI:
+        - días no disponibles
+        - horarios no disponibles
+        - sugerencias visibles de agenda
 - Acuerdos de alcance recientes:
   - [x] documentar que el ABM documental para knowledge aprobada es transversal a cualquier tenant
   - [x] documentar que `aberturas` no persigue ABM IA de matrices paramétricas ni CRUD del glosario como objetivo operativo
@@ -368,3 +512,42 @@
   - siguiente foco recomendado inmediato:
     - usar `permission envelope` para enforcement real en acciones core
     - bajar diferencias visibles de UI/acciones según capacidad donde ya exista valor operativo claro
+- Runtime y knowledge administrables:
+  - [x] volver configurables desde admin los saludos base del runtime
+  - [x] agregar `web_url` como fuente configurable de knowledge
+  - [x] definir política explícita de refresh para URLs:
+    - `manual`
+    - `daily`
+    - `weekly`
+    - `on_demand`
+  - [x] permitir refresh manual de una URL y refresh batch de URLs vencidas
+  - [ ] decidir si los `tenant seed web sources` hardcodeados deben migrarse completamente a ABM persistido
+  - [ ] evaluar scheduler/automation para ejecutar `refresh-due` sin intervención manual
+- Cierre conversacional end-to-end:
+  - [x] unificar respuestas determinísticas customer en renderer común
+  - [x] incluir follow-up/contexto con turns recientes de cliente y agente
+  - [x] permitir reply admin con adjuntos persistidos y visibles en transcript
+  - [x] mantener previews multimodales reales en storefront cuando el transcript canónico ya tiene `content`
+  - [x] hacer visible el handoff en storefront cuando la conversación pasa a `human` o `hybrid`
+  - [x] derivar `latestMessage.preview` / `previewKind` consistentes para listados admin con mensajes multimodales
+  - [x] retirar más heurísticas customer del fallback legacy hacia el `Intent Engine`
+  - [x] agregar regresiones E2E focales de:
+    - storefront greeting/topic focus
+    - transcript multimodal
+    - admin reply con adjuntos
+    - storefront authenticated memory/controlMode/handoff visible
+  - [x] cerrar el build de storefront en Next para el bloque completo
+  - [x] cerrar paridad mínima del contrato email en admin:
+    - canal `Email` visible en selector lateral
+    - preview con asunto visible
+    - `authorLabel` consistente en summaries/threads/detail del inbox
+    - regresiones `admin-conversations-email-reply` y `admin-conversations-multichannel` verdes
+  - [x] agregar `Enter` para enviar en storefront sin romper `Shift+Enter`
+  - [x] filtrar en admin/inbox solo cuentas email operables reales
+  - [x] automatizar un clean-state de regresión para conversaciones email sintéticas y residuos derivados
+  - [x] documentar:
+    - esquema de captura de flujos de error no contemplados
+    - criterio mínimo de validez de cuentas email
+    - runbook de limpieza para regresión
+  - [ ] seguir retirando customer intents residuales de `deriveIntentKey()` hasta dejarlo como fallback mínimo real
+  - [ ] cerrar el entorno dev del admin para que el proxy Docker no quede apuntando a un backend caído cuando se levanta backend local fuera de Docker

@@ -13,8 +13,6 @@ services:
     environment:
       PORT: ${AI_AGENT_PORT:-4100}
       NODE_ENV: ${NODE_ENV:-development}
-      BACKEND_BASE_URL: http://backend:4000/api
-      CONVERSATIONS_BASE_URL: http://backend:4000/api/conversations
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-local-ai-internal-token}
       AI_MODEL_PROVIDER: ${AI_MODEL_PROVIDER:-openai}
       AI_MODEL_NAME: ${AI_MODEL_NAME:-gpt-4o-mini}
@@ -41,8 +39,6 @@ services:
     environment:
       PORT: ${CHANNEL_ADAPTER_PORT:-4200}
       NODE_ENV: ${NODE_ENV:-development}
-      BACKEND_BASE_URL: http://backend:4000/api
-      AI_AGENT_BASE_URL: http://ai-agent-service:4100
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-local-ai-internal-token}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     depends_on:

@@ -21,6 +21,10 @@ import { ChannelRegistry } from './registry/channel-registry'
 import { deriveMessageUid, hashMessageBody, normalizeFolder } from './common/message-identity'
 import { buildCanonicalThreadKey, resolveMessageActivityAt } from './common/threading'
 import { resolveQueueSlug, type QueueResolution, type QueueRuleConfig } from './common/queue-classifier'
+import {
+  asMetadataRecord,
+  isOperationalEmailInboxAccount,
+} from './common/email-account-validity'
 import { InboxEventsService, type InboxStreamFilter } from './events/inbox-events.service'
 import type {
   ChannelAccount,
@@ -48,6 +52,7 @@ type MessageSummaryDto = {
   subject?: string | null
   snippet?: string | null
   previewText?: string | null
+  authorLabel?: string | null
   from?: { name?: string | null; address?: string | null } | null
   to: string[]
   cc: string[]
@@ -96,6 +101,7 @@ type ThreadMessageDto = {
   subject?: string | null
   previewText?: string | null
   snippet?: string | null
+  authorLabel?: string | null
   from?: { name?: string | null; address?: string | null } | null
   to: string[]
   cc: string[]
@@ -119,6 +125,7 @@ type ThreadSummaryDto = {
   subject?: string | null
   previewText?: string | null
   snippet?: string | null
+  authorLabel?: string | null
   from?: { name?: string | null; address?: string | null } | null
   to: string[]
   cc: string[]
@@ -227,9 +234,17 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
       ? undefined
       : { active: true }
 
-    return this.prisma.inboxAccount.findMany({
+    const accounts = await this.prisma.inboxAccount.findMany({
       where,
       orderBy: { createdAt: 'asc' },
+    })
+
+    return accounts.filter((account) => {
+      if (account.channel !== InboxChannelType.EMAIL) {
+        return true
+      }
+
+      return isOperationalEmailInboxAccount(account, this.configService)
     })
   }
 
@@ -405,6 +420,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
         subject: summary.subject ?? null,
         previewText: summary.previewText ?? null,
         snippet: summary.snippet ?? null,
+        authorLabel: summary.authorLabel ?? null,
         from: summary.from ?? null,
         to: summary.to,
         cc: summary.cc,
@@ -431,6 +447,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
           subject: summary.subject ?? null,
           previewText: summary.previewText ?? null,
           snippet: summary.snippet ?? null,
+          authorLabel: summary.authorLabel ?? null,
           from: summary.from ?? null,
           to: summary.to,
           cc: summary.cc,
@@ -468,6 +485,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
         existing.subject = summary.subject ?? existing.subject ?? null
         existing.previewText = summary.previewText ?? existing.previewText ?? null
         existing.snippet = summary.snippet ?? existing.snippet ?? null
+        existing.authorLabel = summary.authorLabel ?? existing.authorLabel ?? null
         existing.from = summary.from ?? existing.from ?? null
         existing.to = summary.to
         existing.cc = summary.cc
@@ -516,6 +534,25 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
     identifier: ChannelMessageIdentifier,
   ): Promise<MessageDetailDto> {
     const account = await this.getAccountOrThrow(accountId)
+    const persisted = await this.prisma.inboxMessage.findUnique({
+      where: {
+        accountId_channel_remoteId: {
+          accountId: account.id,
+          channel: account.channel,
+          remoteId: identifier.remoteId,
+        },
+      },
+      include: {
+        queue: true,
+        attachments: true,
+      },
+    })
+
+    const persistedDetail = this.serializePersistedMessageDetail(persisted)
+    if (persistedDetail) {
+      return persistedDetail
+    }
+
     const adapter = this.resolveAdapter(account)
     const channelAccount = this.mapAccount(account)
     const body = await adapter.getMessage(channelAccount, identifier)
@@ -1795,6 +1832,10 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
     record: InboxMessage & { queue?: { id: string; slug: string; name: string } | null },
   ): MessageSummaryDto {
     const metadata = (record.metadata as Record<string, unknown> | null) ?? null
+    const authorLabel =
+      (typeof record.fromName === 'string' && record.fromName.trim()) ||
+      (typeof record.fromAddress === 'string' && record.fromAddress.trim()) ||
+      null
     return {
       id: record.id,
       accountId: record.accountId,
@@ -1809,6 +1850,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
       subject: record.subject,
       snippet: record.snippet,
       previewText: record.previewText,
+      authorLabel,
       from:
         record.fromAddress || record.fromName
           ? { address: record.fromAddress, name: record.fromName }
@@ -1857,6 +1899,44 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
       bodyText: body.bodyText ?? null,
       headers: body.headers ?? undefined,
       attachments: attachments.map((attachment) => ({
+        id: attachment.id,
+        remoteId: attachment.remoteId,
+        fileName: attachment.fileName,
+        contentType: attachment.contentType,
+        size: attachment.size,
+        metadata: (attachment.metadata as Record<string, unknown> | null) ?? null,
+      })),
+    }
+  }
+
+  private serializePersistedMessageDetail(
+    record:
+      | (InboxMessage & {
+          queue?: { id: string; slug: string; name: string } | null
+          attachments: InboxAttachment[]
+        })
+      | null,
+  ): MessageDetailDto | null {
+    if (!record) {
+      return null
+    }
+
+    const metadata = (record.metadata as Record<string, unknown> | null) ?? null
+    const safeMetadata = metadata ?? {}
+    const bodyHtml = this.extractMetadataString(safeMetadata, 'bodyHtml')
+    const bodyText = this.extractMetadataString(safeMetadata, 'bodyText')
+    const headers = this.extractHeaderMap(safeMetadata) ?? undefined
+
+    if (!bodyHtml && !bodyText) {
+      return null
+    }
+
+    return {
+      ...this.serializeMessage(record),
+      bodyHtml: bodyHtml ?? null,
+      bodyText: bodyText ?? null,
+      headers,
+      attachments: (record.attachments ?? []).map((attachment) => ({
         id: attachment.id,
         remoteId: attachment.remoteId,
         fileName: attachment.fileName,
@@ -2372,6 +2452,23 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
       sanitized.defaults.fromName ||
       normalizedAddress
 
+    const existingAccount = await this.prisma.inboxAccount.findUnique({
+      where: {
+        channel_address: {
+          channel: InboxChannelType.EMAIL,
+          address: normalizedAddress,
+        },
+      },
+      select: {
+        metadata: true,
+      },
+    })
+
+    const existingMetadata = asMetadataRecord(existingAccount?.metadata)
+    const preservedValidation =
+      asMetadataRecord(existingMetadata?.validation) ||
+      asMetadataRecord(existingMetadata?.verification)
+
     const metadata = {
       defaults: sanitized.defaults,
       imap: sanitized.imap,
@@ -2379,6 +2476,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
       limits: sanitized.limits,
       polling: sanitized.polling,
       lastConfigSync: new Date().toISOString(),
+      ...(preservedValidation ? { validation: preservedValidation } : {}),
     }
 
     return this.prisma.inboxAccount.upsert({
