@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConversationsService } from '../conversations.service'
 
 const createPrisma = () => ({
@@ -87,6 +87,10 @@ describe('ConversationsService', () => {
       },
     )
     service = new ConversationsService(prisma as never, config as never)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('persists operator replies with attachments and canonical message elements', async () => {
@@ -2393,6 +2397,188 @@ describe('ConversationsService', () => {
           reason: 'outbound_dispatch_failed',
         }),
       }),
+    })
+  })
+
+  it('dispatches WhatsApp QR outbound replies through the QR adapter route', async () => {
+    const createdAt = new Date('2026-03-28T18:00:00.000Z')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          provider: 'whatsapp-qr',
+          remoteId: 'waqr-remote-1',
+          providerMessageId: 'waqr-provider-1',
+          threadRemoteId: 'thread-waqr-1',
+          deliveryStatus: 'sent',
+        }),
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(service, 'getConversation').mockResolvedValue({
+      id: 'conv_whatsapp_qr',
+    } as never)
+    vi.spyOn(service as any, 'captureKnowledgeMessage').mockResolvedValue(undefined)
+
+    prisma.conversation.findUnique.mockResolvedValue({
+      id: 'conv_whatsapp_qr',
+      tenantKey: 'urucortinas',
+      scope: 'CUSTOMER_PUBLIC',
+      channel: 'WHATSAPP',
+      status: 'WAITING_CUSTOMER',
+      controlMode: 'HUMAN',
+      subject: 'Consulta QR',
+      inboxAccountId: 'acc_whatsapp_qr',
+      externalUserId: '59890000001',
+      externalThreadId: 'thread-waqr-1',
+      externalChannelRef: null,
+      lastMessageAt: createdAt,
+      lastInboundAt: createdAt,
+      lastOutboundAt: null,
+      createdAt,
+      updatedAt: createdAt,
+      customer: null,
+      assignedToUser: {
+        id: 9,
+        name: 'Operador',
+        email: 'operador@example.com',
+      },
+      inboxAccount: {
+        id: 'acc_whatsapp_qr',
+        displayName: 'WhatsApp QR',
+        address: '59890000099',
+        channel: 'WHATSAPP',
+        metadata: {
+          transport: 'whatsapp_qr',
+        },
+      },
+      participants: [],
+      messages: [],
+    })
+    prisma.inboxMessage.create.mockResolvedValue({ id: 'inbox_msg_waqr' })
+    prisma.inboxMessageEvent.create.mockResolvedValue({ id: 'evt_waqr' })
+    prisma.conversationMessage.create.mockResolvedValue({
+      id: 'conv_msg_waqr',
+      createdAt,
+    })
+
+    await service.replyAsOperator(
+      'conv_whatsapp_qr',
+      {
+        body: 'Te respondo por WhatsApp QR.',
+        kind: 'text',
+      },
+      9,
+    )
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://channel-adapter:4200/dispatch/whatsapp-qr',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'content-type': 'application/json',
+          'x-ai-internal-token': 'local-ai-internal-token',
+        }),
+      }),
+    )
+    expect(prisma.inboxMessage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        accountId: 'acc_whatsapp_qr',
+        provider: 'whatsapp-qr',
+        toAddresses: ['59890000001'],
+      }),
+      select: {
+        id: true,
+      },
+    })
+  })
+
+  it('keeps Meta outbound dispatch for standard WhatsApp conversations', async () => {
+    const createdAt = new Date('2026-03-28T18:10:00.000Z')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        JSON.stringify({
+          provider: 'meta-graph',
+          remoteId: 'meta-remote-1',
+          providerMessageId: 'meta-provider-1',
+          threadRemoteId: 'thread-meta-1',
+          deliveryStatus: 'sent',
+        }),
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(service, 'getConversation').mockResolvedValue({
+      id: 'conv_whatsapp_meta',
+    } as never)
+    vi.spyOn(service as any, 'captureKnowledgeMessage').mockResolvedValue(undefined)
+
+    prisma.conversation.findUnique.mockResolvedValue({
+      id: 'conv_whatsapp_meta',
+      tenantKey: 'urucortinas',
+      scope: 'CUSTOMER_PUBLIC',
+      channel: 'WHATSAPP',
+      status: 'WAITING_CUSTOMER',
+      controlMode: 'HUMAN',
+      subject: 'Consulta Meta',
+      inboxAccountId: 'acc_whatsapp_meta',
+      externalUserId: '59890000002',
+      externalThreadId: 'thread-meta-1',
+      externalChannelRef: null,
+      lastMessageAt: createdAt,
+      lastInboundAt: createdAt,
+      lastOutboundAt: null,
+      createdAt,
+      updatedAt: createdAt,
+      customer: null,
+      assignedToUser: {
+        id: 9,
+        name: 'Operador',
+        email: 'operador@example.com',
+      },
+      inboxAccount: {
+        id: 'acc_whatsapp_meta',
+        displayName: 'WhatsApp Meta',
+        address: 'wameta',
+        channel: 'WHATSAPP',
+        metadata: {
+          transport: 'meta',
+        },
+      },
+      participants: [],
+      messages: [],
+    })
+    prisma.inboxMessage.create.mockResolvedValue({ id: 'inbox_msg_meta' })
+    prisma.inboxMessageEvent.create.mockResolvedValue({ id: 'evt_meta' })
+    prisma.conversationMessage.create.mockResolvedValue({
+      id: 'conv_msg_meta',
+      createdAt,
+    })
+
+    await service.replyAsOperator(
+      'conv_whatsapp_meta',
+      {
+        body: 'Te respondo por Meta.',
+        kind: 'text',
+      },
+      9,
+    )
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://channel-adapter:4200/dispatch/meta',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    )
+    expect(prisma.inboxMessage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        accountId: 'acc_whatsapp_meta',
+        provider: 'meta-graph',
+        toAddresses: ['59890000002'],
+      }),
+      select: {
+        id: true,
+      },
     })
   })
 

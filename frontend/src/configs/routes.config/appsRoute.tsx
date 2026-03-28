@@ -207,6 +207,15 @@ const baseAppsRoute: Routes = [
         },
     },
     {
+        key: 'appsSettings.whatsappQr',
+        path: `${APP_PREFIX_PATH}/settings/channels/whatsapp-qr`,
+        component: lazy(() => import('@/views/settings/WhatsappQrSettings')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'WhatsApp QR',
+        },
+    },
+    {
         key: 'appsAi.home',
         path: `${APP_PREFIX_PATH}/settings/ai`,
         component: lazy(() => import('@/views/settings/AiHome')),

@@ -39,6 +39,11 @@ El sistema debe abstraer el canal como:
 - quoted replies
 - session health
 
+Esto significa:
+- WhatsApp QR es una opción transversal del sistema
+- no debe quedar acoplado al runtime ecommerce
+- debe poder convivir con storefront, admin y futuras capabilities no ecommerce
+
 ### Add-on tenant/operational
 La decisión de usar QR en vez de Meta para WhatsApp es operativa y temporal.
 No debe contaminar el runtime general.
@@ -162,6 +167,9 @@ Si una capability falla:
 - invalidar sesión
 - ver último heartbeat
 - ver número conectado
+- configurar delays, typing/presence y límites operativos desde su propio menú
+- resincronizar backend -> adapter cuando exista drift operativo
+- ver consistencia entre configuración, `InboxAccount` y estado real del adapter
 
 ## Persistencia y respaldo
 
@@ -239,11 +247,25 @@ Mitigación:
 - UI admin de sesión QR
 - monitoreo
 - reconnect flows
+- manejo explícito de errores del canal
+- consistencia con `InboxAccount`
 
 ### Fase 5
 - parity completa con webchat
 - ejecución de acciones AI/customer/admin sobre WhatsApp
 - preparación de migración a Meta
+
+## Estado actual esperado del slice
+Al cerrar la implementación base del canal, debe existir:
+- backend como fuente de verdad de configuración
+- `channel-adapter` como ejecutor QR
+- UI dedicada en settings del canal
+- acciones explícitas de `refresh`, `sync`, `start`, `stop`, `reconnect` y `reset`
+- bloque de consistencia para detectar drift entre backend, inbox y adapter
+- sesión persistida fuera del contenedor
+- reconexión y reset de sesión
+- límites salientes y delays humanos configurables
+- migración futura a Meta posible sin tocar runtime ni contratos internos
 
 ## Decisión final
 Para el contexto actual de `urucortinas`, WhatsApp QR no es un workaround marginal.

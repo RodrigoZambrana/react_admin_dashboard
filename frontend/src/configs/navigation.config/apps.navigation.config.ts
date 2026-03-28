@@ -617,6 +617,16 @@ const appsNavigationConfig: NavigationTree[] = [
                         subMenu: [],
                     },
                     {
+                        key: 'appsSettings.whatsappQr',
+                        path: `${APP_PREFIX_PATH}/settings/channels/whatsapp-qr`,
+                        title: 'WhatsApp QR',
+                        translateKey: 'nav.appsSettings.whatsappQr',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
+                        subMenu: [],
+                    },
+                    {
                         key: 'appsSettings.calendarEventTypes',
                         path: `${APP_PREFIX_PATH}/settings/calendar-event-types`,
                         title: 'Calendar Event Types',

@@ -4,6 +4,7 @@ import { AiAgentClient } from './clients/ai-agent.client.js'
 import { BackendConversationsClient } from './clients/backend-conversations.client.js'
 import { EmailAdapter } from './channels/email/email.adapter.js'
 import { MetaAdapter } from './channels/meta/meta.adapter.js'
+import { WhatsappQrAdapter } from './channels/whatsapp-qr/whatsapp-qr.adapter.js'
 import { WebchatAdapter } from './channels/webchat/webchat.adapter.js'
 
 const port = Number(process.env.PORT || 4200)
@@ -21,6 +22,8 @@ const config = {
   whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
   instagramAccessToken: process.env.INSTAGRAM_ACCESS_TOKEN || '',
   messengerPageAccessToken: process.env.MESSENGER_PAGE_ACCESS_TOKEN || '',
+  clientSlug: process.env.CLIENT_SLUG || 'urucortinas',
+  whatsappRuntimeDir: process.env.WHATSAPP_QR_RUNTIME_DIR || '/app/runtime/whatsapp-qr',
 }
 
 const json = (res, statusCode, body) => {
@@ -52,6 +55,21 @@ const clients = {
 const webchatAdapter = new WebchatAdapter(clients)
 const emailAdapter = new EmailAdapter(clients)
 const metaAdapter = new MetaAdapter(clients, config)
+const whatsappQrAdapter = new WhatsappQrAdapter(clients, config)
+
+await whatsappQrAdapter.init()
+
+const requireInternalToken = (req, res) => {
+  const token = req.headers['x-ai-internal-token']
+  if (token !== config.internalToken) {
+    json(res, 401, {
+      ok: false,
+      message: 'unauthorized',
+    })
+    return false
+  }
+  return true
+}
 
 const server = http.createServer(async (req, res) => {
   try {
@@ -76,8 +94,58 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && req.url === '/channels') {
       json(res, 200, {
-        channels: ['webchat', 'email', 'whatsapp', 'instagram', 'messenger'],
+        channels: ['webchat', 'email', 'whatsapp_qr', 'whatsapp_meta', 'instagram', 'messenger'],
       })
+      return
+    }
+
+    if (req.method === 'GET' && req.url === '/channels/whatsapp-qr/status') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      json(res, 200, whatsappQrAdapter.getStatus())
+      return
+    }
+
+    if (req.method === 'PUT' && req.url === '/channels/whatsapp-qr/config') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      const result = await whatsappQrAdapter.updateConfig(body || {})
+      json(res, 200, result)
+      return
+    }
+
+    if (req.method === 'POST' && req.url === '/channels/whatsapp-qr/session/start') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      json(res, 200, await whatsappQrAdapter.startSession())
+      return
+    }
+
+    if (req.method === 'POST' && req.url === '/channels/whatsapp-qr/session/stop') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      json(res, 200, await whatsappQrAdapter.stopSession({ preserveAuth: true }))
+      return
+    }
+
+    if (req.method === 'POST' && req.url === '/channels/whatsapp-qr/session/reconnect') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      json(res, 200, await whatsappQrAdapter.reconnectSession())
+      return
+    }
+
+    if (req.method === 'POST' && req.url === '/channels/whatsapp-qr/session/reset') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      json(res, 200, await whatsappQrAdapter.resetSession())
       return
     }
 
@@ -145,17 +213,26 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && req.url === '/dispatch/meta') {
-      const token = req.headers['x-ai-internal-token']
-      if (token !== config.internalToken) {
-        json(res, 401, {
-          ok: false,
-          message: 'unauthorized',
-        })
+      if (!requireInternalToken(req, res)) {
         return
       }
 
       const body = await readBody(req)
       const result = await metaAdapter.sendOutbound(body)
+      json(res, 200, {
+        ok: true,
+        ...result,
+      })
+      return
+    }
+
+    if (req.method === 'POST' && req.url === '/dispatch/whatsapp-qr') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+
+      const body = await readBody(req)
+      const result = await whatsappQrAdapter.sendOutbound(body)
       json(res, 200, {
         ok: true,
         ...result,
