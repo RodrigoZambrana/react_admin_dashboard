@@ -1,17 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { Formik, Form, Field } from 'formik'
 import type { AxiosResponse } from 'axios'
+import { useNavigate } from 'react-router-dom'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Badge from '@/components/ui/Badge'
 import Switcher from '@/components/ui/Switcher'
 import Alert from '@/components/ui/Alert'
-import Upload from '@/components/ui/Upload'
 import { FormContainer, FormItem } from '@/components/ui/Form'
 import Loading from '@/components/shared/Loading'
 import toast from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
+import { APP_PREFIX_PATH } from '@/constants/route.constant'
 import {
     apiGetAiActionsCatalog,
     apiGetAiRuntimeConfig,
@@ -20,12 +21,6 @@ import {
     type AiRuntimeConfigResponse,
     type UpdateAiRuntimeConfigPayload,
 } from '@/services/AiRuntimeService'
-import AiKnowledgeService, {
-    type CreateCuratedKnowledgePayload,
-    type AiKnowledgeCandidate,
-    type AiKnowledgeDocument,
-    type AiKnowledgeOverview,
-} from '@/services/AiKnowledgeService'
 
 type FormValues = {
     enabled: boolean
@@ -38,21 +33,24 @@ type FormValues = {
     usageMessage: string
     adminInternalPrompt: string
     customerPublicPrompt: string
-}
-
-type CuratedKnowledgeForm = {
-    scope: 'customer_public' | 'admin_internal'
-    title: string
-    summary: string
-    content: string
-    tags: string
-}
-
-type UploadedKnowledgeForm = {
-    scope: 'customer_public' | 'admin_internal'
-    title: string
-    summary: string
-    tags: string
+    customerGreetingDefault: string
+    customerGreetingMorning: string
+    customerGreetingAfternoon: string
+    customerGreetingConsultation: string
+    customerGreetingHelp: string
+    adminGreetingDefault: string
+    customerGroundedRewriteEnabled: boolean
+    customerGroundedRewriteMaxChars: string
+    customerCapabilityProfile:
+        | 'full_assistant'
+        | 'ecommerce_content'
+        | 'scheduling_content'
+        | 'content_only'
+        | 'custom'
+    customerContentMode: 'enabled' | 'deterministic_only' | 'handoff_only'
+    customerCommerceMode: 'enabled' | 'deterministic_only' | 'handoff_only'
+    customerSchedulingMode: 'enabled' | 'deterministic_only' | 'handoff_only'
+    customerWordingOverridesJson: string
 }
 
 const initialFormState: FormValues = {
@@ -66,21 +64,53 @@ const initialFormState: FormValues = {
     usageMessage: '',
     adminInternalPrompt: '',
     customerPublicPrompt: '',
+    customerGreetingDefault: '',
+    customerGreetingMorning: '',
+    customerGreetingAfternoon: '',
+    customerGreetingConsultation: '',
+    customerGreetingHelp: '',
+    adminGreetingDefault: '',
+    customerGroundedRewriteEnabled: false,
+    customerGroundedRewriteMaxChars: '220',
+    customerCapabilityProfile: 'full_assistant',
+    customerContentMode: 'enabled',
+    customerCommerceMode: 'enabled',
+    customerSchedulingMode: 'enabled',
+    customerWordingOverridesJson: '',
 }
 
-const initialCuratedKnowledgeForm: CuratedKnowledgeForm = {
-    scope: 'admin_internal',
-    title: '',
-    summary: '',
-    content: '',
-    tags: '',
-}
-
-const initialUploadedKnowledgeForm: UploadedKnowledgeForm = {
-    scope: 'admin_internal',
-    title: '',
-    summary: '',
-    tags: '',
+const capabilityProfilePresets: Record<
+    FormValues['customerCapabilityProfile'],
+    Pick<
+        FormValues,
+        'customerContentMode' | 'customerCommerceMode' | 'customerSchedulingMode'
+    >
+> = {
+    full_assistant: {
+        customerContentMode: 'enabled',
+        customerCommerceMode: 'enabled',
+        customerSchedulingMode: 'enabled',
+    },
+    ecommerce_content: {
+        customerContentMode: 'enabled',
+        customerCommerceMode: 'enabled',
+        customerSchedulingMode: 'handoff_only',
+    },
+    scheduling_content: {
+        customerContentMode: 'enabled',
+        customerCommerceMode: 'handoff_only',
+        customerSchedulingMode: 'enabled',
+    },
+    content_only: {
+        customerContentMode: 'enabled',
+        customerCommerceMode: 'handoff_only',
+        customerSchedulingMode: 'handoff_only',
+    },
+    custom: {
+        customerContentMode: 'enabled',
+        customerCommerceMode: 'enabled',
+        customerSchedulingMode: 'enabled',
+    },
 }
 
 const formatDateTime = (value: string | null) => {
@@ -93,20 +123,6 @@ const formatDateTime = (value: string | null) => {
     } catch {
         return value
     }
-}
-
-const formatFileSize = (value: number) => {
-    if (!Number.isFinite(value) || value <= 0) {
-        return '0 B'
-    }
-    const units = ['B', 'KB', 'MB', 'GB']
-    let size = value
-    let unitIndex = 0
-    while (size >= 1024 && unitIndex < units.length - 1) {
-        size /= 1024
-        unitIndex += 1
-    }
-    return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
 }
 
 const toFormValues = (data: AiRuntimeConfigResponse): FormValues => ({
@@ -127,35 +143,32 @@ const toFormValues = (data: AiRuntimeConfigResponse): FormValues => ({
     usageMessage: data.usageMessage ?? '',
     adminInternalPrompt: data.adminInternalPrompt ?? '',
     customerPublicPrompt: data.customerPublicPrompt ?? '',
+    customerGreetingDefault: data.customerGreetingDefault ?? '',
+    customerGreetingMorning: data.customerGreetingMorning ?? '',
+    customerGreetingAfternoon: data.customerGreetingAfternoon ?? '',
+    customerGreetingConsultation: data.customerGreetingConsultation ?? '',
+    customerGreetingHelp: data.customerGreetingHelp ?? '',
+    adminGreetingDefault: data.adminGreetingDefault ?? '',
+    customerGroundedRewriteEnabled: data.customerGroundedRewriteEnabled ?? false,
+    customerGroundedRewriteMaxChars:
+        data.customerGroundedRewriteMaxChars !== null &&
+        data.customerGroundedRewriteMaxChars !== undefined
+            ? String(data.customerGroundedRewriteMaxChars)
+            : '220',
+    customerCapabilityProfile: data.customerCapabilityProfile ?? 'full_assistant',
+    customerContentMode: data.customerContentMode ?? 'enabled',
+    customerCommerceMode: data.customerCommerceMode ?? 'enabled',
+    customerSchedulingMode: data.customerSchedulingMode ?? 'enabled',
+    customerWordingOverridesJson: data.customerWordingOverridesJson ?? '',
 })
 
 const AiRuntimeSettings = () => {
+    const navigate = useNavigate()
     const [loading, setLoading] = useState(true)
     const [config, setConfig] = useState<AiRuntimeConfigResponse | null>(null)
     const [initialValues, setInitialValues] =
         useState<FormValues>(initialFormState)
-    const [knowledgeOverview, setKnowledgeOverview] =
-        useState<AiKnowledgeOverview | null>(null)
-    const [knowledgeDocuments, setKnowledgeDocuments] = useState<
-        AiKnowledgeDocument[]
-    >([])
-    const [managedKnowledgeDocuments, setManagedKnowledgeDocuments] = useState<
-        AiKnowledgeDocument[]
-    >([])
-    const [knowledgeCandidates, setKnowledgeCandidates] = useState<
-        AiKnowledgeCandidate[]
-    >([])
     const [aiActions, setAiActions] = useState<AiActionCatalogEntry[]>([])
-    const [knowledgeLoading, setKnowledgeLoading] = useState(false)
-    const [knowledgeAction, setKnowledgeAction] = useState<string | null>(null)
-    const [curatedForm, setCuratedForm] = useState<CuratedKnowledgeForm>(
-        initialCuratedKnowledgeForm,
-    )
-    const [uploadedKnowledgeForm, setUploadedKnowledgeForm] =
-        useState<UploadedKnowledgeForm>(initialUploadedKnowledgeForm)
-    const [uploadedKnowledgeFiles, setUploadedKnowledgeFiles] = useState<File[]>(
-        [],
-    )
 
     const loadConfig = useCallback(async () => {
         setLoading(true)
@@ -183,231 +196,25 @@ const AiRuntimeSettings = () => {
         void loadConfig()
     }, [loadConfig])
 
-    const loadKnowledge = useCallback(async () => {
-        setKnowledgeLoading(true)
-        try {
-            const [
-                overviewResponse,
-                documentsResponse,
-                managedDocumentsResponse,
-                candidatesResponse,
-            ] =
-                await Promise.all([
-                    AiKnowledgeService.getOverview(),
-                    AiKnowledgeService.listDocuments(),
-                    AiKnowledgeService.listDocuments({ sourceFileOnly: true }),
-                    AiKnowledgeService.listCandidates(),
-                ])
-
-            setKnowledgeOverview(overviewResponse.data)
-            setKnowledgeDocuments(documentsResponse.data)
-            setManagedKnowledgeDocuments(managedDocumentsResponse.data)
-            setKnowledgeCandidates(candidatesResponse.data.slice(0, 6))
-        } catch (error) {
-            console.error(error)
-        } finally {
-            setKnowledgeLoading(false)
-        }
-    }, [])
-
-    useEffect(() => {
-        void loadKnowledge()
-    }, [loadKnowledge])
-
     const updatedLabel = useMemo(
         () => formatDateTime(config?.updatedAt ?? null),
         [config?.updatedAt],
     )
 
-    const totalDocuments =
-        knowledgeOverview?.documents.reduce((sum, item) => sum + item.count, 0) ?? 0
-    const totalPendingCandidates =
-        knowledgeOverview?.candidates
-            .filter((item) => item.status === 'pending')
-            .reduce((sum, item) => sum + item.count, 0) ?? 0
-    const indexedDocumentsCount = knowledgeDocuments.filter(
-        (document) => document.embedding != null,
-    ).length
-    const uploadedKnowledgeDocuments = managedKnowledgeDocuments
     const adminActions = aiActions.filter(
         (entry) => entry.scope === 'admin_internal',
     )
-    const groupedAdminActions = adminActions.reduce<
-        Record<string, AiActionCatalogEntry[]>
-    >((accumulator, entry) => {
-        const [group = 'general'] = entry.key.split('.')
-        accumulator[group] = [...(accumulator[group] ?? []), entry]
-        return accumulator
-    }, {})
-
-    const createCuratedKnowledge = useCallback(async () => {
-        const title = curatedForm.title.trim()
-        const content = curatedForm.content.trim()
-
-        if (!title || !content) {
-            toast.push(
-                <Notification title="Faltan datos de conocimiento" type="warning">
-                    El título y el contenido son obligatorios.
-                </Notification>,
-                { placement: 'top-end' },
-            )
-            return
-        }
-
-        setKnowledgeAction('curated')
-        try {
-            const payload: CreateCuratedKnowledgePayload = {
-                scope: curatedForm.scope,
-                title,
-                summary: curatedForm.summary.trim() || undefined,
-                content,
-                tags: curatedForm.tags
-                    .split(',')
-                    .map((tag) => tag.trim())
-                    .filter(Boolean),
-                metadata: {
-                    source: 'admin-settings-ui',
+    const groupedAdminActions = useMemo(
+        () =>
+            adminActions.reduce<Record<string, AiActionCatalogEntry[]>>(
+                (accumulator, entry) => {
+                    const [group = 'general'] = entry.key.split('.')
+                    accumulator[group] = [...(accumulator[group] ?? []), entry]
+                    return accumulator
                 },
-            }
-
-            await AiKnowledgeService.createCurated(payload)
-            setCuratedForm(initialCuratedKnowledgeForm)
-            await loadKnowledge()
-            toast.push(
-                <Notification title="Conocimiento curado guardado" type="success">
-                    La entrada quedó disponible para el runtime de IA.
-                </Notification>,
-                { placement: 'top-end' },
-            )
-        } catch (error) {
-            console.error(error)
-            toast.push(
-                <Notification title="No fue posible guardar conocimiento curado" type="danger">
-                    Revisa el contenido y vuelve a intentar.
-                </Notification>,
-                { placement: 'top-end' },
-            )
-        } finally {
-            setKnowledgeAction(null)
-        }
-    }, [curatedForm, loadKnowledge])
-
-    const uploadKnowledgeDocument = useCallback(async () => {
-        const file = uploadedKnowledgeFiles[0]
-        if (!file) {
-            toast.push(
-                <Notification title="Falta documento" type="warning">
-                    Selecciona un archivo para cargar.
-                </Notification>,
-                { placement: 'top-end' },
-            )
-            return
-        }
-
-        setKnowledgeAction('upload-document')
-        try {
-            const formData = new FormData()
-            formData.append('file', file)
-            formData.append('scope', uploadedKnowledgeForm.scope)
-            if (uploadedKnowledgeForm.title.trim()) {
-                formData.append('title', uploadedKnowledgeForm.title.trim())
-            }
-            if (uploadedKnowledgeForm.summary.trim()) {
-                formData.append('summary', uploadedKnowledgeForm.summary.trim())
-            }
-            if (uploadedKnowledgeForm.tags.trim()) {
-                formData.append('tags', uploadedKnowledgeForm.tags.trim())
-            }
-
-            await AiKnowledgeService.uploadDocument(formData)
-            setUploadedKnowledgeFiles([])
-            setUploadedKnowledgeForm(initialUploadedKnowledgeForm)
-            await loadKnowledge()
-            toast.push(
-                <Notification title="Documento cargado" type="success">
-                    El documento quedó disponible como fuente gestionable de conocimiento.
-                </Notification>,
-                { placement: 'top-end' },
-            )
-        } catch (error) {
-            console.error(error)
-            toast.push(
-                <Notification title="No fue posible cargar el documento" type="danger">
-                    Revisa el tipo de archivo e intenta nuevamente.
-                </Notification>,
-                { placement: 'top-end' },
-            )
-        } finally {
-            setKnowledgeAction(null)
-        }
-    }, [loadKnowledge, uploadedKnowledgeFiles, uploadedKnowledgeForm])
-
-    const deleteKnowledgeDocument = useCallback(
-        async (documentId: string) => {
-            setKnowledgeAction(`delete-document:${documentId}`)
-            try {
-                await AiKnowledgeService.deleteDocument(documentId)
-                await loadKnowledge()
-                toast.push(
-                    <Notification title="Documento eliminado" type="success">
-                        La fuente quedó removida del corpus aprobado.
-                    </Notification>,
-                    { placement: 'top-end' },
-                )
-            } catch (error) {
-                console.error(error)
-                toast.push(
-                    <Notification title="No fue posible eliminar el documento" type="danger">
-                        Intenta nuevamente en unos segundos.
-                    </Notification>,
-                    { placement: 'top-end' },
-                )
-            } finally {
-                setKnowledgeAction(null)
-            }
-        },
-        [loadKnowledge],
-    )
-
-    const reviewCandidate = useCallback(
-        async (candidate: AiKnowledgeCandidate, action: 'approve' | 'reject') => {
-            setKnowledgeAction(`${action}:${candidate.id}`)
-            try {
-                await AiKnowledgeService.reviewCandidate(candidate.id, {
-                    action,
-                    promoteToDocument: action === 'approve',
-                    scope: candidate.scope as 'customer_public' | 'admin_internal',
-                    title: candidate.title,
-                    summary: candidate.summary ?? undefined,
-                    content: candidate.redactedExcerpt || candidate.excerpt,
-                })
-                await loadKnowledge()
-                toast.push(
-                    <Notification
-                        title={
-                            action === 'approve'
-                                ? 'Candidato aprobado'
-                                : 'Candidato rechazado'
-                        }
-                        type="success"
-                    >
-                        La cola de conocimiento quedó actualizada.
-                    </Notification>,
-                    { placement: 'top-end' },
-                )
-            } catch (error) {
-                console.error(error)
-                toast.push(
-                    <Notification title="No fue posible revisar el candidato" type="danger">
-                        Reintenta la acción o revisa permisos del backend.
-                    </Notification>,
-                    { placement: 'top-end' },
-                )
-            } finally {
-                setKnowledgeAction(null)
-            }
-        },
-        [loadKnowledge],
+                {},
+            ),
+        [adminActions],
     )
 
     if (loading) {
@@ -415,128 +222,197 @@ const AiRuntimeSettings = () => {
     }
 
     return (
-        <div className="mx-auto max-w-4xl" data-testid="ai-runtime-settings-page">
-            <Card>
-                <div className="mb-6 flex flex-col gap-2">
-                    <div className="flex flex-wrap items-center gap-3">
-                        <Badge
-                            className={
-                                config?.enabled
-                                    ? 'bg-emerald-50 text-emerald-700'
-                                    : 'bg-gray-100 text-gray-600'
+        <div className="mx-auto flex max-w-6xl flex-col gap-6" data-testid="ai-runtime-settings-page">
+            <Card bodyClass="p-6">
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="max-w-4xl">
+                        <div className="text-xs uppercase tracking-wide text-gray-400">
+                            AI Runtime
+                        </div>
+                        <h4 className="mt-1 text-2xl font-semibold text-gray-900">
+                            Runtime técnico del agente
+                        </h4>
+                        <p className="mt-3 text-sm leading-6 text-gray-600">
+                            Esta pantalla queda reservada para proveedor, modelo, límites,
+                            prompts y catálogo técnico de acciones. La gestión de knowledge
+                            ya vive en superficies dedicadas del módulo IA.
+                        </p>
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                            <Badge
+                                className={
+                                    config?.enabled
+                                        ? 'bg-emerald-50 text-emerald-700'
+                                        : 'bg-slate-100 text-slate-700'
+                                }
+                            >
+                                {config?.enabled ? 'IA habilitada' : 'IA en pausa'}
+                            </Badge>
+                            <Badge className="bg-sky-50 text-sky-700">
+                                {config?.provider || 'sin proveedor'}
+                            </Badge>
+                            <Badge className="bg-slate-100 text-slate-700">
+                                Fuente: {config?.source ?? 'environment'}
+                            </Badge>
+                            {config?.hasOpenAiApiKey ? (
+                                <Badge className="bg-violet-50 text-violet-700">
+                                    API key configurada
+                                </Badge>
+                            ) : (
+                                <Badge className="bg-amber-50 text-amber-700">
+                                    API key pendiente
+                                </Badge>
+                            )}
+                        </div>
+                        {updatedLabel ? (
+                            <div className="mt-3 text-xs text-gray-500">
+                                Última actualización {updatedLabel}
+                            </div>
+                        ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            variant="default"
+                            onClick={() => navigate(`${APP_PREFIX_PATH}/settings/ai`)}
+                        >
+                            Volver a IA
+                        </Button>
+                        <Button
+                            variant="default"
+                            onClick={() =>
+                                navigate(
+                                    `${APP_PREFIX_PATH}/settings/ai/knowledge/overview`,
+                                )
                             }
                         >
-                            {config?.enabled ? 'AI habilitada' : 'AI deshabilitada'}
-                        </Badge>
-                        <span className="text-sm text-gray-500 capitalize">
-                            Fuente: {config?.source ?? 'environment'}
-                        </span>
-                        {config?.hasOpenAiApiKey ? (
-                            <Badge className="bg-sky-50 text-sky-700">
-                                API key configurada
-                            </Badge>
-                        ) : (
-                            <Badge className="bg-amber-50 text-amber-700">
-                                API key pendiente
-                            </Badge>
-                        )}
-                    </div>
-                    <p className="text-sm text-gray-600">
-                        Esta configuración controla el runtime del agente, el proveedor del
-                        modelo y los límites operativos. El servicio consulta estos valores
-                        de forma periódica, por lo que no requiere reinicio manual para el uso
-                        normal.
-                    </p>
-                    {updatedLabel ? (
-                        <span className="text-xs text-gray-500">
-                            Última actualización {updatedLabel}
-                        </span>
-                    ) : null}
-                </div>
-
-                {config?.usage ? (
-                    <Alert
-                        showIcon
-                        type={
-                            config.usage.exceeded
-                                ? 'danger'
-                                : config.usage.nearLimit
-                                  ? 'warning'
-                                  : 'success'
-                        }
-                        className="mb-6"
-                        data-testid="ai-runtime-usage-alert"
-                    >
-                        <div className="font-medium">{config.usage.message}</div>
-                        <div className="mt-1 text-sm">
-                            Uso actual:{' '}
-                            {config.currentUsageUsd !== null
-                                ? `USD ${config.currentUsageUsd.toFixed(2)}`
-                                : 'sin dato'}
-                            {' · '}
-                            Límite:{' '}
-                            {config.monthlySpendingLimitUsd !== null
-                                ? `USD ${config.monthlySpendingLimitUsd.toFixed(2)}`
-                                : 'sin límite'}
-                            {' · '}
-                            Umbral:{' '}
-                            {config.warningThresholdPercent}%
-                        </div>
-                    </Alert>
-                ) : null}
-
-                <Formik
-                    enableReinitialize
-                    initialValues={initialValues}
-                    onSubmit={async (values, { setSubmitting, setValues }) => {
-                        setSubmitting(true)
-                        try {
-                            const payload: UpdateAiRuntimeConfigPayload = {
-                                enabled: values.enabled,
-                                provider: values.provider,
-                                model: values.model.trim() || 'gpt-4o-mini',
-                                openAiApiKey: values.openAiApiKey.trim() || undefined,
-                                monthlySpendingLimitUsd: values.monthlySpendingLimitUsd
-                                    ? Number(values.monthlySpendingLimitUsd)
-                                    : null,
-                                currentUsageUsd: values.currentUsageUsd
-                                    ? Number(values.currentUsageUsd)
-                                    : null,
-                                warningThresholdPercent: Number(values.warningThresholdPercent || 80),
-                                usageMessage: values.usageMessage.trim() || null,
-                                adminInternalPrompt:
-                                    values.adminInternalPrompt.trim() || null,
-                                customerPublicPrompt:
-                                    values.customerPublicPrompt.trim() || null,
+                            Knowledge overview
+                        </Button>
+                        <Button
+                            variant="default"
+                            onClick={() =>
+                                navigate(
+                                    `${APP_PREFIX_PATH}/settings/ai/knowledge/ingestion-runs`,
+                                )
                             }
+                        >
+                            Corridas de ingesta
+                        </Button>
+                        <Button variant="solid" onClick={() => void loadConfig()}>
+                            Refrescar
+                        </Button>
+                    </div>
+                </div>
+            </Card>
 
-                            const response: AxiosResponse<AiRuntimeConfigResponse> =
-                                await apiUpdateAiRuntimeConfig(payload)
-                            setConfig(response.data)
-                            const nextValues = toFormValues(response.data)
-                            nextValues.openAiApiKey = ''
-                            setValues(nextValues)
-                            toast.push(
-                                <Notification title="Configuración AI guardada" type="success">
-                                    El runtime del agente quedó actualizado.
-                                </Notification>,
-                                { placement: 'top-end' },
-                            )
-                        } catch (error) {
-                            console.error(error)
-                            toast.push(
-                                <Notification title="No fue posible guardar la configuración AI" type="danger">
-                                    Revisa los campos y vuelve a intentar.
-                                </Notification>,
-                                { placement: 'top-end' },
-                            )
-                        } finally {
-                            setSubmitting(false)
-                        }
-                    }}
+            {config?.usage ? (
+                <Alert
+                    showIcon
+                    type={
+                        config.usage.exceeded
+                            ? 'danger'
+                            : config.usage.nearLimit
+                              ? 'warning'
+                              : 'success'
+                    }
+                    data-testid="ai-runtime-usage-alert"
                 >
-                    {({ values, isSubmitting, dirty, handleReset, setFieldValue }) => (
-                        <Form>
+                    <div className="font-medium">{config.usage.message}</div>
+                    <div className="mt-1 text-sm">
+                        Uso actual:{' '}
+                        {config.currentUsageUsd !== null
+                            ? `USD ${config.currentUsageUsd.toFixed(2)}`
+                            : 'sin dato'}
+                        {' · '}
+                        Límite:{' '}
+                        {config.monthlySpendingLimitUsd !== null
+                            ? `USD ${config.monthlySpendingLimitUsd.toFixed(2)}`
+                            : 'sin límite'}
+                        {' · '}
+                        Umbral: {config.warningThresholdPercent}%
+                    </div>
+                </Alert>
+            ) : null}
+
+            <Formik
+                enableReinitialize
+                initialValues={initialValues}
+                onSubmit={async (values, { setSubmitting, setValues }) => {
+                    setSubmitting(true)
+                    try {
+                        const payload: UpdateAiRuntimeConfigPayload = {
+                            enabled: values.enabled,
+                            provider: values.provider,
+                            model: values.model.trim() || 'gpt-4o-mini',
+                            openAiApiKey: values.openAiApiKey.trim() || undefined,
+                            monthlySpendingLimitUsd: values.monthlySpendingLimitUsd
+                                ? Number(values.monthlySpendingLimitUsd)
+                                : null,
+                            currentUsageUsd: values.currentUsageUsd
+                                ? Number(values.currentUsageUsd)
+                                : null,
+                            warningThresholdPercent: Number(
+                                values.warningThresholdPercent || 80,
+                            ),
+                            usageMessage: values.usageMessage.trim() || null,
+                            adminInternalPrompt:
+                                values.adminInternalPrompt.trim() || null,
+                            customerPublicPrompt:
+                                values.customerPublicPrompt.trim() || null,
+                            customerGreetingDefault:
+                                values.customerGreetingDefault.trim() || null,
+                            customerGreetingMorning:
+                                values.customerGreetingMorning.trim() || null,
+                            customerGreetingAfternoon:
+                                values.customerGreetingAfternoon.trim() || null,
+                            customerGreetingConsultation:
+                                values.customerGreetingConsultation.trim() || null,
+                            customerGreetingHelp:
+                                values.customerGreetingHelp.trim() || null,
+                            adminGreetingDefault:
+                                values.adminGreetingDefault.trim() || null,
+                            customerGroundedRewriteEnabled:
+                                values.customerGroundedRewriteEnabled,
+                            customerGroundedRewriteMaxChars:
+                                values.customerGroundedRewriteMaxChars
+                                    ? Number(values.customerGroundedRewriteMaxChars)
+                                    : null,
+                            customerCapabilityProfile:
+                                values.customerCapabilityProfile,
+                            customerContentMode: values.customerContentMode,
+                            customerCommerceMode: values.customerCommerceMode,
+                            customerSchedulingMode:
+                                values.customerSchedulingMode,
+                            customerWordingOverridesJson:
+                                values.customerWordingOverridesJson.trim() || null,
+                        }
+
+                        const response: AxiosResponse<AiRuntimeConfigResponse> =
+                            await apiUpdateAiRuntimeConfig(payload)
+                        setConfig(response.data)
+                        const nextValues = toFormValues(response.data)
+                        nextValues.openAiApiKey = ''
+                        setValues(nextValues)
+                        toast.push(
+                            <Notification title="Configuración AI guardada" type="success">
+                                El runtime del agente quedó actualizado.
+                            </Notification>,
+                            { placement: 'top-end' },
+                        )
+                    } catch (error) {
+                        console.error(error)
+                        toast.push(
+                            <Notification title="No fue posible guardar la configuración AI" type="danger">
+                                Revisa los campos y vuelve a intentar.
+                            </Notification>,
+                            { placement: 'top-end' },
+                        )
+                    } finally {
+                        setSubmitting(false)
+                    }
+                }}
+            >
+                {({ values, isSubmitting, dirty, handleReset, setFieldValue }) => (
+                    <Form>
+                        <Card bodyClass="p-6">
                             <FormContainer>
                                 <FormItem
                                     label="Habilitar AI"
@@ -552,8 +428,8 @@ const AiRuntimeSettings = () => {
                                         />
                                         <span className="text-sm text-gray-600">
                                             {values.enabled
-                                                ? 'El asistente puede responder y ejecutar tools.'
-                                                : 'El asistente queda en pausa y debe intervenir un operador.'}
+                                                ? 'El runtime puede responder y orquestar acciones.'
+                                                : 'El runtime queda pausado y requiere intervención humana.'}
                                         </span>
                                     </div>
                                 </FormItem>
@@ -639,6 +515,181 @@ const AiRuntimeSettings = () => {
                                     />
                                 </FormItem>
 
+                                <Card bodyClass="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <div className="mb-4">
+                                        <h5 className="font-semibold text-gray-900">
+                                            Capability Profiles
+                                        </h5>
+                                        <p className="mt-1 text-sm text-gray-600">
+                                            Separan contenido, ecommerce y agenda. El perfil marca
+                                            el baseline reusable y los modos por capability
+                                            funcionan como kill switches o modo degradado sin apagar
+                                            todo el chatbot.
+                                        </p>
+                                    </div>
+                                    <div className="grid gap-4 xl:grid-cols-2">
+                                        <FormItem
+                                            label="Perfil customer"
+                                            extra="Usa perfiles predefinidos o pasa a custom para controlar cada capability por separado."
+                                        >
+                                            <select
+                                                className="input"
+                                                value={values.customerCapabilityProfile}
+                                                onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+                                                    const nextProfile =
+                                                        event.target
+                                                            .value as FormValues['customerCapabilityProfile']
+                                                    setFieldValue(
+                                                        'customerCapabilityProfile',
+                                                        nextProfile,
+                                                    )
+                                                    if (nextProfile !== 'custom') {
+                                                        const preset =
+                                                            capabilityProfilePresets[nextProfile]
+                                                        setFieldValue(
+                                                            'customerContentMode',
+                                                            preset.customerContentMode,
+                                                        )
+                                                        setFieldValue(
+                                                            'customerCommerceMode',
+                                                            preset.customerCommerceMode,
+                                                        )
+                                                        setFieldValue(
+                                                            'customerSchedulingMode',
+                                                            preset.customerSchedulingMode,
+                                                        )
+                                                    }
+                                                }}
+                                                data-testid="ai-runtime-capability-profile"
+                                            >
+                                                <option value="full_assistant">full_assistant</option>
+                                                <option value="ecommerce_content">ecommerce_content</option>
+                                                <option value="scheduling_content">scheduling_content</option>
+                                                <option value="content_only">content_only</option>
+                                                <option value="custom">custom</option>
+                                            </select>
+                                        </FormItem>
+                                        <FormItem
+                                            label="Grounded rewrite opcional"
+                                            extra="Reescritura final más natural sobre respuestas ya grounded. Se recomienda apagarla si la capacidad queda en deterministic_only."
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <Switcher
+                                                    checked={values.customerGroundedRewriteEnabled}
+                                                    onChange={(checked) =>
+                                                        setFieldValue(
+                                                            'customerGroundedRewriteEnabled',
+                                                            checked,
+                                                        )
+                                                    }
+                                                    data-testid="ai-runtime-grounded-rewrite-enabled"
+                                                />
+                                                <Field
+                                                    as={Input}
+                                                    name="customerGroundedRewriteMaxChars"
+                                                    className="max-w-[160px]"
+                                                    placeholder="220"
+                                                    data-testid="ai-runtime-grounded-rewrite-max-chars"
+                                                />
+                                            </div>
+                                        </FormItem>
+                                    </div>
+
+                                    <div className="mt-4 grid gap-4 xl:grid-cols-3">
+                                        <FormItem
+                                            label="Contenido / FAQ"
+                                            extra="enabled responde desde knowledge; deterministic_only evita provider opcional; handoff_only deriva con fallback seguro."
+                                        >
+                                            <Field
+                                                as="select"
+                                                name="customerContentMode"
+                                                className="input"
+                                                onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+                                                    setFieldValue(
+                                                        'customerContentMode',
+                                                        event.target.value,
+                                                    )
+                                                    setFieldValue(
+                                                        'customerCapabilityProfile',
+                                                        'custom',
+                                                    )
+                                                }}
+                                                data-testid="ai-runtime-content-mode"
+                                            >
+                                                <option value="enabled">enabled</option>
+                                                <option value="deterministic_only">deterministic_only</option>
+                                                <option value="handoff_only">handoff_only</option>
+                                            </Field>
+                                        </FormItem>
+                                        <FormItem
+                                            label="Ecommerce / Cotización"
+                                            extra="Controla preview inmediato, pricing y handoff en consultas comerciales."
+                                        >
+                                            <Field
+                                                as="select"
+                                                name="customerCommerceMode"
+                                                className="input"
+                                                onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+                                                    setFieldValue(
+                                                        'customerCommerceMode',
+                                                        event.target.value,
+                                                    )
+                                                    setFieldValue(
+                                                        'customerCapabilityProfile',
+                                                        'custom',
+                                                    )
+                                                }}
+                                                data-testid="ai-runtime-commerce-mode"
+                                            >
+                                                <option value="enabled">enabled</option>
+                                                <option value="deterministic_only">deterministic_only</option>
+                                                <option value="handoff_only">handoff_only</option>
+                                            </Field>
+                                        </FormItem>
+                                        <FormItem
+                                            label="Agenda / Turnos"
+                                            extra="enabled agenda automáticamente; handoff_only releva datos y pasa a humano sin crear eventos."
+                                        >
+                                            <Field
+                                                as="select"
+                                                name="customerSchedulingMode"
+                                                className="input"
+                                                onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+                                                    setFieldValue(
+                                                        'customerSchedulingMode',
+                                                        event.target.value,
+                                                    )
+                                                    setFieldValue(
+                                                        'customerCapabilityProfile',
+                                                        'custom',
+                                                    )
+                                                }}
+                                                data-testid="ai-runtime-scheduling-mode"
+                                            >
+                                                <option value="enabled">enabled</option>
+                                                <option value="deterministic_only">deterministic_only</option>
+                                                <option value="handoff_only">handoff_only</option>
+                                            </Field>
+                                        </FormItem>
+                                    </div>
+
+                                    <FormItem
+                                        label="Overrides de wording customer"
+                                        extra={
+                                            'JSON opcional por clave del wording registry. Acepta string o array de variantes. Ejemplo: {"customer.quote.handoff_ready":["Gracias por la información enviada..."],"customer.faq.product_general":"Sí, trabajamos con {topic}. Si querés, te cuento opciones."}'
+                                        }
+                                    >
+                                        <Field
+                                            as="textarea"
+                                            name="customerWordingOverridesJson"
+                                            rows={8}
+                                            className="input min-h-[200px] w-full rounded-2xl border border-gray-200 px-4 py-3 font-mono text-sm"
+                                            placeholder='{"customer.quote.handoff_ready":["Gracias por la información enviada. Le enviamos la cotización a la brevedad."]}'
+                                            data-testid="ai-runtime-wording-overrides-json"
+                                        />
+                                    </FormItem>
+                                </Card>
+
                                 <div className="grid gap-4 xl:grid-cols-2">
                                     <FormItem
                                         label="Prompt adicional admin interno"
@@ -649,7 +700,7 @@ const AiRuntimeSettings = () => {
                                             name="adminInternalPrompt"
                                             rows={6}
                                             className="input min-h-[160px] w-full rounded-2xl border border-gray-200 px-4 py-3"
-                                            placeholder="Ejemplo: prioriza el informe de UruCortinas, no inventes métricas y deriva a humano si falta grounding."
+                                            placeholder="Ejemplo: prioriza el informe operativo, no inventes métricas y deriva si falta grounding."
                                             data-testid="ai-runtime-admin-prompt"
                                         />
                                     </FormItem>
@@ -668,10 +719,91 @@ const AiRuntimeSettings = () => {
                                     </FormItem>
                                 </div>
 
+                                <Card bodyClass="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <div className="mb-4">
+                                        <h5 className="font-semibold text-gray-900">
+                                            Saludos configurables
+                                        </h5>
+                                        <p className="mt-1 text-sm text-gray-600">
+                                            Estos textos se usan en respuestas livianas del runtime
+                                            antes del modelo. Sirven para ajustar el tono base sin
+                                            tocar código.
+                                        </p>
+                                    </div>
+                                    <div className="grid gap-4 xl:grid-cols-2">
+                                        <FormItem
+                                            label="Cliente · saludo por defecto"
+                                            extra="Se usa para mensajes como “hola”."
+                                        >
+                                            <Field
+                                                as={Input}
+                                                name="customerGreetingDefault"
+                                                placeholder="Hola. ¿En qué podemos ayudarte hoy?"
+                                                data-testid="ai-runtime-customer-greeting-default"
+                                            />
+                                        </FormItem>
+                                        <FormItem
+                                            label="Cliente · buenos días"
+                                            extra="Se usa para mensajes que empiezan con “buenos días”."
+                                        >
+                                            <Field
+                                                as={Input}
+                                                name="customerGreetingMorning"
+                                                placeholder="Buenos días. ¿En qué podemos ayudarte?"
+                                                data-testid="ai-runtime-customer-greeting-morning"
+                                            />
+                                        </FormItem>
+                                        <FormItem
+                                            label="Cliente · buenas tardes"
+                                            extra="Se usa para mensajes que empiezan con “buenas tardes”."
+                                        >
+                                            <Field
+                                                as={Input}
+                                                name="customerGreetingAfternoon"
+                                                placeholder="Buenas tardes. ¿En qué podemos ayudarte hoy?"
+                                                data-testid="ai-runtime-customer-greeting-afternoon"
+                                            />
+                                        </FormItem>
+                                        <FormItem
+                                            label="Cliente · consulta"
+                                            extra="Se usa para saludos con intención de consulta explícita."
+                                        >
+                                            <Field
+                                                as={Input}
+                                                name="customerGreetingConsultation"
+                                                placeholder="Hola. Claro, cuéntanos tu consulta."
+                                                data-testid="ai-runtime-customer-greeting-consultation"
+                                            />
+                                        </FormItem>
+                                        <FormItem
+                                            label="Cliente · pedido de ayuda"
+                                            extra="Se usa cuando el usuario ya dice que necesita ayuda."
+                                        >
+                                            <Field
+                                                as={Input}
+                                                name="customerGreetingHelp"
+                                                placeholder="Hola. Claro, ¿con qué te ayudamos?"
+                                                data-testid="ai-runtime-customer-greeting-help"
+                                            />
+                                        </FormItem>
+                                        <FormItem
+                                            label="Admin interno · saludo base"
+                                            extra="Se usa en saludos livianos del asistente interno."
+                                        >
+                                            <Field
+                                                as={Input}
+                                                name="adminGreetingDefault"
+                                                placeholder="Hola. ¿En qué te ayudo hoy?"
+                                                data-testid="ai-runtime-admin-greeting-default"
+                                            />
+                                        </FormItem>
+                                    </div>
+                                </Card>
+
                                 <Alert showIcon type="info">
-                                    El límite no bloquea llamadas por sí mismo; funciona como control
-                                    operativo y warning temprano. Mantén un valor actualizado para que
-                                    el equipo vea cuándo se acerca al consumo máximo aceptable.
+                                    La observación de conversaciones, la ingesta documental y el
+                                    reindex del corpus ya no se operan desde esta pantalla. Usa
+                                    las superficies dedicadas de knowledge para esas tareas.
                                 </Alert>
 
                                 <div className="mt-6 flex items-center justify-end gap-3">
@@ -695,686 +827,84 @@ const AiRuntimeSettings = () => {
                                     </Button>
                                 </div>
                             </FormContainer>
-                        </Form>
-                    )}
-                </Formik>
+                        </Card>
+                    </Form>
+                )}
+            </Formik>
 
-                <div className="mt-10 border-t border-gray-200 pt-8">
-                    <div className="mb-6">
-                        <div className="mb-4 flex items-center justify-between gap-3">
-                            <div>
-                                <h4 className="text-base font-semibold text-gray-900">
-                                    CRUD habilitado para admin interno
-                                </h4>
-                                <p className="text-sm text-gray-600">
-                                    Este catálogo refleja qué acciones reales puede
-                                    ejecutar hoy el agente interno, qué confirmación
-                                    requieren y qué estados soportan.
-                                </p>
-                            </div>
-                            <Badge className="bg-slate-100 text-slate-700">
-                                {adminActions.length} acciones
-                            </Badge>
-                        </div>
-                        <div className="grid gap-4 xl:grid-cols-2">
-                            {Object.entries(groupedAdminActions).map(([group, entries]) => (
-                                <Card key={group} bodyClass="p-4">
-                                    <div className="mb-3 flex items-center justify-between gap-3">
-                                        <h5 className="font-semibold capitalize text-gray-900">
-                                            {group}
-                                        </h5>
-                                        <Badge className="bg-sky-50 text-sky-700">
-                                            {entries.length}
-                                        </Badge>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {entries.map((entry) => (
-                                            <div
-                                                key={entry.key}
-                                                className="rounded-2xl border border-gray-200 p-3"
-                                                data-testid={`ai-action-${entry.key}`}
-                                            >
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <span className="font-medium text-gray-900">
-                                                        {entry.label}
-                                                    </span>
-                                                    <Badge className="bg-slate-100 text-slate-700">
-                                                        {entry.method}
-                                                    </Badge>
-                                                    {entry.confirmationRequired ? (
-                                                        <Badge className="bg-amber-50 text-amber-700">
-                                                            Confirmación
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge className="bg-emerald-50 text-emerald-700">
-                                                            Consulta
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                                <div className="mt-1 text-sm text-gray-600">
-                                                    {entry.toolName || entry.key}
-                                                </div>
-                                                {entry.requiredFields?.length ? (
-                                                    <div className="mt-2 text-xs text-gray-500">
-                                                        Campos mínimos:{' '}
-                                                        {entry.requiredFields.join(', ')}
-                                                    </div>
-                                                ) : null}
-                                                {entry.allowedValues?.length ? (
-                                                    <div className="mt-2 text-xs text-gray-500">
-                                                        Valores soportados:{' '}
-                                                        {entry.allowedValues.join(', ')}
-                                                    </div>
-                                                ) : null}
-                                                {entry.confirmationPrompt ? (
-                                                    <div className="mt-2 text-xs text-gray-600">
-                                                        {entry.confirmationPrompt}
-                                                    </div>
-                                                ) : null}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </Card>
-                            ))}
-                        </div>
+            <Card bodyClass="p-6">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                        <h5 className="font-semibold text-gray-900">
+                            Catálogo de acciones admin interno
+                        </h5>
+                        <p className="mt-1 text-sm text-gray-600">
+                            Este catálogo refleja qué acciones reales puede ejecutar hoy el
+                            agente interno, qué confirmación requieren y qué estados soportan.
+                        </p>
                     </div>
-
-                    <div className="mb-4 flex flex-col gap-2">
-                        <div className="flex items-center justify-between gap-3">
-                            <div>
-                                <h4 className="text-base font-semibold text-gray-900">
-                                    Base de conocimiento
-                                </h4>
-                                <p className="text-sm text-gray-600">
-                                    Ingesta inicial desde documentación, datasets
-                                    internos y candidatos derivados de conversaciones.
-                                </p>
-                            </div>
-                            <Button
-                                size="sm"
-                                variant="default"
-                                loading={knowledgeLoading}
-                                onClick={() => void loadKnowledge()}
-                                data-testid="ai-knowledge-refresh"
-                            >
-                                Refrescar
-                            </Button>
-                        </div>
-                        <Alert showIcon type="info">
-                            Los documentos curados son la fuente más confiable.
-                            Los candidatos desde conversaciones requieren revisión
-                            antes de promoción y deben tratarse con control de PII.
-                        </Alert>
-                    </div>
-
-                    <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                        <Card bodyClass="p-4">
-                            <div className="text-xs uppercase tracking-wide text-gray-400">
-                                Documentos
-                            </div>
-                            <div className="mt-2 text-2xl font-semibold">
-                                {totalDocuments}
-                            </div>
-                        </Card>
-                        <Card bodyClass="p-4">
-                            <div className="text-xs uppercase tracking-wide text-gray-400">
-                                Candidatos pendientes
-                            </div>
-                            <div className="mt-2 text-2xl font-semibold">
-                                {totalPendingCandidates}
-                            </div>
-                        </Card>
-                        <Card bodyClass="p-4">
-                            <div className="text-xs uppercase tracking-wide text-gray-400">
-                                Fuente docs
-                            </div>
-                            <div className="mt-2 text-2xl font-semibold">
-                                {knowledgeOverview?.documents
-                                    .filter((item) => item.sourceType === 'docs')
-                                    .reduce((sum, item) => sum + item.count, 0) ??
-                                    0}
-                            </div>
-                        </Card>
-                        <Card bodyClass="p-4">
-                            <div className="text-xs uppercase tracking-wide text-gray-400">
-                                Datasets internos
-                            </div>
-                            <div className="mt-2 text-2xl font-semibold">
-                                {knowledgeOverview?.documents
-                                    .filter(
-                                        (item) =>
-                                            item.sourceType ===
-                                            'backend_dataset',
-                                    )
-                                    .reduce((sum, item) => sum + item.count, 0) ??
-                                    0}
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="mb-6 flex flex-wrap gap-3">
-                        <Button
-                            variant="solid"
-                            loading={knowledgeAction === 'docs'}
-                            onClick={async () => {
-                                setKnowledgeAction('docs')
-                                try {
-                                    await AiKnowledgeService.ingestDocs()
-                                    await loadKnowledge()
-                                    toast.push(
-                                        <Notification
-                                            title="Documentación ingerida"
-                                            type="success"
-                                        >
-                                            La base documental de la IA quedó
-                                            actualizada.
-                                        </Notification>,
-                                        { placement: 'top-end' },
-                                    )
-                                } catch (error) {
-                                    console.error(error)
-                                } finally {
-                                    setKnowledgeAction(null)
-                                }
-                            }}
-                            data-testid="ai-knowledge-ingest-docs"
-                        >
-                            Ingerir docs + sitio
-                        </Button>
-                        <Button
-                            variant="twoTone"
-                            loading={knowledgeAction === 'datasets'}
-                            onClick={async () => {
-                                setKnowledgeAction('datasets')
-                                try {
-                                    await AiKnowledgeService.ingestDatasets()
-                                    await loadKnowledge()
-                                    toast.push(
-                                        <Notification
-                                            title="Datasets ingeridos"
-                                            type="success"
-                                        >
-                                            Productos y clientes quedaron
-                                            proyectados a conocimiento curado.
-                                        </Notification>,
-                                        { placement: 'top-end' },
-                                    )
-                                } catch (error) {
-                                    console.error(error)
-                                } finally {
-                                    setKnowledgeAction(null)
-                                }
-                            }}
-                            data-testid="ai-knowledge-ingest-datasets"
-                        >
-                            Ingerir datasets
-                        </Button>
-                        <Button
-                            variant="default"
-                            loading={knowledgeAction === 'index'}
-                            onClick={async () => {
-                                setKnowledgeAction('index')
-                                try {
-                                    const result =
-                                        await AiKnowledgeService.indexDocuments()
-                                    await loadKnowledge()
-                                    toast.push(
-                                        <Notification
-                                            title="Retrieval reindexado"
-                                            type="success"
-                                        >
-                                            Se actualizaron {result.data.indexed}{' '}
-                                            documentos aprobados para búsqueda
-                                            semántica.
-                                        </Notification>,
-                                        { placement: 'top-end' },
-                                    )
-                                } catch (error) {
-                                    console.error(error)
-                                    toast.push(
-                                        <Notification
-                                            title="No fue posible reindexar"
-                                            type="danger"
-                                        >
-                                            Revisa disponibilidad del backend e
-                                            intenta nuevamente.
-                                        </Notification>,
-                                        { placement: 'top-end' },
-                                    )
-                                } finally {
-                                    setKnowledgeAction(null)
-                                }
-                            }}
-                            data-testid="ai-knowledge-index"
-                        >
-                            Reindexar retrieval
-                        </Button>
-                    </div>
-
-                    <div className="mb-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-                        <Card bodyClass="p-4">
-                            <div className="mb-3">
-                                <h5 className="font-semibold text-gray-900">
-                                    Fuentes documentales
-                                </h5>
-                                <p className="mt-1 text-sm text-gray-600">
-                                    Carga documentos reales para el corpus aprobado.
-                                    Deben poder verse, descargarse, eliminarse y
-                                    volver a cargarse como en producción.
-                                </p>
-                            </div>
-
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <FormItem label="Scope">
-                                    <select
-                                        className="input"
-                                        value={uploadedKnowledgeForm.scope}
-                                        onChange={(event) =>
-                                            setUploadedKnowledgeForm((current) => ({
-                                                ...current,
-                                                scope: event.target.value as UploadedKnowledgeForm['scope'],
-                                            }))
-                                        }
-                                        data-testid="ai-knowledge-upload-scope"
-                                    >
-                                        <option value="admin_internal">Admin interno</option>
-                                        <option value="customer_public">Cliente público</option>
-                                    </select>
-                                </FormItem>
-                                <FormItem label="Etiquetas">
-                                    <Input
-                                        value={uploadedKnowledgeForm.tags}
-                                        onChange={(event) =>
-                                            setUploadedKnowledgeForm((current) => ({
-                                                ...current,
-                                                tags: event.target.value,
-                                            }))
-                                        }
-                                        placeholder="urucortinas, informe, comercial"
-                                        data-testid="ai-knowledge-upload-tags"
-                                    />
-                                </FormItem>
-                            </div>
-
-                            <FormItem label="Título opcional">
-                                <Input
-                                    value={uploadedKnowledgeForm.title}
-                                    onChange={(event) =>
-                                        setUploadedKnowledgeForm((current) => ({
-                                            ...current,
-                                            title: event.target.value,
-                                        }))
-                                    }
-                                    data-testid="ai-knowledge-upload-title"
-                                />
-                            </FormItem>
-
-                            <FormItem label="Resumen opcional">
-                                <Input
-                                    value={uploadedKnowledgeForm.summary}
-                                    onChange={(event) =>
-                                        setUploadedKnowledgeForm((current) => ({
-                                            ...current,
-                                            summary: event.target.value,
-                                        }))
-                                    }
-                                    data-testid="ai-knowledge-upload-summary"
-                                />
-                            </FormItem>
-
-                            <FormItem label="Documento">
-                                <Upload
-                                    uploadLimit={1}
-                                    fileList={uploadedKnowledgeFiles}
-                                    onChange={(files) =>
-                                        setUploadedKnowledgeFiles(files as File[])
-                                    }
-                                    onFileRemove={(files) =>
-                                        setUploadedKnowledgeFiles(files as File[])
-                                    }
-                                >
-                                    <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-600">
-                                        Cargar `.docx`, `.txt`, `.md` o `.html`
-                                    </div>
-                                </Upload>
-                            </FormItem>
-
-                            <div className="flex justify-end">
-                                <Button
-                                    variant="solid"
-                                    loading={knowledgeAction === 'upload-document'}
-                                    onClick={() => void uploadKnowledgeDocument()}
-                                    data-testid="ai-knowledge-upload-submit"
-                                >
-                                    Subir documento
-                                </Button>
-                            </div>
-                        </Card>
-
-                        <Card bodyClass="p-4">
+                    <Badge className="bg-slate-100 text-slate-700">
+                        {adminActions.length} acciones
+                    </Badge>
+                </div>
+                <div className="grid gap-4 xl:grid-cols-2">
+                    {Object.entries(groupedAdminActions).map(([group, entries]) => (
+                        <Card key={group} bodyClass="p-4">
                             <div className="mb-3 flex items-center justify-between gap-3">
-                                <h5 className="font-semibold text-gray-900">
-                                    Documentos gestionados
+                                <h5 className="font-semibold capitalize text-gray-900">
+                                    {group}
                                 </h5>
-                                <Badge className="bg-slate-100 text-slate-700">
-                                    {uploadedKnowledgeDocuments.length}
+                                <Badge className="bg-sky-50 text-sky-700">
+                                    {entries.length}
                                 </Badge>
                             </div>
                             <div className="space-y-3">
-                                {uploadedKnowledgeDocuments.length === 0 ? (
-                                    <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-6 text-sm text-gray-500">
-                                        Aún no hay documentos cargados manualmente.
-                                    </div>
-                                ) : (
-                                    uploadedKnowledgeDocuments.map((document) => (
-                                        <div
-                                            key={document.id}
-                                            className="rounded-2xl border border-gray-200 p-3"
-                                            data-testid={`ai-knowledge-document-${document.id}`}
-                                        >
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <span className="font-medium">
-                                                    {document.title}
-                                                </span>
-                                                <Badge className="bg-sky-50 text-sky-700">
-                                                    {document.scope}
-                                                </Badge>
-                                            </div>
-                                            <div className="mt-1 text-sm text-gray-600">
-                                                {document.sourceFile?.name} ·{' '}
-                                                {formatFileSize(
-                                                    document.sourceFile?.size ?? 0,
-                                                )}
-                                            </div>
-                                            <div className="mt-3 flex flex-wrap gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="default"
-                                                    onClick={() => {
-                                                        if (document.sourceFile?.downloadUrl) {
-                                                            window.open(
-                                                                document.sourceFile.downloadUrl,
-                                                                '_blank',
-                                                                'noopener,noreferrer',
-                                                            )
-                                                        }
-                                                    }}
-                                                    data-testid={`ai-knowledge-document-open-${document.id}`}
-                                                >
-                                                    Ver / descargar
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="plain"
-                                                    className="text-red-600"
-                                                    loading={
-                                                        knowledgeAction ===
-                                                        `delete-document:${document.id}`
-                                                    }
-                                                    onClick={() =>
-                                                        void deleteKnowledgeDocument(
-                                                            document.id,
-                                                        )
-                                                    }
-                                                    data-testid={`ai-knowledge-document-delete-${document.id}`}
-                                                >
-                                                    Eliminar
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="mb-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-                        <Card bodyClass="p-4">
-                            <div className="mb-3">
-                                <h5 className="font-semibold text-gray-900">
-                                    Entrada curada manual
-                                </h5>
-                                <p className="mt-1 text-sm text-gray-600">
-                                    Úsala para reglas de negocio, instructivos internos o
-                                    respuestas comerciales validadas.
-                                </p>
-                            </div>
-
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <FormItem label="Scope">
-                                    <select
-                                        className="input"
-                                        value={curatedForm.scope}
-                                        onChange={(event) =>
-                                            setCuratedForm((current) => ({
-                                                ...current,
-                                                scope: event.target.value as CuratedKnowledgeForm['scope'],
-                                            }))
-                                        }
-                                        data-testid="ai-knowledge-curated-scope"
-                                    >
-                                        <option value="admin_internal">Admin interno</option>
-                                        <option value="customer_public">Cliente público</option>
-                                    </select>
-                                </FormItem>
-                                <FormItem label="Etiquetas">
-                                    <Input
-                                        value={curatedForm.tags}
-                                        onChange={(event) =>
-                                            setCuratedForm((current) => ({
-                                                ...current,
-                                                tags: event.target.value,
-                                            }))
-                                        }
-                                        placeholder="regla, cotización, operación"
-                                        data-testid="ai-knowledge-curated-tags"
-                                    />
-                                </FormItem>
-                            </div>
-
-                            <FormItem label="Título">
-                                <Input
-                                    value={curatedForm.title}
-                                    onChange={(event) =>
-                                        setCuratedForm((current) => ({
-                                            ...current,
-                                            title: event.target.value,
-                                        }))
-                                    }
-                                    data-testid="ai-knowledge-curated-title"
-                                />
-                            </FormItem>
-                            <FormItem label="Resumen">
-                                <Input
-                                    value={curatedForm.summary}
-                                    onChange={(event) =>
-                                        setCuratedForm((current) => ({
-                                            ...current,
-                                            summary: event.target.value,
-                                        }))
-                                    }
-                                    data-testid="ai-knowledge-curated-summary"
-                                />
-                            </FormItem>
-                            <FormItem label="Contenido">
-                                <textarea
-                                    className="input min-h-[180px] w-full rounded-2xl border border-gray-200 px-4 py-3"
-                                    value={curatedForm.content}
-                                    onChange={(event) =>
-                                        setCuratedForm((current) => ({
-                                            ...current,
-                                            content: event.target.value,
-                                        }))
-                                    }
-                                    data-testid="ai-knowledge-curated-content"
-                                />
-                            </FormItem>
-
-                            <div className="flex justify-end">
-                                <Button
-                                    variant="solid"
-                                    loading={knowledgeAction === 'curated'}
-                                    onClick={() => void createCuratedKnowledge()}
-                                    data-testid="ai-knowledge-curated-save"
-                                >
-                                    Guardar conocimiento curado
-                                </Button>
-                            </div>
-                        </Card>
-
-                        <Card bodyClass="p-4">
-                            <div className="mb-3 flex items-center justify-between gap-3">
-                                <h5 className="font-semibold text-gray-900">
-                                    Documentos recientes
-                                </h5>
-                                <div className="flex items-center gap-2">
-                                    <Badge className="bg-emerald-50 text-emerald-700">
-                                        {indexedDocumentsCount} indexados
-                                    </Badge>
-                                    <Badge className="bg-slate-100 text-slate-700">
-                                        {knowledgeDocuments.length}
-                                    </Badge>
-                                </div>
-                            </div>
-                            <div className="space-y-3">
-                                {knowledgeDocuments.map((document) => (
+                                {entries.map((entry) => (
                                     <div
-                                        key={document.id}
+                                        key={entry.key}
                                         className="rounded-2xl border border-gray-200 p-3"
+                                        data-testid={`ai-action-${entry.key}`}
                                     >
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <span className="font-medium">
-                                                {document.title}
+                                            <span className="font-medium text-gray-900">
+                                                {entry.label}
                                             </span>
-                                            <Badge className="bg-sky-50 text-sky-700">
-                                                {document.sourceType}
-                                            </Badge>
                                             <Badge className="bg-slate-100 text-slate-700">
-                                                {document.scope}
+                                                {entry.method}
                                             </Badge>
-                                            {document.embedding ? (
-                                                <Badge className="bg-emerald-50 text-emerald-700">
-                                                    {document.embedding.model}
+                                            {entry.confirmationRequired ? (
+                                                <Badge className="bg-amber-50 text-amber-700">
+                                                    Confirmación
                                                 </Badge>
                                             ) : (
-                                                <Badge className="bg-amber-50 text-amber-700">
-                                                    Sin índice
+                                                <Badge className="bg-emerald-50 text-emerald-700">
+                                                    Consulta
                                                 </Badge>
                                             )}
                                         </div>
-                                        {document.summary ? (
-                                            <div className="mt-2 text-sm text-gray-600">
-                                                {document.summary}
+                                        <div className="mt-1 text-sm text-gray-600">
+                                            {entry.toolName || entry.key}
+                                        </div>
+                                        {entry.requiredFields?.length ? (
+                                            <div className="mt-2 text-xs text-gray-500">
+                                                Campos mínimos: {entry.requiredFields.join(', ')}
                                             </div>
                                         ) : null}
-                                        {document.embedding ? (
+                                        {entry.allowedValues?.length ? (
                                             <div className="mt-2 text-xs text-gray-500">
-                                                Vectorizado con{' '}
-                                                {document.embedding.provider} ·{' '}
-                                                {document.embedding.dimensions}D ·{' '}
-                                                {formatDateTime(
-                                                    document.embedding.indexedAt,
-                                                )}
+                                                Valores soportados: {entry.allowedValues.join(', ')}
+                                            </div>
+                                        ) : null}
+                                        {entry.confirmationPrompt ? (
+                                            <div className="mt-2 text-xs text-gray-600">
+                                                {entry.confirmationPrompt}
                                             </div>
                                         ) : null}
                                     </div>
                                 ))}
                             </div>
                         </Card>
-                    </div>
-
-                    <div className="grid gap-6 xl:grid-cols-2">
-                        <Card bodyClass="p-4">
-                            <div className="mb-3 flex items-center justify-between gap-3">
-                                <h5 className="font-semibold text-gray-900">
-                                    Candidatos recientes
-                                </h5>
-                                <Badge className="bg-amber-50 text-amber-700">
-                                    {knowledgeCandidates.length}
-                                </Badge>
-                            </div>
-                            <div className="space-y-3">
-                                {knowledgeCandidates.map((candidate) => (
-                                    <div
-                                        key={candidate.id}
-                                        className="rounded-2xl border border-gray-200 p-3"
-                                    >
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <span className="font-medium">
-                                                {candidate.title}
-                                            </span>
-                                            <Badge
-                                                className={
-                                                    candidate.status === 'pending'
-                                                        ? 'bg-amber-50 text-amber-700'
-                                                        : candidate.status === 'approved'
-                                                          ? 'bg-emerald-50 text-emerald-700'
-                                                          : 'bg-red-50 text-red-700'
-                                                }
-                                            >
-                                                {candidate.status}
-                                            </Badge>
-                                            {candidate.piiDetected ? (
-                                                <Badge className="bg-red-50 text-red-700">
-                                                    PII detectada
-                                                </Badge>
-                                            ) : null}
-                                        </div>
-                                        <div className="mt-2 text-sm text-gray-600">
-                                            {candidate.redactedExcerpt ||
-                                                candidate.excerpt}
-                                        </div>
-                                        {candidate.conversation ? (
-                                            <div className="mt-2 text-xs text-gray-500">
-                                                Conversación:{' '}
-                                                {candidate.conversation.subject ||
-                                                    candidate.conversation.id}{' '}
-                                                · {candidate.conversation.channel}
-                                            </div>
-                                        ) : null}
-                                        {candidate.status === 'pending' ? (
-                                            <div className="mt-3 flex flex-wrap gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="solid"
-                                                    loading={
-                                                        knowledgeAction ===
-                                                        `approve:${candidate.id}`
-                                                    }
-                                                    onClick={() =>
-                                                        void reviewCandidate(
-                                                            candidate,
-                                                            'approve',
-                                                        )
-                                                    }
-                                                    data-testid={`ai-knowledge-candidate-approve-${candidate.id}`}
-                                                >
-                                                    Aprobar y promover
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="twoTone"
-                                                    loading={
-                                                        knowledgeAction ===
-                                                        `reject:${candidate.id}`
-                                                    }
-                                                    onClick={() =>
-                                                        void reviewCandidate(
-                                                            candidate,
-                                                            'reject',
-                                                        )
-                                                    }
-                                                    data-testid={`ai-knowledge-candidate-reject-${candidate.id}`}
-                                                >
-                                                    Rechazar
-                                                </Button>
-                                            </div>
-                                        ) : null}
-                                    </div>
-                                ))}
-                            </div>
-                        </Card>
-                    </div>
+                    ))}
                 </div>
             </Card>
         </div>

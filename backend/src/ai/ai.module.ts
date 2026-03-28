@@ -9,6 +9,8 @@ import { PricingModule } from '../pricing/pricing.module'
 import { AiController } from './ai.controller'
 import { AiService } from './ai.service'
 import { AiAssetExtractionService } from './extraction/ai-asset-extraction.service'
+import { OpenAiUsageService } from './openai-usage.service'
+import { UsageController } from './usage.controller'
 
 @Module({
   imports: [
@@ -20,8 +22,8 @@ import { AiAssetExtractionService } from './extraction/ai-asset-extraction.servi
     AberturasGlossaryModule,
     PricingModule,
   ],
-  controllers: [AiController],
-  providers: [AiService, AiAssetExtractionService],
-  exports: [AiService],
+  controllers: [AiController, UsageController],
+  providers: [AiService, AiAssetExtractionService, OpenAiUsageService],
+  exports: [AiService, OpenAiUsageService],
 })
 export class AiModule {}

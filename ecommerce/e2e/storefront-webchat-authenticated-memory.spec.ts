@@ -11,13 +11,25 @@ const backendBaseUrl =
 type ConversationDetail = {
   id: string;
   scope: string;
+  controlMode?: string | null;
+  needsHuman?: boolean | null;
   aiState?: {
     memory?: {
       intentKey?: string | null;
+      state?: string | null;
       taskSummary?: string | null;
       lastResetAt?: string | null;
       resetCount?: number | null;
       historyTurnCount?: number | null;
+    } | null;
+    audit?: {
+      intentSource?: string | null;
+      decisionPath?: string[] | null;
+      referencedMessages?: Array<{
+        messageId?: string | null;
+        preview?: string | null;
+      }> | null;
+      messageContextOrigin?: string[] | null;
     } | null;
   } | null;
   messages: Array<{
@@ -26,6 +38,19 @@ type ConversationDetail = {
     body: string | null;
     createdAt: string;
   }>;
+};
+
+const resolveExpectedModeLabel = (detail: {
+  controlMode?: string | null;
+  needsHuman?: boolean | null;
+}) => {
+  if (detail.needsHuman || detail.controlMode === "human") {
+    return "Asesor humano";
+  }
+  if (detail.controlMode === "hybrid") {
+    return "IA + equipo";
+  }
+  return "Asistente IA";
 };
 
 async function fetchConversationDetail(
@@ -197,12 +222,23 @@ test("authenticated webchat keeps continuity for related follow-up and exposes t
     session.conversationId,
     (detail) =>
       detail.messages.filter((message) => message.authorType === "customer").length >=
-      2,
+        2 &&
+      detail.messages.filter((message) => message.authorType === "agent").length >= 2 &&
+      Boolean(detail.aiState?.memory?.state),
   );
 
   expect(secondState.scope).toBe("customer_authenticated");
   expect(secondState.aiState?.memory?.intentKey ?? null).toBe(initialIntentKey);
+  expect(secondState.aiState?.memory?.state ?? null).toBe("COMPLETED");
   expect(secondState.aiState?.memory?.lastResetAt ?? null).toBeNull();
+  expect(secondState.aiState?.audit?.intentSource ?? null).toBe("hybrid");
+  expect(secondState.aiState?.audit?.decisionPath ?? []).toContain(
+    "context:referenced_messages",
+  );
+  expect(secondState.aiState?.audit?.referencedMessages?.length ?? 0).toBeGreaterThan(0);
+  expect(secondState.aiState?.audit?.messageContextOrigin ?? []).toContain(
+    "message_text",
+  );
 
   await sendStorefrontWebchatMessage(page, thirdPrompt);
 
@@ -217,9 +253,23 @@ test("authenticated webchat keeps continuity for related follow-up and exposes t
   );
 
   expect(resetState.aiState?.memory?.intentKey).toBeTruthy();
+  expect(["HANDED_OFF", "COMPLETED"]).toContain(
+    resetState.aiState?.memory?.state ?? null,
+  );
   expect(resetState.aiState?.memory?.taskSummary).toBeTruthy();
   expect(resetState.aiState?.memory?.lastResetAt).toBeTruthy();
   expect(resetState.aiState?.memory?.resetCount).toBeGreaterThanOrEqual(1);
+  const expectedModeLabel = resolveExpectedModeLabel(resetState);
+  await expect(page.getByText(expectedModeLabel).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  if (expectedModeLabel !== "Asistente IA") {
+    await expect(
+      page.getByTestId("storefront-webchat-handoff-banner"),
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+  }
 
   await loginAsAdmin(page);
   await page.goto(resolveAdminAppUrl("/app/crm/conversations"), {
@@ -239,6 +289,9 @@ test("authenticated webchat keeps continuity for related follow-up and exposes t
   await expect(conversationRow).toBeVisible({ timeout: 20_000 });
   await expect(conversationRow).toContainText("Reset de tarea");
   await expect(
+    page.getByTestId(`admin-conversation-mode-${session.conversationId}`),
+  ).toContainText(expectedModeLabel);
+  await expect(
     page.getByTestId(`admin-conversation-task-summary-${session.conversationId}`),
   ).toContainText("cambiar mi dirección de entrega", {
     timeout: 20_000,
@@ -254,6 +307,12 @@ test("authenticated webchat keeps continuity for related follow-up and exposes t
     timeout: 20_000,
   });
   await expect(page.getByText(/^Tarea:/i)).toBeVisible();
+  await expect(page.getByTestId("admin-conversation-mode-current")).toContainText(
+    expectedModeLabel,
+  );
+  await expect(page.getByTestId("admin-conversation-mode-inline")).toContainText(
+    expectedModeLabel,
+  );
   await expect(page.getByTestId("admin-conversation-task-summary-inline")).toContainText(
     "cambiar mi dirección de entrega",
   );

@@ -1,0 +1,250 @@
+# WhatsApp QR Channel Design
+
+## Contexto
+En la realidad actual de `urucortinas`, WhatsApp concentra más del 90% de las conversaciones.
+
+Eso vuelve crítico resolver una integración real que permita:
+- continuidad conversacional
+- ejecución de acciones
+- operación humana
+- trazabilidad
+- bajo riesgo de bloqueo
+
+## Decisión de producto
+
+### Camino objetivo de largo plazo
+Mantener compatibilidad futura con `Meta Business API`.
+
+### Camino inicial recomendado
+Integración vía QR sobre dispositivo/sesión real de WhatsApp.
+
+Razones operativas:
+- conserva el uso desde el teléfono de origen
+- permite múltiples dispositivos
+- mantiene el historial operativo real
+- facilita respaldo a demanda
+- evita restricciones prácticas de plantillas y ventanas en el día a día del negocio
+- se alinea mejor con la operación actual del tenant
+
+## Separación correcta
+
+### Baseline reusable
+El sistema debe abstraer el canal como:
+- inbound message
+- outbound message
+- message status
+- attachments
+- reactions
+- typing / presence
+- quoted replies
+- session health
+
+### Add-on tenant/operational
+La decisión de usar QR en vez de Meta para WhatsApp es operativa y temporal.
+No debe contaminar el runtime general.
+
+## Arquitectura recomendada
+
+### Nuevo adapter: `whatsapp-qr`
+Ubicación sugerida:
+- `services/channel-adapter/src/channels/whatsapp-qr/`
+
+Responsabilidades:
+- bootstrap y conexión por QR
+- persistencia segura de sesión
+- ingesta inbound
+- envío outbound
+- eventos de estado
+- reacciones
+- typing/presence
+- quoted reply metadata
+- descarga de media
+
+### Contrato canónico
+Todo debe entrar al sistema por `UnifiedMessage`.
+
+Campos mínimos a preservar:
+- `channel = whatsapp`
+- `authorKind`
+- `messageKind`
+- `providerMessageId`
+- `threadId`
+- `replyToMessageId`
+- `quotedMessage`
+- `attachments`
+- `metadata.channelCapabilities`
+
+## Capacidades mínimas para paridad con webchat
+
+### Customer side
+- FAQ grounding
+- cotización
+- agenda
+- handoff
+- seguimiento
+
+### Active WhatsApp capabilities
+- reply con cita
+- reaction a mensajes
+- typing/presence
+- lectura/ack de estados
+- multimedia real
+
+## Buenas prácticas críticas para evitar bloqueo
+
+### 1. No spam
+- no iniciar campañas masivas desde el número operativo
+- limitar envíos salientes no solicitados
+- respetar ventanas reales de continuidad
+- no mandar bursts automatizados
+
+### 2. Comportamiento humano
+- simular typing solo cuando aporte realismo
+- distribuir tiempos de respuesta
+- usar delays realistas basados en el corpus real ya cargado
+- evitar contestar instantáneamente cada turno
+
+### 3. Respetar ritmo de conversación
+- no responder dos veces a un mismo evento
+- no reabrir hilos cerrados sin disparador humano
+- no insistir cuando el usuario no respondió
+
+### 4. Sesión segura
+- persistir credenciales/sesión cifradas
+- permitir invalidación manual
+- detectar desconexión y requerir nuevo QR
+
+## Modelo operativo recomendado
+
+### Modo asistido
+El sistema redacta y ejecuta parte del flujo, con supervisión y handoff.
+
+### Modo semiautomático
+Capacidades habilitadas:
+- respuestas frecuentes
+- intake de cotización
+- coordinación de agenda
+- confirmaciones operativas
+
+### Modo manual reforzado
+Ante riesgo o degradación:
+- desactivar ejecución automática
+- mantener sugerencias al operador
+- conservar lectura y trazabilidad
+
+## Kill switches por capability
+Para WhatsApp QR deben existir al menos:
+- `faq`
+- `quote`
+- `schedule`
+- `handoff`
+- `reactions`
+- `typing_presence`
+- `outbound_auto_send`
+
+Si una capability falla:
+- apagar solo esa capability
+- no apagar todo el canal
+
+## Sesión QR y ciclo de vida
+
+### Estados sugeridos
+- `disconnected`
+- `waiting_qr`
+- `authenticated`
+- `degraded`
+- `reconnect_required`
+
+### UX admin mínima
+- ver QR activo
+- saber si la sesión está viva
+- reiniciar sesión
+- invalidar sesión
+- ver último heartbeat
+- ver número conectado
+
+## Persistencia y respaldo
+
+Guardar:
+- credenciales/sesión del proveedor QR
+- metadata de dispositivo
+- timestamps de conexión
+- errores de reconexión
+- export/backups manuales
+
+## Riesgos y mitigaciones
+
+### Riesgo: bloqueo por automatización visible
+Mitigación:
+- delays realistas
+- límites salientes
+- no campañas
+- handoff temprano en casos complejos
+
+### Riesgo: sesión inestable
+Mitigación:
+- heartbeat
+- reconexión controlada
+- alertas admin
+- re-login por QR cuando haga falta
+
+### Riesgo: dependencia de una librería no oficial
+Mitigación:
+- aislar el adapter
+- no mezclarlo con contratos del runtime
+- preparar migración a Meta en la capa de canal, no en el negocio
+
+## Migración futura a Meta Business API
+
+### Qué debe mantenerse estable
+- `UnifiedMessage`
+- contratos inbound/outbound
+- actions del runtime
+- ownership backend
+- auditoría
+
+### Qué cambia
+- adapter del canal
+- autenticación
+- restricciones de mensajería
+- plantillas y ventanas
+
+### Estrategia
+- Facebook e Instagram sí pueden seguir yendo por Meta desde el inicio
+- WhatsApp arranca por QR
+- luego migra a Meta cuando la operación esté lista para asumir sus restricciones
+
+## Plan de implementación recomendado
+
+### Fase 1
+- adapter `whatsapp-qr`
+- login por QR
+- inbound/outbound básicos
+- media
+- persistencia de sesión
+
+### Fase 2
+- quoted replies
+- reactions
+- typing/presence
+- health/heartbeat
+
+### Fase 3
+- kill switches por capability
+- delays humanizados
+- rate controls
+- métricas anti-spam
+
+### Fase 4
+- UI admin de sesión QR
+- monitoreo
+- reconnect flows
+
+### Fase 5
+- parity completa con webchat
+- ejecución de acciones AI/customer/admin sobre WhatsApp
+- preparación de migración a Meta
+
+## Decisión final
+Para el contexto actual de `urucortinas`, WhatsApp QR no es un workaround marginal.
+Es el canal crítico y debe tratarse como una capability principal del producto, con arquitectura limpia, límites operativos explícitos y migración futura posible a Meta sin reescribir el runtime.

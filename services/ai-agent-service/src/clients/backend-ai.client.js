@@ -82,6 +82,85 @@ export class BackendAiClient {
     return response.json()
   }
 
+  async getTopicTaxonomy(tenantKey, scope = 'customer_public') {
+    const url = new URL(`${this.baseUrl}/ai/knowledge/topic-taxonomy`)
+    if (tenantKey) {
+      url.searchParams.set('tenantKey', tenantKey)
+    }
+    if (scope) {
+      url.searchParams.set('scope', scope)
+    }
+
+    const response = await fetch(url, {
+      headers: this.buildHeaders(),
+    })
+
+    if (!response.ok) {
+      const body = await toJson(response)
+      throw new Error(
+        `backend.ai.knowledge.topic_taxonomy ${response.status}: ${JSON.stringify(body)}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  async getQuoteProfiles(tenantKey, scope = 'customer_public') {
+    const url = new URL(`${this.baseUrl}/ai/knowledge/quote-profiles`)
+    if (tenantKey) {
+      url.searchParams.set('tenantKey', tenantKey)
+    }
+    if (scope) {
+      url.searchParams.set('scope', scope)
+    }
+
+    const response = await fetch(url, {
+      headers: this.buildHeaders(),
+    })
+
+    if (!response.ok) {
+      const body = await toJson(response)
+      throw new Error(
+        `backend.ai.knowledge.quote_profiles ${response.status}: ${JSON.stringify(body)}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  async lookupOwnedCustomerDocument(customerId, identifier, documentType = 'ORDER') {
+    const url = new URL(`${this.baseUrl}/ai/customer-documents/lookup`)
+    url.searchParams.set('customerId', String(customerId))
+    url.searchParams.set('identifier', String(identifier || '').trim())
+    url.searchParams.set('documentType', String(documentType || 'ORDER').trim())
+
+    const response = await fetch(url, {
+      headers: this.buildHeaders(),
+    })
+
+    if (!response.ok) {
+      const body = await toJson(response)
+      throw new Error(
+        `backend.ai.customer_documents.lookup ${response.status}: ${JSON.stringify(body)}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  async getUsageSnapshot() {
+    const response = await fetch(`${this.baseUrl}/usage/internal`, {
+      headers: this.buildHeaders(),
+    })
+
+    if (!response.ok) {
+      const body = await toJson(response)
+      throw new Error(`backend.usage ${response.status}: ${JSON.stringify(body)}`)
+    }
+
+    return response.json()
+  }
+
   async searchProducts(search, limit = 5) {
     const url = new URL(`${this.baseUrl}/ai/products`)
     url.searchParams.set('search', search)
@@ -107,6 +186,9 @@ export class BackendAiClient {
       amount: product.salePrice ?? null,
       shortDescription: product.description ?? null,
       mode: product.mode ?? null,
+      productType: product.productType ?? null,
+      unitOfMeasure: product.unitOfMeasure ?? null,
+      category: product.category ?? null,
     }))
   }
 
@@ -146,11 +228,33 @@ export class BackendAiClient {
     return payload?.items ?? []
   }
 
-  async searchAppointments(search, limit = 5) {
+  async searchAppointments(searchOrOptions, limit = 5) {
     const url = new URL(`${this.baseUrl}/ai/appointments`)
-    url.searchParams.set('search', search)
+    if (typeof searchOrOptions === 'string') {
+      url.searchParams.set('search', searchOrOptions)
+      url.searchParams.set('pageSize', String(limit))
+    } else {
+      const options =
+        searchOrOptions && typeof searchOrOptions === 'object' ? searchOrOptions : {}
+      if (typeof options.search === 'string' && options.search.trim()) {
+        url.searchParams.set('search', options.search.trim())
+      }
+      if (typeof options.dateFrom === 'string' && options.dateFrom.trim()) {
+        url.searchParams.set('dateFrom', options.dateFrom.trim())
+      }
+      if (typeof options.dateTo === 'string' && options.dateTo.trim()) {
+        url.searchParams.set('dateTo', options.dateTo.trim())
+      }
+      url.searchParams.set(
+        'pageSize',
+        String(
+          Number.isFinite(Number(options.limit)) && Number(options.limit) > 0
+            ? Number(options.limit)
+            : limit,
+        ),
+      )
+    }
     url.searchParams.set('page', '1')
-    url.searchParams.set('pageSize', String(limit))
 
     const response = await fetch(url, {
       headers: this.buildHeaders(),
@@ -158,6 +262,48 @@ export class BackendAiClient {
     if (!response.ok) {
       const body = await toJson(response)
       throw new Error(`backend.appointments ${response.status}: ${JSON.stringify(body)}`)
+    }
+
+    const payload = await response.json()
+    return payload?.items ?? []
+  }
+
+  async searchCustomerAppointments(searchOrOptions, limit = 5) {
+    const url = new URL(`${this.baseUrl}/ai/customer-appointments`)
+    if (typeof searchOrOptions === 'string') {
+      url.searchParams.set('search', searchOrOptions)
+      url.searchParams.set('pageSize', String(limit))
+    } else {
+      const options =
+        searchOrOptions && typeof searchOrOptions === 'object' ? searchOrOptions : {}
+      if (typeof options.search === 'string' && options.search.trim()) {
+        url.searchParams.set('search', options.search.trim())
+      }
+      if (typeof options.dateFrom === 'string' && options.dateFrom.trim()) {
+        url.searchParams.set('dateFrom', options.dateFrom.trim())
+      }
+      if (typeof options.dateTo === 'string' && options.dateTo.trim()) {
+        url.searchParams.set('dateTo', options.dateTo.trim())
+      }
+      url.searchParams.set(
+        'pageSize',
+        String(
+          Number.isFinite(Number(options.limit)) && Number(options.limit) > 0
+            ? Number(options.limit)
+            : limit,
+        ),
+      )
+    }
+    url.searchParams.set('page', '1')
+
+    const response = await fetch(url, {
+      headers: this.buildHeaders(),
+    })
+    if (!response.ok) {
+      const body = await toJson(response)
+      throw new Error(
+        `backend.customer_appointments ${response.status}: ${JSON.stringify(body)}`,
+      )
     }
 
     const payload = await response.json()
@@ -213,6 +359,10 @@ export class BackendAiClient {
     return this.post('/ai/appointments', payload)
   }
 
+  async createCustomerAppointment(payload) {
+    return this.post('/ai/customer-appointments', payload)
+  }
+
   async updateAppointment(id, payload) {
     return this.put(`/ai/appointments/${id}`, payload)
   }
@@ -223,6 +373,10 @@ export class BackendAiClient {
 
   async createProduct(payload) {
     return this.post('/ai/products', payload)
+  }
+
+  async previewProductQuote(payload) {
+    return this.post('/ai/products/quote-preview', payload)
   }
 
   async createCategory(payload) {

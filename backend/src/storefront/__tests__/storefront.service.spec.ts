@@ -1806,6 +1806,23 @@ describe('StorefrontService customer-facing order DTOs', () => {
     expect(order.shippingAddress.country).toBe('')
   })
 
+  it('hides orders from other customers behind a not-found response', async () => {
+    prisma.order.findFirst.mockResolvedValue(null)
+
+    await expect(
+      service.getCustomerOrder(7, '05277d56-b93d-5ccd-9e52-30d720bae805'),
+    ).rejects.toThrow('Order not found')
+
+    expect(prisma.order.findFirst).toHaveBeenCalledWith({
+      where: {
+        customerId: 7,
+        documentType: DocumentType.ORDER,
+        uuid: { equals: '05277d56-b93d-5ccd-9e52-30d720bae805', mode: 'insensitive' },
+      },
+      select: { id: true },
+    })
+  })
+
   it('sanitizes customer timeline metadata and uses public order identifiers', async () => {
     prisma.order.findFirst
       .mockResolvedValueOnce({ id: 42 })

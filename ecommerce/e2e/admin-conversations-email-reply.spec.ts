@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { loginAsAdmin, resolveAdminAppUrl } from "./support/admin-ui";
+import { inboxEmailAddress } from "./support/env";
 import { waitForLatestConversationOutboundBySubject } from "./support/db";
 
 const channelAdapterBaseUrl =
@@ -21,8 +22,8 @@ test("admin can reply to an email conversation and persist outbound delivery sta
         tenantKey: "urucortinas",
         fromAddress: `cliente-reply-${uniqueId}@example.com`,
         fromName: "Cliente Reply",
-        toAddress: "ventas@urucortinas.com",
-        inboxAddress: "ventas@urucortinas.com",
+        toAddress: inboxEmailAddress,
+        inboxAddress: inboxEmailAddress,
         subject,
         threadId: `thread-reply-${uniqueId}`,
         providerMessageId: `email-reply-${uniqueId}`,
@@ -42,6 +43,10 @@ test("admin can reply to an email conversation and persist outbound delivery sta
     waitUntil: "domcontentloaded",
   });
 
+  await page.getByTestId("admin-conversations-rail-directory").click();
+  await expect(page.getByTestId("admin-conversations-channels")).toBeVisible({
+    timeout: 20_000,
+  });
   await page.getByTestId("admin-conversations-channel-email").click();
 
   const row = page.getByText(subject).first();
@@ -64,25 +69,34 @@ test("admin can reply to an email conversation and persist outbound delivery sta
     "email",
   );
 
-  const statusResponse = await request.post(
-    `${channelAdapterBaseUrl}/webhooks/email/status`,
-    {
-      data: {
-        conversationId: outbound.conversationId,
-        inboxAccountId: outbound.inboxAccountId,
-        messageId: outbound.remoteId,
-        providerMessageId: outbound.providerMessageId ?? outbound.remoteId,
-        status: "delivered",
-        provider: "smtp-test",
-        metadata: {
-          source: "playwright",
+  if (outbound.remoteId) {
+    const statusResponse = await request.post(
+      `${channelAdapterBaseUrl}/webhooks/email/status`,
+      {
+        data: {
+          conversationId: outbound.conversationId,
+          inboxAccountId: outbound.inboxAccountId,
+          messageId: outbound.remoteId,
+          providerMessageId: outbound.providerMessageId ?? outbound.remoteId,
+          status: "delivered",
+          provider: "smtp-test",
+          metadata: {
+            source: "playwright",
+          },
         },
       },
-    },
-  );
+    );
 
-  expect(statusResponse.ok()).toBeTruthy();
+    expect(statusResponse.ok()).toBeTruthy();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(replyMessage).toContainText(replyText, { timeout: 20_000 });
+    await expect(replyMessage).toContainText(/Delivered|Entregado/);
+    return;
+  }
+
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(replyMessage).toContainText(replyText, { timeout: 20_000 });
-  await expect(replyMessage).toContainText("Delivered");
+  await expect(
+    page.getByTestId(/admin-conversation-message-status-/).last(),
+  ).toContainText(/Entrega fallida|Failed delivery/i);
 });

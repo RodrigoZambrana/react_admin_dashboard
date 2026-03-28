@@ -23,6 +23,8 @@ Debe leerse junto con:
 
 - [AI_OPERATING_MODEL.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_OPERATING_MODEL.md)
 - [AI_IMPLEMENTATION_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_IMPLEMENTATION_PLAN.md)
+- [AI_MULTIMODAL_EXECUTION_BACKLOG.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_MULTIMODAL_EXECUTION_BACKLOG.md)
+- [AI_CONVERSATIONAL_BEHAVIOR_ANALYSIS.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_CONVERSATIONAL_BEHAVIOR_ANALYSIS.md)
 - [AI_USER_CAPABILITIES_MODEL.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_USER_CAPABILITIES_MODEL.md)
 - [ai-role-matrix.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/ai-role-matrix.md)
 
@@ -50,11 +52,22 @@ Debe leerse junto con:
 
 - cliente ya no recibe errores técnicos crudos de proveedor/cuota/configuración
 - saludo simple y respuestas ligeras ya pueden resolverse sin depender del proveedor
+- aun sin knowledge aprobado cargado, el sistema ya puede sostener un comportamiento base:
+  - saludar
+  - orientar
+  - pedir el dato mínimo faltante
+  - continuar la conversación sin inventar información
 - respuestas de ABM confirmable ya no dependen exclusivamente del LLM para el paso crítico
 - preview del inbox ya distingue mejor:
   - `IA`
   - operador humano
 - el chat interno del asistente ya se comporta como una única instancia por operador al filtrar `admin_chat`
+- las respuestas del agente ya empiezan a separarse en tres capas:
+  - `finalUserText`
+  - `debugSummary`
+  - `auditPayload`
+- admin ya puede ver referencias y etapas de auditoría sin contaminar el texto final del mensaje
+- storefront sigue consumiendo solamente el texto final limpio
 
 ### 2.3 Lo que sigue incompleto
 
@@ -68,6 +81,83 @@ Faltan piezas importantes en cinco frentes:
 4. cierre homogéneo del lifecycle operativo  
 5. robustez visual/operativa de las superficies storefront y admin
 
+### 2.4 Acciones objetivo del asistente interno
+
+El asistente interno no debe comportarse como el chat cliente ni como un “fallback genérico” de atención. Su función es apoyo operativo para usuarios autenticados del admin.
+
+Clases de interacción mínimas que deben existir en código:
+
+- `admin.light`
+  - saludos
+  - agradecimientos
+  - intercambios cortos sin acción
+  - respuesta breve, natural y sin llamar al proveedor
+- `admin.capabilities`
+  - “qué podés hacer”
+  - “en qué me ayudás”
+  - “ayuda”
+  - respuesta local, por rol conversacional, explicando el alcance operativo real
+- `admin.actionable`
+  - intenciones con impacto operativo
+  - deben pasar por:
+    - detección de intención
+    - draft
+    - confirm
+    - execute
+    - verify
+    - respond/debug
+- `admin.blocked`
+  - acción fuera del rol conversacional o del envelope disponible
+  - mensaje claro, sin lenguaje de takeover humano
+- `admin.low_confidence`
+  - contexto insuficiente o ambiguo
+  - debe pedir lo mínimo necesario o derivar al circuito interno correcto
+- `admin.provider_failure`
+  - falla del LLM/proveedor
+  - no debe decir “tomar control de la conversación” porque el operador ya está en una superficie interna
+  - debe responder breve y útil
+  - el detalle técnico debe quedar en `debugSummary` y `auditPayload`
+
+Regla operativa:
+
+- el asistente interno debe resolver por backend o por respuestas determinísticas todo lo que no requiera razonamiento libre del modelo
+- el modelo queda para:
+  - redacción natural
+  - síntesis
+  - extracción estructurada cuando el parser puro no alcanza
+  - razonamiento controlado sobre contexto aprobado
+
+Regla global de comportamiento base:
+
+- este comportamiento mínimo no debe depender de knowledge cargado por tenant o slug
+- debe venir activado por defecto para cualquier instancia del sistema
+- si no existe contexto aprobado suficiente:
+  - la conversación sigue
+  - se pide la aclaración mínima necesaria
+  - solo se deriva cuando exista bloqueo real, riesgo o necesidad operativa específica
+
+Regla transversal para conversaciones livianas:
+
+- saludos iniciales
+- agradecimientos
+- cierres cortos
+- checks de cortesía tipo “¿cómo estás?”
+
+deben salir de una base común compartida por todos los chats del sistema. La diferencia entre cliente e interno no debe estar en la forma base de conversar, sino en el cierre contextual:
+
+- cliente:
+  - foco comercial/ayuda segura
+- interno:
+  - foco operativo/gestión
+
+Importante:
+
+- no debe bastar con que el mensaje “empiece con hola” para entrar en esa rama
+- si el texto ya contiene intención accionable, debe priorizarse el flujo operativo real
+- ejemplo:
+  - `hola` => respuesta liviana compartida
+  - `hola, registrar cliente Carlos` => flujo accionable, no `admin.light`
+
 ## 3. Huecos reales pendientes
 
 ### 3.1 Lenguaje natural consistente
@@ -79,15 +169,28 @@ Pendientes:
 - unificar cómo se redactan respuestas de éxito, error, bloqueo, falta de datos y handoff
 - evitar que algunos casos queden demasiado “operativos” o secos para cliente
 - evitar respuestas excesivamente técnicas en admin fuera de `modo debug`
-- separar mejor:
+- terminar de cerrar la separación ya iniciada entre:
   - texto final al usuario
   - resumen debug interno
-  - auditoría persistida
+  - auditoría persistida y visible
 
 Objetivo:
 
 - que cada respuesta suene humana, clara y breve
 - que el contenido siga siendo verificable y alineado con el resultado real
+
+Regla de implementación:
+
+- los outcomes compartidos del sistema no deben resolverse con textos completamente distintos por canal o scope
+- debe existir una semántica base compartida para:
+  - `light`
+  - `blocked`
+  - `missing-data`
+  - `low-confidence`
+  - `handoff`
+- la diferencia entre cliente e interno debe quedar en el remate contextual:
+  - cliente => ayuda segura / continuidad comercial / asesor
+  - interno => apoyo operativo / circuito interno / próxima gestión
 
 ### 3.2 Renderizador común de resultados operativos
 
@@ -261,6 +364,43 @@ Pendientes:
   - auth/provider
   - provider unavailable
 - respuesta humana y útil incluso con proveedor degradado cuando haya datos suficientes en backend
+- distinguir explícitamente entre:
+  - `provider_rate_limited`
+  - `provider_quota_exceeded`
+  - `provider_auth_failed`
+  - `provider_bad_request`
+  - `provider_context_limit`
+  - `provider_timeout`
+  - `provider_unavailable`
+  - `provider_error`
+- no asumir `provider_quota_exceeded` por cualquier `HTTP 429`
+- capturar y persistir evidencia más precisa del error del proveedor para debug y auditoría
+
+Análisis operativo:
+
+- una llamada que funciona en Postman no demuestra por sí sola que el runtime conversacional tenga el mismo comportamiento
+- el runtime suele enviar:
+  - historial
+  - prompt compuesto
+  - contexto recuperado
+  - tools
+  - y, a veces, una segunda vuelta después de tools
+- eso hace que el perfil de consumo y rate limiting no sea equivalente a una llamada mínima
+- por eso, un `429` en runtime puede ser:
+  - rate limiting transitorio
+  - concurrencia
+  - burst local
+  - límite organizacional temporal
+  - o cuota/crédito agotado, pero solo cuando exista evidencia explícita
+
+Decisión recomendada:
+
+- por defecto, tratar `429` genérico como `provider_rate_limited`
+- solo elevar a `provider_quota_exceeded` cuando el proveedor devuelva evidencia concreta como:
+  - `insufficient_quota`
+  - `billing_hard_limit_reached`
+  - mensajes equivalentes de billing/crédito
+- mantener el detalle técnico fuera del texto final al usuario y visible en `debugSummary` / `auditPayload`
 
 Objetivo:
 

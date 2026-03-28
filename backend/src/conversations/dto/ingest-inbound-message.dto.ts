@@ -17,6 +17,24 @@ const conversationChannels = [
   'instagram',
 ] as const
 
+const inboundAuthorKinds = [
+  'customer_human',
+  'business_human',
+  'business_auto',
+  'channel_system',
+  'operator_human',
+  'agent_runtime',
+  'unknown',
+] as const
+
+const inboundMessageKinds = [
+  'human_message',
+  'business_auto_reply',
+  'channel_system',
+  'attachment_only',
+  'system_event',
+] as const
+
 export class IngestInboundMessageDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
@@ -83,6 +101,14 @@ export class IngestInboundMessageDto {
   @IsOptional()
   @Type(() => Date)
   receivedAt?: Date
+
+  @IsOptional()
+  @IsIn(inboundAuthorKinds)
+  authorKind?: (typeof inboundAuthorKinds)[number]
+
+  @IsOptional()
+  @IsIn(inboundMessageKinds)
+  messageKind?: (typeof inboundMessageKinds)[number]
 
   @IsOptional()
   @IsObject()

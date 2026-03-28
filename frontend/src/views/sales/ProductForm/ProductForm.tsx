@@ -14,6 +14,7 @@ import StickyFooter from '@/components/shared/StickyFooter'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import { Form, Formik, FormikProps } from 'formik'
 import BasicInformationFields from './BasicInformationFields'
+import InstallationFields from './InstallationFields'
 import PricingFields from './PricingFields'
 import OrganizationFields from './OrganizationFields'
 import ProductImages from './ProductImages'
@@ -94,6 +95,20 @@ type InitialData = {
     attributes?: ProductAttribute[]
     variants?: ProductVariant[]
     parametricDraft?: ParametricConfiguratorDraft | null
+    installationResolutionMode?: string | null
+    installationChargeScope?: string | null
+    installationPricePresentationMode?: string | null
+    hasInstallationServiceOverride?: boolean
+    installationService?: {
+        name: string
+        productCode: string
+        description: string
+        salePrice: string
+        costPrice: string
+        currency: string
+        taxRate: string
+        unitOfMeasure: SalesUnit
+    } | null
 }
 
 export type FormModel = Omit<InitialData, 'tags' | 'permanentStock'> & {
@@ -245,6 +260,11 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
         mode: 'simple',
         attributes: [],
         variants: [],
+        installationResolutionMode: null,
+        installationChargeScope: null,
+        installationPricePresentationMode: null,
+        hasInstallationServiceOverride: false,
+        installationService: null,
     })
 
     const initialData = providedInitialData ?? defaultInitialDataRef.current
@@ -521,6 +541,16 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                     unitOfMeasure:
                         (initialData.unitOfMeasure ??
                             DEFAULT_SALES_UNIT) as SalesUnit,
+                    installationResolutionMode:
+                        initialData.installationResolutionMode ?? null,
+                    installationChargeScope:
+                        initialData.installationChargeScope ?? null,
+                    installationPricePresentationMode:
+                        initialData.installationPricePresentationMode ?? null,
+                    hasInstallationServiceOverride: Boolean(
+                        initialData.hasInstallationServiceOverride,
+                    ),
+                    installationService: initialData.installationService ?? null,
                     mode,
                     attributes: attributeDefinitions,
                     variants: variantRows,
@@ -539,6 +569,11 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                     if (typeof baseData.specifications === 'string') {
                         baseData.specifications = sanitizeString(baseData.specifications)
                     }
+                    const installationServiceOverride = Boolean(
+                        (baseData as typeof baseData & {
+                            hasInstallationServiceOverride?: boolean
+                        }).hasInstallationServiceOverride,
+                    )
 
                     if (baseData.mode === 'parametric') {
                         baseData.costPrice = undefined
@@ -676,11 +711,40 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
 
                     const submitData: FormModel = {
                         ...baseData,
+                        installationResolutionMode:
+                            baseData.installationResolutionMode || null,
+                        installationChargeScope:
+                            baseData.installationChargeScope || null,
+                        installationPricePresentationMode:
+                            baseData.installationPricePresentationMode || null,
+                        installationService: installationServiceOverride
+                            ? {
+                                  name:
+                                      baseData.installationService?.name?.trim() || '',
+                                  productCode:
+                                      baseData.installationService?.productCode?.trim() || '',
+                                  description:
+                                      baseData.installationService?.description?.trim() || '',
+                                  salePrice:
+                                      baseData.installationService?.salePrice?.trim() || '',
+                                  costPrice:
+                                      baseData.installationService?.costPrice?.trim() || '',
+                                  currency:
+                                      baseData.installationService?.currency?.trim()?.toUpperCase() ||
+                                      'USD',
+                                  taxRate:
+                                      baseData.installationService?.taxRate?.trim() || '',
+                                  unitOfMeasure:
+                                      baseData.installationService?.unitOfMeasure ??
+                                      DEFAULT_SALES_UNIT,
+                              }
+                            : null,
                         mode,
                         attributes: attributePayload,
                         variants: variantPayload,
                         parametricDraft,
                     }
+                    delete (submitData as Record<string, unknown>).hasInstallationServiceOverride
                     delete (submitData as Record<string, unknown>).status
                     onFormSubmit?.(submitData, setSubmitting)
                 }}
@@ -712,6 +776,10 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                             currencyOptions={currencyOptionsForSelect}
                                             onCurrencyChange={(code) => setFieldValue('currency', code)}
                                             mode={mode}
+                                        />
+                                        <InstallationFields
+                                            values={values as any}
+                                            setFieldValue={setFieldValue}
                                         />
                                         <VariantConfigurator
                                             mode={mode}

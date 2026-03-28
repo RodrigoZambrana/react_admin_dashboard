@@ -457,7 +457,7 @@ const enTranslations: Record<string, string> = {
   "account.profile.emailVerification.errors.generic":
     "We couldn't resend the verification email.",
   "account.profile.details.status": "Status",
-  "account.orders.errors.noLongerAvailable": "This item is no longer available.",
+  "account.orders.errors.noLongerAvailable": "This order is not available for this account or no longer exists.",
   "auth.emailVerification.emailRequired": "You need an email address to verify this account.",
   "auth.emailVerification.alreadyVerified": "Your email address is already verified.",
   "auth.emailVerification.invalidToken": "The verification link is invalid or expired.",

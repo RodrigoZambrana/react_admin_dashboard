@@ -10,6 +10,7 @@
   - origin restrictions
   - external exposure review
 - Use `docs/endpoint-protection-audit-matrix.md` as the canonical tracking matrix for endpoint protection status by module and endpoint group
+- Keep destructive maintenance tooling (`clean-state`, `reset-admin`, local bootstrap/reset scripts) CLI-only, local-only and explicitly confirmed
 
 ### P1 — Close admin messaging before expanding surfaces
 

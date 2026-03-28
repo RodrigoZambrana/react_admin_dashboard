@@ -23,6 +23,8 @@ export class MetaAdapter {
       displayName: payload?.fromName || payload?.name || undefined,
       queueSlug: payload?.queueSlug || undefined,
       text: normalized.text,
+      authorKind: normalized.authorKind,
+      messageKind: normalized.messageKind,
       metadata: normalized.metadata,
       attachments: normalized.attachments,
     })
@@ -33,10 +35,15 @@ export class MetaAdapter {
         ...normalized,
         conversationId: projection.conversationId,
       })
-      const responseText = aiResult?.response?.text?.trim()
+      const responseText =
+        aiResult?.response?.finalUserText?.trim() ||
+        aiResult?.response?.text?.trim()
       if (responseText) {
         await this.clients.conversations.replyAsAgent(projection.conversationId, {
           body: responseText,
+          finalUserText: responseText,
+          debugSummary: aiResult?.response?.debugSummary ?? null,
+          auditPayload: aiResult?.response?.auditPayload ?? null,
           metadata: {
             provider: aiResult?.response?.provider || 'mock',
             model: aiResult?.response?.model || null,

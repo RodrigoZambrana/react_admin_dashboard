@@ -19,12 +19,28 @@ describe('AiAssetExtractionService', () => {
       openAiApiKey: 'db-test-key',
     })),
   }
+  const usage = {
+    assertQuotaAvailable: vi.fn(async () => ({
+      budget_limit: 25,
+      total_spent: 2,
+      remaining: 23,
+      exceeded: false,
+      source: 'openai',
+      error: null,
+      checked_at: '2026-03-27T00:00:00.000Z',
+    })),
+  }
 
   let service: AiAssetExtractionService
 
   beforeEach(() => {
     vi.restoreAllMocks()
-    service = new AiAssetExtractionService(config as never, secureConfig as never)
+    usage.assertQuotaAvailable.mockClear()
+    service = new AiAssetExtractionService(
+      config as never,
+      secureConfig as never,
+      usage as never,
+    )
   })
 
   it('extracts deterministic rows from csv', async () => {
@@ -111,5 +127,23 @@ describe('AiAssetExtractionService', () => {
     expect(result.stage).toBe('ai')
     expect(result.rawText).toContain('Corrediza 2h2g serie probba')
     expect(result.debug.usedOpenAi).toBe(true)
+  })
+
+  it('skips OpenAI extraction when quota is exceeded', async () => {
+    usage.assertQuotaAvailable.mockRejectedValueOnce(new Error('Quota exceeded'))
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+
+    const result = await service.extractOne({
+      assetType: 'image',
+      fileName: 'cotizacion.png',
+      contentType: 'image/png',
+      content: Buffer.from('fake-image').toString('base64'),
+    })
+
+    expect(result.source).toBe('unparsed')
+    expect(result.stage).toBe('failed')
+    expect(result.debug.reason).toBe('budget_exceeded')
+    expect(result.debug.usedOpenAi).toBe(false)
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 })

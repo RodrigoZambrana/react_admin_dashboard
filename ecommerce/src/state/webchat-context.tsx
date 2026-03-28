@@ -13,6 +13,7 @@ import {
 import { ConversationsApi } from "@/lib/api/conversations";
 import type {
   WebchatControlMode,
+  WebchatMessageAttachment,
   WebchatSession,
   WebchatTranscriptMessage,
   WebchatScope,
@@ -22,6 +23,13 @@ import { useSession } from "@/state/session-context";
 type WebchatMessage = WebchatTranscriptMessage & {
   pending?: boolean;
 };
+
+type WebchatSendInput =
+  | string
+  | {
+      text?: string;
+      attachments?: WebchatMessageAttachment[];
+    };
 
 type WebchatContextValue = {
   isOpen: boolean;
@@ -36,10 +44,12 @@ type WebchatContextValue = {
   needsHuman: boolean;
   taskSummary: string | null;
   lastSyncedAt: string | null;
+  canRestartConversation: boolean;
   open: () => void;
   close: () => void;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (input: WebchatSendInput) => Promise<void>;
   refresh: () => Promise<void>;
+  restartConversation: () => Promise<void>;
 };
 
 const STORAGE_KEY = "storefront.webchat.session.v1";
@@ -54,12 +64,18 @@ const makeMessage = (
   role: WebchatMessage["role"],
   text: string,
   pending = false,
+  attachments: WebchatMessageAttachment[] = [],
+  messageElements: WebchatMessage["messageElements"] = [],
+  messageContextOrigin: WebchatMessage["messageContextOrigin"] = [],
 ): WebchatMessage => ({
   id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   role,
   kind: "text",
   text,
   createdAt: new Date().toISOString(),
+  attachments,
+  messageElements,
+  messageContextOrigin,
   pending,
 });
 
@@ -71,6 +87,8 @@ const mapTranscriptMessage = (
   kind: message.kind ?? "text",
   text: message.text,
   createdAt: message.createdAt,
+  messageElements: message.messageElements,
+  messageContextOrigin: message.messageContextOrigin,
   attachments: message.attachments,
   pending: false,
 });
@@ -121,6 +139,7 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const guestIdRef = useRef<string | null>(null);
   const syncInFlightRef = useRef(false);
+  const sessionRevisionRef = useRef(0);
 
   const persistSession = useCallback((nextSession: WebchatSession | null) => {
     if (typeof window === "undefined") {
@@ -134,13 +153,37 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const applySessionSnapshot = useCallback(
-    (nextSession: WebchatSession) => {
+    (
+      nextSession: WebchatSession,
+      options?: {
+        expectedRevision?: number;
+      },
+    ) => {
+      if (
+        typeof options?.expectedRevision === "number" &&
+        options.expectedRevision !== sessionRevisionRef.current
+      ) {
+        return null;
+      }
       guestIdRef.current = nextSession.participant.guestId;
       setSession(nextSession);
       setMessages(nextSession.messages.map(mapTranscriptMessage));
       setLastSyncedAt(new Date().toISOString());
       persistSession(nextSession);
       return nextSession;
+    },
+    [persistSession],
+  );
+
+  const clearSessionSnapshot = useCallback(
+    (options?: {
+      nextGuestId?: string | null;
+    }) => {
+      guestIdRef.current = options?.nextGuestId ?? null;
+      setSession(null);
+      setMessages([]);
+      setLastSyncedAt(null);
+      persistSession(null);
     },
     [persistSession],
   );
@@ -152,6 +195,7 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
 
     let cancelled = false;
     const restoreSession = async () => {
+      const revision = sessionRevisionRef.current;
       setIsHydrating(true);
       setIsReady(false);
       const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -193,16 +237,14 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
           throw new Error("webchat.hydratedSessionScopeMismatch");
         }
 
-        if (!cancelled) {
-          applySessionSnapshot(hydrated);
+        if (!cancelled && revision === sessionRevisionRef.current) {
+          applySessionSnapshot(hydrated, { expectedRevision: revision });
         }
       } catch (loadError) {
         console.warn("[webchat] Unable to restore session", loadError);
         window.localStorage.removeItem(STORAGE_KEY);
         if (!cancelled) {
-          setSession(null);
-          setMessages([]);
-          setLastSyncedAt(null);
+          clearSessionSnapshot();
         }
       } finally {
         if (!cancelled) {
@@ -229,6 +271,7 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
       if (!targetSession || syncInFlightRef.current) {
         return null;
       }
+      const revision = sessionRevisionRef.current;
 
       syncInFlightRef.current = true;
       if (!options?.silent) {
@@ -252,7 +295,11 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
           throw new Error("webchat.syncSessionScopeMismatch");
         }
 
-        return applySessionSnapshot(hydrated);
+        if (revision !== sessionRevisionRef.current) {
+          return null;
+        }
+
+        return applySessionSnapshot(hydrated, { expectedRevision: revision });
       } catch (syncError) {
         console.warn("[webchat] Unable to sync session", syncError);
         if (!options?.silent) {
@@ -281,6 +328,7 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
       return session;
     }
 
+    const revision = sessionRevisionRef.current;
     const guestId = guestIdRef.current || generateGuestId();
     guestIdRef.current = guestId;
 
@@ -294,7 +342,13 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
       page: typeof window !== "undefined" ? window.location.pathname : "/",
     });
 
-    return applySessionSnapshot(nextSession);
+    const applied = applySessionSnapshot(nextSession, {
+      expectedRevision: revision,
+    });
+    if (!applied) {
+      throw new Error("webchat.sessionStale");
+    }
+    return applied;
   }, [
     applySessionSnapshot,
     customer,
@@ -322,16 +376,61 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
     setIsOpen(false);
   }, []);
 
+  const restartConversation = useCallback(async () => {
+    if (desiredScope !== "customer_public") {
+      return;
+    }
+
+    sessionRevisionRef.current += 1;
+    const revision = sessionRevisionRef.current;
+    const nextGuestId = generateGuestId();
+    clearSessionSnapshot({ nextGuestId });
+    setError(null);
+    setIsSyncing(true);
+
+    try {
+      const nextSession = await ConversationsApi.createWebchatSession({
+        tenantKey: "urucortinas",
+        guestId: nextGuestId,
+        name: resolveCustomerDisplayName(customer),
+        email: customer?.email || null,
+        authenticated: false,
+        locale: customer?.preferredLocale || "es-UY",
+        page: typeof window !== "undefined" ? window.location.pathname : "/",
+      });
+
+      applySessionSnapshot(nextSession, {
+        expectedRevision: revision,
+      });
+    } catch (restartError) {
+      console.error(restartError);
+      if (revision === sessionRevisionRef.current) {
+        setError("No fue posible iniciar un chat nuevo.");
+      }
+    } finally {
+      if (revision === sessionRevisionRef.current) {
+        setIsSyncing(false);
+      }
+    }
+  }, [applySessionSnapshot, clearSessionSnapshot, customer, desiredScope]);
+
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (input: WebchatSendInput) => {
+      const text = typeof input === "string" ? input : input.text ?? "";
+      const attachments =
+        typeof input === "string"
+          ? []
+          : Array.isArray(input.attachments)
+            ? input.attachments.filter((attachment) => Boolean(attachment))
+            : [];
       const trimmed = text.trim();
-      if (!trimmed) {
+      if (!trimmed && attachments.length === 0) {
         return;
       }
 
       setIsSending(true);
       setError(null);
-      const customerMessage = makeMessage("customer", trimmed, true);
+      const customerMessage = makeMessage("customer", trimmed, true, attachments);
       setMessages((current) => [...current, customerMessage]);
 
       try {
@@ -343,6 +442,7 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
           userId: activeSession.participant.guestId,
           scope: activeSession.scope,
           text: trimmed,
+          attachments,
           metadata: {
             page:
               typeof window !== "undefined"
@@ -352,8 +452,19 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
         });
 
         const syncedSession = await syncSession(activeSession, { silent: true });
+        const agentText =
+          result.ai?.finalUserText?.trim() || result.ai?.text?.trim() || "";
+        const agentAuditPayload =
+          result.ai && typeof result.ai === "object" && result.ai.auditPayload
+            ? (result.ai.auditPayload as Record<string, unknown>)
+            : null;
+        const agentMessageElements = Array.isArray(agentAuditPayload?.messageElements)
+          ? (agentAuditPayload.messageElements as WebchatMessage["messageElements"])
+          : [];
+        const agentMessageContextOrigin = Array.isArray(agentAuditPayload?.messageContextOrigin)
+          ? (agentAuditPayload.messageContextOrigin as WebchatMessage["messageContextOrigin"])
+          : [];
         if (!syncedSession) {
-          const agentText = result.ai?.text?.trim();
           setMessages((current) => {
             const withoutPending = current.map((message) =>
               message.id === customerMessage.id
@@ -364,10 +475,40 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
                 : message,
             );
             return agentText
-              ? [...withoutPending, makeMessage("agent", agentText)]
+              ? [
+                  ...withoutPending,
+                  makeMessage(
+                    "agent",
+                    agentText,
+                    false,
+                    [],
+                    agentMessageElements,
+                    agentMessageContextOrigin,
+                  ),
+                ]
               : withoutPending;
           });
           setError("El mensaje se envió, pero no pudimos sincronizar la conversación.");
+          return;
+        }
+
+        const lastSyncedMessage =
+          Array.isArray(syncedSession.messages) && syncedSession.messages.length > 0
+            ? syncedSession.messages[syncedSession.messages.length - 1]
+            : null;
+        const hasAgentReplyInTranscript = lastSyncedMessage?.role === "agent";
+        if (!hasAgentReplyInTranscript && agentText) {
+          setMessages([
+            ...syncedSession.messages.map(mapTranscriptMessage),
+            makeMessage(
+              "agent",
+              agentText,
+              false,
+              [],
+              agentMessageElements,
+              agentMessageContextOrigin,
+            ),
+          ]);
         }
       } catch (sendError) {
         console.error(sendError);
@@ -413,15 +554,18 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
       needsHuman: Boolean(session?.needsHuman),
       taskSummary: session?.aiState?.memory?.taskSummary ?? null,
       lastSyncedAt,
+      canRestartConversation: desiredScope === "customer_public",
       open,
       close,
       sendMessage,
       refresh: async () => {
         await syncSession();
       },
+      restartConversation,
     }),
     [
       authStatus,
+      desiredScope,
       close,
       error,
       isHydrating,
@@ -432,6 +576,7 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
       lastSyncedAt,
       messages,
       open,
+      restartConversation,
       sendMessage,
       session,
       syncSession,

@@ -5,6 +5,7 @@ import { PDFParse } from 'pdf-parse'
 import * as XLSX from 'xlsx'
 import { SecureConfigService } from '../../common/security/secure-config.service'
 import { ExtractAiAssetDto } from '../dto/extract-ai-assets.dto'
+import { OpenAiUsageService } from '../openai-usage.service'
 import {
   ExtractedAsset,
   ExtractedAssetSource,
@@ -25,6 +26,7 @@ export class AiAssetExtractionService {
   constructor(
     private readonly config: ConfigService,
     private readonly secureConfig: SecureConfigService,
+    private readonly usage: OpenAiUsageService,
   ) {}
 
   async extractMany(
@@ -323,6 +325,7 @@ export class AiAssetExtractionService {
     }
 
     try {
+      await this.usage.assertQuotaAvailable()
       const rawText = await this.transcribeAudioWithOpenAi(
         buffer,
         input.fileName ?? 'audio.webm',
@@ -344,6 +347,7 @@ export class AiAssetExtractionService {
         reason: rawText ? 'audio_transcribed' : 'audio_without_transcript',
       })
     } catch (error) {
+      const quotaBlocked = this.isQuotaBlockedError(error)
       return this.buildResult({
         assetType: 'audio',
         fileName: input.fileName ?? null,
@@ -355,9 +359,17 @@ export class AiAssetExtractionService {
         confidence: 0,
         requiresStructuredExtraction: false,
         byteLength: buffer.byteLength,
-        usedOpenAi: true,
-        reason: error instanceof Error ? error.message : 'audio_transcription_failed',
-        warnings: ['Falló la transcripción IA del audio.'],
+        usedOpenAi: !quotaBlocked,
+        reason: quotaBlocked
+          ? 'budget_exceeded'
+          : error instanceof Error
+            ? error.message
+            : 'audio_transcription_failed',
+        warnings: [
+          quotaBlocked
+            ? 'La transcripción IA del audio se omitió porque el presupuesto mensual configurado ya quedó excedido.'
+            : 'Falló la transcripción IA del audio.',
+        ],
         usableForContext: false,
       })
     }
@@ -389,6 +401,7 @@ export class AiAssetExtractionService {
     }
 
     try {
+      await this.usage.assertQuotaAvailable()
       const rawText = await this.extractImageTextWithOpenAi(
         buffer,
         input.contentType ?? detectedContentType ?? 'image/png',
@@ -409,6 +422,7 @@ export class AiAssetExtractionService {
         reason: rawText ? 'image_text_extracted' : 'image_without_text',
       })
     } catch (error) {
+      const quotaBlocked = this.isQuotaBlockedError(error)
       return this.buildResult({
         assetType: 'image',
         fileName: input.fileName ?? null,
@@ -420,9 +434,17 @@ export class AiAssetExtractionService {
         confidence: 0,
         requiresStructuredExtraction: false,
         byteLength: buffer.byteLength,
-        usedOpenAi: true,
-        reason: error instanceof Error ? error.message : 'image_extraction_failed',
-        warnings: ['Falló la extracción IA de texto desde la imagen.'],
+        usedOpenAi: !quotaBlocked,
+        reason: quotaBlocked
+          ? 'budget_exceeded'
+          : error instanceof Error
+            ? error.message
+            : 'image_extraction_failed',
+        warnings: [
+          quotaBlocked
+            ? 'La extracción IA de texto desde la imagen se omitió porque el presupuesto mensual configurado ya quedó excedido.'
+            : 'Falló la extracción IA de texto desde la imagen.',
+        ],
         usableForContext: false,
       })
     }
@@ -626,6 +648,27 @@ export class AiAssetExtractionService {
       }
     }
     return null
+  }
+
+  private isQuotaBlockedError(error: unknown) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'getStatus' in error &&
+      typeof error.getStatus === 'function'
+    ) {
+      try {
+        if (error.getStatus() === 403) {
+          return true
+        }
+      } catch {
+        // noop
+      }
+    }
+
+    const message =
+      error instanceof Error ? error.message.toLowerCase() : String(error || '').toLowerCase()
+    return message.includes('quota exceeded') || message.includes('budget exceeded')
   }
 
   private async getRuntimeConfig(): Promise<RuntimeConfig> {

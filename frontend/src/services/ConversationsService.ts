@@ -59,6 +59,9 @@ export type ConversationSummary = {
         memory: {
             taskId: string | null
             intentKey: string | null
+            state?: string | null
+            stateHistory?: string[]
+            lastTransitionAt?: string | null
             taskSummary: string | null
             currentTask: {
                 intentKey: string | null
@@ -77,8 +80,112 @@ export type ConversationSummary = {
         audit: {
             role: string | null
             intentKey: string | null
+            intentConfidence?: number | null
+            intentSource?: string | null
+            actionKey?: string | null
+            stage?: string | null
+            stageHistory?: string[]
+            decisionPath?: string[]
             blockedTools: string[]
             executedTools: string[]
+            toolCalls?: Array<{
+                name: string | null
+                status: string | null
+                target: string | null
+            }>
+            referencedMessages?: Array<{
+                messageId: string | null
+                createdAt: string | null
+                    preview: string | null
+            }>
+            messageElementsUsed?: string[]
+            messageElements?: Array<{
+                kind: string | null
+                source: string | null
+                label: string | null
+                preview: string | null
+            }>
+            messageContextOrigin?: string[]
+            turnInterpretation?: {
+                category: string | null
+                currentTurnText: string | null
+                intent: {
+                    key: string | null
+                    confidence: number | null
+                    source: string | null
+                    inherited: boolean
+                } | null
+                followUp: {
+                    detected: boolean
+                    inheritedIntentKey: string | null
+                    confidence: number | null
+                    source: string | null
+                } | null
+                topic: {
+                    label: string | null
+                    type: string | null
+                    confidence: number | null
+                    source: string | null
+                } | null
+                retrievalQuery: string | null
+                operationalQuery: string | null
+                threadResolution: {
+                    threads: Array<{
+                        key: string | null
+                        baseKey: string | null
+                        baseLabel: string | null
+                        baseType: string | null
+                        familyLabel: string | null
+                        displayLabel: string | null
+                        resolvedLabel: string | null
+                        variantLabels: string[]
+                        confidence: number | null
+                        source: string | null
+                    }>
+                    activeThreadKey: string | null
+                    activeThread: {
+                        key: string | null
+                        baseKey: string | null
+                        baseLabel: string | null
+                        baseType: string | null
+                        familyLabel: string | null
+                        displayLabel: string | null
+                        resolvedLabel: string | null
+                        variantLabels: string[]
+                        confidence: number | null
+                        source: string | null
+                    } | null
+                    multiTopicDetected: boolean
+                    requiresDisambiguation: boolean
+                    switchDetected: boolean
+                    measurementOnlyTurn: boolean
+                    promptText: string | null
+                } | null
+                quoteContext: {
+                    requiresMeasurements: boolean
+                    familyLabel: string | null
+                    topicLabel: string | null
+                    profileKey: string | null
+                    profileLabel: string | null
+                    missingFields: string[]
+                    requiredFields: string[]
+                    completionStatus: string | null
+                    closureMode: string | null
+                    capturedAttributes: Record<
+                        string,
+                        {
+                            value: string | number | Record<string, unknown> | null
+                            label: string | null
+                            source: string | null
+                        }
+                    >
+                } | null
+            } | null
+            detail?: string | null
+            input?: string | null
+            grounded?: boolean | null
+            needsHuman?: boolean | null
+            fallbackReason?: string | null
             fallbackActivated: boolean
             taskChanged: boolean
             createdAt: string | null
@@ -131,18 +238,51 @@ export type ConversationSummary = {
             name: string | null
             email: string
         } | null
+        authorLabel?: string | null
         kind: string
         body: string | null
+        preview: string | null
+        previewKind: string | null
         createdAt: string
         metadata: Record<string, unknown> | null
     } | null
 }
 
 export type ConversationDetail = ConversationSummary & {
+    aiSuggestions: {
+        conversationId: string
+        targetMessageId: string | null
+        targetMessageText?: string | null
+        items: Array<{
+            id: string
+            title: string
+            summary: string | null
+            responseText: string
+            detectedIntent: string | null
+            confidence: number | null
+            score: number
+            matchedBy: string[]
+            version: number
+            feedback: {
+                used: number
+                edited: number
+                discarded: number
+            }
+            source: {
+                type: string
+                candidateId: string
+                observationId: string | null
+                reviewedAt: string | null
+            }
+        }>
+    }
     messages: Array<{
         id: string
         authorType: string
+        authorKind?: string | null
+        authorLabel?: string | null
         kind: string
+        messageKind?: string | null
         body: string | null
         normalizedText: string | null
         payload: Record<string, unknown> | null
@@ -281,6 +421,23 @@ export type RerouteConversationInput = {
     notes?: string
 }
 
+export type ConversationAiSuggestionFeedbackInput = {
+    candidateId: string
+    targetMessageId?: string | null
+    targetMessageText?: string | null
+    suggestedText?: string | null
+    outcome?: 'used' | 'edited' | 'discarded'
+}
+
+export type ConversationMessageAttachmentInput = {
+    assetType?: string | null
+    fileName?: string | null
+    contentType?: string | null
+    content?: string | null
+    textContent?: string | null
+    metadata?: Record<string, unknown> | null
+}
+
 const ConversationsService = {
     async fetchConversations(params?: Record<string, unknown>) {
         const response = await ApiService.fetchData<ConversationListResponse>({
@@ -360,11 +517,42 @@ const ConversationsService = {
         return response.data
     },
 
-    async replyToConversation(id: string, body: string) {
+    async replyToConversation(
+        id: string,
+        body: string,
+        aiSuggestionFeedback?: ConversationAiSuggestionFeedbackInput,
+        attachments?: ConversationMessageAttachmentInput[],
+    ) {
         const response = await ApiService.fetchData<ConversationDetail>({
             url: `/conversations/${id}/reply`,
             method: 'post',
-            data: { body, kind: 'text' },
+            data: {
+                body,
+                kind: 'text',
+                aiSuggestionFeedback,
+                attachments,
+            },
+        })
+        return response.data
+    },
+
+    async recordConversationSuggestionFeedback(
+        id: string,
+        feedback: ConversationAiSuggestionFeedbackInput,
+    ) {
+        const response = await ApiService.fetchData<{
+            conversationId: string
+            id: string
+            outcome: string
+            candidateId: string
+            operatorMessageId: string | null
+            createdAt: string
+        }>({
+            url: `/conversations/${id}/ai-suggestions/feedback`,
+            method: 'post',
+            data: {
+                feedback,
+            },
         })
         return response.data
     },

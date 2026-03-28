@@ -88,7 +88,7 @@ export const ConversationsApi = {
   async syncWebchatSession(payload: {
     conversationId: string;
     guestId?: string;
-    _scope?: WebchatScope;
+    scope?: WebchatScope;
   }): Promise<WebchatSession> {
     return this.getWebchatSession(payload);
   },

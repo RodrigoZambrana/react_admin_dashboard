@@ -210,6 +210,46 @@ const ProductEdit = () => {
               unitOfMeasure: (
                   (productData as any).unitOfMeasure ?? DEFAULT_SALES_UNIT
               ) as SalesUnit,
+              installationResolutionMode:
+                  (productData as any).installationResolutionMode ?? null,
+              installationChargeScope:
+                  (productData as any).installationChargeScope ?? null,
+              installationPricePresentationMode:
+                  (productData as any).installationPricePresentationMode ?? null,
+              hasInstallationServiceOverride: Boolean(
+                  (productData as any).installServiceProduct,
+              ),
+              installationService: (productData as any).installServiceProduct
+                  ? {
+                        name:
+                            (productData as any).installServiceProduct.name ?? '',
+                        productCode:
+                            (productData as any).installServiceProduct.productCode ?? '',
+                        description:
+                            (productData as any).installServiceProduct.description ?? '',
+                        salePrice:
+                            (productData as any).installServiceProduct.salePrice !==
+                                undefined &&
+                            (productData as any).installServiceProduct.salePrice !== null
+                                ? String((productData as any).installServiceProduct.salePrice)
+                                : '',
+                        costPrice:
+                            (productData as any).installServiceProduct.costPrice !== undefined &&
+                            (productData as any).installServiceProduct.costPrice !== null
+                                ? String((productData as any).installServiceProduct.costPrice)
+                                : '',
+                        currency:
+                            (productData as any).installServiceProduct.currency ?? 'USD',
+                        taxRate:
+                            (productData as any).installServiceProduct.taxRate !== undefined &&
+                            (productData as any).installServiceProduct.taxRate !== null
+                                ? String((productData as any).installServiceProduct.taxRate)
+                                : '',
+                        unitOfMeasure:
+                            ((productData as any).installServiceProduct.unitOfMeasure ??
+                                DEFAULT_SALES_UNIT) as SalesUnit,
+                    }
+                  : null,
               mode: ((productData as any).mode ?? 'simple') as ProductMode,
               parametricDraft: (productData as any).parametricDraft ?? null,
           }

@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import ProfileEditClient from "./ProfileEditClient";
 
 export default function AccountProfileEditPage() {
-  return <ProfileEditClient />;
+  return (
+    <Suspense fallback={null}>
+      <ProfileEditClient />
+    </Suspense>
+  );
 }

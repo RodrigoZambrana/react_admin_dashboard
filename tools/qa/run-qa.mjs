@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { generateConversationQualityReport } from "./analyze-conversation-quality.mjs";
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "..");
 const qaRoot = path.join(repoRoot, ".qa");
@@ -117,6 +118,19 @@ function buildSummary(output, exitCode) {
   }
   const lines = trimmed.split(/\r?\n/).slice(-8);
   return lines.join("\n");
+}
+
+function shouldGenerateConversationQualityReport(blocks) {
+  return blocks.some((block) => {
+    const tags = Array.isArray(block?.tags) ? block.tags.map(String) : [];
+    return (
+      block?.id === "ai-conversation-quality" ||
+      tags.includes("ai") ||
+      tags.includes("conversations") ||
+      tags.includes("webchat") ||
+      tags.includes("admin")
+    );
+  });
 }
 
 async function executeCommand(command, cwd, logFilePath) {
@@ -259,6 +273,19 @@ async function main() {
   run.status = overallFailed ? "failed" : "passed";
   run.finishedAt = new Date().toISOString();
   await writeRunSnapshot(run);
+
+  if (shouldGenerateConversationQualityReport(selectedBlocks)) {
+    try {
+      const report = await generateConversationQualityReport({
+        runFilePath: path.join(runsRoot, `${run.id}.json`),
+        write: true,
+      });
+      run.conversationQualityReport = report.artifacts ?? null;
+      await writeRunSnapshot(run);
+    } catch (error) {
+      console.error("Conversation quality report generation failed", error);
+    }
+  }
 
   console.log(JSON.stringify({ runId, status: run.status, blocks: run.blocks.length }, null, 2));
 

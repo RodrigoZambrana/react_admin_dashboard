@@ -13,7 +13,14 @@ import {
 } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
-import { Prisma, ProductType, SalesUnit } from '@prisma/client'
+import {
+  InstallationChargeScope,
+  InstallationPricePresentationMode,
+  InstallationResolutionMode,
+  Prisma,
+  ProductType,
+  SalesUnit,
+} from '@prisma/client'
 import type { CompanyProfile } from '@prisma/client'
 import { Roles, ROLES } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
@@ -62,6 +69,9 @@ type ProductCategoryConfig = {
   image?: string | null
   parent?: string | null
   installable?: boolean
+  installationResolutionMode?: string | null
+  installationChargeScope?: string | null
+  installationPricePresentationMode?: string | null
   service?: ProductCategoryServiceConfig | null
 }
 type ShippingOptionConfig = {
@@ -602,6 +612,57 @@ export class SettingsController {
     return match as SalesUnit
   }
 
+  private resolveInstallationResolutionMode(
+    value: unknown,
+    fallback: InstallationResolutionMode | null = null,
+  ): InstallationResolutionMode | null {
+    if (value === null || value === undefined || value === '') {
+      return fallback
+    }
+    const normalized = String(value).trim().toUpperCase().replace(/[\s-]+/g, '_')
+    const match = (Object.values(InstallationResolutionMode) as string[]).find(
+      (candidate) => candidate === normalized,
+    )
+    if (!match) {
+      throw new BadRequestException('Invalid installation resolution mode')
+    }
+    return match as InstallationResolutionMode
+  }
+
+  private resolveInstallationChargeScope(
+    value: unknown,
+    fallback: InstallationChargeScope | null = null,
+  ): InstallationChargeScope | null {
+    if (value === null || value === undefined || value === '') {
+      return fallback
+    }
+    const normalized = String(value).trim().toUpperCase().replace(/[\s-]+/g, '_')
+    const match = (Object.values(InstallationChargeScope) as string[]).find(
+      (candidate) => candidate === normalized,
+    )
+    if (!match) {
+      throw new BadRequestException('Invalid installation charge scope')
+    }
+    return match as InstallationChargeScope
+  }
+
+  private resolveInstallationPricePresentationMode(
+    value: unknown,
+    fallback: InstallationPricePresentationMode | null = null,
+  ): InstallationPricePresentationMode | null {
+    if (value === null || value === undefined || value === '') {
+      return fallback
+    }
+    const normalized = String(value).trim().toUpperCase().replace(/[\s-]+/g, '_')
+    const match = (Object.values(InstallationPricePresentationMode) as string[]).find(
+      (candidate) => candidate === normalized,
+    )
+    if (!match) {
+      throw new BadRequestException('Invalid installation price presentation mode')
+    }
+    return match as InstallationPricePresentationMode
+  }
+
   private normalizeCategoryServicePayload(
     input: unknown,
     categoryName: string,
@@ -759,6 +820,9 @@ export class SettingsController {
       image?: string | null
       parentId?: number | string | null
       installable?: boolean
+      installationResolutionMode?: string | null
+      installationChargeScope?: string | null
+      installationPricePresentationMode?: string | null
       service?: ProductCategoryServiceConfig | null
     },
   ) {
@@ -773,6 +837,20 @@ export class SettingsController {
 
     const installable = Boolean(body.installable)
     const serviceData = installable ? this.normalizeCategoryServicePayload(body.service, name) : null
+    const installationResolutionMode = this.resolveInstallationResolutionMode(
+      body.installationResolutionMode,
+      installable
+        ? InstallationResolutionMode.OPTIONAL_ADD_ON
+        : InstallationResolutionMode.NOT_OFFERED,
+    )
+    const installationChargeScope = this.resolveInstallationChargeScope(
+      body.installationChargeScope,
+      installable ? InstallationChargeScope.PER_QUOTE : null,
+    )
+    const installationPricePresentationMode = this.resolveInstallationPricePresentationMode(
+      body.installationPricePresentationMode,
+      installable ? InstallationPricePresentationMode.HIDDEN : null,
+    )
 
     await this.prisma.$transaction(async (tx) => {
       const category = await tx.productCategory.create({
@@ -781,6 +859,9 @@ export class SettingsController {
           description: description ?? null,
           image: image ?? null,
           parentId,
+          installationResolutionMode,
+          installationChargeScope,
+          installationPricePresentationMode,
         },
       })
 
@@ -824,6 +905,9 @@ export class SettingsController {
       image?: string | null
       parentId?: number | string | null
       installable?: boolean
+      installationResolutionMode?: string | null
+      installationChargeScope?: string | null
+      installationPricePresentationMode?: string | null
       service?: ProductCategoryServiceConfig | null
     },
   ) {
@@ -868,14 +952,65 @@ export class SettingsController {
     const installable = hasInstallableFlag
       ? this.normalizeBoolean(body.installable)
       : existing.installServiceProductId !== null
+    const hasResolutionModeFlag = Object.prototype.hasOwnProperty.call(
+      body,
+      'installationResolutionMode',
+    )
+    const hasChargeScopeFlag = Object.prototype.hasOwnProperty.call(
+      body,
+      'installationChargeScope',
+    )
+    const hasPricePresentationFlag = Object.prototype.hasOwnProperty.call(
+      body,
+      'installationPricePresentationMode',
+    )
     const servicePayloadProvided = body.service !== undefined && body.service !== null
     const serviceData =
       installable && servicePayloadProvided
         ? this.normalizeCategoryServicePayload(body.service, categoryName)
         : null
+    const installationResolutionMode =
+      hasResolutionModeFlag || hasInstallableFlag
+        ? this.resolveInstallationResolutionMode(
+            body.installationResolutionMode,
+            installable
+              ? existing.installationResolutionMode ??
+                  InstallationResolutionMode.OPTIONAL_ADD_ON
+              : InstallationResolutionMode.NOT_OFFERED,
+          )
+        : undefined
+    const installationChargeScope =
+      hasChargeScopeFlag || hasInstallableFlag
+        ? this.resolveInstallationChargeScope(
+            body.installationChargeScope,
+            installable
+              ? existing.installationChargeScope ?? InstallationChargeScope.PER_QUOTE
+              : null,
+          )
+        : undefined
+    const installationPricePresentationMode =
+      hasPricePresentationFlag || hasInstallableFlag
+        ? this.resolveInstallationPricePresentationMode(
+            body.installationPricePresentationMode,
+            installable
+              ? existing.installationPricePresentationMode ??
+                  InstallationPricePresentationMode.HIDDEN
+              : null,
+          )
+        : undefined
 
     if (installable && !existing.installServiceProductId && !serviceData) {
       throw new BadRequestException('Service details are required when enabling installation')
+    }
+
+    if (installationResolutionMode !== undefined) {
+      data.installationResolutionMode = installationResolutionMode
+    }
+    if (installationChargeScope !== undefined) {
+      data.installationChargeScope = installationChargeScope
+    }
+    if (installationPricePresentationMode !== undefined) {
+      data.installationPricePresentationMode = installationPricePresentationMode
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -1181,6 +1316,17 @@ export class SettingsController {
           image: category.image ?? null,
           parent: category.parentId ? categoryNameById.get(category.parentId) ?? null : null,
           installable: Boolean(service),
+          installationResolutionMode:
+            category.installationResolutionMode ??
+            (service
+              ? InstallationResolutionMode.OPTIONAL_ADD_ON
+              : InstallationResolutionMode.NOT_OFFERED),
+          installationChargeScope:
+            category.installationChargeScope ??
+            (service ? InstallationChargeScope.PER_QUOTE : null),
+          installationPricePresentationMode:
+            category.installationPricePresentationMode ??
+            (service ? InstallationPricePresentationMode.HIDDEN : null),
           service: service
             ? {
                 name: service.name,
@@ -1314,6 +1460,9 @@ export class SettingsController {
               image: string | null
               parentName: string | null
               installable: boolean
+              installationResolutionMode: InstallationResolutionMode | null
+              installationChargeScope: InstallationChargeScope | null
+              installationPricePresentationMode: InstallationPricePresentationMode | null
               service: {
                 name: string
                 productCode: string | null
@@ -1342,6 +1491,21 @@ export class SettingsController {
             const installableFlag = raw['installable']
             const hasServicePayload = rawService !== undefined && rawService !== null
             const installable = installableFlag !== undefined ? this.normalizeBoolean(installableFlag) : hasServicePayload
+            const installationResolutionMode = this.resolveInstallationResolutionMode(
+              raw['installationResolutionMode'],
+              installable
+                ? InstallationResolutionMode.OPTIONAL_ADD_ON
+                : InstallationResolutionMode.NOT_OFFERED,
+            )
+            const installationChargeScope = this.resolveInstallationChargeScope(
+              raw['installationChargeScope'],
+              installable ? InstallationChargeScope.PER_QUOTE : null,
+            )
+            const installationPricePresentationMode =
+              this.resolveInstallationPricePresentationMode(
+                raw['installationPricePresentationMode'],
+                installable ? InstallationPricePresentationMode.HIDDEN : null,
+              )
             const service = installable
               ? this.normalizeCategoryServicePayload(rawService, name)
               : null
@@ -1351,6 +1515,9 @@ export class SettingsController {
               image: imageValue ?? null,
               parentName: parentName ?? null,
               installable,
+              installationResolutionMode,
+              installationChargeScope,
+              installationPricePresentationMode,
               service,
             })
           }
@@ -1579,6 +1746,10 @@ export class SettingsController {
                   description: entry.description,
                   image: entry.image,
                   parentId,
+                  installationResolutionMode: entry.installationResolutionMode,
+                  installationChargeScope: entry.installationChargeScope,
+                  installationPricePresentationMode:
+                    entry.installationPricePresentationMode,
                 },
                 select: { id: true },
               })

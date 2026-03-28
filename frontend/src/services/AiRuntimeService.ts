@@ -20,6 +20,25 @@ export type AiRuntimeConfigResponse = {
     usageMessage: string | null
     adminInternalPrompt: string | null
     customerPublicPrompt: string | null
+    customerGreetingDefault: string | null
+    customerGreetingMorning: string | null
+    customerGreetingAfternoon: string | null
+    customerGreetingConsultation: string | null
+    customerGreetingHelp: string | null
+    adminGreetingDefault: string | null
+    customerGroundedRewriteEnabled?: boolean
+    customerGroundedRewriteMaxChars?: number | null
+    customerCapabilityProfile:
+        | 'full_assistant'
+        | 'ecommerce_content'
+        | 'scheduling_content'
+        | 'content_only'
+        | 'custom'
+    customerContentMode: 'enabled' | 'deterministic_only' | 'handoff_only'
+    customerCommerceMode: 'enabled' | 'deterministic_only' | 'handoff_only'
+    customerSchedulingMode: 'enabled' | 'deterministic_only' | 'handoff_only'
+    customerWordingOverrides?: Record<string, string | string[]> | null
+    customerWordingOverridesJson?: string | null
     roleCatalog?: Array<{
         key: string
         type: 'customer' | 'admin'
@@ -65,6 +84,24 @@ export type UpdateAiRuntimeConfigPayload = {
     usageMessage: string | null
     adminInternalPrompt: string | null
     customerPublicPrompt: string | null
+    customerGreetingDefault: string | null
+    customerGreetingMorning: string | null
+    customerGreetingAfternoon: string | null
+    customerGreetingConsultation: string | null
+    customerGreetingHelp: string | null
+    adminGreetingDefault: string | null
+    customerGroundedRewriteEnabled?: boolean
+    customerGroundedRewriteMaxChars?: number | null
+    customerCapabilityProfile:
+        | 'full_assistant'
+        | 'ecommerce_content'
+        | 'scheduling_content'
+        | 'content_only'
+        | 'custom'
+    customerContentMode: 'enabled' | 'deterministic_only' | 'handoff_only'
+    customerCommerceMode: 'enabled' | 'deterministic_only' | 'handoff_only'
+    customerSchedulingMode: 'enabled' | 'deterministic_only' | 'handoff_only'
+    customerWordingOverridesJson?: string | null
 }
 
 export const apiGetAiRuntimeConfig = () => {

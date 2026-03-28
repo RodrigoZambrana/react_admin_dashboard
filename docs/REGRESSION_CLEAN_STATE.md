@@ -21,12 +21,49 @@ cd /Users/rodrigo/git/personal/react_admin_dashboard/backend
 npm run regression:prepare
 ```
 
-Dry run:
+Apply cleanup explicitly:
 
 ```bash
 cd /Users/rodrigo/git/personal/react_admin_dashboard/backend
-npm run regression:prepare -- --dry-run
+npm run regression:prepare:apply
 ```
+
+Direct CLI examples:
+
+```bash
+cd /Users/rodrigo/git/personal/react_admin_dashboard/backend
+sh scripts/prepare-regression-state.sh --dry-run
+sh scripts/prepare-regression-state.sh --confirm
+```
+
+## Safety Guards
+
+This script is intentionally protected so it cannot become an accidental or externally exposed destructive path.
+
+Current guarantees:
+
+- it is a CLI-only maintenance script; there is no HTTP/controller route that invokes it
+- it is blocked in `production / prod / live` environments
+- it is blocked against non-local database hosts by default
+- destructive execution requires explicit `--confirm`
+- the default npm path is now `dry-run`
+
+Local database hosts currently allowed by default:
+
+- `localhost`
+- `127.0.0.1`
+- `::1`
+- `postgres-local`
+- `codex-local-postgres`
+- `host.docker.internal`
+
+Remote execution is blocked unless someone deliberately sets:
+
+```bash
+ALLOW_REMOTE_MAINTENANCE=true
+```
+
+Even with that override, production environments remain blocked.
 
 ## What The Script Cleans
 
@@ -100,6 +137,10 @@ Example that was validated in this environment:
 - Do not create placeholder email inbox accounts from incoming payloads.
 - Do not expose an email mailbox in admin just because an `InboxAccount` row exists.
 - If an invalid mailbox was created historically, keep it inactive or remove it once there are no dependent records.
+- Apply the same safety standard to other critical maintenance scripts:
+  - `scripts/bootstrap-fresh-local-db.sh`
+  - `scripts/reset-admin.ts`
+  - any future script that resets data, credentials, queues, or knowledge state
 
 ## Suggested Future Automation
 

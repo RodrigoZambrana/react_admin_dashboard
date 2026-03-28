@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import AddressDetailsClient from "../AddressDetailsClient";
 
 interface AddressDetailsPageProps {
@@ -6,5 +7,9 @@ interface AddressDetailsPageProps {
 
 export default async function AccountAddressDetailsPage({ params }: AddressDetailsPageProps) {
   const { id } = await params;
-  return <AddressDetailsClient addressId={id} />;
+  return (
+    <Suspense fallback={null}>
+      <AddressDetailsClient addressId={id} />
+    </Suspense>
+  );
 }

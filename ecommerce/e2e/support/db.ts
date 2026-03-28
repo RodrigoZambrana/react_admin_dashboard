@@ -301,13 +301,15 @@ export async function waitForLatestConversationOutboundBySubject(
         inboxAccountId: string | null;
         remoteId: string | null;
         metadata: unknown;
+        messageMetadata: unknown;
       }>(
         `
           SELECT
             c.id AS "conversationId",
             c."inboxAccountId" AS "inboxAccountId",
             im."remoteId" AS "remoteId",
-            im.metadata AS metadata
+            im.metadata AS metadata,
+            cm.metadata AS "messageMetadata"
           FROM "Conversation" c
           INNER JOIN "ConversationMessage" cm ON cm."conversationId" = c.id
           LEFT JOIN "InboxMessage" im ON im.id = cm."inboxMessageId"
@@ -322,11 +324,18 @@ export async function waitForLatestConversationOutboundBySubject(
     );
 
     const row = result.rows[0];
-    if (row?.conversationId && row.remoteId) {
-      const metadata =
+    if (row?.conversationId) {
+      const inboxMetadata =
         row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
           ? (row.metadata as Record<string, unknown>)
           : null;
+      const messageMetadata =
+        row.messageMetadata &&
+        typeof row.messageMetadata === "object" &&
+        !Array.isArray(row.messageMetadata)
+          ? (row.messageMetadata as Record<string, unknown>)
+          : null;
+      const metadata = inboxMetadata ?? messageMetadata;
 
       return {
         conversationId: row.conversationId,
@@ -363,13 +372,15 @@ export async function waitForLatestConversationOutboundByThread(
         inboxAccountId: string | null;
         remoteId: string | null;
         metadata: unknown;
+        messageMetadata: unknown;
       }>(
         `
           SELECT
             c.id AS "conversationId",
             c."inboxAccountId" AS "inboxAccountId",
             im."remoteId" AS "remoteId",
-            im.metadata AS metadata
+            im.metadata AS metadata,
+            cm.metadata AS "messageMetadata"
           FROM "Conversation" c
           INNER JOIN "ConversationMessage" cm ON cm."conversationId" = c.id
           LEFT JOIN "InboxMessage" im ON im.id = cm."inboxMessageId"
@@ -384,11 +395,18 @@ export async function waitForLatestConversationOutboundByThread(
     );
 
     const row = result.rows[0];
-    if (row?.conversationId && row.remoteId) {
-      const metadata =
+    if (row?.conversationId) {
+      const inboxMetadata =
         row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
           ? (row.metadata as Record<string, unknown>)
           : null;
+      const messageMetadata =
+        row.messageMetadata &&
+        typeof row.messageMetadata === "object" &&
+        !Array.isArray(row.messageMetadata)
+          ? (row.messageMetadata as Record<string, unknown>)
+          : null;
+      const metadata = inboxMetadata ?? messageMetadata;
 
       return {
         conversationId: row.conversationId,

@@ -1,6 +1,8 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { PrismaClient, InboxChannelType } from '@prisma/client'
+import {
+  assertMaintenanceScriptSafety,
+  loadEnvFromBackendRoot,
+} from './script-safety'
 
 const prisma = new PrismaClient()
 
@@ -9,41 +11,6 @@ const SYNTHETIC_EMAIL_SUBJECT_FRAGMENTS = [
   'Consulta email',
   'Probe email webhook',
 ] as const
-
-function loadEnvFromBackendRoot() {
-  const envPath = join(process.cwd(), '.env')
-  if (!existsSync(envPath)) {
-    return
-  }
-
-  const content = readFileSync(envPath, 'utf8')
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim()
-    if (!line || line.startsWith('#')) {
-      continue
-    }
-
-    const separatorIndex = line.indexOf('=')
-    if (separatorIndex <= 0) {
-      continue
-    }
-
-    const key = line.slice(0, separatorIndex).trim()
-    if (!key || process.env[key]) {
-      continue
-    }
-
-    let value = line.slice(separatorIndex + 1).trim()
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1)
-    }
-
-    process.env[key] = value
-  }
-}
 
 const buildContainsFilters = (field: 'subject') =>
   SYNTHETIC_EMAIL_SUBJECT_FRAGMENTS.map((fragment) => ({
@@ -55,7 +22,12 @@ const buildContainsFilters = (field: 'subject') =>
 
 async function main() {
   loadEnvFromBackendRoot()
-  const dryRun = process.argv.includes('--dry-run')
+  const guard = assertMaintenanceScriptSafety({
+    scriptName: 'prepare-regression-state',
+    argv: process.argv.slice(2),
+    destructive: true,
+  })
+  const dryRun = guard.dryRun
   const configuredAddress = (
     process.env.INBOX_EMAIL_DEFAULT_FROM || process.env.INBOX_EMAIL_USER || ''
   )
@@ -196,6 +168,7 @@ async function main() {
         feedbacks: feedbackIds.length,
         inboxMessages: syntheticInboxMessageIds.length,
         invalidEmailAccounts: invalidEmailAccountIds.length,
+        databaseHost: guard.databaseHost,
       },
       null,
       2,

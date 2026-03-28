@@ -1,0 +1,136 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+
+import { buildCustomerScheduleContext } from '../customer-schedule-context.js'
+
+test('buildCustomerScheduleContext captures date, time, address and contact from conversation turns', () => {
+  const firstTurn = buildCustomerScheduleContext({
+    currentTurnText: 'Quiero coordinar una visita técnica para cotizar roller blackout',
+    previousScheduleContext: null,
+    previousQuoteContext: {
+      topicLabel: 'cortinas roller blackout',
+    },
+    currentTopic: {
+      label: 'cortinas roller blackout',
+      type: 'product_variant',
+    },
+    now: new Date('2026-03-28T10:00:00.000Z'),
+  })
+
+  const secondTurn = buildCustomerScheduleContext({
+    currentTurnText:
+      'mañana a las 10 en avenida italia 1234. Mi teléfono es 099123456',
+    previousScheduleContext: firstTurn,
+    previousQuoteContext: {
+      topicLabel: 'cortinas roller blackout',
+    },
+    currentTopic: {
+      label: 'cortinas roller blackout',
+      type: 'product_variant',
+    },
+    nluAnalysis: {
+      entities: {
+        phones: [{ text: '099123456', resolution: [{ value: '099123456' }] }],
+      },
+    },
+    now: new Date('2026-03-28T10:00:00.000Z'),
+  })
+
+  assert.equal(secondTurn.reason, 'visita técnica')
+  assert.equal(secondTurn.purpose, 'cotizar cortinas roller blackout')
+  assert.equal(secondTurn.date?.dateLabel, 'mañana')
+  assert.equal(secondTurn.time?.timeLabel, '10:00')
+  assert.equal(secondTurn.address, 'avenida italia 1234')
+  assert.equal(secondTurn.contactPhone, '099123456')
+  assert.equal(secondTurn.completionStatus, 'ready_to_schedule')
+})
+
+test('buildCustomerScheduleContext captures a complete visit request from one freeform turn', () => {
+  const context = buildCustomerScheduleContext({
+    currentTurnText:
+      'norberto ortiz 4086 esquina santa ana 091284204 puedo el lunes a las 14',
+    previousScheduleContext: {
+      reason: 'visita técnica',
+      purpose: 'cotizar aberturas de aluminio',
+    },
+    previousQuoteContext: {
+      topicLabel: 'aberturas de aluminio',
+    },
+    currentTopic: {
+      label: 'aberturas de aluminio',
+      type: 'product_topic',
+    },
+    now: new Date('2026-03-28T10:00:00.000Z'),
+  })
+
+  assert.equal(context.title, 'Visita técnica')
+  assert.equal(context.date?.dateLabel, 'lunes 30/03/2026')
+  assert.equal(context.time?.timeLabel, '14:00')
+  assert.equal(context.address, 'norberto ortiz 4086 esquina santa ana')
+  assert.equal(context.contactPhone, '091284204')
+  assert.equal(context.completionStatus, 'ready_to_schedule')
+})
+
+test('buildCustomerScheduleContext preserves schedule intake across multiple short turns', () => {
+  const firstTurn = buildCustomerScheduleContext({
+    currentTurnText: 'Prefiero agendar una visita para poder asesorarme mejor',
+    previousScheduleContext: null,
+    previousQuoteContext: {
+      topicLabel: 'cortinas roller',
+    },
+    currentTopic: {
+      label: 'cortinas roller',
+      type: 'product_topic',
+    },
+    now: new Date('2026-03-28T10:00:00.000Z'),
+  })
+
+  const secondTurn = buildCustomerScheduleContext({
+    currentTurnText: 'puedo el lunes',
+    previousScheduleContext: firstTurn,
+    previousQuoteContext: {
+      topicLabel: 'cortinas roller',
+    },
+    currentTopic: {
+      label: 'cortinas roller',
+      type: 'product_topic',
+    },
+    now: new Date('2026-03-28T10:00:00.000Z'),
+  })
+
+  const thirdTurn = buildCustomerScheduleContext({
+    currentTurnText: 'a que hora podrian?',
+    previousScheduleContext: secondTurn,
+    previousQuoteContext: {
+      topicLabel: 'cortinas roller',
+    },
+    currentTopic: {
+      label: 'cortinas roller',
+      type: 'product_topic',
+    },
+    now: new Date('2026-03-28T10:00:00.000Z'),
+  })
+
+  const fourthTurn = buildCustomerScheduleContext({
+    currentTurnText: 'es en avenida italia 1428. A las 14 estoy en casa. Mi teléfono es 099123456',
+    previousScheduleContext: thirdTurn,
+    previousQuoteContext: {
+      topicLabel: 'cortinas roller',
+    },
+    currentTopic: {
+      label: 'cortinas roller',
+      type: 'product_topic',
+    },
+    now: new Date('2026-03-28T10:00:00.000Z'),
+  })
+
+  assert.equal(secondTurn.date?.dateLabel, 'lunes 30/03/2026')
+  assert.equal(secondTurn.completionStatus, 'needs_info')
+  assert.deepEqual(secondTurn.missingFields, ['time', 'address', 'contact'])
+  assert.equal(thirdTurn.date?.dateLabel, 'lunes 30/03/2026')
+  assert.equal(thirdTurn.time, null)
+  assert.equal(fourthTurn.time?.timeLabel, '14:00')
+  assert.equal(fourthTurn.address, 'avenida italia 1428')
+  assert.equal(fourthTurn.contactPhone, '099123456')
+  assert.equal(fourthTurn.completionStatus, 'ready_to_schedule')
+})

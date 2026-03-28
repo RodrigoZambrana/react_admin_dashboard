@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DocumentType, EventType, PaymentStatus } from '@prisma/client'
+import {
+  DocumentType,
+  EventType,
+  InstallationChargeScope,
+  InstallationPricePresentationMode,
+  InstallationResolutionMode,
+  PaymentStatus,
+} from '@prisma/client'
 import { AiService } from '../ai.service'
 import { AberturasParserService } from '../../aberturas/parser/aberturas-parser.service'
 
@@ -168,6 +175,16 @@ const createPrisma = () => ({
       uuid: 'uuid-55',
       documentType: DocumentType.ORDER,
     }),
+    findFirst: vi.fn().mockResolvedValue({
+      id: 55,
+      uuid: 'uuid-55',
+      documentType: DocumentType.ORDER,
+      statusId: 100,
+      orderCurrency: 'UYU',
+      grandTotal: { toNumber: () => 2200 },
+      validUntil: null,
+      updatedAt: new Date('2026-03-25T12:00:00.000Z'),
+    }),
     update: vi.fn().mockResolvedValue({
       id: 55,
       uuid: 'uuid-55',
@@ -247,6 +264,49 @@ const createService = () => {
   })
   const salesDocuments = {
     updateDocumentStatus: vi.fn().mockResolvedValue(true),
+    previewSalesUnitPricing: vi.fn().mockImplementation((input) => {
+      const quantity = Number(input.quantity ?? 1)
+      const unit = String(input.unitOfMeasure ?? 'UNIT')
+      const salePrice = Number(input.salePrice ?? 0)
+      const attrs = (input.customAttributes ?? {}) as Record<string, number>
+      if (unit === 'SQUARE_METER') {
+        const width = Number(attrs.width ?? 0)
+        const height = Number(attrs.height ?? 0)
+        if (!(width > 0) || !(height > 0)) {
+          return {
+            unitOfMeasure: 'SQUARE_METER',
+            quantity,
+            measurementPerUnit: null,
+            effectiveQuantity: null,
+            derivedUnitPrice: null,
+            totalAmount: null,
+            currency: input.currency ?? null,
+            missingMeasurements: true,
+          }
+        }
+        const measurementPerUnit = width * height
+        return {
+          unitOfMeasure: 'SQUARE_METER',
+          quantity,
+          measurementPerUnit,
+          effectiveQuantity: measurementPerUnit * quantity,
+          derivedUnitPrice: measurementPerUnit * salePrice,
+          totalAmount: measurementPerUnit * salePrice * quantity,
+          currency: input.currency ?? null,
+          missingMeasurements: false,
+        }
+      }
+      return {
+        unitOfMeasure: 'UNIT',
+        quantity,
+        measurementPerUnit: 1,
+        effectiveQuantity: quantity,
+        derivedUnitPrice: salePrice,
+        totalAmount: salePrice * quantity,
+        currency: input.currency ?? null,
+        missingMeasurements: false,
+      }
+    }),
     sendBudget: vi.fn().mockResolvedValue({
       budgetId: 55,
       statusId: 1010,
@@ -445,6 +505,49 @@ describe('AiService', () => {
     expect(prisma.payment.findMany).toHaveBeenCalled()
   })
 
+  it('returns an ownership-safe customer document summary for authenticated customer lookups', async () => {
+    const { prisma, service } = createService()
+
+    const result = await service.getOwnedCustomerDocument({
+      customerId: 22,
+      identifier: 'ORD-000055',
+      documentType: DocumentType.ORDER,
+    })
+
+    expect(result).toMatchObject({
+      id: 55,
+      uuid: 'uuid-55',
+      reference: 'uuid-55',
+      documentType: DocumentType.ORDER,
+      statusCode: 'pending',
+      statusLabel: 'Pendiente',
+      currency: 'UYU',
+      grandTotal: 2200,
+    })
+    expect(prisma.order.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          customerId: 22,
+          documentType: DocumentType.ORDER,
+          id: 55,
+        },
+      }),
+    )
+  })
+
+  it('returns null when the requested customer document does not belong to the authenticated customer', async () => {
+    const { prisma, service } = createService()
+    prisma.order.findFirst.mockResolvedValueOnce(null)
+
+    const result = await service.getOwnedCustomerDocument({
+      customerId: 22,
+      identifier: 'ORD-000055',
+      documentType: DocumentType.ORDER,
+    })
+
+    expect(result).toBeNull()
+  })
+
   it('lists and updates customers for admin actions', async () => {
     const { prisma, service } = createService()
 
@@ -517,6 +620,100 @@ describe('AiService', () => {
         }),
       }),
     )
+  })
+
+  it('previews immediate square-meter pricing using backend sales-unit logic', async () => {
+    const { prisma, service, salesDocuments } = createService()
+    prisma.product.findUnique.mockResolvedValueOnce({
+      id: 1,
+      name: 'Cortina Roller',
+      productCode: 'cortinas-roller',
+      mode: 'SIMPLE',
+      unitOfMeasure: 'SQUARE_METER',
+      salePrice: { toNumber: () => 1000 },
+      currency: 'UYU',
+      published: true,
+    })
+    const preview = await service.previewProductQuote({
+      productId: 1,
+      widthMm: 1200,
+      heightMm: 1200,
+      quantity: 2,
+    })
+
+    expect(salesDocuments.previewSalesUnitPricing).toHaveBeenCalledWith(
+      expect.objectContaining({
+        unitOfMeasure: 'SQUARE_METER',
+        quantity: 2,
+        customAttributes: { width: 1.2, height: 1.2 },
+      }),
+    )
+    expect(preview).toMatchObject({
+      available: true,
+      unitAmount: 1000,
+      currency: 'UYU',
+    })
+    expect(preview.totalAmount).toBeCloseTo(2880)
+  })
+
+  it('includes structured installation policy in quote preview when the product or category has an installation service', async () => {
+    const { prisma, service } = createService()
+    prisma.product.findUnique.mockResolvedValueOnce({
+      id: 1,
+      name: 'Cortina Roller',
+      productCode: 'cortinas-roller',
+      mode: 'SIMPLE',
+      productType: 'PHYSICAL',
+      unitOfMeasure: 'SQUARE_METER',
+      salePrice: { toNumber: () => 1000 },
+      currency: 'UYU',
+      published: true,
+      installationResolutionMode: null,
+      installationChargeScope: null,
+      installServiceProduct: null,
+      category: {
+        id: 7,
+        name: 'Rollers',
+        installationResolutionMode: InstallationResolutionMode.OPTIONAL_ADD_ON,
+        installationChargeScope: InstallationChargeScope.PER_QUOTE,
+        installationPricePresentationMode:
+          InstallationPricePresentationMode.FROM_BASE,
+        installServiceProduct: {
+          id: 500,
+          name: 'Instalación roller',
+          productCode: 'INST-ROLLER',
+          salePrice: { toNumber: () => 150 },
+          currency: 'USD',
+          unitOfMeasure: 'UNIT',
+        },
+      },
+    })
+
+    const preview = await service.previewProductQuote({
+      productId: 1,
+      widthMm: 1200,
+      heightMm: 1200,
+      quantity: 2,
+    })
+
+    expect(preview.installationResolutionMode).toBe(InstallationResolutionMode.OPTIONAL_ADD_ON)
+    expect(preview.installationChargeScope).toBe(InstallationChargeScope.PER_QUOTE)
+    expect(preview.installationPricePresentationMode).toBe(
+      InstallationPricePresentationMode.FROM_BASE,
+    )
+    expect(preview.installationIncluded).toBe(false)
+    expect(preview.installation).toMatchObject({
+      mode: InstallationResolutionMode.OPTIONAL_ADD_ON,
+      chargeScope: InstallationChargeScope.PER_QUOTE,
+      pricePresentationMode: InstallationPricePresentationMode.FROM_BASE,
+      amount: 150,
+      currency: 'USD',
+      serviceProduct: {
+        id: 500,
+        name: 'Instalación roller',
+      },
+    })
+    expect(preview.installation.totalAmountWithInstallation).toBeCloseTo(3030)
   })
 
   it('lists categories, creates categories and adjusts stock as general safe operations', async () => {
@@ -914,13 +1111,24 @@ describe('AiService', () => {
       usageMessage: 'Monitor usage closely before enabling high-volume channels.',
       adminInternalPrompt: 'Usar siempre el informe de UruCortinas.',
       customerPublicPrompt: 'Responder solo con información aprobada.',
+      customerGreetingDefault: 'Hola. ¿En qué podemos ayudarte hoy?',
+      customerGreetingMorning: 'Buenos días. ¿En qué podemos ayudarte?',
+      customerGreetingAfternoon: 'Buenas tardes. ¿En qué podemos ayudarte hoy?',
+      customerGreetingConsultation: 'Hola. Claro, cuéntanos tu consulta.',
+      customerGreetingHelp: 'Hola. Claro, ¿con qué te ayudamos?',
+      adminGreetingDefault: 'Hola. ¿En qué te ayudo hoy?',
     }
     const secureConfig = {
       getJson: vi
         .fn()
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({
-          value: storedValue,
+          value: {
+            ...storedValue,
+            customerGreetingDefault: 'Hola. Cuéntanos qué necesitas.',
+            customerGreetingConsultation: 'Hola. Claro, cuéntanos tu consulta.',
+            adminGreetingDefault: 'Hola. Decime qué gestión quieres resolver.',
+          },
           updatedAt: new Date('2026-03-25T10:00:00.000Z'),
         }),
       setJson: vi.fn().mockResolvedValue(undefined),
@@ -946,6 +1154,9 @@ describe('AiService', () => {
       model: 'gpt-4o-mini',
       adminInternalPrompt: 'Usar siempre el informe de UruCortinas.',
       customerPublicPrompt: 'Responder solo con información aprobada.',
+      customerGreetingDefault: 'Hola. Cuéntanos qué necesitas.',
+      customerGreetingConsultation: 'Hola. Claro, cuéntanos tu consulta.',
+      adminGreetingDefault: 'Hola. Decime qué gestión quieres resolver.',
     })
 
     expect(secureConfig.setJson).toHaveBeenCalledWith(
@@ -953,11 +1164,17 @@ describe('AiService', () => {
       expect.objectContaining({
         adminInternalPrompt: 'Usar siempre el informe de UruCortinas.',
         customerPublicPrompt: 'Responder solo con información aprobada.',
+        customerGreetingDefault: 'Hola. Cuéntanos qué necesitas.',
+        customerGreetingConsultation: 'Hola. Claro, cuéntanos tu consulta.',
+        adminGreetingDefault: 'Hola. Decime qué gestión quieres resolver.',
       }),
     )
     expect(result).toMatchObject({
       adminInternalPrompt: 'Usar siempre el informe de UruCortinas.',
       customerPublicPrompt: 'Responder solo con información aprobada.',
+      customerGreetingDefault: 'Hola. Cuéntanos qué necesitas.',
+      customerGreetingConsultation: 'Hola. Claro, cuéntanos tu consulta.',
+      adminGreetingDefault: 'Hola. Decime qué gestión quieres resolver.',
     })
   })
 })

@@ -12,7 +12,17 @@ import {
   StreamableFile,
   UseGuards,
 } from '@nestjs/common'
-import { DocumentType, Prisma, ProductAttributeType, ProductMode, SalesUnit } from '@prisma/client'
+import {
+  DocumentType,
+  InstallationChargeScope,
+  InstallationPricePresentationMode,
+  InstallationResolutionMode,
+  Prisma,
+  ProductAttributeType,
+  ProductMode,
+  ProductType,
+  SalesUnit,
+} from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { ParametricPricingService } from '../pricing/parametric-pricing.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
@@ -26,6 +36,10 @@ import {
   matchPaymentMethod,
 } from '../common/constants/payment-methods'
 import { findOrderStatusById, matchOrderStatus } from '../common/constants/order-statuses'
+import {
+  normalizeInstallationPricePresentationMode,
+  normalizeInstallationResolutionMode,
+} from '../catalog/installation-policy'
 
 type ProductSortKey =
   | 'id'
@@ -188,6 +202,83 @@ export class SalesController {
       return ProductMode.SIMPLE
     }
     return mode
+  }
+
+  private resolveInstallationChargeScope(
+    value: unknown,
+    fallback: InstallationChargeScope | null = null,
+  ): InstallationChargeScope | null {
+    if (value === null || value === undefined || value === '') {
+      return fallback
+    }
+    const normalized = String(value).trim().toUpperCase().replace(/[\s-]+/g, '_')
+    const match = (Object.values(InstallationChargeScope) as string[]).find(
+      (candidate) => candidate === normalized,
+    )
+    if (!match) {
+      throw new BadRequestException('Invalid installation charge scope')
+    }
+    return match as InstallationChargeScope
+  }
+
+  private resolveInstallationPricePresentationMode(
+    value: unknown,
+    fallback: InstallationPricePresentationMode | null = null,
+  ): InstallationPricePresentationMode | null {
+    const normalized = normalizeInstallationPricePresentationMode(value)
+    if (normalized) {
+      return normalized
+    }
+    if (value === null || value === undefined || value === '') {
+      return fallback
+    }
+    throw new BadRequestException('Invalid installation price presentation mode')
+  }
+
+  private normalizeInstallationServicePayload(
+    input: UpsertProductDto['installationService'] | UpdateProductDto['installationService'],
+    productName: string,
+  ) {
+    if (!input || typeof input !== 'object') {
+      return null
+    }
+
+    const name = this.safeTrim(input.name) || `${productName} instalación`
+    if (!name) {
+      throw new BadRequestException('Installation service name is required')
+    }
+
+    const salePrice = Number(input.salePrice)
+    if (!Number.isFinite(salePrice) || salePrice < 0) {
+      throw new BadRequestException('Invalid installation service sale price')
+    }
+
+    const rawCostPrice = input.costPrice as number | string | null | undefined
+    const costPrice =
+      rawCostPrice === undefined || rawCostPrice === null || rawCostPrice === ''
+        ? null
+        : Math.max(Number(rawCostPrice), 0)
+
+    const rawTaxRate = input.taxRate as number | string | null | undefined
+    const taxRate =
+      rawTaxRate === undefined || rawTaxRate === null || rawTaxRate === ''
+        ? null
+        : Number(rawTaxRate)
+
+    return {
+      name,
+      productCode: this.safeTrim(input.productCode) || null,
+      description: this.safeTrim(input.description) || null,
+      salePrice: roundCurrency(salePrice),
+      costPrice:
+        costPrice === null || !Number.isFinite(costPrice) ? null : roundCurrency(costPrice),
+      currency: (this.safeTrim(input.currency) || 'USD').toUpperCase(),
+      taxRate: taxRate !== null && Number.isFinite(taxRate) ? taxRate : null,
+      unitOfMeasure:
+        input.unitOfMeasure && Object.values(SalesUnit).includes(input.unitOfMeasure)
+          ? input.unitOfMeasure
+          : SalesUnit.UNIT,
+    }
   }
 
   private buildAttributeValueKey(attributeType: ProductAttributeType, canonicalKey: string): string {
@@ -1997,12 +2088,17 @@ export class SalesController {
     const nId = Number(id)
     const data = await this.prisma.product.findUnique({
       where: { id: nId },
-        include: {
-          images: {
-            where: { variantId: null },
-            orderBy: { sortOrder: 'asc' },
+      include: {
+        images: {
+          where: { variantId: null },
+          orderBy: { sortOrder: 'asc' },
+        },
+        category: {
+          include: {
+            installServiceProduct: true,
           },
-        category: true,
+        },
+        installServiceProduct: true,
         options: {
           include: {
             values: {
@@ -2159,6 +2255,22 @@ export class SalesController {
       salePrice: decimalToNumber(data.salePrice),
       costPrice: decimalToNumber(data.costPrice),
       mode: data.mode,
+      installationResolutionMode: data.installationResolutionMode,
+      installationChargeScope: data.installationChargeScope,
+      installationPricePresentationMode: data.installationPricePresentationMode,
+      installServiceProduct: data.installServiceProduct
+        ? {
+            id: data.installServiceProduct.id,
+            name: data.installServiceProduct.name,
+            productCode: data.installServiceProduct.productCode,
+            description: data.installServiceProduct.description,
+            salePrice: decimalToNumber(data.installServiceProduct.salePrice),
+            costPrice: decimalToNumber(data.installServiceProduct.costPrice),
+            currency: data.installServiceProduct.currency,
+            taxRate: data.installServiceProduct.taxRate,
+            unitOfMeasure: data.installServiceProduct.unitOfMeasure,
+          }
+        : null,
       imgList,
       attributes,
       variants,
@@ -2189,6 +2301,22 @@ export class SalesController {
     const currency = this.safeTrim(dto.currency) || 'UYU'
     const normalizedSalePrice = roundCurrency(dto.salePrice)
     const normalizedCostPrice = roundCurrency(dto.costPrice)
+    const installationResolutionMode =
+      normalizeInstallationResolutionMode(dto.installationResolutionMode) ??
+      (dto.installationService ? InstallationResolutionMode.OPTIONAL_ADD_ON : null)
+    const installationChargeScope = this.resolveInstallationChargeScope(
+      dto.installationChargeScope,
+      dto.installationService ? InstallationChargeScope.PER_QUOTE : null,
+    )
+    const installationPricePresentationMode =
+      this.resolveInstallationPricePresentationMode(
+        dto.installationPricePresentationMode,
+        dto.installationService ? InstallationPricePresentationMode.HIDDEN : null,
+      )
+    const installationServiceData = this.normalizeInstallationServicePayload(
+      dto.installationService,
+      dto.name,
+    )
     const coverImage = dto.img || dto.imgList?.[0]?.img || null
     let createdProductId: number | null = null
 
@@ -2209,6 +2337,9 @@ export class SalesController {
           permanentStock,
           status,
           mode,
+          installationResolutionMode,
+          installationChargeScope,
+          installationPricePresentationMode,
           costPerItem: dto.costPerItem ?? normalizedCostPrice,
           bulkDiscountPrice: dto.bulkDiscountPrice,
           taxRate,
@@ -2219,6 +2350,31 @@ export class SalesController {
         },
       })
       createdProductId = product.id
+
+      if (installationServiceData) {
+        const serviceProduct = await tx.product.create({
+          data: {
+            name: installationServiceData.name,
+            productCode: installationServiceData.productCode ?? undefined,
+            description: installationServiceData.description ?? undefined,
+            salePrice: installationServiceData.salePrice,
+            costPrice: installationServiceData.costPrice ?? 0,
+            currency: installationServiceData.currency,
+            unitOfMeasure: installationServiceData.unitOfMeasure,
+            taxRate: installationServiceData.taxRate ?? undefined,
+            productType: ProductType.SERVICE,
+            stock: 0,
+            permanentStock: false,
+            status: 0,
+            published: true,
+            category: dto.categoryId ? { connect: { id: dto.categoryId } } : undefined,
+          },
+        })
+        await tx.product.update({
+          where: { id: product.id },
+          data: { installServiceProductId: serviceProduct.id },
+        })
+      }
 
       if (dto.imgList && dto.imgList.length) {
         await this.replaceProductImages(tx, product.id, dto.imgList)
@@ -2260,6 +2416,11 @@ export class SalesController {
         permanentStock: true,
         currency: true,
         mode: true,
+        categoryId: true,
+        installServiceProductId: true,
+        installationResolutionMode: true,
+        installationChargeScope: true,
+        installationPricePresentationMode: true,
       },
     })
     if (!existingProduct) {
@@ -2290,6 +2451,31 @@ export class SalesController {
     const normalizedCostPrice = dto.costPrice === undefined ? undefined : roundCurrency(dto.costPrice)
     const normalizedCurrency =
       dto.currency === undefined ? undefined : (this.safeTrim(dto.currency) || 'UYU').toUpperCase()
+    const normalizedInstallationResolutionMode =
+      dto.installationResolutionMode === undefined
+        ? undefined
+        : normalizeInstallationResolutionMode(dto.installationResolutionMode)
+    const normalizedInstallationChargeScope =
+      dto.installationChargeScope === undefined
+        ? undefined
+        : this.resolveInstallationChargeScope(dto.installationChargeScope)
+    const normalizedInstallationPricePresentationMode =
+      dto.installationPricePresentationMode === undefined
+        ? undefined
+        : this.resolveInstallationPricePresentationMode(
+            dto.installationPricePresentationMode,
+          )
+    const installationServiceProvided = Object.prototype.hasOwnProperty.call(
+      dto,
+      'installationService',
+    )
+    const installationServiceData =
+      dto.installationService === undefined
+        ? undefined
+        : this.normalizeInstallationServicePayload(
+            dto.installationService,
+            dto.name || 'Servicio de instalación',
+          )
     const updateData: Prisma.ProductUpdateInput = {
       name: dto.name,
       productCode: dto.productCode,
@@ -2322,6 +2508,18 @@ export class SalesController {
               connect: { id: dto.categoryId },
             },
       mode: nextMode,
+      installationResolutionMode:
+        normalizedInstallationResolutionMode === undefined
+          ? undefined
+          : normalizedInstallationResolutionMode,
+      installationChargeScope:
+        normalizedInstallationChargeScope === undefined
+          ? undefined
+          : normalizedInstallationChargeScope,
+      installationPricePresentationMode:
+        normalizedInstallationPricePresentationMode === undefined
+          ? undefined
+          : normalizedInstallationPricePresentationMode,
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -2329,6 +2527,71 @@ export class SalesController {
         where: { id: dto.id },
         data: updateData,
       })
+
+      if (installationServiceProvided) {
+        if (installationServiceData) {
+          if (existingProduct.installServiceProductId) {
+            await tx.product.update({
+              where: { id: existingProduct.installServiceProductId },
+              data: {
+                name: installationServiceData.name,
+                productCode: installationServiceData.productCode ?? undefined,
+                description: installationServiceData.description ?? undefined,
+                salePrice: installationServiceData.salePrice,
+                costPrice: installationServiceData.costPrice ?? 0,
+                currency: installationServiceData.currency,
+                unitOfMeasure: installationServiceData.unitOfMeasure,
+                taxRate: installationServiceData.taxRate ?? undefined,
+                productType: ProductType.SERVICE,
+                stock: 0,
+                permanentStock: false,
+                status: 0,
+                published: true,
+                category:
+                  dto.categoryId === undefined && existingProduct.categoryId
+                    ? { connect: { id: existingProduct.categoryId } }
+                    : dto.categoryId
+                      ? { connect: { id: dto.categoryId } }
+                      : undefined,
+              },
+            })
+          } else {
+            const serviceProduct = await tx.product.create({
+              data: {
+                name: installationServiceData.name,
+                productCode: installationServiceData.productCode ?? undefined,
+                description: installationServiceData.description ?? undefined,
+                salePrice: installationServiceData.salePrice,
+                costPrice: installationServiceData.costPrice ?? 0,
+                currency: installationServiceData.currency,
+                unitOfMeasure: installationServiceData.unitOfMeasure,
+                taxRate: installationServiceData.taxRate ?? undefined,
+                productType: ProductType.SERVICE,
+                stock: 0,
+                permanentStock: false,
+                status: 0,
+                published: true,
+                category:
+                  dto.categoryId === undefined && existingProduct.categoryId
+                    ? { connect: { id: existingProduct.categoryId } }
+                    : dto.categoryId
+                      ? { connect: { id: dto.categoryId } }
+                      : undefined,
+              },
+            })
+            await tx.product.update({
+              where: { id: updated.id },
+              data: { installServiceProductId: serviceProduct.id },
+            })
+          }
+        } else if (existingProduct.installServiceProductId) {
+          await tx.product.update({
+            where: { id: updated.id },
+            data: { installServiceProductId: null },
+          })
+          await tx.product.delete({ where: { id: existingProduct.installServiceProductId } })
+        }
+      }
 
       if (dto.imgList) {
         await this.replaceProductImages(tx, updated.id, dto.imgList)

@@ -42,6 +42,20 @@ type ProductData = {
     currency?: string
     unitOfMeasure?: SalesUnit
     mode?: ProductMode
+    installationResolutionMode?: string | null
+    installationChargeScope?: string | null
+    installationPricePresentationMode?: string | null
+    installServiceProduct?: {
+        id?: number
+        name?: string
+        productCode?: string | null
+        description?: string | null
+        salePrice?: number | null
+        costPrice?: number | null
+        currency?: string | null
+        taxRate?: number | null
+        unitOfMeasure?: SalesUnit | null
+    } | null
     attributes?: ProductAttribute[]
     variants?: ProductVariant[]
     parametricDraft?: ParametricConfiguratorDraft | null
@@ -204,6 +218,68 @@ const mapApiProductToState = (payload: Record<string, unknown>): ProductData => 
                 ? undefined
                 : Boolean(payload.published),
         mode,
+        installationResolutionMode:
+            typeof payload.installationResolutionMode === 'string'
+                ? payload.installationResolutionMode
+                : payload.installationResolutionMode === null
+                  ? null
+                  : undefined,
+        installationChargeScope:
+            typeof payload.installationChargeScope === 'string'
+                ? payload.installationChargeScope
+                : payload.installationChargeScope === null
+                  ? null
+                  : undefined,
+        installationPricePresentationMode:
+            typeof payload.installationPricePresentationMode === 'string'
+                ? payload.installationPricePresentationMode
+                : payload.installationPricePresentationMode === null
+                  ? null
+                  : undefined,
+        installServiceProduct:
+            payload.installServiceProduct &&
+            typeof payload.installServiceProduct === 'object'
+                ? {
+                      id:
+                          typeof (payload.installServiceProduct as any).id === 'number'
+                              ? (payload.installServiceProduct as any).id
+                              : undefined,
+                      name:
+                          typeof (payload.installServiceProduct as any).name === 'string'
+                              ? (payload.installServiceProduct as any).name
+                              : undefined,
+                      productCode:
+                          typeof (payload.installServiceProduct as any).productCode === 'string'
+                              ? (payload.installServiceProduct as any).productCode
+                              : null,
+                      description:
+                          typeof (payload.installServiceProduct as any).description === 'string'
+                              ? (payload.installServiceProduct as any).description
+                              : null,
+                      salePrice:
+                          (payload.installServiceProduct as any).salePrice === null ||
+                          (payload.installServiceProduct as any).salePrice === undefined
+                              ? null
+                              : Number((payload.installServiceProduct as any).salePrice),
+                      costPrice:
+                          (payload.installServiceProduct as any).costPrice === null ||
+                          (payload.installServiceProduct as any).costPrice === undefined
+                              ? null
+                              : Number((payload.installServiceProduct as any).costPrice),
+                      currency:
+                          typeof (payload.installServiceProduct as any).currency === 'string'
+                              ? (payload.installServiceProduct as any).currency
+                              : null,
+                      taxRate:
+                          (payload.installServiceProduct as any).taxRate === null ||
+                          (payload.installServiceProduct as any).taxRate === undefined
+                              ? null
+                              : Number((payload.installServiceProduct as any).taxRate),
+                      unitOfMeasure:
+                          ((payload.installServiceProduct as any).unitOfMeasure as SalesUnit | undefined) ??
+                          null,
+                  }
+                : null,
         attributes,
         variants,
         parametricDraft,

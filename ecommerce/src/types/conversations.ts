@@ -30,11 +30,20 @@ export type WebchatTranscriptMessage = {
   kind?: string | null;
   text: string;
   createdAt: string;
+  messageElements?: Array<{
+    kind?: string | null;
+    source?: string | null;
+    label?: string | null;
+    preview?: string | null;
+  }>;
+  messageContextOrigin?: string[];
   attachments?: Array<{
     assetType?: string | null;
     fileName?: string | null;
     contentType?: string | null;
+    content?: string | null;
     textContent?: string | null;
+    metadata?: Record<string, unknown> | null;
   }>;
 };
 
@@ -54,6 +63,9 @@ export type WebchatAiResponse = {
   provider: string;
   model: string;
   text: string;
+  finalUserText?: string | null;
+  debugSummary?: string | null;
+  auditPayload?: Record<string, unknown> | null;
   toolCalls: Array<{
     name: string;
     arguments: Record<string, unknown>;
@@ -76,6 +88,9 @@ export type WebchatAiState = {
   memory?: {
     taskId?: string | null;
     intentKey?: string | null;
+    state?: string | null;
+    stateHistory?: string[];
+    lastTransitionAt?: string | null;
     taskSummary?: string | null;
     resetApplied?: boolean;
     resetCount?: number;
@@ -94,8 +109,37 @@ export type WebchatAiState = {
   audit?: {
     role?: string | null;
     intentKey?: string | null;
+    intentConfidence?: number | null;
+    intentSource?: string | null;
+    actionKey?: string | null;
+    stage?: string | null;
+    stageHistory?: string[];
+    decisionPath?: string[];
     blockedTools: string[];
     executedTools: string[];
+    toolCalls?: Array<{
+      name?: string | null;
+      status?: string | null;
+      target?: string | null;
+    }>;
+    referencedMessages?: Array<{
+      messageId?: string | null;
+      createdAt?: string | null;
+      preview?: string | null;
+    }>;
+    messageElementsUsed?: string[];
+    messageElements?: Array<{
+      kind?: string | null;
+      source?: string | null;
+      label?: string | null;
+      preview?: string | null;
+    }>;
+    messageContextOrigin?: string[];
+    detail?: string | null;
+    input?: string | null;
+    grounded?: boolean | null;
+    needsHuman?: boolean | null;
+    fallbackReason?: string | null;
     fallbackActivated: boolean;
     taskChanged: boolean;
     createdAt?: string | null;

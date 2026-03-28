@@ -93,7 +93,7 @@ describe('AI role engine', () => {
       shouldResetContext('customer_authenticated', {
         changed: true,
         previousIntentKey: 'customer.quote',
-        currentIntentKey: 'customer.support',
+        currentIntentKey: 'customer.support_request',
         overlap: 0.4,
       }),
     ).toBe(false)

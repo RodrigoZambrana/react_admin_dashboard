@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import OrderDetailClient from "./OrderDetailClient";
 
 interface OrderDetailPageProps {
@@ -6,5 +7,9 @@ interface OrderDetailPageProps {
 
 export default async function AccountOrderDetailPage({ params }: OrderDetailPageProps) {
   const { uuid } = await params;
-  return <OrderDetailClient identifier={uuid} />;
+  return (
+    <Suspense fallback={null}>
+      <OrderDetailClient identifier={uuid} />
+    </Suspense>
+  );
 }

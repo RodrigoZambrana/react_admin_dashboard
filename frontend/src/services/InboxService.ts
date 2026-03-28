@@ -30,6 +30,7 @@ export type InboxMessageSummaryDto = {
     subject?: string | null
     snippet?: string | null
     previewText?: string | null
+    authorLabel?: string | null
     from?: { name?: string | null; address?: string | null } | null
     to: string[]
     cc: string[]
@@ -79,6 +80,7 @@ export type InboxThreadSummaryDto = {
     subject?: string | null
     previewText?: string | null
     snippet?: string | null
+    authorLabel?: string | null
     from?: { name?: string | null; address?: string | null } | null
     to: string[]
     cc: string[]
@@ -97,10 +99,11 @@ export type InboxThreadSummaryDto = {
         remoteId: string
         threadRemoteId?: string | null
         canonicalThreadKey?: string | null
-        subject?: string | null
-        previewText?: string | null
-        snippet?: string | null
-        from?: { name?: string | null; address?: string | null } | null
+    subject?: string | null
+    previewText?: string | null
+    snippet?: string | null
+    authorLabel?: string | null
+    from?: { name?: string | null; address?: string | null } | null
         to: string[]
         cc: string[]
         bcc: string[]

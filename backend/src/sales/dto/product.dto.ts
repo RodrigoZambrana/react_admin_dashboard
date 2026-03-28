@@ -1,7 +1,14 @@
 import { IsArray, IsBoolean, IsEnum, IsIn, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator'
 import { Type } from 'class-transformer'
 import { IsSafeString } from '../../common/validation/is-safe-string.decorator'
-import { ProductAttributeType, ProductMode, SalesUnit } from '@prisma/client'
+import {
+  InstallationChargeScope,
+  InstallationPricePresentationMode,
+  InstallationResolutionMode,
+  ProductAttributeType,
+  ProductMode,
+  SalesUnit,
+} from '@prisma/client'
 
 class ProductImagePayload {
   @IsSafeString()
@@ -79,6 +86,50 @@ class ProductAttributePayload {
   @ValidateNested({ each: true })
   @Type(() => ProductAttributeValuePayload)
   values!: ProductAttributeValuePayload[]
+}
+
+class InstallationServicePayload {
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  name?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  productCode?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  description?: string
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  @Min(0)
+  salePrice?: number
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  @Min(0)
+  costPrice?: number
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  currency?: string
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  @Min(0)
+  taxRate?: number
+
+  @IsOptional()
+  @IsEnum(SalesUnit)
+  unitOfMeasure?: SalesUnit
 }
 
 class ProductVariantAttributePayload {
@@ -234,6 +285,23 @@ export class UpsertProductDto {
   mode?: ProductMode
 
   @IsOptional()
+  @IsEnum(InstallationResolutionMode)
+  installationResolutionMode?: InstallationResolutionMode | null
+
+  @IsOptional()
+  @IsEnum(InstallationChargeScope)
+  installationChargeScope?: InstallationChargeScope | null
+
+  @IsOptional()
+  @IsEnum(InstallationPricePresentationMode)
+  installationPricePresentationMode?: InstallationPricePresentationMode | null
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => InstallationServicePayload)
+  installationService?: InstallationServicePayload | null
+
+  @IsOptional()
   @IsString()
   @IsSafeString()
   currency?: string
@@ -349,6 +417,23 @@ export class UpdateProductDto {
   @IsOptional()
   @IsEnum(ProductMode)
   mode?: ProductMode
+
+  @IsOptional()
+  @IsEnum(InstallationResolutionMode)
+  installationResolutionMode?: InstallationResolutionMode | null
+
+  @IsOptional()
+  @IsEnum(InstallationChargeScope)
+  installationChargeScope?: InstallationChargeScope | null
+
+  @IsOptional()
+  @IsEnum(InstallationPricePresentationMode)
+  installationPricePresentationMode?: InstallationPricePresentationMode | null
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => InstallationServicePayload)
+  installationService?: InstallationServicePayload | null
 
   @IsOptional()
   @IsString()

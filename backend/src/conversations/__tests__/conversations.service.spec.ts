@@ -2741,6 +2741,114 @@ describe('ConversationsService', () => {
     })
   })
 
+  it('persists business auto replies as non-reasoning system messages without reopening the queue', async () => {
+    const createdAt = new Date('2026-03-27T22:00:00.000Z')
+    const captureKnowledgeSpy = vi
+      .spyOn(service as any, 'captureKnowledgeMessage')
+      .mockResolvedValue(undefined)
+
+    prisma.inboxAccount.upsert.mockResolvedValue({
+      id: 'acc_whatsapp',
+      channel: 'WHATSAPP',
+      displayName: 'WhatsApp',
+      address: 'wameta',
+    })
+    prisma.inboxQueue.upsert.mockResolvedValue({
+      id: 'queue_support',
+      slug: 'support',
+      name: 'Support',
+      assignmentMode: 'MANUAL',
+      maxAssignedConversations: 10,
+      slaTargetMinutes: 30,
+    })
+    prisma.inboxQueue.findMany.mockResolvedValue([
+      {
+        id: 'queue_support',
+        slug: 'support',
+        name: 'Support',
+        assignmentMode: 'MANUAL',
+        maxAssignedConversations: 10,
+        slaTargetMinutes: 30,
+        channels: ['WHATSAPP'],
+      },
+    ])
+    const existingConversation = {
+      id: 'conv_existing_auto',
+      tenantKey: 'urucortinas',
+      scope: 'CUSTOMER_PUBLIC',
+      channel: 'WHATSAPP',
+      status: 'WAITING_CUSTOMER',
+      controlMode: 'AI',
+      subject: 'Consulta por WhatsApp',
+      customerId: null,
+      inboxAccountId: 'acc_whatsapp',
+      externalUserId: '+59899111222',
+      externalThreadId: 'thread-auto',
+      externalChannelRef: null,
+      metadata: {},
+      assignedToUserId: null,
+    }
+    prisma.conversation.findUnique.mockResolvedValue(existingConversation)
+    prisma.conversation.update
+      .mockResolvedValueOnce(existingConversation)
+      .mockResolvedValueOnce(existingConversation)
+    prisma.conversation.findFirst.mockResolvedValue(null)
+    prisma.conversationParticipant.findFirst.mockResolvedValue({
+      id: 'part_auto',
+    })
+    prisma.conversationMessage.findFirst.mockResolvedValue(null)
+    prisma.inboxMessage.create.mockResolvedValue({
+      id: 'inbox_auto_1',
+    })
+    prisma.conversationMessage.create.mockResolvedValue({
+      id: 'msg_auto_1',
+      createdAt,
+    })
+
+    const result = await service.ingestInboundMessage({
+      tenantKey: 'urucortinas',
+      channel: 'whatsapp',
+      conversationId: 'conv_existing_auto',
+      userId: '+59899111222',
+      inboxAddress: 'wameta',
+      threadId: 'thread-auto',
+      externalMessageId: 'wa-auto-1',
+      text: 'Gracias por tu mensaje. Te responderemos en horario de atención.',
+      authorKind: 'business_auto',
+      messageKind: 'business_auto_reply',
+      metadata: { provider: 'meta' },
+    })
+
+    expect(prisma.conversationMessage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        conversationId: 'conv_existing_auto',
+        authorType: 'SYSTEM',
+        kind: 'SYSTEM_EVENT',
+        metadata: expect.objectContaining({
+          authorKind: 'business_auto',
+          messageKind: 'business_auto_reply',
+        }),
+      }),
+      select: {
+        id: true,
+        createdAt: true,
+      },
+    })
+    expect(prisma.conversation.update).toHaveBeenCalledWith({
+      where: { id: 'conv_existing_auto' },
+      data: {
+        lastMessageAt: createdAt,
+      },
+    })
+    expect(captureKnowledgeSpy).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      conversationId: 'conv_existing_auto',
+      status: 'waiting_customer',
+      authorKind: 'business_auto',
+      messageKind: 'business_auto_reply',
+    })
+  })
+
   it('lists messaging contacts including the internal assistant contact', async () => {
     prisma.customer.findMany.mockResolvedValue([
       {
