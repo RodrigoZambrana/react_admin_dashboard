@@ -3292,6 +3292,7 @@ export class ConversationsService {
             address: true,
             displayName: true,
             channel: true,
+            metadata: true,
           },
         },
         participants: {
@@ -3410,6 +3411,28 @@ export class ConversationsService {
             (this.asRecord(sentMessage.metadata)?.messageId as string | undefined) ??
             sentMessage.remoteId,
           threadRemoteId: sentMessage.threadRemoteId ?? null,
+          ...(extraMetadata ?? {}),
+        },
+      }
+    }
+
+    if (this.isWhatsappQrConversation(conversation)) {
+      const outbound = await this.dispatchWhatsappQrOutbound(conversation, body, {
+        source,
+        ...(extraMetadata ?? {}),
+      })
+
+      return {
+        kind: ConversationMessageKind.TEXT,
+        sentAt,
+        externalMessageId: outbound.remoteId,
+        inboxMessageId: outbound.inboxMessageId,
+        metadata: {
+          channel: this.normalizeEnum(conversation.channel),
+          deliveryStatus: outbound.deliveryStatus,
+          provider: outbound.provider,
+          providerMessageId: outbound.providerMessageId ?? outbound.remoteId,
+          threadRemoteId: outbound.threadRemoteId ?? null,
           ...(extraMetadata ?? {}),
         },
       }
@@ -3611,6 +3634,126 @@ export class ConversationsService {
       providerMessageId: payload?.providerMessageId ?? payload?.remoteId ?? null,
       deliveryStatus: payload?.deliveryStatus || 'accepted',
       provider: payload?.provider || 'meta-graph',
+      inboxMessageId: createdInboxMessage.id,
+    }
+  }
+
+  private async dispatchWhatsappQrOutbound(
+    conversation: Awaited<ReturnType<ConversationsService['requireConversationForOutbound']>>,
+    body: string,
+    metadata: Record<string, unknown>,
+  ) {
+    if (!conversation.inboxAccountId) {
+      throw new BadRequestException('conversation.whatsappInboxRequired')
+    }
+
+    const recipientId =
+      conversation.externalUserId?.trim() ||
+      conversation.participants
+        .map((participant) => participant.externalUserId)
+        .find((value) => value?.trim()) ||
+      null
+
+    if (!recipientId) {
+      throw new BadRequestException('conversation.whatsappRecipientRequired')
+    }
+
+    const channelAdapterBaseUrl =
+      this.config.get<string>('CHANNEL_ADAPTER_BASE_URL') ||
+      'http://channel-adapter:4200'
+
+    const response = await fetch(
+      `${channelAdapterBaseUrl.replace(/\/$/, '')}/dispatch/whatsapp-qr`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-ai-internal-token':
+            this.config.get<string>('AI_INTERNAL_TOKEN') ||
+            'local-ai-internal-token',
+        },
+        body: JSON.stringify({
+          conversationId: conversation.id,
+          tenantKey: conversation.tenantKey,
+          channel: this.normalizeEnum(conversation.channel),
+          inboxAccountId: conversation.inboxAccountId,
+          inboxAddress: conversation.inboxAccount?.address ?? null,
+          recipientId,
+          threadId: conversation.externalThreadId ?? null,
+          text: body,
+          metadata,
+        }),
+      },
+    )
+
+    const rawText = await response.text()
+    const payload = rawText ? JSON.parse(rawText) : null
+
+    if (!response.ok) {
+      throw new BadRequestException(
+        payload?.message || 'conversation.whatsappQrDispatchFailed',
+      )
+    }
+
+    const createdInboxMessage = await this.prisma.$transaction(async (tx) => {
+      const inboxMessage = await tx.inboxMessage.create({
+        data: {
+          accountId: conversation.inboxAccountId!,
+          channel: InboxChannelType.WHATSAPP,
+          provider:
+            typeof payload?.provider === 'string'
+              ? payload.provider
+              : 'whatsapp-qr',
+          messageUid: payload?.remoteId || `waqr:${randomUUID()}`,
+          remoteId: payload?.remoteId || `waqr:${randomUUID()}`,
+          threadRemoteId:
+            payload?.threadRemoteId || conversation.externalThreadId || null,
+          subject: conversation.subject ?? null,
+          snippet: body.slice(0, 280),
+          previewText: body.slice(0, 280),
+          fromAddress: conversation.inboxAccount?.address ?? null,
+          fromName: conversation.inboxAccount?.displayName ?? null,
+          toAddresses: [recipientId],
+          ccAddresses: [],
+          bccAddresses: [],
+          replyToAddresses: [],
+          direction: InboxMessageDirection.OUTBOUND,
+          folder: 'sent',
+          queueId: conversation.messages[0]?.inboxMessage?.queueId ?? null,
+          sentAt: new Date(),
+          metadata: this.toJsonValue({
+            source: metadata.source ?? 'conversation-hub',
+            deliveryStatus: payload?.deliveryStatus ?? 'accepted',
+            providerMessageId: payload?.providerMessageId ?? payload?.remoteId ?? null,
+            ...(payload?.metadata ?? {}),
+          }),
+        },
+        select: {
+          id: true,
+        },
+      })
+
+      await tx.inboxMessageEvent.create({
+        data: {
+          messageId: inboxMessage.id,
+          type: InboxMessageEventType.SENT,
+          payload: this.toJsonValue({
+            channel: this.normalizeEnum(conversation.channel),
+            deliveryStatus: payload?.deliveryStatus ?? 'accepted',
+            providerMessageId: payload?.providerMessageId ?? payload?.remoteId ?? null,
+          }),
+        },
+      })
+
+      return inboxMessage
+    })
+
+    return {
+      remoteId: payload?.remoteId || `waqr:${randomUUID()}`,
+      threadRemoteId: payload?.threadRemoteId || conversation.externalThreadId || null,
+      providerMessageId: payload?.providerMessageId ?? payload?.remoteId ?? null,
+      deliveryStatus: payload?.deliveryStatus || 'accepted',
+      provider: payload?.provider || 'whatsapp-qr',
       inboxMessageId: createdInboxMessage.id,
     }
   }
@@ -4344,6 +4487,16 @@ export class ConversationsService {
       channel === ConversationChannel.FACEBOOK ||
       channel === ConversationChannel.INSTAGRAM
     )
+  }
+
+  private isWhatsappQrConversation(
+    conversation: Awaited<ReturnType<ConversationsService['requireConversationForOutbound']>>,
+  ) {
+    if (conversation.channel !== ConversationChannel.WHATSAPP) {
+      return false
+    }
+    const metadata = this.asRecord(conversation.inboxAccount?.metadata)
+    return metadata?.transport === 'whatsapp_qr'
   }
 
   private asRecord(input: unknown): Record<string, unknown> | null {

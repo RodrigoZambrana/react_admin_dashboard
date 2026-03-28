@@ -56,9 +56,21 @@ Resultado buscado:
   - `information_then_handoff`
   - `material_followup`
 
+### 4. Sanitización backend por proceso crítico
+Problema:
+- hoy ya existe saneamiento global, pero falta endurecimiento semántico por acción
+
+Resultado buscado:
+- payloads correctos y seguros antes de ejecutar:
+  - productos
+  - presupuestos
+  - pagos
+  - agenda
+  - customer updates
+
 ## Prioridad 2: mayor valor para cierre funcional end-to-end
 
-### 4. Política estructurada de instalación completa
+### 5. Política estructurada de instalación completa
 Problema:
 - hoy existe resolución comercial básica, pero faltan reglas más finas
 
@@ -76,7 +88,7 @@ Implementación:
 - producto/servicio relacionado
 - posible regla por categoría, producto y override puntual
 
-### 5. Fórmulas variables de instalación
+### 6. Fórmulas variables de instalación
 Problema:
 - hoy ya existe soporte estructural para distintos scopes, pero no fórmulas ricas por tenant
 
@@ -89,12 +101,12 @@ Resultado buscado:
 
 ## Prioridad 3: mayor valor para capacidades ejecutivas
 
-### 6. Cobertura completa de acciones en todos los canales
+### 7. Cobertura completa de acciones en todos los canales
 Resultado buscado:
 - todo lo que hoy ejecuta webchat debe poder ejecutarse también en WhatsApp
 - todo lo que ejecuta customer/admin debe compartir contratos y ownership claros
 
-### 7. Centralización de ownership por proceso crítico
+### 8. Centralización de ownership por proceso crítico
 Procesos:
 - productos
 - pedidos
@@ -110,13 +122,13 @@ Regla:
 
 ## Prioridad 4: escala reusable del producto
 
-### 8. Capability profiles por solución
+### 9. Capability profiles por solución
 - `content_only`
 - `ecommerce_assistant`
 - `scheduling_assistant`
 - `full_assistant`
 
-### 9. Embebido reusable por script
+### 10. Embebido reusable por script
 Objetivo:
 - instalar el widget por snippet
 - activar solo capacidades necesarias según el cliente
@@ -129,3 +141,14 @@ Se considera “chat automatizado fluido y usable” cuando:
 - responde con wording flexible, no robótico
 - ejecuta tareas reales con payloads completos y validados
 - cae a humano de forma limpia cuando no puede resolver
+
+## Slice prioritario inmediato ya abierto
+WhatsApp QR ya queda como canal transversal configurable desde UI.
+
+Pendientes de ese slice, priorizados:
+1. enriquecer `quote_handoff` cuando el intake ya está completo
+2. cerrar `support_request -> schedule_request` con estado compartido
+3. ampliar más claves seguras del rewrite híbrido
+4. modelar instalación variable por medida/tipo/producto relacionado
+5. completar paridad de ejecución en storefront, admin y WhatsApp
+6. endurecer sanitización backend por proceso crítico

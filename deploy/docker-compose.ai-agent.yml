@@ -41,12 +41,16 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-local-ai-internal-token}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
+      WHATSAPP_QR_RUNTIME_DIR: /app/runtime/whatsapp-qr
     depends_on:
       - backend
       - ai-agent-service
       - redis
     ports:
       - "${CHANNEL_ADAPTER_PORT:-4200}:4200"
+    volumes:
+      - channel-adapter-whatsapp-runtime:/app/runtime/whatsapp-qr
 
   redis:
     profiles: ["ai", "ai-cache"]
@@ -55,3 +59,6 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "${REDIS_PORT:-6379}:6379"
+
+volumes:
+  channel-adapter-whatsapp-runtime:
